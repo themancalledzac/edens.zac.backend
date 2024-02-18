@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Builder
@@ -19,4 +20,6 @@ public class Image {
     private Integer rating; // - This implies a 1-5 rating scheme, ala Lightroom.
     private String date;
     private String adventure;
+    private LocalDateTime createDate;
+    private LocalDateTime updateDate;
 }
