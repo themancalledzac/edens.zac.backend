@@ -1,12 +1,14 @@
 package edens.zac.portfolio.backend.controller;
 
 import edens.zac.portfolio.backend.model.Image;
+import edens.zac.portfolio.backend.model.PhotoCategoryPackage;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -15,7 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @AllArgsConstructor
@@ -81,10 +85,15 @@ public class ImageController {
         return new ResponseEntity<>((HttpStatus.CREATED));
     }
 
-    @RequestMapping(value = "/createImage", method = RequestMethod.POST)
-    public ResponseEntity<Void> createImage(@RequestParam("image") MultipartFile file) {
-        Image savedImage = imageService.createImage(file);
-        return null;
+    @RequestMapping(value = "/getImageMetadata", method = RequestMethod.POST)
+    public Map<String, String> getImageMetadata(@RequestParam("image") MultipartFile file) {
+        return imageService.getImageMetadata(file);
+    }
+
+    @PostMapping("/getBatchImageMetadata")
+    public List<Map<String, String>> getBatchImageMetadata(@RequestParam("images") List<MultipartFile> files) {
+        return files.stream().map(imageService::getImageMetadata) // file -> imageService.getImageMetadata(file)
+                .collect(Collectors.toList());
     }
 
     // https://stackoverflow.com/questions/37253571/spring-data-jpa-difference-between-findby-findallby
@@ -102,4 +111,9 @@ public class ImageController {
         return null;
     }
 
+
+    @RequestMapping(value = "/getImagesByCategory", method = RequestMethod.GET)
+    public List<PhotoCategoryPackage> getImagesByCategory(@RequestParam List<String> categories) {
+        return imageService.getImagesByCategory(categories);
+    }
 }

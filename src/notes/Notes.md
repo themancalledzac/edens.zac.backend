@@ -5,13 +5,44 @@
 - ### **_Milestone 1:_**
     - Database Built
         - Tables Built
+            - IMAGE
+                - columns
+                    - focalLength
+                    - fStop
+                    - shutterSpeed
+                    - iso
+                    - author
+                    - lens
+                    - lensSpecific
+                    - camera
+                    - date
+                    - imageHeight
+                    - imageWidth
+                    - horizontal
+                    - blackAndWhite
+                    - rawFileName
+                    - rating
+                    - title
+                    - projects[List] - Categories are 'events', a set list of images as a part of a whole.
+                    - tags - Any associative tag ( bw, portugal, person, flower)
+            - PROJECT
+              - columns
+                - title
+                - location
+                - date
+                - images[List]
+                - tags
+            - TAGS
+              - images[List]
+              - projects[List]
         - Logic for passing Image to Program(Platform?)
             - Program(Platform?): takes client requests, verifies request(AUTH0?) adds data to various database tables
             - Upload Image.
-            - Get EXIF Data from JPEG
-            - https://stackoverflow.com/questions/16115851/read-image-metadata-from-single-file-with-java
-            - Save that Data to Program
-                - We would like all relevant image metadata to be added to the Image table.
+    - Get EXIF Data from JPEG
+        - https://stackoverflow.com/questions/16115851/read-image-metadata-from-single-file-with-java
+        - Save that Data to Program
+            - We would like all relevant image metadata to be added to the Image table.
+    - Database built for AWS
 - ### **_Milestone 2:_**
       - `CreateImage` call is built First. ( Should add to Image, AllImages, Adventure, AllAdventures )
       - `GetAllImage` call built Second ( just returning a full list of image objects with uuid, imageLocation, rating)

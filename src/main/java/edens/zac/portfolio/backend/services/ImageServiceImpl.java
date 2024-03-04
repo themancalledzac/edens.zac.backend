@@ -4,27 +4,18 @@ import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
-import com.drew.metadata.exif.ExifIFD0Directory;
-import com.drew.metadata.exif.ExifImageDirectory;
-import com.drew.metadata.exif.ExifSubIFDDirectory;
-import com.drew.metadata.exif.ExifThumbnailDirectory;
-import com.drew.metadata.icc.IccDirectory;
-import com.drew.metadata.jpeg.JpegDirectory;
 import com.drew.metadata.xmp.XmpDirectory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.Image;
+import edens.zac.portfolio.backend.model.PhotoCategoryPackage;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.imaging.common.ImageMetadata;
 import org.apache.commons.imaging.ImageReadException;
-import org.apache.commons.imaging.Imaging;
-import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata;
 import org.apache.commons.imaging.formats.tiff.TiffImageMetadata;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.apache.commons.imaging.common.ImageMetadata.ImageMetadataItem;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -32,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -180,115 +172,60 @@ public class ImageServiceImpl implements ImageService {
                 .collect(Collectors.toList());
     }
 
-    public Image createImage(MultipartFile file) {
+    public Map<String, String> getImageMetadata(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
             Metadata metadata = ImageMetadataReader.readMetadata(inputStream);
-//            ExifIFD0Directory exifIFD0Directory = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
-//            JpegDirectory jpegDirectory = metadata.getFirstDirectoryOfType(JpegDirectory.class);
-//            ExifSubIFDDirectory exifSubIFDDirectory = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
-//            ExifThumbnailDirectory exifThumbnailDirectory = metadata.getFirstDirectoryOfType(ExifThumbnailDirectory.class);
-//            XmpDirectory xmpDirectory = metadata.getFirstDirectoryOfType(XmpDirectory.class);
 
-            ObjectMapper objectMapper = new ObjectMapper();
-            List<Map<String, Object>> directoryList = new ArrayList<>();
-            // loop through all directories
-            for (Directory directory : metadata.getDirectories()) {
-                Map<String, String> tagMap = new HashMap<>();
+            List<Map<String, Object>> directoriesList = collectAllDirectoriesMetadata(metadata);
+            Map<String, String> imageReturnMetadata = new HashMap<>();
+            imageReturnMetadata.put("focalLength", extractValueForKey(directoriesList, "Focal Length 35"));
+            imageReturnMetadata.put("fStop", extractValueForKey(directoriesList, "F-Number"));
+            imageReturnMetadata.put("shutterSpeed", extractValueForKey(directoriesList, "Shutter Speed Value"));
+            imageReturnMetadata.put("iso", extractValueForKey(directoriesList, "ISO Speed Ratings"));
+            imageReturnMetadata.put("author", extractValueForKey(directoriesList, "Artist"));
+            imageReturnMetadata.put("lens", extractValueForKey(directoriesList, "Lens Model"));
+            imageReturnMetadata.put("lensSpecific", extractValueForKey(directoriesList, "Lens Specification"));
+            imageReturnMetadata.put("camera", extractValueForKey(directoriesList, "Model"));
+            imageReturnMetadata.put("date", extractValueForKey(directoriesList, "Date/Time Original"));
+            imageReturnMetadata.put("imageHeight", extractValueForKey(directoriesList, "Image Height"));
+            imageReturnMetadata.put("imageWidth", extractValueForKey(directoriesList, "Image Width"));
+            imageReturnMetadata.put("horizontal", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:PerspectiveHorizontal"), "0")));
+            imageReturnMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
+            imageReturnMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
+            imageReturnMetadata.put("rating", extractValueForKey(directoriesList, "xmp:Rating"));
+            imageReturnMetadata.put("title", file.getOriginalFilename());
 
-                // loop through all tags in the directory
-                for (Tag tag : directory.getTags()) {
-                    tagMap.put(tag.getTagName(), tag.getDescription());
-                }
-                // Special handling for XMP Directory
-                if (directory instanceof XmpDirectory) {
-                    XmpDirectory xmpDirectory = (XmpDirectory) directory;
-                    Map<String, String> xmpProperties = xmpDirectory.getXmpProperties();
-                    if (xmpProperties != null) {
-                        for (Map.Entry<String, String> entry : xmpProperties.entrySet()) {
-                            // Prefix XMP properties to distinguish them from standard tags
-                            tagMap.put(entry.getKey(), entry.getValue());
-                        }
-                    }
-                }
-                try {
-                    String json = objectMapper.writeValueAsString(tagMap);
-                    System.out.println(directory.getClass().getSimpleName() + ": " + json);
-                    directoryList.put("'" + directory.getClass().getSimpleName() + "'", )
-                } catch (JsonProcessingException e) {
-                    e.printStackTrace();
-                }
+            Image builtImage = Image.builder()
+                    .uuid(UUID.randomUUID())
+                    .version(1)
+                    .name(file.getName())
+                    .location(null)
+                    .imageUrlSmall(null)
+                    .imageUrlLarge(null)
+                    .imageUrlRaw(null)
+                    .rating(Integer.valueOf(extractValueForKey(directoriesList, "xmp:Rating")))
+                    .date(extractValueForKey(directoriesList, "Date/Time Original"))
+                    .adventure(null)
+//                    .createDate(LocalDateTime.parse(extractValueForKey(directoriesList, "Date/Time Original"))) // TODO: Looks like this line doesn't work
+                    .updateDate(LocalDateTime.now())
+                    .build();
+            imageMap.put(builtImage.getUuid(), builtImage);
 
-                // If you encounter specific directories and want to handle them differently
-                if (directory instanceof ExifIFD0Directory) {
-                    // Special handling for ExifIFD0Directory
-                    System.out.println("exifIFDODirectory");
-                    // For example, extracting specific fields you know will exist in this directory
-                }
-            }
-
-//
-//            if (xmpDirectory != null) {
-//                System.out.println("metadata: " + metadata.toString());
-//                System.out.println("xmpDirectory: " + xmpDirectory);
-//                System.out.println("xmpDirectory: " + xmpDirectory.getXmpProperties().toString());
-//                String ratingKey = "xmp:Rating"; // Adjust based on the actual format
-//                String rating = xmpDirectory.getXmpProperties().get(ratingKey);
-//
-//                String xmpDirectoryString = printDirectory(xmpDirectory);
-//                String exifImageDirectoryToString = printDirectory(exifIFD0Directory);
-
-//                ObjectMapper objectMapper = new ObjectMapper();
-//                String json = objectMapper.writeValueAsString(xmpDirectory.getXmpProperties());
-//                System.out.println(json);
-
-//                String ratingTest = metadata.getFirstDirectoryOfType(XmpDirectory.class).getXmpProperties().get("xmp:Rating");
-//                String cameraName = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class).getTags() ??
-
-//                String rating = xmpDirectory.getXmpProperties().get("xmp: Rating");
-//                if (rating != null) {
-//                    System.out.println("rating is: " + Integer.parseInt(rating));
-////                    return Integer.parseInt(rating);
-//                }
-//            }
+            // option 1: PRINT JSON to console
+//            String jsonReturn = printDirectoriesMetadataAsJson(directoriesList);
+//            saveDirectoriesMetadataAsJsonFile(directoriesList, "testJson/zacTest.json");
+//            return printDirectoriesMetadataAsJson(imageReturnMetadata);
+            return imageReturnMetadata;
         } catch (Exception e) {
             e.printStackTrace();
-            // Handle the exception appropriately
         }
-        return null; // Rating not found or an error occurred
-
-        // old
-
-        //        try {
-//            ImageMetadata metadata = Imaging.getMetadata(file.getInputStream(), file.getOriginalFilename());
-//            if (metadata instanceof JpegImageMetadata jpegImageMetadata) {
-//                TiffImageMetadata exifMetadata = jpegImageMetadata.getExif();
-//                for (ImageMetadataItem item : metadata.getItems()) {
-//                    System.out.println(item);
-////                    if (item.getKeyword().equalsIgnoreCase("Rating")) {
-////                        String ratingValue = item.getText();
-////                        return Integer.parseInt(ratingValue);
-//                }
-//            }
-//            return null;
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//        return null;
+        return null;
     }
 
-//    private String printDirectory(XmpDirectory xmpDirectory) throws JsonProcessingException {
-//        ObjectMapper objectMapper = new ObjectMapper();
-//        String json = objectMapper.writeValueAsString(xmpDirectory.getXmpProperties());
-//        System.out.println(json);
-//        return json;
-//    }
-//
-//    private String printDirectory(ExifIFD0Directory exifIFD0Directory) throws JsonProcessingException {
-//        ObjectMapper objectMapper = new ObjectMapper();
-//        String json = objectMapper.writeValueAsString(exifIFD0Directory.getTags());
-//        System.out.println(json);
-//        return json;
-//    }
+    @Override
+    public List<PhotoCategoryPackage> getImagesByCategory(List<String> categories) {
+        return null;
+    }
 
     public List<Map<String, Object>> collectAllDirectoriesMetadata(Metadata metadata) {
         List<Map<String, Object>> directoriesList = new ArrayList<>();
@@ -296,7 +233,59 @@ public class ImageServiceImpl implements ImageService {
         for (Directory directory : metadata.getDirectories()) {
             Map<String, Object> directoryData = new HashMap<>();
             Map<String, String> tagMap = new HashMap<>();
+
+            for (Tag tag : directory.getTags()) {
+                tagMap.put(tag.getTagName(), tag.getDescription());
+            }
+
+            // Special handling for XMP Directory
+            if (directory instanceof XmpDirectory) {
+                XmpDirectory xmpDirectory = (XmpDirectory) directory;
+                Map<String, String> xmpProperties = xmpDirectory.getXmpProperties();
+                if (xmpProperties != null) {
+                    for (Map.Entry<String, String> entry : xmpProperties.entrySet()) {
+                        // Prefix XMP properties to distinguish them from standard tags
+                        tagMap.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
+            directoryData.put(directory.getClass().getSimpleName(), tagMap);
+            directoriesList.add(directoryData);
         }
+        return directoriesList;
+    }
+
+    public String printDirectoriesMetadataAsJson(Map<String, String> directoriesList) throws JsonProcessingException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(directoriesList);
+        System.out.println(json);
+        return json;
+    }
+
+    public void saveDirectoriesMetadataAsJsonFile(List<Map<String, Object>> directoriesList, String filePath) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(new File(filePath), directoriesList);
+    }
+
+    public static String extractValueForKey(List<Map<String, Object>> directoriesList, String targetKey) {
+        // loop through each directory
+        for (Map<String, Object> directoryData : directoriesList) {
+
+            // each key in directoryData map is the directoryname, and the value is the metadata map
+            for (Map.Entry<String, Object> entry : directoryData.entrySet()) {
+
+                // cast the value to Map<String, String> as we know it's the structure of our metadata
+                Map<String, String> metadata = (Map<String, String>) entry.getValue();
+
+                // check if this metadata map contains the target key
+                if (metadata.containsKey(targetKey)) {
+                    return metadata.get(targetKey);
+                }
+            }
+//            Map<String, String> metdata = (Map<String, String>) directoryData.get("metadata")
+        }
+        return null;
     }
 
     private String printDirectory(Directory directory) throws JsonProcessingException {
