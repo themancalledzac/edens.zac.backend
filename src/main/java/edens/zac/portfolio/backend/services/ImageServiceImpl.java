@@ -9,9 +9,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.Image;
 import edens.zac.portfolio.backend.model.PhotoCategoryPackage;
+import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.imaging.ImageReadException;
 import org.apache.commons.imaging.formats.tiff.TiffImageMetadata;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -30,6 +32,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class ImageServiceImpl implements ImageService {
+
+    @Autowired
+    private ImageRepository imageRepository;
 
     private Map<UUID, Image> imageMap;
 
@@ -172,6 +177,53 @@ public class ImageServiceImpl implements ImageService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Map<String, String> postImage(MultipartFile file) {
+        try (InputStream inputStream = file.getInputStream()) {
+            Metadata metadata = ImageMetadataReader.readMetadata(inputStream);
+
+            List<Map<String, Object>> directoriesList = collectAllDirectoriesMetadata(metadata);
+            Map<String, String> imageReturnMetadata = new HashMap<>();
+            imageReturnMetadata.put("focalLength", extractValueForKey(directoriesList, "Focal Length 35"));
+            imageReturnMetadata.put("fStop", extractValueForKey(directoriesList, "F-Number"));
+            imageReturnMetadata.put("shutterSpeed", extractValueForKey(directoriesList, "Shutter Speed Value"));
+            imageReturnMetadata.put("iso", extractValueForKey(directoriesList, "ISO Speed Ratings"));
+            imageReturnMetadata.put("author", extractValueForKey(directoriesList, "Artist"));
+            imageReturnMetadata.put("lens", extractValueForKey(directoriesList, "Lens Model"));
+            imageReturnMetadata.put("lensSpecific", extractValueForKey(directoriesList, "Lens Specification"));
+            imageReturnMetadata.put("camera", extractValueForKey(directoriesList, "Model"));
+            imageReturnMetadata.put("date", extractValueForKey(directoriesList, "Date/Time Original"));
+            imageReturnMetadata.put("imageHeight", extractValueForKey(directoriesList, "Image Height"));
+            imageReturnMetadata.put("imageWidth", extractValueForKey(directoriesList, "Image Width"));
+            imageReturnMetadata.put("horizontal", String.valueOf(isHorizontal(extractValueForKey(directoriesList, "Image Height"), extractValueForKey(directoriesList, "Image Width"))));
+            imageReturnMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
+            imageReturnMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
+            imageReturnMetadata.put("rating", extractValueForKey(directoriesList, "xmp:Rating"));
+            imageReturnMetadata.put("title", file.getOriginalFilename());
+
+            Image builtImage = Image.builder()
+                    .uuid(UUID.randomUUID())
+                    .version(1)
+                    .name(file.getName())
+                    .location(null)
+                    .imageUrlSmall(null)
+                    .imageUrlLarge(null)
+                    .imageUrlRaw(null)
+                    .rating(Integer.valueOf(extractValueForKey(directoriesList, "xmp:Rating")))
+                    .date(extractValueForKey(directoriesList, "Date/Time Original"))
+                    .adventure(null)
+//                    .createDate(LocalDateTime.parse(extractValueForKey(directoriesList, "Date/Time Original"))) // TODO: Looks like this line doesn't work
+                    .updateDate(LocalDateTime.now())
+                    .build();
+            imageMap.put(builtImage.getUuid(), builtImage);
+            imageRepository.save(builtImage);
+            return imageReturnMetadata;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public Map<String, String> getImageMetadata(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
             Metadata metadata = ImageMetadataReader.readMetadata(inputStream);
@@ -189,11 +241,13 @@ public class ImageServiceImpl implements ImageService {
             imageReturnMetadata.put("date", extractValueForKey(directoriesList, "Date/Time Original"));
             imageReturnMetadata.put("imageHeight", extractValueForKey(directoriesList, "Image Height"));
             imageReturnMetadata.put("imageWidth", extractValueForKey(directoriesList, "Image Width"));
-            imageReturnMetadata.put("horizontal", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:PerspectiveHorizontal"), "0")));
+            imageReturnMetadata.put("horizontal", String.valueOf(isHorizontal(extractValueForKey(directoriesList, "Image Height"), extractValueForKey(directoriesList, "Image Width"))));
             imageReturnMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
             imageReturnMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
             imageReturnMetadata.put("rating", extractValueForKey(directoriesList, "xmp:Rating"));
             imageReturnMetadata.put("title", file.getOriginalFilename());
+
+            // TODO: Update this so we have imageWidth/imageHeight, and imageRatioWidth/imageRatioHeight as well.
 
             Image builtImage = Image.builder()
                     .uuid(UUID.randomUUID())
@@ -220,6 +274,13 @@ public class ImageServiceImpl implements ImageService {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public boolean isHorizontal(String height, String width) {
+        // Regular expression to remove non-digit characters
+        String numericHeight = height.replaceAll("[^\\d]", "");
+        String numericWidth = width.replaceAll("[^\\d]", "");
+        return Integer.parseInt(numericHeight) <= Integer.parseInt(numericWidth);
     }
 
     @Override

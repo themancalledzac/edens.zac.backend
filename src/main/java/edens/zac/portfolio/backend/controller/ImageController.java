@@ -85,6 +85,12 @@ public class ImageController {
         return new ResponseEntity<>((HttpStatus.CREATED));
     }
 
+    @PostMapping("/postImage")
+    public List<Map<String, String>> postImages(@RequestParam("images") List<MultipartFile> files) {
+        return files.stream().map(imageService::postImage) // file -> imageService.getImageMetadata(file)
+                .collect(Collectors.toList());
+    }
+
     @RequestMapping(value = "/getImageMetadata", method = RequestMethod.POST)
     public Map<String, String> getImageMetadata(@RequestParam("image") MultipartFile file) {
         return imageService.getImageMetadata(file);

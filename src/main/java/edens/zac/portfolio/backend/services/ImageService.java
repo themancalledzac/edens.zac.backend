@@ -22,6 +22,8 @@ public interface ImageService {
     Map<String, String> getImageMetadata(MultipartFile image);
 
     List<PhotoCategoryPackage> getImagesByCategory(List<String> categories);
+
+    Map<String, String> postImage(MultipartFile image);
 }
 
 

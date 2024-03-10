@@ -186,4 +186,26 @@ short term storage image bucket)
 TODO: we could have an alternator value (preferLarge==true/false) that prefers a Large row, UNTIL we have gotten one //
 TODO: aka, if(preferLarge) => check large row options first(aka, do we have 1 horizontal, or two vertical)
 // TODO: aka, if(!preferLarge) => check small row opetion first
-       
+
+
+- ### **_TODO_**
+  - Photography
+    - FOR ALL IMAGE Folders, 
+      - delete all Non-keepers
+      - delete any that don't serve a purpose
+      - 
+      - save RAW files to AWS Glacier storage
+        - 1000GB for $3.60/month
+  - Backend
+    - Database Creation
+      - Image Table Object finalized
+      - Database connection working
+      - Save Image to Database DB Call created
+      - Get Image from Database DB Call created
+      - Get Images by ____ DB Calls figured out.
+        - What are our main calls we want here?
+    - AWS Connection
+      - Test 'Add' to S3 bucket
+      - Test return location after upload to S3 bucket
+      - Test get image from S3 bucket by imageLocation
+      - Test get S3 bucket structure as tree (?)
