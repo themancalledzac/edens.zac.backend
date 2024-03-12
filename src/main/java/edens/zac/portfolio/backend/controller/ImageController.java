@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.model.ModalImage;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,6 +41,12 @@ public class ImageController {
         log.debug("Get Image by Uuid - In Controller");
 
         return imageService.getImageById(imageId);
+    }
+
+    @GetMapping("/getImagesByAdventure/{adventure}")
+    public List<ModalImage> getImagesByAdventure(@PathVariable("adventure") String adventure) {
+
+        return imageService.getAllImagesByAdventure(adventure);
     }
 
     /**

@@ -129,6 +129,27 @@ public class ImageServiceImpl implements ImageService {
         return imageOpt.map(this::convertToModalImage).orElse(null);
     }
 
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ModalImage> getAllImagesByAdventure(String adventureTitle) {
+
+        Set<Long> imageIds = imageRepository.findImageIdsByAdventureName(adventureTitle);
+
+        // Corrected stream operation to handle Optional correctly
+        List<Image> images = imageIds.stream()
+                .map(id -> imageRepository.findByIdWithAdventures(id)) // This returns Stream<Optional<Image>>
+                .filter(Optional::isPresent) // Filter to only present Optionals
+                .map(Optional::get) // Extract Image from Optional
+                .collect(Collectors.toList()); // Collect to List<Image>
+
+//        List<Image> images = imageRepository.findByAdventureName(adventureTitle);
+        return images.stream()
+                .map(this::convertToModalImage)
+                .collect(Collectors.toList());
+    }
+
+
     private ModalImage convertToModalImage(Image image) {
         List<String> adventureNames = image.getAdventures().stream().map(Adventure::getName).collect(Collectors.toList());
 
@@ -153,6 +174,7 @@ public class ImageServiceImpl implements ImageService {
         modalImage.setImageUrlRaw(image.getImageUrlRaw());
         modalImage.setCreateDate(image.getCreateDate());
         modalImage.setUpdateDate(image.getUpdateDate());
+        modalImage.setId(image.getId());
         return modalImage;
     }
 
