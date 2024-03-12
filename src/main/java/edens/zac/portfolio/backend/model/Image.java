@@ -13,9 +13,9 @@ public class Image {
 
     private Long id;
     private String title;
-    private String imageWidth;
-    private String imageHeight;
-    private String iso;
+    private Integer imageWidth;
+    private Integer imageHeight;
+    private Integer iso;
     private String author;
     private Integer rating;
     private String fStop;

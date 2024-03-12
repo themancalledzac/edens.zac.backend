@@ -1,11 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,7 +8,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -29,9 +28,9 @@ public class Image {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String title;
-    private String imageWidth;
-    private String imageHeight;
-    private String iso;
+    private Integer imageWidth;
+    private Integer imageHeight;
+    private Integer iso;
     private String author;
     private Integer rating;
     private String fStop;
@@ -48,11 +47,16 @@ public class Image {
     private String createDate;
     private LocalDateTime updateDate;
 
-//    @ManyToMany
-//    @JoinTable(
-//            name = "image_adventure", // Name of the join table
-//            joinColumns = @JoinColumn(name = "image_id"), // Column for Image
-//            inverseJoinColumns = @JoinColumn(name = "adventure_id") // Column for Adventure
-//    )
-//    private Set<Adventure> adventures = new HashSet<>();
+    @ManyToMany(cascade = CascadeType.PERSIST)
+    @JoinTable(
+            name = "image_adventure", // Name of the join table
+            joinColumns = @JoinColumn(name = "image_id"), // Column for Image
+            inverseJoinColumns = @JoinColumn(name = "adventure_id") // Column for Adventure
+    )
+    private Set<Adventure> adventures = new HashSet<>();
+
+    @Transient
+    public List<String> getAdventureNames() {
+        return adventures.stream().map(Adventure::getName).collect(Collectors.toList());
+    }
 }
