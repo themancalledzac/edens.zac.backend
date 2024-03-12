@@ -7,14 +7,13 @@ import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edens.zac.portfolio.backend.model.Image;
-import edens.zac.portfolio.backend.model.PhotoCategoryPackage;
+import edens.zac.portfolio.backend.entity.Image;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.imaging.ImageReadException;
 import org.apache.commons.imaging.formats.tiff.TiffImageMetadata;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -26,158 +25,67 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class ImageServiceImpl implements ImageService {
 
-    @Autowired
-    private ImageRepository imageRepository;
 
-    private Map<UUID, Image> imageMap;
+    private final ImageRepository imageRepository;
+//    private final AdventureRepository adventureRepository;
+//    private final EntityManager entityManager; // required for criteria api
 
-    public ImageServiceImpl() {
-        this.imageMap = new HashMap<>();
 
-        Image Image01 = Image.builder()
-                .uuid(UUID.randomUUID())
-                .version(1)
-                .name("0001.jpg")
-                .location("seattle")
-                .imageUrlLarge("/./large/Image01/0001.jpg/aws.com")
-                .imageUrlSmall("/./small/Image01/0001.jpg/aws.com")
-                .imageUrlRaw("/./raw/Image01/0001.jpg/aws.com")
-                .rating(5)
-                .date("2023")
-                .adventure("city_walk_december_12th")
-                .build();
-
-        Image Image02 = Image.builder()
-                .uuid(UUID.randomUUID())
-                .version(1)
-                .name("0002.jpg")
-                .location("seattle")
-                .imageUrlLarge("/./large/Image02/0002.jpg/aws.com")
-                .imageUrlSmall("/./small/Image02/0002.jpg/aws.com")
-                .imageUrlRaw("/./raw/Image02/0002.jpg/aws.com")
-                .rating(5)
-                .date("2023")
-                .adventure("city_walk_december_12th")
-                .createDate(LocalDateTime.now())
-                .updateDate(LocalDateTime.now())
-                .build();
-
-        Image Image03 = Image.builder()
-                .uuid(UUID.randomUUID())
-                .version(1)
-                .name("0003.jpg")
-                .location("seattle")
-                .imageUrlLarge("/./large/Image03/0001.jpg/aws.com")
-                .imageUrlSmall("/./small/Image03/0001.jpg/aws.com")
-                .imageUrlRaw("/./raw/Image03/0003.jpg/aws.com")
-                .rating(5)
-                .date("2023")
-                .adventure("city_walk_december_12th")
-                .createDate(LocalDateTime.now())
-                .updateDate(LocalDateTime.now())
-                .build();
-
-        Image Image04 = Image.builder()
-                .uuid(UUID.randomUUID())
-                .version(1)
-                .name("0004.jpg")
-                .location("bellevue")
-                .imageUrlLarge("/./large/Image01/0001.jpg/aws.com")
-                .imageUrlSmall("/./small/Image01/0001.jpg/aws.com")
-                .imageUrlRaw("/./raw/Image01/0001.jpg/aws.com")
-                .rating(5)
-                .date("2023")
-                .adventure("city_walk_december_12th")
-                .createDate(LocalDateTime.now())
-                .updateDate(LocalDateTime.now())
-                .build();
-
-        Image Image05 = Image.builder()
-                .uuid(UUID.randomUUID())
-                .version(1)
-                .name("0005.jpg")
-                .location("seattle")
-                .imageUrlLarge("/./large/Image01/0001.jpg/aws.com")
-                .imageUrlSmall("/./small/Image01/0001.jpg/aws.com")
-                .imageUrlRaw("/./raw/Image01/0001.jpg/aws.com")
-                .rating(5)
-                .date("2023")
-                .adventure("city_walk_december_12th")
-                .createDate(LocalDateTime.now())
-                .updateDate(LocalDateTime.now())
-                .build();
-
-        Image Image06 = Image.builder()
-                .uuid(UUID.randomUUID())
-                .version(1)
-                .name("0005.jpg")
-                .location("toronto")
-                .imageUrlLarge("/./large/Image01/0001.jpg/aws.com")
-                .imageUrlSmall("/./small/Image01/0001.jpg/aws.com")
-                .imageUrlRaw("/./raw/Image01/0001.jpg/aws.com")
-                .rating(5)
-                .date("2023")
-                .adventure("city_walk_december_10th")
-                .build();
-
-        imageMap.put(Image01.getUuid(), Image01);
-        imageMap.put(Image02.getUuid(), Image02);
-        imageMap.put(Image03.getUuid(), Image03);
-        imageMap.put(Image04.getUuid(), Image04);
-        imageMap.put(Image05.getUuid(), Image05);
-        imageMap.put(Image06.getUuid(), Image06);
+    public ImageServiceImpl(ImageRepository imageRepository) {
+        this.imageRepository = imageRepository;
     }
+
+//    @Override
+//    public Image getImageByUuid(UUID uuid) {
+//        return imageMap.get(uuid);
+//    }
+
+//    @Override
+//    public List<Image> getImageByCategory(String category) {
+//
+//        return imageMap.values()
+//                .stream()
+//                .filter(image -> category.equals(image.getAdventure()))
+//                .collect(Collectors.toList());
+//    }
+
+//    @Override
+//    public Image saveImage(Image image) {
+//
+//        Image savedImage = Image.builder()
+//                .uuid(UUID.randomUUID())
+//                .version(1)
+//                .name(image.getName())
+//                .location(image.getLocation())
+//                .imageUrlSmall(image.getImageUrlSmall())
+//                .imageUrlLarge(image.getImageUrlLarge())
+//                .imageUrlRaw(image.getImageUrlRaw())
+//                .rating(image.getRating())
+//                .date(image.getDate())
+//                .adventure(image.getAdventure())
+//                .createDate(LocalDateTime.now())
+//                .updateDate(LocalDateTime.now())
+//                .build();
+//        imageMap.put(savedImage.getUuid(), savedImage);
+//        return savedImage;
+//    }
+
+//    public List<Image> getImageByDate(String date) {
+//
+//        return imageMap.values().stream()
+//                .filter(image -> date.equals(image.getDate()))
+//                .collect(Collectors.toList());
+//    }
 
     @Override
-    public Image getImageByUuid(UUID uuid) {
-        return imageMap.get(uuid);
-    }
-
-    @Override
-    public List<Image> getImageByCategory(String category) {
-
-        return imageMap.values()
-                .stream()
-                .filter(image -> category.equals(image.getAdventure()))
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Image saveImage(Image image) {
-
-        Image savedImage = Image.builder()
-                .uuid(UUID.randomUUID())
-                .version(1)
-                .name(image.getName())
-                .location(image.getLocation())
-                .imageUrlSmall(image.getImageUrlSmall())
-                .imageUrlLarge(image.getImageUrlLarge())
-                .imageUrlRaw(image.getImageUrlRaw())
-                .rating(image.getRating())
-                .date(image.getDate())
-                .adventure(image.getAdventure())
-                .createDate(LocalDateTime.now())
-                .updateDate(LocalDateTime.now())
-                .build();
-        imageMap.put(savedImage.getUuid(), savedImage);
-        return savedImage;
-    }
-
-    public List<Image> getImageByDate(String date) {
-
-        return imageMap.values().stream()
-                .filter(image -> date.equals(image.getDate()))
-                .collect(Collectors.toList());
-    }
-
-    @Override
+    @Transactional
     public Map<String, String> postImage(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
             Metadata metadata = ImageMetadataReader.readMetadata(inputStream);
@@ -202,21 +110,36 @@ public class ImageServiceImpl implements ImageService {
             imageReturnMetadata.put("title", file.getOriginalFilename());
 
             Image builtImage = Image.builder()
-                    .uuid(UUID.randomUUID())
-                    .version(1)
-                    .name(file.getName())
+                    .title(file.getOriginalFilename())
+                    .imageWidth(extractValueForKey(directoriesList, "Image Width"))
+                    .imageHeight(extractValueForKey(directoriesList, "Image Height"))
+                    .iso(extractValueForKey(directoriesList, "ISO Speed Ratings"))
+                    .author(extractValueForKey(directoriesList, "Artist"))
+                    .rating(Integer.valueOf(Objects.requireNonNull(extractValueForKey(directoriesList, "xmp:Rating"))))
+                    .fStop(extractValueForKey(directoriesList, "F-Number"))
+                    .lens(extractValueForKey(directoriesList, "Lens Model"))
+                    .blackAndWhite(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True"))
+                    .shutterSpeed(extractValueForKey(directoriesList, "Shutter Speed Value"))
+                    .rawFileName(extractValueForKey(directoriesList, "crs:RawFileName"))
+                    .camera(extractValueForKey(directoriesList, "Model"))
+                    .focalLength(extractValueForKey(directoriesList, "Focal Length 35"))
                     .location(null)
-                    .imageUrlSmall(null)
                     .imageUrlLarge(null)
+                    .imageUrlSmall(null)
                     .imageUrlRaw(null)
-                    .rating(Integer.valueOf(extractValueForKey(directoriesList, "xmp:Rating")))
-                    .date(extractValueForKey(directoriesList, "Date/Time Original"))
-                    .adventure(null)
-//                    .createDate(LocalDateTime.parse(extractValueForKey(directoriesList, "Date/Time Original"))) // TODO: Looks like this line doesn't work
+                    .createDate(extractValueForKey(directoriesList, "Date/Time Original"))
                     .updateDate(LocalDateTime.now())
                     .build();
-            imageMap.put(builtImage.getUuid(), builtImage);
-            imageRepository.save(builtImage);
+
+            Optional<Image> existingImage = imageRepository.findByTitleAndCreateDate(
+                    builtImage.getTitle(), builtImage.getCreateDate()
+            );
+            if (!existingImage.isPresent()) {
+                imageRepository.save(builtImage);
+
+            }
+
+//            imageRepository.save(builtImage);
             return imageReturnMetadata;
         } catch (Exception e) {
             e.printStackTrace();
@@ -250,20 +173,17 @@ public class ImageServiceImpl implements ImageService {
             // TODO: Update this so we have imageWidth/imageHeight, and imageRatioWidth/imageRatioHeight as well.
 
             Image builtImage = Image.builder()
-                    .uuid(UUID.randomUUID())
-                    .version(1)
-                    .name(file.getName())
+                    .title(file.getName())
                     .location(null)
                     .imageUrlSmall(null)
                     .imageUrlLarge(null)
                     .imageUrlRaw(null)
                     .rating(Integer.valueOf(extractValueForKey(directoriesList, "xmp:Rating")))
-                    .date(extractValueForKey(directoriesList, "Date/Time Original"))
-                    .adventure(null)
+                    .createDate(extractValueForKey(directoriesList, "Date/Time Original"))
 //                    .createDate(LocalDateTime.parse(extractValueForKey(directoriesList, "Date/Time Original"))) // TODO: Looks like this line doesn't work
                     .updateDate(LocalDateTime.now())
                     .build();
-            imageMap.put(builtImage.getUuid(), builtImage);
+//            imageMap.put(builtImage.getUuid(), builtImage);
 
             // option 1: PRINT JSON to console
 //            String jsonReturn = printDirectoriesMetadataAsJson(directoriesList);
@@ -283,10 +203,10 @@ public class ImageServiceImpl implements ImageService {
         return Integer.parseInt(numericHeight) <= Integer.parseInt(numericWidth);
     }
 
-    @Override
-    public List<PhotoCategoryPackage> getImagesByCategory(List<String> categories) {
-        return null;
-    }
+//    @Override
+//    public List<PhotoCategoryPackage> getImagesByCategory(List<String> categories) {
+//        return null;
+//    }
 
     public List<Map<String, Object>> collectAllDirectoriesMetadata(Metadata metadata) {
         List<Map<String, Object>> directoriesList = new ArrayList<>();

@@ -4,22 +4,32 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Builder
 @Data
 public class Image {
 
-    private UUID uuid;
-    private Integer version;
-    private String name;
+    private Long id;
+    private String title;
+    private String imageWidth;
+    private String imageHeight;
+    private String iso;
+    private String author;
+    private Integer rating;
+    private String fStop;
+    private String lens;
+    private Boolean blackAndWhite;
+    private String shutterSpeed;
+    private String rawFileName;
+    private String camera;
+    private String focalLength;
     private String location;
     private String imageUrlLarge;
     private String imageUrlSmall;
-    private String imageUrlRaw; // - Not first priority
-    private Integer rating; // - This implies a 1-5 rating scheme, ala Lightroom.
-    private String date;
-    private String adventure;
-    private LocalDateTime createDate;
+    private String imageUrlRaw;
+    private List<String> adventure;
+    private String createDate;
     private LocalDateTime updateDate;
 }
