@@ -8,6 +8,7 @@ import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
 import edens.zac.portfolio.backend.entity.Adventure;
 import edens.zac.portfolio.backend.entity.Image;
+import edens.zac.portfolio.backend.model.ModalImage;
 import edens.zac.portfolio.backend.repository.AdventureRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -102,6 +104,7 @@ public class ImageServiceImpl implements ImageService {
                 Adventure adventure = adventureRepository.findByName(adventureName).orElseGet(() -> adventureRepository.save(new Adventure(adventureName)));
                 adventures.add(adventure);
             }
+            // if image does not yet exist, add adventures, create image.
             if (existingImage.isEmpty()) {
                 builtImage.setAdventures(adventures);
                 imageRepository.save(builtImage);
@@ -115,6 +118,42 @@ public class ImageServiceImpl implements ImageService {
             throw new DataIntegrityViolationException(String.valueOf(e));
         }
 
+    }
+
+    @Override
+    @Transactional(readOnly = true) // use readOnly for fetch operations
+    public ModalImage getImageById(Long imageId) {
+
+        Optional<Image> imageOpt = imageRepository.findByIdWithAdventures(imageId); // required type UUID, provided: Long
+
+        return imageOpt.map(this::convertToModalImage).orElse(null);
+    }
+
+    private ModalImage convertToModalImage(Image image) {
+        List<String> adventureNames = image.getAdventures().stream().map(Adventure::getName).collect(Collectors.toList());
+
+        ModalImage modalImage = new ModalImage(); //  is not public in 'edens.zac.portfolio.backend.model.ModalImage'. Cannot be accessed from outside package
+        modalImage.setTitle(image.getTitle());
+        modalImage.setImageWidth(image.getImageWidth());
+        modalImage.setImageHeight(image.getImageHeight());
+        modalImage.setIso(image.getIso());
+        modalImage.setAuthor(image.getAuthor());
+        modalImage.setRating(image.getRating());
+        modalImage.setFStop(image.getFStop());
+        modalImage.setLens(image.getLens());
+        modalImage.setAdventure(adventureNames);
+        modalImage.setBlackAndWhite(image.getBlackAndWhite());
+        modalImage.setShutterSpeed(image.getShutterSpeed());
+        modalImage.setRawFileName(image.getRawFileName());
+        modalImage.setCamera(image.getCamera());
+        modalImage.setFocalLength(image.getFocalLength());
+        modalImage.setLocation(image.getLocation());
+        modalImage.setImageUrlLarge(image.getImageUrlLarge());
+        modalImage.setImageUrlSmall(image.getImageUrlSmall());
+        modalImage.setImageUrlRaw(image.getImageUrlRaw());
+        modalImage.setCreateDate(image.getCreateDate());
+        modalImage.setUpdateDate(image.getUpdateDate());
+        return modalImage;
     }
 
     // DEPRECATED

@@ -2,14 +2,14 @@ package edens.zac.portfolio.backend.model;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
-@Builder
+@NoArgsConstructor
 @Data
-public class Image {
+public class ModalImage {
 
     private Long id;
     private String title;
@@ -32,4 +32,9 @@ public class Image {
     private List<String> adventure;
     private String createDate;
     private LocalDateTime updateDate;
+
+    // Public getters and setters
+    public void setTitle(String title) {
+        this.title = title;
+    }
 }
