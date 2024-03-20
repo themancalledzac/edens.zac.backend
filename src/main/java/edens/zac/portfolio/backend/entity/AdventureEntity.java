@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+// TODO:
+//  1. Update adventures to ALSO contain 'MainImage', 'Location', 'StartTime', 'EndTime', 'People', 'Strava'
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,22 +30,23 @@ import java.util.stream.Collectors;
 @Table(name = "adventures", uniqueConstraints = {
         @UniqueConstraint(columnNames = "name")
 })
-public class Adventure {
+public class AdventureEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String name;
+    private String imageMainTitle;
 
     @ManyToMany(mappedBy = "adventures")
-    private Set<Image> images = new HashSet<>();
+    private Set<ImageEntity> images = new HashSet<>();
 
-    public Adventure(String adventureName) {
+    public AdventureEntity(String adventureName) {
         this.name = adventureName;
     }
 
     @Transient
     public List<String> getImageTitles() {
-        return images.stream().map(Image::getTitle).collect(Collectors.toList());
+        return images.stream().map(ImageEntity::getTitle).collect(Collectors.toList());
     }
 }

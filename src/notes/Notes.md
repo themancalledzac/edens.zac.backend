@@ -196,13 +196,8 @@ TODO: aka, if(preferLarge) => check large row options first(aka, do we have 1 ho
             - save RAW files to AWS Glacier storage
                 - 1000GB for $3.60/month
     - Backend
-        - Database Creation
-            - Image Table Object finalized
-            - Database connection working
-            - Save Image to Database DB Call created
-            - Get Image from Database DB Call created
-            - Get Images by ____ DB Calls figured out.
-                - What are our main calls we want here?
+        - Adventure Endpoints created:
+            - Create Adventure
             - Get all Adventures
             - Add to Adventures List
             - UpdateImageAdventuresList

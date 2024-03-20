@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,7 +22,7 @@ import java.util.stream.Collectors;
 @Table(name = "images", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"title", "createDate"})
 })
-public class Image {
+public class ImageEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -53,10 +52,10 @@ public class Image {
             joinColumns = @JoinColumn(name = "image_id"), // Column for Image
             inverseJoinColumns = @JoinColumn(name = "adventure_id") // Column for Adventure
     )
-    private Set<Adventure> adventures = new HashSet<>();
+    private Set<AdventureEntity> adventures = new HashSet<>();
 
     @Transient
     public List<String> getAdventureNames() {
-        return adventures.stream().map(Adventure::getName).collect(Collectors.toList());
+        return adventures.stream().map(AdventureEntity::getName).collect(Collectors.toList());
     }
 }

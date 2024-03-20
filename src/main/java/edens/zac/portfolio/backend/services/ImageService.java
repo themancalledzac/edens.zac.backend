@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.model.ModalImage;
+import edens.zac.portfolio.backend.model.AdventureImagesDTO;
+import edens.zac.portfolio.backend.model.ImageModel;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -9,14 +10,17 @@ import java.util.Map;
 
 public interface ImageService {
 
+    @Transactional(readOnly = true)
+    List<AdventureImagesDTO> getAllImagesByAdventures(List<String> adventureTitles);
+
     Map<String, String> getImageMetadata(MultipartFile image);
 
     Map<String, String> postImage(MultipartFile image);
 
-    ModalImage getImageById(Long imageId);
+    ImageModel getImageById(Long imageId);
 
     @Transactional(readOnly = true)
-    List<ModalImage> getAllImagesByAdventure(String adventureTitle);
+    List<ImageModel> getAllImagesByAdventure(String adventureTitle);
 }
 
 

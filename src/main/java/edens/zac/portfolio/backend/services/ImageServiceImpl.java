@@ -6,9 +6,10 @@ import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
-import edens.zac.portfolio.backend.entity.Adventure;
-import edens.zac.portfolio.backend.entity.Image;
-import edens.zac.portfolio.backend.model.ModalImage;
+import edens.zac.portfolio.backend.entity.AdventureEntity;
+import edens.zac.portfolio.backend.entity.ImageEntity;
+import edens.zac.portfolio.backend.model.AdventureImagesDTO;
+import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.repository.AdventureRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -70,9 +71,9 @@ public class ImageServiceImpl implements ImageService {
             // Will need to get some sort of UI or otherwise to add these further down the road.
             List<String> adventureNames = new ArrayList<>();
             adventureNames.add("Europe");
-            adventureNames.add("Amsterdam");
+            adventureNames.add("Vienna");
 
-            Image builtImage = Image.builder()
+            ImageEntity builtImage = ImageEntity.builder()
                     .title(file.getOriginalFilename())
                     .imageWidth(parseIntegerOrDefault(extractValueForKey(directoriesList, "Image Width"), 0))
                     .imageHeight(parseIntegerOrDefault(extractValueForKey(directoriesList, "Image Height"), 0))
@@ -94,14 +95,14 @@ public class ImageServiceImpl implements ImageService {
                     .updateDate(LocalDateTime.now())
                     .build();
 
-            Optional<Image> existingImage = imageRepository.findByTitleAndCreateDate(
+            Optional<ImageEntity> existingImage = imageRepository.findByTitleAndCreateDate(
                     builtImage.getTitle(), builtImage.getCreateDate()
             );
-            Set<Adventure> adventures = new HashSet<>();
+            Set<AdventureEntity> adventures = new HashSet<>();
 
             // if adventure exists in db, don't add, otherwise do!
             for (String adventureName : adventureNames) {
-                Adventure adventure = adventureRepository.findByName(adventureName).orElseGet(() -> adventureRepository.save(new Adventure(adventureName)));
+                AdventureEntity adventure = adventureRepository.findByName(adventureName).orElseGet(() -> adventureRepository.save(new AdventureEntity(adventureName)));
                 adventures.add(adventure);
             }
             // if image does not yet exist, add adventures, create image.
@@ -122,9 +123,9 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     @Transactional(readOnly = true) // use readOnly for fetch operations
-    public ModalImage getImageById(Long imageId) {
+    public ImageModel getImageById(Long imageId) {
 
-        Optional<Image> imageOpt = imageRepository.findByIdWithAdventures(imageId); // required type UUID, provided: Long
+        Optional<ImageEntity> imageOpt = imageRepository.findByIdWithAdventures(imageId); // required type UUID, provided: Long
 
         return imageOpt.map(this::convertToModalImage).orElse(null);
     }
@@ -132,16 +133,18 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ModalImage> getAllImagesByAdventure(String adventureTitle) {
+    public List<ImageModel> getAllImagesByAdventure(String adventureTitle) {
 
         Set<Long> imageIds = imageRepository.findImageIdsByAdventureName(adventureTitle);
+        Set<Long> imageHeaders = imageRepository.findImageIdsByAdventureNameAndCriteria(adventureTitle);
+
 
         // Corrected stream operation to handle Optional correctly
-        List<Image> images = imageIds.stream()
-                .map(id -> imageRepository.findByIdWithAdventures(id)) // This returns Stream<Optional<Image>>
+        List<ImageEntity> images = imageIds.stream()
+                .map(imageRepository::findByIdWithAdventures) // This returns Stream<Optional<Image>> // OLD::=> .map(id -> imageRepository.findByIdWithAdventures(id))
                 .filter(Optional::isPresent) // Filter to only present Optionals
                 .map(Optional::get) // Extract Image from Optional
-                .collect(Collectors.toList()); // Collect to List<Image>
+                .toList(); // Collect to List<Image>
 
 //        List<Image> images = imageRepository.findByAdventureName(adventureTitle);
         return images.stream()
@@ -149,11 +152,42 @@ public class ImageServiceImpl implements ImageService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdventureImagesDTO> getAllImagesByAdventures(List<String> adventureTitles) {
 
-    private ModalImage convertToModalImage(Image image) {
-        List<String> adventureNames = image.getAdventures().stream().map(Adventure::getName).collect(Collectors.toList());
+        List<AdventureImagesDTO> results = new ArrayList<>();
 
-        ModalImage modalImage = new ModalImage(); //  is not public in 'edens.zac.portfolio.backend.model.ModalImage'. Cannot be accessed from outside package
+        for (String title : adventureTitles) {
+
+            Set<Long> imageIds = imageRepository.findImageIdsByAdventureName(title);
+
+            // Fetch images for each ID, ensuring we fetch their associated adventures too
+            List<ImageModel> images = imageIds.stream()
+                    .map(imageRepository::findByIdWithAdventures)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .map(this::convertToModalImage)
+                    .collect(Collectors.toList());
+
+            results.add(new AdventureImagesDTO(title, images));
+        }
+
+        return results;
+    }
+
+    // TODO: Connect this to an endpoint. DOES IT MATTER, if we can filter by rating on the frontend?
+    @Transactional(readOnly = true)
+    public Optional<ImageModel> getImageByIdAndMinRating(Long imageId, Integer minRating) {
+        Optional<ImageEntity> imageOpt = imageRepository.findByIdWithAdventuresAndMinRating(imageId, minRating);
+        return imageOpt.map(this::convertToModalImage);
+    }
+
+
+    private ImageModel convertToModalImage(ImageEntity image) {
+        List<String> adventureNames = image.getAdventures().stream().map(AdventureEntity::getName).collect(Collectors.toList());
+
+        ImageModel modalImage = new ImageModel(); //  is not public in 'edens.zac.portfolio.backend.model.ModalImage'. Cannot be accessed from outside package
         modalImage.setTitle(image.getTitle());
         modalImage.setImageWidth(image.getImageWidth());
         modalImage.setImageHeight(image.getImageHeight());

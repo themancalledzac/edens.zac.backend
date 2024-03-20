@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.model;
 
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -9,7 +8,7 @@ import java.util.List;
 
 @NoArgsConstructor
 @Data
-public class ModalImage {
+public class ImageModel {
 
     private Long id;
     private String title;

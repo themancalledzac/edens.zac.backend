@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.repository;
 
-import edens.zac.portfolio.backend.entity.Image;
+import edens.zac.portfolio.backend.entity.ImageEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,18 +12,24 @@ import java.util.Set;
 import java.util.UUID;
 
 @Repository
-public interface ImageRepository extends JpaRepository<Image, UUID> {
-    Optional<Image> findByTitleAndCreateDate(String title, String createDate);
+public interface ImageRepository extends JpaRepository<ImageEntity, UUID> {
+    Optional<ImageEntity> findByTitleAndCreateDate(String title, String createDate);
 
-    Optional<Image> findById(Long imageId);
+    Optional<ImageEntity> findById(Long imageId);
 
-    @Query("SELECT i FROM Image i LEFT JOIN FETCH i.adventures WHERE i.id = :id")
-    Optional<Image> findByIdWithAdventures(@Param("id") Long id);
+    @Query("SELECT i FROM ImageEntity i LEFT JOIN FETCH i.adventures WHERE i.id = :id")
+    Optional<ImageEntity> findByIdWithAdventures(@Param("id") Long id);
 
-    @Query("SELECT i.id FROM Image i JOIN i.adventures a WHERE a.name = :name")
+    @Query("SELECT i.id FROM ImageEntity i JOIN i.adventures a WHERE a.name = :name")
     Set<Long> findImageIdsByAdventureName(@Param("name") String name);
 
-    @Query("SELECT i FROM Image i JOIN FETCH i.adventures a WHERE a.name = :name")
+    @Query("SELECT i.id FROM ImageEntity i JOIN i.adventures a WHERE a.name = :name AND i.rating = 5 AND i.imageWidth > i.imageHeight")
+    Set<Long> findImageIdsByAdventureNameAndCriteria(@Param("name") String name);
+
+    @Query("SELECT i FROM ImageEntity i LEFT JOIN FETCH i.adventures WHERE i.id = :id AND i.rating >= :minRating")
+    Optional<ImageEntity> findByIdWithAdventuresAndMinRating(@Param("id") Long id, @Param("minRating") Integer minRating);
+
+    @Query("SELECT i FROM ImageEntity i JOIN FETCH i.adventures a WHERE a.name = :name")
 //    @Query("SELECT DISTINCT i FROM Image i JOIN FETCH i.adventures a WHERE a.name = :name")
-    List<Image> findByAdventureName(@Param("name") String name);
+    List<ImageEntity> findByAdventureName(@Param("name") String name);
 }

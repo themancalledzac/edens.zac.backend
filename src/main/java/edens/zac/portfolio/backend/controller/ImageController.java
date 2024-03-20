@@ -1,9 +1,12 @@
 package edens.zac.portfolio.backend.controller;
 
-import edens.zac.portfolio.backend.model.ModalImage;
+import edens.zac.portfolio.backend.model.AdventureImagesDTO;
+import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,7 +30,7 @@ public class ImageController {
     private final ImageService imageService;
 
     /**
-     * @param imageid - ID that connects our image to all it's metadata, including S3 small/large/raw image locations.
+     * @param imageId - ID that connects our image to all it's metadata, including S3 small/large/raw image locations.
      * @return Image object, as seen in '/model/Image'
      * <p>
      * Specific Image request based on UUID. This will likely be used on the site, when looking through a LIST of Images,
@@ -36,7 +40,7 @@ public class ImageController {
      * table such as ImageMetadata. This table would be connected, probably, by a foreignKey associated with ImageUuid.
      */
     @RequestMapping(value = "/getById/{imageId}", method = RequestMethod.GET)
-    public ModalImage getImageById(@PathVariable("imageId") Long imageId) {
+    public ImageModel getImageById(@PathVariable("imageId") Long imageId) {
 
         log.debug("Get Image by Uuid - In Controller");
 
@@ -44,9 +48,18 @@ public class ImageController {
     }
 
     @GetMapping("/getImagesByAdventure/{adventure}")
-    public List<ModalImage> getImagesByAdventure(@PathVariable("adventure") String adventure) {
+    public List<ImageModel> getImagesByAdventure(@PathVariable("adventure") String adventure) {
 
         return imageService.getAllImagesByAdventure(adventure);
+    }
+
+    // http://localhost:8080/api/v1/image/getImagesByAdventures?adventures=Amsterdam,Paris
+    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
+    @GetMapping("/getImagesByAdventures")
+    public ResponseEntity<?> getImagesByMultipleAdventures(@RequestParam("adventures") String adventures) {
+        List<String> adventureNames = Arrays.asList(adventures.split(","));
+        List<AdventureImagesDTO> results = imageService.getAllImagesByAdventures(adventureNames);
+        return ResponseEntity.ok(results);
     }
 
     /**
@@ -83,7 +96,7 @@ public class ImageController {
      * Will need to have some sort of Authentication to not let ANYONE just use our AWS S3 account.
      */
     @RequestMapping(value = "/images", method = RequestMethod.POST)
-    public List<ModalImage> batchCreateImages() {
+    public List<ImageModel> batchCreateImages() {
         return null;
     }
 
