@@ -17,6 +17,8 @@ public interface ImageRepository extends JpaRepository<ImageEntity, UUID> {
 
     Optional<ImageEntity> findById(Long imageId);
 
+    Optional<ImageEntity> findByTitle(String imageTitle);
+
     @Query("SELECT i FROM ImageEntity i LEFT JOIN FETCH i.adventures WHERE i.id = :id")
     Optional<ImageEntity> findByIdWithAdventures(@Param("id") Long id);
 

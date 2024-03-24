@@ -37,6 +37,7 @@ public class AdventureEntity {
     private Long id;
     private String name;
     private String imageMainTitle;
+    private Boolean mainAdventure;
 
     @ManyToMany(mappedBy = "adventures")
     private Set<ImageEntity> images = new HashSet<>();
