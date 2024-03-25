@@ -44,20 +44,21 @@ public class AdventureServiceImpl implements AdventureService {
     @Transactional
     public List<AdventureModel> getMainPageAdventureList() {
 
-        List<AdventureEntity> mainAdventures = adventureRepository.findByMainAdventureTrue();
-        return mainAdventures.stream().map(this::convertToModel)
+        List<AdventureModalDTO> mainAdventures = adventureRepository.findMainAdventures();
+        return mainAdventures.stream().map(this::adventureConvertToModel)
                 .collect(Collectors.toList());
     }
 
-    private AdventureModel convertToModel(AdventureEntity adventureEntity) {
-        // Implement the conversion logic from AdventureEntity to AdventureModel
-        Optional<ImageEntity> adventureImageOpt = imageRepository.findByTitle(adventureEntity.getImageMainTitle());
+    private AdventureModel adventureConvertToModel(AdventureModalDTO adventureEntity) {
 
-
-        ImageModel adventureImageConverted = adventureImageOpt.map(this::convertToModalImage)
-                .orElse(null);
-
+        ImageModel adventureImageConverted = null;
+        if (adventureEntity.getImageMainTitle() != null) {
+            Optional<ImageEntity> adventureImageOpt = imageRepository.findByTitle(adventureEntity.getImageMainTitle());
+            adventureImageConverted = adventureImageOpt.map(this::convertToModalImage)
+                    .orElse(null);
+        }
         return new AdventureModel(adventureEntity.getId(), adventureEntity.getName(), adventureImageConverted);
+
     }
 
     // This is a duplicate of ImageServiceImpl. It needs to be moved elsewhere
