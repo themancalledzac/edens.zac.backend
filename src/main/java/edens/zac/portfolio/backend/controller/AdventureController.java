@@ -5,6 +5,7 @@ import edens.zac.portfolio.backend.model.AdventureModel;
 import edens.zac.portfolio.backend.services.AdventureService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +27,7 @@ public class AdventureController {
         return adventureService.createAdventure(adventure);
     }
 
+    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
     @RequestMapping(value = "/mainPageAdventureList")
     public List<AdventureModel> getMainPageAdventureList() {
 
