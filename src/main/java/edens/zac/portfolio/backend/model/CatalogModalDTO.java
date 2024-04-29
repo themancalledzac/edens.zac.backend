@@ -5,18 +5,18 @@ import lombok.NoArgsConstructor;
 
 @NoArgsConstructor
 @Data
-public class AdventureModalDTO {
+public class CatalogModalDTO {
 
     private Long id;
     private String name;
     private String imageMainTitle;
-    private Boolean mainAdventure;
+    private Boolean mainCatalog;
 
     // Constructor that matches the SELECT new statement in the repository query
-    public AdventureModalDTO(Long id, String name, String imageMainTitle, Boolean mainAdventure) {
+    public CatalogModalDTO(Long id, String name, String imageMainTitle, Boolean mainCatalog) {
         this.id = id;
         this.name = name;
         this.imageMainTitle = imageMainTitle;
-        this.mainAdventure = mainAdventure;
+        this.mainCatalog = mainCatalog;
     }
 }

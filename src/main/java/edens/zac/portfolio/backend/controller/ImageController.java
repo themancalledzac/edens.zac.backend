@@ -1,12 +1,9 @@
 package edens.zac.portfolio.backend.controller;
 
-import edens.zac.portfolio.backend.model.AdventureImagesDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -41,32 +37,28 @@ public class ImageController {
      */
     @RequestMapping(value = "/getById/{imageId}", method = RequestMethod.GET)
     public ImageModel getImageById(@PathVariable("imageId") Long imageId) {
-
         log.debug("Get Image by Uuid - In Controller");
-
         return imageService.getImageById(imageId);
     }
 
-    @GetMapping("/getImagesByAdventure/{adventure}")
-    public List<ImageModel> getImagesByAdventure(@PathVariable("adventure") String adventure) {
-
-        return imageService.getAllImagesByAdventure(adventure);
+    @GetMapping("/getImagesByCatalogs/{catalog}")
+    public List<ImageModel> getImagesByCatalog(@PathVariable("catalog") String catalog) {
+        return imageService.getAllImagesByCatalog(catalog);
     }
 
-    // http://localhost:8080/api/v1/image/getImagesByAdventures?adventures=Amsterdam,Paris
-    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
-    @GetMapping("/getImagesByAdventures")
-    public ResponseEntity<?> getImagesByMultipleAdventures(@RequestParam("adventures") String adventures) {
-        List<String> adventureNames = Arrays.asList(adventures.split(","));
-        List<AdventureImagesDTO> results = imageService.getAllImagesByAdventures(adventureNames);
-        return ResponseEntity.ok(results);
-    }
 
     /**
      * MAIN endpoint for posting images to database
+     * // http://localhost:8080/api/v1/image/getImagesByCatalogs?catalogss=Amsterdam,Paris
      *
      * @param files - Add a List of files (POSTMAN: Body< form-data< Key:Images(File), Value(${your-images}) )
      * @return - A Json List of the metadata added to the database
+     * @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
+     * @GetMapping("/getImagesByCatalogss") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogss") String catalogss) {
+     * List<String> catalogsNames = Arrays.asList(catalogss.split(","));
+     * List<CatalogsImagesDTO> results = imageService.getAllImagesByCatalogss(catalogsNames);
+     * return ResponseEntity.ok(results);
+     * }
      */
     @PostMapping("/postImages")
     public List<Map<String, String>> postImages(@RequestParam("images") List<MultipartFile> files) {

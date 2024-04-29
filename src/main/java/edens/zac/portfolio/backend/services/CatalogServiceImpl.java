@@ -1,11 +1,11 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.AdventureEntity;
+import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.entity.ImageEntity;
-import edens.zac.portfolio.backend.model.AdventureModalDTO;
-import edens.zac.portfolio.backend.model.AdventureModel;
+import edens.zac.portfolio.backend.model.CatalogModalDTO;
+import edens.zac.portfolio.backend.model.CatalogModel;
 import edens.zac.portfolio.backend.model.ImageModel;
-import edens.zac.portfolio.backend.repository.AdventureRepository;
+import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,53 +17,53 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class AdventureServiceImpl implements AdventureService {
+public class CatalogServiceImpl implements CatalogService {
 
     private final ImageRepository imageRepository;
-    private final AdventureRepository adventureRepository;
+    private final CatalogRepository catalogRepository;
 
-    public AdventureServiceImpl(ImageRepository imageRepository, AdventureRepository adventureRepository) {
+    public CatalogServiceImpl(ImageRepository imageRepository, CatalogRepository catalogRepository) {
         this.imageRepository = imageRepository;
-        this.adventureRepository = adventureRepository;
+        this.catalogRepository = catalogRepository;
     }
 
     @Override
     @Transactional
-    public String createAdventure(AdventureModalDTO adventure) {
+    public String createCatalog(CatalogModalDTO catalog) {
         // TODO: Make optional number of additions later on, such as location, stravaLink, etc
-        AdventureEntity adventureEntity = AdventureEntity.builder()
-                .name(adventure.getName())
+        CatalogEntity catalogEntity = CatalogEntity.builder()
+                .name(catalog.getName())
                 .build();
-        AdventureEntity savedAdventure = adventureRepository.save(adventureEntity);
-        return savedAdventure.getName();
+        CatalogEntity savedCatalog = catalogRepository.save(catalogEntity);
+        return savedCatalog.getName();
     }
 
     ;
 
     @Override
     @Transactional
-    public List<AdventureModel> getMainPageAdventureList() {
+    public List<CatalogModel> getMainPageCatalogList() {
 
-        List<AdventureModalDTO> mainAdventures = adventureRepository.findMainAdventures();
-        return mainAdventures.stream().map(this::adventureConvertToModel)
+        List<CatalogModalDTO> mainCatalogs = catalogRepository.findMainCatalogs();
+        return mainCatalogs.stream().map(this::catalogConvertToModel)
                 .collect(Collectors.toList());
     }
 
-    private AdventureModel adventureConvertToModel(AdventureModalDTO adventureEntity) {
+    private CatalogModel catalogConvertToModel(CatalogModalDTO catalogEntity) {
 
-        ImageModel adventureImageConverted = null;
-        if (adventureEntity.getImageMainTitle() != null) {
-            Optional<ImageEntity> adventureImageOpt = imageRepository.findByTitle(adventureEntity.getImageMainTitle());
-            adventureImageConverted = adventureImageOpt.map(this::convertToModalImage)
+        ImageModel catalogImageConverted = null;
+        if (catalogEntity.getImageMainTitle() != null) {
+            Optional<ImageEntity> catalogImageOpt = imageRepository.findByTitle(catalogEntity.getImageMainTitle());
+            catalogImageConverted = catalogImageOpt.map(this::convertToModalImage)
                     .orElse(null);
         }
-        return new AdventureModel(adventureEntity.getId(), adventureEntity.getName(), adventureImageConverted);
+        return new CatalogModel(catalogEntity.getId(), catalogEntity.getName(), catalogImageConverted);
 
     }
 
     // This is a duplicate of ImageServiceImpl. It needs to be moved elsewhere
     private ImageModel convertToModalImage(ImageEntity image) {
-        List<String> adventureNames = image.getAdventures().stream().map(AdventureEntity::getName).collect(Collectors.toList());
+        List<String> catalogNames = image.getCatalogs().stream().map(CatalogEntity::getName).collect(Collectors.toList());
 
         ImageModel modalImage = new ImageModel(); //  is not public in 'edens.zac.portfolio.backend.model.ModalImage'. Cannot be accessed from outside package
         modalImage.setTitle(image.getTitle());
@@ -74,7 +74,7 @@ public class AdventureServiceImpl implements AdventureService {
         modalImage.setRating(image.getRating());
         modalImage.setFStop(image.getFStop());
         modalImage.setLens(image.getLens());
-        modalImage.setAdventure(adventureNames);
+        modalImage.setCatalog(catalogNames);
         modalImage.setBlackAndWhite(image.getBlackAndWhite());
         modalImage.setShutterSpeed(image.getShutterSpeed());
         modalImage.setRawFileName(image.getRawFileName());

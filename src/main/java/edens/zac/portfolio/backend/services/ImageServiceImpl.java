@@ -6,11 +6,11 @@ import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
-import edens.zac.portfolio.backend.entity.AdventureEntity;
+import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.entity.ImageEntity;
-import edens.zac.portfolio.backend.model.AdventureImagesDTO;
+import edens.zac.portfolio.backend.model.CatalogImagesDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
-import edens.zac.portfolio.backend.repository.AdventureRepository;
+import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,11 +36,11 @@ import java.util.stream.Collectors;
 public class ImageServiceImpl implements ImageService {
 
     private final ImageRepository imageRepository;
-    private final AdventureRepository adventureRepository;
+    private final CatalogRepository catalogRepository;
 
-    public ImageServiceImpl(ImageRepository imageRepository, AdventureRepository adventureRepository) {
+    public ImageServiceImpl(ImageRepository imageRepository, CatalogRepository catalogRepository) {
         this.imageRepository = imageRepository;
-        this.adventureRepository = adventureRepository;
+        this.catalogRepository = catalogRepository;
     }
 
     @Override
@@ -67,11 +67,11 @@ public class ImageServiceImpl implements ImageService {
             imageReturnMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
             imageReturnMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
 
-            // SHORT TERM solution for adding adventures.
+            // SHORT TERM solution for adding catalogs.
             // Will need to get some sort of UI or otherwise to add these further down the road.
-            List<String> adventureNames = new ArrayList<>();
-            adventureNames.add("Europe");
-            adventureNames.add("Vienna");
+            List<String> catalogNames = new ArrayList<>();
+            catalogNames.add("Europe");
+            catalogNames.add("Vienna");
 
             ImageEntity builtImage = ImageEntity.builder()
                     .title(file.getOriginalFilename())
@@ -98,16 +98,16 @@ public class ImageServiceImpl implements ImageService {
             Optional<ImageEntity> existingImage = imageRepository.findByTitleAndCreateDate(
                     builtImage.getTitle(), builtImage.getCreateDate()
             );
-            Set<AdventureEntity> adventures = new HashSet<>();
+            Set<CatalogEntity> catalogs = new HashSet<>();
 
-            // if adventure exists in db, don't add, otherwise do!
-            for (String adventureName : adventureNames) {
-                AdventureEntity adventure = adventureRepository.findByName(adventureName).orElseGet(() -> adventureRepository.save(new AdventureEntity(adventureName)));
-                adventures.add(adventure);
+            // if catalog exists in db, don't add, otherwise do!
+            for (String catalogName : catalogNames) {
+                CatalogEntity catalog = catalogRepository.findByName(catalogName).orElseGet(() -> catalogRepository.save(new CatalogEntity(catalogName)));
+                catalogs.add(catalog);
             }
-            // if image does not yet exist, add adventures, create image.
+            // if image does not yet exist, add catalogs, create image.
             if (existingImage.isEmpty()) {
-                builtImage.setAdventures(adventures);
+                builtImage.setCatalogs(catalogs);
                 imageRepository.save(builtImage);
 
             }
@@ -125,7 +125,7 @@ public class ImageServiceImpl implements ImageService {
     @Transactional(readOnly = true) // use readOnly for fetch operations
     public ImageModel getImageById(Long imageId) {
 
-        Optional<ImageEntity> imageOpt = imageRepository.findByIdWithAdventures(imageId); // required type UUID, provided: Long
+        Optional<ImageEntity> imageOpt = imageRepository.findByIdWithCatalogs(imageId); // required type UUID, provided: Long
 
         return imageOpt.map(this::convertToModalImage).orElse(null);
     }
@@ -133,20 +133,20 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ImageModel> getAllImagesByAdventure(String adventureTitle) {
+    public List<ImageModel> getAllImagesByCatalog(String catalogTitle) {
 
-        Set<Long> imageIds = imageRepository.findImageIdsByAdventureName(adventureTitle);
-        Set<Long> imageHeaders = imageRepository.findImageIdsByAdventureNameAndCriteria(adventureTitle);
+        Set<Long> imageIds = imageRepository.findImageIdsByCatalogName(catalogTitle);
+        Set<Long> imageHeaders = imageRepository.findImageIdsByCatalogNameAndCriteria(catalogTitle);
 
 
         // Corrected stream operation to handle Optional correctly
         List<ImageEntity> images = imageIds.stream()
-                .map(imageRepository::findByIdWithAdventures) // This returns Stream<Optional<Image>> // OLD::=> .map(id -> imageRepository.findByIdWithAdventures(id))
+                .map(imageRepository::findByIdWithCatalogs) // This returns Stream<Optional<Image>> // OLD::=> .map(id -> imageRepository.findByIdWithCatalogs(id))
                 .filter(Optional::isPresent) // Filter to only present Optionals
                 .map(Optional::get) // Extract Image from Optional
                 .toList(); // Collect to List<Image>
 
-//        List<Image> images = imageRepository.findByAdventureName(adventureTitle);
+//        List<Image> images = imageRepository.findByCatalogName(catalogTitle);
         return images.stream()
                 .map(this::convertToModalImage)
                 .collect(Collectors.toList());
@@ -154,23 +154,23 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AdventureImagesDTO> getAllImagesByAdventures(List<String> adventureTitles) {
+    public List<CatalogImagesDTO> getAllImagesByCatalog(List<String> catalogTitles) {
 
-        List<AdventureImagesDTO> results = new ArrayList<>();
+        List<CatalogImagesDTO> results = new ArrayList<>();
 
-        for (String title : adventureTitles) {
+        for (String title : catalogTitles) {
 
-            Set<Long> imageIds = imageRepository.findImageIdsByAdventureName(title);
+            Set<Long> imageIds = imageRepository.findImageIdsByCatalogName(title);
 
-            // Fetch images for each ID, ensuring we fetch their associated adventures too
+            // Fetch images for each ID, ensuring we fetch their associated catalogs too
             List<ImageModel> images = imageIds.stream()
-                    .map(imageRepository::findByIdWithAdventures)
+                    .map(imageRepository::findByIdWithCatalogs)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .map(this::convertToModalImage)
                     .collect(Collectors.toList());
 
-            results.add(new AdventureImagesDTO(title, images));
+            results.add(new CatalogImagesDTO(title, images));
         }
 
         return results;
@@ -179,13 +179,13 @@ public class ImageServiceImpl implements ImageService {
     // TODO: Connect this to an endpoint. DOES IT MATTER, if we can filter by rating on the frontend?
     @Transactional(readOnly = true)
     public Optional<ImageModel> getImageByIdAndMinRating(Long imageId, Integer minRating) {
-        Optional<ImageEntity> imageOpt = imageRepository.findByIdWithAdventuresAndMinRating(imageId, minRating);
+        Optional<ImageEntity> imageOpt = imageRepository.findByIdWithCatalogsAndMinRating(imageId, minRating);
         return imageOpt.map(this::convertToModalImage);
     }
 
 
     private ImageModel convertToModalImage(ImageEntity image) {
-        List<String> adventureNames = image.getAdventures().stream().map(AdventureEntity::getName).collect(Collectors.toList());
+        List<String> catalogNames = image.getCatalogs().stream().map(CatalogEntity::getName).collect(Collectors.toList());
 
         ImageModel modalImage = new ImageModel(); //  is not public in 'edens.zac.portfolio.backend.model.ModalImage'. Cannot be accessed from outside package
         modalImage.setTitle(image.getTitle());
@@ -196,7 +196,7 @@ public class ImageServiceImpl implements ImageService {
         modalImage.setRating(image.getRating());
         modalImage.setFStop(image.getFStop());
         modalImage.setLens(image.getLens());
-        modalImage.setAdventure(adventureNames);
+        modalImage.setCatalog(catalogNames);
         modalImage.setBlackAndWhite(image.getBlackAndWhite());
         modalImage.setShutterSpeed(image.getShutterSpeed());
         modalImage.setRawFileName(image.getRawFileName());

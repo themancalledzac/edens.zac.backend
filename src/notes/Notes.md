@@ -2,6 +2,14 @@
 
 ## Milestone Order
 
+TODO: ADD THE FOLLOWING, ALSO UPDATE:
+- - Fix Loading issue. This must be a nextjs issue, check docs for how to, with less state changes or data changes or functions required to go from image ON, to image OFF. CAN we put the MODAL IN the Image component? if so, this would greatly simplify things. why not?
+- - SPIKE: We need a way of having an adventure.all as well as an adventure.selects. perhaps 
+- - NEED to have all images having the following sizes: 'thumbnail', 'small', 'full'. 
+- - - Thumbnail is no longer than what we'd show on a gallery page, basically 800px for horizontal, and 600px for vertical images. VERY SMALL.
+- - Need to update getImagesByAdventure endpoint, to only get Thumbnail size. Also update to ONLY be 
+- - Need to implement getImageById to get 'small' size. basically 2k width max (?), our current webP size is probably good, investigate, though.
+
 - ### **_Milestone 1:_**
     - Database Built
         - Tables Built

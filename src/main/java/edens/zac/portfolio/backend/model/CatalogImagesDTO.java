@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.model;
 
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -8,15 +7,15 @@ import java.util.List;
 
 @NoArgsConstructor
 @Data
-public class AdventureImagesDTO {
+public class CatalogImagesDTO {
     private Long id;
-    private String adventure;
+    private String catalog;
     //    private String headerImage;
     private List<ImageModel> images;
 
     // Constructors, getters, and setters
-    public AdventureImagesDTO(String adventure, List<ImageModel> images) { // String headerImage //
-        this.adventure = adventure;
+    public CatalogImagesDTO(String catalog, List<ImageModel> images) { // String headerImage //
+        this.catalog = catalog;
 //        this.headerImage = headerImage;
         this.images = images;
     }

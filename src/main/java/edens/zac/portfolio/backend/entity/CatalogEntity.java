@@ -20,30 +20,30 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 // TODO:
-//  1. Update adventures to ALSO contain 'MainImage', 'Location', 'StartTime', 'EndTime', 'People', 'Strava'
+//  1. Update catalogs to ALSO contain 'MainImage', 'Location', 'StartTime', 'EndTime', 'People', 'Strava'
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "adventures", uniqueConstraints = {
+@Table(name = "catalogs", uniqueConstraints = {
         @UniqueConstraint(columnNames = "name")
 })
-public class AdventureEntity {
+public class CatalogEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String name;
     private String imageMainTitle;
-    private Boolean mainAdventure;
+    private Boolean mainCatalog;
 
-    @ManyToMany(mappedBy = "adventures")
+    @ManyToMany(mappedBy = "catalogs")
     private Set<ImageEntity> images = new HashSet<>();
 
-    public AdventureEntity(String adventureName) {
-        this.name = adventureName;
+    public CatalogEntity(String catalogName) {
+        this.name = catalogName;
     }
 
     @Transient

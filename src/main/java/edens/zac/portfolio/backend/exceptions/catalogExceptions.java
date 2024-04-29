@@ -1,4 +1,4 @@
 package edens.zac.portfolio.backend.exceptions;
 
-//public class adventureExceptions {
+//public class catalogExceptions {
 //}

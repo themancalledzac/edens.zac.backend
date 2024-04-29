@@ -48,14 +48,14 @@ public class ImageEntity {
 
     @ManyToMany(cascade = CascadeType.PERSIST)
     @JoinTable(
-            name = "image_adventure", // Name of the join table
+            name = "image_catalog", // Name of the join table
             joinColumns = @JoinColumn(name = "image_id"), // Column for Image
-            inverseJoinColumns = @JoinColumn(name = "adventure_id") // Column for Adventure
+            inverseJoinColumns = @JoinColumn(name = "catalog_id") // Column for Catalog
     )
-    private Set<AdventureEntity> adventures = new HashSet<>();
+    private Set<CatalogEntity> catalogs = new HashSet<>();
 
     @Transient
-    public List<String> getAdventureNames() {
-        return adventures.stream().map(AdventureEntity::getName).collect(Collectors.toList());
+    public List<String> getCatalogNames() {
+        return catalogs.stream().map(CatalogEntity::getName).collect(Collectors.toList());
     }
 }

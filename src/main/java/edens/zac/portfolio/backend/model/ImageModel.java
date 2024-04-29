@@ -28,7 +28,7 @@ public class ImageModel {
     private String imageUrlLarge;
     private String imageUrlSmall;
     private String imageUrlRaw;
-    private List<String> adventure;
+    private List<String> catalog;
     private String createDate;
     private LocalDateTime updateDate;
 
