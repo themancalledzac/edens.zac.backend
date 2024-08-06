@@ -46,6 +46,14 @@ public class ImageController {
         return imageService.getAllImagesByCatalog(catalog);
     }
 
+    // TODO: MAIN: Restart and recreate all Images with Catalog's. Missed Paris, or missnamed Paris. oops.
+    // TODO: Decide on other catalogs that we'd like to include.
+    // TODO: Start work on AWS S3 endpoint
+    //  1. Does this require something more for local? if so, maybe we wait until it is hosted first
+    // TODO: Start work on Dockerization of both frontend application and backend application
+    // TODO: Start work on how to HOST our frontend Site, change ownership of our URL
+    // TODO: Start work on how to HOST our backend application on AWS, probably an S3 bucket? just running?
+
 
     /**
      * MAIN endpoint for posting images to database
@@ -54,7 +62,7 @@ public class ImageController {
      * @param files - Add a List of files (POSTMAN: Body< form-data< Key:Images(File), Value(${your-images}) )
      * @return - A Json List of the metadata added to the database
      * @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
-     * @GetMapping("/getImagesByCatalogss") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogss") String catalogss) {
+     * @GetMapping("/getImagesByCatalogs") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogss") String catalogss) {
      * List<String> catalogsNames = Arrays.asList(catalogss.split(","));
      * List<CatalogsImagesDTO> results = imageService.getAllImagesByCatalogss(catalogsNames);
      * return ResponseEntity.ok(results);
@@ -91,7 +99,7 @@ public class ImageController {
     public List<ImageModel> batchCreateImages() {
         return null;
     }
-
+    // TODO: Update thie return to include categories, as would a regular 'get image' would.
 
 //    @RequestMapping(value = "/getImagesByCategory", method = RequestMethod.GET)
 //    public List<PhotoCategoryPackage> getImagesByCategory(@RequestParam List<String> categories) {

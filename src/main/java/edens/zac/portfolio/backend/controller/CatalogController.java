@@ -21,13 +21,14 @@ public class CatalogController {
 
     private final CatalogService catalogService;
 
+    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
     @PostMapping("/createCatalog")
     public String createCatalog(@RequestBody CatalogModalDTO catalog) {
 
         return catalogService.createCatalog(catalog);
     }
 
-    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
+    //    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
     @RequestMapping(value = "/mainPageCatalogList")
     public List<CatalogModel> getMainPageCatalogList() {
 

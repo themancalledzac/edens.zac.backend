@@ -32,12 +32,16 @@ import java.util.stream.Collectors;
 })
 public class CatalogEntity {
 
+    // TODO: Update to have a 'catalog_priority' number
+    //  This is needed so we don't have to organize by id ( which is basically uuid and not an order ). this way we can also update what organization it is.
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String name;
     private String imageMainTitle;
     private Boolean mainCatalog;
+    private Long priority;
 
     @ManyToMany(mappedBy = "catalogs")
     private Set<ImageEntity> images = new HashSet<>();

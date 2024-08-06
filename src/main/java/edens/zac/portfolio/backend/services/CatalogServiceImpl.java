@@ -33,6 +33,8 @@ public class CatalogServiceImpl implements CatalogService {
         // TODO: Make optional number of additions later on, such as location, stravaLink, etc
         CatalogEntity catalogEntity = CatalogEntity.builder()
                 .name(catalog.getName())
+                .priority(catalog.getPriority())
+                .mainCatalog(catalog.getMainCatalog())
                 .build();
         CatalogEntity savedCatalog = catalogRepository.save(catalogEntity);
         return savedCatalog.getName();
@@ -57,7 +59,7 @@ public class CatalogServiceImpl implements CatalogService {
             catalogImageConverted = catalogImageOpt.map(this::convertToModalImage)
                     .orElse(null);
         }
-        return new CatalogModel(catalogEntity.getId(), catalogEntity.getName(), catalogImageConverted);
+        return new CatalogModel(catalogEntity.getId(), catalogEntity.getName(), catalogImageConverted, catalogEntity.getPriority());
 
     }
 

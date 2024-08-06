@@ -57,6 +57,9 @@ TODO: ADD THE FOLLOWING, ALSO UPDATE:
       - `GetImage` call built Third ( pass UUID, get ALL THE REST of the Data for that image in a big object )
 - ### **_Milestone 3:_**
     - Create way of a 1 time scrape of all uploaded images in S3 bucket to add them to the database.
+    - Get all Images by S3 Bucket - 
+    - Get all S3 folder structure
+    
         - This needs to do a few things for an MVP: CreateImage call with location
 - ### **_Milestone 4:_**
     - Create way of MINIFYING images, including recursively through all images already on S3

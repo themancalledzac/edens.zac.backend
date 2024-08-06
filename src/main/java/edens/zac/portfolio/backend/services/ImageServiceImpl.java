@@ -70,8 +70,8 @@ public class ImageServiceImpl implements ImageService {
             // SHORT TERM solution for adding catalogs.
             // Will need to get some sort of UI or otherwise to add these further down the road.
             List<String> catalogNames = new ArrayList<>();
-            catalogNames.add("Europe");
             catalogNames.add("Vienna");
+//            catalogNames.add("Adventure");
 
             ImageEntity builtImage = ImageEntity.builder()
                     .title(file.getOriginalFilename())
@@ -87,7 +87,7 @@ public class ImageServiceImpl implements ImageService {
                     .rawFileName(extractValueForKey(directoriesList, "crs:RawFileName"))
                     .camera(extractValueForKey(directoriesList, "Model"))
                     .focalLength(extractValueForKey(directoriesList, "Focal Length 35"))
-                    .location(null)
+                    .location(catalogNames.get(0) + "/" + file.getOriginalFilename())
                     .imageUrlLarge(null)
                     .imageUrlSmall(null)
                     .imageUrlRaw(null)
@@ -130,14 +130,12 @@ public class ImageServiceImpl implements ImageService {
         return imageOpt.map(this::convertToModalImage).orElse(null);
     }
 
-
     @Override
     @Transactional(readOnly = true)
     public List<ImageModel> getAllImagesByCatalog(String catalogTitle) {
 
         Set<Long> imageIds = imageRepository.findImageIdsByCatalogName(catalogTitle);
         Set<Long> imageHeaders = imageRepository.findImageIdsByCatalogNameAndCriteria(catalogTitle);
-
 
         // Corrected stream operation to handle Optional correctly
         List<ImageEntity> images = imageIds.stream()
@@ -161,7 +159,6 @@ public class ImageServiceImpl implements ImageService {
         for (String title : catalogTitles) {
 
             Set<Long> imageIds = imageRepository.findImageIdsByCatalogName(title);
-
             // Fetch images for each ID, ensuring we fetch their associated catalogs too
             List<ImageModel> images = imageIds.stream()
                     .map(imageRepository::findByIdWithCatalogs)
@@ -169,10 +166,8 @@ public class ImageServiceImpl implements ImageService {
                     .map(Optional::get)
                     .map(this::convertToModalImage)
                     .collect(Collectors.toList());
-
             results.add(new CatalogImagesDTO(title, images));
         }
-
         return results;
     }
 

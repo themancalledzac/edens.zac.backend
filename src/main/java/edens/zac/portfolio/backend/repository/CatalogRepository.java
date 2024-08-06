@@ -16,7 +16,7 @@ public interface CatalogRepository extends JpaRepository<CatalogEntity, Long> {
 
     List<CatalogEntity> findByMainCatalogTrue();
 
-    @Query("SELECT new edens.zac.portfolio.backend.model.CatalogModalDTO(a.id, a.name, a.imageMainTitle, a.mainCatalog) " +
+    @Query("SELECT new edens.zac.portfolio.backend.model.CatalogModalDTO(a.id, a.name, a.imageMainTitle, a.mainCatalog, a.priority) " +
             "FROM CatalogEntity a WHERE a.mainCatalog = true")
     List<CatalogModalDTO> findMainCatalogs();
 
