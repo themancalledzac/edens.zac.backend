@@ -61,16 +61,16 @@ public class ImageController {
      *
      * @param files - Add a List of files (POSTMAN: Body< form-data< Key:Images(File), Value(${your-images}) )
      * @return - A Json List of the metadata added to the database
-     * @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
-     * @GetMapping("/getImagesByCatalogs") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogss") String catalogss) {
-     * List<String> catalogsNames = Arrays.asList(catalogss.split(","));
-     * List<CatalogsImagesDTO> results = imageService.getAllImagesByCatalogss(catalogsNames);
+     * @CrossOrigin(origins = "http://localhost:3000") // Allow only from your Local React app
+     * @GetMapping("/getImagesByCatalogs") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogs") String catalogss) {
+     * List<String> catalogsNames = Arrays.asList(catalogs.split(","));
+     * List<CatalogsImagesDTO> results = imageService.getAllImagesByCatalogs(catalogsNames);
      * return ResponseEntity.ok(results);
      * }
      */
     @PostMapping("/postImages")
     public List<Map<String, String>> postImages(@RequestParam("images") List<MultipartFile> files) {
-        return files.stream().map(imageService::postImage) // file -> imageService.getImageMetadata(file)
+        return files.stream().map(imageService::postImages) // file -> imageService.getImageMetadata(file)
                 .collect(Collectors.toList());
     }
 

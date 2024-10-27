@@ -45,7 +45,7 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     @Transactional
-    public Map<String, String> postImage(MultipartFile file) {
+    public Map<String, String> postImages(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
             Metadata metadata = ImageMetadataReader.readMetadata(inputStream);
 
