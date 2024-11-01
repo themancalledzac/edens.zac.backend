@@ -25,7 +25,7 @@ public class ImageModel {
     private String camera;
     private String focalLength;
     private String location;
-    private String imageUrlLarge;
+    private String imageUrlWeb;
     private String imageUrlSmall;
     private String imageUrlRaw;
     private List<String> catalog;

@@ -1,5 +1,9 @@
 package edens.zac.portfolio.backend.services;
 
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Directory;
@@ -13,13 +17,16 @@ import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,10 +44,17 @@ public class ImageServiceImpl implements ImageService {
 
     private final ImageRepository imageRepository;
     private final CatalogRepository catalogRepository;
+    private final ImageProcessingService imageProcessingService;
+    private final AmazonS3 amazonS3;
 
-    public ImageServiceImpl(ImageRepository imageRepository, CatalogRepository catalogRepository) {
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
+
+    public ImageServiceImpl(ImageRepository imageRepository, CatalogRepository catalogRepository, AmazonS3 amazonS3, ImageProcessingService imageProcessingService) {
         this.imageRepository = imageRepository;
         this.catalogRepository = catalogRepository;
+        this.amazonS3 = amazonS3;
+        this.imageProcessingService = imageProcessingService;
     }
 
     @Override
@@ -67,6 +81,39 @@ public class ImageServiceImpl implements ImageService {
             imageReturnMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
             imageReturnMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
 
+            // Generate S3 key for both image sizes
+            String webS3Key = generateS3Key(file.getOriginalFilename(), ImageType.WEB);
+            String thumbnailS3Key = generateS3Key(file.getOriginalFilename(), ImageType.THUMBNAIL);
+
+            // Upload original image size to web folder
+            ObjectMetadata webMetadata = new ObjectMetadata();
+            webMetadata.setContentType(file.getContentType());
+            webMetadata.setContentLength(file.getSize());
+
+            amazonS3.putObject(new PutObjectRequest(
+                    bucketName,
+                    webS3Key,
+                    file.getInputStream(),
+                    webMetadata
+            ));
+
+            byte[] thumbnailBytes = imageProcessingService.createThumbnail(file);
+            ObjectMetadata thumbnailMetadata = new ObjectMetadata();
+            thumbnailMetadata.setContentType("image/webp");
+            thumbnailMetadata.setContentLength(thumbnailBytes.length);
+
+            amazonS3.putObject(new PutObjectRequest(
+                    bucketName,
+                    thumbnailS3Key,
+                    new ByteArrayInputStream(thumbnailBytes),
+                    thumbnailMetadata
+            ));
+
+            // Get URLs for both versions
+            String webUrl = amazonS3.getUrl(bucketName, webS3Key).toString();
+            String thumbnailUrl = amazonS3.getUrl(bucketName, thumbnailS3Key).toString();
+
+
             // SHORT TERM solution for adding catalogs.
             // Will need to get some sort of UI or otherwise to add these further down the road.
             List<String> catalogNames = new ArrayList<>();
@@ -88,8 +135,8 @@ public class ImageServiceImpl implements ImageService {
                     .camera(extractValueForKey(directoriesList, "Model"))
                     .focalLength(extractValueForKey(directoriesList, "Focal Length 35"))
                     .location(catalogNames.get(0) + "/" + file.getOriginalFilename())
-                    .imageUrlLarge(null)
-                    .imageUrlSmall(null)
+                    .imageUrlWeb(webUrl)
+                    .imageUrlSmall(thumbnailUrl)
                     .imageUrlRaw(null)
                     .createDate(extractValueForKey(directoriesList, "Date/Time Original"))
                     .updateDate(LocalDateTime.now())
@@ -111,12 +158,19 @@ public class ImageServiceImpl implements ImageService {
                 imageRepository.save(builtImage);
 
             }
-
-//            imageRepository.save(builtImage);
             return imageReturnMetadata;
-        } catch (DataIntegrityViolationException | IOException |
-                 ImageProcessingException e) {
-            throw new DataIntegrityViolationException(String.valueOf(e));
+        } catch (DataIntegrityViolationException e) {
+            log.error("Database integrity error while processing image", e);
+            throw new DataIntegrityViolationException("Failed to save image metadata: " + e.getMessage());
+        } catch (IOException e) {
+            log.error("IO error while processing image", e);
+            throw new RuntimeException("Failed to read or write image file: " + e.getMessage(), e);
+        } catch (ImageProcessingException e) {
+            log.error("Error processing image metadata", e);
+            throw new RuntimeException("Failed to extract image metadata: " + e.getMessage(), e);
+        } catch (AmazonS3Exception e) {  // Add this for S3 errors
+            log.error("S3 upload error", e);
+            throw new RuntimeException("Failed to upload image to S3: " + e.getMessage(), e);
         }
 
     }
@@ -198,7 +252,7 @@ public class ImageServiceImpl implements ImageService {
         modalImage.setCamera(image.getCamera());
         modalImage.setFocalLength(image.getFocalLength());
         modalImage.setLocation(image.getLocation());
-        modalImage.setImageUrlLarge(image.getImageUrlLarge());
+        modalImage.setImageUrlWeb(image.getImageUrlWeb());
         modalImage.setImageUrlSmall(image.getImageUrlSmall());
         modalImage.setImageUrlRaw(image.getImageUrlRaw());
         modalImage.setCreateDate(image.getCreateDate());
@@ -265,8 +319,7 @@ public class ImageServiceImpl implements ImageService {
             }
 
             // Special handling for XMP Directory
-            if (directory instanceof XmpDirectory) {
-                XmpDirectory xmpDirectory = (XmpDirectory) directory;
+            if (directory instanceof XmpDirectory xmpDirectory) {
                 Map<String, String> xmpProperties = xmpDirectory.getXmpProperties();
                 if (xmpProperties != null) {
                     for (Map.Entry<String, String> entry : xmpProperties.entrySet()) {
@@ -300,5 +353,31 @@ public class ImageServiceImpl implements ImageService {
 //            Map<String, String> metdata = (Map<String, String>) directoryData.get("metadata")
         }
         return null;
+    }
+
+    private String generateS3Key(String filename, ImageType type) {
+        // generate a unique key for s3
+        // format: yyyy/MM/original_filename
+        LocalDate now = LocalDate.now();
+        return String.format("%s/%d/%02d/%s",
+                type.getFolderName(),
+                now.getYear(),
+                now.getMonthValue(),
+                filename);
+    }
+
+    private enum ImageType {
+        WEB("web"),
+        THUMBNAIL("thumbnail");
+
+        private final String folderName;
+
+        ImageType(String folderName) {
+            this.folderName = folderName;
+        }
+
+        public String getFolderName() {
+            return folderName;
+        }
     }
 }
