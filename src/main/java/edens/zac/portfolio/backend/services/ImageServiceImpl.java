@@ -99,7 +99,7 @@ public class ImageServiceImpl implements ImageService {
 
             // Generate S3 key for both image sizes
             String webS3Key = generateS3Key(file.getOriginalFilename(), ImageType.WEB);
-            String thumbnailS3Key = generateS3Key(file.getOriginalFilename(), ImageType.THUMBNAIL);
+//            String thumbnailS3Key = generateS3Key(file.getOriginalFilename(), ImageType.THUMBNAIL);
 
             // Upload original image size to web folder
             ObjectMetadata webMetadata = new ObjectMetadata();
@@ -127,7 +127,7 @@ public class ImageServiceImpl implements ImageService {
 
             // Get URLs for both versions
             String webUrl = amazonS3.getUrl(bucketName, webS3Key).toString();
-            String thumbnailUrl = amazonS3.getUrl(bucketName, thumbnailS3Key).toString();
+//            String thumbnailUrl = amazonS3.getUrl(bucketName, thumbnailS3Key).toString();
 
 
             // SHORT TERM solution for adding catalogs.
@@ -152,7 +152,7 @@ public class ImageServiceImpl implements ImageService {
                     .focalLength(extractValueForKey(directoriesList, "Focal Length 35"))
                     .location(catalogNames.get(0) + "/" + file.getOriginalFilename())
                     .imageUrlWeb(webUrl)
-                    .imageUrlSmall(thumbnailUrl)
+                    .imageUrlSmall("imageUrlSmall")// thumbnailUrl)
                     .imageUrlRaw(null)
                     .createDate(extractValueForKey(directoriesList, "Date/Time Original"))
                     .updateDate(LocalDateTime.now())

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -76,7 +77,8 @@ public class ImageController {
      * @return {List<object></object>} List of our image metadata objects being returned
      */
     @PostMapping("/getBatchImageMetadata")
-    public List<Map<String, String>> getBatchImageMetadata(@RequestParam("images") List<MultipartFile> files) {
+    public List<Map<String, String>> getBatchImageMetadata(@RequestPart("images") List<MultipartFile> files) {
+        System.out.println("zac was here");
         return files.stream().map(imageService::getImageMetadata) // file -> imageService.getImageMetadata(file)
                 .collect(Collectors.toList());
     }
