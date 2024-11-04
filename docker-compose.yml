@@ -9,30 +9,21 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://${RDS_ENDPOINT}:3306/portfolio?useSSL=true&serverTimezone=UTC
+      # Database Config
+      SPRING_DATASOURCE_URL: jdbc:mysql://${RDS_ENDPOINT}:3306/${RDS_TABLE_NAME}?useSSL=true&serverTimezone=${RDS_TIMEZONE}
       SPRING_DATASOURCE_USERNAME: admin
       SPRING_DATASOURCE_PASSWORD: ${RDS_PASSWORD}
 
+      # AWS Config
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: us-west-2
+      AWS_PORTFOLIO_S3_BUCKET: ${AWS_PORTFOLIO_S3_BUCKET}
 
-# OLD docker-compose for local
-#    environment:
-#      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/edens_zac?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-#      SPRING_DATASOURCE_USERNAME: zedens
-#      SPRING_DATASOURCE_PASSWORD: password
-#    depends_on:
-#      - db
-#
-#  db:
-#    image: mysql:8.0
-#    environment:
-#      MYSQL_ROOT_PASSWORD: password
-#      MYSQL_DATABASE: zedens
-#      MYSQL_USER: zedens
-#      MYSQL_PASSWORD: password
-#    ports:
-#      - "3306:3306"
-#    volumes:
-#      - db_data:/var/lib/mysql
-#
-#volumes:
-#  db_data:
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-h", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

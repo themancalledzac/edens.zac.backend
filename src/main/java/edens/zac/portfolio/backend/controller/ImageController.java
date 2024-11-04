@@ -46,18 +46,11 @@ public class ImageController {
         return imageService.getAllImagesByCatalog(catalog);
     }
 
-    // TODO: MAIN: Restart and recreate all Images with Catalog's. Missed Paris, or missnamed Paris. oops.
-    // TODO: Decide on other catalogs that we'd like to include.
-    // TODO: Start work on AWS S3 endpoint
-    //  1. Does this require something more for local? if so, maybe we wait until it is hosted first
-    // TODO: Start work on Dockerization of both frontend application and backend application
-    // TODO: Start work on how to HOST our frontend Site, change ownership of our URL
-    // TODO: Start work on how to HOST our backend application on AWS, probably an S3 bucket? just running?
-
-
     /**
+     * TODO: Update this endpoint to take in a list of images AS WELL as a list of associated image metadata
+     * TODO: Need to figure out our upload strategy. Upload IMAGES & List<objects>, where each object is associated to each image?
      * MAIN endpoint for posting images to database
-     * // http://localhost:8080/api/v1/image/getImagesByCatalogs?catalogss=Amsterdam,Paris
+     * // <a href="http://localhost:8080/api/v1/image/getImagesByCatalogs?catalogs=Amsterdam,Paris">...</a>
      *
      * @param files - Add a List of files (POSTMAN: Body< form-data< Key:Images(File), Value(${your-images}) )
      * @return - A Json List of the metadata added to the database
@@ -74,11 +67,14 @@ public class ImageController {
                 .collect(Collectors.toList());
     }
 
-    @RequestMapping(value = "/getImageMetadata", method = RequestMethod.POST)
-    public Map<String, String> getImageMetadata(@RequestParam("image") MultipartFile file) {
-        return imageService.getImageMetadata(file);
-    }
-
+    /**
+     * Endpoint to Get Image Metadata for 'n' number of Images
+     * <p>
+     * // TODO: Update this so it returns the correct List of Image metadata objects
+     *
+     * @param {List<MultipartFile>>} files
+     * @return {List<object></object>} List of our image metadata objects being returned
+     */
     @PostMapping("/getBatchImageMetadata")
     public List<Map<String, String>> getBatchImageMetadata(@RequestParam("images") List<MultipartFile> files) {
         return files.stream().map(imageService::getImageMetadata) // file -> imageService.getImageMetadata(file)

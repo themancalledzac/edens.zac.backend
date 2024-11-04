@@ -17,6 +17,7 @@ import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -44,19 +45,34 @@ public class ImageServiceImpl implements ImageService {
 
     private final ImageRepository imageRepository;
     private final CatalogRepository catalogRepository;
-    private final ImageProcessingService imageProcessingService;
+    //    private final ImageProcessingService imageProcessingService;
     private final AmazonS3 amazonS3;
+    private final String bucketName;
 
-    @Value("${aws.s3.bucket}")
-    private String bucketName;
-
-    public ImageServiceImpl(ImageRepository imageRepository, CatalogRepository catalogRepository, AmazonS3 amazonS3, ImageProcessingService imageProcessingService) {
+    @Autowired
+    public ImageServiceImpl(
+            ImageRepository imageRepository,
+            CatalogRepository catalogRepository,
+            AmazonS3 amazonS3,
+            @Value("${aws.s3.bucket}") String bucketName) {
         this.imageRepository = imageRepository;
         this.catalogRepository = catalogRepository;
         this.amazonS3 = amazonS3;
-        this.imageProcessingService = imageProcessingService;
+        this.bucketName = bucketName;
+
+        log.info("ImageServiceImpl initialized");
+        log.info("Bucket name: {}", bucketName);
     }
 
+    // TODO: Update this postImages so we:
+    //  1. Take an Object of data in addition to each image file
+    //  2. If key doesn't exist in object, replace with our old route
+    //  3. Update to include Catalog logic (object should now CONTAIN our catalog list, upload each that does not already exist )
+    //  4. Upload Image to S3, get back URL
+    //  5. Remove thumbnail logic for now? Look at replacing it with Dan's comment of 'on getImage' use lamda to return thumbnail if requested
+    //  6. database upload for image and any catalog changes
+    //  7. return a List of objects for each image, where it contains:
+    //   a. Image upload success / error message, database upload success / error message, Image location(s3 url), ?
     @Override
     @Transactional
     public Map<String, String> postImages(MultipartFile file) {
@@ -97,17 +113,17 @@ public class ImageServiceImpl implements ImageService {
                     webMetadata
             ));
 
-            byte[] thumbnailBytes = imageProcessingService.createThumbnail(file);
-            ObjectMetadata thumbnailMetadata = new ObjectMetadata();
-            thumbnailMetadata.setContentType("image/webp");
-            thumbnailMetadata.setContentLength(thumbnailBytes.length);
-
-            amazonS3.putObject(new PutObjectRequest(
-                    bucketName,
-                    thumbnailS3Key,
-                    new ByteArrayInputStream(thumbnailBytes),
-                    thumbnailMetadata
-            ));
+//            byte[] thumbnailBytes = imageProcessingService.createThumbnail(file);
+//            ObjectMetadata thumbnailMetadata = new ObjectMetadata();
+//            thumbnailMetadata.setContentType("image/webp");
+//            thumbnailMetadata.setContentLength(thumbnailBytes.length);
+//
+//            amazonS3.putObject(new PutObjectRequest(
+//                    bucketName,
+//                    thumbnailS3Key,
+//                    new ByteArrayInputStream(thumbnailBytes),
+//                    thumbnailMetadata
+//            ));
 
             // Get URLs for both versions
             String webUrl = amazonS3.getUrl(bucketName, webS3Key).toString();
@@ -261,7 +277,7 @@ public class ImageServiceImpl implements ImageService {
         return modalImage;
     }
 
-    // DEPRECATED
+    // TODO: Frontend CDN selects images, calls this endpoint to GET metadata back again, without uploading
     public Map<String, String> getImageMetadata(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
             Metadata metadata = ImageMetadataReader.readMetadata(inputStream);

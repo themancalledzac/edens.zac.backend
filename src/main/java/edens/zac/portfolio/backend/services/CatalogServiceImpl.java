@@ -83,7 +83,7 @@ public class CatalogServiceImpl implements CatalogService {
         modalImage.setCamera(image.getCamera());
         modalImage.setFocalLength(image.getFocalLength());
         modalImage.setLocation(image.getLocation());
-        modalImage.setImageUrlLarge(image.getImageUrlLarge());
+        modalImage.setImageUrlWeb(image.getImageUrlWeb());
         modalImage.setImageUrlSmall(image.getImageUrlSmall());
         modalImage.setImageUrlRaw(image.getImageUrlRaw());
         modalImage.setCreateDate(image.getCreateDate());
