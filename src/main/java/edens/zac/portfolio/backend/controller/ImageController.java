@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @AllArgsConstructor
+@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/image")
 public class ImageController {
@@ -71,7 +73,6 @@ public class ImageController {
     /**
      * Endpoint to Get Image Metadata for 'n' number of Images
      * <p>
-     * // TODO: Update this so it returns the correct List of Image metadata objects
      *
      * @param {List<MultipartFile>>} files
      * @return {List<object></object>} List of our image metadata objects being returned
@@ -97,7 +98,7 @@ public class ImageController {
     public List<ImageModel> batchCreateImages() {
         return null;
     }
-    // TODO: Update thie return to include categories, as would a regular 'get image' would.
+    // TODO: Update thie return to include categories, as would a regular 'get image' wou
 
 //    @RequestMapping(value = "/getImagesByCategory", method = RequestMethod.GET)
 //    public List<PhotoCategoryPackage> getImagesByCategory(@RequestParam List<String> categories) {
