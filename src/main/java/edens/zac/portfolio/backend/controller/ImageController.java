@@ -1,18 +1,11 @@
 package edens.zac.portfolio.backend.controller;
 
 import edens.zac.portfolio.backend.model.ImageModel;
+import edens.zac.portfolio.backend.model.ImageSearchModel;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -79,7 +72,6 @@ public class ImageController {
      */
     @PostMapping("/getBatchImageMetadata")
     public List<Map<String, String>> getBatchImageMetadata(@RequestPart("images") List<MultipartFile> files) {
-        System.out.println("zac was here");
         return files.stream().map(imageService::getImageMetadata) // file -> imageService.getImageMetadata(file)
                 .collect(Collectors.toList());
     }
@@ -104,4 +96,49 @@ public class ImageController {
 //    public List<PhotoCategoryPackage> getImagesByCategory(@RequestParam List<String> categories) {
 //        return imageService.getImagesByCategory(categories);
 //    }
+
+
+    // TODO:: NEW ENDPOINTS!
+    //  1. updateImages - Adds Tags, Catalogs(and their state), can Edit: Title, Author(?maybenot?), Location(initially null, based on catalog location maybe? )
+
+    @PutMapping(value = "/update/images")
+    public List<List<ImageModel>> updateImages(@RequestBody List<ImageModel> images) {
+        System.out.println("UpdateImages updates 'specific' images");
+        return images.stream().map(imageService::updateImages)
+                .collect(Collectors.toList());
+    }
+
+    // TODO:
+//  2. Update Catalog - When creating a new catalog for an image, we relevant fields ( which, after success, will be added to the images, if already selected )
+// TODO:
+//  3. UpdateImage ( singular? ) - do we NEED to do that?
+    @PutMapping(value = "/update/image")
+    public ImageModel updateImage(@RequestBody ImageModel image) {
+        System.out.println("UpdateImage updates a specific image.");
+        // return imageService.updateImage(image);
+        return null;
+    }
+
+    //// TODO: search images by specific metadata, this will take an Image object ( nullable fields ), and search based on those parameters
+////  5. getImageByData -
+    @GetMapping(value = "/searchByData")
+    public List<ImageModel> searchByData(@RequestBody ImageSearchModel searchParams) throws IllegalAccessException {
+        System.out.println("Search images by Metadata");
+        if (searchParams == null) { // todo: this should be moved to ImageController
+            throw new IllegalAccessException("Search parameters cannot be null");
+        }
+        return imageService.searchByData(searchParams);
+    }
+//
 }
+
+
+// TODO:
+//  4. Do we have an UpdateCatalogAndImages, does it make sense to do both of them? we could modularize the components so we just reuse the first two endpointn logic
+//  6. catalogSearch
+//  7. UPDATE catalog to be able to be a 'catalog of catalogs'
+//  8. This allows us to literally have multiple layers deep, a folder structure, so to speak.
+//  9. UPDATE CREATE endpoint:: postImages - allow for TAGS
+//  10. createTags - Array of Strings of Tag names ( tree, hand, coffee shop, pointing )
+//  13. GetImageByTag
+//  14.

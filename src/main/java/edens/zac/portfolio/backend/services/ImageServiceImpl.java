@@ -14,8 +14,10 @@ import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.entity.ImageEntity;
 import edens.zac.portfolio.backend.model.CatalogImagesDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
+import edens.zac.portfolio.backend.model.ImageSearchModel;
 import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
+import edens.zac.portfolio.backend.specification.ImageSpecification;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +26,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
@@ -99,6 +100,8 @@ public class ImageServiceImpl implements ImageService {
 
             // Generate S3 key for both image sizes
             String webS3Key = generateS3Key(file.getOriginalFilename(), ImageType.WEB);
+
+//            thumbnail logic // TODO
 //            String thumbnailS3Key = generateS3Key(file.getOriginalFilename(), ImageType.THUMBNAIL);
 
             // Upload original image size to web folder
@@ -113,6 +116,7 @@ public class ImageServiceImpl implements ImageService {
                     webMetadata
             ));
 
+//            Thumbnail Logic // TODO
 //            byte[] thumbnailBytes = imageProcessingService.createThumbnail(file);
 //            ObjectMetadata thumbnailMetadata = new ObjectMetadata();
 //            thumbnailMetadata.setContentType("image/webp");
@@ -127,6 +131,8 @@ public class ImageServiceImpl implements ImageService {
 
             // Get URLs for both versions
             String webUrl = amazonS3.getUrl(bucketName, webS3Key).toString();
+
+//            Thumbnail Logic // TODO
 //            String thumbnailUrl = amazonS3.getUrl(bucketName, thumbnailS3Key).toString();
 
 
@@ -216,6 +222,23 @@ public class ImageServiceImpl implements ImageService {
 
 //        List<Image> images = imageRepository.findByCatalogName(catalogTitle);
         return images.stream()
+                .map(this::convertToModalImage)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ImageModel> updateImages(ImageModel imageModel) {
+        return null;
+    }
+
+    @Override
+    public List<ImageModel> searchByData(ImageSearchModel searchParams) {
+
+        List<ImageEntity> results = imageRepository.findAll(
+                ImageSpecification.buildImageSpecification(searchParams)
+        );
+
+        return results.stream()
                 .map(this::convertToModalImage)
                 .collect(Collectors.toList());
     }
@@ -338,10 +361,8 @@ public class ImageServiceImpl implements ImageService {
             if (directory instanceof XmpDirectory xmpDirectory) {
                 Map<String, String> xmpProperties = xmpDirectory.getXmpProperties();
                 if (xmpProperties != null) {
-                    for (Map.Entry<String, String> entry : xmpProperties.entrySet()) {
-                        // Prefix XMP properties to distinguish them from standard tags
-                        tagMap.put(entry.getKey(), entry.getValue());
-                    }
+                    // Prefix XMP properties to distinguish them from standard tags
+                    tagMap.putAll(xmpProperties);
                 }
             }
 
