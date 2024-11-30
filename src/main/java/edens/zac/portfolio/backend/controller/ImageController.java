@@ -67,7 +67,7 @@ public class ImageController {
      * Endpoint to Get Image Metadata for 'n' number of Images
      * <p>
      *
-     * @param {List<MultipartFile>>} files
+     * @param files - {List<MultipartFile>>}
      * @return {List<object></object>} List of our image metadata objects being returned
      */
     @PostMapping("/getBatchImageMetadata")
@@ -109,7 +109,6 @@ public class ImageController {
     }
 
     // TODO:
-//  2. Update Catalog - When creating a new catalog for an image, we relevant fields ( which, after success, will be added to the images, if already selected )
 // TODO:
 //  3. UpdateImage ( singular? ) - do we NEED to do that?
     @PutMapping(value = "/update/image")
@@ -129,7 +128,6 @@ public class ImageController {
         }
         return imageService.searchByData(searchParams);
     }
-//
 }
 
 
@@ -142,3 +140,8 @@ public class ImageController {
 //  10. createTags - Array of Strings of Tag names ( tree, hand, coffee shop, pointing )
 //  13. GetImageByTag
 //  14.
+
+// TODO Thoughts:
+//  - Do we add a DB table for Tags? keep simple, just 1 column for 'name', 1 for 'uuid'
+//  - This way, Images and Catalogs can both have an 'associated' tags array
+//  - basically, a many-to-many relationship DB, just like catalogs are now

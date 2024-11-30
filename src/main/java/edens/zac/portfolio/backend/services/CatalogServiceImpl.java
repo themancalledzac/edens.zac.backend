@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.entity.ImageEntity;
+import edens.zac.portfolio.backend.model.CatalogImagesDTO;
 import edens.zac.portfolio.backend.model.CatalogModalDTO;
 import edens.zac.portfolio.backend.model.CatalogModel;
 import edens.zac.portfolio.backend.model.ImageModel;
@@ -40,7 +41,28 @@ public class CatalogServiceImpl implements CatalogService {
         return savedCatalog.getName();
     }
 
-    ;
+    @Override
+    public List<CatalogModel> catalogSearch(String search) {
+
+        // TODO: Search Catalog DB, return List of matching Catalogs
+        //  - such as (search="nyc") we return ["nyc_2011", "nyc_2024];
+        return null;
+    }
+
+    @Override
+    public CatalogModel updateCatalog(CatalogModel catalog) {
+
+        // TODO: Update Catalog
+        return null;
+    }
+
+    @Override
+    public CatalogImagesDTO updateCatalogWithImages(CatalogImagesDTO catalogWithImages) {
+
+        // TODO: Figure out a Update strategy. probably...
+        //  - 2db calls, 1 updates catalog, the next loops through each image and updates accordingly, OR, we update each image all at once in one db call. might be more difficult, but probably the more correct option.
+        return null;
+    }
 
     @Override
     @Transactional

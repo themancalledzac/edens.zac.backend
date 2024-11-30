@@ -37,4 +37,4 @@ public interface ImageService {
 
 //    List<Image> getImageByDate(String date);
 
-};
+}
