@@ -55,7 +55,7 @@ public class ImageServiceImpl implements ImageService {
             ImageRepository imageRepository,
             CatalogRepository catalogRepository,
             AmazonS3 amazonS3,
-            @Value("${aws.s3.bucket}") String bucketName) {
+            @Value("${AWS_BUCKET_NAME}") String bucketName) {
         this.imageRepository = imageRepository;
         this.catalogRepository = catalogRepository;
         this.amazonS3 = amazonS3;
@@ -99,7 +99,7 @@ public class ImageServiceImpl implements ImageService {
             imageReturnMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
 
             // Generate S3 key for both image sizes
-            String webS3Key = generateS3Key(file.getOriginalFilename(), ImageType.WEB);
+            String webS3Key = generateS3Key(imageReturnMetadata.get("date"), file.getOriginalFilename(), ImageType.WEB);
 
 //            thumbnail logic // TODO
 //            String thumbnailS3Key = generateS3Key(file.getOriginalFilename(), ImageType.THUMBNAIL);
@@ -392,14 +392,10 @@ public class ImageServiceImpl implements ImageService {
         return null;
     }
 
-    private String generateS3Key(String filename, ImageType type) {
-        // generate a unique key for s3
-        // format: yyyy/MM/original_filename
-        LocalDate now = LocalDate.now();
-        return String.format("%s/%d/%02d/%s",
-                type.getFolderName(),
-                now.getYear(),
-                now.getMonthValue(),
+    private String generateS3Key(String date, String filename, ImageType type) {
+        String formattedDate = date.split(" ")[0].replace(':', '-');
+        return String.format("%s/%s",
+                formattedDate,
                 filename);
     }
 

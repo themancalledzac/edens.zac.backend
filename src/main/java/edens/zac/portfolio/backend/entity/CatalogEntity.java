@@ -49,9 +49,4 @@ public class CatalogEntity {
     public CatalogEntity(String catalogName) {
         this.name = catalogName;
     }
-
-    @Transient
-    public List<String> getImageTitles() {
-        return images.stream().map(ImageEntity::getTitle).collect(Collectors.toList());
-    }
 }
