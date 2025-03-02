@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -54,8 +55,18 @@ public class ImageEntity {
     )
     private Set<CatalogEntity> catalogs = new HashSet<>();
 
+    @ManyToMany(mappedBy = "images")
+    private Set<BlogEntity> blogs = new HashSet<>();
+
     @Transient
     public List<String> getCatalogNames() {
         return catalogs.stream().map(CatalogEntity::getName).collect(Collectors.toList());
+    }
+
+    @Transient
+    public List<String> getBlogTitles() {
+        return blogs == null ? new ArrayList<>() : blogs.stream()
+                .map(BlogEntity::getTitle)
+                .collect(Collectors.toList());
     }
 }

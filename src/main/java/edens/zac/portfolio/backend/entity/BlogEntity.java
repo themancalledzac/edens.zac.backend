@@ -1,12 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,6 +8,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -32,10 +30,26 @@ public class BlogEntity {
     private String title;
     private String date;
     private String location;
+
+    @Column(columnDefinition = "TEXT")
     private String paragraph;
+
     private String author;
     private String coverImageUrl;
     private String slug;
+
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "blog_image",
+            joinColumns = @JoinColumn(name = "blog_id"),
+            inverseJoinColumns = @JoinColumn(name = "image_id")
+    )
+    private Set<ImageEntity> images = new HashSet<>();
+
+    @ElementCollection
+    @CollectionTable(name = "blog_tags", joinColumns = @JoinColumn(name = "blog_id"))
+    @Column(name = "tag")
+    private List<String> tags = new ArrayList<>();
 
 //    public BlogEntity(String title, LocalDateTime date) {
 //        this.title = title;

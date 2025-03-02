@@ -42,13 +42,14 @@ public class ImageController {
         return imageService.getAllImagesByCatalog(catalog);
     }
 
+    // TODO: Update return value to be a custom 'postImageReturnObject' of some sort, instead of this `<List<Map<String, String>>`
+
     /**
-     * TODO: Update this endpoint to take in a list of images AS WELL as a list of associated image metadata
-     * TODO: Need to figure out our upload strategy. Upload IMAGES & List<objects>, where each object is associated to each image?
      * MAIN endpoint for posting images to database
      * // <a href="http://localhost:8080/api/v1/image/getImagesByCatalogs?catalogs=Amsterdam,Paris">...</a>
      *
      * @param files - Add a List of files (POSTMAN: Body< form-data< Key:Images(File), Value(${your-images}) )
+     * @param type  - Type is 'blog' or 'catalog'. Determines if we create a blog with associated images, or create a catalog(if not exists) with associated images.
      * @return - A Json List of the metadata added to the database
      * @CrossOrigin(origins = "http://localhost:3000") // Allow only from your Local React app
      * @GetMapping("/getImagesByCatalogs") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogs") String catalogss) {
@@ -57,9 +58,10 @@ public class ImageController {
      * return ResponseEntity.ok(results);
      * }
      */
-    @PostMapping("/postImages")
-    public List<Map<String, String>> postImages(@RequestParam("images") List<MultipartFile> files) {
-        return files.stream().map(imageService::postImages) // file -> imageService.getImageMetadata(file)
+    @PostMapping("/postImages/{type}")
+    public List<Map<String, String>> postImages(@RequestParam("images") List<MultipartFile> files, @PathVariable("type") String type) {
+        return files.stream()
+                .map(file -> imageService.postImages(file, type))
                 .collect(Collectors.toList());
     }
 
@@ -118,8 +120,8 @@ public class ImageController {
         return null;
     }
 
-    //// TODO: search images by specific metadata, this will take an Image object ( nullable fields ), and search based on those parameters
-////  5. getImageByData -
+    /// / TODO: search images by specific metadata, this will take an Image object ( nullable fields ), and search based on those parameters
+    /// /  5. getImageByData -
     @GetMapping(value = "/searchByData")
     public List<ImageModel> searchByData(@RequestBody ImageSearchModel searchParams) throws IllegalAccessException {
         System.out.println("Search images by Metadata");

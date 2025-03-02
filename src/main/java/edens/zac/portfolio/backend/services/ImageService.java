@@ -16,7 +16,7 @@ public interface ImageService {
 
     Map<String, String> getImageMetadata(MultipartFile image);
 
-    Map<String, String> postImages(MultipartFile image);
+    Map<String, String> postImages(MultipartFile image, String type);
 
     ImageModel getImageById(Long imageId);
 

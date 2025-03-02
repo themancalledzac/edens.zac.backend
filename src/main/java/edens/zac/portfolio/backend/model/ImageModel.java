@@ -29,6 +29,7 @@ public class ImageModel {
     private String imageUrlSmall;
     private String imageUrlRaw;
     private List<String> catalog;
+    private List<String> blogs;
     private String createDate;
     private LocalDateTime updateDate;
 
