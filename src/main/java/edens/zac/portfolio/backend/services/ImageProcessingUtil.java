@@ -46,7 +46,7 @@ public class ImageProcessingUtil {
     @Autowired
     public ImageProcessingUtil(
             AmazonS3 amazonS3,
-            @Value("${aws.s3.bucket}") String bucketName,
+            @Value("${aws.portfolio.s3.bucket}") String bucketName,
             ImageRepository imageRepository,
             CatalogRepository catalogRepository) {
         this.amazonS3 = amazonS3;

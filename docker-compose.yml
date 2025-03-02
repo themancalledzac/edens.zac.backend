@@ -19,6 +19,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_REGION: us-west-2
       AWS_PORTFOLIO_S3_BUCKET: ${AWS_PORTFOLIO_S3_BUCKET}
+      AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN}
 
     restart: unless-stopped
     healthcheck:
