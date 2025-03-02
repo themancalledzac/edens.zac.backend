@@ -55,12 +55,8 @@ public class ImageProcessingUtil {
         this.catalogRepository = catalogRepository;
     }
 
-    @PostConstruct
-    public void logConfig() {
-        log.info("ImageProcessingUtil initialized");
-        log.info("Actual bucket name value: '{}'", bucketName);
-        log.info("AWS_PORTFOLIO_S3_BUCKET env var: '{}'", System.getenv("AWS_BUCKET_NAME"));
-    }
+    @Value("${cloudfront.domain}")
+    private String cloudfrontDomain;
 
     /**
      * Complete process for handling an image. extract metadata, upload to S3, and save to database
@@ -146,6 +142,8 @@ public class ImageProcessingUtil {
     }
 
     public String uploadImageToS3(MultipartFile file, String date) {
+
+
         try (InputStream inputStream = file.getInputStream()) {
             // Generate S3 Key
             String webS3Key = generateS3Key(date, file.getOriginalFilename(), ImageType.WEB);
@@ -167,10 +165,12 @@ public class ImageProcessingUtil {
 
             amazonS3.putObject(putObjectRequest);
 
+            String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + webS3Key;
+
             // Return the URL
-            String url = amazonS3.getUrl(bucketName, webS3Key).toString();
-            log.info("File uploaded successfully to S3. URL: {}", url);
-            return url;
+//            String url = amazonS3.getUrl(bucketName, webS3Key).toString();
+            log.info("File uploaded successfully to S3. URL: {}", cloudfrontUrl);
+            return cloudfrontUrl;
         } catch (Exception e) {
             log.error("Error uploading image to S3: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to upload image to S3: " + e.getMessage(), e);
