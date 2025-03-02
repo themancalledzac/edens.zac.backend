@@ -1,45 +1,149 @@
 package edens.zac.portfolio.backend.controller;
 
-import edens.zac.portfolio.backend.model.Image;
-import edens.zac.portfolio.backend.repository.ImageRepository;
+import edens.zac.portfolio.backend.model.ImageModel;
+import edens.zac.portfolio.backend.model.ImageSearchModel;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.UUID;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @AllArgsConstructor
+@CrossOrigin(origins = "http://localhost:3000")
 @RestController
-@RequestMapping("/api/images")
+@RequestMapping("/api/v1/image")
 public class ImageController {
 
     private final ImageService imageService;
 
-    @Autowired
-    private ImageRepository imageRepository;
-
-    @RequestMapping(value = "/{imageUuid}", method = RequestMethod.GET)
-    public ResponseEntity<Object> getImage(@PathVariable("imageUuid") UUID imageUuid) {
-        return ResponseEntity.of(imageRepository.findById(imageUuid).map(Image::getImage));
+    /**
+     * @param imageId - ID that connects our image to all it's metadata, including S3 small/large/raw image locations.
+     * @return Image object, as seen in '/model/Image'
+     * <p>
+     * Specific Image request based on UUID. This will likely be used on the site, when looking through a LIST of Images,
+     * and wanting to get more information on that specific image. This endpoint will likely add additional information
+     * not generally in the Image object, such as specific metadata that normally wouldn't be included in a general List<Image> call.
+     * This reasoning only works if we keep our Image table as sort of GENERIC, and that we would have more specific metadata in a separate
+     * table such as ImageMetadata. This table would be connected, probably, by a foreignKey associated with ImageUuid.
+     */
+    @RequestMapping(value = "/getById/{imageId}", method = RequestMethod.GET)
+    public ImageModel getImageById(@PathVariable("imageId") Long imageId) {
+        log.debug("Get Image by Uuid - In Controller");
+        return imageService.getImageById(imageId);
     }
 
-    @RequestMapping(value = "/category/{category}", method = RequestMethod.GET)
-    public List<Image> getImageByCategory(@PathVariable("category") String category) {
+    @GetMapping("/getImagesByCatalogs/{catalog}")
+    public List<ImageModel> getImagesByCatalog(@PathVariable("catalog") String catalog) {
+        return imageService.getAllImagesByCatalog(catalog);
+    }
 
-        log.debug("Get Image by Category - in Controller");
+    // TODO: Update return value to be a custom 'postImageReturnObject' of some sort, instead of this `<List<Map<String, String>>`
 
-        return imageService.getImageByCategory(category);
+    /**
+     * MAIN endpoint for posting images to database
+     * // <a href="http://localhost:8080/api/v1/image/getImagesByCatalogs?catalogs=Amsterdam,Paris">...</a>
+     *
+     * @param files - Add a List of files (POSTMAN: Body< form-data< Key:Images(File), Value(${your-images}) )
+     * @param type  - Type is 'blog' or 'catalog'. Determines if we create a blog with associated images, or create a catalog(if not exists) with associated images.
+     * @return - A Json List of the metadata added to the database
+     * @CrossOrigin(origins = "http://localhost:3000") // Allow only from your Local React app
+     * @GetMapping("/getImagesByCatalogs") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogs") String catalogss) {
+     * List<String> catalogsNames = Arrays.asList(catalogs.split(","));
+     * List<CatalogsImagesDTO> results = imageService.getAllImagesByCatalogs(catalogsNames);
+     * return ResponseEntity.ok(results);
+     * }
+     */
+    @PostMapping("/postImages/{type}")
+    public List<Map<String, String>> postImages(@RequestParam("images") List<MultipartFile> files, @PathVariable("type") String type) {
+        return files.stream()
+                .map(file -> imageService.postImages(file, type))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Endpoint to Get Image Metadata for 'n' number of Images
+     * <p>
+     *
+     * @param files - {List<MultipartFile>>}
+     * @return {List<object></object>} List of our image metadata objects being returned
+     */
+    @PostMapping("/getBatchImageMetadata")
+    public List<Map<String, String>> getBatchImageMetadata(@RequestPart("images") List<MultipartFile> files) {
+        return files.stream().map(imageService::getImageMetadata) // file -> imageService.getImageMetadata(file)
+                .collect(Collectors.toList());
     }
 
     // https://stackoverflow.com/questions/37253571/spring-data-jpa-difference-between-findby-findallby
 
+    /**
+     * @return List of Images ( successfully created )
+     * <p>
+     * This will be our 'Batch Create' endpoint, for when we are uploading multiple images simultaneously.
+     * Will require a LARGE amount of work to be functional, and will have to account for all possible edge cases.
+     * Initially more of a POSTMAN endpoint rather than website endpoint.
+     * Will need to have some sort of Authentication to not let ANYONE just use our AWS S3 account.
+     */
+    @RequestMapping(value = "/images", method = RequestMethod.POST)
+    public List<ImageModel> batchCreateImages() {
+        return null;
+    }
+    // TODO: Update thie return to include categories, as would a regular 'get image' wou
 
+//    @RequestMapping(value = "/getImagesByCategory", method = RequestMethod.GET)
+//    public List<PhotoCategoryPackage> getImagesByCategory(@RequestParam List<String> categories) {
+//        return imageService.getImagesByCategory(categories);
+//    }
+
+
+    // TODO:: NEW ENDPOINTS!
+    //  1. updateImages - Adds Tags, Catalogs(and their state), can Edit: Title, Author(?maybenot?), Location(initially null, based on catalog location maybe? )
+
+    @PutMapping(value = "/update/images")
+    public List<List<ImageModel>> updateImages(@RequestBody List<ImageModel> images) {
+        System.out.println("UpdateImages updates 'specific' images");
+        return images.stream().map(imageService::updateImages)
+                .collect(Collectors.toList());
+    }
+
+    // TODO:
+// TODO:
+//  3. UpdateImage ( singular? ) - do we NEED to do that?
+    @PutMapping(value = "/update/image")
+    public ImageModel updateImage(@RequestBody ImageModel image) {
+        System.out.println("UpdateImage updates a specific image.");
+        // return imageService.updateImage(image);
+        return null;
+    }
+
+    /// / TODO: search images by specific metadata, this will take an Image object ( nullable fields ), and search based on those parameters
+    /// /  5. getImageByData -
+    @GetMapping(value = "/searchByData")
+    public List<ImageModel> searchByData(@RequestBody ImageSearchModel searchParams) throws IllegalAccessException {
+        System.out.println("Search images by Metadata");
+        if (searchParams == null) { // todo: this should be moved to ImageController
+            throw new IllegalAccessException("Search parameters cannot be null");
+        }
+        return imageService.searchByData(searchParams);
+    }
 }
+
+
+// TODO:
+//  4. Do we have an UpdateCatalogAndImages, does it make sense to do both of them? we could modularize the components so we just reuse the first two endpointn logic
+//  6. catalogSearch
+//  7. UPDATE catalog to be able to be a 'catalog of catalogs'
+//  8. This allows us to literally have multiple layers deep, a folder structure, so to speak.
+//  9. UPDATE CREATE endpoint:: postImages - allow for TAGS
+//  10. createTags - Array of Strings of Tag names ( tree, hand, coffee shop, pointing )
+//  13. GetImageByTag
+//  14.
+
+// TODO Thoughts:
+//  - Do we add a DB table for Tags? keep simple, just 1 column for 'name', 1 for 'uuid'
+//  - This way, Images and Catalogs can both have an 'associated' tags array
+//  - basically, a many-to-many relationship DB, just like catalogs are now

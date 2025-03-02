@@ -1,0 +1,24 @@
+{
+  "properties": [
+    {
+      "name": "aws.access.key.id",
+      "type": "java.lang.String",
+      "description": "AWS Access Key ID for S3 access."
+    },
+    {
+      "name": "aws.secret.access.key",
+      "type": "java.lang.String",
+      "description": "AWS Secret Access Key for S3 access."
+    },
+    {
+      "name": "aws.s3.region",
+      "type": "java.lang.String",
+      "description": "AWS region for S3 bucket."
+    },
+    {
+      "name": "aws.s3.bucket",
+      "type": "java.lang.String",
+      "description": "Name of the S3 bucket for image storage."
+    }
+  ]
+}

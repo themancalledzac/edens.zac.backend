@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    image: edens.zac.backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Database Config
+      SPRING_DATASOURCE_URL: jdbc:mysql://${RDS_ENDPOINT}:3306/${RDS_TABLE_NAME}?useSSL=true&serverTimezone=${RDS_TIMEZONE}
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: ${RDS_PASSWORD}
+
+      # AWS Config
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: us-west-2
+      AWS_PORTFOLIO_S3_BUCKET: ${AWS_PORTFOLIO_S3_BUCKET}
+
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-h", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

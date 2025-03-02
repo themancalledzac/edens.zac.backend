@@ -2,22 +2,64 @@
 
 ## Milestone Order
 
+TODO: ADD THE FOLLOWING, ALSO UPDATE:
+- - Fix Loading issue. This must be a nextjs issue, check docs for how to, with less state changes or data changes or functions required to go from image ON, to image OFF. CAN we put the MODAL IN the Image component? if so, this would greatly simplify things. why not?
+- - SPIKE: We need a way of having an adventure.all as well as an adventure.selects. perhaps 
+- - NEED to have all images having the following sizes: 'thumbnail', 'small', 'full'. 
+- - - Thumbnail is no longer than what we'd show on a gallery page, basically 800px for horizontal, and 600px for vertical images. VERY SMALL.
+- - Need to update getImagesByAdventure endpoint, to only get Thumbnail size. Also update to ONLY be 
+- - Need to implement getImageById to get 'small' size. basically 2k width max (?), our current webP size is probably good, investigate, though.
+
 - ### **_Milestone 1:_**
     - Database Built
         - Tables Built
+            - IMAGE
+                - columns
+                    - focalLength
+                    - fStop
+                    - shutterSpeed
+                    - iso
+                    - author
+                    - lens
+                    - lensSpecific
+                    - camera
+                    - date
+                    - imageHeight
+                    - imageWidth
+                    - horizontal
+                    - blackAndWhite
+                    - rawFileName
+                    - rating
+                    - title
+                    - projects[List] - Categories are 'events', a set list of images as a part of a whole.
+                    - tags - Any associative tag ( bw, portugal, person, flower)
+            - PROJECT
+                - columns
+                    - title
+                    - location
+                    - date
+                    - images[List]
+                    - tags
+            - TAGS
+                - images[List]
+                - projects[List]
         - Logic for passing Image to Program(Platform?)
             - Program(Platform?): takes client requests, verifies request(AUTH0?) adds data to various database tables
             - Upload Image.
-            - Get EXIF Data from JPEG
-            - https://stackoverflow.com/questions/16115851/read-image-metadata-from-single-file-with-java
-            - Save that Data to Program
-                - We would like all relevant image metadata to be added to the Image table.
+    - Get EXIF Data from JPEG
+        - https://stackoverflow.com/questions/16115851/read-image-metadata-from-single-file-with-java
+        - Save that Data to Program
+            - We would like all relevant image metadata to be added to the Image table.
+    - Database built for AWS
 - ### **_Milestone 2:_**
       - `CreateImage` call is built First. ( Should add to Image, AllImages, Adventure, AllAdventures )
       - `GetAllImage` call built Second ( just returning a full list of image objects with uuid, imageLocation, rating)
       - `GetImage` call built Third ( pass UUID, get ALL THE REST of the Data for that image in a big object )
 - ### **_Milestone 3:_**
     - Create way of a 1 time scrape of all uploaded images in S3 bucket to add them to the database.
+    - Get all Images by S3 Bucket - 
+    - Get all S3 folder structure
+    
         - This needs to do a few things for an MVP: CreateImage call with location
 - ### **_Milestone 4:_**
     - Create way of MINIFYING images, including recursively through all images already on S3
@@ -155,4 +197,33 @@ short term storage image bucket)
 TODO: we could have an alternator value (preferLarge==true/false) that prefers a Large row, UNTIL we have gotten one //
 TODO: aka, if(preferLarge) => check large row options first(aka, do we have 1 horizontal, or two vertical)
 // TODO: aka, if(!preferLarge) => check small row opetion first
-       
+
+- ### **_TODO_**
+    - Photography
+        - FOR ALL IMAGE Folders,
+            - delete all Non-keepers
+            - delete any that don't serve a purpose
+            -
+            - save RAW files to AWS Glacier storage
+                - 1000GB for $3.60/month
+    - Backend
+        - Adventure Endpoints created:
+            - Create Adventure
+            - Get all Adventures
+            - Add to Adventures List
+            - UpdateImageAdventuresList
+            - BatchUpdateImageAdventuresList
+            - Add optional 'minimumRating' parameter to... each endpoint?
+        - How does one go about dynamic parameters?
+            - Example would be, I want All images(i), WHERE rating is >= 4(ii) AND adventures CONTAIN "Paris"(iii) AND
+              BlackAndWhite = false(iv) Etc(v).
+            - How do we have ONE endpoint that has ALL possible combinations of parameters?
+                - do we just PASS each as a parameter in the API endpoint?
+                    - This is probable, already do this in {classified}
+                - Do we make an 'optional'(?) body containing params
+          - Example of this is adding "RATING" to any API call, where we can always say, '(where rating >=4)'
+        - AWS Connection
+            - Test 'Add' to S3 bucket
+            - Test return location after upload to S3 bucket
+            - Test get image from S3 bucket by imageLocation
+            - Test get S3 bucket structure as tree (?)
