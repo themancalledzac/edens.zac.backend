@@ -9,7 +9,6 @@ import java.util.List;
 @NoArgsConstructor
 public class BlogCreateDTO {
     private String title;
-    private String date;
     private String location;
     private String paragraph;
     private String author;

@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @NoArgsConstructor
@@ -11,14 +12,14 @@ public class BlogModelDTO {
 
     private Long id;
     private String name;
-    private LocalDateTime date;
+    private LocalDate date;
     private String location;
     private String paragraph;
     private String author;
     private String coverImageUrl;
     private String slug;
 
-    public BlogModelDTO(Long id, String name, LocalDateTime date, String location, String paragraph, String author, String coverImageUrl, String slug) {
+    public BlogModelDTO(Long id, String name, LocalDate date, String location, String paragraph, String author, String coverImageUrl, String slug) {
         this.id = id;
         this.name = name;
         this.date = date;
