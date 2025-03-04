@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -102,7 +103,7 @@ public class BlogServiceImpl implements BlogService {
         // Part 4: Create Blog Entity
         BlogEntity blogEntity = BlogEntity.builder()
                 .title(blogDTO.getTitle())
-                .date(blogDTO.getDate())
+                .date(LocalDate.now())
                 .location(blogDTO.getLocation())
                 .paragraph(blogDTO.getParagraph())
                 .author(blogDTO.getAuthor())
