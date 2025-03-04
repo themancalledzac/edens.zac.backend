@@ -1,12 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.drew.imaging.ImageMetadataReader;
-import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
@@ -16,24 +10,17 @@ import edens.zac.portfolio.backend.entity.ImageEntity;
 import edens.zac.portfolio.backend.model.CatalogImagesDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.model.ImageSearchModel;
-import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import edens.zac.portfolio.backend.specification.ImageSpecification;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,15 +45,6 @@ public class ImageServiceImpl implements ImageService {
         log.info("ImageServiceImpl initialized");
     }
 
-    // TODO: Update this postImages so we:
-    //  1. Take an Object of data in addition to each image file
-    //  2. If key doesn't exist in object, replace with our old route
-    //  3. Update to include Catalog logic (object should now CONTAIN our catalog list, upload each that does not already exist )
-    //  4. Upload Image to S3, get back URL
-    //  5. Remove thumbnail logic for now? Look at replacing it with Dan's comment of 'on getImage' use lamda to return thumbnail if requested
-    //  6. database upload for image and any catalog changes
-    //  7. return a List of objects for each image, where it contains:
-    //   a. Image upload success / error message, database upload success / error message, Image location(s3 url), ?
     @Override
     @Transactional
     public Map<String, String> postImages(MultipartFile file, String type) {
@@ -76,30 +54,6 @@ public class ImageServiceImpl implements ImageService {
             // Part 1: Extract metadata
             // Return it even if we hit any exceptions later on
             Map<String, String> imageMetadata = imageProcessingUtil.extractImageMetadata(file);
-            //        try (InputStream inputStream = file.getInputStream()) {
-
-            // TODO: Delete once no longer in use
-            //            Metadata metadata = ImageMetadataReader.readMetadata(inputStream);
-
-            //            List<Map<String, Object>> directoriesList = collectAllDirectoriesMetadata(metadata);
-
-            // TODO: This only needs to happen IF we get a successful post, need to move down below
-            //            Map<String, String> imageReturnMetadata = new HashMap<>();
-            //            imageReturnMetadata.put("title", file.getOriginalFilename());
-            //            imageReturnMetadata.put("imageWidth", extractValueForKey(directoriesList, "Image Width"));
-            //            imageReturnMetadata.put("imageHeight", extractValueForKey(directoriesList, "Image Height"));
-            //            imageReturnMetadata.put("iso", extractValueForKey(directoriesList, "ISO Speed Ratings"));
-            //            imageReturnMetadata.put("author", extractValueForKey(directoriesList, "Artist"));
-            //            imageReturnMetadata.put("rating", extractValueForKey(directoriesList, "xmp:Rating"));
-            //            imageReturnMetadata.put("focalLength", extractValueForKey(directoriesList, "Focal Length 35"));
-            //            imageReturnMetadata.put("fStop", extractValueForKey(directoriesList, "F-Number"));
-            //            imageReturnMetadata.put("shutterSpeed", extractValueForKey(directoriesList, "Shutter Speed Value"));
-            //            imageReturnMetadata.put("lens", extractValueForKey(directoriesList, "Lens Model"));
-            //            imageReturnMetadata.put("lensSpecific", extractValueForKey(directoriesList, "Lens Specification"));
-            //            imageReturnMetadata.put("camera", extractValueForKey(directoriesList, "Model"));
-            //            imageReturnMetadata.put("date", extractValueForKey(directoriesList, "Date/Time Original"));
-            //            imageReturnMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
-            //            imageReturnMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
 
             // Part 2: Determine catalog name
             String contextName = "default";
@@ -123,92 +77,6 @@ public class ImageServiceImpl implements ImageService {
             imageMetadata.put("imageUrlWeb", savedImage.getImageUrlWeb());
 
             return imageMetadata;
-
-            // Generate S3 key for both image sizes
-//            String webS3Key = generateS3Key(imageReturnMetadata.get("date"), file.getOriginalFilename(), ImageType.WEB);
-
-//            thumbnail logic // TODO
-//            String thumbnailS3Key = generateS3Key(file.getOriginalFilename(), ImageType.THUMBNAIL);
-
-            // TODO: Verify that all this logic has been replaced properly in the ImageProcessingUtil file
-            // Upload original image size to web folder
-//            ObjectMetadata webMetadata = new ObjectMetadata();
-//            webMetadata.setContentType(file.getContentType());
-//            webMetadata.setContentLength(file.getSize());
-//
-//            PutObjectRequest putObjectRequest = new PutObjectRequest(
-//                    bucketName,
-//                    webS3Key,
-//                    file.getInputStream(),
-//                    webMetadata
-//            ).withCannedAcl(CannedAccessControlList.PublicRead);
-//
-//            amazonS3.putObject(putObjectRequest);
-
-//            Thumbnail Logic // TODO
-//            byte[] thumbnailBytes = imageProcessingService.createThumbnail(file);
-//            ObjectMetadata thumbnailMetadata = new ObjectMetadata();
-//            thumbnailMetadata.setContentType("image/webp");
-//            thumbnailMetadata.setContentLength(thumbnailBytes.length);
-//
-//            amazonS3.putObject(new PutObjectRequest(
-//                    bucketName,
-//                    thumbnailS3Key,
-//                    new ByteArrayInputStream(thumbnailBytes),
-//                    thumbnailMetadata
-//            ));
-
-            // Get URLs for both versions
-//            String webUrl = amazonS3.getUrl(bucketName, webS3Key).toString();
-
-//            Thumbnail Logic // TODO
-//            String thumbnailUrl = amazonS3.getUrl(bucketName, thumbnailS3Key).toString();
-
-
-            // SHORT TERM solution for adding catalogs.
-            // Will need to get some sort of UI or otherwise to add these further down the road.
-//            List<String> catalogNames = new ArrayList<>();
-//            catalogNames.add("Vienna");
-////            catalogNames.add("Adventure");
-
-//            ImageEntity builtImage = ImageEntity.builder()
-//                    .title(file.getOriginalFilename())
-//                    .imageWidth(parseIntegerOrDefault(extractValueForKey(directoriesList, "Image Width"), 0))
-//                    .imageHeight(parseIntegerOrDefault(extractValueForKey(directoriesList, "Image Height"), 0))
-//                    .iso(Integer.valueOf(Objects.requireNonNull(extractValueForKey(directoriesList, "ISO Speed Ratings"))))
-//                    .author(extractValueForKey(directoriesList, "Artist"))
-//                    .rating(Integer.valueOf(Objects.requireNonNull(extractValueForKey(directoriesList, "xmp:Rating"))))
-//                    .fStop(extractValueForKey(directoriesList, "F-Number"))
-//                    .lens(extractValueForKey(directoriesList, "Lens Model"))
-//                    .blackAndWhite("True".equalsIgnoreCase(extractValueForKey(directoriesList, "crs:ConvertToGrayscale")))
-//                    .shutterSpeed(extractValueForKey(directoriesList, "Shutter Speed Value"))
-//                    .rawFileName(extractValueForKey(directoriesList, "crs:RawFileName"))
-//                    .camera(extractValueForKey(directoriesList, "Model"))
-//                    .focalLength(extractValueForKey(directoriesList, "Focal Length 35"))
-//                    .location(catalogNames.get(0) + "/" + file.getOriginalFilename())
-//                    .imageUrlWeb(webUrl)
-//                    .imageUrlSmall("imageUrlSmall")// thumbnailUrl)
-//                    .imageUrlRaw(null)
-//                    .createDate(extractValueForKey(directoriesList, "Date/Time Original"))
-//                    .updateDate(LocalDateTime.now())
-//                    .build();
-
-//            Optional<ImageEntity> existingImage = imageRepository.findByTitleAndCreateDate(
-//                    builtImage.getTitle(), builtImage.getCreateDate()
-//            );
-//            Set<CatalogEntity> catalogs = new HashSet<>();
-
-//            // if catalog exists in db, don't add, otherwise do!
-//            for (String catalogName : catalogNames) {
-//                CatalogEntity catalog = catalogRepository.findByName(catalogName).orElseGet(() -> catalogRepository.save(new CatalogEntity(catalogName)));
-//                catalogs.add(catalog);
-//            }
-//            // if image does not yet exist, add catalogs, create image.
-//            if (existingImage.isEmpty()) {
-//                builtImage.setCatalogs(catalogs);
-//                imageRepository.save(builtImage);
-//
-//            }
         } catch (Exception e) {
             log.error("Error in postImages: {}", e.getMessage(), e);
 
@@ -234,7 +102,7 @@ public class ImageServiceImpl implements ImageService {
     public List<ImageModel> getAllImagesByCatalog(String catalogTitle) {
 
         Set<Long> imageIds = imageRepository.findImageIdsByCatalogName(catalogTitle);
-        Set<Long> imageHeaders = imageRepository.findImageIdsByCatalogNameAndCriteria(catalogTitle);
+//        Set<Long> imageHeaders = imageRepository.findImageIdsByCatalogNameAndCriteria(catalogTitle);
 
         // Corrected stream operation to handle Optional correctly
         List<ImageEntity> images = imageIds.stream()
@@ -415,29 +283,5 @@ public class ImageServiceImpl implements ImageService {
 //            Map<String, String> metdata = (Map<String, String>) directoryData.get("metadata")
         }
         return null;
-    }
-
-    // TODO: Delete once no longer in use
-    private String generateS3Key(String date, String filename) {
-        String formattedDate = date.split(" ")[0].replace(':', '-');
-        return String.format("%s/%s",
-                formattedDate,
-                filename);
-    }
-
-    // TODO: Delete once no longer in use
-    private enum ImageType {
-        WEB("web"),
-        THUMBNAIL("thumbnail");
-
-        private final String folderName;
-
-        ImageType(String folderName) {
-            this.folderName = folderName;
-        }
-
-        public String getFolderName() {
-            return folderName;
-        }
     }
 }

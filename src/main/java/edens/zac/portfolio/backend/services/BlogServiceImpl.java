@@ -1,7 +1,5 @@
 package edens.zac.portfolio.backend.services;
 
-import com.drew.imaging.ImageMetadataReader;
-import com.drew.metadata.Metadata;
 import edens.zac.portfolio.backend.entity.BlogEntity;
 import edens.zac.portfolio.backend.entity.ImageEntity;
 import edens.zac.portfolio.backend.model.BlogCreateDTO;
@@ -13,11 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -49,7 +45,18 @@ public class BlogServiceImpl implements BlogService {
         return null;
     }
 
+    /**
+     * Creates a new blog with any information, associated images, or new images.
+     * Any new images will also use `ImageProcessingUtil` methods to create images.
+     * <p>
+     * if any part of blog creation fails, 'database transaction' will verify all database changes are rolled back.
+     *
+     * @param blogDTO blog object
+     * @param images  list of images to upload and associate with our new blog
+     * @return BlogModel of our new blog
+     */
     @Override
+    @Transactional
     public BlogModel createBlog(BlogCreateDTO blogDTO, List<MultipartFile> images) {
 
         // Part 1: Initialize image collection
@@ -58,10 +65,11 @@ public class BlogServiceImpl implements BlogService {
         // Part 2: Process existing images if IDs were provided
         if (blogDTO.getExistingImageIds() != null && !blogDTO.getExistingImageIds().isEmpty()) {
             log.info("Processing {} existing images", blogDTO.getExistingImageIds().size());
-            for (Long imageId : blogDTO.getExistingImageIds()) {
-                Optional<ImageEntity> existingImage = imageRepository.findById(imageId);
-                existingImage.ifPresent(blogImages::add);
-            }
+            blogDTO.getExistingImageIds().stream()
+                    .map(imageRepository::findById)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(blogImages::add);
         }
 
         // Part 3: Process and upload new images, if any
@@ -71,19 +79,22 @@ public class BlogServiceImpl implements BlogService {
                 try {
                     // Process Image
                     ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(image, "blog", blogDTO.getTitle());
+
+                    if (imageEntity == null) {
+                        log.warn("Failed to process image {}", image.getOriginalFilename());
+                        continue;
+                    }
+
                     blogImages.add(imageEntity);
 
                     // If this is the first image and no cover image was specified, use as cover
-                    if (blogImages.size() > 1 && blogDTO.getCoverImageUrl() == null) {
-                        // TODO: is 'ImageUrlWeb' actually what we want? are we setting web version? Where??
+                    if (blogDTO.getCoverImageUrl() == null &&
+                            imageEntity.getImageUrlWeb() != null) {
                         blogDTO.setCoverImageUrl(imageEntity.getImageUrlWeb());
                     }
                 } catch (Exception e) {
-                    log.error("Error processing image for blog: {}", e.getMessage(), e);
-                    throw new RuntimeException(e);
-                } finally {
-                    // todo: why is this needed?
-                    System.out.println("test");
+                    log.error("Error processing image for blog: {}: {}", image.getOriginalFilename(), e.getMessage(), e);
+                    // Continue with other images instead of failing the whole return
                 }
             }
         }
@@ -96,7 +107,8 @@ public class BlogServiceImpl implements BlogService {
                 .paragraph(blogDTO.getParagraph())
                 .author(blogDTO.getAuthor())
                 .coverImageUrl(blogDTO.getCoverImageUrl())
-                .slug(blogDTO.getSlug())
+                .slug(blogDTO.getSlug() != null && !blogDTO.getSlug().isEmpty() ?
+                        blogDTO.getSlug() : blogProcessingUtil.generateSlug(blogDTO.getTitle()))
                 .images(blogImages)
                 .tags(blogDTO.getTags() != null ? blogDTO.getTags() : new ArrayList<>())
                 .build();
@@ -109,21 +121,36 @@ public class BlogServiceImpl implements BlogService {
 //      return convertToBlogModel(savedBlog);
         return blogProcessingUtil.convertToBlogModel(savedBlog);
     }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public BlogModel getBlogById(Long id) {
+        log.info("Fetching blog with ID: {}", id);
+
+        // Get the blog entity with all its images
+        Optional<BlogEntity> blogOpt = blogRepository.findById(id);
+
+        if (blogOpt.isEmpty()) {
+            log.warn("Blog with ID {} not found", id);
+            return null;
+        }
+
+        Optional<BlogEntity> blogEntityOpt = blogRepository.findByIdWithImages(id);
+
+        if (blogEntityOpt.isEmpty()) {
+            log.warn("Blog with ID {} not found with custom query", id);
+            return blogProcessingUtil.convertToBlogModel(blogOpt.get());
+        }
+
+        log.info("Blog found with ID={}, title={}, images={}",
+                blogEntityOpt.get().getId(),
+                blogEntityOpt.get().getTitle(),
+                blogEntityOpt.get().getImages().size()
+        );
+
+        // Convert entity to model using utils
+        return blogProcessingUtil.convertToBlogModel(blogEntityOpt.get());
+
+    }
 }
 
-/// / Helper method to upload and process images
-/// / TODO: Update this to be a reusable method in imageServiceImpl
-//private List<ImageEntity> uploadAndProcessImages(List<MultipartFile> images, String type) {
-//    List<ImageEntity> imageEntities = new ArrayList<>();
-//
-//    for (MultipartFile image : images) {
-//        try (InputStream inputStream = image.getInputStream()) {
-//            // Extract metadata (reuse your existing code)
-//            Metadata metadata = ImageMetadataReader.readMetadata(inputStream);
-//            List<Map<String, Object>> directoriesList = collectAllDirectoriesMetadata
-//        } catch (Exception e) {
-//            log.error("Error processing image for block: {}", e.getMessage());
-//        }
-//    }
-//}
-//}

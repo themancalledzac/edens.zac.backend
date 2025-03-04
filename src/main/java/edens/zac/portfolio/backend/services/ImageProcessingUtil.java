@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.drew.imaging.ImageMetadataReader;
@@ -14,7 +13,6 @@ import edens.zac.portfolio.backend.entity.ImageEntity;
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,7 +84,6 @@ public class ImageProcessingUtil {
 
             if (existingImage.isPresent()) {
                 log.info("Image already exists: {}", imageEntity.getTitle());
-                ImageEntity existingImageEntity = existingImage.get();
 
                 // Update catalogs on existing image if needed
                 if (type.equals("catalog")) {
@@ -101,7 +98,7 @@ public class ImageProcessingUtil {
             log.info("Saving new image to database: {}", imageEntity.getTitle());
             return imageRepository.save(imageEntity);
         } catch (Exception e) {
-            log.error("Error processing image file", e.getMessage(), e);
+            log.error("Error processing image file: {}", e.getMessage(), e);
         }
         return null;
     }
@@ -229,15 +226,44 @@ public class ImageProcessingUtil {
         imageModel.setCamera(imageEntity.getCamera());
         imageModel.setFocalLength(imageEntity.getFocalLength());
         imageModel.setLocation(imageEntity.getLocation());
-        imageModel.setImageUrlWeb(imageEntity.getImageUrlWeb());
-        imageModel.setImageUrlSmall(imageEntity.getImageUrlSmall());
-        imageModel.setImageUrlRaw(imageEntity.getImageUrlRaw());
+
+        // Format URLs with CloudFront if needed
+        imageModel.setImageUrlWeb(formatImageUrl(imageEntity.getImageUrlWeb()));
+        imageModel.setImageUrlSmall(formatImageUrl(imageEntity.getImageUrlSmall()));
+        imageModel.setImageUrlRaw(formatImageUrl(imageEntity.getImageUrlRaw()));
         imageModel.setCreateDate(imageEntity.getCreateDate());
         imageModel.setUpdateDate(imageEntity.getUpdateDate());
         imageModel.setCatalog(imageEntity.getCatalogNames());
         imageModel.setBlogs(imageEntity.getBlogTitles());
 
         return imageModel;
+    }
+
+    /**
+     * Ensures image URL is properly formatted with CloudFront domain if needed
+     *
+     * @param url The S3 or CloudFront URL
+     * @return Properly formatted URL
+     */
+    private String formatImageUrl(String url) {
+        if (url == null) {
+            return null;
+        }
+
+        // If URL already has CloudFront domain, return as is
+        if (url.contains(cloudfrontDomain)) {
+            return url;
+        }
+
+        // If it's an S3 URL, convert to CloudFront
+        if (url.contains(bucketName + ".s3")) {
+            // Extract the object key from the S3 URL
+            String objectKey = url.substring(url.indexOf(bucketName) + bucketName.length() + 1);
+            return "https://" + cloudfrontDomain + "/" + objectKey;
+        }
+
+        // Return original URL if it doesn't need modification
+        return url;
     }
 
     /**

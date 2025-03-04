@@ -7,10 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.awt.*;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -46,6 +43,19 @@ public class BlogProcessingUtil {
         blogModel.setCoverImageUrl(blogEntity.getCoverImageUrl());
         blogModel.setSlug(blogEntity.getSlug());
         blogModel.setImages(images);
+        blogModel.setTags(blogEntity.getTags());
         return blogModel;
+    }
+
+    public String generateSlug(String title) {
+        if (title == null || title.isEmpty()) {
+            return "";
+        }
+
+        return title.toLowerCase()
+                .replaceAll("[^a-zA-Z0-9\\s-]", "") // Remove all non-alphanumeric chars except space and -
+                .replaceAll("\\s+", "-") // Replace spaces with hyphens
+                .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
+                .replaceAll("^-|-$", ""); // Remove leading and trailing hyphens
     }
 }

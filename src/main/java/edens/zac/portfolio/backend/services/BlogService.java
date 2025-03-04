@@ -13,4 +13,6 @@ public interface BlogService {
     List<BlogModel> getAllBlogs();
 
     BlogModel createBlog(BlogCreateDTO blogDTO, List<MultipartFile> images);
+
+    BlogModel getBlogById(Long id);
 }
