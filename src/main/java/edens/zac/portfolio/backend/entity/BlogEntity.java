@@ -23,7 +23,6 @@ import java.util.Set;
         @UniqueConstraint(columnNames = "title")
 })
 public class BlogEntity {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -50,8 +49,4 @@ public class BlogEntity {
     @CollectionTable(name = "blog_tags", joinColumns = @JoinColumn(name = "blog_id"))
     @Column(name = "tag")
     private List<String> tags = new ArrayList<>();
-
-//    public BlogEntity(String title, LocalDateTime date) {
-//        this.title = title;
-//    }
 }

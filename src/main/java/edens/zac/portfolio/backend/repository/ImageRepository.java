@@ -23,16 +23,16 @@ public interface ImageRepository extends JpaRepository<ImageEntity, UUID>, JpaSp
     @Query("SELECT i FROM ImageEntity i LEFT JOIN FETCH i.catalogs WHERE i.id = :id")
     Optional<ImageEntity> findByIdWithCatalogs(@Param("id") Long id);
 
-    @Query("SELECT i.id FROM ImageEntity i JOIN i.catalogs a WHERE a.name = :name")
-    Set<Long> findImageIdsByCatalogName(@Param("name") String name);
+    @Query("SELECT i.id FROM ImageEntity i JOIN i.catalogs a WHERE a.title = :title")
+    Set<Long> findImageIdsByCatalogTitle(@Param("title") String title);
 
-    @Query("SELECT i.id FROM ImageEntity i JOIN i.catalogs a WHERE a.name = :name AND i.rating = 5 AND i.imageWidth > i.imageHeight")
-    Set<Long> findImageIdsByCatalogNameAndCriteria(@Param("name") String name);
+    @Query("SELECT i.id FROM ImageEntity i JOIN i.catalogs a WHERE a.title = :title AND i.rating = 5 AND i.imageWidth > i.imageHeight")
+    Set<Long> findImageIdsByCatalogTitleAndCriteria(@Param("title") String title);
 
     @Query("SELECT i FROM ImageEntity i LEFT JOIN FETCH i.catalogs WHERE i.id = :id AND i.rating >= :minRating")
     Optional<ImageEntity> findByIdWithCatalogsAndMinRating(@Param("id") Long id, @Param("minRating") Integer minRating);
 
-    @Query("SELECT i FROM ImageEntity i JOIN FETCH i.catalogs a WHERE a.name = :name")
-//    @Query("SELECT DISTINCT i FROM Image i JOIN FETCH i.catalogs a WHERE a.name = :name")
-    List<ImageEntity> findByCatalogName(@Param("name") String name);
+    @Query("SELECT i FROM ImageEntity i JOIN FETCH i.catalogs a WHERE a.title = :title")
+//    @Query("SELECT DISTINCT i FROM Image i JOIN FETCH i.catalogs a WHERE a.title = :title")
+    List<ImageEntity> findByCatalogTitle(@Param("title") String title);
 }

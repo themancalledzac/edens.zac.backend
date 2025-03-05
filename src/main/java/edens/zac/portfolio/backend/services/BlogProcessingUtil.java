@@ -46,16 +46,4 @@ public class BlogProcessingUtil {
         blogModel.setTags(blogEntity.getTags());
         return blogModel;
     }
-
-    public String generateSlug(String title) {
-        if (title == null || title.isEmpty()) {
-            return "";
-        }
-
-        return title.toLowerCase()
-                .replaceAll("[^a-zA-Z0-9\\s-]", "") // Remove all non-alphanumeric chars except space and -
-                .replaceAll("\\s+", "-") // Replace spaces with hyphens
-                .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
-                .replaceAll("^-|-$", ""); // Remove leading and trailing hyphens
-    }
 }
