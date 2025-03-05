@@ -56,11 +56,12 @@ public class ImageEntity {
     private Set<CatalogEntity> catalogs = new HashSet<>();
 
     @ManyToMany(mappedBy = "images")
+    @Builder.Default
     private Set<BlogEntity> blogs = new HashSet<>();
 
     @Transient
     public List<String> getCatalogNames() {
-        return catalogs.stream().map(CatalogEntity::getName).collect(Collectors.toList());
+        return catalogs.stream().map(CatalogEntity::getTitle).collect(Collectors.toList());
     }
 
     @Transient

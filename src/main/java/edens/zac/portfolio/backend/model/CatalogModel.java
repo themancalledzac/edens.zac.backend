@@ -1,9 +1,11 @@
 package edens.zac.portfolio.backend.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -12,43 +14,20 @@ import java.util.List;
  * Object returned to the frontend.
  */
 @NoArgsConstructor
+@AllArgsConstructor
 @Data
 @Builder
 public class CatalogModel {
-
     private Long id;
-    private String name;
-    private ImageModel imageMain;
+    private String title;
     private String location;
+    private Integer priority;
+    private String coverImageUrl;
     private List<String> people;
     private List<String> tags;
-    private Long priority; //specifies order when used as a Main Catalog
-
-    public CatalogModel(Long id, String name, ImageModel imageMain, String location, List<String> people, List<String> tags, Long priority) {
-        this.id = id;
-        this.name = name;
-        this.imageMain = imageMain;
-        this.location = location;
-        this.people = people;
-        this.tags = tags;
-        this.priority = priority;
-    }
-
-    public CatalogModel(Long id, String name, ImageModel imageMain, Long priority) {
-        this.id = id;
-        this.name = name;
-        this.imageMain = imageMain;
-        this.priority = priority;
-    }
+    private String slug;
+    private LocalDate date;
+    private List<ImageModel> images;
 }
 
-// TODO:
-//  1. Update CatalogModel to include the following:
-//    a. Location
-//    b. Date(s)
-//    c. People
-//    d. Tags
-//  2. Tags Model / Entity / Table
-//    a. Need Tags that are just 'general', such as;
-//    b. `['Hiking', 'People', 'Music', 'Night', 'Bright', 'Moody', 'Washington', 'Europe']`
-//    c. Can be any type of datapoint for the catalog.
+

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -205,6 +206,7 @@ public class ImageProcessingUtil {
                 .createDate(imageMetadata.get("date"))
                 .updateDate(LocalDateTime.now())
                 .catalogs(catalogs)
+                .blogs(new HashSet<>())
                 .build();
     }
 
@@ -350,9 +352,15 @@ public class ImageProcessingUtil {
     /**
      * Get or create a catalog entity
      */
-    private CatalogEntity getCatalogEntity(String catalogName) {
-        return catalogRepository.findByName(catalogName)
-                .orElseGet(() -> catalogRepository.save(new CatalogEntity(catalogName)));
+    private CatalogEntity getCatalogEntity(String catalogTitle) {
+        return catalogRepository.findByTitle(catalogTitle)
+                .orElseGet(() -> {
+                    CatalogEntity catalogEntity = CatalogEntity.builder()
+                            .title(catalogTitle)
+                            .date(LocalDate.now())
+                            .build();
+                    return catalogRepository.save(catalogEntity);
+                });
     }
 
     /**
@@ -369,5 +377,15 @@ public class ImageProcessingUtil {
         }
     }
 
-//    public String uploadImageToS3()
+    public String generateSlug(String title) {
+        if (title == null || title.isEmpty()) {
+            return "";
+        }
+
+        return title.toLowerCase()
+                .replaceAll("[^a-zA-Z0-9\\s-]", "") // Remove all non-alphanumeric chars except space and -
+                .replaceAll("\\s+", "-") // Replace spaces with hyphens
+                .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
+                .replaceAll("^-|-$", ""); // Remove leading and trailing hyphens
+    }
 }

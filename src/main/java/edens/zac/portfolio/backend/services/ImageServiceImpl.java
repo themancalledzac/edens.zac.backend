@@ -101,8 +101,7 @@ public class ImageServiceImpl implements ImageService {
     @Transactional(readOnly = true)
     public List<ImageModel> getAllImagesByCatalog(String catalogTitle) {
 
-        Set<Long> imageIds = imageRepository.findImageIdsByCatalogName(catalogTitle);
-//        Set<Long> imageHeaders = imageRepository.findImageIdsByCatalogNameAndCriteria(catalogTitle);
+        Set<Long> imageIds = imageRepository.findImageIdsByCatalogTitle(catalogTitle);
 
         // Corrected stream operation to handle Optional correctly
         List<ImageEntity> images = imageIds.stream()
@@ -142,7 +141,7 @@ public class ImageServiceImpl implements ImageService {
 
         for (String title : catalogTitles) {
 
-            Set<Long> imageIds = imageRepository.findImageIdsByCatalogName(title);
+            Set<Long> imageIds = imageRepository.findImageIdsByCatalogTitle(title);
             // Fetch images for each ID, ensuring we fetch their associated catalogs too
             List<ImageModel> images = imageIds.stream()
                     .map(imageRepository::findByIdWithCatalogs)
@@ -164,7 +163,7 @@ public class ImageServiceImpl implements ImageService {
 
 
     private ImageModel convertToModalImage(ImageEntity image) {
-        List<String> catalogNames = image.getCatalogs().stream().map(CatalogEntity::getName).collect(Collectors.toList());
+        List<String> catalogNames = image.getCatalogs().stream().map(CatalogEntity::getTitle).collect(Collectors.toList());
 
         ImageModel modalImage = new ImageModel(); //  is not public in 'edens.zac.portfolio.backend.model.ModalImage'. Cannot be accessed from outside package
         modalImage.setTitle(image.getTitle());
