@@ -20,7 +20,7 @@ public interface CatalogRepository extends JpaRepository<CatalogEntity, Long> {
 //            "FROM CatalogEntity a WHERE a.mainCatalog = true")
 //    List<CatalogModalDTO> findMainCatalogs();
 
-    @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images WHERE c.id = :id")
+    @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images i WHERE c.id = :id ORDER BY i.createDate DESC")
     Optional<CatalogEntity> findByIdWithImages(@Param("id") Long id);
 
     @Query("SELECT b FROM CatalogEntity b WHERE b.id = :id")
