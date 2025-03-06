@@ -135,12 +135,40 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    public List<CatalogModel> getMainPageCatalogList() {
-        return List.of();
+    public CatalogModel getCatalogBySlug(String slug) {
+        log.info("Getting catalog by slug {}", slug);
+
+        // Get the catalog entity with all its images
+        Optional<CatalogEntity> catalogEntityOpt = catalogRepository.findBySlugWIthImages(slug);
+
+
+        return null;
     }
 
     @Override
-    public List<CatalogModel> catalogSearch(String search) {
+    public CatalogModel getCatalogById(Long id) {
+        log.info("Getting catalog by Id {}", id);
+
+        // Get the catalog entity with all its images
+        Optional<CatalogEntity> catalogEntityOpt = catalogRepository.findByIdWithImages(id);
+
+        if (catalogEntityOpt.isEmpty()) {
+            log.warn("Catalog with ID {} not found with custom query", id);
+
+            // Fallback to regular find
+            Optional<CatalogEntity> catalogOpt = catalogRepository.findCatalogById(id);
+            if (catalogOpt.isEmpty()) {
+                log.warn("Catalog with ID {} not found", id);
+                return null;
+            }
+            return catalogProcessingUtil.convertToCatalogModel(catalogOpt.get());
+        }
+
+        return catalogProcessingUtil.convertToCatalogModel(catalogEntityOpt.get());
+    }
+
+    @Override
+    public List<CatalogModel> getMainPageCatalogList() {
         return List.of();
     }
 
