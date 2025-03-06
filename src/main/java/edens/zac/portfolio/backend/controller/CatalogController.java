@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -34,11 +36,11 @@ public class CatalogController {
             @RequestPart(value = "images", required = false) List<MultipartFile> images) {
 
         try {
-            // convert JSON string to a BlogCreateDTO object
+            // convert JSON string to a CatalogCreateDTO object
             ObjectMapper objectMapper = new ObjectMapper();
             CatalogCreateDTO catalogDTO = objectMapper.readValue(catalogDtoJson, CatalogCreateDTO.class);
 
-            // Validate the blog data
+            // Validate the catalog data
             if (catalogDTO.getTitle() == null || catalogDTO.getTitle().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body("Catalog title is required");
             }
@@ -55,12 +57,44 @@ public class CatalogController {
         }
     }
 
-//    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
-//    @PostMapping("/createCatalog")
-//    public String createCatalog(@RequestBody CatalogModalDTO catalog) {
-//
-//        return catalogService.createCatalog(catalog);
-//    }
+    @GetMapping("bySlug/{slug}")
+    public ResponseEntity<?> getCatalogWithImagesBySlug(
+            @PathVariable String slug) {
+        try {
+            CatalogModel catalog = catalogService.getCatalogBySlug(slug);
+            if (catalog == null) {
+                log.warn("Catalog is null, returning 404");
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("Catalog with slug: " + slug + " not found");
+            }
+            return ResponseEntity.ok(catalog);
+        } catch (Exception e) {
+            log.error("Error getting catalog {}: {}", slug, e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve catalog: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("byId/{id}")
+    public ResponseEntity<?> getCatalogById(@PathVariable Long id) {
+        try {
+            CatalogModel catalog = catalogService.getCatalogById(id);
+            if (catalog == null) {
+                log.warn("Catalog is null, returning 404");
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("Catalog with id: " + id + " not found");
+            }
+            return ResponseEntity.ok(catalog);
+        } catch (Exception e) {
+            log.error("Error getting catalog {}: {}", id, e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve catalog: " + e.getMessage());
+        }
+    }
 //
 //    //    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
 //    @RequestMapping(value = "/mainPageCatalogList")
@@ -68,12 +102,7 @@ public class CatalogController {
 //
 //        return catalogService.getMainPageCatalogList();
 //    }
-//
-//    @GetMapping("/search/{search}")
-//    public List<CatalogModel> catalogSearch(@PathVariable("search") String search) {
-//        return catalogService.catalogSearch(search);
-//    }
-//
+
 //    //  TODO:: Update Catalog - When creating a new catalog for an image, we relevant fields ( which, after success, will be added to the images, if already selected )
 //    @PutMapping(value = "/update")
 //    public CatalogModel updateCatalog(@RequestBody CatalogModel catalog) {

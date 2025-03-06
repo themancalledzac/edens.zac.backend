@@ -58,7 +58,7 @@ public class BlogController {
         }
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("byId/{id}")
     public ResponseEntity<?> getBlogWithImages(@PathVariable Long id) {
         try {
             BlogModel blog = blogService.getBlogById(id);
@@ -80,7 +80,9 @@ public class BlogController {
 
     @GetMapping("/getAll")
     public List<BlogModel> getAllBlogs() {
-        // TODO: add 'page(default=0)' and 'size(default=10)' params
+        // TODO:
+        //  - add 'page(default=0)' and 'size(default=10)' params
+        //  - only need cover image, title, priority, date(?), location, List<Tags>
         return blogService.getAllBlogs();
     }
 
