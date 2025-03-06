@@ -13,9 +13,9 @@ public interface BlogRepository extends JpaRepository<BlogEntity, Long> {
 
     BlogEntity save(BlogEntity blog);
 
-    @Query("SELECT b FROM BlogEntity b LEFT JOIN FETCH b.images WHERE b.id = :id")
+    @Query("SELECT b FROM BlogEntity b LEFT JOIN FETCH b.images i WHERE b.id = :id ORDER BY i.createDate DESC")
     Optional<BlogEntity> findByIdWithImages(@Param("id") Long id);
 
     @Query("SELECT b FROM BlogEntity b WHERE b.id = :id")
-    Optional<BlogEntity> findById(@Param("id") Long id);
+    Optional<BlogEntity> bingBlogById(@Param("id") Long id);
 }

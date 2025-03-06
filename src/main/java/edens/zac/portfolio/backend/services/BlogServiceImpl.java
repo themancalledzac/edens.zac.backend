@@ -165,7 +165,7 @@ public class BlogServiceImpl implements BlogService {
             log.warn("Blog with ID {} not found with custom query", id);
 
             // Fallback to regular find
-            Optional<BlogEntity> blogOpt = blogRepository.findById(id);
+            Optional<BlogEntity> blogOpt = blogRepository.bingBlogById(id);
             if (blogOpt.isEmpty()) {
                 log.warn("Blog with ID {} not found", id);
                 return null;
