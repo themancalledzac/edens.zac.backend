@@ -95,25 +95,4 @@ public class CatalogController {
                     .body("Failed to retrieve catalog: " + e.getMessage());
         }
     }
-//
-//    //    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
-//    @RequestMapping(value = "/mainPageCatalogList")
-//    public List<CatalogModel> getMainPageCatalogList() {
-//
-//        return catalogService.getMainPageCatalogList();
-//    }
-
-//    //  TODO:: Update Catalog - When creating a new catalog for an image, we relevant fields ( which, after success, will be added to the images, if already selected )
-//    @PutMapping(value = "/update")
-//    public CatalogModel updateCatalog(@RequestBody CatalogModel catalog) {
-//
-//        return catalogService.updateCatalog(catalog);
-//    }
-//
-//    // TODO: update CatalogImagesDTO to include all Catalog fields, or make a new one if we need that minimal
-//    @PutMapping(value = "/updateWithImages")
-//    public CatalogImagesDTO updateCatalogAndImages(@RequestBody CatalogImagesDTO catalogWithImages) {
-//
-//        return catalogService.updateCatalogWithImages(catalogWithImages);
-//    }
 }

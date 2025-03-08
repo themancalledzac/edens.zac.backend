@@ -58,6 +58,24 @@ public class BlogController {
         }
     }
 
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<?> getBlogBySlug(@PathVariable String slug) {
+        try {
+            BlogModel blog = blogService.getBlogBySlug(slug);
+            if (blog == null) {
+                log.warn("Blog is null, returning 404");
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("Blog with slug " + slug + " not found");
+            }
+            return ResponseEntity.ok(blog);
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve blog: " + e.getMessage());
+        }
+    }
+
     @GetMapping("byId/{id}")
     public ResponseEntity<?> getBlogWithImages(@PathVariable Long id) {
         try {
@@ -77,19 +95,9 @@ public class BlogController {
         }
     }
 
-
     @GetMapping("/getAll")
     public List<BlogModel> getAllBlogs() {
-        // TODO:
-        //  - add 'page(default=0)' and 'size(default=10)' params
-        //  - only need cover image, title, priority, date(?), location, List<Tags>
         return blogService.getAllBlogs();
-    }
-
-    @GetMapping("/slug/{slug}")
-    public BlogModel getBlogBySlug(@PathVariable String slug) {
-        // return blogService.getBlogBySlug(slug);
-        return null;
     }
 
     @GetMapping("/byLocation/{location}")

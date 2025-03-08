@@ -23,9 +23,12 @@ public interface CatalogRepository extends JpaRepository<CatalogEntity, Long> {
     @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images i WHERE c.id = :id ORDER BY i.createDate DESC")
     Optional<CatalogEntity> findByIdWithImages(@Param("id") Long id);
 
-    @Query("SELECT b FROM CatalogEntity b WHERE b.id = :id")
+    @Query("SELECT c FROM CatalogEntity c WHERE c.id = :id")
     Optional<CatalogEntity> findCatalogById(@Param("id") Long id);
 
-    @Query("SELECT b FROM CatalogEntity b LEFT JOIN FETCH b.images WHERE b.slug = :slug")
-    Optional<CatalogEntity> findBySlugWIthImages(@Param("slug") String slug);
+    @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images i WHERE c.slug = :slug ORDER BY i.createDate DESC")
+    Optional<CatalogEntity> findBySlugWithImages(@Param("slug") String slug);
+
+    @Query("Select c FROM CatalogEntity c WHERE c.slug = :slug")
+    Optional<CatalogEntity> findCatalogBySlug(String slug);
 }

@@ -13,8 +13,8 @@ public class BlogCreateDTO {
     private String paragraph;
     private String author;
     private List<String> tags;
-    private String slug;
     private String coverImageUrl;
+    private Boolean createHomeCard; // Indicate if we create associated home card
 
     // handle actual image files separately
     private List<Long> existingImageIds;

@@ -39,14 +39,6 @@ public class BlogServiceImpl implements BlogService {
         this.blogProcessingUtil = blogProcessingUtil;
     }
 
-//    public BlogServiceImpl
-
-    @Override
-    @Transactional
-    public List<BlogModel> getAllBlogs() {
-        return null;
-    }
-
     /**
      * Creates a new blog with any information, associated images, or new images.
      * Any new images will also use `ImageProcessingUtil` methods to create images.
@@ -70,8 +62,7 @@ public class BlogServiceImpl implements BlogService {
                 .paragraph(blogDTO.getParagraph())
                 .author(blogDTO.getAuthor())
                 .coverImageUrl(blogDTO.getCoverImageUrl())
-                .slug(blogDTO.getSlug() != null && !blogDTO.getSlug().isEmpty() ?
-                        blogDTO.getSlug() : imageProcessingUtil.generateSlug(blogDTO.getTitle()))
+                .slug(imageProcessingUtil.generateSlug(blogDTO.getTitle()))
                 .tags(blogDTO.getTags() != null ? blogDTO.getTags() : new ArrayList<>())
                 .build();
 
@@ -154,6 +145,26 @@ public class BlogServiceImpl implements BlogService {
     }
 
     @Override
+    public BlogModel getBlogBySlug(String slug) {
+        log.info("Fetching blog with Slug: {}", slug);
+
+        Optional<BlogEntity> blogEntityOpt = blogRepository.findBySlugWithImages(slug);
+
+        if (blogEntityOpt.isEmpty()) {
+            log.warn("Blog with Slug {} not found with custom query", slug);
+
+            // Fallback to regular find
+            Optional<BlogEntity> blogOpt = blogRepository.findBlogBySlug(slug);
+            if (blogOpt.isEmpty()) {
+                log.warn("Blog with Slug {} not found", slug);
+                return null;
+            }
+            return blogProcessingUtil.convertToBlogModel(blogOpt.get());
+        }
+        return blogProcessingUtil.convertToBlogModel(blogEntityOpt.get());
+    }
+
+    @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public BlogModel getBlogById(Long id) {
         log.info("Fetching blog with ID: {}", id);
@@ -165,7 +176,7 @@ public class BlogServiceImpl implements BlogService {
             log.warn("Blog with ID {} not found with custom query", id);
 
             // Fallback to regular find
-            Optional<BlogEntity> blogOpt = blogRepository.bingBlogById(id);
+            Optional<BlogEntity> blogOpt = blogRepository.findBlogById(id);
             if (blogOpt.isEmpty()) {
                 log.warn("Blog with ID {} not found", id);
                 return null;
@@ -182,6 +193,12 @@ public class BlogServiceImpl implements BlogService {
         // Convert entity to model using utils
         return blogProcessingUtil.convertToBlogModel(blogEntityOpt.get());
 
+    }
+
+    @Override
+    @Transactional
+    public List<BlogModel> getAllBlogs() {
+        return null;
     }
 }
 

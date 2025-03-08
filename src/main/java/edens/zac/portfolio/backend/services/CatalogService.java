@@ -12,18 +12,7 @@ public interface CatalogService {
     @Transactional
     CatalogModel createCatalogWithImages(CatalogCreateDTO catalogDTO, List<MultipartFile> images);
 
-    // TODO: NEXT UP
-    @Transactional(readOnly = true)
-    List<CatalogModel> getMainPageCatalogList();
-
     CatalogModel getCatalogBySlug(String slug);
 
     CatalogModel getCatalogById(Long id);
-
-    // TODO
-//    CatalogModel updateCatalog(CatalogModel catalog);
-
-    // TODO
-//    CatalogImagesDTO updateCatalogWithImages(CatalogImagesDTO catalogWithImages);
-
 }
