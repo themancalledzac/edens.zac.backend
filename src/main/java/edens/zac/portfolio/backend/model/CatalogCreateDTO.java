@@ -19,3 +19,6 @@ public class CatalogCreateDTO {
     // handle actual image files separately
     private List<Long> existingImageIds;
 }
+
+
+//"{"title":"Enchantments 2021","location":"Enchantments Zone, Washington USA","priority":"2","createHomeCard":"true"}"

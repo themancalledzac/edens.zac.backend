@@ -15,13 +15,13 @@ public interface HomeCardRepository extends JpaRepository<HomeCardEntity, Long> 
     @Query("SELECT c FROM HomeCardEntity c WHERE c.priority <= :maxPriority ORDER BY c.priority ASC, c.createdDate DESC")
     List<HomeCardEntity> getHomePage(@Param("maxPriority") Integer maxPriority);
 
-    // Find a specific type of card
-    List<HomeCardEntity> findByCardType(String cardType);
+//    // Find a specific type of card
+//    List<HomeCardEntity> findByCardType(String cardType);
 
     // Find by Reference
     Optional<HomeCardEntity> findByCardTypeAndReferenceId(String cardType, Long referenceId);
 
-    // Find homeCard Collections // TODO Not sure if needed
-    @Query("SELECT c FROM HomeCardEntity c WHERE c.cardType = :cardType AND c.slug = :slug")
-    Optional<HomeCardEntity> findCollectionCard(@Param("cardType") String cardType, @Param("slug") String slug);
+//    // Find homeCard Collections // TODO Not sure if needed
+//    @Query("SELECT c FROM HomeCardEntity c WHERE c.cardType = :cardType AND c.slug = :slug")
+//    Optional<HomeCardEntity> findCollectionCard(@Param("cardType") String cardType, @Param("slug") String slug);
 }
