@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -26,4 +27,7 @@ public interface BlogRepository extends JpaRepository<BlogEntity, Long> {
     // Fallback get by Slug with no images
     @Query("SELECT b FROM BlogEntity b WHERE b.slug = :slug")
     Optional<BlogEntity> findBlogBySlug(@Param("slug") String slug);
+
+    @Query("SELECT b FROM BlogEntity b ORDER BY b.priority ASC, b.createdDate DESC")
+    List<BlogEntity> getAllBlogs();
 }

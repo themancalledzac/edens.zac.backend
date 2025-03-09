@@ -10,6 +10,7 @@ import java.util.List;
 public class BlogCreateDTO {
     private String title;
     private String location;
+    private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
     private String paragraph;
     private String author;
     private List<String> tags;

@@ -15,12 +15,12 @@ import java.util.stream.Collectors;
 
 @Component
 @Slf4j
-public class HomeCardProcessingUtil {
+public class HomeProcessingUtil {
 
     private final HomeCardRepository homeCardRepository;
 
     @Autowired
-    public HomeCardProcessingUtil(HomeCardRepository homeCardRepository) {
+    public HomeProcessingUtil(HomeCardRepository homeCardRepository) {
         this.homeCardRepository = homeCardRepository;
     }
 

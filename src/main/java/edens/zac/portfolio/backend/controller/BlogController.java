@@ -95,9 +95,23 @@ public class BlogController {
         }
     }
 
-    @GetMapping("/getAll")
-    public List<BlogModel> getAllBlogs() {
-        return blogService.getAllBlogs();
+    @GetMapping("/getAllBlogs")
+    public ResponseEntity<?> getAllBlogs() {
+        try {
+            List<BlogModel> blogList = blogService.getAllBlogs();
+            if (blogList == null) {
+                log.warn("No blogs returned, returning 404");
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("No blogs found");
+            }
+            return ResponseEntity.ok(blogList);
+        } catch (Exception e) {
+            log.error("Error getting blogs: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve blogs: " + e.getMessage());
+        }
     }
 
     @GetMapping("/byLocation/{location}")

@@ -44,7 +44,7 @@ public class ImageEntity {
     private String imageUrlWeb;
     private String imageUrlSmall;
     private String imageUrlRaw;
-    private String createDate;
+    private String createDate; // TODO: update this to LocalDatetime - see if that works
     private LocalDateTime updateDate;
 
     @ManyToMany(cascade = CascadeType.PERSIST)

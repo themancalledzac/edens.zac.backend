@@ -42,12 +42,6 @@ public class HomeController {
         }
     }
 
-    // TODO:
-    @CrossOrigin(origins = "http://localhost:3000")
-    @PostMapping(value = "/createHomeCard/{type}/{slug}")
-    public ResponseEntity<?> createHomeCardFromPrevious(@PathVariable String type, @PathVariable String slug) {
-        return null;
-    }
 
 
 }

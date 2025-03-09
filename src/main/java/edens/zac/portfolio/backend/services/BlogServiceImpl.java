@@ -26,17 +26,19 @@ public class BlogServiceImpl implements BlogService {
     private final ImageRepository imageRepository;
     private final ImageProcessingUtil imageProcessingUtil;
     private final BlogProcessingUtil blogProcessingUtil;
+    private final HomeService homeService;
 
     public BlogServiceImpl(
             BlogRepository blogRepository,
             ImageProcessingUtil imageProcessingUtil,
             ImageRepository imageRepository,
-            BlogProcessingUtil blogProcessingUtil
-    ) {
+            BlogProcessingUtil blogProcessingUtil,
+            HomeService homeService) {
         this.blogRepository = blogRepository;
         this.imageProcessingUtil = imageProcessingUtil;
         this.imageRepository = imageRepository;
         this.blogProcessingUtil = blogProcessingUtil;
+        this.homeService = homeService;
     }
 
     /**
@@ -140,7 +142,17 @@ public class BlogServiceImpl implements BlogService {
         savedBlog.setImages(blogImages);
         savedBlog = blogRepository.save(savedBlog);
 
-        // Part 6: Convert and return BlogModel
+        // Part 7: Create HomeCard if requested
+        if (blogDTO.getCreateHomeCard() != null && blogDTO.getCreateHomeCard()) {
+            try {
+                log.info("Creating Home card for blog {}", savedBlog.getTitle());
+                homeService.createHomeCardFromBlog(savedBlog, blogDTO.getPriority());
+            } catch (Exception e) {
+                log.error("Error creating Home card for catalog: {}: {}", savedBlog.getId(), e.getMessage(), e);
+            }
+        }
+
+        // Part 8: Convert and return BlogModel
         return blogProcessingUtil.convertToBlogModel(savedBlog);
     }
 
@@ -198,7 +210,12 @@ public class BlogServiceImpl implements BlogService {
     @Override
     @Transactional
     public List<BlogModel> getAllBlogs() {
-        return null;
+        Integer blogPagePriority = 3;
+
+        // TODO: Add error handling at this step
+        List<BlogEntity> entities = blogRepository.getAllBlogs();
+        return entities.stream()
+                .map(blogProcessingUtil::convertToBlogModel)
+                .collect(Collectors.toList());
     }
 }
-

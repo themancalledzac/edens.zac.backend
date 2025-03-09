@@ -15,4 +15,6 @@ public interface CatalogService {
     CatalogModel getCatalogBySlug(String slug);
 
     CatalogModel getCatalogById(Long id);
+
+    List<CatalogModel> getAllCatalogs();
 }

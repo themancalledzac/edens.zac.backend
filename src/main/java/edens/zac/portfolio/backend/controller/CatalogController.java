@@ -95,4 +95,23 @@ public class CatalogController {
                     .body("Failed to retrieve catalog: " + e.getMessage());
         }
     }
+
+    @GetMapping("getAllCatalogs")
+    public ResponseEntity<?> getAllCatalogs() {
+        try {
+            List<CatalogModel> catalogList = catalogService.getAllCatalogs();
+            if (catalogList == null) {
+                log.warn("No catalogs returned, returning 404");
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("No catalogs found");
+            }
+            return ResponseEntity.ok(catalogList);
+        } catch (Exception e) {
+            log.error("Error getting catalogs: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve catalogs: " + e.getMessage());
+        }
+    }
 }

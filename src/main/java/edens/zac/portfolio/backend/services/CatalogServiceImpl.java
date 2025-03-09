@@ -26,16 +26,18 @@ public class CatalogServiceImpl implements CatalogService {
     private final CatalogRepository catalogRepository;
     private final ImageProcessingUtil imageProcessingUtil;
     private final CatalogProcessingUtil catalogProcessingUtil;
+    private final HomeService homeService;
 
     public CatalogServiceImpl(
             ImageRepository imageRepository,
             CatalogRepository catalogRepository,
             ImageProcessingUtil imageProcessingUtil,
-            CatalogProcessingUtil catalogProcessingUtil) {
+            CatalogProcessingUtil catalogProcessingUtil, HomeService homeService) {
         this.imageRepository = imageRepository;
         this.catalogRepository = catalogRepository;
         this.imageProcessingUtil = imageProcessingUtil;
         this.catalogProcessingUtil = catalogProcessingUtil;
+        this.homeService = homeService;
     }
 
     @Override
@@ -129,7 +131,17 @@ public class CatalogServiceImpl implements CatalogService {
         savedCatalog.setImages(catalogImages);
         savedCatalog = catalogRepository.save(savedCatalog);
 
-        // Part 7: Convert and return the catalog model
+        // Part 7: Create HomeCard if requested
+        if (catalogDTO.getCreateHomeCard() != null && catalogDTO.getCreateHomeCard()) {
+            try {
+                log.info("Creating Home card for catalog {}", savedCatalog.getTitle());
+                homeService.createHomeCardFromCatalog(savedCatalog, catalogDTO.getPriority());
+            } catch (Exception e) {
+                log.error("Error creating Home card for catalog: {}: {}", savedCatalog.getId(), e.getMessage(), e);
+            }
+        }
+
+        // Part 8: Convert and return the catalog model
         return catalogProcessingUtil.convertToCatalogModel(savedCatalog);
     }
 
@@ -174,5 +186,16 @@ public class CatalogServiceImpl implements CatalogService {
         }
 
         return catalogProcessingUtil.convertToCatalogModel(catalogEntityOpt.get());
+    }
+
+    @Override
+    public List<CatalogModel> getAllCatalogs() {
+        Integer catalogPagePriority = 3;
+
+        // TODO: Add error handling at this step
+        List<CatalogEntity> entities = catalogRepository.getAllCatalogs();
+        return entities.stream()
+                .map(catalogProcessingUtil::convertToCatalogModel)
+                .collect(Collectors.toList());
     }
 }

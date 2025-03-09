@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.HomeCardEntity;
-import edens.zac.portfolio.backend.model.HomeCardModel;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,8 +11,6 @@ import java.util.Optional;
 
 @Repository
 public interface HomeCardRepository extends JpaRepository<HomeCardEntity, Long> {
-
-    Optional<HomeCardEntity> createHomeCard(@Param("slug") String slug);
 
     @Query("SELECT c FROM HomeCardEntity c WHERE c.priority <= :maxPriority ORDER BY c.priority ASC, c.createdDate DESC")
     List<HomeCardEntity> getHomePage(@Param("maxPriority") Integer maxPriority);

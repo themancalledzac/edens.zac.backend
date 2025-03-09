@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +30,7 @@ public class BlogEntity {
     private String title;
     private LocalDate date;
     private String location;
+    private Integer priority;
 
     @Column(columnDefinition = "TEXT")
     private String paragraph;
@@ -36,6 +38,7 @@ public class BlogEntity {
     private String author;
     private String coverImageUrl;
     private String slug;
+    private LocalDateTime createdDate;
 
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(

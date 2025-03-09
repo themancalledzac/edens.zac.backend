@@ -18,10 +18,10 @@ import java.util.stream.Collectors;
 public class HomeServiceImpl implements HomeService {
 
     private final HomeCardRepository homeCardRepository;
-    private final HomeCardProcessingUtil homeCardProcessingUtil;
+    private final HomeProcessingUtil homeCardProcessingUtil;
 
     @Autowired
-    public HomeServiceImpl(HomeCardRepository homeCardRepository, HomeCardProcessingUtil homeCardProcessingUtil) {
+    public HomeServiceImpl(HomeCardRepository homeCardRepository, HomeProcessingUtil homeCardProcessingUtil) {
         this.homeCardRepository = homeCardRepository;
         this.homeCardProcessingUtil = homeCardProcessingUtil;
     }
@@ -31,6 +31,7 @@ public class HomeServiceImpl implements HomeService {
     public List<HomeCardModel> getHomePage() {
         Integer homePagePriority = 3;
 
+        // TODO: Add error handling at this step
         List<HomeCardEntity> entities = homeCardRepository.getHomePage(homePagePriority);
         return entities.stream()
                 .map(homeCardProcessingUtil::convertModel)
@@ -80,17 +81,5 @@ public class HomeServiceImpl implements HomeService {
 
         // Convert and return model
         return homeCardProcessingUtil.convertModel(savedEntity);
-    }
-
-    @Transactional
-    public HomeCardModel createHomeCard(HomeCardModel homeCardModel) {
-        // TODO: Will probably be handled in createCatalog or createBlog
-        //  - will we have a use for 'createHomeCard', other than 'createNavigationCard'?
-        return null;
-    }
-
-    @Transactional
-    public HomeCardModel createHomeCardFromPrevious(HomeCardModel homeCardModel) {
-        return null;
     }
 }

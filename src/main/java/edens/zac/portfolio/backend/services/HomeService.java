@@ -17,7 +17,4 @@ public interface HomeService {
 
     @Transactional
     HomeCardModel createHomeCardFromBlog(BlogEntity blog, Integer priority);
-
-    @Transactional
-    HomeCardModel createHomeCardFromPrevious(HomeCardModel homeCardModel);
 }
