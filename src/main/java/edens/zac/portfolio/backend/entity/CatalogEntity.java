@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -32,6 +33,7 @@ public class CatalogEntity {
     private String coverImageUrl;
     private String slug;
     private LocalDate date;
+    private LocalDateTime createdDate;
 
     @ElementCollection
     @CollectionTable(name = "catalog_people", joinColumns = @JoinColumn(name = "catalog_id"))

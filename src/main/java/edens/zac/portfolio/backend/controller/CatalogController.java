@@ -95,25 +95,23 @@ public class CatalogController {
                     .body("Failed to retrieve catalog: " + e.getMessage());
         }
     }
-//
-//    //    @CrossOrigin(origins = "http://localhost:3000") // Allow only from your React app
-//    @RequestMapping(value = "/mainPageCatalogList")
-//    public List<CatalogModel> getMainPageCatalogList() {
-//
-//        return catalogService.getMainPageCatalogList();
-//    }
 
-//    //  TODO:: Update Catalog - When creating a new catalog for an image, we relevant fields ( which, after success, will be added to the images, if already selected )
-//    @PutMapping(value = "/update")
-//    public CatalogModel updateCatalog(@RequestBody CatalogModel catalog) {
-//
-//        return catalogService.updateCatalog(catalog);
-//    }
-//
-//    // TODO: update CatalogImagesDTO to include all Catalog fields, or make a new one if we need that minimal
-//    @PutMapping(value = "/updateWithImages")
-//    public CatalogImagesDTO updateCatalogAndImages(@RequestBody CatalogImagesDTO catalogWithImages) {
-//
-//        return catalogService.updateCatalogWithImages(catalogWithImages);
-//    }
+    @GetMapping("getAllCatalogs")
+    public ResponseEntity<?> getAllCatalogs() {
+        try {
+            List<CatalogModel> catalogList = catalogService.getAllCatalogs();
+            if (catalogList == null) {
+                log.warn("No catalogs returned, returning 404");
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("No catalogs found");
+            }
+            return ResponseEntity.ok(catalogList);
+        } catch (Exception e) {
+            log.error("Error getting catalogs: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve catalogs: " + e.getMessage());
+        }
+    }
 }

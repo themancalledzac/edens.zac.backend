@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -21,12 +22,13 @@ public class CatalogModel {
     private Long id;
     private String title;
     private String location;
-    private Integer priority;
+    private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
     private String coverImageUrl;
     private List<String> people;
     private List<String> tags;
     private String slug;
     private LocalDate date;
+    private LocalDateTime createdDate;
     private List<ImageModel> images;
 }
 

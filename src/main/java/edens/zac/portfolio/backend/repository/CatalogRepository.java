@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -13,19 +14,18 @@ public interface CatalogRepository extends JpaRepository<CatalogEntity, Long> {
 
     Optional<CatalogEntity> findByTitle(String title); // Primary Method
 
-    //
-//    List<CatalogEntity> findByPriority(Integer priority);
-
-//    @Query("SELECT new edens.zac.portfolio.backend.model.CatalogModalDTO(a.id, a.name, a.imageMainTitle, a.mainCatalog, a.priority) " +
-//            "FROM CatalogEntity a WHERE a.mainCatalog = true")
-//    List<CatalogModalDTO> findMainCatalogs();
-
     @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images i WHERE c.id = :id ORDER BY i.createDate DESC")
     Optional<CatalogEntity> findByIdWithImages(@Param("id") Long id);
 
-    @Query("SELECT b FROM CatalogEntity b WHERE b.id = :id")
+    @Query("SELECT c FROM CatalogEntity c WHERE c.id = :id")
     Optional<CatalogEntity> findCatalogById(@Param("id") Long id);
 
-    @Query("SELECT b FROM CatalogEntity b LEFT JOIN FETCH b.images WHERE b.slug = :slug")
-    Optional<CatalogEntity> findBySlugWIthImages(@Param("slug") String slug);
+    @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images i WHERE c.slug = :slug ORDER BY i.createDate DESC")
+    Optional<CatalogEntity> findBySlugWithImages(@Param("slug") String slug);
+
+    @Query("Select c FROM CatalogEntity c WHERE c.slug = :slug")
+    Optional<CatalogEntity> findCatalogBySlug(String slug);
+
+    @Query("SELECT c FROM CatalogEntity c ORDER BY c.priority ASC, c.createdDate DESC")
+    List<CatalogEntity> getAllCatalogs();
 }

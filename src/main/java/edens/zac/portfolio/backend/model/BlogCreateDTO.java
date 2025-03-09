@@ -10,11 +10,12 @@ import java.util.List;
 public class BlogCreateDTO {
     private String title;
     private String location;
+    private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
     private String paragraph;
     private String author;
     private List<String> tags;
-    private String slug;
     private String coverImageUrl;
+    private Boolean createHomeCard; // Indicate if we create associated home card
 
     // handle actual image files separately
     private List<Long> existingImageIds;
