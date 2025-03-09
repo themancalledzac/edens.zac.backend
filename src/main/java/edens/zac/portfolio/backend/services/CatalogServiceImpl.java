@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -54,6 +55,7 @@ public class CatalogServiceImpl implements CatalogService {
                 .tags(catalogDTO.getTags())
                 .slug(imageProcessingUtil.generateSlug(catalogDTO.getTitle()))
                 .date(LocalDate.now()) // Set current date
+                .createdDate(LocalDateTime.now())
                 .build();
 
         // Part 2: Save the catalog first to get an ID

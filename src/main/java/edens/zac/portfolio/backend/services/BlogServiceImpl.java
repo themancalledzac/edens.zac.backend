@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -65,6 +66,7 @@ public class BlogServiceImpl implements BlogService {
                 .author(blogDTO.getAuthor())
                 .coverImageUrl(blogDTO.getCoverImageUrl())
                 .slug(imageProcessingUtil.generateSlug(blogDTO.getTitle()))
+                .createdDate(LocalDateTime.now())
                 .tags(blogDTO.getTags() != null ? blogDTO.getTags() : new ArrayList<>())
                 .build();
 
