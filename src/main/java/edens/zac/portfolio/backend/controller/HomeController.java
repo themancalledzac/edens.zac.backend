@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,6 +33,19 @@ public class HomeController {
                         .body("No HomeCard found");
             }
             return ResponseEntity.ok(homeCardList);
+        } catch (Exception e) {
+            log.error("Error while getting home page. {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve catalog: " + e.getMessage());
+        }
+    }
+
+    @PutMapping("update")
+    public ResponseEntity<?> updateHomePage(@RequestBody HomeCardModel homeCardModel) {
+        try {
+            // TODO: Take updated List<HomeCardModel>, and update accordingly ( or do we only take changes to minimize data? )
+            return null;
         } catch (Exception e) {
             log.error("Error while getting home page. {}", e.getMessage(), e);
             return ResponseEntity

@@ -58,7 +58,7 @@ public class BlogController {
         }
     }
 
-    @GetMapping("/slug/{slug}")
+    @GetMapping("/{slug}")
     public ResponseEntity<?> getBlogBySlug(@PathVariable String slug) {
         try {
             BlogModel blog = blogService.getBlogBySlug(slug);
