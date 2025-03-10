@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -160,22 +161,21 @@ public class BlogServiceImpl implements BlogService {
 
     @Override
     public BlogModel getBlogBySlug(String slug) {
-        log.info("Fetching blog with Slug: {}", slug);
-
-        Optional<BlogEntity> blogEntityOpt = blogRepository.findBySlugWithImages(slug);
-
-        if (blogEntityOpt.isEmpty()) {
-            log.warn("Blog with Slug {} not found with custom query", slug);
-
-            // Fallback to regular find
+        try {
+            log.info("Fetching blog with Slug: {}", slug);
             Optional<BlogEntity> blogOpt = blogRepository.findBlogBySlug(slug);
             if (blogOpt.isEmpty()) {
-                log.warn("Blog with Slug {} not found", slug);
+                log.info("Blog not found with Slug: {}", slug);
                 return null;
             }
-            return blogProcessingUtil.convertToBlogModel(blogOpt.get());
+            BlogEntity blog = blogOpt.get();
+            List<ImageEntity> orderedImages = imageRepository.findImagesByBlogSlugOrdered(slug);
+            blog.setImages(new LinkedHashSet<>(orderedImages));
+            return blogProcessingUtil.convertToBlogModel(blog);
+        } catch (Exception e) {
+            log.error("Error fetching catalog for slug: {}", slug, e);
+            return null;
         }
-        return blogProcessingUtil.convertToBlogModel(blogEntityOpt.get());
     }
 
     @Override
@@ -215,7 +215,7 @@ public class BlogServiceImpl implements BlogService {
         Integer blogPagePriority = 3;
 
         // TODO: Add error handling at this step
-        List<BlogEntity> entities = blogRepository.getAllBlogs();
+        List<BlogEntity> entities = blogRepository.getAllBlogs(blogPagePriority);
         return entities.stream()
                 .map(blogProcessingUtil::convertToBlogModel)
                 .collect(Collectors.toList());

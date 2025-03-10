@@ -73,6 +73,8 @@ public class ImageProcessingUtil {
 
             // Step 2: Upload to S3
             String s3Url = uploadImageToS3(file, imageMetadata.get("date"));
+//            String imageDate = imageMetadata.get("date").isEmpty() ? imageMetadata.get("date") : "";
+//            String s3Url = uploadImageToS3(file, imageDate);
 
             // Step 3: Create and save Image entity
             ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, type, contextName);
@@ -141,6 +143,14 @@ public class ImageProcessingUtil {
 
     public String uploadImageToS3(MultipartFile file, String date) {
 
+        // Default date to current date in YYYY-MM-DD format if null
+        String uploadDate = date;
+        if (date == null || date.isEmpty()) {
+            uploadDate = java.time.LocalDate.now().toString();
+            log.info("No date metadata found - using current date: {}", uploadDate);
+        } else {
+            log.info("Using provided date metadata: {}", date);
+        }
 
         try (InputStream inputStream = file.getInputStream()) {
             // Generate S3 Key
@@ -168,9 +178,12 @@ public class ImageProcessingUtil {
             // Return the URL
 //            String url = amazonS3.getUrl(bucketName, webS3Key).toString();
             log.info("File uploaded successfully to S3. URL: {}", cloudfrontUrl);
+            log.info("=============== UPLOAD COMPLETE ===============");
             return cloudfrontUrl;
         } catch (Exception e) {
             log.error("Error uploading image to S3: {}", e.getMessage(), e);
+            log.error("Stack trace:", e);
+            log.info("=============== UPLOAD FAILED ===============");
             throw new RuntimeException("Failed to upload image to S3: " + e.getMessage(), e);
         }
     }
@@ -329,11 +342,27 @@ public class ImageProcessingUtil {
      * @return S3 Key
      */
     private String generateS3Key(String date, String filename, ImageType type) {
-        String formattedDate = date.split(" ")[0].replace(':', '-');
-        return String.format("%s/%s/%s",
-                formattedDate,
-                type,
-                filename);
+        log.info("Generating S3 key with date: '{}', filename: '{}', type: '{}'", date, filename, type);
+        String formattedDate;
+        if (date == null || date.isEmpty()) {
+            formattedDate = LocalDate.now().toString();
+            log.info("Using curent date: {}", formattedDate);
+        } else {
+            try {
+                // try to extract date
+                String[] parts = date.split(" ");
+                formattedDate = parts[0].replace(':', '-');
+                log.info("Formatted date for S3 key: {}", formattedDate);
+            } catch (Exception e) {
+                log.warn("Could not parse date '{}', using current date instead. Error: {}", date, e.getMessage());
+                formattedDate = LocalDate.now().toString();
+            }
+        }
+
+//        String formattedDate = date.split(" ")[0].replace(':', '-');
+        String s3Key = String.format("%s/%s/%s", formattedDate, type, filename);
+        log.info("Generated S3 key: {}", s3Key);
+        return s3Key;
     }
 
     @Getter

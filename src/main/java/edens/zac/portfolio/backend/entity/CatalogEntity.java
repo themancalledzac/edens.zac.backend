@@ -10,7 +10,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -46,5 +46,5 @@ public class CatalogEntity {
     private List<String> tags = new ArrayList<>();
 
     @ManyToMany(mappedBy = "catalogs")
-    private Set<ImageEntity> images = new HashSet<>();
+    private Set<ImageEntity> images = new LinkedHashSet<>();
 }

@@ -20,3 +20,6 @@ public class BlogCreateDTO {
     // handle actual image files separately
     private List<Long> existingImageIds;
 }
+
+
+//{"title":"Film Drop 001","location":"Seattle, Wa","priority":"1","paragraph":"Our first film drop. What more is there to say.","author":"Zac Edens","createHomeCard":"true"};

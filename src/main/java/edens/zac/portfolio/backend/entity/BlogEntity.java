@@ -10,7 +10,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -46,7 +46,7 @@ public class BlogEntity {
             joinColumns = @JoinColumn(name = "blog_id"),
             inverseJoinColumns = @JoinColumn(name = "image_id")
     )
-    private Set<ImageEntity> images = new HashSet<>();
+    private Set<ImageEntity> images = new LinkedHashSet<>();
 
     @ElementCollection
     @CollectionTable(name = "blog_tags", joinColumns = @JoinColumn(name = "blog_id"))
