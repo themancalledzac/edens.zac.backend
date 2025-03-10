@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -149,23 +150,22 @@ public class CatalogServiceImpl implements CatalogService {
 
     @Override
     public CatalogModel getCatalogBySlug(String slug) {
-        log.info("Fetching catalog with slug {}", slug);
-
-        // Get the catalog entity with all its images
-        Optional<CatalogEntity> catalogEntityOpt = catalogRepository.findBySlugWithImages(slug);
-
-        if (catalogEntityOpt.isEmpty()) {
-            log.warn("No catalog found with slug {}", slug);
-
-            // Fallback to regular find
+        try {
+            log.info("Fetching catalog with slug {}", slug);
             Optional<CatalogEntity> catalogOpt = catalogRepository.findCatalogBySlug(slug);
             if (catalogOpt.isEmpty()) {
-                log.warn("No catalog found with slug {}", slug);
+                log.info("No catalog found for slug {}", slug);
                 return null;
             }
-            return catalogProcessingUtil.convertToCatalogModel(catalogOpt.get());
+            CatalogEntity catalogEntity = catalogOpt.get();
+            List<ImageEntity> orderedImages = imageRepository.findImagesByCatalogSlugOrdered(slug);
+            catalogEntity.setImages(new LinkedHashSet<>(orderedImages));
+            return catalogProcessingUtil.convertToCatalogModel(catalogEntity);
+
+        } catch (Exception e) {
+            log.error("Error fetching catalog for slug: {}", slug, e);
+            return null;
         }
-        return catalogProcessingUtil.convertToCatalogModel(catalogEntityOpt.get());
     }
 
     @Override
@@ -195,7 +195,7 @@ public class CatalogServiceImpl implements CatalogService {
         Integer catalogPagePriority = 3;
 
         // TODO: Add error handling at this step
-        List<CatalogEntity> entities = catalogRepository.getAllCatalogs();
+        List<CatalogEntity> entities = catalogRepository.getAllCatalogs(catalogPagePriority);
         return entities.stream()
                 .map(catalogProcessingUtil::convertToCatalogModel)
                 .collect(Collectors.toList());
