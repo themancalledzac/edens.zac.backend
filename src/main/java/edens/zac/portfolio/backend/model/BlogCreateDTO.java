@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+// TODO: Update to include optional Date ( in 2022.02.22 format )
 @Data
 @NoArgsConstructor
 public class BlogCreateDTO {

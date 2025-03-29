@@ -47,12 +47,7 @@ public class ImageEntity {
     private String createDate; // TODO: update this to LocalDatetime - see if that works
     private LocalDateTime updateDate;
 
-    @ManyToMany(cascade = CascadeType.PERSIST)
-    @JoinTable(
-            name = "image_catalog", // Name of the join table
-            joinColumns = @JoinColumn(name = "image_id"), // Column for Image
-            inverseJoinColumns = @JoinColumn(name = "catalog_id") // Column for Catalog
-    )
+    @ManyToMany(mappedBy = "images", cascade = CascadeType.PERSIST)
     private Set<CatalogEntity> catalogs = new HashSet<>();
 
     @ManyToMany(mappedBy = "images")

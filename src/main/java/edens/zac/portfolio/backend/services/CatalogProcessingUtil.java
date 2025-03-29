@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 
 @Component
 @Slf4j
@@ -29,6 +30,7 @@ public class CatalogProcessingUtil {
     CatalogModel convertToCatalogModel(CatalogEntity catalogEntity) {
         // Convert the image entities to image models
         List<ImageModel> images = catalogEntity.getImages().stream()
+                .filter(Objects::nonNull)
                 .map(imageProcessingUtil::convertImageEntityToImageModel)
                 .toList();
 

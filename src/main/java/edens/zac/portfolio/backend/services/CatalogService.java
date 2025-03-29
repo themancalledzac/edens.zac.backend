@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.model.CatalogCreateDTO;
 import edens.zac.portfolio.backend.model.CatalogModel;
+import edens.zac.portfolio.backend.model.CatalogUpdateDTO;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,4 +18,6 @@ public interface CatalogService {
     CatalogModel getCatalogById(Long id);
 
     List<CatalogModel> getAllCatalogs();
+
+    CatalogModel updateCatalog(CatalogUpdateDTO requestBody);
 }

@@ -15,17 +15,29 @@ import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,16 +83,32 @@ public class ImageProcessingUtil {
             // Step 1: Extract Metadata
             Map<String, String> imageMetadata = extractImageMetadata(file);
 
-            // Step 2: Upload to S3
-            String s3Url = uploadImageToS3(file, imageMetadata.get("date"));
+            // Step 2: Compress the image while preserving metadata
+            // Define your desired path for compression
+            int maxDimension = 2000; // Max dimension of long side
+            float compressionQuality = 0.85f; // Compression quality (0.0 -> 1.0)
+
+            ByteArrayInputStream compressedImageStream = compressImage(file, imageMetadata, maxDimension, compressionQuality);
+
+            // Step 3: Upload the compressed image to S3
+
+            String contentType = file.getContentType();
+            Long fileSize = file.getSize();
+            String s3Url = uploadImageToS3(
+                    compressedImageStream,
+                    imageMetadata.get("date"),
+                    file.getOriginalFilename(),
+                    contentType,
+                    fileSize
+            );
 //            String imageDate = imageMetadata.get("date").isEmpty() ? imageMetadata.get("date") : "";
 //            String s3Url = uploadImageToS3(file, imageDate);
 
-            // Step 3: Create and save Image entity
+            // Step 4: Create and save Image entity
             ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, type, contextName);
 
 
-            // Step 4: Check for existing Image
+            // Step 5: Check for existing Image
             Optional<ImageEntity> existingImage = imageRepository.findByTitleAndCreateDate(
                     imageEntity.getTitle(),
                     imageEntity.getCreateDate());
@@ -97,7 +125,7 @@ public class ImageProcessingUtil {
                 return imageRepository.save(existingImage.get());
             }
 
-            // Step 5: Save and return
+            // Step 6: Save and return
             log.info("Saving new image to database: {}", imageEntity.getTitle());
             return imageRepository.save(imageEntity);
         } catch (Exception e) {
@@ -141,7 +169,115 @@ public class ImageProcessingUtil {
         }
     }
 
-    public String uploadImageToS3(MultipartFile file, String date) {
+    public ByteArrayInputStream compressImage(MultipartFile file, Map<String, String> imageMetadata, int maxDimension, float compressionQuality) throws IOException {
+        // Read original image
+        BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+        if (bufferedImage == null) {
+            throw new IOException("Failed to read image: " + file.getOriginalFilename());
+        }
+
+        // Get original dimensions
+        int originalWidth = parseIntegerOrDefault(imageMetadata.get("imageWidth"), 0);
+        int originalHeight = parseIntegerOrDefault(imageMetadata.get("imageHeight"), 0);
+
+        // Calculate new dimensions with aspect ratio
+        int newWidth, newHeight;
+        if (originalWidth > originalHeight) {
+            if (originalWidth > maxDimension) {
+                newWidth = maxDimension;
+                newHeight = (int) (originalHeight * (((double) maxDimension / originalWidth)));
+            } else {
+                newWidth = originalWidth;
+                newHeight = originalHeight;
+            }
+        } else {
+            if (originalHeight > maxDimension) {
+                newHeight = maxDimension;
+                newWidth = (int) (originalWidth * (((double) maxDimension / originalHeight)));
+            } else {
+                newHeight = originalHeight;
+                newWidth = originalWidth;
+            }
+        }
+
+        // Skip resize if image is already smaller than the max dimension
+        BufferedImage resizedImage;
+        if (newWidth != originalWidth || newHeight != originalHeight) {
+            // create a new resized image
+            resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = resizedImage.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.drawImage(bufferedImage, 0, 0, newWidth, newHeight, null);
+            g.dispose();
+        } else {
+            resizedImage = bufferedImage;
+        }
+
+        // Compress image
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        // Get the image format
+        String formatName = getImageFormat(file.getOriginalFilename());
+
+        // For jpg/jpeg, use compression
+        if ("jpg".equalsIgnoreCase(formatName) || "jpeg".equalsIgnoreCase(formatName)) {
+            Iterator<ImageWriter> imageWriters = ImageIO.getImageWritersByFormatName(formatName);
+            if (!imageWriters.hasNext()) {
+                throw new IOException("Unsupported image format: " + formatName);
+            }
+
+            ImageWriter writer = imageWriters.next();
+            ImageWriteParam writeParam = writer.getDefaultWriteParam();
+
+            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            writeParam.setCompressionQuality(compressionQuality);
+
+            ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream);
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(resizedImage, null, null), writeParam);
+            writer.dispose();
+            ios.close();
+        }
+
+        // For WebP format
+        else if ("webp".equalsIgnoreCase(formatName)) {
+            Thumbnails.of(resizedImage)
+                    .size(newWidth, newHeight)
+                    .outputQuality(compressionQuality)
+                    .outputFormat("webp")
+                    .toOutputStream(outputStream);
+        }
+
+        // For all other formats
+        else {
+            ImageIO.write(resizedImage, formatName, outputStream);
+        }
+
+        return new ByteArrayInputStream(outputStream.toByteArray());
+    }
+
+    private String getImageFormat(String filename) {
+        if (filename == null) return "jpg";
+
+        int lastDotIndex = filename.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            return filename.substring(lastDotIndex + 1).toLowerCase();
+        }
+        return "jpg"; // default if no extension found
+    }
+
+    private String uploadImageToS3(
+            ByteArrayInputStream file,
+            String date,
+            String originalFilename,
+            String contentType,
+            Long fileSize
+    ) throws IOException {
+
+        // Read available bytes from the input stream
+        byte[] bytes = file.readAllBytes();
+        // Create a new input stream
+        ByteArrayInputStream resetStream = new ByteArrayInputStream(bytes);
 
         // Default date to current date in YYYY-MM-DD format if null
         String uploadDate = date;
@@ -152,40 +288,34 @@ public class ImageProcessingUtil {
             log.info("Using provided date metadata: {}", date);
         }
 
-        try (InputStream inputStream = file.getInputStream()) {
-            // Generate S3 Key
-            String webS3Key = generateS3Key(date, file.getOriginalFilename(), ImageType.WEB);
+        // Generate S3 Key
+        String webS3Key = generateS3Key(date, originalFilename, ImageType.WEB);
 
-            log.info("Uploading to S3 bucket: {}", bucketName);
+        log.info("Uploading to S3 bucket: {}", bucketName);
 
-            // Set metadata
-            ObjectMetadata webMetadata = new ObjectMetadata();
-            webMetadata.setContentType(file.getContentType());
-            webMetadata.setContentLength(file.getSize());
+        // Set metadata
+        ObjectMetadata webMetadata = new ObjectMetadata();
+        webMetadata.setContentType(contentType);
+        webMetadata.setContentLength(bytes.length);
 
-            // Upload with public read permissions
-            PutObjectRequest putObjectRequest = new PutObjectRequest(
-                    bucketName,
-                    webS3Key,
-                    inputStream,
-                    webMetadata
-            );
+        // Upload with public read permissions
+        PutObjectRequest putObjectRequest = new PutObjectRequest(
+                bucketName,
+                webS3Key,
+                resetStream,
+                webMetadata
+        );
 
-            amazonS3.putObject(putObjectRequest);
+        amazonS3.putObject(putObjectRequest);
 
-            String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + webS3Key;
+        String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + webS3Key;
 
-            // Return the URL
-//            String url = amazonS3.getUrl(bucketName, webS3Key).toString();
-            log.info("File uploaded successfully to S3. URL: {}", cloudfrontUrl);
-            log.info("=============== UPLOAD COMPLETE ===============");
-            return cloudfrontUrl;
-        } catch (Exception e) {
-            log.error("Error uploading image to S3: {}", e.getMessage(), e);
-            log.error("Stack trace:", e);
-            log.info("=============== UPLOAD FAILED ===============");
-            throw new RuntimeException("Failed to upload image to S3: " + e.getMessage(), e);
-        }
+        // Return the URL
+        // String url = amazonS3.getUrl(bucketName, webS3Key).toString();
+        log.info("File uploaded successfully to S3. URL: {}", cloudfrontUrl);
+        log.info("=============== UPLOAD COMPLETE ===============");
+        return cloudfrontUrl;
+
     }
 
     public ImageEntity buildImageEntity(Map<String, String> imageMetadata, String s3Url, String type, String contextName) {
