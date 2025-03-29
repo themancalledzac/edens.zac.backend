@@ -14,7 +14,7 @@ public interface CatalogRepository extends JpaRepository<CatalogEntity, Long> {
 
     Optional<CatalogEntity> findByTitle(String title); // Primary Method
 
-    @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images i WHERE c.id = :id ORDER BY i.createDate ASC")
+    @Query("SELECT c FROM CatalogEntity c LEFT JOIN FETCH c.images i WHERE c.id = :id")
     Optional<CatalogEntity> findByIdWithImages(@Param("id") Long id);
 
     @Query("SELECT c FROM CatalogEntity c WHERE c.id = :id")
@@ -25,4 +25,7 @@ public interface CatalogRepository extends JpaRepository<CatalogEntity, Long> {
 
     @Query("SELECT c FROM CatalogEntity c WHERE c.priority <= :minimumPriority ORDER BY c.priority ASC, c.createdDate DESC")
     List<CatalogEntity> getAllCatalogs(@Param("minimumPriority") Integer minimumPriority);
+
+    @Query("SELECT c FROM CatalogEntity  c LEFT JOIN FETCH c.images WHERE c.slug = :slug")
+    Optional<CatalogEntity> findBySlugWithImages(@Param("slug") String slug);
 }

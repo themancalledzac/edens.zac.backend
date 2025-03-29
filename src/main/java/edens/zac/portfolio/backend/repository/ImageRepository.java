@@ -16,7 +16,8 @@ import java.util.UUID;
 public interface ImageRepository extends JpaRepository<ImageEntity, UUID>, JpaSpecificationExecutor<ImageEntity> {
     Optional<ImageEntity> findByTitleAndCreateDate(String title, String createDate);
 
-    Optional<ImageEntity> findById(Long imageId);
+    Optional<ImageEntity> findById(Long id);
+
 
     @Query("SELECT i FROM ImageEntity i LEFT JOIN FETCH i.catalogs WHERE i.id = :id")
     Optional<ImageEntity> findByIdWithCatalogs(@Param("id") Long id);
@@ -27,7 +28,7 @@ public interface ImageRepository extends JpaRepository<ImageEntity, UUID>, JpaSp
     @Query("SELECT i FROM ImageEntity i LEFT JOIN FETCH i.catalogs WHERE i.id = :id AND i.rating >= :minRating")
     Optional<ImageEntity> findByIdWithCatalogsAndMinRating(@Param("id") Long id, @Param("minRating") Integer minRating);
 
-    @Query("SELECT i FROM ImageEntity i JOIN i.catalogs c WHERE c.slug = :slug ORDER BY i.createDate ASC")
+    @Query("SELECT i FROM ImageEntity i JOIN i.catalogs c WHERE c.slug = :slug")
     List<ImageEntity> findImagesByCatalogSlugOrdered(@Param("slug") String slug);
 
 
