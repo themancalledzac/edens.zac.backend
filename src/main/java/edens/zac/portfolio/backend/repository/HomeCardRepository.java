@@ -12,7 +12,7 @@ import java.util.Optional;
 @Repository
 public interface HomeCardRepository extends JpaRepository<HomeCardEntity, Long> {
 
-    @Query("SELECT c FROM HomeCardEntity c WHERE c.priority <= :maxPriority ORDER BY c.priority ASC, c.createdDate DESC")
+    @Query("SELECT c FROM HomeCardEntity c WHERE c.priority <= :maxPriority AND c.isActiveHomeCard = true ORDER BY c.priority ASC, c.createdDate DESC")
     List<HomeCardEntity> getHomePage(@Param("maxPriority") Integer maxPriority);
 
 //    // Find a specific type of card

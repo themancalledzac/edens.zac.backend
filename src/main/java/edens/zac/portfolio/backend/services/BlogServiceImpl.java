@@ -149,7 +149,7 @@ public class BlogServiceImpl implements BlogService {
         if (blogDTO.getCreateHomeCard() != null && blogDTO.getCreateHomeCard()) {
             try {
                 log.info("Creating Home card for blog {}", savedBlog.getTitle());
-                homeService.createHomeCardFromBlog(savedBlog, blogDTO.getPriority());
+                homeService.createHomeCardFromBlog(savedBlog);
             } catch (Exception e) {
                 log.error("Error creating Home card for catalog: {}: {}", savedBlog.getId(), e.getMessage(), e);
             }

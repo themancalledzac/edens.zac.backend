@@ -19,7 +19,7 @@ public class CatalogUpdateDTO {
     private List<String> tags;
     private String slug;
     private LocalDate date;
-    private Boolean updateHomeCard;
+    private Boolean isHomeCard;
 
     // Image Handling
     private List<ImageModel> images;

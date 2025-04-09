@@ -85,7 +85,7 @@ public class ImageProcessingUtil {
 
             // Step 2: Compress the image while preserving metadata
             // Define your desired path for compression
-            int maxDimension = 2000; // Max dimension of long side
+            int maxDimension = 2500; // Max dimension of long side
             float compressionQuality = 0.85f; // Compression quality (0.0 -> 1.0)
 
             ByteArrayInputStream compressedImageStream = compressImage(file, imageMetadata, maxDimension, compressionQuality);
@@ -101,8 +101,6 @@ public class ImageProcessingUtil {
                     contentType,
                     fileSize
             );
-//            String imageDate = imageMetadata.get("date").isEmpty() ? imageMetadata.get("date") : "";
-//            String s3Url = uploadImageToS3(file, imageDate);
 
             // Step 4: Create and save Image entity
             ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, type, contextName);
@@ -280,9 +278,8 @@ public class ImageProcessingUtil {
         ByteArrayInputStream resetStream = new ByteArrayInputStream(bytes);
 
         // Default date to current date in YYYY-MM-DD format if null
-        String uploadDate = date;
         if (date == null || date.isEmpty()) {
-            uploadDate = java.time.LocalDate.now().toString();
+            String uploadDate = java.time.LocalDate.now().toString();
             log.info("No date metadata found - using current date: {}", uploadDate);
         } else {
             log.info("Using provided date metadata: {}", date);

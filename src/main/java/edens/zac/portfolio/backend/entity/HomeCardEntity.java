@@ -35,6 +35,7 @@ public class HomeCardEntity {
     private Integer priority;
     private String coverImageUrl;
     private String text;
+    private boolean isActiveHomeCard;
 
     // Navigation
     private String slug;
