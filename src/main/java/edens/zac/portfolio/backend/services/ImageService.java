@@ -27,14 +27,6 @@ public interface ImageService {
 
     List<ImageModel> searchByData(ImageSearchModel searchParams);
 
-
-//    List<PhotoCategoryPackage> getImagesByCategory(List<String> categories);
-//    Image getImageByUuid(UUID uuid);
-
-//    List<Image> getImageByCategory(String category);
-
-//    Image saveImage(Image image);
-
-//    List<Image> getImageByDate(String date);
+    List<ImageModel> postImagesForCatalog(MultipartFile file, String catalogTitle);
 
 }

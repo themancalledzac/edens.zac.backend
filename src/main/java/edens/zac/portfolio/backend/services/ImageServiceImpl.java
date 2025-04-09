@@ -89,6 +89,11 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
+    public List<ImageModel> postImagesForCatalog(MultipartFile file, String catalogTitle) {
+        return List.of();
+    }
+
+    @Override
     @Transactional(readOnly = true) // use readOnly for fetch operations
     public ImageModel getImageById(Long imageId) {
 
