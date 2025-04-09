@@ -24,13 +24,6 @@ public class HomeProcessingUtil {
         this.homeCardRepository = homeCardRepository;
     }
 
-    public List<HomeCardModel> getHomePage(Integer maxPriority) {
-        List<HomeCardEntity> entities = homeCardRepository.getHomePage(maxPriority);
-        return entities.stream()
-                .map(this::convertModel)
-                .collect(Collectors.toList());
-    }
-
     public HomeCardModel convertModel(HomeCardEntity entity) {
         return HomeCardModel.builder()
                 .id(entity.getId())
@@ -45,36 +38,39 @@ public class HomeProcessingUtil {
                 .build();
     }
 
-    public HomeCardEntity createHomeCardFromBlog(BlogEntity blog, int priority) {
+    public HomeCardEntity createHomeCardFromBlog(BlogEntity blog) {
         return HomeCardEntity.builder()
                 .title(blog.getTitle())
                 .cardType("blog")
                 .location(blog.getLocation())
                 .date(blog.getDate() != null ? blog.getDate().toString() : null)
-                .priority(priority)
+                .priority(blog.getPriority())
                 .coverImageUrl(blog.getCoverImageUrl())
                 .text(blog.getParagraph() != null ? blog.getParagraph() : null)
                 .slug(blog.getSlug())
                 .referenceId(blog.getId())
                 .createdDate(LocalDateTime.now())
+                // TODO: add 'isHomeCard' to here and all Blog entities
                 .build();
     }
 
-    public HomeCardEntity createHomeCardFromCatalog(CatalogEntity catalog, int priority) {
+    public HomeCardEntity createHomeCardFromCatalog(CatalogEntity catalog) {
         return HomeCardEntity.builder()
                 .title(catalog.getTitle())
                 .cardType("catalog")
                 .location(catalog.getLocation())
                 .date(catalog.getDate() != null ? catalog.getDate().toString() : null)
-                .priority(priority)
+                .priority(catalog.getPriority())
                 .coverImageUrl(catalog.getCoverImageUrl())
                 .text(null)
                 .slug(catalog.getSlug())
                 .referenceId(catalog.getId())
                 .createdDate(LocalDateTime.now())
+                .isActiveHomeCard(catalog.isHomeCard())
                 .build();
     }
 
+    // TODO: Investigate, what were we doing here
     // For creating special navigation cards (one-time setup)
     public HomeCardEntity createNavigationCard(String title, String cardType, String slug, int priority) {
         return HomeCardEntity.builder()

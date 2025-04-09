@@ -15,7 +15,7 @@ public class CatalogCreateDTO {
     private String coverImageUrl;
     private List<String> people;
     private List<String> tags;
-    private Boolean createHomeCard; // indicate if create homeCard or not
+    private Boolean isHomeCard; // indicate if create homeCard or not
 
     // handle actual image files separately
     private List<Long> existingImageIds;

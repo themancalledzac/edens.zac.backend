@@ -13,8 +13,11 @@ public interface HomeService {
     List<HomeCardModel> getHomePage();
 
     @Transactional
-    HomeCardModel createHomeCardFromCatalog(CatalogEntity catalog, Integer priority);
+    void createHomeCardFromCatalog(CatalogEntity catalog);
 
     @Transactional
-    HomeCardModel createHomeCardFromBlog(BlogEntity blog, Integer priority);
+    void createHomeCardFromBlog(BlogEntity blog);
+
+    @Transactional
+    void updateHomeCard(CatalogEntity catalog);
 }

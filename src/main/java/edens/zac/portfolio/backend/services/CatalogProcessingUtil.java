@@ -39,11 +39,13 @@ public class CatalogProcessingUtil {
                 .title(catalogEntity.getTitle())
                 .location(catalogEntity.getLocation())
                 .priority(catalogEntity.getPriority())
+                .description(catalogEntity.getDescription())
                 .coverImageUrl(catalogEntity.getCoverImageUrl())
                 .people(catalogEntity.getPeople())
                 .tags(catalogEntity.getTags())
                 .slug(catalogEntity.getSlug())
                 .date(catalogEntity.getDate())
+                .isHomeCard(catalogEntity.isHomeCard())
                 .images(images)
                 .build();
     }

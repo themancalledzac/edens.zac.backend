@@ -33,6 +33,7 @@ public class CatalogEntity {
     private String slug;
     private LocalDate date;
     private LocalDateTime createdDate;
+    private boolean isHomeCard;
 
     @ElementCollection
     @CollectionTable(name = "catalog_people", joinColumns = @JoinColumn(name = "catalog_id"))

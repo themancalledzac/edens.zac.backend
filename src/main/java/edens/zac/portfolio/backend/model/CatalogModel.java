@@ -31,6 +31,7 @@ public class CatalogModel {
     private LocalDate date;
     private LocalDateTime createdDate;
     private List<ImageModel> images;
+    private Boolean isHomeCard;
 }
 
 

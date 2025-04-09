@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.CatalogEntity;
-import edens.zac.portfolio.backend.entity.HomeCardEntity;
 import edens.zac.portfolio.backend.entity.ImageEntity;
 import edens.zac.portfolio.backend.model.CatalogCreateDTO;
 import edens.zac.portfolio.backend.model.CatalogModel;
@@ -34,19 +33,17 @@ public class CatalogServiceImpl implements CatalogService {
     private final ImageProcessingUtil imageProcessingUtil;
     private final CatalogProcessingUtil catalogProcessingUtil;
     private final HomeService homeService;
-    private final HomeCardRepository homeCardRepository;
 
     public CatalogServiceImpl(
             ImageRepository imageRepository,
             CatalogRepository catalogRepository,
             ImageProcessingUtil imageProcessingUtil,
-            CatalogProcessingUtil catalogProcessingUtil, HomeService homeService, HomeCardRepository homeCardRepository) {
+            CatalogProcessingUtil catalogProcessingUtil, HomeService homeService) {
         this.imageRepository = imageRepository;
         this.catalogRepository = catalogRepository;
         this.imageProcessingUtil = imageProcessingUtil;
         this.catalogProcessingUtil = catalogProcessingUtil;
         this.homeService = homeService;
-        this.homeCardRepository = homeCardRepository;
     }
 
     @Override
@@ -58,11 +55,13 @@ public class CatalogServiceImpl implements CatalogService {
                 .title(catalogDTO.getTitle())
                 .location(catalogDTO.getLocation())
                 .priority(catalogDTO.getPriority() != null ? catalogDTO.getPriority() : 3) // Default to the lowest priority
-                .coverImageUrl(catalogDTO.getCoverImageUrl())
-                .people(catalogDTO.getPeople())
-                .tags(catalogDTO.getTags())
+                .description(catalogDTO.getDescription() != null ? catalogDTO.getDescription() : "")
+                .coverImageUrl(catalogDTO.getCoverImageUrl() != null ? catalogDTO.getCoverImageUrl() : "")
+                .people(catalogDTO.getPeople() != null ? catalogDTO.getPeople() : new ArrayList<>())
+                .tags(catalogDTO.getTags() != null ? catalogDTO.getTags() : new ArrayList<>())
                 .slug(imageProcessingUtil.generateSlug(catalogDTO.getTitle()))
-                .date(LocalDate.now()) // Set current date
+                .date(LocalDate.now())
+                .isHomeCard(catalogDTO.getIsHomeCard() != null ? catalogDTO.getIsHomeCard() : false)
                 .createdDate(LocalDateTime.now())
                 .build();
 
@@ -74,33 +73,34 @@ public class CatalogServiceImpl implements CatalogService {
         // Part 3: Initialize image collection
         Set<ImageEntity> catalogImages = new HashSet<>();
 
-        // Part 4: Process existing images if IDs were provided
-        if (catalogDTO.getExistingImageIds() != null && !catalogDTO.getExistingImageIds().isEmpty()) {
-            log.info("Processing {} existing images for catalog", catalogDTO.getExistingImageIds().size());
-
-            // Get all existing images in one query
-            Set<ImageEntity> existingImages = catalogDTO.getExistingImageIds().stream()
-                    .map(imageRepository::findById)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toSet());
-
-            // Update both sides of the relationship
-            for (ImageEntity image : existingImages) {
-                // Add the catalog to the image's catalog collection
-                image.getCatalogs().add(savedCatalog);
-                imageRepository.save(image);
-
-                // If no cover image is set yet, use the image URL from this image
-                if (savedCatalog.getCoverImageUrl() == null && image.getImageUrlWeb() != null) {
-                    savedCatalog.setCoverImageUrl(image.getImageUrlWeb());
-                    savedCatalog = catalogRepository.save(savedCatalog);
-                }
-            }
-
-            // Add all existing images to the catalog's images collection
-            catalogImages.addAll(existingImages);
-        }
+// TODO: Update to be able to 'add' previously uploaded images
+// Part 4: Process existing images if IDs were provided
+//        if (catalogDTO.getExistingImageIds() != null && !catalogDTO.getExistingImageIds().isEmpty()) {
+//            log.info("Processing {} existing images for catalog", catalogDTO.getExistingImageIds().size());
+//
+//            // Get all existing images in one query
+//            Set<ImageEntity> existingImages = catalogDTO.getExistingImageIds().stream()
+//                    .map(imageRepository::findById)
+//                    .filter(Optional::isPresent)
+//                    .map(Optional::get)
+//                    .collect(Collectors.toSet());
+//
+//            // Update both sides of the relationship
+//            for (ImageEntity image : existingImages) {
+//                // Add the catalog to the image's catalog collection
+//                image.getCatalogs().add(savedCatalog);
+//                imageRepository.save(image);
+//
+//                // If no cover image is set yet, use the image URL from this image
+//                if (savedCatalog.getCoverImageUrl() == null && image.getImageUrlWeb() != null) {
+//                    savedCatalog.setCoverImageUrl(image.getImageUrlWeb());
+//                    savedCatalog = catalogRepository.save(savedCatalog);
+//                }
+//            }
+//
+//            // Add all existing images to the catalog's images collection
+//            catalogImages.addAll(existingImages);
+//        }
 
 
         // Part 5: Process and upload new images, if any
@@ -146,18 +146,14 @@ public class CatalogServiceImpl implements CatalogService {
             return img1.getCreateDate().compareTo(img2.getCreateDate());
         });
 
-//        if (savedCatalog.getImages() != null) {
-//            savedCatalog.setImages(sortedImages);
-//        }
-        // TODO: .getImages() is null
         savedCatalog.setImages(sortedImages);
         savedCatalog = catalogRepository.save(savedCatalog);
 
         // Part 7: Create HomeCard if requested
-        if (catalogDTO.getCreateHomeCard() != null && catalogDTO.getCreateHomeCard()) {
+        if (catalogDTO.getIsHomeCard()) {
             try {
                 log.info("Creating Home card for catalog {}", savedCatalog.getTitle());
-                homeService.createHomeCardFromCatalog(savedCatalog, catalogDTO.getPriority());
+                homeService.createHomeCardFromCatalog(savedCatalog);
             } catch (Exception e) {
                 log.error("Error creating Home card for catalog: {}: {}", savedCatalog.getId(), e.getMessage(), e);
             }
@@ -204,11 +200,13 @@ public class CatalogServiceImpl implements CatalogService {
         if (requestBody.getTitle() != null) catalogEntity.setTitle(requestBody.getTitle());
         if (requestBody.getLocation() != null) catalogEntity.setLocation(requestBody.getLocation());
         if (requestBody.getPriority() != null) catalogEntity.setPriority(requestBody.getPriority());
+        if (requestBody.getDescription() != null) catalogEntity.setDescription(requestBody.getDescription());
         if (requestBody.getCoverImageUrl() != null) catalogEntity.setCoverImageUrl(requestBody.getCoverImageUrl());
         if (requestBody.getPeople() != null) catalogEntity.setPeople(requestBody.getPeople());
         if (requestBody.getTags() != null) catalogEntity.setTags(requestBody.getTags());
         if (requestBody.getSlug() != null) catalogEntity.setSlug(requestBody.getSlug());
         if (requestBody.getDate() != null) catalogEntity.setDate(requestBody.getDate());
+        if (requestBody.getIsHomeCard() != null) catalogEntity.setHomeCard(requestBody.getIsHomeCard());
 
         // Part 3: Store original images for relationship management
         List<ImageEntity> originalImages = catalogEntity.getImages().stream()
@@ -272,24 +270,13 @@ public class CatalogServiceImpl implements CatalogService {
         CatalogEntity savedCatalog = catalogRepository.save(catalogEntity);
 
         // 8. Update HomeCard if requested
-        if (requestBody.getUpdateHomeCard() != null && requestBody.getUpdateHomeCard()) {
-
-            // Find existing home card first
-            Optional<HomeCardEntity> existingCard = homeCardRepository
-                    .findByCardTypeAndReferenceId("catalog", savedCatalog.getId());
-
-            if (existingCard.isPresent()) {
-                HomeCardEntity existingCardEntity = existingCard.get();
-                existingCardEntity.setTitle(savedCatalog.getTitle());
-                existingCardEntity.setLocation(savedCatalog.getLocation());
-                existingCardEntity.setPriority(savedCatalog.getPriority());
-                existingCardEntity.setCoverImageUrl(savedCatalog.getCoverImageUrl());
-                existingCardEntity.setDate(savedCatalog.getDate() != null ? savedCatalog.getDate().toString() : null);
-                homeCardRepository.save(existingCardEntity);
-            } else {
-                homeService.createHomeCardFromCatalog(savedCatalog, savedCatalog.getPriority());
+        if (requestBody.getIsHomeCard()) {
+            try {
+                log.info("Updating Home card for catalog {}", savedCatalog.getTitle());
+                homeService.updateHomeCard(savedCatalog);
+            } catch (Exception e) {
+                log.error("Error updating Home card for catalog: {}: {}", savedCatalog.getId(), e.getMessage(), e);
             }
-
         }
 
         return catalogProcessingUtil.convertToCatalogModel(savedCatalog);
