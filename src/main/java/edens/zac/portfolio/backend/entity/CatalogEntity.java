@@ -28,6 +28,7 @@ public class CatalogEntity {
     private String title;
     private String location;
     private Integer priority;
+    private String description;
     private String coverImageUrl;
     private String slug;
     private LocalDate date;

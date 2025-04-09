@@ -23,6 +23,7 @@ public class CatalogModel {
     private String title;
     private String location;
     private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
+    private String description;
     private String coverImageUrl;
     private List<String> people;
     private List<String> tags;

@@ -13,6 +13,7 @@ public class CatalogUpdateDTO {
     private String title;
     private String location;
     private Integer priority;
+    private String description;
     private String coverImageUrl;
     private List<String> people;
     private List<String> tags;

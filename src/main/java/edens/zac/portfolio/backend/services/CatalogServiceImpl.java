@@ -78,7 +78,7 @@ public class CatalogServiceImpl implements CatalogService {
         if (catalogDTO.getExistingImageIds() != null && !catalogDTO.getExistingImageIds().isEmpty()) {
             log.info("Processing {} existing images for catalog", catalogDTO.getExistingImageIds().size());
 
-            // Get all eisting images in one query
+            // Get all existing images in one query
             Set<ImageEntity> existingImages = catalogDTO.getExistingImageIds().stream()
                     .map(imageRepository::findById)
                     .filter(Optional::isPresent)
@@ -146,8 +146,11 @@ public class CatalogServiceImpl implements CatalogService {
             return img1.getCreateDate().compareTo(img2.getCreateDate());
         });
 
-        savedCatalog.getImages().clear();
-        savedCatalog.getImages().addAll(sortedImages);
+//        if (savedCatalog.getImages() != null) {
+//            savedCatalog.setImages(sortedImages);
+//        }
+        // TODO: .getImages() is null
+        savedCatalog.setImages(sortedImages);
         savedCatalog = catalogRepository.save(savedCatalog);
 
         // Part 7: Create HomeCard if requested

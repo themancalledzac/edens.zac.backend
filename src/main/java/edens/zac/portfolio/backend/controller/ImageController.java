@@ -65,6 +65,15 @@ public class ImageController {
                 .collect(Collectors.toList());
     }
 
+    @PostMapping("/postImagesForCatalog/{catalogTitle}")
+    public List<List<ImageModel>> postImagesForCatalog(
+            @PathVariable("catalogTitle") String catalogTitle,
+            @RequestParam("images") List<MultipartFile> files) {
+        return files.stream()
+                .map(file -> imageService.postImagesForCatalog(file, catalogTitle))
+                .collect(Collectors.toList());
+    }
+
     /**
      * Endpoint to Get Image Metadata for 'n' number of Images
      * <p>
@@ -133,17 +142,4 @@ public class ImageController {
 }
 
 
-// TODO:
-//  4. Do we have an UpdateCatalogAndImages, does it make sense to do both of them? we could modularize the components so we just reuse the first two endpointn logic
-//  6. catalogSearch
-//  7. UPDATE catalog to be able to be a 'catalog of catalogs'
-//  8. This allows us to literally have multiple layers deep, a folder structure, so to speak.
-//  9. UPDATE CREATE endpoint:: postImages - allow for TAGS
-//  10. createTags - Array of Strings of Tag names ( tree, hand, coffee shop, pointing )
-//  13. GetImageByTag
-//  14.
-
-// TODO Thoughts:
-//  - Do we add a DB table for Tags? keep simple, just 1 column for 'name', 1 for 'uuid'
-//  - This way, Images and Catalogs can both have an 'associated' tags array
-//  - basically, a many-to-many relationship DB, just like catalogs are now
+// TODO: Add a 'GetOrphanedImages' endpoint
