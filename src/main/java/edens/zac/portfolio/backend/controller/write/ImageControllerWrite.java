@@ -1,12 +1,20 @@
-package edens.zac.portfolio.backend.controller;
+package edens.zac.portfolio.backend.controller.write;
 
 import edens.zac.portfolio.backend.model.ImageModel;
-import edens.zac.portfolio.backend.model.ImageSearchModel;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -18,30 +26,11 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/v1/image")
-public class ImageController {
+@Configuration
+@Profile("dev")
+public class ImageControllerWrite {
 
     private final ImageService imageService;
-
-    /**
-     * @param imageId - ID that connects our image to all it's metadata, including S3 small/large/raw image locations.
-     * @return Image object, as seen in '/model/Image'
-     * <p>
-     * Specific Image request based on UUID. This will likely be used on the site, when looking through a LIST of Images,
-     * and wanting to get more information on that specific image. This endpoint will likely add additional information
-     * not generally in the Image object, such as specific metadata that normally wouldn't be included in a general List<Image> call.
-     * This reasoning only works if we keep our Image table as sort of GENERIC, and that we would have more specific metadata in a separate
-     * table such as ImageMetadata. This table would be connected, probably, by a foreignKey associated with ImageUuid.
-     */
-    @RequestMapping(value = "/getById/{imageId}", method = RequestMethod.GET)
-    public ImageModel getImageById(@PathVariable("imageId") Long imageId) {
-        log.debug("Get Image by Uuid - In Controller");
-        return imageService.getImageById(imageId);
-    }
-
-    @GetMapping("/getImagesByCatalogs/{catalog}")
-    public List<ImageModel> getImagesByCatalog(@PathVariable("catalog") String catalog) {
-        return imageService.getAllImagesByCatalog(catalog);
-    }
 
     // TODO: Update return value to be a custom 'postImageReturnObject' of some sort, instead of this `<List<Map<String, String>>`
 
@@ -88,32 +77,8 @@ public class ImageController {
                 .collect(Collectors.toList());
     }
 
-    // https://stackoverflow.com/questions/37253571/spring-data-jpa-difference-between-findby-findallby
-
-    /**
-     * @return List of Images ( successfully created )
-     * <p>
-     * This will be our 'Batch Create' endpoint, for when we are uploading multiple images simultaneously.
-     * Will require a LARGE amount of work to be functional, and will have to account for all possible edge cases.
-     * Initially more of a POSTMAN endpoint rather than website endpoint.
-     * Will need to have some sort of Authentication to not let ANYONE just use our AWS S3 account.
-     */
-    @Profile("dev")
-    @RequestMapping(value = "/images", method = RequestMethod.POST)
-    public List<ImageModel> batchCreateImages() {
-        return null;
-    }
-    // TODO: Update thie return to include categories, as would a regular 'get image' wou
-
-//    @RequestMapping(value = "/getImagesByCategory", method = RequestMethod.GET)
-//    public List<PhotoCategoryPackage> getImagesByCategory(@RequestParam List<String> categories) {
-//        return imageService.getImagesByCategory(categories);
-//    }
-
-
     // TODO:: NEW ENDPOINTS!
     //  1. updateImages - Adds Tags, Catalogs(and their state), can Edit: Title, Author(?maybenot?), Location(initially null, based on catalog location maybe? )
-    @Profile("dev")
     @PutMapping(value = "/update/images")
     public List<List<ImageModel>> updateImages(@RequestBody List<ImageModel> images) {
         System.out.println("UpdateImages updates 'specific' images");
@@ -124,25 +89,10 @@ public class ImageController {
     // TODO:
 // TODO:
 //  3. UpdateImage ( singular? ) - do we NEED to do that?
-    @Profile("dev")
     @PutMapping(value = "/update/image")
     public ImageModel updateImage(@RequestBody ImageModel image) {
         System.out.println("UpdateImage updates a specific image.");
         // return imageService.updateImage(image);
         return null;
     }
-
-    /// / TODO: search images by specific metadata, this will take an Image object ( nullable fields ), and search based on those parameters
-    /// /  5. getImageByData -
-    @GetMapping(value = "/searchByData")
-    public List<ImageModel> searchByData(@RequestBody ImageSearchModel searchParams) throws IllegalAccessException {
-        System.out.println("Search images by Metadata");
-        if (searchParams == null) { // todo: this should be moved to ImageController
-            throw new IllegalAccessException("Search parameters cannot be null");
-        }
-        return imageService.searchByData(searchParams);
-    }
 }
-
-
-// TODO: Add a 'GetOrphanedImages' endpoint

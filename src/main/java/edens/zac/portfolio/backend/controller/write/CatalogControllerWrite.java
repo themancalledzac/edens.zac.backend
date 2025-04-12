@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller;
+package edens.zac.portfolio.backend.controller.write;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.CatalogCreateDTO;
@@ -7,12 +7,11 @@ import edens.zac.portfolio.backend.model.CatalogUpdateDTO;
 import edens.zac.portfolio.backend.services.CatalogService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,11 +26,12 @@ import java.util.List;
 @AllArgsConstructor
 @RestController
 @RequestMapping("/api/v1/catalog")
-public class CatalogController {
+@Configuration
+@Profile("dev")
+public class CatalogControllerWrite {
 
     private final CatalogService catalogService;
 
-    @Profile("dev")
     @PostMapping(value = "/uploadCatalogWithImages",
             consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<?> uploadCatalogWithImages(
@@ -60,33 +60,6 @@ public class CatalogController {
         }
     }
 
-    @GetMapping("bySlug/{slug}")
-    public ResponseEntity<?> getCatalogWithImagesBySlug(
-            @PathVariable String slug) {
-        try {
-            CatalogModel catalog = catalogService.getCatalogBySlug(slug);
-            if (catalog == null) {
-                log.warn("Catalog is null, returning 404");
-                return ResponseEntity
-                        .status(HttpStatus.NOT_FOUND)
-                        .body("Catalog with slug: " + slug + " not found");
-            }
-            return ResponseEntity.ok(catalog);
-        } catch (Exception e) {
-            log.error("Error getting catalog {}: {}", slug, e.getMessage(), e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to retrieve catalog: " + e.getMessage());
-        }
-    }
-
-
-    // TODO:
-    //  - Update no longer carries Images
-    //  - Images are uploaded in real time BEFORE the catalog is updated ( on fail, we don't add to current, on success we do! )
-    //  - Will need to return image objects(including urls) on success, this way we can add them
-    //  -
-    @Profile("dev")
     @PutMapping(value = "update/")
     public ResponseEntity<?> updateCatalog(
             @RequestBody(required = true) CatalogUpdateDTO requestBody) {
@@ -104,44 +77,6 @@ public class CatalogController {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to update catalog " + e.getMessage());
-        }
-    }
-
-    @GetMapping("byId/{id}")
-    public ResponseEntity<?> getCatalogById(@PathVariable Long id) {
-        try {
-            CatalogModel catalog = catalogService.getCatalogById(id);
-            if (catalog == null) {
-                log.warn("Catalog is null, returning 404");
-                return ResponseEntity
-                        .status(HttpStatus.NOT_FOUND)
-                        .body("Catalog with id: " + id + " not found");
-            }
-            return ResponseEntity.ok(catalog);
-        } catch (Exception e) {
-            log.error("Error getting catalog {}: {}", id, e.getMessage(), e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to retrieve catalog: " + e.getMessage());
-        }
-    }
-
-    @GetMapping("getAllCatalogs")
-    public ResponseEntity<?> getAllCatalogs() {
-        try {
-            List<CatalogModel> catalogList = catalogService.getAllCatalogs();
-            if (catalogList == null) {
-                log.warn("No catalogs returned, returning 404");
-                return ResponseEntity
-                        .status(HttpStatus.NOT_FOUND)
-                        .body("No catalogs found");
-            }
-            return ResponseEntity.ok(catalogList);
-        } catch (Exception e) {
-            log.error("Error getting catalogs: {}", e.getMessage(), e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to retrieve catalogs: " + e.getMessage());
         }
     }
 }
