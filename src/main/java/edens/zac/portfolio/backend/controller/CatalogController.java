@@ -7,10 +7,10 @@ import edens.zac.portfolio.backend.model.CatalogUpdateDTO;
 import edens.zac.portfolio.backend.services.CatalogService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,7 +31,7 @@ public class CatalogController {
 
     private final CatalogService catalogService;
 
-    @CrossOrigin(origins = "http://localhost:3000")
+    @Profile("dev")
     @PostMapping(value = "/uploadCatalogWithImages",
             consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<?> uploadCatalogWithImages(
@@ -86,7 +86,7 @@ public class CatalogController {
     //  - Images are uploaded in real time BEFORE the catalog is updated ( on fail, we don't add to current, on success we do! )
     //  - Will need to return image objects(including urls) on success, this way we can add them
     //  -
-    @CrossOrigin(origins = "http://localhost:3000")
+    @Profile("dev")
     @PutMapping(value = "update/")
     public ResponseEntity<?> updateCatalog(
             @RequestBody(required = true) CatalogUpdateDTO requestBody) {

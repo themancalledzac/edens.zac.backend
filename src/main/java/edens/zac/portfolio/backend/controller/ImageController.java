@@ -5,6 +5,7 @@ import edens.zac.portfolio.backend.model.ImageSearchModel;
 import edens.zac.portfolio.backend.services.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -97,7 +98,7 @@ public class ImageController {
      * Initially more of a POSTMAN endpoint rather than website endpoint.
      * Will need to have some sort of Authentication to not let ANYONE just use our AWS S3 account.
      */
-    @CrossOrigin(origins = "http://localhost:3000")
+    @Profile("dev")
     @RequestMapping(value = "/images", method = RequestMethod.POST)
     public List<ImageModel> batchCreateImages() {
         return null;
@@ -112,7 +113,7 @@ public class ImageController {
 
     // TODO:: NEW ENDPOINTS!
     //  1. updateImages - Adds Tags, Catalogs(and their state), can Edit: Title, Author(?maybenot?), Location(initially null, based on catalog location maybe? )
-    @CrossOrigin(origins = "http://localhost:3000")
+    @Profile("dev")
     @PutMapping(value = "/update/images")
     public List<List<ImageModel>> updateImages(@RequestBody List<ImageModel> images) {
         System.out.println("UpdateImages updates 'specific' images");
@@ -123,7 +124,7 @@ public class ImageController {
     // TODO:
 // TODO:
 //  3. UpdateImage ( singular? ) - do we NEED to do that?
-    @CrossOrigin(origins = "http://localhost:3000")
+    @Profile("dev")
     @PutMapping(value = "/update/image")
     public ImageModel updateImage(@RequestBody ImageModel image) {
         System.out.println("UpdateImage updates a specific image.");
