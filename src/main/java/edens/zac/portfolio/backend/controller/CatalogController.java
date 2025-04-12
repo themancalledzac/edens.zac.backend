@@ -86,6 +86,7 @@ public class CatalogController {
     //  - Images are uploaded in real time BEFORE the catalog is updated ( on fail, we don't add to current, on success we do! )
     //  - Will need to return image objects(including urls) on success, this way we can add them
     //  -
+    @CrossOrigin(origins = "http://localhost:3000")
     @PutMapping(value = "update/")
     public ResponseEntity<?> updateCatalog(
             @RequestBody(required = true) CatalogUpdateDTO requestBody) {
