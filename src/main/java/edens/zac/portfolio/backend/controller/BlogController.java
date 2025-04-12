@@ -6,10 +6,10 @@ import edens.zac.portfolio.backend.model.BlogModel;
 import edens.zac.portfolio.backend.services.BlogService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,7 +28,7 @@ public class BlogController {
 
     private final BlogService blogService;
 
-    @CrossOrigin(origins = "http://localhost:3000")
+    @Profile("dev")
     @PostMapping(value = "/createBlog",
             consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<?> createBlog(
