@@ -97,6 +97,7 @@ public class ImageController {
      * Initially more of a POSTMAN endpoint rather than website endpoint.
      * Will need to have some sort of Authentication to not let ANYONE just use our AWS S3 account.
      */
+    @CrossOrigin(origins = "http://localhost:3000")
     @RequestMapping(value = "/images", method = RequestMethod.POST)
     public List<ImageModel> batchCreateImages() {
         return null;
@@ -111,7 +112,7 @@ public class ImageController {
 
     // TODO:: NEW ENDPOINTS!
     //  1. updateImages - Adds Tags, Catalogs(and their state), can Edit: Title, Author(?maybenot?), Location(initially null, based on catalog location maybe? )
-
+    @CrossOrigin(origins = "http://localhost:3000")
     @PutMapping(value = "/update/images")
     public List<List<ImageModel>> updateImages(@RequestBody List<ImageModel> images) {
         System.out.println("UpdateImages updates 'specific' images");
@@ -122,6 +123,7 @@ public class ImageController {
     // TODO:
 // TODO:
 //  3. UpdateImage ( singular? ) - do we NEED to do that?
+    @CrossOrigin(origins = "http://localhost:3000")
     @PutMapping(value = "/update/image")
     public ImageModel updateImage(@RequestBody ImageModel image) {
         System.out.println("UpdateImage updates a specific image.");

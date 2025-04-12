@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -41,6 +42,7 @@ public class HomeController {
         }
     }
 
+    @CrossOrigin(origins = "http://localhost:3000")
     @PutMapping("update")
     public ResponseEntity<?> updateHomePage(@RequestBody HomeCardModel homeCardModel) {
         try {
