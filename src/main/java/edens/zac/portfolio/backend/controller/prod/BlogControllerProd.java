@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.read;
+package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.BlogModel;
 import edens.zac.portfolio.backend.services.BlogService;
@@ -16,8 +16,8 @@ import java.util.List;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/api/v1/blog")
-public class BlogControllerRead {
+@RequestMapping("/api/read/blog")
+public class BlogControllerProd {
 
     private final BlogService blogService;
 

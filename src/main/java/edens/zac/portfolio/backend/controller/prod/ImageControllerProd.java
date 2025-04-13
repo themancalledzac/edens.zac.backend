@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.read;
+package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.model.ImageSearchModel;
@@ -13,8 +13,8 @@ import java.util.List;
 @AllArgsConstructor
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
-@RequestMapping("/api/v1/image")
-public class ImageControllerRead {
+@RequestMapping("/api/read/image")
+public class ImageControllerProd {
 
     private final ImageService imageService;
 

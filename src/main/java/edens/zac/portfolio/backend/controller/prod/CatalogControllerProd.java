@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.read;
+package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.CatalogModel;
 import edens.zac.portfolio.backend.services.CatalogService;
@@ -16,8 +16,8 @@ import java.util.List;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/api/v1/catalog")
-public class CatalogControllerRead {
+@RequestMapping("/api/read/catalog")
+public class CatalogControllerProd {
 
     private final CatalogService catalogService;
 
