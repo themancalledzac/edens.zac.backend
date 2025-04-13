@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.write;
+package edens.zac.portfolio.backend.controller.dev;
 
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.services.ImageService;
@@ -25,10 +25,10 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @CrossOrigin(origins = "http://localhost:3000")
 @RestController
-@RequestMapping("/api/v1/image")
+@RequestMapping("/api/write/image")
 @Configuration
 @Profile("dev")
-public class ImageControllerWrite {
+public class ImageControllerDev {
 
     private final ImageService imageService;
 

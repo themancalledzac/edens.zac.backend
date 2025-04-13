@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.write;
+package edens.zac.portfolio.backend.controller.dev;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.CatalogCreateDTO;
@@ -25,10 +25,10 @@ import java.util.List;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/api/v1/catalog")
+@RequestMapping("/api/write/catalog")
 @Configuration
 @Profile("dev")
-public class CatalogControllerWrite {
+public class CatalogControllerDev {
 
     private final CatalogService catalogService;
 
