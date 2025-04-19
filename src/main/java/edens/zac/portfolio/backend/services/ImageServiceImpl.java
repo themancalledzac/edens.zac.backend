@@ -7,9 +7,9 @@ import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
 import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.entity.ImageEntity;
-import edens.zac.portfolio.backend.model.CatalogImagesDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.model.ImageSearchModel;
+import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import edens.zac.portfolio.backend.specification.ImageSpecification;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,15 +33,18 @@ import java.util.stream.Collectors;
 @Service
 public class ImageServiceImpl implements ImageService {
 
+    private final CatalogRepository catalogRepository;
     private final ImageRepository imageRepository;
     private final ImageProcessingUtil imageProcessingUtil;
 
     @Autowired
     public ImageServiceImpl(
+            CatalogRepository catalogRepository,
             ImageRepository imageRepository,
             ImageProcessingUtil imageProcessingUtil) {
         this.imageRepository = imageRepository;
         this.imageProcessingUtil = imageProcessingUtil;
+        this.catalogRepository = catalogRepository;
 
         log.info("ImageServiceImpl initialized");
     }
@@ -89,8 +93,36 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
-    public List<ImageModel> postImagesForCatalog(MultipartFile file, String catalogTitle) {
-        return List.of();
+    @Transactional
+    public List<ImageModel> postImagesForCatalog(List<MultipartFile> images, String catalogTitle) throws IOException {
+
+        String catalogTitleWithoutExtension = catalogTitle.replace("_", " ");
+
+        // Part 1. Find the catalog
+        CatalogEntity catalogEntity = catalogRepository.findByTitle(catalogTitleWithoutExtension)
+                .orElseThrow(() -> new RuntimeException("No catalog found for slug " + catalogTitleWithoutExtension));
+
+        // Process all images in a batch
+        List<ImageEntity> newImages = imageProcessingUtil.batchProcessAndSaveImages(
+                images,
+                catalogTitleWithoutExtension,
+                catalogEntity
+        );
+
+
+        if (!newImages.isEmpty()) {
+            List<ImageEntity> allImages = new ArrayList<>(catalogEntity.getImages());
+            allImages.addAll(newImages);
+            catalogEntity.setImages(allImages);
+            catalogRepository.save(catalogEntity);
+
+            catalogEntity = catalogRepository.findById(catalogEntity.getId()).orElseThrow();
+
+        }
+        return catalogEntity.getImages().stream()
+                .filter(Objects::nonNull)
+                .map(imageProcessingUtil::convertImageEntityToImageModel)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -136,27 +168,6 @@ public class ImageServiceImpl implements ImageService {
         return results.stream()
                 .map(this::convertToModalImage)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<CatalogImagesDTO> getAllImagesByCatalog(List<String> catalogTitles) {
-
-        List<CatalogImagesDTO> results = new ArrayList<>();
-
-        for (String title : catalogTitles) {
-
-            Set<Long> imageIds = imageRepository.findImageIdsByCatalogTitle(title);
-            // Fetch images for each ID, ensuring we fetch their associated catalogs too
-            List<ImageModel> images = imageIds.stream()
-                    .map(imageRepository::findByIdWithCatalogs)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .map(this::convertToModalImage)
-                    .collect(Collectors.toList());
-            results.add(new CatalogImagesDTO(title, images));
-        }
-        return results;
     }
 
     // TODO: Connect this to an endpoint. DOES IT MATTER, if we can filter by rating on the frontend?
@@ -205,7 +216,12 @@ public class ImageServiceImpl implements ImageService {
             imageReturnMetadata.put("focalLength", extractValueForKey(directoriesList, "Focal Length 35"));
             imageReturnMetadata.put("fStop", extractValueForKey(directoriesList, "F-Number"));
             imageReturnMetadata.put("shutterSpeed", extractValueForKey(directoriesList, "Shutter Speed Value"));
-            imageReturnMetadata.put("iso", String.valueOf(Integer.valueOf(Objects.requireNonNull(extractValueForKey(directoriesList, "ISO Speed Ratings")))));
+            imageReturnMetadata.put("iso",
+                    Optional.ofNullable(extractValueForKey(directoriesList, "ISO Speed Ratings"))
+                            .map(String::valueOf)
+                            .map(Integer::valueOf)
+                            .map(String::valueOf)
+                            .orElse(null));
             imageReturnMetadata.put("author", extractValueForKey(directoriesList, "Artist"));
             imageReturnMetadata.put("lens", extractValueForKey(directoriesList, "Lens Model"));
             imageReturnMetadata.put("lensSpecific", extractValueForKey(directoriesList, "Lens Specification"));

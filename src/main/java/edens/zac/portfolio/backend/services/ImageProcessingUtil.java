@@ -34,15 +34,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 
 @Component
 @Slf4j
@@ -68,6 +61,70 @@ public class ImageProcessingUtil {
 
     @Value("${cloudfront.domain}")
     private String cloudfrontDomain;
+
+    public static final class DEFAULT {
+        public static final String AUTHOR = "Zechariah Edens";
+        public static final String CAMERA = "Nikon ZF";
+        public static final String RATING = "3";
+    }
+
+    public static final class ImageCompressionDefaults {
+        public static final int MAX_DIMENSION = 2500;
+        public static final float COMPRESSION_QUALITY = 0.85f;
+    }
+
+    public List<ImageEntity> batchProcessAndSaveImages(
+            List<MultipartFile> images,
+            String catalogTitle,
+            CatalogEntity catalogEntity) {
+        if (images == null || images.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        log.info("Batch processing {} images for catalog '{}'", images.size(), catalogTitle);
+
+        // Process all images first without saving
+        List<ImageEntity> processedImages = new ArrayList<>(images.size());
+
+        for (MultipartFile image : images) {
+            try {
+                Map<String, String> imageMetadata = extractImageMetadata(image);
+
+                ByteArrayInputStream compressedImageStream = compressImage(
+                        image,
+                        imageMetadata,
+                        ImageCompressionDefaults.MAX_DIMENSION,
+                        ImageCompressionDefaults.COMPRESSION_QUALITY
+                );
+
+                String contentType = image.getContentType();
+                Long fileSize = image.getSize();
+                String s3Url = uploadImageToS3(
+                        compressedImageStream,
+                        imageMetadata.get("date"),
+                        image.getOriginalFilename(),
+                        contentType,
+                        fileSize
+                );
+
+                ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, "catalog", catalogTitle);
+
+                // Add catalog relationship
+                imageEntity.getCatalogs().add(catalogEntity);
+
+                // Add to batch
+                processedImages.add(imageEntity);
+
+
+            } catch (Exception e) {
+                log.error("Error processing image {}: {}", image.getOriginalFilename(), e.getMessage(), e);
+                // Continue with other images
+            }
+        }
+
+        // save all processed images in a single batch operation
+        return imageRepository.saveAll(processedImages);
+    }
 
     /**
      * Complete process for handling an image. extract metadata, upload to S3, and save to database
@@ -132,6 +189,12 @@ public class ImageProcessingUtil {
         return null;
     }
 
+    // Helper method for fallback metadata values
+    private String getValueWithDefault(List<Map<String, Object>> directoriesList, String key, String defaultValue) {
+        String value = extractValueForKey(directoriesList, key);
+        return (value != null && !value.isEmpty()) ? value : defaultValue;
+    }
+
     /**
      * Extract metadata from an image file
      */
@@ -147,14 +210,14 @@ public class ImageProcessingUtil {
             imageMetadata.put("imageWidth", extractValueForKey(directoriesList, "Image Width"));
             imageMetadata.put("imageHeight", extractValueForKey(directoriesList, "Image Height"));
             imageMetadata.put("iso", extractValueForKey(directoriesList, "ISO Speed Ratings"));
-            imageMetadata.put("author", extractValueForKey(directoriesList, "Artist"));
-            imageMetadata.put("rating", extractValueForKey(directoriesList, "xmp:Rating"));
+            imageMetadata.put("author", getValueWithDefault(directoriesList, "Author", DEFAULT.AUTHOR));
+            imageMetadata.put("rating", getValueWithDefault(directoriesList, "Rating", DEFAULT.RATING));
             imageMetadata.put("focalLength", extractValueForKey(directoriesList, "Focal Length 35"));
             imageMetadata.put("fStop", extractValueForKey(directoriesList, "F-Number"));
             imageMetadata.put("shutterSpeed", extractValueForKey(directoriesList, "Shutter Speed Value"));
             imageMetadata.put("lens", extractValueForKey(directoriesList, "Lens Model"));
             imageMetadata.put("lensSpecific", extractValueForKey(directoriesList, "Lens Specification"));
-            imageMetadata.put("camera", extractValueForKey(directoriesList, "Model"));
+            imageMetadata.put("camera", getValueWithDefault(directoriesList, "Model", DEFAULT.CAMERA));
             imageMetadata.put("date", extractValueForKey(directoriesList, "Date/Time Original"));
             imageMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
             imageMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
@@ -270,7 +333,7 @@ public class ImageProcessingUtil {
             String originalFilename,
             String contentType,
             Long fileSize
-    ) throws IOException {
+    ) {
 
         // Read available bytes from the input stream
         byte[] bytes = file.readAllBytes();
@@ -339,9 +402,9 @@ public class ImageProcessingUtil {
                 .rawFileName(imageMetadata.get("rawFileName"))
                 .camera(imageMetadata.get("camera"))
                 .focalLength(imageMetadata.get("focalLength"))
-                .location(contextName + "/" + imageMetadata.get("title"))
+                .location("")
                 .imageUrlWeb(s3Url)
-                .imageUrlSmall(s3Url) // For now, same URL
+                .imageUrlSmall("") // For now, same URL
                 .imageUrlRaw(null)
                 .createDate(imageMetadata.get("date"))
                 .updateDate(LocalDateTime.now())

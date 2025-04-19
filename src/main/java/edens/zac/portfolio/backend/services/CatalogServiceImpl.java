@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.model.CatalogModel;
 import edens.zac.portfolio.backend.model.CatalogUpdateDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.repository.CatalogRepository;
-import edens.zac.portfolio.backend.repository.HomeCardRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
