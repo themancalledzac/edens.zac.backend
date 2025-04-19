@@ -1,18 +1,15 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.model.CatalogImagesDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.model.ImageSearchModel;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public interface ImageService {
-
-    @Transactional(readOnly = true)
-    List<CatalogImagesDTO> getAllImagesByCatalog(List<String> catalogTitles);
 
     Map<String, String> getImageMetadata(MultipartFile image);
 
@@ -27,6 +24,6 @@ public interface ImageService {
 
     List<ImageModel> searchByData(ImageSearchModel searchParams);
 
-    List<ImageModel> postImagesForCatalog(MultipartFile file, String catalogTitle);
+    List<ImageModel> postImagesForCatalog(List<MultipartFile> images, String catalogTitle) throws IOException;
 
 }

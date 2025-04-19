@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -41,8 +43,6 @@ public class ImageControllerDev {
      * @param files - Add a List of files (POSTMAN: Body< form-data< Key:Images(File), Value(${your-images}) )
      * @param type  - Type is 'blog' or 'catalog'. Determines if we create a blog with associated images, or create a catalog(if not exists) with associated images.
      * @return - A Json List of the metadata added to the database
-     * @CrossOrigin(origins = "http://localhost:3000") // Allow only from your Local React app
-     * @GetMapping("/getImagesByCatalogs") public ResponseEntity<?> getImagesByMultipleCatalogs(@RequestParam("catalogs") String catalogss) {
      * List<String> catalogsNames = Arrays.asList(catalogs.split(","));
      * List<CatalogsImagesDTO> results = imageService.getAllImagesByCatalogs(catalogsNames);
      * return ResponseEntity.ok(results);
@@ -56,12 +56,12 @@ public class ImageControllerDev {
     }
 
     @PostMapping("/postImagesForCatalog/{catalogTitle}")
-    public List<List<ImageModel>> postImagesForCatalog(
+    public ResponseEntity<?> postImagesForCatalog(
             @PathVariable("catalogTitle") String catalogTitle,
-            @RequestParam("images") List<MultipartFile> files) {
-        return files.stream()
-                .map(file -> imageService.postImagesForCatalog(file, catalogTitle))
-                .collect(Collectors.toList());
+            @RequestParam("images") List<MultipartFile> images) throws IOException {
+        List<ImageModel> returnImages = imageService.postImagesForCatalog(images, catalogTitle);
+
+        return ResponseEntity.ok(returnImages);
     }
 
     /**
