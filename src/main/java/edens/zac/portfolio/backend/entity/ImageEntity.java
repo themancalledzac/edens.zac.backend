@@ -36,6 +36,7 @@ public class ImageEntity {
     private String fStop;
     private String lens;
     private Boolean blackAndWhite;
+    private Boolean isFilm;
     private String shutterSpeed;
     private String rawFileName;
     private String camera;
@@ -53,6 +54,11 @@ public class ImageEntity {
     @ManyToMany(mappedBy = "images")
     @Builder.Default
     private Set<BlogEntity> blogs = new HashSet<>();
+
+    @ElementCollection
+    @CollectionTable(name = "image_tags", joinColumns = @JoinColumn(name = "image_id"))
+    @Column(name = "tag")
+    private List<String> tags = new ArrayList<>();
 
     @Transient
     public List<String> getCatalogNames() {

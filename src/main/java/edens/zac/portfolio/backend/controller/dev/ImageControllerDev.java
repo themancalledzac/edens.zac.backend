@@ -77,14 +77,14 @@ public class ImageControllerDev {
                 .collect(Collectors.toList());
     }
 
-    // TODO:: NEW ENDPOINTS!
-    //  1. updateImages - Adds Tags, Catalogs(and their state), can Edit: Title, Author(?maybenot?), Location(initially null, based on catalog location maybe? )
-    @PutMapping(value = "/update/images")
-    public List<List<ImageModel>> updateImages(@RequestBody List<ImageModel> images) {
-        System.out.println("UpdateImages updates 'specific' images");
-        return images.stream().map(imageService::updateImages)
-                .collect(Collectors.toList());
-    }
+//    // TODO:: NEW ENDPOINTS!
+//    //  1. updateImages - Adds Tags, Catalogs(and their state), can Edit: Title, Author(?maybenot?), Location(initially null, based on catalog location maybe? )
+//    @PutMapping(value = "/update/images")
+//    public List<List<ImageModel>> updateImages(@RequestBody List<ImageModel> images) {
+//        System.out.println("UpdateImages updates 'specific' images");
+//        return images.stream().map(imageService::updateImages)
+//                .collect(Collectors.toList());
+//    }
 
     // TODO:
 // TODO:
