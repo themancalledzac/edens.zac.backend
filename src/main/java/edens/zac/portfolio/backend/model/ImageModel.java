@@ -20,6 +20,7 @@ public class ImageModel {
     private String fStop;
     private String lens;
     private Boolean blackAndWhite;
+    private Boolean isFilm;
     private String shutterSpeed;
     private String rawFileName;
     private String camera;
@@ -30,6 +31,7 @@ public class ImageModel {
     private String imageUrlRaw;
     private List<String> catalog;
     private List<String> blogs;
+    private List<String> tags;
     private String createDate;
     private LocalDateTime updateDate;
 

@@ -5,9 +5,8 @@ import edens.zac.portfolio.backend.entity.ImageEntity;
 import edens.zac.portfolio.backend.model.CatalogCreateDTO;
 import edens.zac.portfolio.backend.model.CatalogModel;
 import edens.zac.portfolio.backend.model.CatalogUpdateDTO;
-import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.repository.CatalogRepository;
-import edens.zac.portfolio.backend.repository.ImageRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,301 +15,213 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class CatalogServiceImpl implements CatalogService {
 
-    private final ImageRepository imageRepository;
+    private static final int DEFAULT_PRIORITY = 3;
+    private static final String DEFAULT_DESCRIPTION = "";
+    private static final String DEFAULT_COVER_IMAGE_URL = "";
+    private static final boolean DEFAULT_IS_HOME_CARD = false;
+    private static final int DEFAULT_CATALOG_PAGE_PRIORITY = 3;
+
+
     private final CatalogRepository catalogRepository;
     private final ImageProcessingUtil imageProcessingUtil;
     private final CatalogProcessingUtil catalogProcessingUtil;
     private final HomeService homeService;
 
     public CatalogServiceImpl(
-            ImageRepository imageRepository,
             CatalogRepository catalogRepository,
             ImageProcessingUtil imageProcessingUtil,
             CatalogProcessingUtil catalogProcessingUtil, HomeService homeService) {
-        this.imageRepository = imageRepository;
         this.catalogRepository = catalogRepository;
         this.imageProcessingUtil = imageProcessingUtil;
         this.catalogProcessingUtil = catalogProcessingUtil;
         this.homeService = homeService;
     }
 
+
+    /**
+     * Creates a new catalog with the provided data and processes any images to be associated with it.
+     *
+     * @param catalogDTO Data Transfer Object containing catalog information including title,
+     *                  description, priority, location, tags, people and other metadata
+     * @param images List of image files to be processed, optimized and attached to the catalog
+     * @return The created catalog as a CatalogModel with all associated data
+     * @throws IllegalArgumentException if the catalog title is null or empty
+     * @throws RuntimeException if there's an error during image processing or database operations
+     */
     @Override
     @Transactional
     public CatalogModel createCatalogWithImages(CatalogCreateDTO catalogDTO, List<MultipartFile> images) {
 
-        // Part 1: Initialize the catalog entity
+        // Validate required fields
+        validateCatalogData(catalogDTO.getTitle(), "creation");
+        if (catalogDTO.getTitle() == null || catalogDTO.getTitle().trim().isEmpty()) {
+            throw new IllegalArgumentException("Catalog title is required");
+        }
+
+        // 1: Initialize the catalog entity
         CatalogEntity catalogEntity = CatalogEntity.builder()
                 .title(catalogDTO.getTitle())
                 .location(catalogDTO.getLocation())
-                .priority(catalogDTO.getPriority() != null ? catalogDTO.getPriority() : 3) // Default to the lowest priority
-                .description(catalogDTO.getDescription() != null ? catalogDTO.getDescription() : "")
-                .coverImageUrl(catalogDTO.getCoverImageUrl() != null ? catalogDTO.getCoverImageUrl() : "")
-                .people(catalogDTO.getPeople() != null ? catalogDTO.getPeople() : new ArrayList<>())
-                .tags(catalogDTO.getTags() != null ? catalogDTO.getTags() : new ArrayList<>())
+                .priority(getValueOrDefault(catalogDTO.getPriority(), DEFAULT_PRIORITY))
+                .description(getValueOrDefault(catalogDTO.getDescription(), DEFAULT_DESCRIPTION))
+                .coverImageUrl(getValueOrDefault(catalogDTO.getCoverImageUrl(), DEFAULT_COVER_IMAGE_URL))
+                .people(getValueOrDefault(catalogDTO.getPeople(), new ArrayList<>()))
+                .tags(getValueOrDefault(catalogDTO.getTags(), new ArrayList<>()))
                 .slug(imageProcessingUtil.generateSlug(catalogDTO.getTitle()))
                 .date(LocalDate.now())
-                .isHomeCard(catalogDTO.getIsHomeCard() != null ? catalogDTO.getIsHomeCard() : false)
+                .isHomeCard(catalogDTO.getIsHomeCard() != null ? catalogDTO.getIsHomeCard() : DEFAULT_IS_HOME_CARD)
                 .createdDate(LocalDateTime.now())
                 .build();
 
-        // Part 2: Save the catalog first to get an ID
+        // 2: Save the catalog first to get an ID
         CatalogEntity savedCatalog = catalogRepository.save(catalogEntity);
         log.info("Catalog saved successfully with ID: {}", savedCatalog.getId());
 
+        // 3: Process and upload new images, if any
+        Set<ImageEntity> catalogImages = catalogProcessingUtil.processNewImages(images, savedCatalog, catalogDTO.getTitle());
 
-        // Part 3: Initialize image collection
-        Set<ImageEntity> catalogImages = new HashSet<>();
-
-// TODO: Update to be able to 'add' previously uploaded images
-// Part 4: Process existing images if IDs were provided
-//        if (catalogDTO.getExistingImageIds() != null && !catalogDTO.getExistingImageIds().isEmpty()) {
-//            log.info("Processing {} existing images for catalog", catalogDTO.getExistingImageIds().size());
-//
-//            // Get all existing images in one query
-//            Set<ImageEntity> existingImages = catalogDTO.getExistingImageIds().stream()
-//                    .map(imageRepository::findById)
-//                    .filter(Optional::isPresent)
-//                    .map(Optional::get)
-//                    .collect(Collectors.toSet());
-//
-//            // Update both sides of the relationship
-//            for (ImageEntity image : existingImages) {
-//                // Add the catalog to the image's catalog collection
-//                image.getCatalogs().add(savedCatalog);
-//                imageRepository.save(image);
-//
-//                // If no cover image is set yet, use the image URL from this image
-//                if (savedCatalog.getCoverImageUrl() == null && image.getImageUrlWeb() != null) {
-//                    savedCatalog.setCoverImageUrl(image.getImageUrlWeb());
-//                    savedCatalog = catalogRepository.save(savedCatalog);
-//                }
-//            }
-//
-//            // Add all existing images to the catalog's images collection
-//            catalogImages.addAll(existingImages);
-//        }
-
-
-        // Part 5: Process and upload new images, if any
-        if (images != null && !images.isEmpty()) {
-            log.info("Processing {} new uploaded images for catalog", images.size());
-            for (MultipartFile image : images) {
-                try {
-                    // Process Image using the catalog name as the context
-                    ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(image, "catalog", catalogDTO.getTitle());
-
-                    if (imageEntity == null) {
-                        log.warn("Failed to process image {}", image.getOriginalFilename());
-                        continue;
-                    }
-
-                    // Ensure the image has this catalog in its catalogs collection
-                    if (!imageEntity.getCatalogs().contains(savedCatalog)) {
-                        imageEntity.getCatalogs().add(savedCatalog);
-                        imageRepository.save(imageEntity);
-                    }
-
-                    catalogImages.add(imageEntity);
-
-                    // If no cover image is set yet, use this one
-                    if (savedCatalog.getCoverImageUrl() == null && imageEntity.getImageUrlWeb() != null) {
-                        savedCatalog.setCoverImageUrl(imageEntity.getImageUrlWeb());
-                        savedCatalog = catalogRepository.save(savedCatalog);
-                    }
-                } catch (
-                        Exception e) {
-                    log.error("Error processing image for catalog: {}: {}", image.getOriginalFilename(), e.getMessage(), e);
-                    // Continue with other images
-                }
-            }
-        }
-
-        // Part 6: Add image order
-        // Sort images by date if no explicit order is provided
-        List<ImageEntity> sortedImages = new ArrayList<>(catalogImages);
-        sortedImages.sort((img1, img2) -> {
-            if (img1.getCreateDate() == null) return 1;
-            if (img2.getCreateDate() == null) return -1;
-            return img1.getCreateDate().compareTo(img2.getCreateDate());
-        });
+        // 4: Add image order. Sort images by date if no explicit order is provided
+        List<ImageEntity> sortedImages = catalogProcessingUtil.sortImagesByCreateDate(catalogImages);
 
         savedCatalog.setImages(sortedImages);
         savedCatalog = catalogRepository.save(savedCatalog);
 
-        // Part 7: Create HomeCard if requested
-        if (catalogDTO.getIsHomeCard()) {
-            try {
-                log.info("Creating Home card for catalog {}", savedCatalog.getTitle());
-                homeService.createHomeCardFromCatalog(savedCatalog);
-            } catch (Exception e) {
-                log.error("Error creating Home card for catalog: {}: {}", savedCatalog.getId(), e.getMessage(), e);
-            }
-        }
+        // 5: Create HomeCard if requested
+        catalogProcessingUtil.handleHomeCard(savedCatalog, catalogDTO.getIsHomeCard());
 
-        // Part 8: Convert and return the catalog model
+        // 6: Convert and return the catalog model
         return catalogProcessingUtil.convertToCatalogModel(savedCatalog);
     }
 
-    @Override
-    public CatalogModel getCatalogBySlug(String slug) {
-        try {
-            log.info("Fetching catalog with slug {}", slug);
-            Optional<CatalogEntity> catalogOpt = catalogRepository.findBySlugWithImages(slug);
-            if (catalogOpt.isEmpty()) {
-                log.info("No catalog found for slug {}", slug);
-                return null;
-            }
-            CatalogEntity catalogEntity = catalogOpt.get();
-            log.info("Catalog found for slug {} with {} images", slug, catalogEntity.getImages().size());
-
-            // filter out any null images
-            catalogEntity.setImages(catalogEntity.getImages().stream()
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList()));
-
-            return catalogProcessingUtil.convertToCatalogModel(catalogEntity);
-
-        } catch (Exception e) {
-            log.error("Error fetching catalog for slug: {}", slug, e);
-            return null;
-        }
-    }
-
+    /**
+     * Updates an existing catalog with new information and manages its associated images.
+     *
+     * @param requestBody DTO containing the updated catalog data, including ID, title, metadata, images to update
+     *                    and images to remove
+     * @return The updated CatalogModel with all changes applied
+     * @throws EntityNotFoundException if no catalog exists with the specified ID
+     * @throws RuntimeException if there's an error during the update process
+     */
     @Transactional
     @Override
     public CatalogModel updateCatalog(CatalogUpdateDTO requestBody) {
+        return catalogProcessingUtil.handleExceptions("update catalog", () -> {
 
-        // 1. Find the catalog
-        CatalogEntity catalogEntity = catalogRepository.findCatalogById(requestBody.getId())
-                .orElseThrow(() -> new RuntimeException("No catalog found for slug " + requestBody.getSlug()));
+            // 1. Find the catalog
+            CatalogEntity catalogEntity = catalogRepository.findCatalogById(requestBody.getId())
+                    .orElseThrow(() -> new EntityNotFoundException("Catalog not found with ID " + requestBody.getId()));
 
-        // 2. Update basic properties
-        if (requestBody.getTitle() != null) catalogEntity.setTitle(requestBody.getTitle());
-        if (requestBody.getLocation() != null) catalogEntity.setLocation(requestBody.getLocation());
-        if (requestBody.getPriority() != null) catalogEntity.setPriority(requestBody.getPriority());
-        if (requestBody.getDescription() != null) catalogEntity.setDescription(requestBody.getDescription());
-        if (requestBody.getCoverImageUrl() != null) catalogEntity.setCoverImageUrl(requestBody.getCoverImageUrl());
-        if (requestBody.getPeople() != null) catalogEntity.setPeople(requestBody.getPeople());
-        if (requestBody.getTags() != null) catalogEntity.setTags(requestBody.getTags());
-        if (requestBody.getSlug() != null) catalogEntity.setSlug(requestBody.getSlug());
-        if (requestBody.getDate() != null) catalogEntity.setDate(requestBody.getDate());
-        if (requestBody.getIsHomeCard() != null) catalogEntity.setHomeCard(requestBody.getIsHomeCard());
+            // 2. Update basic properties
+            validateCatalogData(requestBody.getTitle(), "update");
+            CatalogEntity updateCatalogEntity = catalogProcessingUtil.updateCatalog(requestBody, catalogEntity);
 
-        // Part 3: Store original images for relationship management
-        List<ImageEntity> originalImages = catalogEntity.getImages().stream()
-                .filter(Objects::nonNull)
-                .toList();
+            // 3. If images are provided, update the entire list to maintain order
+            if (requestBody.getImages() != null && !requestBody.getImages().isEmpty() ||
+                    requestBody.getImagesToRemove() != null && !requestBody.getImagesToRemove().isEmpty()) {
 
-        // Part 4: Update images based on request
-        if (requestBody.getImages() != null && !requestBody.getImages().isEmpty()) {
+                List<ImageEntity> orderedImages = catalogProcessingUtil.updateCatalogImages(
+                        updateCatalogEntity,
+                        requestBody.getImages(),
+                        requestBody.getImagesToRemove()
+                );
 
-            // Clear current images
-            catalogEntity.getImages().clear();
-
-            // Force a flush to apply changes
-            catalogRepository.flush();
-
-            for (ImageModel image : requestBody.getImages()) {
-                // Get the managed entity from repository
-                ImageEntity imgEntity = imageRepository.findById(image.getId())
-                        .orElseThrow(() -> new RuntimeException("No image found for id " + image.getId()));
-
-                // Update image properties
-                if (image.getTitle() != null) imgEntity.setTitle(image.getTitle());
-                if (image.getLocation() != null) imgEntity.setLocation(image.getLocation());
-                if (image.getRating() != null) imgEntity.setRating(image.getRating());
-
-                // Add to catalog
-                catalogEntity.getImages().add(imgEntity);
-
-                // Update other side of relationship
-                imgEntity.getCatalogs().add(catalogEntity);
-
-                // Save updated image
-                imageRepository.save(imgEntity);
+                updateCatalogEntity.setImages(orderedImages);
             }
-        }
 
-        // 5. Handle images to remove
-        if (requestBody.getImagesToRemove() != null) {
-            for (Long imageId : requestBody.getImagesToRemove()) {
-                // Remove fom catalog's images if present
-                catalogEntity.getImages().removeIf(img -> img.getId().equals(imageId));
 
-                // Update other side of relationship
-                imageRepository.findById(imageId).ifPresent(img -> {
-                    img.getCatalogs().remove(catalogEntity);
-                    imageRepository.save(img);
-                });
+            // 4. Update catalog in database with all changes
+            CatalogEntity savedCatalog = catalogRepository.save(updateCatalogEntity);
+
+            // 5. Update HomeCard if requested
+            if (Boolean.TRUE.equals(requestBody.getIsHomeCard())) {
+                try {
+                    log.info("Updating Home card for catalog {}", savedCatalog.getTitle());
+                    homeService.updateHomeCard(savedCatalog);
+                } catch (Exception e) {
+                    log.error("Error updating Home card for catalog: {}: {}", savedCatalog.getId(), e.getMessage(), e);
+                }
             }
-        }
 
-        // 5. For remaining original images not in the updated list, clean up relationship
-        //  - Finds any images in original collection, but not in the updated collection.
-        for (ImageEntity originalImage : originalImages) {
-            if (originalImage != null && !catalogEntity.getImages().contains(originalImage)) {
-                originalImage.getCatalogs().remove(catalogEntity);
-                imageRepository.save(originalImage);
-            }
-        }
-
-        // 7. Update catalog in database with all changes.
-        CatalogEntity savedCatalog = catalogRepository.save(catalogEntity);
-
-        // 8. Update HomeCard if requested
-        if (requestBody.getIsHomeCard()) {
-            try {
-                log.info("Updating Home card for catalog {}", savedCatalog.getTitle());
-                homeService.updateHomeCard(savedCatalog);
-            } catch (Exception e) {
-                log.error("Error updating Home card for catalog: {}: {}", savedCatalog.getId(), e.getMessage(), e);
-            }
-        }
-
-        return catalogProcessingUtil.convertToCatalogModel(savedCatalog);
+            return catalogProcessingUtil.convertToCatalogModel(savedCatalog);
+        });
     }
 
+    /**
+     * Retrieves a catalog by its unique slug identifier.
+     *
+     * @param slug The URL-friendly string identifier for the catalog
+     * @return A CatalogModel representing the found catalog with all its images, or null if not found
+     * @throws RuntimeException if there's an error during the retrieval process, handled by handleExceptions
+     */
     @Override
-    public CatalogModel getCatalogById(Long id) {
+    @Transactional(readOnly = true)
+    public Optional<CatalogModel> getCatalogBySlug(String slug) {
+        return catalogProcessingUtil.handleExceptions("get catalog by slug", () -> {
+            log.info("Fetching catalog with slug {}", slug);
+            return catalogRepository.findBySlugWithImages(slug)
+                    .map(catalogEntity -> {
+                        log.info("Catalog found for slug {} with {} images", slug, catalogEntity.getImages().size());
+
+                        // filter out any null images
+                        catalogEntity.setImages(catalogEntity.getImages().stream()
+                                .filter(Objects::nonNull)
+                                .toList());
+
+                        return catalogProcessingUtil.convertToCatalogModel(catalogEntity);
+                    });
+        });
+    }
+
+    /**
+     * Retrieves a catalog by its unique numeric ID.
+     *
+     * @param id The unique identifier of the catalog to retrieve
+     * @return An Optional containing the CatalogModel if found, or an empty Optional if not found
+     * @throws RuntimeException if there's an error during the retrieval process
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<CatalogModel> getCatalogById(Long id) {
         log.info("Getting catalog by Id {}", id);
 
-        // Get the catalog entity with all its images
-        Optional<CatalogEntity> catalogEntityOpt = catalogRepository.findByIdWithImages(id);
-
-        if (catalogEntityOpt.isEmpty()) {
-            log.warn("Catalog with ID {} not found with custom query", id);
-
-            // Fallback to regular find
-            Optional<CatalogEntity> catalogOpt = catalogRepository.findCatalogById(id);
-            if (catalogOpt.isEmpty()) {
-                log.warn("Catalog with ID {} not found", id);
-                return null;
-            }
-            return catalogProcessingUtil.convertToCatalogModel(catalogOpt.get());
-        }
-
-        return catalogProcessingUtil.convertToCatalogModel(catalogEntityOpt.get());
+        return catalogRepository.findByIdWithImages(id)
+                .or(() -> catalogRepository.findCatalogById(id))
+                .map(catalogProcessingUtil::convertToCatalogModel);
     }
 
+    /**
+     * Retrieves all catalogs in the system, ordered by priority.
+     *
+     * @return A List of CatalogModel objects representing all available catalogs
+     * @throws RuntimeException if there's an error during the retrieval process, handled by handleExceptions
+     */
     @Override
+    @Transactional(readOnly = true)
     public List<CatalogModel> getAllCatalogs() {
-        Integer catalogPagePriority = 3;
+        return catalogProcessingUtil.handleExceptions("get all catalogs", () -> {
+            List<CatalogEntity> entities = catalogRepository.getAllCatalogs(DEFAULT_CATALOG_PAGE_PRIORITY);
+            return entities.stream()
+                    .map(catalogProcessingUtil::convertToCatalogModel)
+                    .toList();
+        });
+    }
 
-        // TODO: Add error handling at this step
-        List<CatalogEntity> entities = catalogRepository.getAllCatalogs(catalogPagePriority);
-        return entities.stream()
-                .map(catalogProcessingUtil::convertToCatalogModel)
-                .collect(Collectors.toList());
+    private void validateCatalogData(String title, String operation) {
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("Catalog title is required for " + operation);
+        }
+    }
+
+    private <T> T getValueOrDefault(T value, T defaultValue) {
+        return value != null ? value : defaultValue;
     }
 }

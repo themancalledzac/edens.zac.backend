@@ -7,10 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Repository
 public interface ImageRepository extends JpaRepository<ImageEntity, UUID>, JpaSpecificationExecutor<ImageEntity> {
@@ -34,4 +31,8 @@ public interface ImageRepository extends JpaRepository<ImageEntity, UUID>, JpaSp
 
     @Query("SELECT i FROM ImageEntity i JOIN i.blogs c WHERE c.slug = :slug ORDER BY i.createDate ASC")
     List<ImageEntity> findImagesByBlogSlugOrdered(@Param("slug") String slug);
+
+    @Query("SELECT i FROM ImageEntity i JOIN i.catalogs c WHERE c.title = :title")
+    List<ImageEntity> findImagesByCatalogTitle(@Param("title") String title);
+
 }

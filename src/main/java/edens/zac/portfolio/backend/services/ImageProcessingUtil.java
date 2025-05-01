@@ -222,6 +222,8 @@ public class ImageProcessingUtil {
             imageMetadata.put("blackAndWhite", String.valueOf(Objects.equals(extractValueForKey(directoriesList, "crs:ConvertToGrayscale"), "True")));
             imageMetadata.put("rawFileName", extractValueForKey(directoriesList, "crs:RawFileName"));
 
+            // TODO: PHP IPTC Parsing: Use iptcparse function to read keywords stored in IPTC metadata.
+
             return imageMetadata;
 
         } catch (Exception e) {
@@ -431,6 +433,7 @@ public class ImageProcessingUtil {
         imageModel.setCamera(imageEntity.getCamera());
         imageModel.setFocalLength(imageEntity.getFocalLength());
         imageModel.setLocation(imageEntity.getLocation());
+        imageModel.setTags(imageEntity.getTags());
 
         // Format URLs with CloudFront if needed
         imageModel.setImageUrlWeb(formatImageUrl(imageEntity.getImageUrlWeb()));
@@ -606,5 +609,49 @@ public class ImageProcessingUtil {
                 .replaceAll("\\s+", "-") // Replace spaces with hyphens
                 .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
                 .replaceAll("^-|-$", ""); // Remove leading and trailing hyphens
+    }
+
+    public ImageEntity updateImageProperties(ImageEntity imageEntity, ImageModel imageModel) {
+        if (imageModel == null || imageEntity == null ) {
+            return imageEntity;
+        }
+
+        log.debug("Updating image properties for image with id: {}", imageEntity.getId());
+
+        if(imageModel.getTitle() != null) {
+            imageEntity.setTitle(imageModel.getTitle());
+        }
+
+        if (imageModel.getAuthor() != null) {
+            imageEntity.setAuthor(imageModel.getAuthor());
+        }
+
+        if (imageModel.getRating() != null) {
+            imageEntity.setRating(imageModel.getRating());
+        }
+
+        if (imageModel.getLens() != null) {
+            imageEntity.setLens(imageModel.getLens());
+        }
+
+        if (imageModel.getIsFilm() != null) {
+            imageEntity.setIsFilm(imageModel.getIsFilm());
+        }
+
+        if (imageModel.getCamera() != null) {
+            imageEntity.setCamera(imageModel.getCamera());
+        }
+
+        if (imageModel.getLocation() != null) {
+            imageEntity.setLocation(imageModel.getLocation());
+        }
+
+        if(imageModel.getTags() != null) {
+            imageEntity.setTags(imageModel.getTags());
+        }
+
+        imageEntity.setUpdateDate(LocalDateTime.now());
+
+        return imageEntity;
     }
 }

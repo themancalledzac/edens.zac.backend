@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @AllArgsConstructor
@@ -29,7 +30,7 @@ public class ImageControllerProd {
      * table such as ImageMetadata. This table would be connected, probably, by a foreignKey associated with ImageUuid.
      */
     @RequestMapping(value = "/getById/{imageId}", method = RequestMethod.GET)
-    public ImageModel getImageById(@PathVariable("imageId") Long imageId) {
+    public Optional<ImageModel> getImageById(@PathVariable("imageId") Long imageId) {
         log.debug("Get Image by Uuid - In Controller");
         return imageService.getImageById(imageId);
     }

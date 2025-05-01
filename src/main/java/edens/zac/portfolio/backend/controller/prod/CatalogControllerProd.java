@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @AllArgsConstructor
@@ -25,8 +26,8 @@ public class CatalogControllerProd {
     public ResponseEntity<?> getCatalogWithImagesBySlug(
             @PathVariable String slug) {
         try {
-            CatalogModel catalog = catalogService.getCatalogBySlug(slug);
-            if (catalog == null) {
+            Optional<CatalogModel> catalog = catalogService.getCatalogBySlug(slug);
+            if (catalog.isEmpty()) {
                 log.warn("Catalog is null, returning 404");
                 return ResponseEntity
                         .status(HttpStatus.NOT_FOUND)
@@ -44,8 +45,8 @@ public class CatalogControllerProd {
     @GetMapping("byId/{id}")
     public ResponseEntity<?> getCatalogById(@PathVariable Long id) {
         try {
-            CatalogModel catalog = catalogService.getCatalogById(id);
-            if (catalog == null) {
+            Optional<CatalogModel> catalog = catalogService.getCatalogById(id);
+            if (catalog.isEmpty()) {
                 log.warn("Catalog is null, returning 404");
                 return ResponseEntity
                         .status(HttpStatus.NOT_FOUND)
