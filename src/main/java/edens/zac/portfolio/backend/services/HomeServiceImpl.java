@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.BlogEntity;
 import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.entity.HomeCardEntity;
 import edens.zac.portfolio.backend.model.HomeCardModel;
@@ -91,27 +90,5 @@ public class HomeServiceImpl implements HomeService {
         if (catalog.getCoverImageUrl() != null) existingHomeCardEntity.setCoverImageUrl(catalog.getCoverImageUrl());
         if (!catalog.isHomeCard()) existingHomeCardEntity.setActiveHomeCard(false);
         return existingHomeCardEntity;
-    }
-
-    @Override
-    public void createHomeCardFromBlog(BlogEntity blog) {
-        log.info("Creating HomeCard for blog: {}", blog.getTitle());
-
-        // Check if a HomeCard already exists for this blog
-        homeCardRepository.findByCardTypeAndReferenceId("blog", blog.getId())
-                .ifPresent(existing -> {
-                    log.info("HomeCard already exists for blog ID: {}", blog.getId());
-                    return;
-                });
-
-        // Create new HomeCard entity
-        HomeCardEntity homeCardEntity = homeCardProcessingUtil.createHomeCardFromBlog(blog); // Default priority 2
-
-        // Save the entity
-        HomeCardEntity savedEntity = homeCardRepository.save(homeCardEntity);
-        log.info("HomeCard created successfully with ID: {}", savedEntity.getId());
-
-        // Convert and return model
-        homeCardProcessingUtil.convertModel(savedEntity);
     }
 }

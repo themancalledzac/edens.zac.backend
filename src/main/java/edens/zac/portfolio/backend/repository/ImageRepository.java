@@ -28,10 +28,6 @@ public interface ImageRepository extends JpaRepository<ImageEntity, UUID>, JpaSp
     @Query("SELECT i FROM ImageEntity i JOIN i.catalogs c WHERE c.slug = :slug")
     List<ImageEntity> findImagesByCatalogSlugOrdered(@Param("slug") String slug);
 
-
-    @Query("SELECT i FROM ImageEntity i JOIN i.blogs c WHERE c.slug = :slug ORDER BY i.createDate ASC")
-    List<ImageEntity> findImagesByBlogSlugOrdered(@Param("slug") String slug);
-
     @Query("SELECT i FROM ImageEntity i JOIN i.catalogs c WHERE c.title = :title")
     List<ImageEntity> findImagesByCatalogTitle(@Param("title") String title);
 

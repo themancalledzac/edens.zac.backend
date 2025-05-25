@@ -22,6 +22,11 @@ public class CatalogControllerProd {
 
     private final CatalogService catalogService;
 
+    // TODO: Investigate if we need to 'paginate' the images, if they are over like 20 images, aka, if we have 200 images in a call, it can take a WHILE for the frontend to load.
+    //  - This would be 2 things, 2 api getMapping calls, 'getCatalogMetadataBySlug' and 'getCatalogImagesBySlug', which would have a size of 20,
+    //  - This would require the frontend to call both api calls, metadata first, and then basically call images 20 at a time
+    //  - Only needed for catalogs with a LOT of images, is this even a real issue for us, other than, say, family or things?
+    //  - Will need to investigate
     @GetMapping("bySlug/{slug}")
     public ResponseEntity<?> getCatalogWithImagesBySlug(
             @PathVariable String slug) {
