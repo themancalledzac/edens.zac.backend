@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.BlogEntity;
 import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,9 +13,6 @@ public interface HomeService {
 
     @Transactional
     void createHomeCardFromCatalog(CatalogEntity catalog);
-
-    @Transactional
-    void createHomeCardFromBlog(BlogEntity blog);
 
     @Transactional
     void updateHomeCard(CatalogEntity catalog);

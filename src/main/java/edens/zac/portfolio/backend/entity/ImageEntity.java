@@ -51,10 +51,6 @@ public class ImageEntity {
     @ManyToMany(mappedBy = "images", cascade = CascadeType.PERSIST)
     private Set<CatalogEntity> catalogs = new HashSet<>();
 
-    @ManyToMany(mappedBy = "images")
-    @Builder.Default
-    private Set<BlogEntity> blogs = new HashSet<>();
-
     @ElementCollection
     @CollectionTable(name = "image_tags", joinColumns = @JoinColumn(name = "image_id"))
     @Column(name = "tag")
@@ -63,12 +59,5 @@ public class ImageEntity {
     @Transient
     public List<String> getCatalogNames() {
         return catalogs.stream().map(CatalogEntity::getTitle).collect(Collectors.toList());
-    }
-
-    @Transient
-    public List<String> getBlogTitles() {
-        return blogs == null ? new ArrayList<>() : blogs.stream()
-                .map(BlogEntity::getTitle)
-                .collect(Collectors.toList());
     }
 }
