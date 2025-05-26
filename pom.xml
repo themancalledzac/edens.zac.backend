@@ -75,6 +75,15 @@
             <artifactId>thumbnailator</artifactId>
             <version>0.4.20</version>
         </dependency>
+        <dependency>
+            <groupId>edens.zac</groupId>
+            <artifactId>portfolio.backend</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.types;
 
-import com.drew.lang.annotations.NotNull;
+import jakarta.validation.constraints.NotNull;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
