@@ -130,8 +130,8 @@ public class ImageProcessingUtil {
      * Complete process for handling an image. extract metadata, upload to S3, and save to database
      *
      * @param file        The image file to process
-     * @param type        The collection name ("blog" or "catalog") where this image belongs
-     * @param contextName The title of the Blog or Catalog
+     * @param type        The collection name ("catalog") where this image belongs
+     * @param contextName The title of the Catalog
      * @return The created ImageEntity
      */
     public ImageEntity processAndSaveImage(MultipartFile file, String type, String contextName) {
@@ -411,7 +411,6 @@ public class ImageProcessingUtil {
                 .createDate(imageMetadata.get("date"))
                 .updateDate(LocalDateTime.now())
                 .catalogs(catalogs)
-                .blogs(new HashSet<>())
                 .build();
     }
 
@@ -442,7 +441,6 @@ public class ImageProcessingUtil {
         imageModel.setCreateDate(imageEntity.getCreateDate());
         imageModel.setUpdateDate(imageEntity.getUpdateDate());
         imageModel.setCatalog(imageEntity.getCatalogNames());
-        imageModel.setBlogs(imageEntity.getBlogTitles());
 
         return imageModel;
     }
