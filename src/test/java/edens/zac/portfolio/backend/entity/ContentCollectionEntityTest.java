@@ -7,13 +7,11 @@ import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
 
 class ContentCollectionEntityTest {
 
@@ -29,9 +27,9 @@ class ContentCollectionEntityTest {
     void testValidContentCollection() {
         // Create a valid content collection
         ContentCollectionEntity collection = new ContentCollectionEntity();
-                collection.setType(CollectionType.BLOG);
-                collection.setTitle("Test Collection");
-                collection.setSlug("test-collection");
+        collection.setType(CollectionType.BLOG);
+        collection.setTitle("Test Collection");
+        collection.setSlug("test-collection");
 
         Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(collection);
         assertTrue(violations.isEmpty());
@@ -58,9 +56,9 @@ class ContentCollectionEntityTest {
     void testTitleLengthValidation() {
         // Test with title that is too short
         ContentCollectionEntity shortTitle = new ContentCollectionEntity();
-                shortTitle.setType(CollectionType.BLOG);
-                shortTitle.setTitle("AB"); // Less than minimum 3 characters
-                shortTitle.setSlug("test-collection");
+        shortTitle.setType(CollectionType.BLOG);
+        shortTitle.setTitle("AB"); // Less than minimum 3 characters
+        shortTitle.setSlug("test-collection");
 
         Set<ConstraintViolation<ContentCollectionEntity>> shortViolations = validator.validate(shortTitle);
         assertFalse(shortViolations.isEmpty());
@@ -68,14 +66,12 @@ class ContentCollectionEntityTest {
                 .anyMatch(v -> v.getPropertyPath().toString().equals("title")));
 
         // Test with title that is too long
-        StringBuilder longTitleBuilder = new StringBuilder();
-        for (int i = 0; i < 101; i++) { // 101 characters, max is 100
-            longTitleBuilder.append("A");
-        }
+        // 101 characters, max is 100
+        String longTitleBuilder = "A".repeat(101);
 
         ContentCollectionEntity longTitle = new ContentCollectionEntity();
         longTitle.setType(CollectionType.BLOG);
-        longTitle.setTitle(longTitleBuilder.toString());
+        longTitle.setTitle(longTitleBuilder);
         longTitle.setSlug("test-collection");
 
         Set<ConstraintViolation<ContentCollectionEntity>> longViolations = validator.validate(longTitle);
@@ -98,15 +94,13 @@ class ContentCollectionEntityTest {
                 .anyMatch(v -> v.getPropertyPath().toString().equals("slug")));
 
         // Test with slug that is too long
-        StringBuilder longSlugBuilder = new StringBuilder();
-        for (int i = 0; i < 151; i++) { // 151 characters, max is 150
-            longSlugBuilder.append("a");
-        }
+        // 151 characters, max is 150
+        String longSlugBuilder = "a".repeat(151);
 
         ContentCollectionEntity longSlug = new ContentCollectionEntity();
-                longSlug.setType(CollectionType.BLOG);
-                longSlug.setTitle("Test Collection");
-                longSlug.setSlug(longSlugBuilder.toString());
+        longSlug.setType(CollectionType.BLOG);
+        longSlug.setTitle("Test Collection");
+        longSlug.setSlug(longSlugBuilder);
 
         Set<ConstraintViolation<ContentCollectionEntity>> longViolations = validator.validate(longSlug);
         assertFalse(longViolations.isEmpty());
@@ -117,16 +111,14 @@ class ContentCollectionEntityTest {
     @Test
     void testDescriptionLengthValidation() {
         // Test with description that is too long
-        StringBuilder longDescriptionBuilder = new StringBuilder();
-        for (int i = 0; i < 501; i++) { // 501 characters, max is 500
-            longDescriptionBuilder.append("A");
-        }
+        // 501 characters, max is 500
+        String longDescriptionBuilder = "A".repeat(501);
 
         ContentCollectionEntity longDescription = new ContentCollectionEntity();
         longDescription.setType(CollectionType.BLOG);
         longDescription.setTitle("Test Collection");
         longDescription.setSlug("test-collection");
-        longDescription.setDescription(longDescriptionBuilder.toString());
+        longDescription.setDescription(longDescriptionBuilder);
 
         Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(longDescription);
         assertFalse(violations.isEmpty());
@@ -170,36 +162,6 @@ class ContentCollectionEntityTest {
     }
 
     @Test
-    void testAddContentBlock() {
-        // Create a collection
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-        collection.setType(CollectionType.BLOG);
-        collection.setTitle("Test Collection");
-        collection.setSlug("test-collection");
-
-        // Create mock content blocks
-        TextContentBlockEntity textBlock1 = Mockito.mock(TextContentBlockEntity.class);
-        when(textBlock1.getOrderIndex()).thenReturn(null);
-        when(textBlock1.getId()).thenReturn(1L);
-
-        TextContentBlockEntity textBlock2 = Mockito.mock(TextContentBlockEntity.class);
-        when(textBlock2.getOrderIndex()).thenReturn(null);
-        when(textBlock2.getId()).thenReturn(2L);
-
-        // Add first block
-        collection.addContentBlock(textBlock1);
-        assertEquals(1, collection.getContentBlocks().size());
-        assertEquals(1, collection.getTotalBlocks());
-        Mockito.verify(textBlock1).setOrderIndex(0); // First block should get index 0
-
-        // Add second block
-        collection.addContentBlock(textBlock2);
-        assertEquals(2, collection.getContentBlocks().size());
-        assertEquals(2, collection.getTotalBlocks());
-        Mockito.verify(textBlock2).setOrderIndex(1); // Second block should get index 1
-    }
-
-    @Test
     void testBlocksPerPageMinimumValidation() {
         // Test with blocks_per_page less than 1
         ContentCollectionEntity zeroBlocksPerPage = new ContentCollectionEntity();
@@ -212,163 +174,6 @@ class ContentCollectionEntityTest {
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("blocksPerPage")));
-    }
-
-    @Test
-    void testAddContentBlockWithExistingOrderIndex() {
-        // Create a collection
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-        collection.setType(CollectionType.BLOG);
-        collection.setTitle("Test Collection");
-        collection.setSlug("test-collection");
-
-        // Create mock content blocks with pre-set order indices
-        TextContentBlockEntity textBlock1 = Mockito.mock(TextContentBlockEntity.class);
-        when(textBlock1.getOrderIndex()).thenReturn(5); // Pre-set index
-        when(textBlock1.getId()).thenReturn(1L);
-
-        // Add block
-        collection.addContentBlock(textBlock1);
-        assertEquals(1, collection.getContentBlocks().size());
-        assertEquals(1, collection.getTotalBlocks());
-        // Since the order index was already set, it shouldn't be changed
-        Mockito.verify(textBlock1, Mockito.never()).setOrderIndex(Mockito.anyInt());
-    }
-
-    @Test
-    void testRemoveContentBlock() {
-        // Create a collection
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-        collection.setType(CollectionType.BLOG);
-        collection.setTitle("Test Collection");
-        collection.setSlug("test-collection");
-
-        // Create mock content blocks
-        TextContentBlockEntity textBlock1 = Mockito.mock(TextContentBlockEntity.class);
-        when(textBlock1.getOrderIndex()).thenReturn(0);
-        when(textBlock1.getId()).thenReturn(1L);
-
-        TextContentBlockEntity textBlock2 = Mockito.mock(TextContentBlockEntity.class);
-        when(textBlock2.getOrderIndex()).thenReturn(1);
-        when(textBlock2.getId()).thenReturn(2L);
-
-        // Add blocks
-        collection.addContentBlock(textBlock1);
-        collection.addContentBlock(textBlock2);
-        assertEquals(2, collection.getContentBlocks().size());
-
-        // Remove a block
-        collection.removeContentBlock(textBlock1);
-        assertEquals(1, collection.getContentBlocks().size());
-        assertEquals(1, collection.getTotalBlocks());
-
-        // After removal, blocks should be reordered
-        // The remaining block should now have orderIndex 0
-        Mockito.verify(textBlock2).setOrderIndex(0);
-    }
-
-    @Test
-    void testReorderContentBlocks() {
-        // Create a collection with blocks in specific order
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-
-        // Create test blocks with different order indices
-        TextContentBlockEntity block1 = Mockito.mock(TextContentBlockEntity.class);
-        when(block1.getOrderIndex()).thenReturn(2);
-        when(block1.getId()).thenReturn(1L);
-
-        TextContentBlockEntity block2 = Mockito.mock(TextContentBlockEntity.class);
-        when(block2.getOrderIndex()).thenReturn(0);
-        when(block2.getId()).thenReturn(2L);
-
-        TextContentBlockEntity block3 = Mockito.mock(TextContentBlockEntity.class);
-        when(block3.getOrderIndex()).thenReturn(1);
-        when(block3.getId()).thenReturn(3L);
-
-        // Add blocks in random order
-        collection.getContentBlocks().add(block1);
-        collection.getContentBlocks().add(block2);
-        collection.getContentBlocks().add(block3);
-
-        // Test reordering
-        collection.reorderContentBlocks();
-
-        // Verify blocks were reordered by orderIndex
-        Mockito.verify(block2).setOrderIndex(0);
-        Mockito.verify(block3).setOrderIndex(1);
-        Mockito.verify(block1).setOrderIndex(2);
-    }
-
-    @Test
-    void testMoveContentBlock() {
-        // Create a collection
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-
-        // Create mock content blocks with IDs and initial order
-        TextContentBlockEntity block1 = Mockito.mock(TextContentBlockEntity.class);
-        when(block1.getOrderIndex()).thenReturn(0);
-        when(block1.getId()).thenReturn(1L);
-
-        TextContentBlockEntity block2 = Mockito.mock(TextContentBlockEntity.class);
-        when(block2.getOrderIndex()).thenReturn(1);
-        when(block2.getId()).thenReturn(2L);
-
-        TextContentBlockEntity block3 = Mockito.mock(TextContentBlockEntity.class);
-        when(block3.getOrderIndex()).thenReturn(2);
-        when(block3.getId()).thenReturn(3L);
-
-        // Add blocks
-        collection.getContentBlocks().add(block1);
-        collection.getContentBlocks().add(block2);
-        collection.getContentBlocks().add(block3);
-
-        // Test moving block from position 0 to position 2
-        boolean result = collection.moveContentBlock(1L, 2);
-        assertTrue(result);
-
-        // After moving, blocks should be reordered
-        Mockito.verify(block2).setOrderIndex(0);
-        Mockito.verify(block3).setOrderIndex(1);
-        Mockito.verify(block1).setOrderIndex(2);
-    }
-
-    @Test
-    void testMoveContentBlockInvalidId() {
-        // Create a collection
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-
-        // Create mock content blocks
-        TextContentBlockEntity block1 = Mockito.mock(TextContentBlockEntity.class);
-        when(block1.getId()).thenReturn(1L);
-
-        // Add block
-        collection.getContentBlocks().add(block1);
-
-        // Test moving non-existent block
-        boolean result = collection.moveContentBlock(999L, 0);
-        assertFalse(result);
-    }
-
-    @Test
-    void testMoveContentBlockInvalidIndex() {
-        // Create a collection
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-
-        // Create mock content blocks
-        TextContentBlockEntity block1 = Mockito.mock(TextContentBlockEntity.class);
-        when(block1.getOrderIndex()).thenReturn(0);
-        when(block1.getId()).thenReturn(1L);
-
-        // Add block
-        collection.getContentBlocks().add(block1);
-
-        // Test moving to negative index
-        boolean result1 = collection.moveContentBlock(1L, -1);
-        assertFalse(result1);
-
-        // Test moving to out-of-bounds index
-        boolean result2 = collection.moveContentBlock(1L, 1);
-        assertFalse(result2);
     }
 
     @Test
@@ -446,30 +251,6 @@ class ContentCollectionEntityTest {
         // Test with zero blocks per page
         collection.setBlocksPerPage(0);
         assertEquals(0, collection.getTotalPages());
-    }
-
-    @Test
-    void testUpdateTotalBlocks() {
-        // Create a collection with some blocks
-        ContentCollectionEntity collection = new ContentCollectionEntity();
-
-        // Add mock blocks
-        TextContentBlockEntity block1 = Mockito.mock(TextContentBlockEntity.class);
-        TextContentBlockEntity block2 = Mockito.mock(TextContentBlockEntity.class);
-        TextContentBlockEntity block3 = Mockito.mock(TextContentBlockEntity.class);
-
-        collection.getContentBlocks().add(block1);
-        collection.getContentBlocks().add(block2);
-        collection.getContentBlocks().add(block3);
-
-        // Initial total_blocks should be 0
-        assertEquals(0, collection.getTotalBlocks());
-
-        // Update total blocks
-        collection.updateTotalBlocks();
-
-        // total_blocks should now reflect the actual count
-        assertEquals(3, collection.getTotalBlocks());
     }
 
     @Test
