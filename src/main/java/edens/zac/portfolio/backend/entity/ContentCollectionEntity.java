@@ -12,7 +12,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -121,7 +120,7 @@ public class ContentCollectionEntity {
         // Set all defaults in constructor
         this.visible = true;
         this.priority = 0;
-        this.blocksPerPage = 30;
+        this.blocksPerPage = 50;
         this.totalBlocks = 0;
         this.passwordProtected = false;
         this.contentBlocks = new ArrayList<>();

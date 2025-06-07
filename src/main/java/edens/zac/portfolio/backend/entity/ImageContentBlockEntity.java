@@ -42,7 +42,7 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
     @Column(name = "image_url_web")
     private String imageUrlWeb;
     
-    @Column(name = "image_url_raw")
+    @Column(name = "image_url_raw") // TODO: move from RAW to FullSize
     private String imageUrlRaw;
     
     // Additional fields that might be useful
