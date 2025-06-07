@@ -2,10 +2,7 @@ package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -67,9 +64,21 @@ public class ContentCollectionEntity {
     @Column(name = "visible", nullable = false)
     private Boolean visible;
 
-    @Min(0)
+    @Min(value = 1, message = "Priority must be between 1 and 4")
+    @Max(value = 4, message = "Priority must be between 1 and 4")
     @Column(name = "priority")
-    private Integer priority;
+    private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
+
+    // Cover image URL for the collection
+    @Column(name = "cover_image_url")
+    private String coverImageUrl;
+
+    // Client gallery security
+    @Column(name = "password_hash")
+    private String passwordHash;
+
+    @Column(name = "password_protected")
+    private Boolean passwordProtected;
 
     // Pagination metadata
     @Min(1)
@@ -79,20 +88,9 @@ public class ContentCollectionEntity {
     @Column(name = "total_blocks")
     private Integer totalBlocks;
 
-    // Client gallery security
-    @Column(name = "password_hash")
-    private String passwordHash;
-
-    @Column(name = "password_protected")
-    private Boolean passwordProtected;
-
     // Type-specific configuration stored as JSON
     @Column(name = "config_json", columnDefinition = "json")
     private String configJson;
-
-    // Cover image URL for the collection
-    @Column(name = "cover_image_url")
-    private String coverImageUrl;
 
     // Timestamps
     @CreationTimestamp
@@ -119,7 +117,7 @@ public class ContentCollectionEntity {
     public ContentCollectionEntity() {
         // Set all defaults in constructor
         this.visible = true;
-        this.priority = 0;
+        this.priority = 1; // Changed from 0 to 1 to satisfy @Min(1) constraint
         this.blocksPerPage = 50;
         this.totalBlocks = 0;
         this.passwordProtected = false;
