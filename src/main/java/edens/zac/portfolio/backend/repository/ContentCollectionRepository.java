@@ -2,8 +2,6 @@ package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,37 +18,39 @@ import java.util.Optional;
 public interface ContentCollectionRepository extends JpaRepository<ContentCollectionEntity, Long> {
 
     /**
-     * Find a collection by its unique slug.
+     * Find a collection of Content Collections for ART_GALLERY/PORTFOLIO
      *
-     * @param slug The unique slug of the collection
-     * @return Optional containing the collection if found
+     * @param type Collection type such as ART_GALLERY/PORTFOLIO
+     * @return List of ART_GALLERY/PORTFOLIO that are visible (public) and ordered by Priority (max 50)
      */
-    Optional<ContentCollectionEntity> findBySlug(String slug);
+    List<ContentCollectionEntity> findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType type);
 
     /**
-     * Find all collections of a specific type.
+     * Find a collection of Content Collections for ART_GALLERY/PORTFOLIO
      *
-     * @param type The collection type
-     * @return List of collections of the specified type
+     * @param type Collection type such as ART_GALLERY/PORTFOLIO
+     * @return List of ART_GALLERY/PORTFOLIO that are ordered by Priority
      */
-    List<ContentCollectionEntity> findByType(CollectionType type);
+    List<ContentCollectionEntity> findTop50ByTypeOrderByPriorityAsc(CollectionType type);
+
+    // Blog - ordered by date descending, visible only
 
     /**
-     * Find all collections of a specific type, ordered by priority (descending).
+     * Find a collection of Content Collections for BLOG
      *
-     * @param type The collection type
-     * @return List of collections of the specified type ordered by priority
+     * @param type Collection type BLOG
+     * @return List of BLOG that are ordered by Date Desc and Visible
      */
-    List<ContentCollectionEntity> findByTypeOrderByPriorityDesc(CollectionType type);
+    List<ContentCollectionEntity> findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type);
 
+    // Blog - ordered by date descending, visibility irrelevant (admin)
     /**
-     * Find all collections of a specific type with pagination.
+     * Find a collection of Content Collections for BLOG
      *
-     * @param type The collection type
-     * @param pageable Pagination information
-     * @return Page of collections of the specified type
+     * @param type Collection type BLOG
+     * @return List of BLOG that are ordered by Date Desc
      */
-    Page<ContentCollectionEntity> findByType(CollectionType type, Pageable pageable);
+    List<ContentCollectionEntity> findTop50ByTypeOrderByCollectionDateDesc(CollectionType type);
 
     /**
      * Find a collection by slug and verify it with a password hash for client galleries.
@@ -62,60 +62,24 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
     Optional<ContentCollectionEntity> findBySlugAndPasswordHash(String slug, String passwordHash);
 
     /**
-     * Find a collection by slug with related content blocks, ordered by their order_index.
-     * This query eagerly fetches the content blocks to avoid N+1 query problems.
-     *
-     * @param slug The unique slug of the collection
-     * @return Optional containing the collection with its content blocks if found
+     * Find a Collection's metadata. Used in conjunction with paginated endpoints in ContentBlockRepository
+     * @param slug Slug of Collection
+     * @return Metadata of Collection
      */
-    @Query("SELECT c FROM ContentCollectionEntity c LEFT JOIN FETCH c.contentBlocks b WHERE c.slug = :slug ORDER BY b.orderIndex")
-    Optional<ContentCollectionEntity> findBySlugWithContentBlocks(@Param("slug") String slug);
+    Optional<ContentCollectionEntity> findTop50BySlug(String slug);
 
     /**
-     * Find a collection by ID with paginated content blocks.
-     * This custom query returns the collection with a paginated subset of its content blocks.
+     * Find a collection by slug with first 50 content blocks, ordered by their order_index.
+     * This is the main "basic" endpoint that auto-limits to 50 blocks for performance.
+     * If more than 50 exist, frontend should use pagination endpoints.
      *
-     * @param id The ID of the collection
-     * @param pageable Pagination information for the content blocks
-     * @return Optional containing the collection if found
+     * @param slug The unique slug of the collection
+     * @return Optional containing the collection with up to 50 content blocks if found
      */
-    @Query(value = "SELECT c FROM ContentCollectionEntity c WHERE c.id = :id")
-    Optional<ContentCollectionEntity> findByIdWithContentBlocksPaginated(@Param("id") Long id, Pageable pageable);
-    
-    /**
-     * Check if a collection exists with the given slug.
-     *
-     * @param slug The slug to check
-     * @return True if a collection with the given slug exists
-     */
-    boolean existsBySlug(String slug);
-    
-    /**
-     * Find recent collections of any type, ordered by creation date (descending).
-     *
-     * @param pageable Pagination information
-     * @return Page of recent collections
-     */
-    Page<ContentCollectionEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
-    
-    /**
-     * Find visible collections (published status) of a specific type.
-     *
-     * @param type The collection type
-     * @param visible The visibility status
-     * @return List of visible collections of the specified type
-     */
-    List<ContentCollectionEntity> findByTypeAndVisibleIsTrue(CollectionType type);
-    
-    /**
-     * Find visible collections (published status) of a specific type with pagination.
-     *
-     * @param type The collection type
-     * @param visible The visibility status
-     * @param pageable Pagination information
-     * @return Page of visible collections of the specified type
-     */
-    Page<ContentCollectionEntity> findByTypeAndVisibleIsTrue(CollectionType type, Pageable pageable);
+    @Query("SELECT c FROM ContentCollectionEntity c LEFT JOIN FETCH c.contentBlocks b " +
+            "WHERE c.slug = :slug " +
+            "ORDER BY b.orderIndex ASC")
+    Optional<ContentCollectionEntity> findTop50BySlugWithContentBlocks(@Param("slug") String slug);
     
     /**
      * Count the number of collections of a specific type.
@@ -124,4 +88,12 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @return The count of collections of the specified type
      */
     long countByType(CollectionType type);
+
+    /**
+     * Count collections by type and visibility.
+     *
+     * @param type The collection type
+     * @return The count of visible collections of the specified type
+     */
+    long countByTypeAndVisibleTrue(CollectionType type);
 }
