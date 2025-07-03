@@ -7,14 +7,12 @@ import edens.zac.portfolio.backend.model.CatalogUpdateDTO;
 import edens.zac.portfolio.backend.model.ImageModel;
 import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
-import java.util.function.Supplier;
 
 @Component
 @Slf4j
@@ -27,7 +25,9 @@ public class CatalogProcessingUtil {
     private final ImageService imageService;
 
     @Autowired
-    public CatalogProcessingUtil(ImageProcessingUtil imageProcessingUtil, ImageRepository imageRepository, CatalogRepository catalogRepository, HomeService homeService, ImageService imageService) {
+    public CatalogProcessingUtil(ImageProcessingUtil imageProcessingUtil, ImageRepository imageRepository, 
+                               CatalogRepository catalogRepository, HomeService homeService, 
+                               ImageService imageService) {
         this.imageProcessingUtil = imageProcessingUtil;
         this.imageRepository = imageRepository;
         this.catalogRepository = catalogRepository;
@@ -137,17 +137,6 @@ public class CatalogProcessingUtil {
     }
 
 
-    <T> T handleExceptions(String operation, Supplier<T> action) {
-        try {
-            return action.get();
-        } catch (EntityNotFoundException e) {
-            log.warn("Entity not found during {}: {}", operation, e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            log.error("Error during {}: {}", operation, e.getMessage(), e);
-            throw new RuntimeException("Failed to " + operation + ": " + e.getMessage(), e);
-        }
-    }
 
 
     /**

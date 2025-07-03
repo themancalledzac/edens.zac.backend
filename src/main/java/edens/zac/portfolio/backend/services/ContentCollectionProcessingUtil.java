@@ -1,16 +1,240 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.entity.ContentBlockEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class ContentCollectionProcessingUtil {
-    
+
+    private final ContentBlockRepository contentBlockRepository;
+    private final ContentCollectionRepository contentCollectionRepository;
+    private final ContentBlockProcessingUtil contentBlockProcessingUtil;
+    private final ImageProcessingUtil imageProcessingUtil;
+    private final ExceptionUtils exceptionUtils;
+
+    // =============================================================================
+    // ERROR HANDLING
+    // =============================================================================
+
+
+    // =============================================================================
+    // ENTITY-TO-MODEL CONVERSION
+    // =============================================================================
+
+    /**
+     * Convert a ContentCollectionEntity to a ContentCollectionModel with basic information.
+     * This does not include content blocks.
+     *
+     * @param entity The entity to convert
+     * @return The converted model
+     */
+    public ContentCollectionModel convertToBasicModel(ContentCollectionEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        ContentCollectionModel model = new ContentCollectionModel();
+        model.setId(entity.getId());
+        model.setType(entity.getType());
+        model.setTitle(entity.getTitle());
+        model.setSlug(entity.getSlug());
+        model.setDescription(entity.getDescription());
+        model.setLocation(entity.getLocation());
+        model.setCollectionDate(entity.getCollectionDate());
+        model.setVisible(entity.getVisible());
+        model.setPriority(entity.getPriority());
+        model.setCoverImageUrl(entity.getCoverImageUrl());
+        model.setIsPasswordProtected(entity.isPasswordProtected());
+        model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
+        model.setCreatedAt(entity.getCreatedAt());
+        model.setUpdatedAt(entity.getUpdatedAt());
+        model.setConfigJson(entity.getConfigJson());
+
+        // Set pagination metadata
+        model.setTotalBlocks(entity.getTotalBlocks());
+        model.setBlocksPerPage(entity.getBlocksPerPage());
+        model.setTotalPages(entity.getTotalPages());
+        model.setCurrentPage(0);
+
+        return model;
+    }
+
+    /**
+     * Convert a ContentCollectionEntity to a ContentCollectionModel with all content blocks.
+     *
+     * @param entity The entity to convert
+     * @return The converted model
+     */
+    public ContentCollectionModel convertToFullModel(ContentCollectionEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        ContentCollectionModel model = convertToBasicModel(entity);
+
+        // Convert content blocks
+        List<ContentBlockModel> contentBlocks = new ArrayList<>();
+        if (entity.getContentBlocks() != null) {
+            contentBlocks = entity.getContentBlocks().stream()
+                    .filter(Objects::nonNull)
+                    .map(contentBlockProcessingUtil::convertToModel)
+                    .collect(Collectors.toList());
+        }
+
+        model.setContentBlocks(contentBlocks);
+        return model;
+    }
+
+    /**
+     * Convert a ContentCollectionEntity and a Page of ContentBlockEntity to a ContentCollectionModel.
+     *
+     * @param entity The entity to convert
+     * @param contentPage The page of content blocks
+     * @return The converted model
+     */
+    public ContentCollectionModel convertToModel(ContentCollectionEntity entity, Page<ContentBlockEntity> contentPage) {
+        if (entity == null) {
+            return null;
+        }
+
+        ContentCollectionModel model = convertToBasicModel(entity);
+
+        // Convert content blocks
+        List<ContentBlockModel> contentBlocks = contentPage.getContent().stream()
+                .filter(Objects::nonNull)
+                .map(contentBlockProcessingUtil::convertToModel)
+                .collect(Collectors.toList());
+
+        model.setContentBlocks(contentBlocks);
+
+        // Set pagination metadata
+        model.setCurrentPage(contentPage.getNumber());
+        model.setTotalPages(contentPage.getTotalPages());
+        model.setTotalBlocks((int) contentPage.getTotalElements());
+        model.setBlocksPerPage(contentPage.getSize());
+
+        return model;
+    }
+
+    // =============================================================================
+    // SLUG GENERATION AND VALIDATION
+    // =============================================================================
+
+    /**
+     * Generate a slug from a title.
+     * 
+     * @param title The title to generate a slug from
+     * @return The generated slug
+     */
+    public String generateSlug(String title) {
+        return imageProcessingUtil.generateSlug(title);
+    }
+
+    /**
+     * Validate and ensure a slug is unique.
+     * If the slug already exists, append a number to make it unique.
+     * 
+     * @param slug The slug to validate
+     * @param existingId The ID of the existing entity (null for new entities)
+     * @return A unique slug
+     */
+    public String validateAndEnsureUniqueSlug(String slug, Long existingId) {
+        if (slug == null || slug.isEmpty()) {
+            throw new IllegalArgumentException("Slug cannot be empty");
+        }
+
+        // Check if slug already exists
+        boolean exists = contentCollectionRepository.findTop50BySlug(slug)
+                .map(entity -> !entity.getId().equals(existingId))
+                .orElse(false);
+
+        if (!exists) {
+            return slug; // Slug is unique
+        }
+
+        // Slug exists, append a number to make it unique
+        int counter = 1;
+        String newSlug;
+        do {
+            newSlug = slug + "-" + counter++;
+            exists = contentCollectionRepository.findTop50BySlug(newSlug).isPresent();
+        } while (exists && counter < 100); // Limit to prevent infinite loop
+
+        if (exists) {
+            throw new RuntimeException("Could not generate a unique slug after 100 attempts");
+        }
+
+        return newSlug;
+    }
+
+    // =============================================================================
+    // TYPE-SPECIFIC PROCESSING
+    // =============================================================================
+
+    /**
+     * Get type-specific configuration for a collection.
+     * 
+     * @param type The collection type
+     * @return JSON configuration string
+     */
+    public String getDefaultConfigForType(CollectionType type) {
+        return switch (type) {
+            case BLOG -> "{\"displayMode\":\"chronological\",\"showDates\":true}";
+            case ART_GALLERY -> "{\"displayMode\":\"grid\",\"gridColumns\":3}";
+            case CLIENT_GALLERY -> "{\"downloadEnabled\":true,\"showMetadata\":false}";
+            case PORTFOLIO -> "{\"displayMode\":\"showcase\",\"highlightCover\":true}";
+        };
+    }
+
+    /**
+     * Update entity with type-specific defaults.
+     * 
+     * @param entity The entity to update
+     * @return The updated entity
+     */
+    public ContentCollectionEntity applyTypeSpecificDefaults(ContentCollectionEntity entity) {
+        if (entity == null || entity.getType() == null) {
+            return entity;
+        }
+
+        // Set type-specific defaults if not already set
+        if (entity.getConfigJson() == null || entity.getConfigJson().isEmpty()) {
+            entity.setConfigJson(getDefaultConfigForType(entity.getType()));
+        }
+
+        // Set default blocks per page if not set
+        if (entity.getBlocksPerPage() == null || entity.getBlocksPerPage() <= 0) {
+            entity.setBlocksPerPage(30); // Default page size
+        }
+
+        // Set type-specific visibility defaults
+        if (entity.getVisible() == null) {
+            // Client galleries are private by default
+            entity.setVisible(entity.getType() != CollectionType.CLIENT_GALLERY);
+        }
+
+        return entity;
+    }
+
     // =============================================================================
     // VALIDATION METHODS
     // =============================================================================
-    
+
     /**
      * Validate if a ContentCollectionCreateDTO is valid for its collection type.
      */
@@ -19,10 +243,9 @@ public class ContentCollectionProcessingUtil {
             case CLIENT_GALLERY -> !isPasswordProtected(dto) ||
                     (dto.getPassword() != null && !dto.getPassword().trim().isEmpty());
             case BLOG, ART_GALLERY, PORTFOLIO -> true;
-            default -> false;
         };
     }
-    
+
     /**
      * Check if DTO requires password protection.
      */
@@ -137,10 +360,10 @@ public class ContentCollectionProcessingUtil {
         if (isEmpty(dto)) {
             return null;
         }
-        
+
         int startItem = ((dto.getCurrentPage() - 1) * dto.getPageSize()) + 1;
         int endItem = Math.min(dto.getCurrentPage() * dto.getPageSize(), dto.getTotalElements());
-        
+
         return new int[]{startItem, endItem};
     }
 
@@ -190,23 +413,23 @@ public class ContentCollectionProcessingUtil {
      */
     public static String getContentSummary(ContentCollectionPageDTO dto) {
         StringBuilder summary = new StringBuilder();
-        
+
         if (dto.getImageBlockCount() != null && dto.getImageBlockCount() > 0) {
             summary.append(dto.getImageBlockCount()).append(" images");
         }
         if (dto.getTextBlockCount() != null && dto.getTextBlockCount() > 0) {
-            if (summary.length() > 0) summary.append(", ");
+            if (!summary.isEmpty()) summary.append(", ");
             summary.append(dto.getTextBlockCount()).append(" text blocks");
         }
         if (dto.getCodeBlockCount() != null && dto.getCodeBlockCount() > 0) {
-            if (summary.length() > 0) summary.append(", ");
+            if (!summary.isEmpty()) summary.append(", ");
             summary.append(dto.getCodeBlockCount()).append(" code blocks");
         }
         if (dto.getGifBlockCount() != null && dto.getGifBlockCount() > 0) {
-            if (summary.length() > 0) summary.append(", ");
+            if (!summary.isEmpty()) summary.append(", ");
             summary.append(dto.getGifBlockCount()).append(" gifs");
         }
-        
-        return summary.length() > 0 ? summary.toString() : "No content";
+
+        return !summary.isEmpty() ? summary.toString() : "No content";
     }
 }

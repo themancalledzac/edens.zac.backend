@@ -35,15 +35,19 @@ public class CatalogServiceImpl implements CatalogService {
     private final ImageProcessingUtil imageProcessingUtil;
     private final CatalogProcessingUtil catalogProcessingUtil;
     private final HomeService homeService;
+    private final ExceptionUtils exceptionUtils;
 
     public CatalogServiceImpl(
             CatalogRepository catalogRepository,
             ImageProcessingUtil imageProcessingUtil,
-            CatalogProcessingUtil catalogProcessingUtil, HomeService homeService) {
+            CatalogProcessingUtil catalogProcessingUtil, 
+            HomeService homeService,
+            ExceptionUtils exceptionUtils) {
         this.catalogRepository = catalogRepository;
         this.imageProcessingUtil = imageProcessingUtil;
         this.catalogProcessingUtil = catalogProcessingUtil;
         this.homeService = homeService;
+        this.exceptionUtils = exceptionUtils;
     }
 
 
@@ -114,7 +118,7 @@ public class CatalogServiceImpl implements CatalogService {
     @Transactional
     @Override
     public CatalogModel updateCatalog(CatalogUpdateDTO requestBody) {
-        return catalogProcessingUtil.handleExceptions("update catalog", () -> {
+        return exceptionUtils.handleExceptions("update catalog", () -> {
 
             // 1. Find the catalog
             CatalogEntity catalogEntity = catalogRepository.findCatalogById(requestBody.getId())
@@ -165,7 +169,7 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     @Transactional(readOnly = true)
     public Optional<CatalogModel> getCatalogBySlug(String slug) {
-        return catalogProcessingUtil.handleExceptions("get catalog by slug", () -> {
+        return exceptionUtils.handleExceptions("get catalog by slug", () -> {
             log.info("Fetching catalog with slug {}", slug);
             return catalogRepository.findBySlugWithImages(slug)
                     .map(catalogEntity -> {
@@ -207,7 +211,7 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     @Transactional(readOnly = true)
     public List<CatalogModel> getAllCatalogs() {
-        return catalogProcessingUtil.handleExceptions("get all catalogs", () -> {
+        return exceptionUtils.handleExceptions("get all catalogs", () -> {
             List<CatalogEntity> entities = catalogRepository.getAllCatalogs(DEFAULT_CATALOG_PAGE_PRIORITY);
             return entities.stream()
                     .map(catalogProcessingUtil::convertToCatalogModel)
