@@ -6,14 +6,16 @@ import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
  * Service interface for managing ContentCollection entities.
  * Provides methods for CRUD operations, pagination, and client gallery access.
  */
-interface ContentCollectionService {
+public interface ContentCollectionService {
 
     /**
      * Get a collection by slug with pagination for content blocks.
@@ -24,7 +26,7 @@ interface ContentCollectionService {
      * @return ContentCollectionModel with paginated content blocks
      */
     ContentCollectionModel getCollectionWithPagination(String slug, int page, int size);
-    
+
     /**
      * Validate access to a client gallery using a password.
      *
@@ -33,7 +35,7 @@ interface ContentCollectionService {
      * @return True if access is granted, false otherwise
      */
     boolean validateClientGalleryAccess(String slug, String password);
-    
+
     /**
      * Find collections by type with pagination.
      *
@@ -42,7 +44,7 @@ interface ContentCollectionService {
      * @return Page of collections of the specified type
      */
     Page<ContentCollectionModel> findByType(CollectionType type, Pageable pageable);
-    
+
     /**
      * Find a collection by slug.
      *
@@ -50,7 +52,7 @@ interface ContentCollectionService {
      * @return Optional containing the collection if found
      */
     Optional<ContentCollectionModel> findBySlug(String slug);
-    
+
     /**
      * Create a new collection with content.
      *
@@ -58,7 +60,8 @@ interface ContentCollectionService {
      * @return The created collection
      */
     ContentCollectionModel createWithContent(ContentCollectionCreateDTO createDTO);
-    
+
+
     /**
      * Update a collection's content.
      *
@@ -67,14 +70,24 @@ interface ContentCollectionService {
      * @return The updated collection
      */
     ContentCollectionModel updateContent(Long id, ContentCollectionUpdateDTO updateDTO);
-    
+
+    /**
+     * Update a collection's content and add files.
+     *
+     * @param id The ID of the collection
+     * @param updateDTO The DTO containing update data
+     * @param files The files to be processed and added as content blocks
+     * @return The updated collection
+     */
+    ContentCollectionModel updateContentWithFiles(Long id, ContentCollectionUpdateDTO updateDTO, List<MultipartFile> files);
+
     /**
      * Delete a collection by ID.
      *
      * @param id The ID of the collection to delete
      */
     void deleteCollection(Long id);
-    
+
     /**
      * Get all collections with basic information (no content blocks).
      *

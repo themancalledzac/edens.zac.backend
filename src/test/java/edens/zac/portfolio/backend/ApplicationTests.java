@@ -7,10 +7,17 @@ import org.springframework.test.context.TestPropertySource;
 @SpringBootTest
 @TestPropertySource(properties = {
     "aws.s3.region=us-west-2",
-    "aws.s3.bucket.name=test-bucket", 
-    "aws.s3.access.key=test-key",
-    "aws.s3.secret.key=test-secret",
-    "aws.cloudfront.domain=test.com"
+    "aws.portfolio.s3.bucket=test-bucket", 
+    "aws.access.key.id=test-key",
+    "aws.secret.access.key=test-secret",
+    "cloudfront.domain=test.com",
+    "spring.profiles.active=test",
+    "spring.datasource.url=jdbc:h2:mem:testdb",
+    "spring.datasource.username=sa",
+    "spring.datasource.password=",
+    "spring.datasource.driver-class-name=org.h2.Driver",
+    "spring.jpa.hibernate.ddl-auto=create-drop",
+    "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect"
 })
 class ApplicationTests {
 
