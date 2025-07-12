@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -201,6 +202,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         return convertToFullModel(savedEntity);
     }
 
+
     @Override
     @Transactional
     public ContentCollectionModel updateContent(Long id, ContentCollectionUpdateDTO updateDTO) {
@@ -264,6 +266,62 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         contentCollectionRepository.save(savedEntity);
 
         return convertToFullModel(savedEntity);
+    }
+
+    @Override
+    @Transactional
+    public ContentCollectionModel updateContentWithFiles(Long id, ContentCollectionUpdateDTO updateDTO, List<MultipartFile> files) {
+        log.debug("Updating collection with ID: {} and processing files", id);
+
+        // First update the collection with the provided DTO
+        ContentCollectionModel updatedCollection = updateContent(id, updateDTO);
+
+        // Process files if provided
+        if (files != null && !files.isEmpty()) {
+            List<ContentBlockEntity> contentBlocks = new ArrayList<>();
+
+            // Get the current highest order index for this collection
+            Integer startOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(id);
+            Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
+
+            for (MultipartFile file : files) {
+                try {
+                    // Process file based on content type
+                    if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
+                        if (file.getContentType().equals("image/gif")) {
+                            // Process as GIF
+                            ContentBlockEntity gifBlock = contentBlockProcessingUtil.processGifContentBlock(
+                                    file, id, orderIndex, updatedCollection.getTitle(), null);
+                            contentBlocks.add(gifBlock);
+                        } else {
+                            // Process as image
+                            ContentBlockEntity imageBlock = contentBlockProcessingUtil.processImageContentBlock(
+                                    file, id, orderIndex, updatedCollection.getTitle(), null);
+                            contentBlocks.add(imageBlock);
+                        }
+                        orderIndex++;
+                    }
+                } catch (Exception e) {
+                    log.error("Error processing file: {}", e.getMessage(), e);
+                }
+            }
+
+            // Update total blocks count if any blocks were added
+            if (!contentBlocks.isEmpty()) {
+                ContentCollectionEntity entity = contentCollectionRepository.findById(id)
+                        .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
+
+                // Update total blocks count
+                long totalBlocks = contentBlockRepository.countByCollectionId(id);
+                entity.setTotalBlocks((int) totalBlocks);
+                contentCollectionRepository.save(entity);
+
+                // Refresh the model with the updated entity
+                return convertToFullModel(entity);
+            }
+        }
+
+        return updatedCollection;
     }
 
     @Override
