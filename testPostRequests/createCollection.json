@@ -1,0 +1,10 @@
+{
+  "type": "BLOG",
+  "title": "My First Blog Collection",
+  "slug": "my-first-collection-blog",
+  "description": "A test blog collection created via Postman",
+  "location": "Seattle",
+  "visible": true,
+  "priority": 2,
+  "blocksPerPage": 30
+}

@@ -11,9 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,9 +37,6 @@ class ContentCollectionCreateDTOTest {
         @DisplayName("Should create DTO with all valid fields using builder")
         void shouldCreateDTOWithAllValidFields() {
             LocalDateTime now = LocalDateTime.now();
-            List<String> textBlocks = Arrays.asList("First paragraph", "Second paragraph");
-            List<String> codeBlocks = Arrays.asList("console.log('hello');", "function test() {}");
-            
             ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Wedding Album - Smith Family")
@@ -58,8 +52,6 @@ class ContentCollectionCreateDTOTest {
                     .configJson("{\"theme\": \"elegant\"}")
                     .password("SecurePass123!")
                     .blocksPerPage(25)
-                    .initialTextBlocks(textBlocks)
-                    .initialCodeBlocks(codeBlocks)
                     .build();
 
             assertNotNull(dto);
@@ -77,8 +69,6 @@ class ContentCollectionCreateDTOTest {
             assertEquals("{\"theme\": \"elegant\"}", dto.getConfigJson());
             assertEquals("SecurePass123!", dto.getPassword());
             assertEquals(25, dto.getBlocksPerPage());
-            assertEquals(textBlocks, dto.getInitialTextBlocks());
-            assertEquals(codeBlocks, dto.getInitialCodeBlocks());
         }
 
         @Test
@@ -98,8 +88,6 @@ class ContentCollectionCreateDTOTest {
             assertNull(dto.getDescription());
             assertNull(dto.getPassword());
             assertNull(dto.getBlocksPerPage());
-            assertNull(dto.getInitialTextBlocks());
-            assertNull(dto.getInitialCodeBlocks());
         }
 
         @Test
@@ -113,8 +101,6 @@ class ContentCollectionCreateDTOTest {
             assertNull(dto.getVisible());
             assertNull(dto.getPassword());
             assertNull(dto.getBlocksPerPage());
-            assertNull(dto.getInitialTextBlocks());
-            assertNull(dto.getInitialCodeBlocks());
         }
     }
 
@@ -356,82 +342,6 @@ class ContentCollectionCreateDTOTest {
         }
     }
 
-    @Nested
-    @DisplayName("Initial Content Tests")
-    class InitialContentTests {
-
-        @Test
-        @DisplayName("Should accept valid initial text blocks")
-        void shouldAcceptValidInitialTextBlocks() {
-            List<String> textBlocks = Arrays.asList(
-                    "Welcome to my portfolio!",
-                    "This collection showcases my recent work.",
-                    "Feel free to browse and contact me for inquiries."
-            );
-            
-            ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
-                    .type(CollectionType.PORTFOLIO)
-                    .title("Portfolio")
-                    .visible(true)
-                    .initialTextBlocks(textBlocks)
-                    .build();
-
-            Set<ConstraintViolation<ContentCollectionCreateDTO>> violations = validator.validate(dto);
-            assertTrue(violations.isEmpty());
-            assertEquals(textBlocks, dto.getInitialTextBlocks());
-        }
-
-        @Test
-        @DisplayName("Should accept valid initial code blocks")
-        void shouldAcceptValidInitialCodeBlocks() {
-            List<String> codeBlocks = Arrays.asList(
-                    "function greet(name) { return `Hello, ${name}!`; }",
-                    "const users = await fetch('/api/users').then(r => r.json());",
-                    "console.log('Application started successfully');"
-            );
-            
-            ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
-                    .type(CollectionType.BLOG)
-                    .title("Coding Blog")
-                    .visible(true)
-                    .initialCodeBlocks(codeBlocks)
-                    .build();
-
-            Set<ConstraintViolation<ContentCollectionCreateDTO>> violations = validator.validate(dto);
-            assertTrue(violations.isEmpty());
-            assertEquals(codeBlocks, dto.getInitialCodeBlocks());
-        }
-
-        @Test
-        @DisplayName("Should accept null initial content blocks")
-        void shouldAcceptNullInitialContentBlocks() {
-            ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
-                    .type(CollectionType.ART_GALLERY)
-                    .title("Art Gallery")
-                    .visible(true)
-                    .initialTextBlocks(null)
-                    .initialCodeBlocks(null)
-                    .build();
-
-            Set<ConstraintViolation<ContentCollectionCreateDTO>> violations = validator.validate(dto);
-            assertTrue(violations.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should accept empty initial content blocks")
-        void shouldAcceptEmptyInitialContentBlocks() {
-            ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
-                    .type(CollectionType.CLIENT_GALLERY)
-                    .title("Client Gallery")
-                    .visible(false)
-                    .initialTextBlocks(new ArrayList<>())
-                    .initialCodeBlocks(new ArrayList<>())
-                    .build();
-
-            Set<ConstraintViolation<ContentCollectionCreateDTO>> violations = validator.validate(dto);
-            assertTrue(violations.isEmpty());
-        }
-    }
 
     @Nested
     @DisplayName("Collection Type Specific Tests")
@@ -440,12 +350,6 @@ class ContentCollectionCreateDTOTest {
         @Test
         @DisplayName("Should handle blog creation with text content")
         void shouldHandleBlogCreationWithTextContent() {
-            List<String> textBlocks = Arrays.asList(
-                    "Today was an amazing day at Arches National Park.",
-                    "The light was perfect for photography.",
-                    "Here are some of my favorite shots from the trip."
-            );
-            
             ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
                     .type(CollectionType.BLOG)
                     .title("Arches Adventure")
@@ -453,14 +357,12 @@ class ContentCollectionCreateDTOTest {
                     .description("Daily moments from my photography trip")
                     .location("Arches National Park, Utah")
                     .priority(1)
-                    .initialTextBlocks(textBlocks)
                     .blocksPerPage(20)
                     .build();
 
             Set<ConstraintViolation<ContentCollectionCreateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.BLOG, dto.getType());
-            assertEquals(textBlocks, dto.getInitialTextBlocks());
         }
 
         @Test
@@ -486,11 +388,8 @@ class ContentCollectionCreateDTOTest {
         }
 
         @Test
-        @DisplayName("Should handle portfolio creation with mixed content")
-        void shouldHandlePortfolioCreationWithMixedContent() {
-            List<String> textBlocks = Arrays.asList("Professional wedding photography services");
-            List<String> codeBlocks = Arrays.asList("// Camera settings for optimal results");
-            
+        @DisplayName("Should handle portfolio creation")
+        void shouldHandlePortfolioCreation() {
             ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Wedding Photography Portfolio")
@@ -498,16 +397,12 @@ class ContentCollectionCreateDTOTest {
                     .description("Showcasing my best wedding photography work")
                     .priority(1)
                     .coverImageUrl("https://example.com/portfolio-cover.jpg")
-                    .initialTextBlocks(textBlocks)
-                    .initialCodeBlocks(codeBlocks)
                     .blocksPerPage(25)
                     .build();
 
             Set<ConstraintViolation<ContentCollectionCreateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.PORTFOLIO, dto.getType());
-            assertEquals(textBlocks, dto.getInitialTextBlocks());
-            assertEquals(codeBlocks, dto.getInitialCodeBlocks());
         }
 
         @Test
@@ -655,8 +550,6 @@ class ContentCollectionCreateDTOTest {
         @Test
         @DisplayName("Should validate complex client gallery creation scenario")
         void shouldValidateComplexClientGalleryCreationScenario() {
-            List<String> textBlocks = Arrays.asList("Welcome to your gallery");
-            
             ContentCollectionCreateDTO dto = ContentCollectionCreateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("") // Error 1: Required field blank
@@ -664,7 +557,6 @@ class ContentCollectionCreateDTOTest {
                     .slug("a") // Error 3: Slug too short
                     .password("weak") // Error 4: Password too short
                     .blocksPerPage(-1) // Error 5: Below minimum
-                    .initialTextBlocks(textBlocks) // Valid
                     .build();
 
             Set<ConstraintViolation<ContentCollectionCreateDTO>> violations = validator.validate(dto);
