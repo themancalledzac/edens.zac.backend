@@ -42,7 +42,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
     private final ContentCollectionProcessingUtil contentCollectionProcessingUtil;
 
-    private static final int DEFAULT_PAGE_SIZE = 30;
+    private static final int DEFAULT_PAGE_SIZE = 50;
 
     /**
      * Hash a password using SHA-256.
@@ -159,9 +159,20 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                 .map(this::convertToFullModel);
     }
 
+    /**
+     * Helper method to get a value or a default if the value is null.
+     *
+     * @param value The value to check
+     * @param defaultValue The default value to use if the value is null
+     * @return The value if not null, otherwise the default value
+     */
+    private <T> T getValueOrDefault(T value, T defaultValue) {
+        return value != null ? value : defaultValue;
+    }
+
     @Override
     @Transactional
-    public ContentCollectionModel createWithContent(ContentCollectionCreateDTO createDTO) {
+    public ContentCollectionModel createCollection(ContentCollectionCreateDTO createDTO) {
         log.debug("Creating new collection: {}", createDTO.getTitle());
 
         // Validate DTO
@@ -169,32 +180,12 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
             throw new IllegalArgumentException("Invalid collection data for type: " + createDTO.getType());
         }
 
-        // Create entity
-        ContentCollectionEntity entity = new ContentCollectionEntity();
-        entity.setType(createDTO.getType());
-        entity.setTitle(createDTO.getTitle());
-        entity.setSlug(createDTO.getSlug());
-        entity.setDescription(createDTO.getDescription());
-        entity.setLocation(createDTO.getLocation());
-        entity.setCollectionDate(createDTO.getCollectionDate());
-        entity.setVisible(createDTO.getVisible());
-        entity.setPriority(createDTO.getPriority());
-        entity.setCoverImageUrl(createDTO.getCoverImageUrl());
-        entity.setBlocksPerPage(DEFAULT_PAGE_SIZE);
-        entity.setTotalBlocks(0);
-
-        // Handle password protection for client galleries
-        if (contentCollectionProcessingUtil.requiresPasswordProtection(createDTO)) {
-            if (!contentCollectionProcessingUtil.hasPassword(createDTO)) {
-                throw new IllegalArgumentException("Password is required for client galleries");
-            }
-
-            entity.setPasswordProtected(true);
-            entity.setPasswordHash(hashPassword(createDTO.getPassword()));
-        } else {
-            entity.setPasswordProtected(false);
-            entity.setPasswordHash(null);
-        }
+        // Create entity using utility converter
+        ContentCollectionEntity entity = contentCollectionProcessingUtil.toEntity(
+                createDTO,
+                DEFAULT_PAGE_SIZE,
+                this::hashPassword
+        );
 
         // Save entity
         ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
@@ -241,6 +232,11 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
             entity.setCoverImageUrl(updateDTO.getCoverImageUrl());
         }
 
+        // Update blocksPerPage if provided and valid
+        if (updateDTO.getBlocksPerPage() != null && updateDTO.getBlocksPerPage() >= 1) {
+            entity.setBlocksPerPage(updateDTO.getBlocksPerPage());
+        }
+
         // Handle password updates for client galleries
         if (entity.getType() == CollectionType.CLIENT_GALLERY && 
                 contentCollectionProcessingUtil.hasPasswordUpdate(updateDTO)) {
@@ -252,9 +248,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         if (contentCollectionProcessingUtil.hasContentOperations(updateDTO) && 
                 updateDTO.getReorderOperations() != null && !updateDTO.getReorderOperations().isEmpty()) {
             // Process each reorder operation
-            updateDTO.getReorderOperations().forEach(op -> {
-                contentBlockRepository.updateOrderIndex(op.getContentBlockId(), op.getNewOrderIndex());
-            });
+            updateDTO.getReorderOperations().forEach(op -> contentBlockRepository.updateOrderIndex(op.getContentBlockId(), op.getNewOrderIndex()));
         }
 
         // Save updated entity

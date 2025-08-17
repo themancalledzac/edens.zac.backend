@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.entity.ContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import lombok.RequiredArgsConstructor;
@@ -11,9 +10,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
@@ -21,11 +22,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ContentCollectionProcessingUtil {
 
-    private final ContentBlockRepository contentBlockRepository;
     private final ContentCollectionRepository contentCollectionRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
     private final ImageProcessingUtil imageProcessingUtil;
-    private final ExceptionUtils exceptionUtils;
 
     // =============================================================================
     // ERROR HANDLING
@@ -132,6 +131,72 @@ public class ContentCollectionProcessingUtil {
     }
 
     // =============================================================================
+    // DTO-TO-ENTITY CONVERSION
+    // =============================================================================
+
+    /**
+     * Convert a ContentCollectionCreateDTO into a new ContentCollectionEntity applying
+     * defaults, slug handling, password protection and type-specific defaults.
+     * Note: Password hashing is delegated via the provided passwordHasher to keep
+     * security concerns in the service layer and make testing easier.
+     *
+     * @param dto The create DTO
+     * @param defaultPageSize Fallback blocksPerPage when dto value is null/invalid
+     * @param passwordHasher Function to hash plain-text password when needed (may be null if not required)
+     * @return A new ContentCollectionEntity ready to be persisted
+     */
+    public ContentCollectionEntity toEntity(ContentCollectionCreateDTO dto, int defaultPageSize,
+                                            Function<String, String> passwordHasher) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Create DTO cannot be null");
+        }
+
+        ContentCollectionEntity entity = new ContentCollectionEntity();
+        entity.setType(dto.getType());
+        entity.setTitle(dto.getTitle());
+
+        // Determine slug: use provided, otherwise generate from title; ensure uniqueness
+        String baseSlug = (dto.getSlug() != null && !dto.getSlug().trim().isEmpty())
+                ? dto.getSlug().trim()
+                : generateSlug(dto.getTitle());
+        String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
+        entity.setSlug(uniqueSlug);
+
+        entity.setDescription(dto.getDescription());
+
+        // Defaults
+        entity.setLocation(dto.getLocation() != null ? dto.getLocation() : "");
+        entity.setCollectionDate(dto.getCollectionDate() != null ? dto.getCollectionDate() : LocalDateTime.now());
+        entity.setVisible(dto.getVisible() != null ? dto.getVisible() : false);
+        entity.setPriority(dto.getPriority() != null ? dto.getPriority() : 4);
+        entity.setCoverImageUrl(dto.getCoverImageUrl() != null ? dto.getCoverImageUrl() : "");
+
+        Integer requestedBpp = dto.getBlocksPerPage();
+        entity.setBlocksPerPage((requestedBpp != null && requestedBpp >= 1) ? requestedBpp : defaultPageSize);
+        entity.setTotalBlocks(0);
+
+        // Password protection for client galleries
+        if (requiresPasswordProtection(dto)) {
+            if (!hasPassword(dto)) {
+                throw new IllegalArgumentException("Password is required for client galleries");
+            }
+            entity.setPasswordProtected(true);
+            if (passwordHasher == null) {
+                throw new IllegalStateException("Password hasher is required for password-protected collections");
+            }
+            entity.setPasswordHash(passwordHasher.apply(dto.getPassword()));
+        } else {
+            entity.setPasswordProtected(false);
+            entity.setPasswordHash(null);
+        }
+
+        // Apply type-specific defaults
+        entity = applyTypeSpecificDefaults(entity);
+
+        return entity;
+    }
+
+    // =============================================================================
     // SLUG GENERATION AND VALIDATION
     // =============================================================================
 
@@ -219,7 +284,7 @@ public class ContentCollectionProcessingUtil {
 
         // Set default blocks per page if not set
         if (entity.getBlocksPerPage() == null || entity.getBlocksPerPage() <= 0) {
-            entity.setBlocksPerPage(30); // Default page size
+            entity.setBlocksPerPage(50); // Default page size
         }
 
         // Set type-specific visibility defaults

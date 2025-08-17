@@ -35,20 +35,20 @@ public class ContentCollectionControllerDev {
     private final ObjectMapper objectMapper;
 
     /**
-     * Create a new collection with multipart support for content blocks
+     * Create a new collection
      *
-     * @param collectionDtoJson JSON string of collection data
+     * @param createDTO Collection creation data
      * @return ResponseEntity with the created collection
      */
-    @PostMapping(consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
+    @PostMapping(
+            value = "/createCollection",
+            consumes = {MediaType.APPLICATION_JSON_VALUE}
+    )
     public ResponseEntity<?> createCollection(
-            @RequestPart("collection") String collectionDtoJson) {
+            @RequestBody ContentCollectionCreateDTO createDTO) {
         try {
-            // Convert JSON string to ContentCollectionCreateDTO
-            ContentCollectionCreateDTO createDTO = objectMapper.readValue(collectionDtoJson, ContentCollectionCreateDTO.class);
-
             // Create collection with content
-            ContentCollectionModel createdCollection = contentCollectionService.createWithContent(createDTO);
+            ContentCollectionModel createdCollection = contentCollectionService.createCollection(createDTO);
             log.info("Successfully created collection: {}", createdCollection.getId());
 
             return ResponseEntity.ok(createdCollection);

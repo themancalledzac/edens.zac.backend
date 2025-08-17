@@ -85,7 +85,6 @@ class ContentCollectionControllerDevTest {
         testCreateDTO.setVisible(true);
         testCreateDTO.setPriority(1);
         testCreateDTO.setBlocksPerPage(30);
-        testCreateDTO.setInitialTextBlocks(List.of("Initial text content"));
 
         // Create test update DTO
         testUpdateDTO = new ContentCollectionUpdateDTO();
@@ -94,63 +93,39 @@ class ContentCollectionControllerDevTest {
     }
 
     @Test
-    @DisplayName("POST /collections should create a new collection")
+    @DisplayName("POST /collections/createCollection should create a new collection")
     void createCollection_shouldCreateNewCollection() throws Exception {
         // Arrange
-        when(contentCollectionService.createWithContent(any(ContentCollectionCreateDTO.class)))
+        when(contentCollectionService.createCollection(any(ContentCollectionCreateDTO.class)))
                 .thenReturn(testCollection);
 
-        // Mock ObjectMapper to return testCreateDTO when readValue is called
-        when(mockObjectMapper.readValue(anyString(), eq(ContentCollectionCreateDTO.class)))
-                .thenReturn(testCreateDTO);
-
-        // Create multipart request with collection data
-        MockMultipartFile collectionFile = new MockMultipartFile(
-                "collection",
-                "",
-                "application/json",
-                objectMapper.writeValueAsString(testCreateDTO).getBytes()
-        );
-
         // Act & Assert
-        mockMvc.perform(multipart("/api/write/collections")
-                .file(collectionFile))
+        mockMvc.perform(post("/api/write/collections/createCollection")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(testCreateDTO)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.title", is("Test Blog")))
                 .andExpect(jsonPath("$.type", is("BLOG")));
 
-        verify(contentCollectionService).createWithContent(any(ContentCollectionCreateDTO.class));
-        verify(mockObjectMapper).readValue(anyString(), eq(ContentCollectionCreateDTO.class));
+        verify(contentCollectionService).createCollection(any(ContentCollectionCreateDTO.class));
     }
 
     @Test
-    @DisplayName("POST /collections should handle errors")
+    @DisplayName("POST /collections/createCollection should handle errors")
     void createCollection_shouldHandleErrors() throws Exception {
         // Arrange
-        when(contentCollectionService.createWithContent(any(ContentCollectionCreateDTO.class)))
+        when(contentCollectionService.createCollection(any(ContentCollectionCreateDTO.class)))
                 .thenThrow(new RuntimeException("Test error"));
 
-        // Mock ObjectMapper to return testCreateDTO when readValue is called
-        when(mockObjectMapper.readValue(anyString(), eq(ContentCollectionCreateDTO.class)))
-                .thenReturn(testCreateDTO);
-
-        // Create multipart request with collection data
-        MockMultipartFile collectionFile = new MockMultipartFile(
-                "collection",
-                "",
-                "application/json",
-                objectMapper.writeValueAsString(testCreateDTO).getBytes()
-        );
-
         // Act & Assert
-        mockMvc.perform(multipart("/api/write/collections")
-                .file(collectionFile))
+        mockMvc.perform(post("/api/write/collections/createCollection")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(testCreateDTO)))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$", containsString("Failed to create collection")));
 
-        verify(contentCollectionService).createWithContent(any(ContentCollectionCreateDTO.class));
-        verify(mockObjectMapper).readValue(anyString(), eq(ContentCollectionCreateDTO.class));
+        verify(contentCollectionService).createCollection(any(ContentCollectionCreateDTO.class));
     }
 
     @Test

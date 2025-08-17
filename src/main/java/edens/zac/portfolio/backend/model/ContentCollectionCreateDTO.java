@@ -8,11 +8,10 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-import java.util.List;
-
 /**
  * DTO for creating new content collections - extends base with creation-specific validations.
  * Includes required field validations and password handling for client galleries.
+ * Note: Initial content blocks are not part of creation; content is added via separate endpoints.
  */
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
@@ -29,19 +28,17 @@ public class ContentCollectionCreateDTO extends ContentCollectionBaseModel {
     @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters")
     private String title;
 
-    @NotNull(message = "Visibility is required")
+    // TODO: Need a Description like our original Catalogs. can be blank
+
+    // Visibility is optional for creation; defaults handled in service layer
     private Boolean visible;
 
     // Password field for client galleries (raw password, will be hashed)
+    // Only exists in CreateDTO, must never appear in shared base/response models
     @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
     private String password;
 
     // Pagination settings (optional, defaults will be applied in service)
     @Min(value = 1, message = "Blocks per page must be 1 or greater")
     private Integer blocksPerPage;
-
-    // Initial content (processed separately in service layer)
-    private List<String> initialTextBlocks;
-    private List<String> initialCodeBlocks;
-    // Note: Images/GIFs handled via multipart upload
 }

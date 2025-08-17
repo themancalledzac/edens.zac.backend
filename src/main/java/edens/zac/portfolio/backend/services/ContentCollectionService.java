@@ -59,7 +59,7 @@ public interface ContentCollectionService {
      * @param createDTO The DTO containing collection data
      * @return The created collection
      */
-    ContentCollectionModel createWithContent(ContentCollectionCreateDTO createDTO);
+    ContentCollectionModel createCollection(ContentCollectionCreateDTO createDTO);
 
 
     /**
