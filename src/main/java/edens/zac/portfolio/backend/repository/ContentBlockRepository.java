@@ -107,7 +107,22 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * This is useful when deleting a collection.
      *
      * @param collectionId The ID of the collection
-     * @return The number of deleted content blocks
      */
-    long deleteByCollectionId(Long collectionId);
+    void deleteByCollectionId(Long collectionId);
+
+    /**
+     * Dissociate the given content block IDs from a specific collection by setting their collectionId to NULL.
+     * This does not delete the blocks and allows them to be reassigned to another collection later.
+     *
+     * @param collectionId The collection to dissociate from
+     * @param ids          The block IDs to dissociate
+     */
+    @Modifying
+    @Query("UPDATE ContentBlockEntity cb SET cb.collectionId = NULL WHERE cb.collectionId = :collectionId AND cb.id IN :ids")
+    void dissociateFromCollection(@Param("collectionId") Long collectionId, @Param("ids") List<Long> ids);
+
+    /**
+     * Find a content block by collection and its exact order index.
+     */
+    ContentBlockEntity findByCollectionIdAndOrderIndex(Long collectionId, Integer orderIndex);
 }

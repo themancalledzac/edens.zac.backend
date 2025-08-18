@@ -339,4 +339,79 @@ class ContentCollectionProcessingUtilTest {
         // Assert
         assertEquals("5 images, 3 text blocks, 2 code blocks, 1 gifs", summary);
     }
+
+    // ======================================
+    // hashPassword and passwordMatches tests
+    // ======================================
+
+    @Test
+    void hashPassword_shouldReturnExpectedHash_forKnownPassword() {
+        String hash = ContentCollectionProcessingUtil.hashPassword("password");
+        assertEquals("5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8", hash);
+    }
+
+    @Test
+    void hashPassword_shouldReturnExpectedHash_forEmptyString() {
+        String hash = ContentCollectionProcessingUtil.hashPassword("");
+        assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hash);
+    }
+
+    @Test
+    void hashPassword_shouldHandleUnicodeUtf8Consistently() {
+        String hash = ContentCollectionProcessingUtil.hashPassword("pässwörd");
+        assertEquals("46970bef70aced8123f0d5d094717e2a5cd412041e03b26376049fe65b2834a4", hash);
+    }
+
+    @Test
+    void hashPassword_outputShouldBe64LowercaseHex() {
+        String hash = ContentCollectionProcessingUtil.hashPassword("any input");
+        assertEquals(64, hash.length());
+        assertTrue(hash.matches("[0-9a-f]{64}"));
+    }
+
+    @Test
+    void hashPassword_sameInputGivesSameOutput_everyTime() {
+        String h1 = ContentCollectionProcessingUtil.hashPassword("repeatable");
+        String h2 = ContentCollectionProcessingUtil.hashPassword("repeatable");
+        assertEquals(h1, h2);
+    }
+
+    @Test
+    void hashPassword_differentInputsGiveDifferentOutputs() {
+        String h1 = ContentCollectionProcessingUtil.hashPassword("one");
+        String h2 = ContentCollectionProcessingUtil.hashPassword("two");
+        assertNotEquals(h1, h2);
+    }
+
+    @Test
+    void hashPassword_shouldThrowNullPointer_whenPasswordIsNull() {
+        assertThrows(NullPointerException.class, () -> ContentCollectionProcessingUtil.hashPassword(null));
+    }
+
+    @Test
+    void passwordMatches_shouldReturnTrue_whenPasswordMatchesHash() {
+        String hash = ContentCollectionProcessingUtil.hashPassword("secret");
+        assertTrue(ContentCollectionProcessingUtil.passwordMatches("secret", hash));
+    }
+
+    @Test
+    void passwordMatches_shouldReturnFalse_whenPasswordDoesNotMatchHash() {
+        String hash = ContentCollectionProcessingUtil.hashPassword("secret");
+        assertFalse(ContentCollectionProcessingUtil.passwordMatches("wrong", hash));
+    }
+
+    @Test
+    void passwordMatches_emptyPasswordAgainstEmptyHash_shouldBehaveAsExpected() {
+        // Hash of empty string compared to empty string should be false
+        assertFalse(ContentCollectionProcessingUtil.passwordMatches("", ""));
+        // But against the correct empty-string hash should be true
+        String emptyHash = ContentCollectionProcessingUtil.hashPassword("");
+        assertTrue(ContentCollectionProcessingUtil.passwordMatches("", emptyHash));
+    }
+
+    @Test
+    void passwordMatches_shouldThrowNullPointer_whenPasswordIsNull() {
+        String someHash = ContentCollectionProcessingUtil.hashPassword("abc");
+        assertThrows(NullPointerException.class, () -> ContentCollectionProcessingUtil.passwordMatches(null, someHash));
+    }
 }

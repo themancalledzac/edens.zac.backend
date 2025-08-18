@@ -20,9 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -44,38 +41,6 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
 
     private static final int DEFAULT_PAGE_SIZE = 50;
 
-    /**
-     * Hash a password using SHA-256.
-     *
-     * @param password The password to hash
-     * @return The hashed password
-     */
-    private String hashPassword(String password) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Error hashing password", e);
-        }
-    }
-
-    /**
-     * Check if a password matches a hash.
-     *
-     * @param password The password to check
-     * @param hash The hash to check against
-     * @return True if the password matches the hash
-     */
-    private boolean passwordMatches(String password, String hash) {
-        return hashPassword(password).equals(hash);
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -122,7 +87,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         }
 
         // Check if password matches
-        return passwordMatches(password, collection.getPasswordHash());
+        return ContentCollectionProcessingUtil.passwordMatches(password, collection.getPasswordHash());
     }
 
     @Override
@@ -159,17 +124,6 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                 .map(this::convertToFullModel);
     }
 
-    /**
-     * Helper method to get a value or a default if the value is null.
-     *
-     * @param value The value to check
-     * @param defaultValue The default value to use if the value is null
-     * @return The value if not null, otherwise the default value
-     */
-    private <T> T getValueOrDefault(T value, T defaultValue) {
-        return value != null ? value : defaultValue;
-    }
-
     @Override
     @Transactional
     public ContentCollectionModel createCollection(ContentCollectionCreateDTO createDTO) {
@@ -183,8 +137,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         // Create entity using utility converter
         ContentCollectionEntity entity = contentCollectionProcessingUtil.toEntity(
                 createDTO,
-                DEFAULT_PAGE_SIZE,
-                this::hashPassword
+                DEFAULT_PAGE_SIZE
         );
 
         // Save entity
@@ -203,53 +156,19 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         ContentCollectionEntity entity = contentCollectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
-        // Update basic properties if provided
-        if (updateDTO.getTitle() != null) {
-            entity.setTitle(updateDTO.getTitle());
+        // Update basic properties via utility helper
+        contentCollectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
+
+        // Handle content block removals - dissociate blocks from this collection instead of deleting
+        if (updateDTO.getContentBlockIdsToRemove() != null && !updateDTO.getContentBlockIdsToRemove().isEmpty()) {
+            contentBlockRepository.dissociateFromCollection(id, updateDTO.getContentBlockIdsToRemove());
         }
 
-        if (updateDTO.getDescription() != null) {
-            entity.setDescription(updateDTO.getDescription());
-        }
+        // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
+        List<Long> newTextIds = contentCollectionProcessingUtil.handleNewTextBlocksReturnIds(id, updateDTO);
 
-        if (updateDTO.getLocation() != null) {
-            entity.setLocation(updateDTO.getLocation());
-        }
-
-        if (updateDTO.getCollectionDate() != null) {
-            entity.setCollectionDate(updateDTO.getCollectionDate());
-        }
-
-        if (updateDTO.getVisible() != null) {
-            entity.setVisible(updateDTO.getVisible());
-        }
-
-        if (updateDTO.getPriority() != null) {
-            entity.setPriority(updateDTO.getPriority());
-        }
-
-        if (updateDTO.getCoverImageUrl() != null) {
-            entity.setCoverImageUrl(updateDTO.getCoverImageUrl());
-        }
-
-        // Update blocksPerPage if provided and valid
-        if (updateDTO.getBlocksPerPage() != null && updateDTO.getBlocksPerPage() >= 1) {
-            entity.setBlocksPerPage(updateDTO.getBlocksPerPage());
-        }
-
-        // Handle password updates for client galleries
-        if (entity.getType() == CollectionType.CLIENT_GALLERY && 
-                contentCollectionProcessingUtil.hasPasswordUpdate(updateDTO)) {
-            entity.setPasswordProtected(true);
-            entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
-        }
-
-        // Handle content block reordering if provided
-        if (contentCollectionProcessingUtil.hasContentOperations(updateDTO) && 
-                updateDTO.getReorderOperations() != null && !updateDTO.getReorderOperations().isEmpty()) {
-            // Process each reorder operation
-            updateDTO.getReorderOperations().forEach(op -> contentBlockRepository.updateOrderIndex(op.getContentBlockId(), op.getNewOrderIndex()));
-        }
+        // Handle content block reordering via utility helper with explicit mapping for new text placeholders
+        contentCollectionProcessingUtil.handleContentBlockReordering(id, updateDTO, newTextIds);
 
         // Save updated entity
         ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
@@ -262,60 +181,57 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         return convertToFullModel(savedEntity);
     }
 
+
     @Override
     @Transactional
-    public ContentCollectionModel updateContentWithFiles(Long id, ContentCollectionUpdateDTO updateDTO, List<MultipartFile> files) {
-        log.debug("Updating collection with ID: {} and processing files", id);
+    public ContentCollectionModel addContentBlocks(Long id, List<MultipartFile> files) {
+        log.debug("Adding content blocks (files only) to collection ID: {}", id);
 
-        // First update the collection with the provided DTO
-        ContentCollectionModel updatedCollection = updateContent(id, updateDTO);
+        // Ensure collection exists and fetch entity/title
+        ContentCollectionEntity entity = contentCollectionRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
-        // Process files if provided
-        if (files != null && !files.isEmpty()) {
-            List<ContentBlockEntity> contentBlocks = new ArrayList<>();
+        if (files == null || files.isEmpty()) {
+            return convertToFullModel(entity);
+        }
 
-            // Get the current highest order index for this collection
-            Integer startOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(id);
-            Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
+        List<ContentBlockEntity> contentBlocks = new ArrayList<>();
 
-            for (MultipartFile file : files) {
-                try {
-                    // Process file based on content type
-                    if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
-                        if (file.getContentType().equals("image/gif")) {
-                            // Process as GIF
-                            ContentBlockEntity gifBlock = contentBlockProcessingUtil.processGifContentBlock(
-                                    file, id, orderIndex, updatedCollection.getTitle(), null);
-                            contentBlocks.add(gifBlock);
-                        } else {
-                            // Process as image
-                            ContentBlockEntity imageBlock = contentBlockProcessingUtil.processImageContentBlock(
-                                    file, id, orderIndex, updatedCollection.getTitle(), null);
-                            contentBlocks.add(imageBlock);
-                        }
-                        orderIndex++;
+        // Get the current highest order index for this collection
+        Integer startOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(id);
+        Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
+
+        for (MultipartFile file : files) {
+            try {
+                // Process file based on content type
+                if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
+                    if (file.getContentType().equals("image/gif")) {
+                        // Process as GIF
+                        ContentBlockEntity gifBlock = contentBlockProcessingUtil.processGifContentBlock(
+                                file, id, orderIndex, entity.getTitle(), null);
+                        contentBlocks.add(gifBlock);
+                    } else {
+                        // Process as image
+                        ContentBlockEntity imageBlock = contentBlockProcessingUtil.processImageContentBlock(
+                                file, id, orderIndex, entity.getTitle(), null);
+                        contentBlocks.add(imageBlock);
                     }
-                } catch (Exception e) {
-                    log.error("Error processing file: {}", e.getMessage(), e);
+                    orderIndex++;
                 }
-            }
-
-            // Update total blocks count if any blocks were added
-            if (!contentBlocks.isEmpty()) {
-                ContentCollectionEntity entity = contentCollectionRepository.findById(id)
-                        .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
-
-                // Update total blocks count
-                long totalBlocks = contentBlockRepository.countByCollectionId(id);
-                entity.setTotalBlocks((int) totalBlocks);
-                contentCollectionRepository.save(entity);
-
-                // Refresh the model with the updated entity
-                return convertToFullModel(entity);
+            } catch (Exception e) {
+                log.error("Error processing file: {}", e.getMessage(), e);
             }
         }
 
-        return updatedCollection;
+        // Update total blocks count if any blocks were added
+        if (!contentBlocks.isEmpty()) {
+            long totalBlocks = contentBlockRepository.countByCollectionId(id);
+            entity.setTotalBlocks((int) totalBlocks);
+            contentCollectionRepository.save(entity);
+        }
+
+        // Return fresh model
+        return convertToFullModel(entity);
     }
 
     @Override

@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.entity.ContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
+import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,10 +12,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
@@ -23,6 +26,7 @@ import java.util.stream.Collectors;
 public class ContentCollectionProcessingUtil {
 
     private final ContentCollectionRepository contentCollectionRepository;
+    private final ContentBlockRepository contentBlockRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
     private final ImageProcessingUtil imageProcessingUtil;
 
@@ -137,16 +141,13 @@ public class ContentCollectionProcessingUtil {
     /**
      * Convert a ContentCollectionCreateDTO into a new ContentCollectionEntity applying
      * defaults, slug handling, password protection and type-specific defaults.
-     * Note: Password hashing is delegated via the provided passwordHasher to keep
-     * security concerns in the service layer and make testing easier.
+     * Handles defaults, slug handling, password protection and type-specific defaults.
      *
      * @param dto The create DTO
      * @param defaultPageSize Fallback blocksPerPage when dto value is null/invalid
-     * @param passwordHasher Function to hash plain-text password when needed (may be null if not required)
      * @return A new ContentCollectionEntity ready to be persisted
      */
-    public ContentCollectionEntity toEntity(ContentCollectionCreateDTO dto, int defaultPageSize,
-                                            Function<String, String> passwordHasher) {
+    public ContentCollectionEntity toEntity(ContentCollectionCreateDTO dto, int defaultPageSize) {
         if (dto == null) {
             throw new IllegalArgumentException("Create DTO cannot be null");
         }
@@ -181,10 +182,7 @@ public class ContentCollectionProcessingUtil {
                 throw new IllegalArgumentException("Password is required for client galleries");
             }
             entity.setPasswordProtected(true);
-            if (passwordHasher == null) {
-                throw new IllegalStateException("Password hasher is required for password-protected collections");
-            }
-            entity.setPasswordHash(passwordHasher.apply(dto.getPassword()));
+            entity.setPasswordHash(hashPassword(dto.getPassword()));
         } else {
             entity.setPasswordProtected(false);
             entity.setPasswordHash(null);
@@ -194,6 +192,199 @@ public class ContentCollectionProcessingUtil {
         entity = applyTypeSpecificDefaults(entity);
 
         return entity;
+    }
+
+    // =============================================================================
+    // UPDATE HELPERS FOR SERVICE LAYER (split from updateContent)
+    // =============================================================================
+
+    /**
+     * Apply basic property updates from updateDTO to the given entity.
+     * This mirrors the simple field updates and slug/password logic from the service.
+     * - title, description, location, collectionDate, visible, priority, coverImageUrl
+     * - slug uniqueness handling (keeps same entity allowed)
+     * - configJson
+     * - blocksPerPage (>=1)
+     * - client gallery password updates via provided password hasher
+     */
+    public void applyBasicUpdates(ContentCollectionEntity entity,
+                                 ContentCollectionUpdateDTO updateDTO) {
+        if (updateDTO.getTitle() != null) {
+            entity.setTitle(updateDTO.getTitle());
+        }
+        if (updateDTO.getDescription() != null) {
+            entity.setDescription(updateDTO.getDescription());
+        }
+        if (updateDTO.getLocation() != null) {
+            entity.setLocation(updateDTO.getLocation());
+        }
+        if (updateDTO.getCollectionDate() != null) {
+            entity.setCollectionDate(updateDTO.getCollectionDate());
+        }
+        if (updateDTO.getVisible() != null) {
+            entity.setVisible(updateDTO.getVisible());
+        }
+        if (updateDTO.getPriority() != null) {
+            entity.setPriority(updateDTO.getPriority());
+        }
+        if (updateDTO.getCoverImageUrl() != null) {
+            entity.setCoverImageUrl(updateDTO.getCoverImageUrl());
+        }
+        if (updateDTO.getSlug() != null && !updateDTO.getSlug().isBlank()) {
+            String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.getSlug().trim(), entity.getId());
+            entity.setSlug(uniqueSlug);
+        }
+        if (updateDTO.getConfigJson() != null) {
+            entity.setConfigJson(updateDTO.getConfigJson());
+        }
+        if (updateDTO.getBlocksPerPage() != null && updateDTO.getBlocksPerPage() >= 1) {
+            entity.setBlocksPerPage(updateDTO.getBlocksPerPage());
+        }
+
+        // Handle password updates for client galleries
+        if (entity.getType() == CollectionType.CLIENT_GALLERY) {
+            if (updateDTO.getHasAccess() != null && updateDTO.getHasAccess()) {
+                entity.setPasswordProtected(false);
+                entity.setPasswordHash(null);
+            }
+            if (hasPasswordUpdate(updateDTO)) {
+                entity.setPasswordProtected(true);
+                entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
+            }
+        }
+    }
+
+    /**
+     * Handle adding new text blocks, either appending to the end or inserting at a specific index.
+     * Behavior matches the original service implementation.
+     */
+    public void handleNewTextBlocks(Long collectionId, ContentCollectionUpdateDTO updateDTO) {
+        if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
+            return;
+        }
+        Integer insertAt = updateDTO.getNewTextBlocksInsertAt();
+        int blocksToAdd = updateDTO.getNewTextBlocks().size();
+        if (insertAt != null) {
+            if (insertAt < 0) {
+                throw new IllegalArgumentException("newTextBlocksInsertAt must be >= 0");
+            }
+            // Shift all blocks at or after insertAt by +blocksToAdd
+            contentBlockRepository.shiftOrderIndices(collectionId, insertAt, Integer.MAX_VALUE, blocksToAdd);
+            int currentIndex = insertAt;
+            for (String text : updateDTO.getNewTextBlocks()) {
+                contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+                currentIndex++;
+            }
+        } else {
+            // Append to end
+            Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
+            int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
+            for (String text : updateDTO.getNewTextBlocks()) {
+                contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+                currentIndex++;
+            }
+        }
+    }
+
+    /**
+     * Variant of handleNewTextBlocks that returns the IDs of newly created text blocks
+     * in the same order as provided in updateDTO.getNewTextBlocks(). This enables
+     * deterministic placeholder mapping during subsequent reordering.
+     */
+    public List<Long> handleNewTextBlocksReturnIds(Long collectionId, ContentCollectionUpdateDTO updateDTO) {
+        List<Long> createdIds = new ArrayList<>();
+        if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
+            return createdIds;
+        }
+        Integer insertAt = updateDTO.getNewTextBlocksInsertAt();
+        int blocksToAdd = updateDTO.getNewTextBlocks().size();
+        if (insertAt != null) {
+            if (insertAt < 0) {
+                throw new IllegalArgumentException("newTextBlocksInsertAt must be >= 0");
+            }
+            // Shift all blocks at or after insertAt by +blocksToAdd
+            contentBlockRepository.shiftOrderIndices(collectionId, insertAt, Integer.MAX_VALUE, blocksToAdd);
+            int currentIndex = insertAt;
+            for (String text : updateDTO.getNewTextBlocks()) {
+                ContentBlockEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+                if (created != null && created.getId() != null) {
+                    createdIds.add(created.getId());
+                }
+                currentIndex++;
+            }
+        } else {
+            // Append to end
+            Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
+            int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
+            for (String text : updateDTO.getNewTextBlocks()) {
+                ContentBlockEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+                if (created != null && created.getId() != null) {
+                    createdIds.add(created.getId());
+                }
+                currentIndex++;
+            }
+        }
+        return createdIds;
+    }
+
+    /**
+     * Handle content block reordering operations. Supports reference by ID, placeholder for newly
+     * added text blocks (negative IDs: -1 for first new text, etc.), or by old order index.
+     */
+    public void handleContentBlockReordering(Long collectionId, ContentCollectionUpdateDTO updateDTO) {
+        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
+            return;
+        }
+        // Backward-compatible behavior: try to infer newTextIds by taking the last N blocks
+        List<Long> inferredNewTextIds = new ArrayList<>();
+        if (updateDTO.getNewTextBlocks() != null && !updateDTO.getNewTextBlocks().isEmpty()) {
+            int n = updateDTO.getNewTextBlocks().size();
+            List<ContentBlockEntity> allBlocks = contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId);
+            int total = allBlocks.size();
+            for (int i = Math.max(0, total - n); i < total; i++) {
+                inferredNewTextIds.add(allBlocks.get(i).getId());
+            }
+        }
+        handleContentBlockReordering(collectionId, updateDTO, inferredNewTextIds);
+    }
+
+    /**
+     * Overloaded reordering that accepts explicit newTextIds mapping. This ensures
+     * correct placeholder resolution regardless of insert position.
+     */
+    public void handleContentBlockReordering(Long collectionId, ContentCollectionUpdateDTO updateDTO, List<Long> newTextIds) {
+        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
+            return;
+        }
+        List<Long> mapping = (newTextIds != null) ? newTextIds : new ArrayList<>();
+        for (ContentCollectionUpdateDTO.ContentBlockReorderOperation op : updateDTO.getReorderOperations()) {
+            Long targetId = null;
+            Long providedId = op.getContentBlockId();
+            if (providedId != null) {
+                if (providedId > 0) {
+                    targetId = providedId;
+                } else if (providedId < 0) {
+                    int idx = (int) (-providedId) - 1; // -1 -> 0, -2 -> 1, ...
+                    if (idx >= 0 && idx < mapping.size()) {
+                        targetId = mapping.get(idx);
+                    } else {
+                        throw new IllegalArgumentException("Reorder operation references a new text block placeholder that does not exist: " + providedId);
+                    }
+                }
+            }
+            if (targetId == null) {
+                Integer oldIdx = op.getOldOrderIndex();
+                if (oldIdx == null) {
+                    throw new IllegalArgumentException("Reorder operation must include either contentBlockId or oldOrderIndex");
+                }
+                ContentBlockEntity byIndex = contentBlockRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
+                if (byIndex == null) {
+                    throw new IllegalArgumentException("No content block found at oldOrderIndex=" + oldIdx);
+                }
+                targetId = byIndex.getId();
+            }
+            contentBlockRepository.updateOrderIndex(targetId, op.getNewOrderIndex());
+        }
     }
 
     // =============================================================================
@@ -344,6 +535,33 @@ public class ContentCollectionProcessingUtil {
      */
     public static boolean hasPasswordUpdate(ContentCollectionUpdateDTO dto) {
         return dto.getPassword() != null && !dto.getPassword().trim().isEmpty();
+    }
+
+    /**
+     * Hash a password using SHA-256.
+     * Note: For production client gallery secrets, prefer BCrypt or Argon2.
+     */
+    public static String hashPassword(String password) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error hashing password", e);
+        }
+    }
+
+    /**
+     * Check if a password matches a stored hash.
+     */
+    public static boolean passwordMatches(String password, String hash) {
+        return hashPassword(password).equals(hash);
     }
 
     /**

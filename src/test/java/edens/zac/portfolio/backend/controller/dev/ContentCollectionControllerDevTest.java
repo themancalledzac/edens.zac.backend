@@ -39,9 +39,6 @@ class ContentCollectionControllerDevTest {
     @Mock
     private ContentCollectionService contentCollectionService;
 
-    @Mock
-    private ObjectMapper mockObjectMapper;
-
     @InjectMocks
     private ContentCollectionControllerDev contentCollectionController;
 
@@ -163,49 +160,13 @@ class ContentCollectionControllerDevTest {
         verify(contentCollectionService).updateContent(eq(999L), any(ContentCollectionUpdateDTO.class));
     }
 
-    @Test
-    @DisplayName("PUT /collections/{id}/content should reorder content blocks")
-    void reorderContentBlocks_shouldReorderContentBlocks() throws Exception {
-        // Arrange
-        Map<Long, Integer> orderMap = new HashMap<>();
-        orderMap.put(1L, 0);
-        orderMap.put(2L, 1);
-
-        when(contentCollectionService.updateContent(eq(1L), any(ContentCollectionUpdateDTO.class)))
-                .thenReturn(testCollection);
-
-        // Act & Assert
-        mockMvc.perform(put("/api/write/collections/1/content")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(orderMap)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(1)))
-                .andExpect(jsonPath("$.title", is("Test Blog")));
-
-        verify(contentCollectionService).updateContent(eq(1L), any(ContentCollectionUpdateDTO.class));
-    }
 
     @Test
-    @DisplayName("POST /collections/{id}/content should add content blocks")
+    @DisplayName("POST /collections/{id}/content should add content blocks (files only)")
     void addContentBlocks_shouldAddContentBlocks() throws Exception {
         // Arrange
-        ContentCollectionUpdateDTO updateDTO = new ContentCollectionUpdateDTO();
-        updateDTO.setNewTextBlocks(List.of("New text content"));
-
-        when(contentCollectionService.updateContentWithFiles(eq(1L), any(ContentCollectionUpdateDTO.class), anyList()))
+        when(contentCollectionService.addContentBlocks(eq(1L), anyList()))
                 .thenReturn(testCollection);
-
-        // Mock ObjectMapper to return updateDTO when readValue is called
-        when(mockObjectMapper.readValue(anyString(), eq(ContentCollectionUpdateDTO.class)))
-                .thenReturn(updateDTO);
-
-        // Create multipart request with content data
-        MockMultipartFile contentFile = new MockMultipartFile(
-                "content",
-                "",
-                "application/json",
-                objectMapper.writeValueAsString(updateDTO).getBytes()
-        );
 
         // Create a mock image file
         MockMultipartFile imageFile = new MockMultipartFile(
@@ -217,37 +178,20 @@ class ContentCollectionControllerDevTest {
 
         // Act & Assert
         mockMvc.perform(multipart("/api/write/collections/1/content")
-                .file(contentFile)
                 .file(imageFile))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.title", is("Test Blog")));
 
-        verify(contentCollectionService).updateContentWithFiles(eq(1L), any(ContentCollectionUpdateDTO.class), anyList());
-        verify(mockObjectMapper).readValue(anyString(), eq(ContentCollectionUpdateDTO.class));
+        verify(contentCollectionService).addContentBlocks(eq(1L), anyList());
     }
 
     @Test
     @DisplayName("POST /collections/{id}/content should handle not found error")
     void addContentBlocks_shouldHandleNotFoundError() throws Exception {
         // Arrange
-        ContentCollectionUpdateDTO updateDTO = new ContentCollectionUpdateDTO();
-        updateDTO.setNewTextBlocks(List.of("New text content"));
-
-        when(contentCollectionService.updateContentWithFiles(eq(999L), any(ContentCollectionUpdateDTO.class), anyList()))
+        when(contentCollectionService.addContentBlocks(eq(999L), anyList()))
                 .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
-
-        // Mock ObjectMapper to return updateDTO when readValue is called
-        when(mockObjectMapper.readValue(anyString(), eq(ContentCollectionUpdateDTO.class)))
-                .thenReturn(updateDTO);
-
-        // Create multipart request with content data
-        MockMultipartFile contentFile = new MockMultipartFile(
-                "content",
-                "",
-                "application/json",
-                objectMapper.writeValueAsString(updateDTO).getBytes()
-        );
 
         // Create a mock image file
         MockMultipartFile imageFile = new MockMultipartFile(
@@ -259,13 +203,11 @@ class ContentCollectionControllerDevTest {
 
         // Act & Assert
         mockMvc.perform(multipart("/api/write/collections/999/content")
-                .file(contentFile)
                 .file(imageFile))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$", containsString("not found")));
 
-        verify(contentCollectionService).updateContentWithFiles(eq(999L), any(ContentCollectionUpdateDTO.class), anyList());
-        verify(mockObjectMapper).readValue(anyString(), eq(ContentCollectionUpdateDTO.class));
+        verify(contentCollectionService).addContentBlocks(eq(999L), anyList());
     }
 
     @Test

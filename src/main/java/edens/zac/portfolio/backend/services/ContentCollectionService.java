@@ -71,15 +71,15 @@ public interface ContentCollectionService {
      */
     ContentCollectionModel updateContent(Long id, ContentCollectionUpdateDTO updateDTO);
 
+
     /**
-     * Update a collection's content and add files.
+     * Add media files (images/gifs) to a collection as new content blocks without changing metadata.
      *
      * @param id The ID of the collection
-     * @param updateDTO The DTO containing update data
      * @param files The files to be processed and added as content blocks
-     * @return The updated collection
+     * @return The updated collection after files are added
      */
-    ContentCollectionModel updateContentWithFiles(Long id, ContentCollectionUpdateDTO updateDTO, List<MultipartFile> files);
+    ContentCollectionModel addContentBlocks(Long id, List<MultipartFile> files);
 
     /**
      * Delete a collection by ID.

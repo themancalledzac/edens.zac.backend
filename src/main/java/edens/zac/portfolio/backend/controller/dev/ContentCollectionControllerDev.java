@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.controller.dev;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
@@ -17,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Controller for ContentCollection write operations (dev environment only).
@@ -32,7 +30,6 @@ import java.util.Map;
 public class ContentCollectionControllerDev {
 
     private final ContentCollectionService contentCollectionService;
-    private final ObjectMapper objectMapper;
 
     /**
      * Create a new collection
@@ -61,7 +58,7 @@ public class ContentCollectionControllerDev {
     }
 
     /**
-     * Update collection metadata
+     * Update collection metadata. Accepts partial updates
      *
      * @param id Collection ID
      * @param updateDTO DTO with update data
@@ -90,67 +87,27 @@ public class ContentCollectionControllerDev {
     }
 
     /**
-     * Reorder content blocks within a collection
+     * Add media content blocks (images/gifs) to a collection.
+     * This endpoint only handles file uploads; no metadata updates are performed.
      *
      * @param id Collection ID
-     * @param orderMap Map of content block IDs to new order indices
-     * @return ResponseEntity with updated collection
-     */
-    @PutMapping("/{id}/content")
-    public ResponseEntity<?> reorderContentBlocks(
-            @PathVariable Long id,
-            @RequestBody Map<Long, Integer> orderMap) {
-        try {
-            // Create update DTO with reordering information
-            ContentCollectionUpdateDTO updateDTO = new ContentCollectionUpdateDTO();
-
-            // Convert map to list of reorder operations
-            List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOperations = 
-                orderMap.entrySet().stream()
-                    .map(entry -> new ContentCollectionUpdateDTO.ContentBlockReorderOperation(
-                        entry.getKey(), entry.getValue()))
-                    .toList();
-
-            updateDTO.setReorderOperations(reorderOperations);
-
-            ContentCollectionModel updatedCollection = contentCollectionService.updateContent(id, updateDTO);
-            log.info("Successfully reordered content blocks for collection: {}", id);
-
-            return ResponseEntity.ok(updatedCollection);
-        } catch (EntityNotFoundException e) {
-            log.warn("Collection not found: {}", id);
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body("Collection with ID: " + id + " not found");
-        } catch (Exception e) {
-            log.error("Error reordering content blocks for collection {}: {}", id, e.getMessage(), e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to reorder content blocks: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Add content blocks to a collection
-     *
-     * @param id Collection ID
-     * @param contentDtoJson JSON string of content block data
-     * @param files Optional files for content blocks
+     * @param files Files to upload and append as content blocks
      * @return ResponseEntity with updated collection
      */
     @PostMapping(value = "/{id}/content", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<?> addContentBlocks(
             @PathVariable Long id,
-            @RequestPart("content") String contentDtoJson,
             @RequestPart(value = "files", required = false) List<MultipartFile> files) {
         try {
-            // Create update DTO with new content blocks
-            ContentCollectionUpdateDTO updateDTO = objectMapper.readValue(contentDtoJson, ContentCollectionUpdateDTO.class);
+            if (files == null || files.isEmpty()) {
+                return ResponseEntity
+                        .status(HttpStatus.BAD_REQUEST)
+                        .body("No files provided. Use 'files' part with one or more images.");
+            }
 
-            // Update collection with content and process files if provided
-            ContentCollectionModel updatedCollection = contentCollectionService.updateContentWithFiles(id, updateDTO, files);
+            ContentCollectionModel updatedCollection = contentCollectionService.addContentBlocks(id, files);
 
-            log.info("Successfully added content blocks to collection: {}", id);
+            log.info("Successfully added {} file(s) to collection: {}", files.size(), id);
 
             return ResponseEntity.ok(updatedCollection);
         } catch (EntityNotFoundException e) {
