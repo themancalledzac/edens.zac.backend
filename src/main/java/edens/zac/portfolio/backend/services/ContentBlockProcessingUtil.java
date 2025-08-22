@@ -276,43 +276,42 @@ public class ContentBlockProcessingUtil {
             ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(file, "content_collection", collectionId.toString());
 
             if (imageEntity == null) {
-                log.error("Failed to process image content block");
-                throw new RuntimeException("Failed to process image content block");
+                log.error("Failed to process image - ImageProcessingUtil returned null");
+                return null;
             }
 
-            // Create and return the image content block entity
-            ImageContentBlockEntity entity = new ImageContentBlockEntity();
-            entity.setCollectionId(collectionId);
-            entity.setOrderIndex(orderIndex);
-            entity.setBlockType(ContentBlockType.IMAGE);
-            entity.setCaption(caption);
-
-            // Copy properties from the processed image entity
-            entity.setTitle(title != null ? title : imageEntity.getTitle());
-            entity.setImageWidth(imageEntity.getImageWidth());
-            entity.setImageHeight(imageEntity.getImageHeight());
-            entity.setIso(imageEntity.getIso());
-            entity.setAuthor(imageEntity.getAuthor());
-            entity.setRating(imageEntity.getRating());
-            entity.setFStop(imageEntity.getFStop());
-            entity.setLens(imageEntity.getLens());
-            entity.setBlackAndWhite(imageEntity.getBlackAndWhite());
-            entity.setIsFilm(false); // Default value
-            entity.setShutterSpeed(imageEntity.getShutterSpeed());
-            entity.setRawFileName(imageEntity.getRawFileName());
-            entity.setCamera(imageEntity.getCamera());
-            entity.setFocalLength(imageEntity.getFocalLength());
-            entity.setLocation(imageEntity.getLocation());
-            entity.setImageUrlWeb(imageEntity.getImageUrlWeb());
-            entity.setImageUrlRaw(imageEntity.getImageUrlRaw());
-            entity.setCreateDate(imageEntity.getCreateDate());
+            // Create and return the image content block entity using builder pattern
+            ImageContentBlockEntity entity = ImageContentBlockEntity.builder()
+                    .collectionId(collectionId)
+                    .orderIndex(orderIndex)
+                    .blockType(ContentBlockType.IMAGE)
+                    .caption(caption)
+                    .title(title != null ? title : imageEntity.getTitle())
+                    .imageWidth(imageEntity.getImageWidth())
+                    .imageHeight(imageEntity.getImageHeight())
+                    .iso(imageEntity.getIso())
+                    .author(imageEntity.getAuthor())
+                    .rating(imageEntity.getRating())
+                    .fStop(imageEntity.getFStop())
+                    .lens(imageEntity.getLens())
+                    .blackAndWhite(imageEntity.getBlackAndWhite())
+                    .isFilm(false) // Default value
+                    .shutterSpeed(imageEntity.getShutterSpeed())
+                    .rawFileName(imageEntity.getRawFileName())
+                    .camera(imageEntity.getCamera())
+                    .focalLength(imageEntity.getFocalLength())
+                    .location(imageEntity.getLocation())
+                    .imageUrlWeb(imageEntity.getImageUrlWeb())
+                    .imageUrlRaw(imageEntity.getImageUrlRaw())
+                    .createDate(imageEntity.getCreateDate())
+                    .build();
 
             // Save the entity using the repository
             return contentBlockRepository.save(entity);
 
         } catch (Exception e) {
             log.error("Error processing image content block: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process image content block", e);
+            return null; // Return null instead of throwing exception
         }
     }
 

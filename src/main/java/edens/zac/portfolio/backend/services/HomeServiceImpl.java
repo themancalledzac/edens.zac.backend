@@ -1,14 +1,15 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.CatalogEntity;
-import edens.zac.portfolio.backend.entity.HomeCardEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
 import edens.zac.portfolio.backend.model.HomeCardModel;
-import edens.zac.portfolio.backend.repository.HomeCardRepository;
+import edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -17,11 +18,10 @@ import java.util.stream.Collectors;
 @Service
 public class HomeServiceImpl implements HomeService {
 
-    private final HomeCardRepository homeCardRepository;
+    private final ContentCollectionHomeCardRepository homeCardRepository;
     private final HomeProcessingUtil homeCardProcessingUtil;
 
-    @Autowired
-    public HomeServiceImpl(HomeCardRepository homeCardRepository, HomeProcessingUtil homeCardProcessingUtil) {
+    public HomeServiceImpl(ContentCollectionHomeCardRepository homeCardRepository, HomeProcessingUtil homeCardProcessingUtil) {
         this.homeCardRepository = homeCardRepository;
         this.homeCardProcessingUtil = homeCardProcessingUtil;
     }
@@ -29,10 +29,13 @@ public class HomeServiceImpl implements HomeService {
     @Override
     @Transactional(readOnly = true)
     public List<HomeCardModel> getHomePage() {
-        Integer homePagePriority = 2;
+        return getHomePage(2);
+    }
 
-        // TODO: Add error handling at this step
-        List<HomeCardEntity> entities = homeCardRepository.getHomePage(homePagePriority);
+    @Override
+    @Transactional(readOnly = true)
+    public List<HomeCardModel> getHomePage(int maxPriority) {
+        List<ContentCollectionHomeCardEntity> entities = homeCardRepository.getHomePage(maxPriority);
         return entities.stream()
                 .map(homeCardProcessingUtil::convertModel)
                 .collect(Collectors.toList());
@@ -44,15 +47,13 @@ public class HomeServiceImpl implements HomeService {
 
         // Check if a HomeCard already exists for this catalog
         homeCardRepository.findByCardTypeAndReferenceId("catalog", catalog.getId())
-                .ifPresent(homeCard -> {
-                    log.info("Home card already exists: {}", homeCard.getId());
-                });
+                .ifPresent(homeCard -> log.info("Home card already exists: {}", homeCard.getId()));
 
         // Create new HomeCard Entity
-        HomeCardEntity homeCardEntity = homeCardProcessingUtil.createHomeCardFromCatalog(catalog);
+        ContentCollectionHomeCardEntity homeCardEntity = homeCardProcessingUtil.createHomeCardFromCatalog(catalog);
 
         // Save the entity
-        HomeCardEntity savedEntity = homeCardRepository.save(homeCardEntity);
+        ContentCollectionHomeCardEntity savedEntity = homeCardRepository.save(homeCardEntity);
         log.info("HomeCard created successfully with ID: {}", savedEntity.getId());
     }
 
@@ -60,30 +61,76 @@ public class HomeServiceImpl implements HomeService {
     public void updateHomeCard(CatalogEntity catalog) {
         log.info("Updating home card from catalog: {}", catalog.getTitle());
 
-        // 1. Find the Home Card
-        Optional<HomeCardEntity> existingHomeCard = homeCardRepository
+        Optional<ContentCollectionHomeCardEntity> existingHomeCard = homeCardRepository
                 .findByCardTypeAndReferenceId("catalog", catalog.getId());
 
-        // 2. Update
         if (existingHomeCard.isPresent()) {
-            HomeCardEntity existingHomeCardEntity = getHomeCardEntity(catalog, existingHomeCard);
-
+            ContentCollectionHomeCardEntity existingHomeCardEntity = getHomeCardEntity(catalog, existingHomeCard);
             homeCardRepository.save(existingHomeCardEntity);
-        } else {
-
-            // if isHomeCard is true, create a new home card
-            if (catalog.isHomeCard()) {
-                HomeCardEntity homeCardEntity = homeCardProcessingUtil.createHomeCardFromCatalog(catalog);
-
-                // Save the entity
-                HomeCardEntity savedEntity = homeCardRepository.save(homeCardEntity);
-                log.info("HomeCard created successfully with ID: {}", savedEntity.getId());
-            }
+        } else if (catalog.isHomeCard()) {
+            ContentCollectionHomeCardEntity homeCardEntity = homeCardProcessingUtil.createHomeCardFromCatalog(catalog);
+            ContentCollectionHomeCardEntity savedEntity = homeCardRepository.save(homeCardEntity);
+            log.info("HomeCard created successfully with ID: {}", savedEntity.getId());
         }
     }
 
-    private static HomeCardEntity getHomeCardEntity(CatalogEntity catalog, Optional<HomeCardEntity> existingHomeCard) {
-        HomeCardEntity existingHomeCardEntity = existingHomeCard.get();
+    @Override
+    public void upsertHomeCardForCollection(ContentCollectionEntity collection,
+                                            boolean enabled,
+                                            Integer priority,
+                                            String text,
+                                            String coverImageUrl) {
+        Optional<ContentCollectionHomeCardEntity> existingOpt = homeCardRepository
+                .findByCardTypeAndReferenceId("collection", collection.getId());
+
+        if (enabled) {
+            ContentCollectionHomeCardEntity entity = existingOpt.orElseGet(ContentCollectionHomeCardEntity::new);
+            if (entity.getId() == null) {
+                entity.setCardType("collection");
+                entity.setReferenceId(collection.getId());
+                entity.setCreatedDate(collection.getCreatedAt());
+            }
+            entity.setActiveHomeCard(true);
+            entity.setTitle(collection.getTitle());
+            entity.setSlug(collection.getSlug());
+            entity.setLocation(collection.getLocation());
+            entity.setDate(collection.getCollectionDate() != null
+                    ? collection.getCollectionDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    : null);
+            entity.setPriority(priority != null ? priority : collection.getPriority());
+            entity.setCoverImageUrl(coverImageUrl != null ? coverImageUrl : collection.getCoverImageUrl());
+            entity.setText(text);
+            homeCardRepository.save(entity);
+        } else {
+            existingOpt.ifPresent(entity -> {
+                entity.setActiveHomeCard(false);
+                homeCardRepository.save(entity);
+            });
+        }
+    }
+
+    @Override
+    public void syncHomeCardOnCollectionUpdate(ContentCollectionEntity collection) {
+        homeCardRepository.findByCardTypeAndReferenceId("collection", collection.getId())
+                .ifPresent(entity -> {
+                    entity.setTitle(collection.getTitle());
+                    entity.setSlug(collection.getSlug());
+                    entity.setLocation(collection.getLocation());
+                    entity.setDate(collection.getCollectionDate() != null
+                            ? collection.getCollectionDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            : null);
+                    if (collection.getPriority() != null) {
+                        entity.setPriority(collection.getPriority());
+                    }
+                    if (collection.getCoverImageUrl() != null) {
+                        entity.setCoverImageUrl(collection.getCoverImageUrl());
+                    }
+                    homeCardRepository.save(entity);
+                });
+    }
+
+    private static ContentCollectionHomeCardEntity getHomeCardEntity(CatalogEntity catalog, Optional<ContentCollectionHomeCardEntity> existingHomeCard) {
+        ContentCollectionHomeCardEntity existingHomeCardEntity = existingHomeCard.get();
         if (catalog.getTitle() != null) existingHomeCardEntity.setTitle(catalog.getTitle());
         if (catalog.getLocation() != null) existingHomeCardEntity.setLocation(catalog.getLocation());
         if (catalog.getPriority() != null) existingHomeCardEntity.setPriority(catalog.getPriority());

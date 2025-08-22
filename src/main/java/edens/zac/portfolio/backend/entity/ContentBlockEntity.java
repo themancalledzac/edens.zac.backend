@@ -30,10 +30,15 @@ public abstract class ContentBlockEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // TODO: Replace with proper JPA relationship once ContentCollectionEntity is created
+    // Keep FK column for write-side operations and repository queries
     @NotNull
     @Column(name = "collection_id")
     private Long collectionId;
+
+    // Bidirectional association for read/navigation; use same FK column
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "collection_id", insertable = false, updatable = false)
+    private ContentCollectionEntity collection;
 
     @NotNull
     @Column(name = "order_index")

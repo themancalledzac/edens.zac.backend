@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
 import edens.zac.portfolio.backend.model.ContentBlockModel;
 import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
@@ -38,6 +39,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     private final ContentBlockRepository contentBlockRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
     private final ContentCollectionProcessingUtil contentCollectionProcessingUtil;
+    private final HomeService homeService;
 
     private static final int DEFAULT_PAGE_SIZE = 50;
 
@@ -143,6 +145,14 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         // Save entity
         ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
 
+        applyHomeCardOptions(
+                savedEntity,
+                createDTO.getHomeCardEnabled(),
+                createDTO.getHomeCardPriority(),
+                createDTO.getHomeCardText(),
+                createDTO.getHomeCardCoverImageUrl()
+        );
+
         return convertToFullModel(savedEntity);
     }
 
@@ -173,6 +183,14 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         // Save updated entity
         ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
 
+        applyHomeCardOptions(
+                savedEntity,
+                updateDTO.getHomeCardEnabled(),
+                updateDTO.getHomeCardPriority(),
+                updateDTO.getHomeCardText(),
+                updateDTO.getHomeCardCoverImageUrl()
+        );
+
         // Update total blocks count
         long totalBlocks = contentBlockRepository.countByCollectionId(savedEntity.getId());
         savedEntity.setTotalBlocks((int) totalBlocks);
@@ -201,6 +219,9 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         Integer startOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(id);
         Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
 
+        // Track the first non-GIF image URL for potential cover usage
+        String firstImageUrlWeb = null;
+
         for (MultipartFile file : files) {
             try {
                 // Process file based on content type
@@ -209,18 +230,34 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                         // Process as GIF
                         ContentBlockEntity gifBlock = contentBlockProcessingUtil.processGifContentBlock(
                                 file, id, orderIndex, entity.getTitle(), null);
-                        contentBlocks.add(gifBlock);
+                        if (gifBlock != null && gifBlock.getId() != null) {
+                            contentBlocks.add(gifBlock);
+                        }
                     } else {
                         // Process as image
                         ContentBlockEntity imageBlock = contentBlockProcessingUtil.processImageContentBlock(
                                 file, id, orderIndex, entity.getTitle(), null);
-                        contentBlocks.add(imageBlock);
+                        if (imageBlock != null && imageBlock.getId() != null) {
+                            contentBlocks.add(imageBlock);
+
+                            // Capture the first non-GIF image URL for cover if needed
+                            if (firstImageUrlWeb == null && imageBlock instanceof ImageContentBlockEntity img) {
+                                firstImageUrlWeb = img.getImageUrlWeb();
+                            }
+                        }
                     }
                     orderIndex++;
                 }
             } catch (Exception e) {
                 log.error("Error processing file: {}", e.getMessage(), e);
             }
+        }
+
+        // If no cover yet and we uploaded at least one non-GIF image, set it now and sync HomeCard
+        if ((entity.getCoverImageUrl() == null || entity.getCoverImageUrl().isBlank()) && firstImageUrlWeb != null) {
+            entity.setCoverImageUrl(firstImageUrlWeb);
+            contentCollectionRepository.save(entity);
+            homeService.syncHomeCardOnCollectionUpdate(entity);
         }
 
         // Update total blocks count if any blocks were added
@@ -287,13 +324,12 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     private ContentCollectionModel convertToFullModel(ContentCollectionEntity entity) {
         ContentCollectionModel model = convertToBasicModel(entity);
 
-        // Convert content blocks
-        List<ContentBlockModel> contentBlocks = new ArrayList<>();
-        if (entity.getContentBlocks() != null) {
-            contentBlocks = entity.getContentBlocks().stream()
-                    .map(contentBlockProcessingUtil::convertToModel)
-                    .collect(Collectors.toList());
-        }
+        // Fetch content blocks explicitly to avoid LAZY polymorphic initializer issues
+        List<ContentBlockModel> contentBlocks = contentBlockRepository
+                .findByCollectionIdOrderByOrderIndex(entity.getId())
+                .stream()
+                .map(contentBlockProcessingUtil::convertToModel)
+                .collect(Collectors.toList());
 
         model.setContentBlocks(contentBlocks);
         return model;
@@ -302,7 +338,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     /**
      * Convert a ContentCollectionEntity and a Page of ContentBlockEntity to a ContentCollectionModel.
      *
-     * @param entity The entity to convert
+     * @param entity      The entity to convert
      * @param contentPage The page of content blocks
      * @return The converted model
      */
@@ -323,5 +359,32 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         model.setBlocksPerPage(contentPage.getSize());
 
         return model;
+    }
+
+    /**
+     * Shared handler for applying Home Card options for a collection during create/update flows.
+     * - If homeCardEnabled is non-null, upsert/deactivate accordingly via HomeService
+     * - If null, keep the HomeCard in sync with the current collection state
+     */
+    private void applyHomeCardOptions(
+            ContentCollectionEntity entity,
+            Boolean homeCardEnabled,
+            Integer priority,
+            String text,
+            String coverImageUrl
+    ) {
+        if (homeCardEnabled != null) {
+            boolean enabled = Boolean.TRUE.equals(homeCardEnabled);
+            homeService.upsertHomeCardForCollection(
+                    entity,
+                    enabled,
+                    priority,
+                    text,
+                    coverImageUrl
+            );
+        } else {
+            // No explicit toggle provided; keep in sync if a card exists
+            homeService.syncHomeCardOnCollectionUpdate(entity);
+        }
     }
 }

@@ -28,6 +28,14 @@ public class ContentCollectionUpdateDTO extends ContentCollectionBaseModel {
     @Min(value = 1, message = "Blocks per page must be 1 or greater")
     private Integer blocksPerPage;
 
+    // Home page card settings (optional)
+    private Boolean homeCardEnabled; // null = no change
+    @Min(value = 1, message = "Home card priority must be between 1 and 4")
+    @Max(value = 4, message = "Home card priority must be between 1 and 4")
+    private Integer homeCardPriority;
+    private String homeCardText;
+    private String homeCardCoverImageUrl;
+
     // Content block operations (processed separately in service layer)
     @Valid  // Add this annotation to enable nested validation
     private List<ContentBlockReorderOperation> reorderOperations;

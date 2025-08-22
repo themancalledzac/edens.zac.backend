@@ -1,7 +1,10 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
+import edens.zac.portfolio.backend.model.HomeCardModel;
+import edens.zac.portfolio.backend.model.HomePageResponse;
 import edens.zac.portfolio.backend.services.ContentCollectionService;
+import edens.zac.portfolio.backend.services.HomeService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +16,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -23,6 +28,7 @@ import java.util.Map;
 public class ContentCollectionControllerProd {
 
     private final ContentCollectionService contentCollectionService;
+    private final HomeService homeService;
     private static final int DEFAULT_PAGE_SIZE = 30;
     private static final int DEFAULT_COLLECTION_PAGE_SIZE = 10;
 
@@ -185,6 +191,39 @@ public class ContentCollectionControllerProd {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to validate access: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get Home Page cards sourced from HomeCardEntity (collection-aware)
+     *
+     * @param maxPriority maximum priority to include (default 2)
+     * @param limit optional max number of items to return
+     */
+    @GetMapping("/homePage")
+    public ResponseEntity<?> getHomePage(
+            @RequestParam(defaultValue = "2") int maxPriority,
+            @RequestParam(required = false) Integer limit) {
+        try {
+            if (maxPriority <= 0) {
+                maxPriority = 2;
+            }
+            List<HomeCardModel> items = homeService.getHomePage(maxPriority);
+            if (limit != null && limit > 0 && items.size() > limit) {
+                items = items.subList(0, limit);
+            }
+            HomePageResponse response = new HomePageResponse(
+                    items,
+                    items.size(),
+                    maxPriority,
+                    Instant.now()
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting home page cards: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve home page: " + e.getMessage());
         }
     }
 }

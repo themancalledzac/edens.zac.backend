@@ -88,7 +88,6 @@ A flexible CMS-like system where each content type has:
   - [x] Include S3 URL fields similar to images
 - **Files created**: 
   - `src/main/java/edens/zac/portfolio/backend/entity/ImageContentBlockEntity.java`
-- **Files to create**: 
   - `src/main/java/edens/zac/portfolio/backend/entity/TextContentBlockEntity.java`
   - `src/main/java/edens/zac/portfolio/backend/entity/CodeContentBlockEntity.java`
   - `src/main/java/edens/zac/portfolio/backend/entity/GifContentBlockEntity.java`
@@ -172,12 +171,12 @@ A flexible CMS-like system where each content type has:
   - [x] Implement CRUD operations with proper error handling
   - [x] Add pagination logic (default page size: 30 content blocks)
   - [x] Add client gallery password validation (SHA-256 hashing)
-  - [x] Add methods: `findByType`, `findBySlug`, `createWithContent`, `updateContent`
+  - [x] Add methods: `findByType`, `findBySlug`, `createCollection`, `updateContent`, `addContentBlocks`, `getAllCollections`
   - [x] **Performance optimization**: Use `@Transactional(readOnly = true)` for read operations
 - **Files created**: 
   - `src/main/java/edens/zac/portfolio/backend/services/ContentCollectionService.java`
   - `src/main/java/edens/zac/portfolio/backend/services/ContentCollectionServiceImpl.java`
-- **Testing**: Unit tests for service methods and integration tests for pagination (TODO: Tests for the new `createWithContentAndFiles` method need to be implemented)
+- **Testing**: Unit tests for service methods and integration tests for pagination (TODO: Tests for `addContentBlocks` flow need to be implemented)
 
 ### 3.3 Create ContentCollection Processing Util
 - [x] Create `ContentCollectionProcessingUtil.java`
@@ -196,11 +195,11 @@ A flexible CMS-like system where each content type has:
 
 ### 4.1 Create ContentCollection Read Controller
 - [x] Create `ContentCollectionControllerProd.java` in prod package
-- [x] Add endpoints with pagination:
-  - [x] `GET /collections` - all collections with basic info
-  - [x] `GET /collections/{slug}?page=0&size=30` - collection with paginated content
-  - [x] `GET /collections/type/{type}?page=0&size=10` - collections by type
-  - [x] `POST /collections/{slug}/access` - client gallery password validation
+- [x] Add endpoints with pagination (base path: `/api/read/collections`):
+  - [x] `GET /api/read/collections?page=0&size=10` - all collections with basic info (default size 10)
+  - [x] `GET /api/read/collections/{slug}?page=0&size=30` - collection with paginated content (default size 30)
+  - [x] `GET /api/read/collections/type/{type}?page=0&size=10` - collections by type (default size 10)
+  - [x] `POST /api/read/collections/{slug}/access` - client gallery password validation
 - [x] Implement proper HTTP status codes and error responses
 - [x] Add validation for pagination parameters
 - [x] Keep completely separate from existing CatalogController
@@ -209,13 +208,13 @@ A flexible CMS-like system where each content type has:
 
 ### 4.2 Create ContentCollection Write Controller (Dev Only)
 - [x] Create `ContentCollectionControllerDev.java` in dev package
-- [x] Add endpoints:
-  - [x] `POST /collections` - create collection with multipart support
-  - [x] `PUT /collections/{id}` - update collection metadata
-  - [x] `PUT /collections/{id}/content` - reorder content blocks
-  - [x] `POST /collections/{id}/content` - add content blocks
-  - [x] `DELETE /collections/{id}/content/{blockId}` - remove content block
-- [x] Include multipart support for mixed content creation
+- [x] Add endpoints (base path: `/api/write/collections`):
+  - [x] `POST /api/write/collections/createCollection` - create collection (JSON body)
+  - [x] `PUT /api/write/collections/{id}` - update collection metadata; also supports reorder/remove/add text via ContentCollectionUpdateDTO
+  - [x] `POST /api/write/collections/{id}/content` - add media content blocks (multipart file upload)
+  - [x] `DELETE /api/write/collections/{id}/content/{blockId}` - remove content block
+  - [x] `DELETE /api/write/collections/{id}` - delete collection
+- [x] Creation flow is two-step: JSON create, then separate media upload
 - [x] Add proper validation and error handling
 - [x] Follow existing patterns from `CatalogControllerDev`
 - **Files created**: `src/main/java/edens/zac/portfolio/backend/controller/dev/ContentCollectionControllerDev.java`
@@ -242,13 +241,15 @@ A flexible CMS-like system where each content type has:
 
 ### 5.2 Create API Functions
 - [ ] Create `lib/api/contentCollections.ts`
-- [ ] Implement fetch functions:
-  - [ ] `fetchCollectionBySlug(slug, page?, size?)` with pagination
-  - [ ] `fetchCollectionsByType(type, page?, size?)`
-  - [ ] `validateClientGalleryAccess(slug, password)`
-  - [ ] `createCollection(collection, files)`
-  - [ ] `updateCollection(id, updates)`
-  - [ ] `reorderContentBlocks(collectionId, newOrder)`
+- [ ] Implement fetch functions (align with backend paths and defaults):
+  - [ ] `fetchCollections(page = 0, size = 10)` -> GET `/api/read/collections`
+  - [ ] `fetchCollectionBySlug(slug, page = 0, size = 30)` -> GET `/api/read/collections/{slug}`
+  - [ ] `fetchCollectionsByType(type, page = 0, size = 10)` -> GET `/api/read/collections/type/{type}`
+  - [ ] `validateClientGalleryAccess(slug, password)` -> POST `/api/read/collections/{slug}/access`
+  - [ ] `createCollection(dto)` -> POST `/api/write/collections/createCollection` (JSON)
+  - [ ] `uploadContentFiles(collectionId, files)` -> POST `/api/write/collections/{id}/content` (multipart)
+  - [ ] `updateCollection(id, updates)` -> PUT `/api/write/collections/{id}` (metadata + reorder/remove/add text)
+  - [ ] `deleteCollection(id)` -> DELETE `/api/write/collections/{id}`
 - [ ] Follow existing error handling patterns from `lib/api/core.ts`
 - [ ] Keep separate from existing catalog API functions
 - [ ] Add proper TypeScript return types
@@ -509,4 +510,4 @@ A flexible CMS-like system where each content type has:
 - **Images/GIFs**: S3 storage with CloudFront CDN (existing pattern)
 - **Text/Code content**: Database storage as `@Lob` fields (no S3 needed)
 - **Metadata**: Database with proper indexing for performance
-- **Client passwords**: BCrypt hashing in database
+- **Client passwords**: Currently SHA-256 hashing (TODO: migrate to BCrypt before client gallery frontend work)
