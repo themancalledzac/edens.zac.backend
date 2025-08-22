@@ -1,0 +1,11 @@
+{
+  "title": "My First Blog Collection (Updated)",
+  "slug": "my-first-blog-collection",
+  "description": "An updated description for my first blog collection",
+  "location": "",
+  "visible": true,
+  "priority": 4,
+  "coverImageUrl": "",
+  "hasAccess": true,
+  "blocksPerPage": 30
+}

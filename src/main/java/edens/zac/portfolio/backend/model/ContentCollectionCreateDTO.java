@@ -28,8 +28,6 @@ public class ContentCollectionCreateDTO extends ContentCollectionBaseModel {
     @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters")
     private String title;
 
-    // TODO: Need a Description like our original Catalogs. can be blank
-
     // Visibility is optional for creation; defaults handled in service layer
     private Boolean visible;
 
@@ -41,4 +39,12 @@ public class ContentCollectionCreateDTO extends ContentCollectionBaseModel {
     // Pagination settings (optional, defaults will be applied in service)
     @Min(value = 1, message = "Blocks per page must be 1 or greater")
     private Integer blocksPerPage;
+
+    // Home page card settings (optional on creation)
+    private Boolean homeCardEnabled; // null = do not create a home card
+    @Min(value = 1, message = "Home card priority must be between 1 and 4")
+    @Max(value = 4, message = "Home card priority must be between 1 and 4")
+    private Integer homeCardPriority;
+    private String homeCardText;
+    private String homeCardCoverImageUrl;
 }

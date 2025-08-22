@@ -302,13 +302,9 @@ public class ImageProcessingUtil {
             ios.close();
         }
 
-        // For WebP format
+        // For WebP format - not supported for now
         else if ("webp".equalsIgnoreCase(formatName)) {
-            Thumbnails.of(resizedImage)
-                    .size(newWidth, newHeight)
-                    .outputQuality(compressionQuality)
-                    .outputFormat("webp")
-                    .toOutputStream(outputStream);
+            throw new IOException("WebP format is not supported at this time. Please upload JPEG or PNG.");
         }
 
         // For all other formats

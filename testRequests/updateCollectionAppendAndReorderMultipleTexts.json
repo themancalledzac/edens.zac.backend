@@ -1,0 +1,15 @@
+{
+  "title": "My First Blog Collection (Updated)",
+  "slug": "my-first-blog-collection",
+  "description": "Append two new text blocks and fully reorder using placeholders",
+  "reorderOperations": [
+    { "contentBlockId": 2, "oldOrderIndex": 1, "newOrderIndex": 0 },
+    { "contentBlockId": -1, "oldOrderIndex": 2, "newOrderIndex": 1 },
+    { "contentBlockId": 1, "oldOrderIndex": 0, "newOrderIndex": 2 },
+    { "contentBlockId": -2, "oldOrderIndex": 3, "newOrderIndex": 3 }
+  ],
+  "newTextBlocks": [
+    "First new text block",
+    "Second new text block"
+  ]
+}

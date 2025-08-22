@@ -6,6 +6,7 @@ import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,7 +15,7 @@ import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "code_content_block")
-@DiscriminatorValue("CODE")
+@PrimaryKeyJoinColumn(name = "content_block_id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor

@@ -101,13 +101,13 @@ public class ContentCollectionEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Relationship with ContentBlockEntity
+    // Relationship with ContentBlockEntity - bidirectional
     @OneToMany(
+            mappedBy = "collection",
             cascade = CascadeType.ALL,
             orphanRemoval = true,
             fetch = FetchType.LAZY
     )
-    @JoinColumn(name = "collection_id")
     @OrderBy("orderIndex ASC")
     private List<ContentBlockEntity> contentBlocks = new ArrayList<>();
 

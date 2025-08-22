@@ -19,8 +19,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "home_card")
-public class HomeCardEntity {
+@Table(name = "content_collection_home_card")
+public class ContentCollectionHomeCardEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

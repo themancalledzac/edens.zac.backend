@@ -90,14 +90,13 @@ public class ContentCollectionProcessingUtil {
 
         ContentCollectionModel model = convertToBasicModel(entity);
 
-        // Convert content blocks
-        List<ContentBlockModel> contentBlocks = new ArrayList<>();
-        if (entity.getContentBlocks() != null) {
-            contentBlocks = entity.getContentBlocks().stream()
-                    .filter(Objects::nonNull)
-                    .map(contentBlockProcessingUtil::convertToModel)
-                    .collect(Collectors.toList());
-        }
+        // Fetch blocks explicitly to avoid LAZY polymorphic initializer issues
+        List<ContentBlockModel> contentBlocks = contentBlockRepository
+                .findByCollectionIdOrderByOrderIndex(entity.getId())
+                .stream()
+                .filter(Objects::nonNull)
+                .map(contentBlockProcessingUtil::convertToModel)
+                .collect(Collectors.toList());
 
         model.setContentBlocks(contentBlocks);
         return model;
