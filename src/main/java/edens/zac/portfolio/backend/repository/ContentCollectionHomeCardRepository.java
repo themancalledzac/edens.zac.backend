@@ -16,4 +16,6 @@ public interface ContentCollectionHomeCardRepository extends JpaRepository<Conte
     List<ContentCollectionHomeCardEntity> getHomePage(@Param("maxPriority") Integer maxPriority);
 
     Optional<ContentCollectionHomeCardEntity> findByCardTypeAndReferenceId(String cardType, Long referenceId);
+
+    Optional<ContentCollectionHomeCardEntity> findByReferenceId(Long referenceId);
 }
