@@ -30,9 +30,6 @@ public class ContentCollectionUpdateDTO extends ContentCollectionBaseModel {
 
     // Home page card settings (optional)
     private Boolean homeCardEnabled; // null = no change
-    @Min(value = 1, message = "Home card priority must be between 1 and 4")
-    @Max(value = 4, message = "Home card priority must be between 1 and 4")
-    private Integer homeCardPriority;
     private String homeCardText;
     private String homeCardCoverImageUrl;
 

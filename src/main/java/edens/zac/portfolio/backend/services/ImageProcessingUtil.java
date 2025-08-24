@@ -15,7 +15,6 @@ import edens.zac.portfolio.backend.repository.CatalogRepository;
 import edens.zac.portfolio.backend.repository.ImageRepository;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -107,7 +106,7 @@ public class ImageProcessingUtil {
                         fileSize
                 );
 
-                ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, "catalog", catalogTitle);
+                ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, "catalog", catalogTitle, null);
 
                 // Add catalog relationship
                 imageEntity.getCatalogs().add(catalogEntity);
@@ -134,7 +133,7 @@ public class ImageProcessingUtil {
      * @param contextName The title of the Catalog
      * @return The created ImageEntity
      */
-    public ImageEntity processAndSaveImage(MultipartFile file, String type, String contextName) {
+    public ImageEntity processAndSaveImage(MultipartFile file, String type, String contextName, String collectionLocation) {
         try {
 
             // Step 1: Extract Metadata
@@ -160,7 +159,7 @@ public class ImageProcessingUtil {
             );
 
             // Step 4: Create and save Image entity
-            ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, type, contextName);
+            ImageEntity imageEntity = buildImageEntity(imageMetadata, s3Url, type, contextName, collectionLocation);
 
 
             // Step 5: Check for existing Image
@@ -377,6 +376,10 @@ public class ImageProcessingUtil {
     }
 
     public ImageEntity buildImageEntity(Map<String, String> imageMetadata, String s3Url, String type, String contextName) {
+        return buildImageEntity(imageMetadata, s3Url, type, contextName, null);
+    }
+
+    public ImageEntity buildImageEntity(Map<String, String> imageMetadata, String s3Url, String type, String contextName, String collectionLocation) {
         Set<CatalogEntity> catalogs = new HashSet<>();
 
         // Determine which catalog to add based on the type
@@ -384,6 +387,9 @@ public class ImageProcessingUtil {
             CatalogEntity catalog = getCatalogEntity(contextName);
             catalogs.add(catalog);
         }
+
+        // Use collection location if provided, otherwise default to empty string
+        String location = collectionLocation != null ? collectionLocation : "";
 
         // Build the image entity
         return ImageEntity.builder()
@@ -396,11 +402,12 @@ public class ImageProcessingUtil {
                 .fStop(imageMetadata.get("fStop"))
                 .lens(imageMetadata.get("lens"))
                 .blackAndWhite(Boolean.parseBoolean(imageMetadata.get("blackAndWhite")))
+                .isFilm(imageMetadata.get("fStop") == null)
                 .shutterSpeed(imageMetadata.get("shutterSpeed"))
                 .rawFileName(imageMetadata.get("rawFileName"))
                 .camera(imageMetadata.get("camera"))
                 .focalLength(imageMetadata.get("focalLength"))
-                .location("")
+                .location(location)
                 .imageUrlWeb(s3Url)
                 .imageUrlSmall("") // For now, same URL
                 .imageUrlRaw(null)

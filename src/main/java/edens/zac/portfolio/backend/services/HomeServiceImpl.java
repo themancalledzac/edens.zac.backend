@@ -81,12 +81,13 @@ public class HomeServiceImpl implements HomeService {
                                             String text,
                                             String coverImageUrl) {
         Optional<ContentCollectionHomeCardEntity> existingOpt = homeCardRepository
-                .findByCardTypeAndReferenceId("collection", collection.getId());
+                .findByReferenceId(collection.getId());
 
         if (enabled) {
             ContentCollectionHomeCardEntity entity = existingOpt.orElseGet(ContentCollectionHomeCardEntity::new);
+            // Always ensure cardType matches the collection type
+            entity.setCardType(collection.getType() != null ? collection.getType().name() : null);
             if (entity.getId() == null) {
-                entity.setCardType("collection");
                 entity.setReferenceId(collection.getId());
                 entity.setCreatedDate(collection.getCreatedAt());
             }
@@ -111,7 +112,7 @@ public class HomeServiceImpl implements HomeService {
 
     @Override
     public void syncHomeCardOnCollectionUpdate(ContentCollectionEntity collection) {
-        homeCardRepository.findByCardTypeAndReferenceId("collection", collection.getId())
+        homeCardRepository.findByReferenceId(collection.getId())
                 .ifPresent(entity -> {
                     entity.setTitle(collection.getTitle());
                     entity.setSlug(collection.getSlug());
@@ -124,6 +125,10 @@ public class HomeServiceImpl implements HomeService {
                     }
                     if (collection.getCoverImageUrl() != null) {
                         entity.setCoverImageUrl(collection.getCoverImageUrl());
+                    }
+                    // Ensure cardType stays in sync with collection type
+                    if (collection.getType() != null) {
+                        entity.setCardType(collection.getType().name());
                     }
                     homeCardRepository.save(entity);
                 });
