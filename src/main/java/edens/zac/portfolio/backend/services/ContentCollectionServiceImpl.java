@@ -148,7 +148,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         applyHomeCardOptions(
                 savedEntity,
                 createDTO.getHomeCardEnabled(),
-                createDTO.getHomeCardPriority(),
+                createDTO.getPriority(),
                 createDTO.getHomeCardText(),
                 createDTO.getHomeCardCoverImageUrl()
         );
@@ -186,7 +186,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         applyHomeCardOptions(
                 savedEntity,
                 updateDTO.getHomeCardEnabled(),
-                updateDTO.getHomeCardPriority(),
+                updateDTO.getPriority(),
                 updateDTO.getHomeCardText(),
                 updateDTO.getHomeCardCoverImageUrl()
         );
@@ -235,13 +235,13 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                         }
                     } else {
                         // Process as image
-                        ContentBlockEntity imageBlock = contentBlockProcessingUtil.processImageContentBlock(
+                        ImageContentBlockEntity img = contentBlockProcessingUtil.processImageContentBlock(
                                 file, id, orderIndex, entity.getTitle(), null);
-                        if (imageBlock != null && imageBlock.getId() != null) {
-                            contentBlocks.add(imageBlock);
+                        if (img != null && img.getId() != null) {
+                            contentBlocks.add(img);
 
                             // Capture the first non-GIF image URL for cover if needed
-                            if (firstImageUrlWeb == null && imageBlock instanceof ImageContentBlockEntity img) {
+                            if (firstImageUrlWeb == null) {
                                 firstImageUrlWeb = img.getImageUrlWeb();
                             }
                         }
@@ -374,7 +374,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
             String coverImageUrl
     ) {
         if (homeCardEnabled != null) {
-            boolean enabled = Boolean.TRUE.equals(homeCardEnabled);
+            boolean enabled = homeCardEnabled;
             homeService.upsertHomeCardForCollection(
                     entity,
                     enabled,

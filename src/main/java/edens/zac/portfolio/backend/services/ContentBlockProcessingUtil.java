@@ -3,18 +3,14 @@ package edens.zac.portfolio.backend.services;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import edens.zac.portfolio.backend.entity.CodeContentBlockEntity;
-import edens.zac.portfolio.backend.entity.ContentBlockEntity;
-import edens.zac.portfolio.backend.entity.GifContentBlockEntity;
-import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
-import edens.zac.portfolio.backend.entity.ImageEntity;
-import edens.zac.portfolio.backend.entity.TextContentBlockEntity;
+import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.CodeContentBlockModel;
 import edens.zac.portfolio.backend.model.ContentBlockModel;
 import edens.zac.portfolio.backend.model.GifContentBlockModel;
 import edens.zac.portfolio.backend.model.ImageContentBlockModel;
 import edens.zac.portfolio.backend.model.TextContentBlockModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +42,7 @@ public class ContentBlockProcessingUtil {
     // Dependencies for S3 upload and content block repository
     private final AmazonS3 amazonS3;
     private final ContentBlockRepository contentBlockRepository;
+    private final ContentCollectionRepository contentCollectionRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
     private String bucketName;
@@ -271,9 +268,14 @@ public class ContentBlockProcessingUtil {
         log.info("Processing image content block for collection {}", collectionId);
 
         try {
+            // Fetch the collection to get its location
+            String collectionLocation = contentCollectionRepository.findById(collectionId)
+                    .map(ContentCollectionEntity::getLocation)
+                    .orElse("");
+
             // Use ImageProcessingUtil to process the image and upload to S3
             // Use "content_collection" as the type and the collection ID as the context name
-            ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(file, "content_collection", collectionId.toString());
+            ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(file, "content_collection", collectionId.toString(), collectionLocation);
 
             if (imageEntity == null) {
                 log.error("Failed to process image - ImageProcessingUtil returned null");
@@ -295,7 +297,7 @@ public class ContentBlockProcessingUtil {
                     .fStop(imageEntity.getFStop())
                     .lens(imageEntity.getLens())
                     .blackAndWhite(imageEntity.getBlackAndWhite())
-                    .isFilm(false) // Default value
+                    .isFilm(imageEntity.getIsFilm()) // Use isFilm from ImageEntity instead of hardcoded false
                     .shutterSpeed(imageEntity.getShutterSpeed())
                     .rawFileName(imageEntity.getRawFileName())
                     .camera(imageEntity.getCamera())

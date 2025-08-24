@@ -85,9 +85,9 @@ public class HomeServiceImpl implements HomeService {
 
         if (enabled) {
             ContentCollectionHomeCardEntity entity = existingOpt.orElseGet(ContentCollectionHomeCardEntity::new);
+            // Always ensure cardType matches the collection type
+            entity.setCardType(collection.getType() != null ? collection.getType().name() : null);
             if (entity.getId() == null) {
-                // Set the card type to the actual collection type (e.g., BLOG, PORTFOLIO)
-                entity.setCardType(collection.getType() != null ? collection.getType().name() : null);
                 entity.setReferenceId(collection.getId());
                 entity.setCreatedDate(collection.getCreatedAt());
             }

@@ -2,10 +2,7 @@ package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.validation.constraints.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 /**
@@ -41,10 +38,8 @@ public class ContentCollectionCreateDTO extends ContentCollectionBaseModel {
     private Integer blocksPerPage;
 
     // Home page card settings (optional on creation)
-    private Boolean homeCardEnabled; // null = do not create a home card
-    @Min(value = 1, message = "Home card priority must be between 1 and 4")
-    @Max(value = 4, message = "Home card priority must be between 1 and 4")
-    private Integer homeCardPriority;
+    @Builder.Default
+    private Boolean homeCardEnabled = false; // false = do not create a home card
     private String homeCardText;
     private String homeCardCoverImageUrl;
 }
