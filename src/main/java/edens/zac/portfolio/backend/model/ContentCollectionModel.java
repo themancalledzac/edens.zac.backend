@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import edens.zac.portfolio.backend.config.DefaultValues;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -25,16 +26,16 @@ import java.util.List;
 public class ContentCollectionModel extends ContentCollectionBaseModel {
 
     // Pagination metadata (specific to this model)
-    @Min(value = 1, message = "Blocks per page must be 1 or greater")
+    @Min(value = DefaultValues.default_blocks_per_page, message = "Blocks per page must be 30 or greater")
     private Integer blocksPerPage;
 
-    @Min(value = 0, message = "Total blocks must be 0 or greater")
+    @Min(value = 1, message = "Total blocks must be 1 or greater")
     private Integer totalBlocks;
 
     @Min(value = 1, message = "Current page must be 1 or greater")
     private Integer currentPage;
 
-    @Min(value = 0, message = "Total pages must be 0 or greater")
+    @Min(value = 1, message = "Total pages must be 1 or greater")
     private Integer totalPages;
 
     // Content blocks (paginated)

@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.model.HomePageResponse;
@@ -29,8 +30,6 @@ public class ContentCollectionControllerProd {
 
     private final ContentCollectionService contentCollectionService;
     private final HomeService homeService;
-    private static final int DEFAULT_PAGE_SIZE = 30;
-    private static final int DEFAULT_COLLECTION_PAGE_SIZE = 10;
 
     /**
      * Get all collections with basic info (paginated)
@@ -44,15 +43,12 @@ public class ContentCollectionControllerProd {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         try {
-            // Validate pagination parameters
+            // Normalize pagination parameters: 0-based pages; negative coerced to 0.
             if (page < 0) {
-                return ResponseEntity
-                        .status(HttpStatus.BAD_REQUEST)
-                        .body("Page number cannot be negative");
+                page = 0;
             }
-
             if (size <= 0) {
-                size = DEFAULT_COLLECTION_PAGE_SIZE;
+                size = DefaultValues.default_content_collection_per_page;
             }
 
             Pageable pageable = PageRequest.of(page, size);
@@ -80,17 +76,15 @@ public class ContentCollectionControllerProd {
     public ResponseEntity<?> getCollectionBySlug(
             @PathVariable String slug,
             @RequestParam(defaultValue = "0") int page,
+            // TODO: need to use a 'default' variable for this, use in all locations
             @RequestParam(defaultValue = "30") int size) {
         try {
-            // Validate pagination parameters
+            // Normalize pagination parameters: pages are 0-based; coerce negatives to 0 (first page)
             if (page < 0) {
-                return ResponseEntity
-                        .status(HttpStatus.BAD_REQUEST)
-                        .body("Page number cannot be negative");
+                page = 0;
             }
-
             if (size <= 0) {
-                size = DEFAULT_PAGE_SIZE;
+                size = DefaultValues.default_blocks_per_page;
             }
 
             ContentCollectionModel collection = contentCollectionService.getCollectionWithPagination(slug, page, size);
@@ -122,15 +116,12 @@ public class ContentCollectionControllerProd {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         try {
-            // Validate pagination parameters
+            // Normalize pagination parameters
             if (page < 0) {
-                return ResponseEntity
-                        .status(HttpStatus.BAD_REQUEST)
-                        .body("Page number cannot be negative");
+                page = 0;
             }
-
             if (size <= 0) {
-                size = DEFAULT_COLLECTION_PAGE_SIZE;
+                size = DefaultValues.default_content_collection_per_page;
             }
 
             // Convert string type to enum

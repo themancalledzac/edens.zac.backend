@@ -24,7 +24,8 @@ import java.util.List;
                 @Index(name = "idx_content_collection_type", columnList = "type"),
                 @Index(name = "idx_content_collection_created_at", columnList = "created_at"),
                 @Index(name = "idx_content_collection_priority", columnList = "priority"),
-                @Index(name = "idx_content_collection_type_priority", columnList = "type, priority")
+                @Index(name = "idx_content_collection_type_priority", columnList = "type, priority"),
+                @Index(name = "idx_content_collection_cover_block", columnList = "cover_image_block_id")
         }
 )
 @Data
@@ -73,6 +74,10 @@ public class ContentCollectionEntity {
     @Column(name = "cover_image_url")
     private String coverImageUrl;
 
+    // Foreign key reference to the image content block used as cover (nullable)
+    @Column(name = "cover_image_block_id")
+    private Long coverImageBlockId;
+
     // Client gallery security
     @Column(name = "password_hash")
     private String passwordHash;
@@ -88,9 +93,6 @@ public class ContentCollectionEntity {
     @Column(name = "total_blocks")
     private Integer totalBlocks;
 
-    // Type-specific configuration stored as JSON
-    @Column(name = "config_json", columnDefinition = "json")
-    private String configJson;
 
     // Timestamps
     @CreationTimestamp

@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
-import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.data.domain.Page;
@@ -56,10 +56,10 @@ public interface ContentCollectionService {
     /**
      * Create a new collection with content.
      *
-     * @param createDTO The DTO containing collection data
+     * @param createRequest The request containing collection data
      * @return The created collection
      */
-    ContentCollectionModel createCollection(ContentCollectionCreateDTO createDTO);
+    ContentCollectionModel createCollection(ContentCollectionCreateRequest createRequest);
 
 
     /**

@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.controller.dev;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
 import edens.zac.portfolio.backend.services.ContentCollectionService;
@@ -45,7 +45,7 @@ class ContentCollectionControllerDevTest {
     private ObjectMapper objectMapper;
 
     private ContentCollectionModel testCollection;
-    private ContentCollectionCreateDTO testCreateDTO;
+    private ContentCollectionCreateRequest testCreateRequest;
     private ContentCollectionUpdateDTO testUpdateDTO;
 
     @BeforeEach
@@ -74,14 +74,10 @@ class ContentCollectionControllerDevTest {
         testCollection.setCreatedAt(LocalDateTime.now());
         testCollection.setUpdatedAt(LocalDateTime.now());
 
-        // Create test create DTO
-        testCreateDTO = new ContentCollectionCreateDTO();
-        testCreateDTO.setType(CollectionType.BLOG);
-        testCreateDTO.setTitle("New Test Blog");
-        testCreateDTO.setDescription("A new test blog collection");
-        testCreateDTO.setVisible(true);
-        testCreateDTO.setPriority(1);
-        testCreateDTO.setBlocksPerPage(30);
+        // Create minimal test create request
+        testCreateRequest = new ContentCollectionCreateRequest();
+        testCreateRequest.setType(CollectionType.BLOG);
+        testCreateRequest.setTitle("New Test Blog");
 
         // Create test update DTO
         testUpdateDTO = new ContentCollectionUpdateDTO();
@@ -93,36 +89,36 @@ class ContentCollectionControllerDevTest {
     @DisplayName("POST /collections/createCollection should create a new collection")
     void createCollection_shouldCreateNewCollection() throws Exception {
         // Arrange
-        when(contentCollectionService.createCollection(any(ContentCollectionCreateDTO.class)))
+        when(contentCollectionService.createCollection(any(ContentCollectionCreateRequest.class)))
                 .thenReturn(testCollection);
 
         // Act & Assert
         mockMvc.perform(post("/api/write/collections/createCollection")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(testCreateDTO)))
+                .content(objectMapper.writeValueAsString(testCreateRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.title", is("Test Blog")))
                 .andExpect(jsonPath("$.type", is("BLOG")));
 
-        verify(contentCollectionService).createCollection(any(ContentCollectionCreateDTO.class));
+        verify(contentCollectionService).createCollection(any(ContentCollectionCreateRequest.class));
     }
 
     @Test
     @DisplayName("POST /collections/createCollection should handle errors")
     void createCollection_shouldHandleErrors() throws Exception {
         // Arrange
-        when(contentCollectionService.createCollection(any(ContentCollectionCreateDTO.class)))
+        when(contentCollectionService.createCollection(any(ContentCollectionCreateRequest.class)))
                 .thenThrow(new RuntimeException("Test error"));
 
         // Act & Assert
         mockMvc.perform(post("/api/write/collections/createCollection")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(testCreateDTO)))
+                .content(objectMapper.writeValueAsString(testCreateRequest)))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$", containsString("Failed to create collection")));
 
-        verify(contentCollectionService).createCollection(any(ContentCollectionCreateDTO.class));
+        verify(contentCollectionService).createCollection(any(ContentCollectionCreateRequest.class));
     }
 
     @Test

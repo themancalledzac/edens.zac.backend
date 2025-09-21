@@ -55,10 +55,8 @@ class ContentCollectionUpdateDTOTest {
                     .collectionDate(now)
                     .visible(true)
                     .priority(2)
-                    .coverImageUrl("https://example.com/updated-cover.jpg")
                     .isPasswordProtected(true)
                     .hasAccess(true)
-                    .configJson("{\"updated\": \"config\"}")
                     .createdAt(now)
                     .updatedAt(now)
                     .password("newpassword123")
@@ -79,10 +77,8 @@ class ContentCollectionUpdateDTOTest {
             assertEquals(now, dto.getCollectionDate());
             assertTrue(dto.getVisible());
             assertEquals(2, dto.getPriority());
-            assertEquals("https://example.com/updated-cover.jpg", dto.getCoverImageUrl());
             assertTrue(dto.getIsPasswordProtected());
             assertTrue(dto.getHasAccess());
-            assertEquals("{\"updated\": \"config\"}", dto.getConfigJson());
             assertEquals(now, dto.getCreatedAt());
             assertEquals(now, dto.getUpdatedAt());
             assertEquals("newpassword123", dto.getPassword());
@@ -820,7 +816,6 @@ class ContentCollectionUpdateDTOTest {
                     .hasAccess(true)
                     .password("newclientsecure2024")
                     .blocksPerPage(40)
-                    .configJson("{\"downloadEnabled\": true, \"theme\": \"elegant\"}")
                     .build();
 
             Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
@@ -831,7 +826,6 @@ class ContentCollectionUpdateDTOTest {
             assertTrue(dto.getHasAccess());
             assertEquals("newclientsecure2024", dto.getPassword());
             assertEquals(40, dto.getBlocksPerPage());
-            assertTrue(dto.getConfigJson().contains("downloadEnabled"));
         }
 
         @Test

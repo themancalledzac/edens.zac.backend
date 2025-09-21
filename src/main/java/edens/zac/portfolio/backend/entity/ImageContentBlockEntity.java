@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import jakarta.persistence.Column;
-import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import jakarta.persistence.PrimaryKeyJoinColumn;
@@ -43,8 +42,6 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
     @Column(name = "image_url_web")
     private String imageUrlWeb;
     
-    @Column(name = "image_url_raw") // TODO: move from RAW to FullSize
-    private String imageUrlRaw;
     
     // Additional fields that might be useful
     @Column(name = "create_date")

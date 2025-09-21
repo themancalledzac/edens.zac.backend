@@ -70,7 +70,7 @@ public class ImageServiceImpl implements ImageService {
             }
 
             // 4: Process and Save the image using the shared utility
-            ImageEntity savedImage = imageProcessingUtil.processAndSaveImage(file, type, contextName);
+            ImageEntity savedImage = imageProcessingUtil.processAndSaveImage(file, type, contextName, null);
             log.info("Image processed and saved with ID: {}", savedImage.getId());
 
             // 5. Add ID to metadata response

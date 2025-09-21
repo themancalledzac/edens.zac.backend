@@ -655,4 +655,12 @@ public class ImageProcessingUtil {
 
         return imageEntity;
     }
+
+    /**
+     * Backward-compatible overload that delegates to the 4-arg method.
+     * This preserves existing callers (including tests) that don't provide collectionLocation.
+     */
+    public ImageEntity processAndSaveImage(MultipartFile file, String type, String contextName) {
+        return processAndSaveImage(file, type, contextName, null);
+    }
 }

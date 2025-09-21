@@ -51,10 +51,8 @@ class ContentCollectionModelTest {
                     .collectionDate(now)
                     .visible(true)
                     .priority(1)
-                    .coverImageUrl("https://example.com/cover.jpg")
                     .isPasswordProtected(false)
                     .hasAccess(true)
-                    .configJson("{\"theme\": \"dark\"}")
                     .createdAt(now)
                     .updatedAt(now)
                     .blocksPerPage(30)
@@ -74,10 +72,9 @@ class ContentCollectionModelTest {
             assertEquals(now, model.getCollectionDate());
             assertTrue(model.getVisible());
             assertEquals(1, model.getPriority());
-            assertEquals("https://example.com/cover.jpg", model.getCoverImageUrl());
+            assertNull(model.getCoverImage());
             assertFalse(model.getIsPasswordProtected());
             assertTrue(model.getHasAccess());
-            assertEquals("{\"theme\": \"dark\"}", model.getConfigJson());
             assertEquals(now, model.getCreatedAt());
             assertEquals(now, model.getUpdatedAt());
             assertEquals(30, model.getBlocksPerPage());
@@ -158,7 +155,7 @@ class ContentCollectionModelTest {
             Set<ConstraintViolation<ContentCollectionModel>> violations = validator.validate(model);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
-                    .anyMatch(v -> v.getMessage().contains("Blocks per page must be 1 or greater")));
+                    .anyMatch(v -> v.getMessage().contains("Blocks per page must be 30 or greater")));
         }
 
         @Test

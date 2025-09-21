@@ -118,3 +118,39 @@ Run unit tests:
 ```bash
 mvn test
 ```
+
+
+## Database Selection and Sequel Ace Guide
+
+This backend uses MySQL only. There is no H2 or DynamoDB configuration.
+
+How the datasource is chosen:
+- application.properties sets:
+  - spring.datasource.url = ${SPRING_DATASOURCE_URL:jdbc:mysql://${EC2_HOST:localhost}:3306/edens_zac?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+  - spring.datasource.username = ${SPRING_DATASOURCE_USERNAME:zedens}
+  - spring.datasource.password = ${SPRING_DATASOURCE_PASSWORD:password}
+- If SPRING_DATASOURCE_URL is provided, it wins. Otherwise the URL falls back to jdbc:mysql://${EC2_HOST:localhost}:3306/edens_zac.
+- Active profiles are set via SPRING_PROFILES_ACTIVE. The dev controller (@Profile("dev")) loads only when the dev profile is active; the prod controller is always active.
+
+Typical scenarios:
+1) Docker Compose (recommended for local):
+   - DB: MySQL container (service name: mysql), exposed on localhost:3306.
+   - Backend env: SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edens_zac (from docker-compose.yml), SPRING_PROFILES_ACTIVE=dev by default.
+   - Sequel Ace: host 127.0.0.1, port 3306, user zedens, password password (unless you override), database edens_zac.
+
+2) Local run (outside Docker) without SPRING_DATASOURCE_URL:
+   - DB URL: jdbc:mysql://${EC2_HOST:localhost}:3306/edens_zac
+   - If EC2_HOST is set in your shell, the app connects to your EC2/RDS MySQL endpoint; otherwise it connects to your local MySQL on port 3306.
+   - Sequel Ace must point to the same host: either your EC2/RDS host:3306 or 127.0.0.1:3306.
+
+3) Local run (outside Docker) with SPRING_DATASOURCE_URL:
+   - DB URL: whatever you set, e.g., jdbc:mysql://127.0.0.1:3306/edens_zac
+   - Sequel Ace: match the same host/port/user/database.
+
+Runtime verification:
+- On startup, the app logs active profiles and the configured datasource URL/username and attempts to log the DB product and driver versions. Look for log lines from DatabaseInfoLogger to confirm exactly which DB you’re connected to.
+
+Troubleshooting tips:
+- If you don’t see new data in Sequel Ace, double-check that Sequel Ace is targeting the same MySQL host/port/database as the backend.
+- DynamoDB endpoints are not compatible—ensure Sequel Ace points to a MySQL host.
+- In Docker, the default creds are: user=z edens, password=password, db=edens_zac (see docker-compose.yml). Change via MYSQL_* envs if needed.

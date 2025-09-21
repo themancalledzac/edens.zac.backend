@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.controller.dev;
 
-import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
 import edens.zac.portfolio.backend.services.ContentCollectionService;
@@ -34,7 +34,7 @@ public class ContentCollectionControllerDev {
     /**
      * Create a new collection
      *
-     * @param createDTO Collection creation data
+     * @param createRequest Collection creation data
      * @return ResponseEntity with the created collection
      */
     @PostMapping(
@@ -42,10 +42,10 @@ public class ContentCollectionControllerDev {
             consumes = {MediaType.APPLICATION_JSON_VALUE}
     )
     public ResponseEntity<?> createCollection(
-            @RequestBody ContentCollectionCreateDTO createDTO) {
+            @RequestBody ContentCollectionCreateRequest createRequest) {
         try {
             // Create collection with content
-            ContentCollectionModel createdCollection = contentCollectionService.createCollection(createDTO);
+            ContentCollectionModel createdCollection = contentCollectionService.createCollection(createRequest);
             log.info("Successfully created collection: {}", createdCollection.getId());
 
             return ResponseEntity.ok(createdCollection);

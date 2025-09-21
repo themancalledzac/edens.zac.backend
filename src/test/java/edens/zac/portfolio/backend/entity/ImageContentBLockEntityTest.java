@@ -45,7 +45,6 @@ class ImageContentBlockEntityTest {
                 .camera("Canon EOS R5")
                 .focalLength("50mm")
                 .location("Yosemite National Park")
-                .imageUrlRaw("https://example.com/images/raw/mountain.cr2")
                 .createDate("2023-05-15")
                 .build();
 
@@ -101,7 +100,6 @@ class ImageContentBlockEntityTest {
                 .camera("Canon EOS R5")
                 .focalLength("50mm")
                 .location("Yosemite National Park")
-                .imageUrlRaw("https://example.com/images/raw/mountain.cr2")
                 .createDate("2023-05-15")
                 .build();
 
@@ -126,7 +124,6 @@ class ImageContentBlockEntityTest {
         assertEquals("Canon EOS R5", imageBlock.getCamera());
         assertEquals("50mm", imageBlock.getFocalLength());
         assertEquals("Yosemite National Park", imageBlock.getLocation());
-        assertEquals("https://example.com/images/raw/mountain.cr2", imageBlock.getImageUrlRaw());
         assertEquals("2023-05-15", imageBlock.getCreateDate());
     }
 

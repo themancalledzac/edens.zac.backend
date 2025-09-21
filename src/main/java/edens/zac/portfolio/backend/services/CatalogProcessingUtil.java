@@ -45,7 +45,7 @@ public class CatalogProcessingUtil {
         log.info("Processing {} new uploaded images for catalog", images.size());
         for (MultipartFile image : images) {
             try {
-                ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(image, "catalog", catalogTitle);
+                ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(image, "catalog", catalogTitle, catalog.getLocation());
 
                 if (imageEntity == null) {
                     log.warn("Failed to process image {}", image.getOriginalFilename());
