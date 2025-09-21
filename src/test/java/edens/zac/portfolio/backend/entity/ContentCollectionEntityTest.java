@@ -270,7 +270,7 @@ class ContentCollectionEntityTest {
         collection.setTotalBlocks(100);
         collection.setPasswordHash("$2a$10$someHashValue");
         collection.setPasswordProtected(true);
-        collection.setCoverImageUrl("https://example.com/cover.jpg");
+        collection.setCoverImageBlockId(123L);
 
         // Verify all fields were set correctly
         assertEquals(CollectionType.PORTFOLIO, collection.getType());
@@ -285,7 +285,7 @@ class ContentCollectionEntityTest {
         assertEquals(100, collection.getTotalBlocks());
         assertEquals("$2a$10$someHashValue", collection.getPasswordHash());
         assertTrue(collection.getPasswordProtected());
-        assertEquals("https://example.com/cover.jpg", collection.getCoverImageUrl());
+        assertEquals(123L, collection.getCoverImageBlockId());
     }
 
     @Test

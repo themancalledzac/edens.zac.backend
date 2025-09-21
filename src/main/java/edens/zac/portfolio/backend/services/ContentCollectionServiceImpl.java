@@ -156,33 +156,16 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         // Update basic properties via utility helper
         contentCollectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
 
-        // If client explicitly sets a coverImageBlockId, validate and apply
-        if (updateDTO.getCoverImageBlockId() != null) {
-            Long blockId = updateDTO.getCoverImageBlockId();
-            ContentBlockEntity block = contentBlockRepository.findById(blockId)
-                    .orElseThrow(() -> new EntityNotFoundException("Content block not found: " + blockId));
-            if (!id.equals(block.getCollectionId())) {
-                throw new IllegalArgumentException("Cover image block does not belong to this collection");
-            }
-            if (!(block instanceof ImageContentBlockEntity img)) {
-                throw new IllegalArgumentException("Cover image block must be an image block");
-            }
-            entity.setCoverImageBlockId(blockId);
-            entity.setCoverImageUrl(img.getImageUrlWeb());
-        }
-
         // Handle content block removals - dissociate blocks from this collection instead of deleting
         if (updateDTO.getContentBlockIdsToRemove() != null && !updateDTO.getContentBlockIdsToRemove().isEmpty()) {
             contentBlockRepository.dissociateFromCollection(id, updateDTO.getContentBlockIdsToRemove());
             if (entity.getCoverImageBlockId() != null && updateDTO.getContentBlockIdsToRemove().contains(entity.getCoverImageBlockId())) {
                 // Removed the current cover image; choose the next available image as new cover if any
                 entity.setCoverImageBlockId(null);
-                entity.setCoverImageUrl(null);
                 List<ContentBlockEntity> remaining = contentBlockRepository.findByCollectionIdOrderByOrderIndex(id);
                 for (ContentBlockEntity b : remaining) {
                     if (b instanceof ImageContentBlockEntity img) {
                         entity.setCoverImageBlockId(img.getId());
-                        entity.setCoverImageUrl(img.getImageUrlWeb());
                         break;
                     }
                 }
@@ -272,7 +255,6 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
 
         // If no cover yet and we uploaded at least one non-GIF image, set it now and sync HomeCard
         if (entity.getCoverImageBlockId() == null && firstImageBlockId != null) {
-            entity.setCoverImageUrl(firstImageUrlWeb);
             entity.setCoverImageBlockId(firstImageBlockId);
             contentCollectionRepository.save(entity);
             homeService.syncHomeCardOnCollectionUpdate(entity);

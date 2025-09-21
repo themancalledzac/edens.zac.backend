@@ -38,6 +38,10 @@ public class ContentCollectionModel extends ContentCollectionBaseModel {
     @Min(value = 1, message = "Total pages must be 1 or greater")
     private Integer totalPages;
 
+    // Cover image for the collection (full ImageContentBlockModel when set)
+    @Valid
+    private ImageContentBlockModel coverImage;
+
     // Content blocks (paginated)
     @Valid
     private List<ContentBlockModel> contentBlocks;

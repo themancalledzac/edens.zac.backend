@@ -44,8 +44,6 @@ public abstract class ContentCollectionBaseModel {
     @Max(value = 4, message = "Priority must be between 1 and 4 (1 = best, 4 = worst)")
     private Integer priority;
 
-    // New: detailed cover image reference (URL + intrinsic size)
-    private ImageRef coverImage;
 
     // Client gallery security fields
     private Boolean isPasswordProtected;

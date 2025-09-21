@@ -50,7 +50,6 @@ class ContentCollectionPageDTOTest {
                 .collectionDate(now)
                 .visible(true)
                 .priority(1)
-                .coverImage(new ImageRef("https://example.com/cover.jpg", null, null))
                 .isPasswordProtected(false)
                 .hasAccess(true)
                 .createdAt(now)

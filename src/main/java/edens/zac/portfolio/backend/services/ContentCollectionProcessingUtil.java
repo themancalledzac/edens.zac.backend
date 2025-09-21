@@ -26,24 +26,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ContentCollectionProcessingUtil {
 
-    // Normalize a URL to a comparable S3 object key (lowercased path without domain/query)
-    private static String normalizeKey(String url) {
-        if (url == null || url.isBlank()) return null;
-        String noQuery = url.split("\\?")[0];
-        // strip protocol
-        String noProto = noQuery.replaceFirst("^https?://", "");
-        // remove domain part up to first '/'
-        int slash = noProto.indexOf('/');
-        String path = (slash >= 0) ? noProto.substring(slash + 1) : noProto;
-        // normalize backslashes and trim
-        path = path.replace('\\', '/');
-        // lower-case for case-insensitive comparisons (handles WEB vs web)
-        path = path.toLowerCase();
-        // also collapse multiple slashes
-        path = path.replaceAll("/+", "/");
-        return path;
-    }
-
     private final ContentCollectionRepository contentCollectionRepository;
     private final ContentBlockRepository contentBlockRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
@@ -57,6 +39,30 @@ public class ContentCollectionProcessingUtil {
     // =============================================================================
     // ENTITY-TO-MODEL CONVERSION
     // =============================================================================
+
+    /**
+     * Helper method to populate coverImage on a model from an entity.
+     * Loads the full ImageContentBlockModel if coverImageBlockId is set.
+     * Only accepts image blocks as cover images.
+     */
+    private void populateCoverImage(ContentCollectionModel model, ContentCollectionEntity entity) {
+        if (entity.getCoverImageBlockId() != null) {
+            ContentBlockEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId())
+                    .orElse(null);
+            if (block instanceof ImageContentBlockEntity) {
+                ContentBlockModel blockModel = contentBlockProcessingUtil.convertToModel(block);
+                if (blockModel instanceof ImageContentBlockModel imageModel) {
+                    model.setCoverImage(imageModel);
+                } else {
+                    log.warn("Cover image block {} converted to non-ImageContentBlockModel: {}",
+                            entity.getCoverImageBlockId(), blockModel.getClass().getSimpleName());
+                }
+            } else if (block != null) {
+                log.warn("Cover image block {} is not an ImageContentBlockEntity: {}",
+                        entity.getCoverImageBlockId(), block.getClass().getSimpleName());
+            }
+        }
+    }
 
     /**
      * Convert a ContentCollectionEntity to a ContentCollectionModel with basic information.
@@ -80,14 +86,10 @@ public class ContentCollectionProcessingUtil {
         model.setCollectionDate(entity.getCollectionDate());
         model.setVisible(entity.getVisible());
         model.setPriority(entity.getPriority());
-        // Populate coverImage strictly via FK (coverImageBlockId). No URL-based fallbacks.
-        if (entity.getCoverImageBlockId() != null) {
-            ContentBlockEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId())
-                    .orElse(null);
-            if (block instanceof ImageContentBlockEntity img) {
-                model.setCoverImage(new ImageRef(img.getImageUrlWeb(), img.getImageWidth(), img.getImageHeight()));
-            }
-        }
+
+        // Populate coverImage using helper method
+        populateCoverImage(model, entity);
+
         model.setIsPasswordProtected(entity.isPasswordProtected());
         model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
         model.setCreatedAt(entity.getCreatedAt());
@@ -130,14 +132,6 @@ public class ContentCollectionProcessingUtil {
                 .collect(Collectors.toList());
 
         model.setContentBlocks(contentBlocks);
-
-        // Populate coverImage strictly via FK if present; otherwise leave null (no cover).
-        if (entity.getCoverImageBlockId() != null) {
-            ContentBlockEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId()).orElse(null);
-            if (block instanceof ImageContentBlockEntity img) {
-                model.setCoverImage(new ImageRef(img.getImageUrlWeb(), img.getImageWidth(), img.getImageHeight()));
-            }
-        }
         return model;
     }
 
@@ -168,14 +162,6 @@ public class ContentCollectionProcessingUtil {
         model.setTotalPages(contentPage.getTotalPages());
         model.setTotalBlocks((int) contentPage.getTotalElements());
         model.setBlocksPerPage(contentPage.getSize());
-
-        // Populate coverImage strictly via FK if present; otherwise leave null.
-        if (entity.getCoverImageBlockId() != null) {
-            ContentBlockEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId()).orElse(null);
-            if (block instanceof ImageContentBlockEntity img) {
-                model.setCoverImage(new ImageRef(img.getImageUrlWeb(), img.getImageWidth(), img.getImageHeight()));
-            }
-        }
         return model;
     }
 
@@ -249,6 +235,22 @@ public class ContentCollectionProcessingUtil {
         }
         if (updateDTO.getBlocksPerPage() != null && updateDTO.getBlocksPerPage() >= 1) {
             entity.setBlocksPerPage(updateDTO.getBlocksPerPage());
+        }
+
+        // Handle coverImage updates
+        if (updateDTO.getCoverImageId() != null) {
+            // Validate that the cover image ID references an actual image block
+            ContentBlockEntity coverBlock = contentBlockRepository.findById(updateDTO.getCoverImageId())
+                    .orElse(null);
+            if (coverBlock instanceof ImageContentBlockEntity) {
+                entity.setCoverImageBlockId(updateDTO.getCoverImageId());
+            } else if (coverBlock != null) {
+                throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
+                        + " does not reference an image block (found: " + coverBlock.getClass().getSimpleName() + ")");
+            } else {
+                throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
+                        + " does not exist");
+            }
         }
 
         // Handle password updates for client galleries

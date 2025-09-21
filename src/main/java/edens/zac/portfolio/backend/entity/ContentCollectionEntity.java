@@ -70,10 +70,6 @@ public class ContentCollectionEntity {
     @Column(name = "priority")
     private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
 
-    // Cover image URL for the collection
-    @Column(name = "cover_image_url")
-    private String coverImageUrl;
-
     // Foreign key reference to the image content block used as cover (nullable)
     @Column(name = "cover_image_block_id")
     private Long coverImageBlockId;

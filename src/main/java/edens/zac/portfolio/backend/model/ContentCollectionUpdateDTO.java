@@ -33,8 +33,8 @@ public class ContentCollectionUpdateDTO extends ContentCollectionBaseModel {
     private String homeCardText;
     private String homeCardCoverImageUrl;
 
-    // Optional: explicitly set cover image by block id (must belong to this collection)
-    private Long coverImageBlockId;
+    // Optional: explicitly set cover image by content block id (must belong to this collection)
+    private Long coverImageId;
 
     // Content block operations (processed separately in service layer)
     @Valid  // Add this annotation to enable nested validation

@@ -30,6 +30,18 @@ class ContentCollectionBaseModelTest {
         validator = factory.getValidator();
     }
 
+    /**
+     * Helper method to create a test ImageContentBlockModel
+     */
+    private static ImageContentBlockModel createTestImageContentBlock(String imageUrl) {
+        ImageContentBlockModel imageBlock = new ImageContentBlockModel();
+        imageBlock.setId(123L);
+        imageBlock.setImageUrlWeb(imageUrl);
+        imageBlock.setImageWidth(1920);
+        imageBlock.setImageHeight(1080);
+        return imageBlock;
+    }
+
     @Nested
     @DisplayName("Builder Pattern Tests")
     class BuilderPatternTests {
@@ -49,7 +61,7 @@ class ContentCollectionBaseModelTest {
                     .collectionDate(now)
                     .visible(true)
                     .priority(1)
-                    .coverImage(new ImageRef("https://example.com/cover.jpg", null, null))
+                    .coverImage(createTestImageContentBlock("https://example.com/cover.jpg"))
                     .isPasswordProtected(false)
                     .hasAccess(true)
                     .createdAt(now)
@@ -67,7 +79,7 @@ class ContentCollectionBaseModelTest {
             assertTrue(model.getVisible());
             assertEquals(1, model.getPriority());
             assertNotNull(model.getCoverImage());
-                        assertEquals("https://example.com/cover.jpg", model.getCoverImage().url());
+            assertEquals("https://example.com/cover.jpg", model.getCoverImage().getImageUrlWeb());
             assertFalse(model.getIsPasswordProtected());
             assertTrue(model.getHasAccess());
             assertEquals(now, model.getCreatedAt());
