@@ -12,14 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,7 +26,6 @@ class ContentCollectionServiceImplTest {
 
     @Mock private ContentCollectionRepository contentCollectionRepository;
     @Mock private ContentBlockRepository contentBlockRepository;
-    @Mock private ContentBlockProcessingUtil contentBlockProcessingUtil;
     @Mock private ContentCollectionProcessingUtil contentCollectionProcessingUtil;
     @Mock private HomeService homeService;
 
@@ -84,7 +78,6 @@ class ContentCollectionServiceImplTest {
                 .homeCardEnabled(false)
                 .priority(3)
                 .homeCardText("irrelevant when disabled")
-                .homeCardCoverImageUrl("https://img/override.jpg")
                 .build();
 
         ContentCollectionEntity existing = new ContentCollectionEntity();
@@ -112,7 +105,7 @@ class ContentCollectionServiceImplTest {
         // Assert
         assertThat(result).isNotNull();
         verify(homeService).upsertHomeCardForCollection(
-                eq(existing), eq(false), eq(3), eq("irrelevant when disabled"), eq("https://img/override.jpg")
+                eq(existing), eq(false), eq(3), eq("irrelevant when disabled")
         );
         verify(homeService, never()).syncHomeCardOnCollectionUpdate(any());
     }

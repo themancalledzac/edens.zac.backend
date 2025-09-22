@@ -31,9 +31,7 @@ public class ContentCollectionUpdateDTO extends ContentCollectionBaseModel {
     // Home page card settings (optional)
     private Boolean homeCardEnabled; // null = no change
     private String homeCardText;
-    private String homeCardCoverImageUrl;
 
-    // Optional: explicitly set cover image by content block id (must belong to this collection)
     private Long coverImageId;
 
     // Content block operations (processed separately in service layer)

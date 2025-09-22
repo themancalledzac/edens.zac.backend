@@ -185,8 +185,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                 savedEntity,
                 updateDTO.getHomeCardEnabled(),
                 updateDTO.getPriority(),
-                updateDTO.getHomeCardText(),
-                updateDTO.getHomeCardCoverImageUrl()
+                updateDTO.getHomeCardText()
         );
 
         // Update total blocks count
@@ -360,8 +359,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
             ContentCollectionEntity entity,
             Boolean homeCardEnabled,
             Integer priority,
-            String text,
-            String coverImageUrl
+            String text
     ) {
         if (homeCardEnabled != null) {
             boolean enabled = homeCardEnabled;
@@ -369,8 +367,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                     entity,
                     enabled,
                     priority,
-                    text,
-                    coverImageUrl
+                    text
             );
         } else {
             // No explicit toggle provided; keep in sync if a card exists

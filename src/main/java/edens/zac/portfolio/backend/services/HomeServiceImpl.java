@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.CatalogEntity;
-import edens.zac.portfolio.backend.entity.ContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
 import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
@@ -99,8 +98,7 @@ public class HomeServiceImpl implements HomeService {
     public void upsertHomeCardForCollection(ContentCollectionEntity collection,
                                             boolean enabled,
                                             Integer priority,
-                                            String text,
-                                            String coverImageUrl) {
+                                            String text) {
         Optional<ContentCollectionHomeCardEntity> existingOpt = homeCardRepository
                 .findByReferenceId(collection.getId());
 
@@ -120,7 +118,7 @@ public class HomeServiceImpl implements HomeService {
                     ? collection.getCollectionDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
                     : null);
             entity.setPriority(priority != null ? priority : collection.getPriority());
-            entity.setCoverImageUrl(coverImageUrl != null ? coverImageUrl : getCoverImageUrl(collection));
+            entity.setCoverImageUrl(getCoverImageUrl(collection));
             entity.setText(text);
             homeCardRepository.save(entity);
         } else {
