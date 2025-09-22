@@ -29,15 +29,23 @@ public enum CollectionType {
     @JsonCreator
     public static CollectionType forValue(String value) {
         if (value == null) {
-            log.warn("Null CollectionType value, defaulting to 'Portfolio'");
-            return PORTFOLIO;
+            throw new IllegalArgumentException("CollectionType value cannot be null");
         }
 
+        // First try exact match (for enum names like "BLOG")
         try {
-            return CollectionType.valueOf(value);
+            return CollectionType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid CollectionType value: {}, defaulting to PORTFOLIO", value);
-            return PORTFOLIO;
+            // Then try by display name (for values like "Blog")
+            for (CollectionType type : CollectionType.values()) {
+                if (type.getDisplayName().equalsIgnoreCase(value)) {
+                    return type;
+                }
+            }
+
+            // If no match found, throw exception instead of defaulting
+            throw new IllegalArgumentException("Invalid CollectionType value: " + value +
+                ". Valid values are: BLOG, ART_GALLERY, CLIENT_GALLERY, PORTFOLIO or their display names.");
         }
     }
 }
