@@ -260,7 +260,6 @@ class ImageContentBlockModelTest {
         imageContentBlock.setCamera(null);
         imageContentBlock.setFocalLength(null);
         imageContentBlock.setLocation(null);
-        imageContentBlock.setImageUrlRaw(null);
         imageContentBlock.setCreateDate(null);
 
         // Act
@@ -366,7 +365,6 @@ class ImageContentBlockModelTest {
         imageContentBlock.setCamera("Canon EOS R5");
         imageContentBlock.setFocalLength("35mm");
         imageContentBlock.setLocation("Arches National Park, Utah");
-        imageContentBlock.setImageUrlRaw("https://s3.amazonaws.com/portfolio/raw/IMG_5432.CR3");
         imageContentBlock.setCreateDate("2024-03-15");
 
         // Act

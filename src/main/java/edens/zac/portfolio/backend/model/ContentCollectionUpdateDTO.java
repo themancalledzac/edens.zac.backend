@@ -31,7 +31,8 @@ public class ContentCollectionUpdateDTO extends ContentCollectionBaseModel {
     // Home page card settings (optional)
     private Boolean homeCardEnabled; // null = no change
     private String homeCardText;
-    private String homeCardCoverImageUrl;
+
+    private Long coverImageId;
 
     // Content block operations (processed separately in service layer)
     @Valid  // Add this annotation to enable nested validation
@@ -39,10 +40,6 @@ public class ContentCollectionUpdateDTO extends ContentCollectionBaseModel {
     private List<Long> contentBlockIdsToRemove;
     private List<String> newTextBlocks;
     private List<String> newCodeBlocks;
-
-    // Optional insertion index for newTextBlocks (if null, new text blocks are appended at the end)
-    @Min(value = 0, message = "Insertion index must be 0 or greater")
-    private Integer newTextBlocksInsertAt; // TODO: WHY is this needed? seems not needed
 
     /**
      * Inner class for content block reordering operations.

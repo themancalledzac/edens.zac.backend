@@ -10,8 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -126,7 +124,7 @@ class ContentCollectionRepositoryTest {
 
     @Test
     void findBySlug_ShouldReturnCollectionMetadata() {
-        Optional<ContentCollectionEntity> result = repository.findTop50BySlug("test-blog");
+        Optional<ContentCollectionEntity> result = repository.findBySlug("test-blog");
 
         assertThat(result).isPresent();
         assertThat(result.get().getTitle()).isEqualTo("Test Blog");
@@ -157,7 +155,7 @@ class ContentCollectionRepositoryTest {
         // Clear the persistence context to force a fresh query
         entityManager.clear();
 
-        Optional<ContentCollectionEntity> result = repository.findTop50BySlugWithContentBlocks("test-blog");
+        Optional<ContentCollectionEntity> result = repository.findBySlugWithContentBlocks("test-blog");
 
         assertThat(result).isPresent();
         assertThat(result.get().getContentBlocks()).hasSize(2);

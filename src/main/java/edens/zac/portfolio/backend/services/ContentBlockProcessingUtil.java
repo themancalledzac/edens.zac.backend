@@ -130,7 +130,6 @@ public class ContentBlockProcessingUtil {
         model.setFocalLength(entity.getFocalLength());
         model.setLocation(entity.getLocation());
         model.setImageUrlWeb(entity.getImageUrlWeb());
-        model.setImageUrlRaw(entity.getImageUrlRaw());
         model.setCreateDate(entity.getCreateDate());
 
         return model;
@@ -304,7 +303,6 @@ public class ContentBlockProcessingUtil {
                     .focalLength(imageEntity.getFocalLength())
                     .location(imageEntity.getLocation())
                     .imageUrlWeb(imageEntity.getImageUrlWeb())
-                    .imageUrlRaw(imageEntity.getImageUrlRaw())
                     .createDate(imageEntity.getCreateDate())
                     .build();
 

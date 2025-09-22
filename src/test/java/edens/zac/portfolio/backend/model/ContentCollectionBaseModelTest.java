@@ -30,6 +30,18 @@ class ContentCollectionBaseModelTest {
         validator = factory.getValidator();
     }
 
+    /**
+     * Helper method to create a test ImageContentBlockModel
+     */
+    private static ImageContentBlockModel createTestImageContentBlock(String imageUrl) {
+        ImageContentBlockModel imageBlock = new ImageContentBlockModel();
+        imageBlock.setId(123L);
+        imageBlock.setImageUrlWeb(imageUrl);
+        imageBlock.setImageWidth(1920);
+        imageBlock.setImageHeight(1080);
+        return imageBlock;
+    }
+
     @Nested
     @DisplayName("Builder Pattern Tests")
     class BuilderPatternTests {
@@ -49,10 +61,9 @@ class ContentCollectionBaseModelTest {
                     .collectionDate(now)
                     .visible(true)
                     .priority(1)
-                    .coverImageUrl("https://example.com/cover.jpg")
+                    .coverImage(createTestImageContentBlock("https://example.com/cover.jpg"))
                     .isPasswordProtected(false)
                     .hasAccess(true)
-                    .configJson("{\"setting\": \"value\"}")
                     .createdAt(now)
                     .updatedAt(now)
                     .build();
@@ -67,10 +78,10 @@ class ContentCollectionBaseModelTest {
             assertEquals(now, model.getCollectionDate());
             assertTrue(model.getVisible());
             assertEquals(1, model.getPriority());
-            assertEquals("https://example.com/cover.jpg", model.getCoverImageUrl());
+            assertNotNull(model.getCoverImage());
+            assertEquals("https://example.com/cover.jpg", model.getCoverImage().getImageUrlWeb());
             assertFalse(model.getIsPasswordProtected());
             assertTrue(model.getHasAccess());
-            assertEquals("{\"setting\": \"value\"}", model.getConfigJson());
             assertEquals(now, model.getCreatedAt());
             assertEquals(now, model.getUpdatedAt());
         }
@@ -587,55 +598,6 @@ class ContentCollectionBaseModelTest {
             assertNotNull(model);
             assertNull(model.getIsPasswordProtected());
             assertNull(model.getHasAccess());
-        }
-    }
-
-    @Nested
-    @DisplayName("JSON Configuration Tests")
-    class JsonConfigurationTests {
-
-        @Test
-        @DisplayName("Should accept valid JSON configuration")
-        void shouldAcceptValidJsonConfiguration() {
-            String validJson = "{\"theme\": \"dark\", \"layout\": \"grid\", \"itemsPerPage\": 30}";
-            
-            ContentCollectionModel model = ContentCollectionModel.builder()
-                    .type(CollectionType.ART_GALLERY)
-                    .title("Art Gallery")
-                    .slug("art-gallery")
-                    .configJson(validJson)
-                    .build();
-
-            assertNotNull(model);
-            assertEquals(validJson, model.getConfigJson());
-        }
-
-        @Test
-        @DisplayName("Should accept null JSON configuration")
-        void shouldAcceptNullJsonConfiguration() {
-            ContentCollectionModel model = ContentCollectionModel.builder()
-                    .type(CollectionType.BLOG)
-                    .title("Blog")
-                    .slug("blog")
-                    .configJson(null)
-                    .build();
-
-            assertNotNull(model);
-            assertNull(model.getConfigJson());
-        }
-
-        @Test
-        @DisplayName("Should accept empty JSON configuration")
-        void shouldAcceptEmptyJsonConfiguration() {
-            ContentCollectionModel model = ContentCollectionModel.builder()
-                    .type(CollectionType.PORTFOLIO)
-                    .title("Portfolio")
-                    .slug("portfolio")
-                    .configJson("{}")
-                    .build();
-
-            assertNotNull(model);
-            assertEquals("{}", model.getConfigJson());
         }
     }
 

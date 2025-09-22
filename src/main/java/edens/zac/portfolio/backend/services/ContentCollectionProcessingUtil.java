@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentBlockEntity;
+import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
@@ -40,6 +41,30 @@ public class ContentCollectionProcessingUtil {
     // =============================================================================
 
     /**
+     * Helper method to populate coverImage on a model from an entity.
+     * Loads the full ImageContentBlockModel if coverImageBlockId is set.
+     * Only accepts image blocks as cover images.
+     */
+    private void populateCoverImage(ContentCollectionModel model, ContentCollectionEntity entity) {
+        if (entity.getCoverImageBlockId() != null) {
+            ContentBlockEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId())
+                    .orElse(null);
+            if (block instanceof ImageContentBlockEntity) {
+                ContentBlockModel blockModel = contentBlockProcessingUtil.convertToModel(block);
+                if (blockModel instanceof ImageContentBlockModel imageModel) {
+                    model.setCoverImage(imageModel);
+                } else {
+                    log.warn("Cover image block {} converted to non-ImageContentBlockModel: {}",
+                            entity.getCoverImageBlockId(), blockModel.getClass().getSimpleName());
+                }
+            } else if (block != null) {
+                log.warn("Cover image block {} is not an ImageContentBlockEntity: {}",
+                        entity.getCoverImageBlockId(), block.getClass().getSimpleName());
+            }
+        }
+    }
+
+    /**
      * Convert a ContentCollectionEntity to a ContentCollectionModel with basic information.
      * This does not include content blocks.
      *
@@ -61,12 +86,20 @@ public class ContentCollectionProcessingUtil {
         model.setCollectionDate(entity.getCollectionDate());
         model.setVisible(entity.getVisible());
         model.setPriority(entity.getPriority());
-        model.setCoverImageUrl(entity.getCoverImageUrl());
+
+        // Populate coverImage using helper method
+        populateCoverImage(model, entity);
+
         model.setIsPasswordProtected(entity.isPasswordProtected());
         model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
         model.setCreatedAt(entity.getCreatedAt());
         model.setUpdatedAt(entity.getUpdatedAt());
-        model.setConfigJson(entity.getConfigJson());
+        // Basic display mode: BLOG default chronological, others default ordered
+        ContentCollectionBaseModel.DisplayMode mode =
+                entity.getType() == CollectionType.BLOG
+                        ? ContentCollectionBaseModel.DisplayMode.CHRONOLOGICAL
+                        : ContentCollectionBaseModel.DisplayMode.ORDERED;
+        model.setDisplayMode(mode);
 
         // Set pagination metadata
         model.setTotalBlocks(entity.getTotalBlocks());
@@ -129,7 +162,6 @@ public class ContentCollectionProcessingUtil {
         model.setTotalPages(contentPage.getTotalPages());
         model.setTotalBlocks((int) contentPage.getTotalElements());
         model.setBlocksPerPage(contentPage.getSize());
-
         return model;
     }
 
@@ -137,60 +169,31 @@ public class ContentCollectionProcessingUtil {
     // DTO-TO-ENTITY CONVERSION
     // =============================================================================
 
+
     /**
-     * Convert a ContentCollectionCreateDTO into a new ContentCollectionEntity applying
-     * defaults, slug handling, password protection and type-specific defaults.
-     * Handles defaults, slug handling, password protection and type-specific defaults.
-     *
-     * @param dto The create DTO
-     * @param defaultPageSize Fallback blocksPerPage when dto value is null/invalid
-     * @return A new ContentCollectionEntity ready to be persisted
+     * Minimal create: from ContentCollectionCreateRequest (type, title only), apply defaults for the rest.
      */
-    public ContentCollectionEntity toEntity(ContentCollectionCreateDTO dto, int defaultPageSize) {
-        if (dto == null) {
-            throw new IllegalArgumentException("Create DTO cannot be null");
+    public ContentCollectionEntity toEntity(ContentCollectionCreateRequest request, int defaultPageSize) {
+        if (request == null) {
+            throw new IllegalArgumentException("Create request cannot be null");
         }
-
         ContentCollectionEntity entity = new ContentCollectionEntity();
-        entity.setType(dto.getType());
-        entity.setTitle(dto.getTitle());
-
-        // Determine slug: use provided, otherwise generate from title; ensure uniqueness
-        String baseSlug = (dto.getSlug() != null && !dto.getSlug().trim().isEmpty())
-                ? dto.getSlug().trim()
-                : generateSlug(dto.getTitle());
+        entity.setType(request.getType());
+        entity.setTitle(request.getTitle());
+        String baseSlug = generateSlug(request.getTitle());
         String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
         entity.setSlug(uniqueSlug);
-
-        entity.setDescription(dto.getDescription());
-
-        // Defaults
-        entity.setLocation(dto.getLocation() != null ? dto.getLocation() : "");
-        entity.setCollectionDate(dto.getCollectionDate() != null ? dto.getCollectionDate() : LocalDateTime.now());
-        entity.setVisible(dto.getVisible() != null ? dto.getVisible() : false);
-        entity.setPriority(dto.getPriority() != null ? dto.getPriority() : 4);
-        entity.setCoverImageUrl(dto.getCoverImageUrl() != null ? dto.getCoverImageUrl() : "");
-
-        Integer requestedBpp = dto.getBlocksPerPage();
-        entity.setBlocksPerPage((requestedBpp != null && requestedBpp >= 1) ? requestedBpp : defaultPageSize);
+        entity.setDescription("");
+        entity.setLocation("");
+        entity.setCollectionDate(LocalDateTime.now());
+        entity.setVisible(false);
+        entity.setPriority(4);
+        entity.setBlocksPerPage(defaultPageSize);
         entity.setTotalBlocks(0);
-
-        // Password protection for client galleries
-        if (requiresPasswordProtection(dto)) {
-            if (!hasPassword(dto)) {
-                throw new IllegalArgumentException("Password is required for client galleries");
-            }
-            entity.setPasswordProtected(true);
-            entity.setPasswordHash(hashPassword(dto.getPassword()));
-        } else {
-            entity.setPasswordProtected(false);
-            entity.setPasswordHash(null);
-        }
-
-        // Apply type-specific defaults
-        entity = applyTypeSpecificDefaults(entity);
-
-        return entity;
+        entity.setPasswordProtected(false);
+        entity.setPasswordHash(null);
+        // Apply type-specific defaults (may adjust visibility etc.)
+        return applyTypeSpecificDefaults(entity);
     }
 
     // =============================================================================
@@ -226,18 +229,28 @@ public class ContentCollectionProcessingUtil {
         if (updateDTO.getPriority() != null) {
             entity.setPriority(updateDTO.getPriority());
         }
-        if (updateDTO.getCoverImageUrl() != null) {
-            entity.setCoverImageUrl(updateDTO.getCoverImageUrl());
-        }
         if (updateDTO.getSlug() != null && !updateDTO.getSlug().isBlank()) {
             String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.getSlug().trim(), entity.getId());
             entity.setSlug(uniqueSlug);
         }
-        if (updateDTO.getConfigJson() != null) {
-            entity.setConfigJson(updateDTO.getConfigJson());
-        }
         if (updateDTO.getBlocksPerPage() != null && updateDTO.getBlocksPerPage() >= 1) {
             entity.setBlocksPerPage(updateDTO.getBlocksPerPage());
+        }
+
+        // Handle coverImage updates
+        if (updateDTO.getCoverImageId() != null) {
+            // Validate that the cover image ID references an actual image block
+            ContentBlockEntity coverBlock = contentBlockRepository.findById(updateDTO.getCoverImageId())
+                    .orElse(null);
+            if (coverBlock instanceof ImageContentBlockEntity) {
+                entity.setCoverImageBlockId(updateDTO.getCoverImageId());
+            } else if (coverBlock != null) {
+                throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
+                        + " does not reference an image block (found: " + coverBlock.getClass().getSimpleName() + ")");
+            } else {
+                throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
+                        + " does not exist");
+            }
         }
 
         // Handle password updates for client galleries
@@ -261,27 +274,12 @@ public class ContentCollectionProcessingUtil {
         if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
             return;
         }
-        Integer insertAt = updateDTO.getNewTextBlocksInsertAt();
-        int blocksToAdd = updateDTO.getNewTextBlocks().size();
-        if (insertAt != null) {
-            if (insertAt < 0) {
-                throw new IllegalArgumentException("newTextBlocksInsertAt must be >= 0");
-            }
-            // Shift all blocks at or after insertAt by +blocksToAdd
-            contentBlockRepository.shiftOrderIndices(collectionId, insertAt, Integer.MAX_VALUE, blocksToAdd);
-            int currentIndex = insertAt;
-            for (String text : updateDTO.getNewTextBlocks()) {
-                contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
-                currentIndex++;
-            }
-        } else {
-            // Append to end
-            Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
-            int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
-            for (String text : updateDTO.getNewTextBlocks()) {
-                contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
-                currentIndex++;
-            }
+        // Always append new text blocks to the end
+        Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
+        int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
+        for (String text : updateDTO.getNewTextBlocks()) {
+            contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+            currentIndex++;
         }
     }
 
@@ -295,33 +293,15 @@ public class ContentCollectionProcessingUtil {
         if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
             return createdIds;
         }
-        Integer insertAt = updateDTO.getNewTextBlocksInsertAt();
-        int blocksToAdd = updateDTO.getNewTextBlocks().size();
-        if (insertAt != null) {
-            if (insertAt < 0) {
-                throw new IllegalArgumentException("newTextBlocksInsertAt must be >= 0");
+        // Always append to the end
+        Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
+        int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
+        for (String text : updateDTO.getNewTextBlocks()) {
+            ContentBlockEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+            if (created != null && created.getId() != null) {
+                createdIds.add(created.getId());
             }
-            // Shift all blocks at or after insertAt by +blocksToAdd
-            contentBlockRepository.shiftOrderIndices(collectionId, insertAt, Integer.MAX_VALUE, blocksToAdd);
-            int currentIndex = insertAt;
-            for (String text : updateDTO.getNewTextBlocks()) {
-                ContentBlockEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
-                if (created != null && created.getId() != null) {
-                    createdIds.add(created.getId());
-                }
-                currentIndex++;
-            }
-        } else {
-            // Append to end
-            Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
-            int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
-            for (String text : updateDTO.getNewTextBlocks()) {
-                ContentBlockEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
-                if (created != null && created.getId() != null) {
-                    createdIds.add(created.getId());
-                }
-                currentIndex++;
-            }
+            currentIndex++;
         }
         return createdIds;
     }
@@ -414,7 +394,7 @@ public class ContentCollectionProcessingUtil {
         }
 
         // Check if slug already exists
-        boolean exists = contentCollectionRepository.findTop50BySlug(slug)
+        boolean exists = contentCollectionRepository.findBySlug(slug)
                 .map(entity -> !entity.getId().equals(existingId))
                 .orElse(false);
 
@@ -427,7 +407,7 @@ public class ContentCollectionProcessingUtil {
         String newSlug;
         do {
             newSlug = slug + "-" + counter++;
-            exists = contentCollectionRepository.findTop50BySlug(newSlug).isPresent();
+            exists = contentCollectionRepository.findBySlug(newSlug).isPresent();
         } while (exists && counter < 100); // Limit to prevent infinite loop
 
         if (exists) {
@@ -441,20 +421,6 @@ public class ContentCollectionProcessingUtil {
     // TYPE-SPECIFIC PROCESSING
     // =============================================================================
 
-    /**
-     * Get type-specific configuration for a collection.
-     * 
-     * @param type The collection type
-     * @return JSON configuration string
-     */
-    public String getDefaultConfigForType(CollectionType type) {
-        return switch (type) {
-            case BLOG -> "{\"displayMode\":\"chronological\",\"showDates\":true}";
-            case ART_GALLERY -> "{\"displayMode\":\"grid\",\"gridColumns\":3}";
-            case CLIENT_GALLERY -> "{\"downloadEnabled\":true,\"showMetadata\":false}";
-            case PORTFOLIO -> "{\"displayMode\":\"showcase\",\"highlightCover\":true}";
-        };
-    }
 
     /**
      * Update entity with type-specific defaults.
@@ -467,14 +433,10 @@ public class ContentCollectionProcessingUtil {
             return entity;
         }
 
-        // Set type-specific defaults if not already set
-        if (entity.getConfigJson() == null || entity.getConfigJson().isEmpty()) {
-            entity.setConfigJson(getDefaultConfigForType(entity.getType()));
-        }
 
         // Set default blocks per page if not set
         if (entity.getBlocksPerPage() == null || entity.getBlocksPerPage() <= 0) {
-            entity.setBlocksPerPage(50); // Default page size
+            entity.setBlocksPerPage(edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page); // Default page size
         }
 
         // Set type-specific visibility defaults
@@ -490,26 +452,6 @@ public class ContentCollectionProcessingUtil {
     // VALIDATION METHODS
     // =============================================================================
 
-    /**
-     * Validate if a ContentCollectionCreateDTO is valid for its collection type.
-     */
-    public static boolean isValidForType(ContentCollectionCreateDTO dto) {
-        return switch (dto.getType()) {
-            case CLIENT_GALLERY -> !isPasswordProtected(dto) ||
-                    (dto.getPassword() != null && !dto.getPassword().trim().isEmpty());
-            case BLOG, ART_GALLERY, PORTFOLIO -> true;
-        };
-    }
-
-    /**
-     * Check if DTO requires password protection.
-     */
-    public static boolean requiresPasswordProtection(ContentCollectionCreateDTO dto) {
-        return dto.getType() == CollectionType.CLIENT_GALLERY && 
-               isPasswordProtected(dto) && 
-               dto.getPassword() != null && 
-               !dto.getPassword().trim().isEmpty();
-    }
 
     // =============================================================================
     // PASSWORD PROTECTION HELPERS
@@ -522,12 +464,6 @@ public class ContentCollectionProcessingUtil {
         return model.getIsPasswordProtected() != null && model.getIsPasswordProtected();
     }
 
-    /**
-     * Check if a CreateDTO will be password-protected.
-     */
-    public static boolean hasPassword(ContentCollectionCreateDTO dto) {
-        return dto.getPassword() != null && !dto.getPassword().trim().isEmpty();
-    }
 
     /**
      * Check if an UpdateDTO includes password changes.
@@ -563,12 +499,6 @@ public class ContentCollectionProcessingUtil {
         return hashPassword(password).equals(hash);
     }
 
-    /**
-     * Check if a CreateDTO is for a client gallery.
-     */
-    public static boolean isClientGallery(ContentCollectionCreateDTO dto) {
-        return CollectionType.CLIENT_GALLERY.equals(dto.getType());
-    }
 
     // =============================================================================
     // VISIBILITY HELPERS

@@ -38,6 +38,9 @@ public class ContentBlockProcessingUtilTest {
     private AmazonS3 amazonS3;
 
     @Mock
+    private edens.zac.portfolio.backend.repository.ContentCollectionRepository contentCollectionRepository;
+
+    @Mock
     private ContentBlockRepository contentBlockRepository;
 
     @InjectMocks
@@ -93,7 +96,6 @@ public class ContentBlockProcessingUtilTest {
         assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
         assertEquals(entity.getLocation(), imageModel.getLocation());
         assertEquals(entity.getImageUrlWeb(), imageModel.getImageUrlWeb());
-        assertEquals(entity.getImageUrlRaw(), imageModel.getImageUrlRaw());
         assertEquals(entity.getCreateDate(), imageModel.getCreateDate());
     }
 
@@ -186,8 +188,13 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Image";
         String caption = "Test Caption";
 
+        // Mock collection lookup to provide a location so image processing is invoked
+        ContentCollectionEntity collection = mock(ContentCollectionEntity.class);
+        when(collection.getLocation()).thenReturn("Test Location");
+        when(contentCollectionRepository.findById(collectionId)).thenReturn(java.util.Optional.of(collection));
+
         ImageEntity imageEntity = createImageEntity();
-        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString())))
+        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString()), anyString()))
                 .thenReturn(imageEntity);
 
         ImageContentBlockEntity savedEntity = createImageContentBlockEntity();
@@ -199,12 +206,12 @@ public class ContentBlockProcessingUtilTest {
         // Assert
         assertNotNull(result);
         assertInstanceOf(ImageContentBlockEntity.class, result);
-        verify(imageProcessingUtil).processAndSaveImage(file, "content_collection", collectionId.toString());
+        verify(imageProcessingUtil).processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString()), anyString());
         verify(contentBlockRepository).save(any(ImageContentBlockEntity.class));
     }
 
     @Test
-    void processImageContentBlock_whenImageProcessingFails_shouldThrowException() throws IOException {
+    void processImageContentBlock_whenImageProcessingFails_shouldReturnNull() throws IOException {
         // Arrange
         MultipartFile file = createMockImageFile();
         Long collectionId = 1L;
@@ -212,14 +219,19 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Image";
         String caption = "Test Caption";
 
-        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), anyString(), anyString()))
+        // Mock collection lookup so the flow reaches imageProcessingUtil
+        ContentCollectionEntity collection = mock(ContentCollectionEntity.class);
+        when(collection.getLocation()).thenReturn("Test Location");
+        when(contentCollectionRepository.findById(collectionId)).thenReturn(java.util.Optional.of(collection));
+
+        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), anyString(), anyString(), anyString()))
                 .thenReturn(null);
 
-        // Act & Assert
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            contentBlockProcessingUtil.processImageContentBlock(file, collectionId, orderIndex, title, caption);
-        });
-        assertTrue(exception.getMessage().contains("Failed to process image content block"));
+        // Act
+        ContentBlockEntity result = contentBlockProcessingUtil.processImageContentBlock(file, collectionId, orderIndex, title, caption);
+
+        // Assert
+        assertNull(result);
     }
 
     @Test
@@ -425,8 +437,13 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Image";
         String caption = "Test Caption";
 
+        // Mock collection lookup to provide a location so image processing is invoked
+        ContentCollectionEntity collection = mock(ContentCollectionEntity.class);
+        when(collection.getLocation()).thenReturn("Test Location");
+        when(contentCollectionRepository.findById(collectionId)).thenReturn(java.util.Optional.of(collection));
+
         ImageContentBlockEntity imageEntity = createImageContentBlockEntity();
-        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), anyString(), anyString()))
+        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), anyString(), anyString(), anyString()))
                 .thenReturn(createImageEntity());
         when(contentBlockRepository.save(any(ImageContentBlockEntity.class))).thenReturn(imageEntity);
 
@@ -437,7 +454,7 @@ public class ContentBlockProcessingUtilTest {
         // Assert
         assertNotNull(result);
         assertTrue(result instanceof ImageContentBlockEntity);
-        verify(imageProcessingUtil).processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString()));
+        verify(imageProcessingUtil).processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString()), anyString());
     }
 
     @Test
@@ -562,7 +579,6 @@ public class ContentBlockProcessingUtilTest {
         entity.setFocalLength("50mm");
         entity.setLocation("Test Location");
         entity.setImageUrlWeb("https://example.com/image.jpg");
-        entity.setImageUrlRaw("https://example.com/image.raw");
         entity.setCreateDate("2023-01-01");
         return entity;
     }

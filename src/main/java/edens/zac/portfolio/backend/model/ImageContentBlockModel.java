@@ -50,6 +50,5 @@ public class ImageContentBlockModel extends ContentBlockModel {
     @NotNull
     private String imageUrlWeb;
 
-    private String imageUrlRaw; // TODO: move from RAW to FullSize
     private String createDate;
 }

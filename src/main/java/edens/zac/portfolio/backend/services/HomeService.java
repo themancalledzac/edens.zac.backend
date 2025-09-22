@@ -25,8 +25,7 @@ public interface HomeService {
     void upsertHomeCardForCollection(ContentCollectionEntity collection,
                                      boolean enabled,
                                      Integer priority,
-                                     String text,
-                                     String coverImageUrl);
+                                     String text);
 
     @Transactional
     void syncHomeCardOnCollectionUpdate(ContentCollectionEntity collection);

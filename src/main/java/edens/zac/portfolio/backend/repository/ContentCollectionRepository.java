@@ -66,7 +66,7 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @param slug Slug of Collection
      * @return Metadata of Collection
      */
-    Optional<ContentCollectionEntity> findTop50BySlug(String slug);
+    Optional<ContentCollectionEntity> findBySlug(String slug);
 
     /**
      * Find a collection by slug with first 50 content blocks, ordered by their order_index.
@@ -79,7 +79,7 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
     @Query("SELECT c FROM ContentCollectionEntity c LEFT JOIN FETCH c.contentBlocks b " +
             "WHERE c.slug = :slug " +
             "ORDER BY b.orderIndex ASC")
-    Optional<ContentCollectionEntity> findTop50BySlugWithContentBlocks(@Param("slug") String slug);
+    Optional<ContentCollectionEntity> findBySlugWithContentBlocks(@Param("slug") String slug);
     
     /**
      * Count the number of collections of a specific type.

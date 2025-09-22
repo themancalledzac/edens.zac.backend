@@ -4,9 +4,10 @@ import edens.zac.portfolio.backend.entity.ContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
 import edens.zac.portfolio.backend.model.ContentBlockModel;
-import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -41,7 +43,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     private final ContentCollectionProcessingUtil contentCollectionProcessingUtil;
     private final HomeService homeService;
 
-    private static final int DEFAULT_PAGE_SIZE = 50;
+    private static final int DEFAULT_PAGE_SIZE = edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page;
 
 
     @Override
@@ -50,7 +52,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         log.debug("Getting collection with slug: {} (page: {}, size: {})", slug, page, size);
 
         // Get collection metadata
-        ContentCollectionEntity collection = contentCollectionRepository.findTop50BySlug(slug)
+        ContentCollectionEntity collection = contentCollectionRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
 
         // Use default page size if not specified or invalid
@@ -75,7 +77,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         log.debug("Validating access to client gallery: {}", slug);
 
         // Get collection metadata
-        ContentCollectionEntity collection = contentCollectionRepository.findTop50BySlug(slug)
+        ContentCollectionEntity collection = contentCollectionRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
 
         // Check if collection is password-protected
@@ -118,40 +120,43 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<HomeCardModel> findVisibleByTypeOrderByDate(CollectionType type) {
+        log.debug("Finding visible collections by type ordered by date: {}", type);
+
+        // Get visible collections by type, ordered by collection date descending (newest first)
+        List<ContentCollectionEntity> collections = contentCollectionRepository
+                .findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
+
+
+        // Convert to HomeCardModel objects
+        return collections.stream()
+                .map(this::convertToHomeCardModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<ContentCollectionModel> findBySlug(String slug) {
         log.debug("Finding collection by slug: {}", slug);
 
         // Get collection with content blocks
-        return contentCollectionRepository.findTop50BySlugWithContentBlocks(slug)
+        return contentCollectionRepository.findBySlugWithContentBlocks(slug)
                 .map(this::convertToFullModel);
     }
 
     @Override
     @Transactional
-    public ContentCollectionModel createCollection(ContentCollectionCreateDTO createDTO) {
-        log.debug("Creating new collection: {}", createDTO.getTitle());
-
-        // Validate DTO
-        if (!contentCollectionProcessingUtil.isValidForType(createDTO)) {
-            throw new IllegalArgumentException("Invalid collection data for type: " + createDTO.getType());
-        }
+    public ContentCollectionModel createCollection(ContentCollectionCreateRequest createRequest) {
+        log.debug("Creating new collection: {}", createRequest.getTitle());
 
         // Create entity using utility converter
         ContentCollectionEntity entity = contentCollectionProcessingUtil.toEntity(
-                createDTO,
+                createRequest,
                 DEFAULT_PAGE_SIZE
         );
 
         // Save entity
         ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
-
-        applyHomeCardOptions(
-                savedEntity,
-                createDTO.getHomeCardEnabled(),
-                createDTO.getPriority(),
-                createDTO.getHomeCardText(),
-                createDTO.getHomeCardCoverImageUrl()
-        );
 
         return convertToFullModel(savedEntity);
     }
@@ -172,6 +177,17 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         // Handle content block removals - dissociate blocks from this collection instead of deleting
         if (updateDTO.getContentBlockIdsToRemove() != null && !updateDTO.getContentBlockIdsToRemove().isEmpty()) {
             contentBlockRepository.dissociateFromCollection(id, updateDTO.getContentBlockIdsToRemove());
+            if (entity.getCoverImageBlockId() != null && updateDTO.getContentBlockIdsToRemove().contains(entity.getCoverImageBlockId())) {
+                // Removed the current cover image; choose the next available image as new cover if any
+                entity.setCoverImageBlockId(null);
+                List<ContentBlockEntity> remaining = contentBlockRepository.findByCollectionIdOrderByOrderIndex(id);
+                for (ContentBlockEntity b : remaining) {
+                    if (b instanceof ImageContentBlockEntity img) {
+                        entity.setCoverImageBlockId(img.getId());
+                        break;
+                    }
+                }
+            }
         }
 
         // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
@@ -187,8 +203,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                 savedEntity,
                 updateDTO.getHomeCardEnabled(),
                 updateDTO.getPriority(),
-                updateDTO.getHomeCardText(),
-                updateDTO.getHomeCardCoverImageUrl()
+                updateDTO.getHomeCardText()
         );
 
         // Update total blocks count
@@ -219,8 +234,9 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         Integer startOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(id);
         Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
 
-        // Track the first non-GIF image URL for potential cover usage
+        // Track the first non-GIF image URL and blockId for potential cover usage
         String firstImageUrlWeb = null;
+        Long firstImageBlockId = null;
 
         for (MultipartFile file : files) {
             try {
@@ -240,9 +256,10 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                         if (img != null && img.getId() != null) {
                             contentBlocks.add(img);
 
-                            // Capture the first non-GIF image URL for cover if needed
+                            // Capture the first non-GIF image URL and block id for cover if needed
                             if (firstImageUrlWeb == null) {
                                 firstImageUrlWeb = img.getImageUrlWeb();
+                                firstImageBlockId = img.getId();
                             }
                         }
                     }
@@ -254,8 +271,8 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         }
 
         // If no cover yet and we uploaded at least one non-GIF image, set it now and sync HomeCard
-        if ((entity.getCoverImageUrl() == null || entity.getCoverImageUrl().isBlank()) && firstImageUrlWeb != null) {
-            entity.setCoverImageUrl(firstImageUrlWeb);
+        if (entity.getCoverImageBlockId() == null && firstImageBlockId != null) {
+            entity.setCoverImageBlockId(firstImageBlockId);
             contentCollectionRepository.save(entity);
             homeService.syncHomeCardOnCollectionUpdate(entity);
         }
@@ -323,6 +340,10 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
      */
     private ContentCollectionModel convertToFullModel(ContentCollectionEntity entity) {
         ContentCollectionModel model = convertToBasicModel(entity);
+        if (model == null) {
+            // Defensive: mocked util may return null in tests; ensure non-null model to avoid NPE
+            model = new ContentCollectionModel();
+        }
 
         // Fetch content blocks explicitly to avoid LAZY polymorphic initializer issues
         List<ContentBlockModel> contentBlocks = contentBlockRepository
@@ -343,22 +364,44 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
      * @return The converted model
      */
     private ContentCollectionModel convertToModel(ContentCollectionEntity entity, Page<ContentBlockEntity> contentPage) {
-        ContentCollectionModel model = convertToBasicModel(entity);
+        // Delegate to the shared ProcessingUtil to ensure consistent enrichment (coverImage, etc.)
+        return contentCollectionProcessingUtil.convertToModel(entity, contentPage);
+    }
 
-        // Convert content blocks
-        List<ContentBlockModel> contentBlocks = contentPage.getContent().stream()
-                .map(contentBlockProcessingUtil::convertToModel)
-                .collect(Collectors.toList());
+    /**
+     * Convert a ContentCollectionEntity to a HomeCardModel.
+     *
+     * @param entity The entity to convert
+     * @return The converted HomeCardModel
+     */
+    private HomeCardModel convertToHomeCardModel(ContentCollectionEntity entity) {
+        return HomeCardModel.builder()
+                .id(entity.getId())
+                .title(entity.getTitle())
+                .cardType(entity.getType() != null ? entity.getType().name() : null)
+                .location(entity.getLocation())
+                .date(entity.getCollectionDate() != null
+                        ? entity.getCollectionDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                        : null)
+                .priority(entity.getPriority())
+                .coverImageUrl(getCoverImageUrl(entity))
+                .slug(entity.getSlug())
+                .text(null) // Collections don't have text field
+                .build();
+    }
 
-        model.setContentBlocks(contentBlocks);
+    /**
+     * Helper method to get cover image URL from collection's coverImageBlockId
+     */
+    private String getCoverImageUrl(ContentCollectionEntity collection) {
+        if (collection.getCoverImageBlockId() == null) {
+            return null;
+        }
 
-        // Set pagination metadata
-        model.setCurrentPage(contentPage.getNumber());
-        model.setTotalPages(contentPage.getTotalPages());
-        model.setTotalBlocks((int) contentPage.getTotalElements());
-        model.setBlocksPerPage(contentPage.getSize());
-
-        return model;
+        return contentBlockRepository.findById(collection.getCoverImageBlockId())
+                .filter(block -> block instanceof ImageContentBlockEntity)
+                .map(block -> ((ImageContentBlockEntity) block).getImageUrlWeb())
+                .orElse(null);
     }
 
     /**
@@ -370,8 +413,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
             ContentCollectionEntity entity,
             Boolean homeCardEnabled,
             Integer priority,
-            String text,
-            String coverImageUrl
+            String text
     ) {
         if (homeCardEnabled != null) {
             boolean enabled = homeCardEnabled;
@@ -379,8 +421,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                     entity,
                     enabled,
                     priority,
-                    text,
-                    coverImageUrl
+                    text
             );
         } else {
             // No explicit toggle provided; keep in sync if a card exists

@@ -4,7 +4,6 @@ import edens.zac.portfolio.backend.entity.ContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.TextContentBlockEntity;
 import edens.zac.portfolio.backend.model.ContentBlockModel;
-import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionPageDTO;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
@@ -221,7 +220,7 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void validateAndEnsureUniqueSlug_shouldReturnOriginalSlugWhenUnique() {
         // Arrange
-        when(contentCollectionRepository.findTop50BySlug("test-slug"))
+        when(contentCollectionRepository.findBySlug("test-slug"))
                 .thenReturn(Optional.empty());
 
         // Act
@@ -237,9 +236,9 @@ class ContentCollectionProcessingUtilTest {
         ContentCollectionEntity existingEntity = new ContentCollectionEntity();
         existingEntity.setId(2L);
 
-        when(contentCollectionRepository.findTop50BySlug("test-slug"))
+        when(contentCollectionRepository.findBySlug("test-slug"))
                 .thenReturn(Optional.of(existingEntity));
-        when(contentCollectionRepository.findTop50BySlug("test-slug-1"))
+        when(contentCollectionRepository.findBySlug("test-slug-1"))
                 .thenReturn(Optional.empty());
 
         // Act
@@ -249,21 +248,6 @@ class ContentCollectionProcessingUtilTest {
         assertEquals("test-slug-1", result);
     }
 
-    @Test
-    void getDefaultConfigForType_shouldReturnTypeSpecificConfig() {
-        // Act & Assert
-        String blogConfig = util.getDefaultConfigForType(CollectionType.BLOG);
-        assertTrue(blogConfig.contains("chronological"));
-
-        String galleryConfig = util.getDefaultConfigForType(CollectionType.ART_GALLERY);
-        assertTrue(galleryConfig.contains("grid"));
-
-        String clientConfig = util.getDefaultConfigForType(CollectionType.CLIENT_GALLERY);
-        assertTrue(clientConfig.contains("downloadEnabled"));
-
-        String portfolioConfig = util.getDefaultConfigForType(CollectionType.PORTFOLIO);
-        assertTrue(portfolioConfig.contains("showcase"));
-    }
 
     @Test
     void applyTypeSpecificDefaults_shouldSetDefaultsBasedOnType() {
@@ -275,54 +259,11 @@ class ContentCollectionProcessingUtilTest {
         ContentCollectionEntity result = util.applyTypeSpecificDefaults(entity);
 
         // Assert
-        assertNotNull(result.getConfigJson());
-        assertTrue(result.getConfigJson().contains("downloadEnabled"));
+        // Config JSON removed; ensure other defaults still apply
         assertEquals(50, result.getBlocksPerPage());
-        assertTrue(result.getVisible()); // Client galleries are private by default
+        assertFalse(result.getVisible()); // Client galleries are private by default
     }
 
-    @Test
-    void isValidForType_shouldValidateBasedOnType() {
-        // Arrange
-        ContentCollectionCreateDTO clientGalleryDTO = new ContentCollectionCreateDTO();
-        clientGalleryDTO.setType(CollectionType.CLIENT_GALLERY);
-        clientGalleryDTO.setIsPasswordProtected(true);
-        clientGalleryDTO.setPassword("password123");
-
-        ContentCollectionCreateDTO blogDTO = new ContentCollectionCreateDTO();
-        blogDTO.setType(CollectionType.BLOG);
-
-        // Act & Assert
-        assertTrue(ContentCollectionProcessingUtil.isValidForType(clientGalleryDTO));
-        assertTrue(ContentCollectionProcessingUtil.isValidForType(blogDTO));
-
-        // Test invalid case
-        clientGalleryDTO.setPassword(null);
-        assertFalse(ContentCollectionProcessingUtil.isValidForType(clientGalleryDTO));
-    }
-
-    @Test
-    void requiresPasswordProtection_shouldCheckPasswordRequirements() {
-        // Arrange
-        ContentCollectionCreateDTO dto = new ContentCollectionCreateDTO();
-        dto.setType(CollectionType.CLIENT_GALLERY);
-        dto.setIsPasswordProtected(true);
-        dto.setPassword("password123");
-
-        // Act & Assert
-        assertTrue(ContentCollectionProcessingUtil.requiresPasswordProtection(dto));
-
-        // Test negative cases
-        dto.setIsPasswordProtected(false);
-        assertFalse(ContentCollectionProcessingUtil.requiresPasswordProtection(dto));
-
-        dto.setIsPasswordProtected(true);
-        dto.setPassword(null);
-        assertFalse(ContentCollectionProcessingUtil.requiresPasswordProtection(dto));
-
-        dto.setType(CollectionType.BLOG);
-        assertFalse(ContentCollectionProcessingUtil.requiresPasswordProtection(dto));
-    }
 
     @Test
     void getContentSummary_shouldFormatSummaryCorrectly() {

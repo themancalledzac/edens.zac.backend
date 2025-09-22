@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 /**
  * Base model containing common fields shared across all ContentCollection DTOs.
  * This eliminates duplication between ContentCollectionModel, ContentCollectionPageDTO,
- * ContentCollectionCreateDTO, and ContentCollectionUpdateDTO.
+ * and ContentCollectionUpdateDTO.
  */
 @NoArgsConstructor
 @AllArgsConstructor
@@ -44,15 +44,15 @@ public abstract class ContentCollectionBaseModel {
     @Max(value = 4, message = "Priority must be between 1 and 4 (1 = best, 4 = worst)")
     private Integer priority;
 
-    // Cover image URL for the collection
-    private String coverImageUrl;
 
     // Client gallery security fields
     private Boolean isPasswordProtected;
     private Boolean hasAccess;
 
-    // Type-specific configuration (stored as JSON in database)
-    private String configJson;
+    // Display mode for ordering content in the collection
+    // chronological: by time; ordered: by explicit orderIndex
+    public enum DisplayMode { CHRONOLOGICAL, ORDERED }
+    private DisplayMode displayMode;
 
     // Timestamps
     private LocalDateTime createdAt;

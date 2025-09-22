@@ -1,8 +1,9 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
-import edens.zac.portfolio.backend.model.ContentCollectionCreateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -46,6 +47,15 @@ public interface ContentCollectionService {
     Page<ContentCollectionModel> findByType(CollectionType type, Pageable pageable);
 
     /**
+     * Find visible collections by type ordered by collection date (newest first).
+     * Returns all visible collections of the specified type as HomeCardModel objects.
+     *
+     * @param type The collection type
+     * @return List of visible collections ordered by collection date DESC
+     */
+    List<HomeCardModel> findVisibleByTypeOrderByDate(CollectionType type);
+
+    /**
      * Find a collection by slug.
      *
      * @param slug The unique slug of the collection
@@ -56,10 +66,10 @@ public interface ContentCollectionService {
     /**
      * Create a new collection with content.
      *
-     * @param createDTO The DTO containing collection data
+     * @param createRequest The request containing collection data
      * @return The created collection
      */
-    ContentCollectionModel createCollection(ContentCollectionCreateDTO createDTO);
+    ContentCollectionModel createCollection(ContentCollectionCreateRequest createRequest);
 
 
     /**
