@@ -7,6 +7,7 @@ import edens.zac.portfolio.backend.model.ContentBlockModel;
 import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -114,6 +116,22 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                 .collect(Collectors.toList());
 
         return new PageImpl<>(models, pageable, collectionsPage.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<HomeCardModel> findVisibleByTypeOrderByDate(CollectionType type) {
+        log.debug("Finding visible collections by type ordered by date: {}", type);
+
+        // Get visible collections by type, ordered by collection date descending (newest first)
+        List<ContentCollectionEntity> collections = contentCollectionRepository
+                .findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
+
+
+        // Convert to HomeCardModel objects
+        return collections.stream()
+                .map(this::convertToHomeCardModel)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -348,6 +366,42 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     private ContentCollectionModel convertToModel(ContentCollectionEntity entity, Page<ContentBlockEntity> contentPage) {
         // Delegate to the shared ProcessingUtil to ensure consistent enrichment (coverImage, etc.)
         return contentCollectionProcessingUtil.convertToModel(entity, contentPage);
+    }
+
+    /**
+     * Convert a ContentCollectionEntity to a HomeCardModel.
+     *
+     * @param entity The entity to convert
+     * @return The converted HomeCardModel
+     */
+    private HomeCardModel convertToHomeCardModel(ContentCollectionEntity entity) {
+        return HomeCardModel.builder()
+                .id(entity.getId())
+                .title(entity.getTitle())
+                .cardType(entity.getType() != null ? entity.getType().name() : null)
+                .location(entity.getLocation())
+                .date(entity.getCollectionDate() != null
+                        ? entity.getCollectionDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                        : null)
+                .priority(entity.getPriority())
+                .coverImageUrl(getCoverImageUrl(entity))
+                .slug(entity.getSlug())
+                .text(null) // Collections don't have text field
+                .build();
+    }
+
+    /**
+     * Helper method to get cover image URL from collection's coverImageBlockId
+     */
+    private String getCoverImageUrl(ContentCollectionEntity collection) {
+        if (collection.getCoverImageBlockId() == null) {
+            return null;
+        }
+
+        return contentBlockRepository.findById(collection.getCoverImageBlockId())
+                .filter(block -> block instanceof ImageContentBlockEntity)
+                .map(block -> ((ImageContentBlockEntity) block).getImageUrlWeb())
+                .orElse(null);
     }
 
     /**

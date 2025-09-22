@@ -103,27 +103,14 @@ public class ContentCollectionControllerProd {
     }
 
     /**
-     * Get collections by type (paginated)
+     * Get visible collections by type ordered by collection date (newest first)
      *
      * @param type Collection type
-     * @param page Page number (0-based)
-     * @param size Page size
-     * @return ResponseEntity with paginated collections of the specified type
+     * @return ResponseEntity with list of visible collections of the specified type as HomeCardModel objects
      */
     @GetMapping("/type/{type}")
-    public ResponseEntity<?> getCollectionsByType(
-            @PathVariable String type,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<?> getCollectionsByType(@PathVariable String type) {
         try {
-            // Normalize pagination parameters
-            if (page < 0) {
-                page = 0;
-            }
-            if (size <= 0) {
-                size = DefaultValues.default_content_collection_per_page;
-            }
-
             // Convert string type to enum
             CollectionType collectionType;
             try {
@@ -134,8 +121,8 @@ public class ContentCollectionControllerProd {
                         .body("Invalid collection type: " + type);
             }
 
-            Pageable pageable = PageRequest.of(page, size);
-            Page<ContentCollectionModel> collections = contentCollectionService.findByType(collectionType, pageable);
+            // Get visible collections ordered by date (newest first)
+            List<HomeCardModel> collections = contentCollectionService.findVisibleByTypeOrderByDate(collectionType);
 
             return ResponseEntity.ok(collections);
         } catch (Exception e) {
