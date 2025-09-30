@@ -20,6 +20,7 @@ import java.util.List;
 /**
  * Controller for ContentCollection write operations (dev environment only).
  * Provides endpoints for creating, updating, and managing content collections.
+ * TODO: Probably update 'write' to `/api/admin/collections` as we will add an admin 'read' or two
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -133,6 +134,14 @@ public class ContentCollectionControllerDev {
                     .body("Failed to add content blocks: " + e.getMessage());
         }
     }
+
+    // TODO: Add a 'addTextContentBlock endpoint
+    //  - takes only a string value ( can be rather large )
+    //  - Updates the ContentCollection specifically with that ContentTextBlock
+    //  - Returns... maybe the whole contentCollection? maybe JUST a 'success'?
+    //  - - MAYBE, it returns just the contentTextBLock object:
+    //  - - - {id, collectionId, orderIndex(last), blockType, content, formType, title}
+    //  - Can we reuse the same `@PostMapping(value = "/{id}/content"`, but only with a 'text' body instead of a MediaType.MULTIPART_FORM_DATA_VALUE?
 
     /**
      * Remove a content block from a collection

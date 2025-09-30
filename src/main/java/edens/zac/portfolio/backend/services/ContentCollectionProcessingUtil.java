@@ -30,6 +30,7 @@ public class ContentCollectionProcessingUtil {
     private final ContentBlockRepository contentBlockRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
     private final ImageProcessingUtil imageProcessingUtil;
+    private final edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
     // =============================================================================
     // ERROR HANDLING
@@ -89,6 +90,18 @@ public class ContentCollectionProcessingUtil {
 
         // Populate coverImage using helper method
         populateCoverImage(model, entity);
+
+        // Fetch home page card settings from home card table
+        homeCardRepository.findByReferenceId(entity.getId()).ifPresentOrElse(
+            homeCard -> {
+                model.setHomeCardEnabled(homeCard.isActiveHomeCard());
+                model.setHomeCardText(homeCard.getText());
+            },
+            () -> {
+                model.setHomeCardEnabled(false);
+                model.setHomeCardText(null);
+            }
+        );
 
         model.setIsPasswordProtected(entity.isPasswordProtected());
         model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections

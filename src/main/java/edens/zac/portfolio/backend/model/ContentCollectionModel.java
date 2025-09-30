@@ -42,6 +42,10 @@ public class ContentCollectionModel extends ContentCollectionBaseModel {
     @Valid
     private ImageContentBlockModel coverImage;
 
+    // Home page card settings
+    private Boolean homeCardEnabled;
+    private String homeCardText;
+
     // Content blocks (paginated)
     @Valid
     private List<ContentBlockModel> contentBlocks;
