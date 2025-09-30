@@ -16,6 +16,7 @@ public class TextContentBlockModel extends ContentBlockModel{
     @Size(max = 10000)
     private String content;
 
+    // TODO: Remove formatType, as text is text, and code would be markdown/html
     @NotNull
     @Size(max = 20)
     private String formatType; // "markdown", "html", "plain"

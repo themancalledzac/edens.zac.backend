@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+// TODO: Probably update 'read' endpoints to just '/api/collections'
 @Slf4j
 @RequiredArgsConstructor
 @RestController
@@ -65,10 +66,13 @@ public class ContentCollectionControllerProd {
 
     /**
      * Get collection by slug with paginated content
-     *
+     * TODO: Need to work on a 'admin' vs 'regular' endpoint here, where:
+     *  - regular would check if 'hasAccess' is true. if true, we would simply return a response body of 'no access'
+     *  - admin would simply return all regardless.
+     *  - Curious if we can just extend this, or otherwise duplicate it, while keeping 'local' dev development truly local only
+     *  - Might be easiest to simply have a ContentCollectionControllerDev endpoint to save time
      * @param slug Collection slug
      * @param page Page number (0-based)
-     *             
      * @param size Page size
      * @return ResponseEntity with collection and paginated content
      */

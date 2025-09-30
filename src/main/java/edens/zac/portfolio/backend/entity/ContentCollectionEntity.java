@@ -89,7 +89,6 @@ public class ContentCollectionEntity {
     @Column(name = "total_blocks")
     private Integer totalBlocks;
 
-
     // Timestamps
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
