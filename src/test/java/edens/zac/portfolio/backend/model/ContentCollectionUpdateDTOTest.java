@@ -467,19 +467,18 @@ class ContentCollectionUpdateDTOTest {
         }
 
         @Test
-        @DisplayName("Should fail validation when contentBlockId is null")
-        void shouldFailValidationWhenContentBlockIdIsNull() {
+        @DisplayName("Should accept null contentBlockId when oldOrderIndex is provided")
+        void shouldAcceptNullContentBlockIdWhenOldOrderIndexProvided() {
             ContentCollectionUpdateDTO.ContentBlockReorderOperation operation = 
                     ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
-                            .contentBlockId(null) // Required field missing
+                            .contentBlockId(null) // Can be null if oldOrderIndex is set
+                            .oldOrderIndex(0)
                             .newOrderIndex(1)
                             .build();
 
             Set<ConstraintViolation<ContentCollectionUpdateDTO.ContentBlockReorderOperation>> violations = 
                     validator.validate(operation);
-            assertFalse(violations.isEmpty());
-            assertTrue(violations.stream()
-                    .anyMatch(v -> v.getMessage().contains("Content block ID is required")));
+            assertTrue(violations.isEmpty());
         }
 
         @Test
@@ -875,8 +874,8 @@ class ContentCollectionUpdateDTOTest {
         void shouldHandleValidationErrorsInNestedReorderOperations() {
             List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
                     ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
-                            .contentBlockId(null) // Error: Required field missing
-                            .newOrderIndex(0)
+                            .contentBlockId(1L)
+                            .newOrderIndex(-5) // Error: Below minimum
                             .build(),
                     ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(2L)

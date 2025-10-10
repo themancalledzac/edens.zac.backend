@@ -148,15 +148,20 @@ class ContentCollectionControllerProdTest {
     }
 
     @Test
-    @DisplayName("GET /collections with negative page should return bad request")
-    void getAllCollections_withNegativePage_shouldReturnBadRequest() throws Exception {
-        // Act & Assert
+    @DisplayName("GET /collections with negative page should normalize to page 0")
+    void getAllCollections_withNegativePage_shouldNormalizeToZero() throws Exception {
+        // Arrange
+        Page<ContentCollectionModel> page = new PageImpl<>(testCollections, PageRequest.of(0, 10), 3);
+        when(contentCollectionService.getAllCollections(any(Pageable.class))).thenReturn(page);
+
+        // Act & Assert - Controller normalizes negative page to 0
         mockMvc.perform(get("/api/read/collections")
                 .param("page", "-1")
                 .param("size", "10")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$", is("Page number cannot be negative")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(3)))
+                .andExpect(jsonPath("$.number", is(0)));
     }
 
     @Test
@@ -198,39 +203,45 @@ class ContentCollectionControllerProdTest {
     }
 
     @Test
-    @DisplayName("GET /collections/{slug} with negative page should return bad request")
-    void getCollectionBySlug_withNegativePage_shouldReturnBadRequest() throws Exception {
-        // Act & Assert
+    @DisplayName("GET /collections/{slug} with negative page should normalize to page 0")
+    void getCollectionBySlug_withNegativePage_shouldNormalizeToZero() throws Exception {
+        // Arrange
+        when(contentCollectionService.getCollectionWithPagination(eq("test-blog"), eq(0), eq(30)))
+                .thenReturn(testCollection);
+
+        // Act & Assert - Controller normalizes negative page to 0
         mockMvc.perform(get("/api/read/collections/test-blog")
                 .param("page", "-1")
                 .param("size", "30")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$", is("Page number cannot be negative")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slug", is("test-blog")))
+                .andExpect(jsonPath("$.currentPage", is(0)));
     }
 
     @Test
     @DisplayName("GET /collections/type/{type} should return collections of specified type")
     void getCollectionsByType_shouldReturnCollectionsOfSpecifiedType() throws Exception {
         // Arrange
-        List<ContentCollectionModel> blogCollections = List.of(testCollections.get(0));
-        Page<ContentCollectionModel> page = new PageImpl<>(blogCollections, PageRequest.of(0, 10), 1);
+        List<edens.zac.portfolio.backend.model.HomeCardModel> homeCards = List.of(
+                edens.zac.portfolio.backend.model.HomeCardModel.builder()
+                        .id(1L)
+                        .title("Test Blog")
+                        .cardType("BLOG")
+                        .slug("test-blog")
+                        .build()
+        );
 
-        when(contentCollectionService.findByType(eq(CollectionType.BLOG), any(Pageable.class)))
-                .thenReturn(page);
+        when(contentCollectionService.findVisibleByTypeOrderByDate(eq(CollectionType.BLOG)))
+                .thenReturn(homeCards);
 
         // Act & Assert
         mockMvc.perform(get("/api/read/collections/type/BLOG")
-                .param("page", "0")
-                .param("size", "10")
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(1)))
-                .andExpect(jsonPath("$.content[0].title", is("Test Blog")))
-                .andExpect(jsonPath("$.content[0].type", is("BLOG")))
-                .andExpect(jsonPath("$.totalElements", is(1)))
-                .andExpect(jsonPath("$.totalPages", is(1)))
-                .andExpect(jsonPath("$.number", is(0)));
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title", is("Test Blog")))
+                .andExpect(jsonPath("$[0].cardType", is("BLOG")));
     }
 
     @Test

@@ -29,13 +29,13 @@ public class ContentCollectionModel extends ContentCollectionBaseModel {
     @Min(value = DefaultValues.default_blocks_per_page, message = "Blocks per page must be 30 or greater")
     private Integer blocksPerPage;
 
-    @Min(value = 1, message = "Total blocks must be 1 or greater")
+    @Min(value = 0, message = "Total blocks must be 0 or greater")
     private Integer totalBlocks;
 
     @Min(value = 1, message = "Current page must be 1 or greater")
     private Integer currentPage;
 
-    @Min(value = 1, message = "Total pages must be 1 or greater")
+    @Min(value = 0, message = "Total pages must be 0 or greater")
     private Integer totalPages;
 
     // Cover image for the collection (full ImageContentBlockModel when set)
