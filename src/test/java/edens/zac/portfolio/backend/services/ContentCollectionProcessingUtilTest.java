@@ -45,9 +45,6 @@ class ContentCollectionProcessingUtilTest {
     private ContentBlockProcessingUtil contentBlockProcessingUtil;
 
     @Mock
-    private ImageProcessingUtil imageProcessingUtil;
-
-    @Mock
     private ExceptionUtils exceptionUtils;
 
     @Mock
@@ -214,19 +211,6 @@ class ContentCollectionProcessingUtilTest {
         assertEquals(page.getTotalPages(), model.getTotalPages());
         assertEquals((int) page.getTotalElements(), model.getTotalBlocks());
         assertEquals(page.getSize(), model.getBlocksPerPage());
-    }
-
-    @Test
-    void generateSlug_shouldCallImageProcessingUtil() {
-        // Arrange
-        when(imageProcessingUtil.generateSlug("Test Title")).thenReturn("test-title");
-
-        // Act
-        String slug = util.generateSlug("Test Title");
-
-        // Assert
-        assertEquals("test-title", slug);
-        verify(imageProcessingUtil).generateSlug("Test Title");
     }
 
     @Test

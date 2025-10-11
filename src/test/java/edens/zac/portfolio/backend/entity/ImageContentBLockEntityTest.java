@@ -41,7 +41,6 @@ class ImageContentBlockEntityTest {
                 .blackAndWhite(false)
                 .isFilm(false)
                 .shutterSpeed("1/125")
-                .rawFileName("IMG_1234.CR2")
                 .camera("Canon EOS R5")
                 .focalLength("50mm")
                 .location("Yosemite National Park")
@@ -96,7 +95,6 @@ class ImageContentBlockEntityTest {
                 .blackAndWhite(false)
                 .isFilm(false)
                 .shutterSpeed("1/125")
-                .rawFileName("IMG_1234.CR2")
                 .camera("Canon EOS R5")
                 .focalLength("50mm")
                 .location("Yosemite National Park")
@@ -120,7 +118,6 @@ class ImageContentBlockEntityTest {
         assertFalse(imageBlock.getBlackAndWhite());
         assertFalse(imageBlock.getIsFilm());
         assertEquals("1/125", imageBlock.getShutterSpeed());
-        assertEquals("IMG_1234.CR2", imageBlock.getRawFileName());
         assertEquals("Canon EOS R5", imageBlock.getCamera());
         assertEquals("50mm", imageBlock.getFocalLength());
         assertEquals("Yosemite National Park", imageBlock.getLocation());

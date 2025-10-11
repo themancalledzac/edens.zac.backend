@@ -35,9 +35,6 @@ public class ImageContentBlockModel extends ContentBlockModel {
     @Size(max = 20)
     private String shutterSpeed;
 
-    @Size(max = 100)
-    private String rawFileName;
-
     @Size(max = 25)
     private String camera;
 
@@ -46,6 +43,8 @@ public class ImageContentBlockModel extends ContentBlockModel {
 
     @Size(max = 250)
     private String location;
+
+    private String imageUrlFullSize;
 
     @NotNull
     private String imageUrlWeb;

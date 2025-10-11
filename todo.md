@@ -1,513 +1,1120 @@
-# Content Collection Refactor TODO
+# Content Collection Backend TODO
 
 ## Overview
-
-### Current State
-The portfolio currently uses a simple **Catalog/Image** system where:
-- `CatalogEntity` contains basic metadata (title, location, description, etc.) and a list of `ImageEntity` objects
-- All catalogs are essentially the same type - just containers of images with descriptions
-- Content types like wedding portfolios, art galleries, client deliveries, and daily moments are all forced into the same "catalog" structure
-- **Performance Issue**: Large catalogs (200+ images) load slowly due to single API endpoint returning all data at once
-
-### The Problem
-The current system is too rigid and doesn't reflect the different **purposes** and **presentation needs** of different content types:
-- **Daily/moment blogs** need mixed content (text + images) in specific order, more casual presentation
-- **Art galleries** need curated image collections with artistic presentation
-- **Client galleries** need private access, download capabilities, and professional delivery features  
-- **Portfolio showcases** (wedding/corporate work) need polished presentation to attract new clients
-- **Future needs** like coding portfolios will require code blocks, diagrams, and technical content
-
-### The Solution: ContentCollection System
-Refactor to a flexible **ContentCollection** system with four distinct types:
-
-1. **`BLOG`** - Daily moments, casual content, mixed text/images, chronological
-2. **`ART_GALLERY`** - Curated artistic collections (e.g., "humans in nature", "urban landscapes")
-3. **`CLIENT_GALLERY`** - Private client deliveries with simple password protection
-4. **`PORTFOLIO`** - Professional showcases (e.g., "Wedding Photography", "Corporate Work", "Arches National Park")
-
-**Key Architecture Changes:**
-- `ContentCollectionEntity` replaces Catalog entities
-- `ContentBlockEntity` system allows mixed content types (images, text, code, video, gifs)
-- **Pagination strategy** for collections with 30+ content blocks
-- Ordered content blocks enable precise layout control
-- Type-specific rendering and editing interfaces
-- **Storage strategy**: Text/code in database, media (images/videos/gifs) in S3
-- **Testing strategy**: Unit tests and component tests throughout development
-
-### Strategy: Parallel Development
-**Critical Approach:** Build the new ContentCollection system **completely parallel** to the existing Catalog/Image system to avoid breaking current functionality.
-
-**Key Technical Considerations:**
-- **SSR vs Client-side**: Minimize context usage to keep components server-side rendered where possible
-- **Performance**: Implement pagination for large collections from the start
-- **Testing**: Add unit tests and component tests as we build each piece
-- **Validation**: Use Bean Validation annotations with service-level validation
-- **Error Handling**: Follow Spring Boot best practices with proper HTTP status codes
-
-### End Goal
-A flexible CMS-like system where each content type has:
-- **Specialized creation/editing interfaces** tailored to its purpose
-- **Optimized presentation** with pagination for large collections
-- **Type-specific features** (privacy controls, download options, technical formatting)
-- **Proper SSR/client-side balance** for optimal performance
-- **Comprehensive testing** ensuring reliability and maintainability
-- **Extensibility** for future content types (coding portfolios, tutorials, etc.)
+This document outlines the remaining backend work for the ContentCollection system refactor, organized by priority. All completed work has been removed, and frontend work has been deferred.
 
 ---
 
-## Phase 1: Database Schema & Core Entities (Backend)
+## 🔴 HIGH PRIORITY - Critical Missing Features
 
-### 1.1 Create CollectionType Enum
-- [x] Create `CollectionType.java` enum with values: `BLOG`, `ART_GALLERY`, `CLIENT_GALLERY`, `PORTFOLIO`
-- [x] Add to `edens.zac.portfolio.backend.types` package
-- [x] Add validation annotations
-- **Files created**: `src/main/java/edens/zac/portfolio/backend/types/CollectionType.java`
-- **Testing**: Unit test for enum values and validation
+### New Features List
 
-### 1.2 Create ContentBlockType System
-- [x] Create `ContentBlockType.java` enum: `IMAGE`, `TEXT`, `CODE`, `GIF`
-- [x] Create `ContentBlockEntity.java` base entity with ordering field
-- [x] Add `@Table` indexes for performance (collection_id, order_index)
-- [x] Include validation annotations (`@NotNull`, `@Min`, etc.)
-- **Files created**: 
-  - `src/main/java/edens/zac/portfolio/backend/types/ContentBlockType.java`
-  - `src/main/java/edens/zac/portfolio/backend/entity/ContentBlockEntity.java`
-- **Testing**: Unit tests for entity validation and ordering logic
 
-### 1.3 Create Specific ContentBlock Entities
-- [x] Create `ImageContentBlockEntity.java` extending ContentBlockEntity
-  - [x] Reuse image metadata fields from existing `ImageEntity`
-  - [x] Include S3 URL fields (web, raw)
-- [x] Create `TextContentBlockEntity.java` extending ContentBlockEntity
-  - [x] Store content as `@Lob` field in database (no S3 needed)
-  - [x] Add formatting options (markdown, html, plain text)
-- [x] Create `CodeContentBlockEntity.java` extending ContentBlockEntity
-  - [x] Store code as `@Lob` field in database
-  - [x] Add language field for syntax highlighting
-- [x] Create `GifContentBlockEntity.java` extending ContentBlockEntity
-  - [x] Include S3 URL fields similar to images
-- **Files created**: 
-  - `src/main/java/edens/zac/portfolio/backend/entity/ImageContentBlockEntity.java`
-  - `src/main/java/edens/zac/portfolio/backend/entity/TextContentBlockEntity.java`
-  - `src/main/java/edens/zac/portfolio/backend/entity/CodeContentBlockEntity.java`
-  - `src/main/java/edens/zac/portfolio/backend/entity/GifContentBlockEntity.java`
-- **Testing**: Unit tests for each entity type and their specific validations
+* New Updates/Features going forward
+*  - Get all tags endpoint
+*  - Get all people endpoint
+*  - create new tag endpoint
+*  - create new 'person' endpoint
+*  
+* 
+- With all of these in mind, we probably need a 'ContentBlockControllerDev/Prod'
+*  - - THese include all changes to ImageContentBlock, GifContentBLock, TextContentBLock, and CodeContentBlock
+*  - Endpoints that are Image specific (ImageContentBLock)
+*  - Edit Metadata of Single Image
+*  - Edit Metadata of List of Images
+*  - Add List of images to existing collection
+*  - get All images by:
+*  - - Tag ( new general 'tags' array for images )
+*  - - - will need to be it's own table maybe? why or why not?
+*  - - Person ( new 'person' array for images )
+*  - - - will probably need to be it's own table. a many to many relationship with images and collections
+*  - - date
+*  - - location
+*  - - rating
+*  - - isFilm
+*  - - Need to really think about this 'get By', and whether we want a more General 'get by', and then we filter on the frontend. these are all probably acceptable right now, though.
+* 
+*  - Will Tags need to be it's own 'controller/service/repository' layers? or can we do that in 'contentBlock'? does it exist as a contentBlock as well? what about 'People'
+*  - 
+*  - 
 
-### 1.4 Create ContentCollection Entity
-- [x] Create `ContentCollectionEntity.java` with CollectionType field
-- [x] Add OneToMany relationship to ContentBlockEntity (ordered by order_index)
-- [x] Include all common fields: title, slug, description, date, visibility, priority
-- [x] Add type-specific JSON configuration field for extensibility
-- [x] Add pagination metadata (total_blocks, blocks_per_page)
-- [x] Add client gallery security: `password_hash` field (nullable)
-- [x] Include proper validation annotations
-- [x] Add database indexes for performance (slug, type, date)
-- **Files to create**: `src/main/java/edens/zac/portfolio/backend/entity/ContentCollectionEntity.java`
-- **Testing**: Unit tests for entity validation and relationships
 
-### 1.5 Create Repository Layer
-- [x] Create `ContentCollectionRepository.java`
-  - [x] Add `findBySlug`, `findByType`, `findByTypeOrderByPriority` methods
-  - [x] Add pagination support: `findByIdWithContentBlocks(Long id, Pageable pageable)`
-  - [x] Add client gallery methods: `findBySlugAndPasswordHash`
-- [x] Create `ContentBlockRepository.java`
-  - [x] Add `findByCollectionIdOrderByOrderIndex` method
-  - [x] Add pagination: `findByCollectionId(Long collectionId, Pageable pageable)`
-  - [x] Add counting: `countByCollectionId(Long collectionId)`
-- **Files to create**: 
-  - `src/main/java/edens/zac/portfolio/backend/repository/ContentCollectionRepository.java`
-  - `src/main/java/edens/zac/portfolio/backend/repository/ContentBlockRepository.java`
-- **Testing**: Integration tests for repository methods and pagination
+### Gif workflow implementation
 
----
+#### Current State Analysis
+**✅ Already Implemented:**
+- `GifContentBlockEntity` - Database schema with fields for gifUrl, thumbnailUrl, width, height, author, createDate
+- `GifContentBlockModel` - DTO for API responses
+- `ContentBlockType.GIF` - Enum support
+- Basic JPA inheritance structure in ContentCollection system
 
-## Phase 2: Models & DTOs (Backend)
+**❌ Missing Key Components:**
+1. No gif upload endpoint (current `ImageControllerDev` only handles images)
+2. No gif processing service (no `GifProcessingUtil` equivalent)
+3. No gif metadata extraction capabilities
+4. No first-frame extraction for thumbnail generation
+5. No S3 folder structure for gifs (currently only `/images/{date}/`)
+6. No gif-specific validation (file size, format, etc.)
 
-### 2.1 Create Content Block Models
-- [x] Create `ContentBlockModel.java` base model with validation
-- [x] Create `ImageContentBlockModel.java` (reuse fields from existing `ImageModel`)
-- [x] Create `TextContentBlockModel.java` with content and formatting fields
-- [x] Create `CodeContentBlockModel.java` with content and language fields
-- [x] Create `GifContentBlockModel.java` with S3 URL fields
-- [x] Add proper Bean Validation annotations to all models
-- **Files to create**: Multiple ContentBlock model files
-- [x] **Testing**: Unit tests for model validation and serialization
+#### Implementation Tasks
 
-### 2.2 Create ContentCollection Models
-- [x] Create `ContentCollectionModel.java`
-  - [x] Include pagination metadata (currentPage, totalPages, totalBlocks)
-  - [x] Include List<ContentBlockModel> for content items (paginated)
-  - [x] Add client gallery access fields (isPasswordProtected, hasAccess)
-- [x] Create `ContentCollectionCreateDTO.java`
-  - [x] Include validation for required fields based on type
-  - [x] Add password field for client galleries
-- [x] Create `ContentCollectionUpdateDTO.java`
-  - [x] Support partial updates
-  - [x] Include content block reordering operations
-- [x] Create `ContentCollectionPageDTO.java` for paginated responses
-- **Files to create**: Multiple ContentCollection model files
-- **Testing**: Unit tests for DTO validation and type-specific requirements
+**🔴 HIGH PRIORITY - Core Gif Upload Functionality**
 
----
+- [ ] **Create GifProcessingUtil Service**
+  - Mirror structure of `ImageProcessingUtil` for consistency
+  - Extract gif metadata (dimensions, frame count, duration, loop count)
+  - Generate thumbnail from first frame (save as JPEG/WebP)
+  - Handle S3 upload to `gifs/{date}/` folder structure
+  - File size validation (gifs can be large - set reasonable limits)
 
-## Phase 3: Service Layer (Backend)
+- [ ] **Create Gif Upload Endpoint**
+  - **Option A**: Extend `ImageControllerDev.postImages()` to handle gif files
+  - **Option B**: Create dedicated `GifControllerDev` with `postGifs()` endpoint
+  - **Recommendation**: Option A for code reuse, detect file type and route accordingly
+  - Support batch gif uploads similar to image batch processing
+  - Return gif metadata including gifUrl and thumbnailUrl
 
-### 3.1 Create ContentBlock Processing Utils
-- [x] Create `ContentBlockProcessingUtil.java`
-  - [x] Entity-to-model conversion methods for each content type
-  - [x] Content block ordering and reordering logic
-  - [x] **Reuse `ImageProcessingUtil`** for image-specific processing
-  - [x] Text/code content validation and sanitization
-  - [x] S3 upload logic for media content blocks (gifs)
-- [x] Add proper error handling with Spring Boot best practices
-- **Files created**: `src/main/java/edens/zac/portfolio/backend/services/ContentBlockProcessingUtil.java`
-- **Testing**: Unit tests for conversion logic and content validation have been implemented in `ContentBlockProcessingUtilTest.java`
+- [ ] **Implement First-Frame Thumbnail Generation**
+  - Use ImageIO or similar library to extract first frame
+  - Convert first frame to optimized JPEG/WebP format
+  - Upload both gif and thumbnail to S3
+  - Store both URLs in `GifContentBlockEntity`
 
-### 3.2 Create ContentCollection Service
-- [x] Create `ContentCollectionService.java` interface
-  - [x] Define methods with pagination: `getCollectionWithPagination(String slug, int page, int size)`
-  - [x] Define client gallery access: `validateClientGalleryAccess(String slug, String password)`
-- [x] Create `ContentCollectionServiceImpl.java`
-  - [x] Implement CRUD operations with proper error handling
-  - [x] Add pagination logic (default page size: 30 content blocks)
-  - [x] Add client gallery password validation (SHA-256 hashing)
-  - [x] Add methods: `findByType`, `findBySlug`, `createCollection`, `updateContent`, `addContentBlocks`, `getAllCollections`
-  - [x] **Performance optimization**: Use `@Transactional(readOnly = true)` for read operations
-- **Files created**: 
-  - `src/main/java/edens/zac/portfolio/backend/services/ContentCollectionService.java`
-  - `src/main/java/edens/zac/portfolio/backend/services/ContentCollectionServiceImpl.java`
-- **Testing**: Unit tests for service methods and integration tests for pagination (TODO: Tests for `addContentBlocks` flow need to be implemented)
+- [ ] **Update S3 Folder Structure**
+  - Add `gifs/{date}/` parallel to existing `images/{date}/`
+  - Update S3Config if needed for gif-specific settings
+  - Ensure CloudFront distribution covers gif files
+  - Consider CDN optimization for large gif files
 
-### 3.3 Create ContentCollection Processing Util
-- [x] Create `ContentCollectionProcessingUtil.java`
-  - [x] Entity-to-model conversion methods
-  - [x] Type-specific processing logic for each CollectionType
-  - [x] Slug generation and validation (reuse existing `generateSlug` method)
-  - [x] Password hashing for client galleries
-  - [x] Pagination metadata calculation
-- [x] Follow existing error handling patterns from `CatalogProcessingUtil`
-- **Files created**: `src/main/java/edens/zac/portfolio/backend/services/ContentCollectionProcessingUtil.java`
-- **Testing**: Unit tests for processing logic and type-specific behavior have been implemented in `ContentCollectionProcessingUtilTest.java`
+**🟠 MEDIUM PRIORITY - Enhanced Gif Features**
 
----
+- [ ] **Gif Metadata Extraction**
+  - Extract technical metadata: frame count, duration, bit rate
+  - Extract EXIF data if present (author, create date, camera info)
+  - Determine if gif is animated or static
+  - Calculate file size optimization metrics
 
-## Phase 4: API Controllers (Backend)
+- [ ] **Gif Optimization Capabilities**
+  - Analyze if gifs need compression (user mentioned they're already optimized)
+  - Implement optional gif resizing for web delivery
+  - Consider generating multiple sizes (original, web-optimized)
+  - Add quality validation (reject corrupted gifs)
 
-### 4.1 Create ContentCollection Read Controller
-- [x] Create `ContentCollectionControllerProd.java` in prod package
-- [x] Add endpoints with pagination (base path: `/api/read/collections`):
-  - [x] `GET /api/read/collections?page=0&size=10` - all collections with basic info (default size 10)
-  - [x] `GET /api/read/collections/{slug}?page=0&size=30` - collection with paginated content (default size 30)
-  - [x] `GET /api/read/collections/type/{type}?page=0&size=10` - collections by type (default size 10)
-  - [x] `POST /api/read/collections/{slug}/access` - client gallery password validation
-- [x] Implement proper HTTP status codes and error responses
-- [x] Add validation for pagination parameters
-- [x] Keep completely separate from existing CatalogController
-- **Files created**: `src/main/java/edens/zac/portfolio/backend/controller/prod/ContentCollectionControllerProd.java`
-- **Testing**: Integration tests for all endpoints including pagination and error cases
+- [ ] **ContentCollection Integration**
+  - Ensure gif content blocks work properly in collections
+  - Test gif content blocks in all collection types (BLOG, ART_GALLERY, CLIENT_GALLERY, PORTFOLIO)
+  - Implement proper ordering with mixed content types
+  - Add gif support to collection export functionality
 
-### 4.2 Create ContentCollection Write Controller (Dev Only)
-- [x] Create `ContentCollectionControllerDev.java` in dev package
-- [x] Add endpoints (base path: `/api/write/collections`):
-  - [x] `POST /api/write/collections/createCollection` - create collection (JSON body)
-  - [x] `PUT /api/write/collections/{id}` - update collection metadata; also supports reorder/remove/add text via ContentCollectionUpdateDTO
-  - [x] `POST /api/write/collections/{id}/content` - add media content blocks (multipart file upload)
-  - [x] `DELETE /api/write/collections/{id}/content/{blockId}` - remove content block
-  - [x] `DELETE /api/write/collections/{id}` - delete collection
-- [x] Creation flow is two-step: JSON create, then separate media upload
-- [x] Add proper validation and error handling
-- [x] Follow existing patterns from `CatalogControllerDev`
-- **Files created**: `src/main/java/edens/zac/portfolio/backend/controller/dev/ContentCollectionControllerDev.java`
-- **Testing**: Integration tests for CRUD operations and multipart uploads
+**🟡 LOW PRIORITY - Advanced Gif Features**
 
----
+- [ ] **Gif Preprocessing Options**
+  - Optional frame rate adjustment
+  - Loop count modification
+  - Color palette optimization
+  - Progressive loading support
 
-## Phase 5: Frontend Types & Models
+- [ ] **Gif Search and Filtering**
+  - Search by gif-specific metadata (duration, frame count)
+  - Filter by animated vs static gifs
+  - Advanced gif collection management
+  - Bulk gif operations
 
-### 5.1 Create TypeScript Types
-- [ ] Create `types/ContentCollection.ts`
-  - [ ] Define CollectionType enum matching backend
-  - [ ] Include pagination interfaces (PaginatedResponse, PageMetadata)
-  - [ ] Add client gallery access types
-- [ ] Create `types/ContentBlock.ts`
-  - [ ] Define ContentBlockType enum matching backend
-  - [ ] Create interfaces for each content block type
-  - [ ] Include ordering and editing interfaces
-- [ ] Follow existing TypeScript patterns from Catalog/Image types
-- **Files to create**: 
-  - `types/ContentCollection.ts`
-  - `types/ContentBlock.ts`
-- **Testing**: Create type-only test files to ensure type safety
+#### Technical Considerations
 
-### 5.2 Create API Functions
-- [ ] Create `lib/api/contentCollections.ts`
-- [ ] Implement fetch functions (align with backend paths and defaults):
-  - [ ] `fetchCollections(page = 0, size = 10)` -> GET `/api/read/collections`
-  - [ ] `fetchCollectionBySlug(slug, page = 0, size = 30)` -> GET `/api/read/collections/{slug}`
-  - [ ] `fetchCollectionsByType(type, page = 0, size = 10)` -> GET `/api/read/collections/type/{type}`
-  - [ ] `validateClientGalleryAccess(slug, password)` -> POST `/api/read/collections/{slug}/access`
-  - [ ] `createCollection(dto)` -> POST `/api/write/collections/createCollection` (JSON)
-  - [ ] `uploadContentFiles(collectionId, files)` -> POST `/api/write/collections/{id}/content` (multipart)
-  - [ ] `updateCollection(id, updates)` -> PUT `/api/write/collections/{id}` (metadata + reorder/remove/add text)
-  - [ ] `deleteCollection(id)` -> DELETE `/api/write/collections/{id}`
-- [ ] Follow existing error handling patterns from `lib/api/core.ts`
-- [ ] Keep separate from existing catalog API functions
-- [ ] Add proper TypeScript return types
-- **Files to create**: `lib/api/contentCollections.ts`
-- **Testing**: Unit tests for API functions and error handling
+**File Size Management:**
+- Gifs are typically larger than images - implement appropriate size limits
+- Consider streaming upload for very large gifs
+- Monitor S3 storage costs with gif uploads
 
----
+**Performance Considerations:**
+- First-frame extraction may be CPU intensive
+- Consider async processing for large batch uploads
+- Implement proper error handling for corrupted gif files
 
-## Phase 6: Frontend Components (SSR-Optimized)
+**Frontend Integration:**
+- Ensure frontend can handle large gif files
+- Implement proper loading states (show thumbnail while gif loads)
+- Consider lazy loading for gif-heavy collections
 
-### 6.1 Create Content Block Components (SSR-First)
-- [ ] Create `Components/ContentBlocks/ImageContentBlock.tsx`
-  - [ ] **Server-side component** - no hooks/context unless absolutely necessary
-  - [ ] Reuse image optimization from existing components
-  - [ ] Add lazy loading for performance
-- [ ] Create `Components/ContentBlocks/TextContentBlock.tsx`
-  - [ ] **Server-side component** with markdown/HTML rendering
-  - [ ] Add syntax highlighting for formatted text
-- [ ] Create `Components/ContentBlocks/CodeContentBlock.tsx`
-  - [ ] **Server-side component** with syntax highlighting
-  - [ ] Support multiple programming languages
-- [ ] Create `Components/ContentBlocks/GifContentBlock.tsx`
-  - [ ] **Server-side component** optimized for GIF display
-- [ ] Create `Components/ContentBlocks/ContentBlockRenderer.tsx`
-  - [ ] **Server-side switch component** based on block type
-  - [ ] Minimal logic, pure rendering
-- **Files to create**: Multiple ContentBlock components
-- **Testing**: Component tests using React Testing Library
-- **SCSS**: Follow existing module patterns, create `ContentBlocks.module.scss`
+**S3 Structure Recommendation:**
+```
+portfolio-bucket/
+├── images/
+│   └── {date}/
+│       ├── original_image.jpg
+│       └── compressed_image.webp
+└── gifs/
+    └── {date}/
+        ├── original_animation.gif
+        └── thumbnail_first_frame.jpg
+```
 
-### 6.2 Create ContentCollection Display Components (SSR-First)
-- [ ] Create `Components/ContentCollection/ContentCollectionView.tsx`
-  - [ ] **Server-side base component** with minimal logic
-  - [ ] Handle pagination controls (minimal client-side interaction)
-  - [ ] Type-based rendering delegation
-- [ ] Create `Components/ContentCollection/BlogView.tsx`
-  - [ ] **Server-side component** optimized for chronological content
-  - [ ] Mixed content layout (text + images)
-- [ ] Create `Components/ContentCollection/ArtGalleryView.tsx`
-  - [ ] **Server-side component** optimized for image-focused display
-  - [ ] Grid layouts, artistic presentation
-- [ ] Create `Components/ContentCollection/PortfolioView.tsx`
-  - [ ] **Server-side component** for professional presentation
-  - [ ] Clean, polished layouts
-- [ ] Create `Components/ContentCollection/ClientGalleryView.tsx`
-  - [ ] **Hybrid component** - SSR for display, client-side for password access
-  - [ ] Download functionality (minimal client-side logic)
-  - [ ] Password protection interface
-- [ ] Create `Components/ContentCollection/PaginationControls.tsx`
-  - [ ] **Client-side component** for navigation (necessary for interactivity)
-  - [ ] URL-based pagination (SEO-friendly)
-- **Files to create**: Multiple view components
-- **Testing**: Component tests for each view type and pagination
-- **SCSS**: Create unified `ContentCollection.module.scss` following best practices
+#### Questions for Consideration
 
-### 6.3 Create ContentCollection Page Route
-- [ ] Create `pages/collection/[slug].tsx`
-  - [ ] **Server-side rendering** with `getServerSideProps`
-  - [ ] Handle pagination in SSR (page, size query params)
-  - [ ] Dynamic rendering based on CollectionType
-  - [ ] Client gallery password handling (hybrid approach)
-  - [ ] Keep completely separate from existing `pages/catalog/[slug].tsx`
-- [ ] Follow existing SSR patterns from catalog pages
-- [ ] Implement proper error handling (404, 403, etc.)
-- [ ] Add SEO optimization (meta tags, structured data)
-- **Files to create**: `pages/collection/[slug].tsx`
-- **Testing**: Page-level integration tests
+1. **Endpoint Design**: Extend existing image endpoint or create separate gif endpoint?
+2. **Metadata Storage**: Store gif-specific metadata in dedicated fields or JSON blob?
+3. **Thumbnail Strategy**: Always generate thumbnails or make optional?
+4. **Size Limits**: What's the maximum acceptable gif file size?
+5. **Browser Compatibility**: Any specific gif format requirements for web delivery?
+
+#### Implementation Order Recommendation
+
+1. **Phase 1**: Basic gif upload (GifProcessingUtil + endpoint extension)
+2. **Phase 2**: First-frame thumbnail generation and S3 structure
+3. **Phase 3**: Metadata extraction and ContentCollection integration
+4. **Phase 4**: Advanced features and optimization
+
+### Individual ContentBlock CRUD Operations
+- [ ] **ContentBlock Update Endpoint** - `PUT /api/write/collections/{id}/content/{blockId}`
+  - TODO: This should probably just be a "update ALl contentBlocks in collection" endpoint.
+    - What I mean by this, is that we always pas an array or List<contentBlock>, as all edits would happen from a ContentCollection page initially. 
+    - we can create a 'null', or unused for future use 'individual contentBlock update'
+  - Individual content block updates without affecting collection
+  - Support for reordering individual blocks
+  - Proper transaction consistency
+
+- [ ] **ContentBlock Delete Endpoint** - `DELETE /api/write/collections/{id}/content/{blockId}`
+  - Individual content block deletion with proper cleanup
+  - Handle cascade operations correctly
+  - Prevent orphaned content blocks
+
+- [ ] **ContentBlock Reordering Service Methods**
+  - Service methods for fine-grained content block reordering
+  - Bulk reordering operations
+  - Order validation and gap handling
+
+### Complete Image Management System
+- [ ] **Individual Image Update Endpoint** - Complete `updateImage` functionality
+  - Currently returns `null` in `ImageControllerDev.updateImage()`
+  - Image metadata updates
+  - Image replacement functionality
+
+- [ ] **Batch Image Operations**
+  - Bulk image metadata extraction
+  - Batch image uploads for collections
+  - Image search and filtering capabilities
+
+- [ ] **Image Metadata Preservation**
+  - Ensure all metadata from old system is preserved in ContentBlocks
+  - Advanced image search by metadata (ISO, camera, lens, etc.)
+  - Orphaned images detection and cleanup
+
+### Error Handling Standardization
+- [ ] **Consistent Error Response Patterns**
+  - Standardize error responses across all controllers
+  - Implement ProblemDetails (RFC 9457) consistently
+  - Improve exception messaging
+
+- [ ] **Centralized Exception Handling**
+  - Complete `@ControllerAdvice` implementation
+  - Proper logging strategies
+  - Hide stack traces from production clients
 
 ---
 
-## Phase 7: Content Creation & Management
+## 🟠 MEDIUM PRIORITY - Enhancement Features
 
-### 7.1 Create ContentCollection Create/Edit Components
-- [ ] Create `Components/ContentCollection/ContentCollectionEditor.tsx`
-  - [ ] **Client-side component** (editing requires interactivity)
-  - [ ] Type-specific form fields based on CollectionType
-  - [ ] Validation using existing patterns
-- [ ] Create `Components/ContentCollection/ContentBlockEditor.tsx`
-  - [ ] **Client-side component** for drag-and-drop reordering
-  - [ ] Content block type selection and editing
-  - [ ] File upload for media content blocks
-- [ ] Create `Components/ContentCollection/CollectionTypeSelector.tsx`
-  - [ ] **Client-side component** for type selection during creation
-  - [ ] Type-specific feature explanations
-- [ ] Create `pages/collection/create.tsx`
-  - [ ] **Client-side page** (creation requires extensive interactivity)
-  - [ ] Follow existing creation patterns from catalog create
-- [ ] Use existing context patterns from `EditContext` where necessary
-- **Files to create**: Multiple editor components and create page
-- **Testing**: Component tests for editing functionality
-- **SCSS**: Create `ContentCollectionEditor.module.scss`
+### Complete Home Page System
+- [ ] **Finish updateHomePage Implementation**
+  - Currently returns `null` in `HomeControllerDev.updateHomePage()`
+  - Complete home card management
+  - Priority-based sorting
 
-### 7.2 Update Header/Navigation (Minimal Client-Side Impact)
-- [ ] Add ContentCollection routes to header navigation
-  - [ ] Update `Components/Header/Header.tsx` - keep server-side
-  - [ ] Add collection type navigation
-- [ ] Update admin menu to include "Create Collection" option
-  - [ ] Update `Components/MenuDropdown/MenuDropdown.tsx`
-  - [ ] Keep existing Catalog navigation intact during transition
-- [ ] Follow existing navigation patterns
-- **Files to modify**: 
-  - `Components/Header/Header.tsx`
-  - `Components/MenuDropdown/MenuDropdown.tsx`
-- **Testing**: Component tests for navigation updates
+- [ ] **Dynamic Home Page Generation**
+  - Featured content rotation
+  - Priority management for home cards
+  - Integration with ContentCollections
 
----
+### Advanced Search Implementation
+- [ ] **Port ImageSpecification Logic**
+  - Adapt existing advanced search capabilities for ContentBlocks
+  - Advanced filtering combinations
+  - Full-text search across collections
 
-## Phase 8: Migration Strategy & Tooling
+- [ ] **ContentCollection Search Capabilities**
+  - Search by collection type
+  - Tag-based content discovery
+  - Combined search filters
 
-### 8.1 Create Migration Utilities
-- [ ] Create `MigrationService.java` for converting Catalogs to ContentCollections
-  - [ ] Catalog type detection logic (analyze titles, content, metadata)
-  - [ ] Batch migration with progress tracking
-  - [ ] Data validation and integrity checks
-- [ ] Create migration endpoint (dev-only): `POST /api/write/migration/catalog-to-collection/{catalogId}`
-- [ ] Add rollback functionality for failed migrations
-- [ ] **Consider Flyway**: Evaluate adding Flyway for future schema changes
-- **Files to create**: `src/main/java/edens/zac/portfolio/backend/services/MigrationService.java`
-- **Testing**: Unit tests for migration logic and integration tests for data integrity
+### Bulk Operations
+- [ ] **Batch Content Block Operations**
+  - Bulk content block updates
+  - Mass import/export capabilities
+  - Batch collection operations
 
-### 8.2 Create Migration Scripts & Tools
-- [ ] Create database migration script for bulk conversion
-  - [ ] SQL scripts for data type mapping
-  - [ ] Image-to-ImageContentBlock conversion
-- [ ] Add validation script to ensure data integrity
-  - [ ] Compare before/after data
-  - [ ] Verify S3 URLs and metadata
-- [ ] Create frontend tool for selective migration
-  - [ ] Admin interface for choosing which catalogs to migrate
-  - [ ] Preview functionality before migration
-- **Files to create**: Migration scripts and admin tools
-- **Testing**: Integration tests for migration scripts
+- [ ] **Collection-Level Bulk Actions**
+  - Collection duplication
+  - Collection archival/restoration
+  - Collection export functionality
 
 ---
 
-## Phase 9: Testing Strategy & Validation
+## 🟡 LOW PRIORITY - Nice to Have Features
 
-### 9.1 Backend Testing
-- [ ] **Unit Tests**: Create comprehensive unit tests for all services and utilities
-  - [ ] Test pagination logic thoroughly
-  - [ ] Test client gallery password validation
-  - [ ] Test content block ordering and reordering
-  - [ ] Mock external dependencies (S3, database)
-- [ ] **Integration Tests**: Test full API endpoints
-  - [ ] Test pagination with real data
-  - [ ] Test multipart uploads for mixed content
-  - [ ] Test client gallery access flows
-- [ ] **Performance Tests**: Test with large collections
-  - [ ] 200+ content blocks pagination performance
-  - [ ] Database query optimization
-  - [ ] S3 upload performance for batch operations
+### Performance Optimizations
+- [ ] **Query Optimizations**
+  - Optimize slow queries discovered in production
+  - Database index improvements
+  - Lazy loading optimizations
 
-### 9.2 Frontend Testing  
-- [ ] **Component Tests**: Use React Testing Library for all components
-  - [ ] Test SSR components render correctly
-  - [ ] Test client-side components handle state properly
-  - [ ] Test pagination controls
-  - [ ] Test content block rendering for each type
-- [ ] **Integration Tests**: Test page-level functionality
-  - [ ] Test SSR data fetching
-  - [ ] Test client gallery password flows
-  - [ ] Test collection creation and editing
-- [ ] **Performance Tests**: Test with large collections
-  - [ ] Image lazy loading effectiveness
-  - [ ] Pagination performance on slow connections
+- [ ] **Caching Strategies**
+  - Cache frequently accessed collections
+  - S3 usage pattern optimizations
+  - Connection pooling improvements
 
-### 9.3 End-to-End Validation
-- [ ] Create test collections of each type with real content
-- [ ] Verify all CRUD operations work correctly
-- [ ] Test content block ordering and editing across all types
-- [ ] Validate responsive design on all collection types and devices
-- [ ] Test client gallery security and access controls
-- [ ] **Future**: Plan for Selenium UI testing framework
+### Advanced Features
+- [ ] **Collection Templates**
+  - Pre-defined collection structures
+  - Template-based collection creation
+  - Type-specific templates
+
+- [ ] **Content Versioning**
+  - Version history for content blocks
+  - Rollback capabilities
+  - Change tracking
+
+- [ ] **Audit Logging**
+  - User action logging
+  - Content change history
+  - Security audit trails
 
 ---
 
-## Phase 10: Gradual Migration & Production Deployment
+## 🧪 COMPREHENSIVE TESTING REQUIREMENTS
 
-### 10.1 Environment Considerations
-- [ ] **Production Data**: Continue using production environment for now
-- [ ] **Future Environment Setup**: Plan for staging environment
-  - [ ] Separate S3 buckets for staging
-  - [ ] Separate database for testing migrations
-  - [ ] CI/CD pipeline for automated testing
+### Missing Test Files
 
-### 10.2 Migrate Existing Data
-- [ ] **Catalog Classification**: Identify which catalogs belong to which CollectionType
-  - [ ] Art galleries: Abstract concepts ("humans in nature", "urban landscapes")
-  - [ ] Portfolio pieces: Location/event specific ("Arches National Park", "Wedding Showcase")
-  - [ ] Client galleries: Individual client work (if any exist)
-- [ ] **Migration Order** (lowest risk first):
-  - [ ] Migrate art galleries first (lowest risk, most generic)
-  - [ ] Migrate portfolio pieces (professional showcases)
-  - [ ] Create new blogs rather than migrating (fresh start)
-  - [ ] Keep any client galleries as catalogs initially
-- [ ] **Data Validation**: Verify all migrated content displays correctly
-  - [ ] Check image loading and metadata
-  - [ ] Verify pagination works with migrated content
-  - [ ] Test performance with large migrated collections
+#### Entity Layer Tests
+- [ ] **ContentCollectionHomeCardEntityTest.java** - Missing
+  - Entity validation tests
+  - Relationship mapping tests
+  - Constraint validation tests
 
-### 10.3 Update Home Page & Navigation
-- [ ] Modify home page to pull from ContentCollections instead of Catalogs
-  - [ ] Update `fetchHomePage()` API to use new endpoints
-  - [ ] Update `HomeCardModel` to support collection types
-  - [ ] Ensure backwards compatibility during transition
-- [ ] Update main navigation to include collection types
-- [ ] **Gradual Rollout**: Feature flag approach for testing
-- **Files to modify**: 
-  - `lib/api/home.ts`
-  - `pages/index.tsx`
+#### Repository Layer Tests
+- [ ] **ContentBlockRepositoryTest.java** - Missing
+  - Repository method tests
+  - Pagination functionality tests
+  - Custom query method validation
+  - Performance tests with large datasets
+
+- [ ] **HomeCardRepositoryTest.java** - Missing (if exists)
+  - Repository method tests
+  - Query performance tests
+
+#### Service Layer Tests
+- [ ] **ContentCollectionServiceImplTest.java** - Needs Enhancement
+  - Current tests may not cover `addContentBlocks` flow fully
+  - Test client gallery password validation
+  - Test pagination edge cases
+  - Test error scenarios and rollbacks
+
+- [ ] **HomeServiceImplTest.java** - Missing
+  - Home page generation tests
+  - Priority management tests
+  - Integration with ContentCollection tests
+
+- [ ] **HomeProcessingUtilTest.java** - Missing
+  - Utility method tests
+  - Data conversion tests
+  - Error handling tests
+
+- [ ] **ImageServiceImplTest.java** - Missing
+  - Image processing workflow tests
+  - Metadata extraction tests
+  - S3 integration tests
+
+- [ ] **CatalogServiceImplTest.java** - Missing
+  - Legacy system tests for comparison
+  - Migration compatibility tests
+
+- [ ] **ImageProcessingServiceTest.java** - Missing (if exists)
+  - Image processing pipeline tests
+  - Performance tests
+  - Error scenario tests
+
+#### Controller Layer Tests
+- [ ] **HomeControllerProdTest.java** - Missing
+  - Endpoint integration tests
+  - Response format validation
+  - Error handling tests
+
+- [ ] **HomeControllerDevTest.java** - Missing
+  - Development endpoint tests
+  - Update functionality tests
+  - Validation tests
+
+- [ ] **ImageControllerProdTest.java** - Missing
+  - Image serving tests
+  - Metadata endpoint tests
+  - Search functionality tests
+
+- [ ] **ImageControllerDevTest.java** - Missing
+  - Image upload tests
+  - Update functionality tests (when implemented)
+  - Batch operation tests
+
+- [ ] **CatalogControllerProdTest.java** - Missing
+  - Legacy endpoint tests
+  - Compatibility tests
+  - Migration validation tests
+
+- [ ] **CatalogControllerDevTest.java** - Missing
+  - Legacy development endpoint tests
+  - CRUD operation tests
+
+#### Integration Tests
+- [ ] **ContentCollectionIntegrationTest.java** - Missing
+  - Full workflow integration tests
+  - Cross-service interaction tests
+  - Database integration tests
+
+- [ ] **ImageProcessingIntegrationTest.java** - Missing
+  - S3 upload integration tests
+  - Metadata extraction integration tests
+  - Full image workflow tests
+
+- [ ] **MigrationIntegrationTest.java** - Missing (when migration is implemented)
+  - End-to-end migration tests
+  - Data integrity validation tests
+  - Performance tests with large datasets
+
+#### Configuration Tests
+- [ ] **S3ConfigTest.java** - Missing
+  - Configuration validation tests
+  - Connection tests
+  - Error scenario tests
+
+- [ ] **WebConfigTest.java** - Missing
+  - Web configuration tests
+  - CORS configuration tests
+  - Security configuration tests
+
+#### Utility Tests
+- [ ] **PaginationUtilTest.java** - Missing
+  - Pagination logic tests
+  - Edge case handling tests
+  - Performance tests
+
+- [ ] **ExceptionUtilsTest.java** - Missing
+  - Exception handling utility tests
+  - Error message formatting tests
+  - Stack trace handling tests
+
+### Test Coverage Requirements
+
+#### Unit Tests (Target: 100% for new code)
+- **Entity Validation**: All Bean Validation annotations tested
+- **Repository Methods**: All custom query methods tested
+- **Service Logic**: All business logic paths tested
+- **Utility Functions**: All helper methods tested
+- **Model Conversions**: All entity-to-model conversions tested
+
+#### Integration Tests
+- **API Endpoints**: All endpoints tested with realistic data
+- **Database Operations**: All CRUD operations tested
+- **S3 Integration**: File upload/download workflows tested
+- **Pagination**: Large dataset pagination tested
+- **Security**: Client gallery access controls tested
+
+#### Performance Tests
+- **Large Collections**: Test with 200+ content blocks
+- **Database Queries**: Query performance validation
+- **S3 Operations**: Batch upload performance tests
+- **Memory Usage**: Large dataset memory footprint tests
+
+#### Error Scenario Tests
+- **Database Failures**: Transaction rollback tests
+- **S3 Failures**: File upload failure handling tests
+- **Validation Failures**: Invalid input handling tests
+- **Authentication Failures**: Security violation tests
+
+---
+
+## 🚀 CI/CD & DEPLOYMENT AUTOMATION
+
+### Current State Analysis
+**Current Deployment Process:**
+- Manual GitHub push/merge
+- SSH into EC2 instance via `ec2Login()`
+- Manual execution of `./deploy.sh` on server
+- **Pain Points:** Manual intervention, no rollback strategy, single point of failure, no deployment validation
+
+---
+
+### 🔴 HIGH PRIORITY - Core CI/CD Infrastructure
+
+#### GitHub Actions Pipeline Implementation
+- [ ] **Create `.github/workflows/ci.yml`** - Continuous Integration
+  - Automated testing on pull requests
+  - Code quality checks (linting, formatting)
+  - Security scanning (dependency vulnerabilities)
+  - Build validation for all branches
+
+- [ ] **Create `.github/workflows/cd.yml`** - Continuous Deployment
+  - Automated deployment to staging on main branch merge
+  - Production deployment via manual trigger or tags
+  - Environment-specific configuration management
+  - Automated rollback capabilities
+
+- [ ] **Environment Configuration Management**
+  - Secure secrets management via GitHub Actions secrets
+  - Environment-specific variables (staging vs production)
+  - Database connection string management
+  - S3 bucket configuration per environment
+
+#### Terraform Infrastructure as Code
+- [ ] **Create `terraform/` Directory Structure**
+  ```
+  terraform/
+  ├── environments/
+  │   ├── staging/
+  │   └── production/
+  ├── modules/
+  │   ├── ec2/
+  │   ├── rds/
+  │   ├── s3/
+  │   └── networking/
+  └── shared/
+  ```
+
+- [ ] **EC2 Infrastructure Module**
+  - Auto Scaling Group configuration
+  - Load Balancer setup for high availability
+  - Security Groups with least-privilege access
+  - Automated EC2 instance provisioning
+
+- [ ] **Database Infrastructure Module**
+  - RDS instance configuration
+  - Automated backups and snapshots
+  - Multi-AZ deployment for production
+  - Parameter group optimization
+
+- [ ] **Storage Infrastructure Module**
+  - S3 bucket creation and policies
+  - CloudFront distribution for image delivery
+  - Backup and versioning strategies
+  - Cross-region replication for disaster recovery
+
+#### Deployment Automation Scripts
+- [ ] **Create `scripts/deploy/` Directory**
+  - `build.sh` - Application build automation
+  - `deploy.sh` - Enhanced deployment with validation
+  - `rollback.sh` - Automated rollback mechanism
+  - `health-check.sh` - Post-deployment validation
+
+- [ ] **Blue-Green Deployment Strategy**
+  - Dual environment setup (blue/green)
+  - Zero-downtime deployment process
+  - Automated traffic switching
+  - Quick rollback capabilities
+
+---
+
+### 🟠 MEDIUM PRIORITY - Advanced CI/CD Features
+
+#### Monitoring & Observability
+- [ ] **Application Performance Monitoring**
+  - CloudWatch integration for EC2 metrics
+  - Application-level logging and metrics
+  - Database performance monitoring
+  - S3 usage and cost tracking
+
+- [ ] **Deployment Monitoring**
+  - Deployment success/failure notifications
+  - Performance regression detection
+  - Automated alerting for critical issues
+  - Slack/Discord integration for team notifications
+
+#### Security & Compliance
+- [ ] **Automated Security Scanning**
+  - Dependency vulnerability scanning
+  - Container image security scanning (if using Docker)
+  - Infrastructure security compliance checks
+  - Secrets scanning in code commits
+
+- [ ] **Access Control & Audit**
+  - IAM roles with minimal required permissions
+  - Deployment audit logging
+  - Multi-factor authentication for production deployments
+  - Environment access controls
+
+#### Testing Integration
+- [ ] **Automated Testing in Pipeline**
+  - Unit test execution in CI
+  - Integration test execution in staging
+  - Performance test baseline validation
+  - Database migration testing
+
+- [ ] **Quality Gates**
+  - Code coverage thresholds
+  - Performance regression prevention
+  - Security vulnerability blocking
+  - Manual approval gates for production
+
+---
+
+### 🟡 LOW PRIORITY - Advanced Deployment Features
+
+#### Multi-Environment Management
+- [ ] **Environment Parity**
+  - Consistent infrastructure across environments
+  - Environment-specific scaling rules
+  - Configuration drift detection
+  - Automated environment provisioning
+
+- [ ] **Feature Flag Integration**
+  - Feature toggle implementation
+  - Gradual rollout capabilities
+  - A/B testing infrastructure
+  - Dynamic configuration management
+
+#### Cost Optimization
+- [ ] **Resource Optimization**
+  - Automated scaling based on load
+  - Cost monitoring and alerting
+  - Reserved instance management
+  - Unused resource cleanup automation
+
+- [ ] **Deployment Cost Tracking**
+  - Per-deployment cost attribution
+  - Resource usage optimization
+  - Backup and storage cost optimization
+  - Multi-cloud cost comparison
+
+---
+
+### 🔧 MIGRATION STRATEGY - Current to Automated
+
+#### Phase 1: Foundation (Week 1-2)
+- [ ] **Setup GitHub Actions Basic CI**
+  - Basic build and test pipeline
+  - Code quality checks
+  - Security scanning setup
+
+- [ ] **Create Terraform Modules**
+  - Start with staging environment
+  - Basic EC2 and RDS modules
+  - S3 bucket management
+
+#### Phase 2: Automated Deployment (Week 3-4)
+- [ ] **Implement Blue-Green Deployment**
+  - Create deployment scripts
+  - Setup staging environment automation
+  - Test automated rollback procedures
+
+- [ ] **Production Pipeline Setup**
+  - Manual approval gates
+  - Production-specific security measures
+  - Monitoring and alerting integration
+
+#### Phase 3: Advanced Features (Week 5-6)
+- [ ] **Enhanced Monitoring**
+  - Application performance monitoring
+  - Cost tracking and optimization
+  - Advanced alerting rules
+
+- [ ] **Documentation and Training**
+  - Runbook creation for common scenarios
+  - Team training on new deployment process
+  - Emergency procedures documentation
+
+---
+
+### 🚨 CRITICAL DEPLOYMENT CONSIDERATIONS
+
+#### Security Requirements
+- **Never commit secrets to repository** - Use GitHub Actions secrets exclusively
+- **Implement least-privilege IAM roles** - Separate roles for CI/CD vs runtime
+- **Enable audit logging** - Track all deployment activities and changes
+- **Secure network configuration** - VPC, security groups, and NACLs properly configured
+
+#### Data Safety
+- **Automated backups before deployment** - RDS snapshots and S3 versioning
+- **Database migration validation** - Test migrations in staging first
+- **Rollback strategy for data changes** - Plan for schema rollbacks
+- **Zero-downtime deployment validation** - Ensure no service interruption
+
+#### Performance Requirements
+- **Health checks during deployment** - Validate application functionality
+- **Performance baseline monitoring** - Detect performance regressions
+- **Resource utilization tracking** - Monitor CPU, memory, and disk usage
+- **Load testing in staging** - Validate performance before production
+
+### 📋 RECOMMENDED IMPLEMENTATION ORDER
+
+**🎓 LEARNING-FOCUSED INCREMENTAL APPROACH**
+Each step must be implemented incrementally with full understanding before proceeding to the next component. This approach prioritizes learning and comprehension over speed.
+
+1. **Setup GitHub Actions CI pipeline** (Immediate - can run parallel with current deployment)
+2. **Create basic Terraform modules** (Week 1 - start with staging environment)
+3. **Implement blue-green deployment** (Week 2 - eliminates manual SSH requirement)
+4. **Add automated monitoring** (Week 3 - visibility into deployment success)
+5. **Production pipeline with approval gates** (Week 4 - replace manual production deployment)
+6. **Advanced features and optimization** (Ongoing - continuous improvement)
+
+### 🔄 INCREMENTAL IMPLEMENTATION METHODOLOGY
+
+**Core Principle: One Concept at a Time**
+- Each Terraform resource added individually with full explanation
+- Test and validate each component before adding the next
+- Build understanding through hands-on implementation
+- Always start with the simplest working version first
+
+#### Terraform Incremental Strategy
+**Phase 1: Minimal Working Infrastructure**
+- [ ] **Step 1:** Single EC2 instance with basic configuration
+  - Understand: AWS provider, resource blocks, variables
+  - Test: Manual deployment to verify Terraform works
+  - Learn: `terraform plan`, `terraform apply`, state management
+
+- [ ] **Step 2:** Add basic security group
+  - Understand: Security group rules, ingress/egress
+  - Test: Verify EC2 instance is accessible with new security rules
+  - Learn: Resource dependencies, terraform state inspection
+
+- [ ] **Step 3:** Add VPC with single subnet
+  - Understand: Network isolation, CIDR blocks, availability zones
+  - Test: EC2 instance deployed within custom VPC
+  - Learn: Resource relationships, implicit vs explicit dependencies
+
+**Phase 2: Database Integration**
+- [ ] **Step 4:** Add RDS instance (smallest configuration)
+  - Understand: RDS basics, subnet groups, parameter groups
+  - Test: Database connectivity from EC2 instance
+  - Learn: Multi-resource coordination, sensitive data handling
+
+- [ ] **Step 5:** Add database subnet group
+  - Understand: Multi-AZ concepts, database networking
+  - Test: RDS deployment across multiple subnets
+  - Learn: Resource references, cross-resource communication
+
+**Phase 3: Storage and Load Balancing**
+- [ ] **Step 6:** Add S3 bucket with basic configuration
+  - Understand: S3 bucket policies, versioning, lifecycle rules
+  - Test: File upload/download from application
+  - Learn: IAM integration, resource permissions
+
+- [ ] **Step 7:** Add Application Load Balancer
+  - Understand: Load balancing concepts, target groups, health checks
+  - Test: Traffic distribution, failover scenarios
+  - Learn: Advanced networking, service discovery
+
+**Phase 4: Advanced Features (One at a Time)**
+- [ ] **Step 8:** Add Auto Scaling Group (start with fixed size)
+  - Understand: Launch configurations, scaling policies
+  - Test: Instance replacement, capacity management
+  - Learn: Dynamic infrastructure, state management
+
+- [ ] **Step 9:** Add CloudWatch monitoring
+  - Understand: Metrics, alarms, log groups
+  - Test: Alert triggering, log aggregation
+  - Learn: Observability, automated responses
+
+#### GitHub Actions Incremental Strategy
+**Phase 1: Basic CI Pipeline**
+- [ ] **Step 1:** Simple build-only workflow
+  - Understand: YAML syntax, job structure, runners
+  - Test: Code compilation and basic validation
+  - Learn: GitHub Actions fundamentals
+
+- [ ] **Step 2:** Add automated testing
+  - Understand: Test execution, result reporting
+  - Test: Test suite execution on every commit
+  - Learn: Quality gates, failure handling
+
+- [ ] **Step 3:** Add security scanning
+  - Understand: Vulnerability detection, dependency analysis
+  - Test: Security report generation and review
+  - Learn: Security automation, compliance checking
+
+**Phase 2: Deployment Automation**
+- [ ] **Step 4:** Add staging deployment
+  - Understand: Environment-specific deployment, secrets management
+  - Test: Automated deployment to staging environment
+  - Learn: Environment isolation, configuration management
+
+- [ ] **Step 5:** Add production deployment with manual approval
+  - Understand: Approval workflows, environment promotion
+  - Test: Controlled production deployment process
+  - Learn: Risk mitigation, change management
+
+### 🧠 LEARNING VALIDATION CHECKLIST
+
+After each incremental step, verify understanding by answering:
+- **What does this component do?** (Functional understanding)
+- **Why is it configured this way?** (Design rationale)
+- **How does it interact with other components?** (System integration)
+- **What would happen if this failed?** (Failure scenarios)
+- **How would I troubleshoot issues?** (Operational knowledge)
+
+### 📚 DOCUMENTATION REQUIREMENTS
+
+For each incremental step, create:
+- [ ] **Step-by-step implementation notes** - What was done and why
+- [ ] **Configuration explanations** - Purpose of each setting/parameter
+- [ ] **Testing validation** - How to verify the step worked correctly
+- [ ] **Troubleshooting guide** - Common issues and solutions encountered
+- [ ] **Next step preparation** - What needs to be understood before proceeding
+
+### 🚫 ANTI-PATTERNS TO AVOID
+
+- **Never implement multiple Terraform resources simultaneously**
+- **Never skip testing/validation between steps**
+- **Never proceed without understanding the current step**
+- **Never copy-paste large configuration blocks without explanation**
+- **Never implement "advanced" features before mastering basics**
+
+This approach allows for gradual migration while maintaining current deployment capability as a fallback during the transition period, with the added benefit of building deep understanding of each component.
+
+---
+
+## 🧹 LEGACY CLEANUP - Removal of Deprecated Catalog System
+
+### Overview
+The new `ContentCollection` system has fully replaced the legacy `Catalog` system. All catalog functionality is now handled through `ContentCollectionControllerDev` and `ContentCollectionControllerProd`. This section documents the strategy for removing all legacy code while ensuring no functionality currently in use is broken.
+
+### Strategy
+**Three-Phase Approach:**
+1. **Phase 1: Verification** - Confirm no new code depends on legacy components
+2. **Phase 2: Incremental Removal** - Remove components in dependency order
+3. **Phase 3: Database Cleanup** - Plan database migration for legacy tables
+
+---
+
+### 🔴 HIGH PRIORITY - Phase 1: Verification & Analysis
+
+#### Verify New System Independence
+- [ ] **Audit ContentCollection Controllers**
+  - Verify `ContentCollectionControllerDev` has no imports of Catalog classes
+  - Verify `ContentCollectionControllerProd` has no imports of Catalog classes
+  - Confirm all functionality works without Catalog dependencies
+  - Test all ContentCollection endpoints to ensure they work independently
+
+- [ ] **Audit ContentCollection Services**
+  - Verify `ContentCollectionService` and `ContentCollectionServiceImpl` don't reference Catalog
+  - Check `ContentBlockProcessingUtil` for Catalog dependencies
+  - Confirm all business logic uses new ContentBlock entities only
+
+- [ ] **Document Current Usage**
+  - Create list of all files that import Catalog classes
+  - Document which methods in shared services use Catalog (HomeService, ImageService)
+  - Identify any database queries that join Catalog tables
+  - Map all REST endpoints that serve Catalog data
+
+---
+
+### 🔴 HIGH PRIORITY - Phase 2: Code Removal
+
+#### Controllers to Remove (Priority Order)
+
+- [ ] **Remove Catalog Controllers**
+  - `src/main/java/edens/zac/portfolio/backend/controller/dev/CatalogControllerDev.java`
+    - Endpoints: All `/api/write/catalog/*` endpoints
+    - Used by: Legacy frontend only (confirm before removal)
+  - `src/main/java/edens/zac/portfolio/backend/controller/prod/CatalogControllerProd.java`
+    - Endpoints: All `/api/catalog/*` endpoints
+    - Used by: Legacy frontend only (confirm before removal)
+
+- [ ] **Remove or Update Image Controllers**
+  - **Decision Point**: Remove entirely or clean up Catalog-specific endpoints?
+  - **Option A**: Remove both ImageControllerDev and ImageControllerProd (if image upload is now through ContentCollection)
+  - **Option B**: Keep controllers but remove Catalog-specific endpoints only
+  - **Recommendation**: Review if image upload is fully integrated into ContentCollection workflow
+
+  Files:
+  - `src/main/java/edens/zac/portfolio/backend/controller/dev/ImageControllerDev.java`
+    - Remove endpoint: `POST /api/write/image/postImagesForCatalog/{catalogTitle}` (line 59-65)
+    - Remove method: `postImagesForCatalog()`
+  - `src/main/java/edens/zac/portfolio/backend/controller/prod/ImageControllerProd.java`
+    - Remove endpoint: `GET /api/image/catalog/{catalog}` (references `getAllImagesByCatalog`)
+    - Remove method that calls `imageService.getAllImagesByCatalog()`
+
+#### Services to Remove
+
+- [ ] **Remove Catalog Service Layer**
+  - `src/main/java/edens/zac/portfolio/backend/services/CatalogService.java` (interface)
+  - `src/main/java/edens/zac/portfolio/backend/services/CatalogServiceImpl.java` (implementation)
+  - `src/main/java/edens/zac/portfolio/backend/services/CatalogProcessingUtil.java` (utility)
+
+  **Dependencies to check before removal:**
+  - These services call `HomeService.createHomeCardFromCatalog()` and `HomeService.updateHomeCard()`
+  - No other services should depend on these
+
+#### Services to Update (Remove Catalog-Specific Methods)
+
+- [ ] **Update HomeService and HomeServiceImpl**
   - `src/main/java/edens/zac/portfolio/backend/services/HomeService.java`
+    - Remove method: `void createHomeCardFromCatalog(CatalogEntity catalog);`
+    - Remove method: `void updateHomeCard(CatalogEntity catalog);`
+    - Keep: `upsertHomeCardForCollection()`, `syncHomeCardOnCollectionUpdate()` (these are for ContentCollection)
 
-### 10.4 Performance Monitoring & Optimization
-- [ ] Monitor database performance with new pagination queries
-- [ ] Monitor S3 usage patterns with mixed content types
-- [ ] Optimize any slow queries discovered in production
-- [ ] Monitor user experience with larger collections
+  - `src/main/java/edens/zac/portfolio/backend/services/HomeServiceImpl.java`
+    - Remove method: `createHomeCardFromCatalog(CatalogEntity catalog)` (line 65-78)
+    - Remove method: `updateHomeCard(CatalogEntity catalog)` (line 81-95)
+    - Remove method: `getHomeCardEntity(CatalogEntity catalog, ...)` (line 157-165)
+    - Remove import: `import edens.zac.portfolio.backend.entity.CatalogEntity;`
+
+- [ ] **Update HomeProcessingUtil**
+  - `src/main/java/edens/zac/portfolio/backend/services/HomeProcessingUtil.java`
+    - Remove method: `createHomeCardFromCatalog(CatalogEntity catalog)` (line 29-43)
+    - Remove import: `import edens.zac.portfolio.backend.entity.CatalogEntity;`
+    - Keep: `convertModel()` method (used for ContentCollection home cards)
+
+- [ ] **Update ImageService and ImageServiceImpl**
+  - `src/main/java/edens/zac/portfolio/backend/services/ImageService.java`
+    - Remove method: `List<ImageModel> postImagesForCatalog(List<MultipartFile> images, String catalogTitle) throws IOException;`
+    - Remove method: `List<ImageModel> getAllImagesByCatalog(String catalogTitle);`
+
+  - `src/main/java/edens/zac/portfolio/backend/services/ImageServiceImpl.java`
+    - Remove method: `postImagesForCatalog()` implementation
+    - Remove method: `getAllImagesByCatalog()` implementation
+    - Remove constructor parameter: `CatalogRepository catalogRepository`
+    - Remove field: `private final CatalogRepository catalogRepository;`
+    - Remove import: `import edens.zac.portfolio.backend.entity.CatalogEntity;`
+    - Remove import: `import edens.zac.portfolio.backend.repository.CatalogRepository;`
+
+- [ ] **Update ImageProcessingUtil**
+  - `src/main/java/edens/zac/portfolio/backend/services/ImageProcessingUtil.java`
+    - Remove method: `getCatalogEntity(String catalogTitle)` (private method)
+    - Remove any code in `postImageProcessing()` that references Catalog
+    - Remove any code that adds images to catalog collections
+    - Remove constructor parameter: `CatalogRepository catalogRepository`
+    - Remove field: `private final CatalogRepository catalogRepository;`
+    - Remove import: `import edens.zac.portfolio.backend.entity.CatalogEntity;`
+    - Remove import: `import edens.zac.portfolio.backend.repository.CatalogRepository;`
+    - Update `convertImageModel()` to remove catalog-related code:
+      - Remove line: `imageModel.setCatalog(imageEntity.getCatalogNames());`
+
+#### Entities to Remove
+
+- [ ] **Remove CatalogEntity**
+  - `src/main/java/edens/zac/portfolio/backend/entity/CatalogEntity.java`
+  - **CRITICAL**: This will break the ManyToMany relationship in ImageEntity
+  - Must update ImageEntity first (see below)
+
+#### Entities to Update
+
+- [ ] **Update ImageEntity**
+  - `src/main/java/edens/zac/portfolio/backend/entity/ImageEntity.java`
+    - Remove field: `private Set<CatalogEntity> catalogs = new HashSet<>();` (lines 51-52)
+    - Remove annotation: `@ManyToMany(mappedBy = "images", cascade = CascadeType.PERSIST)`
+    - Remove method: `getCatalogNames()` (lines 60-62)
+  - **Database Impact**: The join table `catalog_images` (or similar) can be dropped after this change
+  - **Testing**: Ensure ImageContentBlock functionality still works after removal
+
+#### Models/DTOs to Remove
+
+- [ ] **Remove All Catalog Models**
+  - `src/main/java/edens/zac/portfolio/backend/model/CatalogModel.java`
+  - `src/main/java/edens/zac/portfolio/backend/model/CatalogCreateDTO.java`
+  - `src/main/java/edens/zac/portfolio/backend/model/CatalogUpdateDTO.java`
+  - `src/main/java/edens/zac/portfolio/backend/model/CatalogImagesDTO.java`
+
+#### Repositories to Remove
+
+- [ ] **Remove CatalogRepository**
+  - `src/main/java/edens/zac/portfolio/backend/repository/CatalogRepository.java`
+  - Verify no other repositories depend on this
+  - Update services that inject this repository (see Services section above)
+
+#### Exceptions to Remove
+
+- [ ] **Remove Catalog Exception Classes**
+  - `src/main/java/edens/zac/portfolio/backend/exceptions/catalogExceptions.java`
+  - Check if any remaining code references these exceptions
+  - Replace with generic exceptions if needed
+
+#### Tests to Remove/Update
+
+- [ ] **Audit Test Files**
+  - Search for any Catalog-related test files (none found currently, but verify)
+  - Update any integration tests that reference Catalog endpoints
+  - Remove any mocked Catalog dependencies in remaining tests
 
 ---
 
-## Notes for Future Development
+### 🟠 MEDIUM PRIORITY - Phase 3: Database Cleanup
 
-### What We Need
-- **Flexible content system** supporting four collection types (blog, art_gallery, client_gallery, portfolio)
-- **Ordered content blocks** (images, text, code, gifs) with pagination for performance
-- **Optimized SSR/client-side balance** - minimize context usage, keep components server-side when possible
-- **Comprehensive testing strategy** - unit tests, component tests, integration tests
-- **Migration path** from existing Catalog system without breaking current functionality
-- **Simple client gallery security** (password protection) with future extensibility
+#### Database Migration Planning
 
-### What We Don't Need
-- **Complex permissions system** initially (simple passwords sufficient)
-- **Flyway migrations** immediately (can add later, new system is parallel)
-- **Separate environments** initially (production-only acceptable for solo developer)
-- **Advanced client gallery features** (user accounts, JWT tokens) in Phase 1
-- **Real-time collaboration** or advanced CMS features initially
+- [ ] **Analyze Database Impact**
+  - Identify all Catalog-related tables: `catalogs`, `catalog_images` (join table), etc.
+  - Count rows in each table to understand data volume
+  - Check for foreign key constraints that reference these tables
+  - Document any triggers or stored procedures that use Catalog tables
 
-### Key Technical Principles
-- **Build in parallel**: Don't modify existing Catalog/Image system until ready
-- **SSR-first approach**: Minimize client-side context usage, keep components server-side when possible
-- **Pagination from start**: Design for collections with 200+ content blocks
-- **Test as you build**: Add unit and component tests throughout development
-- **Performance-conscious**: Consider database indexes, query optimization, and S3 usage patterns
-- **Type safety**: Maintain strict TypeScript usage and validation
+- [ ] **Create Database Migration Scripts**
+  - **Pre-Migration Backup**: Always backup database before any schema changes
+  - **Drop Join Table**: `DROP TABLE catalog_images;` (or similar name)
+  - **Drop Catalog Table**: `DROP TABLE catalogs;`
+  - **Update ImageEntity columns**: Remove any catalog-related columns if they exist
+  - Test migration scripts on development database first
 
-### Error Handling & Validation Strategy
-- **Backend**: Use Bean Validation annotations + service-level validation + proper HTTP status codes
-- **Frontend**: Client-side validation for UX + server-side validation for security
-- **Database**: Proper indexes, constraints, and foreign key relationships
+- [ ] **Data Archival Strategy**
+  - Decide if old Catalog data should be archived before deletion
+  - Export Catalog data to JSON/CSV for historical records
+  - Document migration date and archived data location
+  - Consider keeping archived data for 90 days before permanent deletion
 
-### SCSS & Styling
-- **Module-based approach**: Continue using `.module.scss` pattern
-- **Unified naming**: Follow BEM or similar consistent naming convention
-- **Component-specific**: Each major component gets its own SCSS module
-- **Responsive-first**: Mobile-first design approach
+---
 
-### Storage Strategy
-- **Images/GIFs**: S3 storage with CloudFront CDN (existing pattern)
-- **Text/Code content**: Database storage as `@Lob` fields (no S3 needed)
-- **Metadata**: Database with proper indexing for performance
-- **Client passwords**: Currently SHA-256 hashing (TODO: migrate to BCrypt before client gallery frontend work)
+### 🟡 LOW PRIORITY - Phase 4: Documentation & Cleanup
+
+#### Update Documentation
+
+- [ ] **Update API Documentation**
+  - Remove all Catalog endpoints from API documentation (README.md)
+  - Update endpoint lists to only show ContentCollection endpoints
+  - Add migration notes explaining the change from Catalog to ContentCollection
+
+- [ ] **Update README.md**
+  - Remove endpoint documentation for:
+    - `/api/write/catalog/*`
+    - `/api/catalog/*`
+    - `/api/write/image/postImagesForCatalog/{catalogTitle}`
+    - `/api/image/catalog/{catalog}`
+  - Update architecture diagrams if they reference Catalog system
+
+- [ ] **Update Project Context Files**
+  - Update `.junie/guidelines.md` to remove Catalog references
+  - Update `CLAUDE.md` if it references Catalog system
+  - Update this `todo.md` file after cleanup is complete
+
+---
+
+### 🚨 CRITICAL SAFETY CHECKS
+
+#### Pre-Removal Validation Checklist
+
+Before removing ANY legacy code, verify:
+
+- [ ] **No Production Dependencies**
+  - Run full test suite to ensure no tests fail
+  - Verify no new ContentCollection code imports Catalog classes
+  - Check application logs for any Catalog-related errors
+  - Confirm frontend no longer calls Catalog endpoints
+
+- [ ] **Database Backup**
+  - Create full database backup before schema changes
+  - Document backup location and restore procedure
+  - Test restore procedure on development environment
+
+- [ ] **Gradual Rollout**
+  - Remove code in small batches, not all at once
+  - Commit each batch separately with clear commit messages
+  - Test application after each batch removal
+  - Be prepared to revert if issues arise
+
+- [ ] **Feature Flag Option (Advanced)**
+  - Consider implementing feature flag to toggle between systems
+  - Allows quick rollback without code deployment
+  - Useful if you're uncertain about production dependencies
+
+---
+
+### 📋 IMPLEMENTATION ORDER (RECOMMENDED)
+
+**Week 1: Verification Phase**
+1. Audit all files to confirm no ContentCollection code depends on Catalog
+2. Document all current Catalog usage (controllers, services, database)
+3. Create comprehensive test plan for validation
+4. Backup production database
+
+**Week 2: Service Layer Cleanup**
+5. Remove Catalog-specific methods from HomeService, HomeServiceImpl, HomeProcessingUtil
+6. Remove Catalog-specific methods from ImageService, ImageServiceImpl, ImageProcessingUtil
+7. Run full test suite after each change
+8. Deploy to staging and validate
+
+**Week 3: Controller & Core Removal**
+9. Remove CatalogControllerDev and CatalogControllerProd
+10. Remove or clean up ImageControllerDev and ImageControllerProd
+11. Remove CatalogService, CatalogServiceImpl, CatalogProcessingUtil
+12. Remove CatalogRepository
+13. Deploy to staging and validate all ContentCollection endpoints work
+
+**Week 4: Entity & Database Cleanup**
+14. Update ImageEntity to remove Catalog relationship
+15. Remove CatalogEntity
+16. Remove all Catalog models/DTOs
+17. Remove catalogExceptions.java
+18. Run database migration scripts to drop tables
+19. Final validation and deploy to production
+
+**Week 5: Documentation & Finalization**
+20. Update all documentation to remove Catalog references
+21. Archive old Catalog data if needed
+22. Update project guidelines and context files
+23. Mark this section as completed in todo.md
+
+---
+
+### 📝 VERIFICATION CRITERIA
+
+**How do you know the cleanup is complete?**
+
+- [ ] Zero grep results for `import.*Catalog` in `/src/main/java` directory
+- [ ] Zero references to `CatalogEntity` in codebase
+- [ ] Zero references to `CatalogRepository` in codebase
+- [ ] All tests pass with no Catalog-related failures
+- [ ] Application starts without Catalog-related errors
+- [ ] All ContentCollection endpoints return expected data
+- [ ] No database foreign key constraints reference Catalog tables
+- [ ] Documentation updated to reflect new architecture
+
+---
+
+## 📊 Current System Status
+
+| Component | Implementation Status | Test Coverage Status |
+|-----------|----------------------|---------------------|
+| Core Entities | ✅ Complete | ⚠️ Partial |
+| Repositories | ✅ Complete | ⚠️ Partial |
+| Service Layer | ✅ Mostly Complete | ⚠️ Partial |
+| Read Controllers | ✅ Complete | ✅ Good |
+| Write Controllers | ⚠️ Missing CRUD ops | ⚠️ Partial |
+| Models/DTOs | ✅ Complete | ✅ Good |
+| Utilities | ✅ Complete | ✅ Good |
+| Home Integration | ❌ Incomplete | ❌ Missing |
+| Image Management | ❌ Incomplete | ❌ Missing |
+| Migration Tools | ❌ Not Started | ❌ Not Started |
+
+---
+
+## 🚨 Critical Implementation Notes
+
+### Security Considerations
+- **Client Gallery Passwords**: Currently using SHA-256, need to migrate to BCrypt before production use
+- **Input Validation**: Ensure all user inputs are sanitized to prevent injection attacks
+- **Sensitive Data**: Never expose sensitive data in API responses or logs
+
+### Performance Monitoring
+- **Database Performance**: Monitor new pagination queries
+- **S3 Usage**: Track usage patterns with mixed content types
+- **Memory Usage**: Monitor memory footprint with large collections
+
+### Code Quality Requirements
+- **Follow Java 17+ best practices**: Use modern Java features appropriately
+- **Maintain Spring Boot patterns**: Follow established conventions
+- **Comprehensive logging**: Proper log levels and structured logging
+- **Exception handling**: Consistent error responses and proper HTTP status codes
+
+### Data Migration Strategy
+- **Parallel Development**: Keep existing system functional during transition
+- **Gradual Migration**: Migrate collections by risk level (art galleries first, client galleries last)
+- **Data Validation**: Comprehensive validation before and after migration
+- **Rollback Planning**: Ability to revert migrations if issues arise
+
+---
+
+## 📝 Next Immediate Steps
+
+1. **Implement missing ContentBlock CRUD operations** (High Priority)
+2. **Complete Home Page system integration** (High Priority)
+3. **Finish Image management functionality** (High Priority)
+4. **Create comprehensive test suite** (Critical for reliability)
+5. **Implement migration service** (Required for production deployment)
+6. **Performance testing with realistic data** (Required before production use)
+
+This refactor provides significant architectural improvements but requires careful implementation to maintain existing functionality while gaining the benefits of the new flexible design.

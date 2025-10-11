@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.CatalogEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
 import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
@@ -48,50 +47,11 @@ public class HomeServiceImpl implements HomeService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<HomeCardModel> getHomePage() {
-        return getHomePage(2);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<HomeCardModel> getHomePage(int maxPriority) {
         List<ContentCollectionHomeCardEntity> entities = homeCardRepository.getHomePage(maxPriority);
         return entities.stream()
                 .map(homeCardProcessingUtil::convertModel)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    public void createHomeCardFromCatalog(CatalogEntity catalog) {
-        log.info("Creating home card from catalog: {}", catalog.getTitle());
-
-        // Check if a HomeCard already exists for this catalog
-        homeCardRepository.findByCardTypeAndReferenceId("catalog", catalog.getId())
-                .ifPresent(homeCard -> log.info("Home card already exists: {}", homeCard.getId()));
-
-        // Create new HomeCard Entity
-        ContentCollectionHomeCardEntity homeCardEntity = homeCardProcessingUtil.createHomeCardFromCatalog(catalog);
-
-        // Save the entity
-        ContentCollectionHomeCardEntity savedEntity = homeCardRepository.save(homeCardEntity);
-        log.info("HomeCard created successfully with ID: {}", savedEntity.getId());
-    }
-
-    @Override
-    public void updateHomeCard(CatalogEntity catalog) {
-        log.info("Updating home card from catalog: {}", catalog.getTitle());
-
-        Optional<ContentCollectionHomeCardEntity> existingHomeCard = homeCardRepository
-                .findByCardTypeAndReferenceId("catalog", catalog.getId());
-
-        if (existingHomeCard.isPresent()) {
-            ContentCollectionHomeCardEntity existingHomeCardEntity = getHomeCardEntity(catalog, existingHomeCard);
-            homeCardRepository.save(existingHomeCardEntity);
-        } else if (catalog.isHomeCard()) {
-            ContentCollectionHomeCardEntity homeCardEntity = homeCardProcessingUtil.createHomeCardFromCatalog(catalog);
-            ContentCollectionHomeCardEntity savedEntity = homeCardRepository.save(homeCardEntity);
-            log.info("HomeCard created successfully with ID: {}", savedEntity.getId());
-        }
     }
 
     @Override
@@ -152,15 +112,5 @@ public class HomeServiceImpl implements HomeService {
                     }
                     homeCardRepository.save(entity);
                 });
-    }
-
-    private static ContentCollectionHomeCardEntity getHomeCardEntity(CatalogEntity catalog, Optional<ContentCollectionHomeCardEntity> existingHomeCard) {
-        ContentCollectionHomeCardEntity existingHomeCardEntity = existingHomeCard.get();
-        if (catalog.getTitle() != null) existingHomeCardEntity.setTitle(catalog.getTitle());
-        if (catalog.getLocation() != null) existingHomeCardEntity.setLocation(catalog.getLocation());
-        if (catalog.getPriority() != null) existingHomeCardEntity.setPriority(catalog.getPriority());
-        if (catalog.getCoverImageUrl() != null) existingHomeCardEntity.setCoverImageUrl(catalog.getCoverImageUrl());
-        if (!catalog.isHomeCard()) existingHomeCardEntity.setActiveHomeCard(false);
-        return existingHomeCardEntity;
     }
 }

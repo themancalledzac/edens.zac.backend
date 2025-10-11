@@ -145,23 +145,6 @@ class ImageContentBlockModelTest {
         assertTrue(violation.getMessage().contains("size must be between 0 and 20"));
     }
 
-    @Test
-    @DisplayName("RawFileName over 100 characters should fail validation")
-    void longRawFileName_shouldFailValidation() {
-        // Arrange
-        setupValidImageContentBlock();
-        String longRawFileName = "A".repeat(101); // 101 characters
-        imageContentBlock.setRawFileName(longRawFileName); // Invalid
-
-        // Act
-        Set<ConstraintViolation<ImageContentBlockModel>> violations = validator.validate(imageContentBlock);
-
-        // Assert
-        assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentBlockModel> violation = violations.iterator().next();
-        assertEquals("rawFileName", violation.getPropertyPath().toString());
-        assertTrue(violation.getMessage().contains("size must be between 0 and 100"));
-    }
 
     @Test
     @DisplayName("Camera over 25 characters should fail validation")
@@ -227,7 +210,6 @@ class ImageContentBlockModelTest {
         imageContentBlock.setFStop("A".repeat(15));
         imageContentBlock.setLens("A".repeat(100));
         imageContentBlock.setShutterSpeed("A".repeat(20));
-        imageContentBlock.setRawFileName("A".repeat(100));
         imageContentBlock.setCamera("A".repeat(25));
         imageContentBlock.setFocalLength("A".repeat(20));
         imageContentBlock.setLocation("A".repeat(250));
@@ -256,7 +238,6 @@ class ImageContentBlockModelTest {
         imageContentBlock.setBlackAndWhite(null);
         imageContentBlock.setIsFilm(null);
         imageContentBlock.setShutterSpeed(null);
-        imageContentBlock.setRawFileName(null);
         imageContentBlock.setCamera(null);
         imageContentBlock.setFocalLength(null);
         imageContentBlock.setLocation(null);
@@ -361,7 +342,6 @@ class ImageContentBlockModelTest {
         imageContentBlock.setBlackAndWhite(false);
         imageContentBlock.setIsFilm(false);
         imageContentBlock.setShutterSpeed("1/125");
-        imageContentBlock.setRawFileName("IMG_5432.CR3");
         imageContentBlock.setCamera("Canon EOS R5");
         imageContentBlock.setFocalLength("35mm");
         imageContentBlock.setLocation("Arches National Park, Utah");

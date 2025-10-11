@@ -45,13 +45,9 @@ import java.util.*;
 @Slf4j
 public class ContentBlockProcessingUtil {
 
-    // Dependency on ImageProcessingUtil for image-specific processing
-    private final ImageProcessingUtil imageProcessingUtil;
-
     // Dependencies for S3 upload and content block repository
     private final AmazonS3 amazonS3;
     private final ContentBlockRepository contentBlockRepository;
-    private final ContentCollectionRepository contentCollectionRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
     private String bucketName;
@@ -73,7 +69,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Convert a ContentBlockEntity to its corresponding ContentBlockModel based on type.
-     * 
+     *
      * @param entity The content block entity to convert
      * @return The corresponding content block model
      */
@@ -99,7 +95,7 @@ public class ContentBlockProcessingUtil {
      * Copy base properties from a ContentBlockEntity to a ContentBlockModel.
      *
      * @param entity The source entity
-     * @param model The target model
+     * @param model  The target model
      */
     private void copyBaseProperties(ContentBlockEntity entity, ContentBlockModel model) {
         model.setId(entity.getId());
@@ -113,7 +109,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Convert an ImageContentBlockEntity to an ImageContentBlockModel.
-     * 
+     *
      * @param entity The image content block entity to convert
      * @return The corresponding image content block model
      */
@@ -139,7 +135,7 @@ public class ContentBlockProcessingUtil {
         model.setBlackAndWhite(entity.getBlackAndWhite());
         model.setIsFilm(entity.getIsFilm());
         model.setShutterSpeed(entity.getShutterSpeed());
-        model.setRawFileName(entity.getRawFileName());
+        model.setImageUrlFullSize(entity.getImageUrlFullSize());
         model.setCamera(entity.getCamera());
         model.setFocalLength(entity.getFocalLength());
         model.setLocation(entity.getLocation());
@@ -151,7 +147,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Convert a TextContentBlockEntity to a TextContentBlockModel.
-     * 
+     *
      * @param entity The text content block entity to convert
      * @return The corresponding text content block model
      */
@@ -174,7 +170,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Convert a CodeContentBlockEntity to a CodeContentBlockModel.
-     * 
+     *
      * @param entity The code content block entity to convert
      * @return The corresponding code content block model
      */
@@ -201,7 +197,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Convert a GifContentBlockEntity to a GifContentBlockModel.
-     * 
+     *
      * @param entity The gif content block entity to convert
      * @return The corresponding gif content block model
      */
@@ -229,11 +225,11 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Process and save a content block based on its type.
-     * 
-     * @param file The file to process (for media content blocks)
-     * @param type The type of content block
+     *
+     * @param file         The file to process (for media content blocks)
+     * @param type         The type of content block
      * @param collectionId The ID of the collection this block belongs to
-     * @param orderIndex The order index of this block within the collection
+     * @param orderIndex   The order index of this block within the collection
      * @return The saved content block entity
      */
     public ContentBlockEntity processContentBlock(
@@ -262,87 +258,12 @@ public class ContentBlockProcessingUtil {
     }
 
     /**
-     * Process and save an image content block.
-     * 
-     * @param file The image file to process
-     * @param collectionId The ID of the collection this block belongs to
-     * @param orderIndex The order index of this block within the collection
-     * @param title The title of the image
-     * @param caption The caption for the image
-     * @return The saved image content block entity
-     */
-    public ImageContentBlockEntity processImageContentBlock_old(
-            MultipartFile file,
-            Long collectionId,
-            Integer orderIndex,
-            String title,
-            String caption
-    ) {
-        log.info("Processing image content block for collection {}", collectionId);
-
-        try {
-            // Convert JPG to WebP if needed
-            MultipartFile processedFile = file;
-            if (isJpgFile(file)) {
-                log.info("Converting JPG to WebP for file: {}", file.getOriginalFilename());
-                processedFile = convertToWebPMultipartFile(file);
-            }
-
-            // Fetch the collection to get its location
-            String collectionLocation = contentCollectionRepository.findById(collectionId)
-                    .map(ContentCollectionEntity::getLocation)
-                    .orElse("");
-
-            // Use ImageProcessingUtil to process the image and upload to S3
-            // Use "content_collection" as the type and the collection ID as the context name
-            ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(processedFile, "content_collection", collectionId.toString(), collectionLocation);
-
-            if (imageEntity == null) {
-                log.error("Failed to process image - ImageProcessingUtil returned null");
-                return null;
-            }
-
-            // Create and return the image content block entity using builder pattern
-            ImageContentBlockEntity entity = ImageContentBlockEntity.builder()
-                    .collectionId(collectionId)
-                    .orderIndex(orderIndex)
-                    .blockType(ContentBlockType.IMAGE)
-                    .caption(caption)
-                    .title(title != null ? title : imageEntity.getTitle())
-                    .imageWidth(imageEntity.getImageWidth())
-                    .imageHeight(imageEntity.getImageHeight())
-                    .iso(imageEntity.getIso())
-                    .author(imageEntity.getAuthor())
-                    .rating(imageEntity.getRating())
-                    .fStop(imageEntity.getFStop())
-                    .lens(imageEntity.getLens())
-                    .blackAndWhite(imageEntity.getBlackAndWhite())
-                    .isFilm(imageEntity.getIsFilm()) // Use isFilm from ImageEntity instead of hardcoded false
-                    .shutterSpeed(imageEntity.getShutterSpeed())
-                    .rawFileName(imageEntity.getRawFileName())
-                    .camera(imageEntity.getCamera())
-                    .focalLength(imageEntity.getFocalLength())
-                    .location(imageEntity.getLocation())
-                    .imageUrlWeb(imageEntity.getImageUrlWeb())
-                    .createDate(imageEntity.getCreateDate())
-                    .build();
-
-            // Save the entity using the repository
-            return contentBlockRepository.save(entity);
-
-        } catch (Exception e) {
-            log.error("Error processing image content block: {}", e.getMessage(), e);
-            return null; // Return null instead of throwing exception
-        }
-    }
-
-    /**
      * Process and save a text content block.
-     * 
-     * @param text The text content
+     *
+     * @param text         The text content
      * @param collectionId The ID of the collection this block belongs to
-     * @param orderIndex The order index of this block within the collection
-     * @param caption The caption for the text block
+     * @param orderIndex   The order index of this block within the collection
+     * @param caption      The caption for the text block
      * @return The saved text content block entity
      */
     public TextContentBlockEntity processTextContentBlock(
@@ -377,13 +298,13 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Process and save a code content block.
-     * 
-     * @param code The code content
-     * @param language The programming language
+     *
+     * @param code         The code content
+     * @param language     The programming language
      * @param collectionId The ID of the collection this block belongs to
-     * @param orderIndex The order index of this block within the collection
-     * @param title The title of the code block
-     * @param caption The caption for the code block
+     * @param orderIndex   The order index of this block within the collection
+     * @param title        The title of the code block
+     * @param caption      The caption for the code block
      * @return The saved code content block entity
      */
     public CodeContentBlockEntity processCodeContentBlock(
@@ -422,12 +343,12 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Process and save a gif content block.
-     * 
-     * @param file The gif file to process
+     *
+     * @param file         The gif file to process
      * @param collectionId The ID of the collection this block belongs to
-     * @param orderIndex The order index of this block within the collection
-     * @param title The title of the gif
-     * @param caption The caption for the gif
+     * @param orderIndex   The order index of this block within the collection
+     * @param title        The title of the gif
+     * @param caption      The caption for the gif
      * @return The saved gif content block entity
      */
     public GifContentBlockEntity processGifContentBlock(
@@ -480,9 +401,9 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Reorder content blocks within a collection.
-     * 
+     *
      * @param collectionId The ID of the collection
-     * @param blockIds The ordered list of block IDs
+     * @param blockIds     The ordered list of block IDs
      * @return The updated list of content block entities
      */
     public List<ContentBlockEntity> reorderContentBlocks(Long collectionId, List<Long> blockIds) {
@@ -530,7 +451,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Validate and sanitize text content.
-     * 
+     *
      * @param content The text content to validate and sanitize
      * @return The validated and sanitized text content
      */
@@ -555,7 +476,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Sanitize HTML content to prevent XSS attacks.
-     * 
+     *
      * @param html The HTML content to sanitize
      * @return The sanitized HTML content
      */
@@ -566,17 +487,17 @@ public class ContentBlockProcessingUtil {
 
         // Replace HTML special characters with their escaped versions
         return html.replace("&", "&amp;")
-                  .replace("<", "&lt;")
-                  .replace(">", "&gt;")
-                  .replace("\"", "&quot;")
-                  .replace("'", "&#x27;")
-                  .replace("/", "&#x2F;");
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#x27;")
+                .replace("/", "&#x2F;");
     }
 
     /**
      * Validate and process code content.
-     * 
-     * @param content The code content to validate
+     *
+     * @param content  The code content to validate
      * @param language The programming language
      * @return The validated code content
      */
@@ -623,7 +544,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Validate and normalize programming language.
-     * 
+     *
      * @param language The programming language to validate
      * @return The validated and normalized language
      */
@@ -648,7 +569,7 @@ public class ContentBlockProcessingUtil {
     /**
      * Format HTML code for better readability.
      * This is a simplified implementation.
-     * 
+     *
      * @param htmlCode The HTML code to format
      * @return The formatted HTML code
      */
@@ -661,7 +582,7 @@ public class ContentBlockProcessingUtil {
     /**
      * Ensure proper braces in code.
      * This is a simplified implementation.
-     * 
+     *
      * @param code The code to format
      * @return The formatted code
      */
@@ -673,7 +594,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Upload a GIF to S3.
-     * 
+     *
      * @param file The GIF file to upload
      * @return A map containing the S3 URLs for the GIF and its thumbnail
      * @throws IOException If there's an error processing the file
@@ -748,9 +669,9 @@ public class ContentBlockProcessingUtil {
     /**
      * Generate an S3 key for a file.
      *
-     * @param date The date to use in the key
+     * @param date     The date to use in the key
      * @param filename The filename
-     * @param type The type of file (gif, thumbnail, etc.)
+     * @param type     The type of file (gif, thumbnail, etc.)
      * @return The generated S3 key
      */
     private String generateS3Key(String date, String filename, String type) {
@@ -768,75 +689,17 @@ public class ContentBlockProcessingUtil {
         String filename = file.getOriginalFilename();
 
         return (contentType != null && (contentType.equals("image/jpeg") || contentType.equals("image/jpg"))) ||
-               (filename != null && (filename.toLowerCase().endsWith(".jpg") || filename.toLowerCase().endsWith(".jpeg")));
-    }
-
-    /**
-     * Convert JPG image to WebP format and wrap in a MultipartFile.
-     *
-     * @param file The JPG file to convert
-     * @return MultipartFile containing the WebP image
-     * @throws IOException If there's an error during conversion
-     */
-    private MultipartFile convertToWebPMultipartFile(MultipartFile file) throws IOException {
-        byte[] webpBytes = convertJpgToWebP(file);
-        String originalFilename = file.getOriginalFilename();
-        String webpFilename = originalFilename != null ?
-            originalFilename.replaceAll("(?i)\\.(jpg|jpeg)$", ".webp") : "image.webp";
-
-        return new MultipartFile() {
-            @Override
-            public String getName() {
-                return file.getName();
-            }
-
-            @Override
-            public String getOriginalFilename() {
-                return webpFilename;
-            }
-
-            @Override
-            public String getContentType() {
-                return "image/webp";
-            }
-
-            @Override
-            public boolean isEmpty() {
-                return webpBytes.length == 0;
-            }
-
-            @Override
-            public long getSize() {
-                return webpBytes.length;
-            }
-
-            @Override
-            public byte[] getBytes() {
-                return webpBytes;
-            }
-
-            @Override
-            public InputStream getInputStream() {
-                return new ByteArrayInputStream(webpBytes);
-            }
-
-            @Override
-            public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
-                java.nio.file.Files.write(dest.toPath(), webpBytes);
-            }
-        };
+                (filename != null && (filename.toLowerCase().endsWith(".jpg") || filename.toLowerCase().endsWith(".jpeg")));
     }
 
     /**
      * Convert JPG image to WebP format using ImageIO with sejda webp-imageio library.
-     *
      * The conversion process:
      * 1. Read the JPG file as a BufferedImage using standard ImageIO
      * 2. Get a WebP ImageWriter from ImageIO (provided by sejda webp-imageio plugin)
      * 3. Configure compression settings (quality, etc.)
      * 4. Write the BufferedImage to a ByteArrayOutputStream in WebP format
      * 5. Return the byte array for further processing or S3 upload
-     *
      * The sejda webp-imageio library automatically registers itself with ImageIO's service provider
      * interface (SPI), so we can use standard ImageIO.getImageWritersByFormatName("webp") to get
      * a WebP writer. This approach keeps the code clean and doesn't require direct dependency on
@@ -911,20 +774,21 @@ public class ContentBlockProcessingUtil {
 
     /**
      * STREAMLINED: Process and save an image content block.
-     *
+     * <p>
      * Flow:
      * 1. Extract metadata from original file
-     * 2. Convert JPG → WebP (with compression)
-     * 3. Resize if needed
-     * 4. Upload to S3
-     * 5. Save metadata to database
-     * 6. Return ImageContentBlockEntity
+     * 2. Upload original full-size image to S3
+     * 3. Convert JPG → WebP (with compression)
+     * 4. Resize if needed
+     * 5. Upload web-optimized image to S3
+     * 6. Save metadata with both URLs to database
+     * 7. Return ImageContentBlockEntity
      *
-     * @param file The image file to process
+     * @param file         The image file to process
      * @param collectionId The ID of the collection this block belongs to
-     * @param orderIndex The order index of this block within the collection
-     * @param title The title of the image
-     * @param caption The caption for the image
+     * @param orderIndex   The order index of this block within the collection
+     * @param title        The title of the image
+     * @param caption      The caption for the image
      * @return The saved image content block entity
      */
     public ImageContentBlockEntity processImageContentBlock(
@@ -941,32 +805,39 @@ public class ContentBlockProcessingUtil {
             log.info("Step 1: Extracting metadata from original file");
             Map<String, String> metadata = extractImageMetadata(file);
 
-            // STEP 2: Convert JPG to WebP (includes compression)
-            log.info("Step 2: Converting to WebP and compressing");
+            // STEP 2: Upload original full-size image to S3
+            log.info("Step 2: Uploading original full-size image to S3");
+            String originalFilename = file.getOriginalFilename();
+            String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+            String imageUrlFullSize = uploadImageToS3(file.getBytes(), originalFilename, contentType, "full");
+
+            // STEP 3: Convert JPG to WebP (includes compression)
+            log.info("Step 3: Converting to WebP and compressing");
             byte[] processedImageBytes;
             String finalFilename;
 
             if (isJpgFile(file)) {
                 processedImageBytes = convertJpgToWebP(file);
-                finalFilename = file.getOriginalFilename().replaceAll("(?i)\\.(jpg|jpeg)$", ".webp");
+                assert originalFilename != null;
+                finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg)$", ".webp");
             } else if (isWebPFile(file)) {
                 // Already WebP, just read the bytes
                 processedImageBytes = file.getBytes();
-                finalFilename = file.getOriginalFilename();
+                finalFilename = originalFilename;
             } else {
                 throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
             }
 
-            // STEP 3: Resize if needed (max 2500px on longest side)
-            log.info("Step 3: Resizing if needed");
+            // STEP 4: Resize if needed (max 2500px on longest side)
+            log.info("Step 4: Resizing if needed");
             processedImageBytes = resizeWebPIfNeeded(processedImageBytes, metadata, 2500);
 
-            // STEP 4: Upload to S3
-            log.info("Step 4: Uploading to S3");
-            String s3Url = uploadImageToS3(processedImageBytes, finalFilename, collectionId);
+            // STEP 5: Upload web-optimized image to S3
+            log.info("Step 5: Uploading web-optimized image to S3");
+            String imageUrlWeb = uploadImageToS3(processedImageBytes, finalFilename, "image/webp", "webP");
 
-            // STEP 5: Create and save ImageContentBlockEntity with metadata
-            log.info("Step 5: Saving to database");
+            // STEP 6: Create and save ImageContentBlockEntity with metadata
+            log.info("Step 6: Saving to database");
             ImageContentBlockEntity entity = ImageContentBlockEntity.builder()
                     .collectionId(collectionId)
                     .orderIndex(orderIndex)
@@ -983,15 +854,15 @@ public class ContentBlockProcessingUtil {
                     .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
                     .isFilm(metadata.get("fStop") == null)
                     .shutterSpeed(metadata.get("shutterSpeed"))
-                    .rawFileName(finalFilename)
+                    .imageUrlFullSize(imageUrlFullSize)
                     .camera(metadata.get("camera"))
                     .focalLength(metadata.get("focalLength"))
                     .location(metadata.get("location"))
-                    .imageUrlWeb(s3Url)
+                    .imageUrlWeb(imageUrlWeb)
                     .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
                     .build();
 
-            // STEP 6: Save and return
+            // STEP 7: Save and return
             ImageContentBlockEntity savedEntity = contentBlockRepository.save(entity);
             log.info("Successfully processed image content block with ID: {}", savedEntity.getId());
             return savedEntity;
@@ -1101,14 +972,14 @@ public class ContentBlockProcessingUtil {
         String filename = file.getOriginalFilename();
 
         return (contentType != null && contentType.equals("image/webp")) ||
-               (filename != null && filename.toLowerCase().endsWith(".webp"));
+                (filename != null && filename.toLowerCase().endsWith(".webp"));
     }
 
     /**
      * Resize a WebP image if it exceeds the maximum dimension.
      *
-     * @param webpBytes The WebP image bytes
-     * @param metadata The image metadata containing dimensions
+     * @param webpBytes    The WebP image bytes
+     * @param metadata     The image metadata containing dimensions
      * @param maxDimension The maximum allowed dimension (width or height)
      * @return Resized WebP image bytes, or original if no resize needed
      * @throws IOException If there's an error processing the image
@@ -1169,17 +1040,7 @@ public class ContentBlockProcessingUtil {
         }
 
         ImageWriter writer = writers.next();
-        ImageWriteParam writeParam = writer.getDefaultWriteParam();
-
-        if (writeParam.canWriteCompressed()) {
-            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            // Must set compression type before setting quality
-            String[] compressionTypes = writeParam.getCompressionTypes();
-            if (compressionTypes != null && compressionTypes.length > 0) {
-                writeParam.setCompressionType(compressionTypes[0]);
-            }
-            writeParam.setCompressionQuality(0.85f);
-        }
+        ImageWriteParam writeParam = getImageWriteParam(writer);
 
         try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
             writer.setOutput(ios);
@@ -1194,24 +1055,39 @@ public class ContentBlockProcessingUtil {
         return outputStream.toByteArray();
     }
 
+    private static ImageWriteParam getImageWriteParam(ImageWriter writer) {
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+
+        if (writeParam.canWriteCompressed()) {
+            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            // Must set compression type before setting quality
+            String[] compressionTypes = writeParam.getCompressionTypes();
+            if (compressionTypes != null && compressionTypes.length > 0) {
+                writeParam.setCompressionType(compressionTypes[0]);
+            }
+            writeParam.setCompressionQuality(0.85f);
+        }
+        return writeParam;
+    }
+
     /**
      * Upload an image to S3 and return the CloudFront URL.
      *
-     * @param imageBytes The image bytes to upload
-     * @param filename The filename
-     * @param collectionId The collection ID (not used in S3 path, kept for signature compatibility)
+     * @param imageBytes  The image bytes to upload
+     * @param filename    The filename
+     * @param contentType The content type of the image (e.g., "image/jpeg", "image/webp")
+     * @param folderType  The folder type for S3 path ("full" for originals, "webP" for optimized)
      * @return The CloudFront URL of the uploaded image
-     * @throws IOException If there's an error uploading to S3
      */
-    private String uploadImageToS3(byte[] imageBytes, String filename, Long collectionId) throws IOException {
+    private String uploadImageToS3(byte[] imageBytes, String filename, String contentType, String folderType) {
         String date = LocalDate.now().toString();
-        String s3Key = String.format("images/%s/%s", date, filename);
+        String s3Key = String.format("images/%s/%s/%s", folderType, date, filename);
 
-        log.info("Uploading image to S3: {}", s3Key);
+        log.info("Uploading {} image to S3: {}", folderType, s3Key);
 
         ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
         ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentType("image/webp");
+        metadata.setContentType(contentType);
         metadata.setContentLength(imageBytes.length);
 
         PutObjectRequest putRequest = new PutObjectRequest(
@@ -1224,7 +1100,7 @@ public class ContentBlockProcessingUtil {
         amazonS3.putObject(putRequest);
 
         String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
-        log.info("Image uploaded successfully: {}", cloudfrontUrl);
+        log.info("Successfully uploaded {} image: {}", folderType, cloudfrontUrl);
 
         return cloudfrontUrl;
     }
@@ -1232,7 +1108,7 @@ public class ContentBlockProcessingUtil {
     /**
      * Parse a string to an Integer, returning a default value if parsing fails.
      *
-     * @param value The string value to parse
+     * @param value        The string value to parse
      * @param defaultValue The default value to return if parsing fails
      * @return The parsed integer or default value
      */
@@ -1252,7 +1128,7 @@ public class ContentBlockProcessingUtil {
     /**
      * Parse a string to a Boolean, returning a default value if parsing fails.
      *
-     * @param value The string value to parse
+     * @param value        The string value to parse
      * @param defaultValue The default value to return if parsing fails
      * @return The parsed boolean or default value
      */
