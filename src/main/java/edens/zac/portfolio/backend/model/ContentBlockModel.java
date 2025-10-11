@@ -31,7 +31,6 @@ public class ContentBlockModel {
     private Integer orderIndex;
 
     @NotNull
-    @com.fasterxml.jackson.annotation.JsonIgnore
     private ContentBlockType blockType;
 
     @Size(max = 500)

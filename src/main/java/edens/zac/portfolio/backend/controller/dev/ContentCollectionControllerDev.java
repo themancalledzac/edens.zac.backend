@@ -106,17 +106,6 @@ public class ContentCollectionControllerDev {
                         .body("No files provided. Use 'files' part with one or more images.");
             }
 
-            // Reject WebP uploads for now
-            boolean hasWebp = files.stream()
-                    .filter(f -> f != null && f.getOriginalFilename() != null)
-                    .map(f -> f.getOriginalFilename().toLowerCase())
-                    .anyMatch(name -> name.endsWith(".webp"));
-            if (hasWebp) {
-                return ResponseEntity
-                        .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                        .body("WebP is not supported at this time. Please upload JPEG or PNG.");
-            }
-
             ContentCollectionModel updatedCollection = contentCollectionService.addContentBlocks(id, files);
 
             log.info("Successfully added {} file(s) to collection: {}", files.size(), id);

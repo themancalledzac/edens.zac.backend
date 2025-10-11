@@ -14,7 +14,7 @@
     <name>portfolio.backend</name>
     <description>Portfolio Backend</description>
     <properties>
-        <java.version>17</java.version>
+        <java.version>23</java.version>
     </properties>
     <dependencies>
         <dependency>
@@ -45,10 +45,11 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- WebP ImageIO plugin with read AND write support -->
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-imaging</artifactId>
-            <version>1.0-alpha2</version>
+            <groupId>org.sejda.imageio</groupId>
+            <artifactId>webp-imageio</artifactId>
+            <version>0.1.6</version>
         </dependency>
         <dependency>
             <groupId>com.drewnoakes</groupId>
@@ -58,12 +59,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.16.1</version> <!-- Use newest version -->
+            <version>2.18.0</version> <!-- Updated for Java 23 -->
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
-            <version>8.2.0</version>
+            <version>8.4.0</version>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>

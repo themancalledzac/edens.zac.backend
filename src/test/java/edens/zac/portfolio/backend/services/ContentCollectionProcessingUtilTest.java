@@ -39,13 +39,16 @@ class ContentCollectionProcessingUtilTest {
     private ContentCollectionRepository contentCollectionRepository;
 
     @Mock
+    private edens.zac.portfolio.backend.repository.ContentBlockRepository contentBlockRepository;
+
+    @Mock
     private ContentBlockProcessingUtil contentBlockProcessingUtil;
 
     @Mock
-    private ImageProcessingUtil imageProcessingUtil;
+    private ExceptionUtils exceptionUtils;
 
     @Mock
-    private ExceptionUtils exceptionUtils;
+    private edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
     @InjectMocks
     private ContentCollectionProcessingUtil util;
@@ -134,6 +137,9 @@ class ContentCollectionProcessingUtilTest {
 
     @Test
     void convertToBasicModel_shouldConvertEntityToModel() {
+        // Arrange
+        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
+
         // Act
         ContentCollectionModel model = util.convertToBasicModel(testEntity);
 
@@ -155,6 +161,8 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void convertToFullModel_shouldConvertEntityWithContentBlocks() {
         // Arrange
+        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
+        when(contentBlockRepository.findByCollectionIdOrderByOrderIndex(any())).thenReturn(testBlocks);
         when(contentBlockProcessingUtil.convertToModel(any(ContentBlockEntity.class)))
                 .thenAnswer(invocation -> {
                     ContentBlockEntity entity = invocation.getArgument(0);
@@ -179,6 +187,7 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void convertToModel_shouldConvertEntityWithPaginatedContentBlocks() {
         // Arrange
+        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
         Page<ContentBlockEntity> page = new PageImpl<>(testBlocks, PageRequest.of(0, 10), 2);
 
         when(contentBlockProcessingUtil.convertToModel(any(ContentBlockEntity.class)))
@@ -202,19 +211,6 @@ class ContentCollectionProcessingUtilTest {
         assertEquals(page.getTotalPages(), model.getTotalPages());
         assertEquals((int) page.getTotalElements(), model.getTotalBlocks());
         assertEquals(page.getSize(), model.getBlocksPerPage());
-    }
-
-    @Test
-    void generateSlug_shouldCallImageProcessingUtil() {
-        // Arrange
-        when(imageProcessingUtil.generateSlug("Test Title")).thenReturn("test-title");
-
-        // Act
-        String slug = util.generateSlug("Test Title");
-
-        // Assert
-        assertEquals("test-title", slug);
-        verify(imageProcessingUtil).generateSlug("Test Title");
     }
 
     @Test
@@ -254,6 +250,7 @@ class ContentCollectionProcessingUtilTest {
         // Arrange
         ContentCollectionEntity entity = new ContentCollectionEntity();
         entity.setType(CollectionType.CLIENT_GALLERY);
+        entity.setVisible(null); // Reset to null to test default behavior
 
         // Act
         ContentCollectionEntity result = util.applyTypeSpecificDefaults(entity);

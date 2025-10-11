@@ -29,7 +29,6 @@ public class ContentCollectionProcessingUtil {
     private final ContentCollectionRepository contentCollectionRepository;
     private final ContentBlockRepository contentBlockRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
-    private final ImageProcessingUtil imageProcessingUtil;
     private final edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
     // =============================================================================
@@ -385,12 +384,20 @@ public class ContentCollectionProcessingUtil {
 
     /**
      * Generate a slug from a title.
-     * 
+     *
      * @param title The title to generate a slug from
      * @return The generated slug
      */
     public String generateSlug(String title) {
-        return imageProcessingUtil.generateSlug(title);
+        if (title == null || title.isEmpty()) {
+            return "";
+        }
+
+        return title.toLowerCase()
+                .replaceAll("[^a-zA-Z0-9\\s-]", "") // Remove all non-alphanumeric chars except space and -
+                .replaceAll("\\s+", "-") // Replace spaces with hyphens
+                .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
+                .replaceAll("^-|-$", ""); // Remove leading and trailing hyphens
     }
 
     /**

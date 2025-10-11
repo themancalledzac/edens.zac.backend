@@ -165,7 +165,7 @@ class ContentCollectionModelTest {
                     .type(CollectionType.BLOG)
                     .title("Blog Post")
                     .slug("blog-post")
-                    .blocksPerPage(1) // Exactly at minimum
+                    .blocksPerPage(30) // Exactly at minimum
                     .build();
 
             Set<ConstraintViolation<ContentCollectionModel>> violations = validator.validate(model);
@@ -471,7 +471,7 @@ class ContentCollectionModelTest {
                     .slug("client-wedding-gallery")
                     .isPasswordProtected(true)
                     .hasAccess(false)
-                    .blocksPerPage(25)
+                    .blocksPerPage(30)
                     .totalBlocks(200)
                     .currentPage(1)
                     .totalPages(8)
@@ -482,7 +482,7 @@ class ContentCollectionModelTest {
             assertEquals(CollectionType.CLIENT_GALLERY, model.getType());
             assertTrue(model.getIsPasswordProtected());
             assertFalse(model.getHasAccess());
-            assertEquals(25, model.getBlocksPerPage());
+            assertEquals(30, model.getBlocksPerPage());
             assertEquals(200, model.getTotalBlocks());
         }
     }

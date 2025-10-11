@@ -43,10 +43,27 @@ class CollectionTypeTest {
     }
 
     @ParameterizedTest
-    @NullAndEmptySource
-    @ValueSource(strings = {"invalid", "blog", "BLOGS", "ART-GALLERY"})
-    void forValue_WithInvalidValue_ShouldReturnPortfolio(String invalidValue) {
-        assertEquals(CollectionType.PORTFOLIO, CollectionType.forValue(invalidValue));
+    @ValueSource(strings = {"invalid", "BLOGS", "ART-GALLERY"})
+    void forValue_WithInvalidValue_ShouldThrowException(String invalidValue) {
+        assertThrows(IllegalArgumentException.class, () -> CollectionType.forValue(invalidValue));
+    }
+
+    @Test
+    void forValue_WithNullValue_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> CollectionType.forValue(null));
+    }
+
+    @Test
+    void forValue_WithEmptyValue_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> CollectionType.forValue(""));
+    }
+
+    @Test
+    void forValue_WithValidDisplayName_ShouldReturnCorrectEnum() {
+        assertEquals(CollectionType.BLOG, CollectionType.forValue("Blog"));
+        assertEquals(CollectionType.ART_GALLERY, CollectionType.forValue("Art Gallery"));
+        assertEquals(CollectionType.CLIENT_GALLERY, CollectionType.forValue("Client Gallery"));
+        assertEquals(CollectionType.PORTFOLIO, CollectionType.forValue("Portfolio"));
     }
 
     // Test data providers

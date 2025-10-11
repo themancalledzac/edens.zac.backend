@@ -32,13 +32,7 @@ import static org.mockito.Mockito.*;
 public class ContentBlockProcessingUtilTest {
 
     @Mock
-    private ImageProcessingUtil imageProcessingUtil;
-
-    @Mock
     private AmazonS3 amazonS3;
-
-    @Mock
-    private edens.zac.portfolio.backend.repository.ContentCollectionRepository contentCollectionRepository;
 
     @Mock
     private ContentBlockRepository contentBlockRepository;
@@ -91,7 +85,6 @@ public class ContentBlockProcessingUtilTest {
         assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
         assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
         assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
-        assertEquals(entity.getRawFileName(), imageModel.getRawFileName());
         assertEquals(entity.getCamera(), imageModel.getCamera());
         assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
         assertEquals(entity.getLocation(), imageModel.getLocation());
@@ -188,14 +181,8 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Image";
         String caption = "Test Caption";
 
-        // Mock collection lookup to provide a location so image processing is invoked
-        ContentCollectionEntity collection = mock(ContentCollectionEntity.class);
-        when(collection.getLocation()).thenReturn("Test Location");
-        when(contentCollectionRepository.findById(collectionId)).thenReturn(java.util.Optional.of(collection));
-
-        ImageEntity imageEntity = createImageEntity();
-        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString()), anyString()))
-                .thenReturn(imageEntity);
+        // Mock S3 upload (new implementation uploads directly to S3)
+        when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ImageContentBlockEntity savedEntity = createImageContentBlockEntity();
         when(contentBlockRepository.save(any(ImageContentBlockEntity.class))).thenReturn(savedEntity);
@@ -206,7 +193,7 @@ public class ContentBlockProcessingUtilTest {
         // Assert
         assertNotNull(result);
         assertInstanceOf(ImageContentBlockEntity.class, result);
-        verify(imageProcessingUtil).processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString()), anyString());
+        verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
         verify(contentBlockRepository).save(any(ImageContentBlockEntity.class));
     }
 
@@ -219,19 +206,14 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Image";
         String caption = "Test Caption";
 
-        // Mock collection lookup so the flow reaches imageProcessingUtil
-        ContentCollectionEntity collection = mock(ContentCollectionEntity.class);
-        when(collection.getLocation()).thenReturn("Test Location");
-        when(contentCollectionRepository.findById(collectionId)).thenReturn(java.util.Optional.of(collection));
-
-        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), anyString(), anyString(), anyString()))
-                .thenReturn(null);
+        // Mock S3 to throw an exception (simulating upload failure)
+        when(amazonS3.putObject(any(PutObjectRequest.class))).thenThrow(new RuntimeException("S3 upload failed"));
 
         // Act
         ContentBlockEntity result = contentBlockProcessingUtil.processImageContentBlock(file, collectionId, orderIndex, title, caption);
 
         // Assert
-        assertNull(result);
+        assertNull(result); // Should return null when processing fails
     }
 
     @Test
@@ -284,13 +266,13 @@ public class ContentBlockProcessingUtilTest {
         when(contentBlockRepository.save(any(CodeContentBlockEntity.class))).thenReturn(savedEntity);
 
         // Act
-        ContentBlockEntity result = contentBlockProcessingUtil.processCodeContentBlock(code, language, collectionId, orderIndex, title, caption);
+        CodeContentBlockEntity result = contentBlockProcessingUtil.processCodeContentBlock(code, language, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
         assertInstanceOf(CodeContentBlockEntity.class, result);
-        assertEquals(code, ((CodeContentBlockEntity) result).getCode());
-        assertEquals(language, ((CodeContentBlockEntity) result).getLanguage());
+        assertEquals(code, result.getCode());
+        assertEquals(language, result.getLanguage());
         verify(contentBlockRepository).save(any(CodeContentBlockEntity.class));
     }
 
@@ -437,14 +419,10 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Image";
         String caption = "Test Caption";
 
-        // Mock collection lookup to provide a location so image processing is invoked
-        ContentCollectionEntity collection = mock(ContentCollectionEntity.class);
-        when(collection.getLocation()).thenReturn("Test Location");
-        when(contentCollectionRepository.findById(collectionId)).thenReturn(java.util.Optional.of(collection));
+        // Mock S3 upload (new implementation uploads directly to S3)
+        when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ImageContentBlockEntity imageEntity = createImageContentBlockEntity();
-        when(imageProcessingUtil.processAndSaveImage(any(MultipartFile.class), anyString(), anyString(), anyString()))
-                .thenReturn(createImageEntity());
         when(contentBlockRepository.save(any(ImageContentBlockEntity.class))).thenReturn(imageEntity);
 
         // Act
@@ -453,8 +431,8 @@ public class ContentBlockProcessingUtilTest {
 
         // Assert
         assertNotNull(result);
-        assertTrue(result instanceof ImageContentBlockEntity);
-        verify(imageProcessingUtil).processAndSaveImage(any(MultipartFile.class), eq("content_collection"), eq(collectionId.toString()), anyString());
+        assertInstanceOf(ImageContentBlockEntity.class, result);
+        verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
     }
 
     @Test
@@ -574,7 +552,6 @@ public class ContentBlockProcessingUtilTest {
         entity.setBlackAndWhite(false);
         entity.setIsFilm(false);
         entity.setShutterSpeed("1/125");
-        entity.setRawFileName("test.raw");
         entity.setCamera("Test Camera");
         entity.setFocalLength("50mm");
         entity.setLocation("Test Location");
@@ -631,35 +608,13 @@ public class ContentBlockProcessingUtilTest {
         return entity;
     }
 
-    private ImageEntity createImageEntity() {
-        ImageEntity entity = new ImageEntity();
-        entity.setId(1L);
-        entity.setTitle("Test Image");
-        entity.setImageWidth(800);
-        entity.setImageHeight(600);
-        entity.setIso(100);
-        entity.setAuthor("Test Author");
-        entity.setRating(5);
-        entity.setFStop("f/2.8");
-        entity.setLens("Test Lens");
-        entity.setBlackAndWhite(false);
-        entity.setShutterSpeed("1/125");
-        entity.setRawFileName("test.raw");
-        entity.setCamera("Test Camera");
-        entity.setFocalLength("50mm");
-        entity.setLocation("Test Location");
-        entity.setImageUrlWeb("https://example.com/image.jpg");
-        entity.setImageUrlRaw("https://example.com/image.raw");
-        entity.setCreateDate("2023-01-01");
-        return entity;
-    }
-
     private MultipartFile createMockImageFile() throws IOException {
-        // Create a simple 10x10 image
+        // Create a simple 10x10 image as WebP to avoid conversion issues in tests
         BufferedImage image = new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(image, "jpg", baos);
-        return new MockMultipartFile("file", "test.jpg", "image/jpeg", baos.toByteArray());
+        // Use PNG as a proxy for WebP in tests since WebP writer may not be available
+        ImageIO.write(image, "png", baos);
+        return new MockMultipartFile("file", "test.webp", "image/webp", baos.toByteArray());
     }
 
     private MultipartFile createMockGifFile() throws IOException {

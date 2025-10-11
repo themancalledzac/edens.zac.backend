@@ -26,6 +26,7 @@ class ContentCollectionServiceImplTest {
 
     @Mock private ContentCollectionRepository contentCollectionRepository;
     @Mock private ContentBlockRepository contentBlockRepository;
+    @Mock private ContentBlockProcessingUtil contentBlockProcessingUtil;
     @Mock private ContentCollectionProcessingUtil contentCollectionProcessingUtil;
     @Mock private HomeService homeService;
 

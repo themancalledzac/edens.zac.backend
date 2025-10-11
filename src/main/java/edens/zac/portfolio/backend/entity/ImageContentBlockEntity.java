@@ -32,15 +32,17 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
     private Boolean blackAndWhite;
     private Boolean isFilm;
     private String shutterSpeed;
-    private String rawFileName;
     private String camera;
     private String focalLength;
     private String location;
-    
+
     // S3 URL fields
     @NotNull
     @Column(name = "image_url_web")
     private String imageUrlWeb;
+
+    @Column(name = "image_url_full_size")
+    private String imageUrlFullSize;
     
     
     // Additional fields that might be useful
