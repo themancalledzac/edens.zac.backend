@@ -232,7 +232,12 @@ public class ImageProcessingUtil {
     }
 
     public ByteArrayInputStream compressImage(MultipartFile file, Map<String, String> imageMetadata, int maxDimension, float compressionQuality) throws IOException {
-        // Read original image
+        // Get the image format
+        String formatName = getImageFormat(file.getOriginalFilename());
+
+        log.info("Processing {} image: {}", formatName.toUpperCase(), file.getOriginalFilename());
+
+        // Read original image using ImageIO (TwelveMonkeys adds WebP support automatically)
         BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
         if (bufferedImage == null) {
             throw new IOException("Failed to read image: " + file.getOriginalFilename());
@@ -262,10 +267,10 @@ public class ImageProcessingUtil {
             }
         }
 
-        // Skip resize if image is already smaller than the max dimension
+        // Resize if needed
         BufferedImage resizedImage;
         if (newWidth != originalWidth || newHeight != originalHeight) {
-            // create a new resized image
+            log.info("Resizing image from {}x{} to {}x{}", originalWidth, originalHeight, newWidth, newHeight);
             resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = resizedImage.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
@@ -275,14 +280,11 @@ public class ImageProcessingUtil {
             resizedImage = bufferedImage;
         }
 
-        // Compress image
+        // Compress and write image
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        // Get the image format
-        String formatName = getImageFormat(file.getOriginalFilename());
-
-        // For jpg/jpeg, use compression
-        if ("jpg".equalsIgnoreCase(formatName) || "jpeg".equalsIgnoreCase(formatName)) {
+        // For jpg/jpeg and webp, use compression with quality settings
+        if ("jpg".equalsIgnoreCase(formatName) || "jpeg".equalsIgnoreCase(formatName) || "webp".equalsIgnoreCase(formatName)) {
             Iterator<ImageWriter> imageWriters = ImageIO.getImageWritersByFormatName(formatName);
             if (!imageWriters.hasNext()) {
                 throw new IOException("Unsupported image format: " + formatName);
@@ -291,8 +293,10 @@ public class ImageProcessingUtil {
             ImageWriter writer = imageWriters.next();
             ImageWriteParam writeParam = writer.getDefaultWriteParam();
 
-            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            writeParam.setCompressionQuality(compressionQuality);
+            if (writeParam.canWriteCompressed()) {
+                writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                writeParam.setCompressionQuality(compressionQuality);
+            }
 
             ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream);
             writer.setOutput(ios);
@@ -300,13 +304,7 @@ public class ImageProcessingUtil {
             writer.dispose();
             ios.close();
         }
-
-        // For WebP format - not supported for now
-        else if ("webp".equalsIgnoreCase(formatName)) {
-            throw new IOException("WebP format is not supported at this time. Please upload JPEG or PNG.");
-        }
-
-        // For all other formats
+        // For all other formats (png, etc.)
         else {
             ImageIO.write(resizedImage, formatName, outputStream);
         }
@@ -654,13 +652,5 @@ public class ImageProcessingUtil {
         imageEntity.setUpdateDate(LocalDateTime.now());
 
         return imageEntity;
-    }
-
-    /**
-     * Backward-compatible overload that delegates to the 4-arg method.
-     * This preserves existing callers (including tests) that don't provide collectionLocation.
-     */
-    public ImageEntity processAndSaveImage(MultipartFile file, String type, String contextName) {
-        return processAndSaveImage(file, type, contextName, null);
     }
 }

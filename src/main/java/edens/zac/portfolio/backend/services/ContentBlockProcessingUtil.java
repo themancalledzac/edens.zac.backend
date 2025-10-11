@@ -3,6 +3,11 @@ package edens.zac.portfolio.backend.services;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.metadata.Directory;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
+import com.drew.metadata.xmp.XmpDirectory;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.CodeContentBlockModel;
 import edens.zac.portfolio.backend.model.ContentBlockModel;
@@ -18,11 +23,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -50,10 +59,15 @@ public class ContentBlockProcessingUtil {
     @Value("${cloudfront.domain}")
     private String cloudfrontDomain;
 
+    // Default values for image metadata
+    public static final class DEFAULT {
+        public static final String AUTHOR = "Zechariah Edens";
+    }
+
     // Supported programming languages for code blocks
     private static final Set<String> SUPPORTED_LANGUAGES = Set.of(
-            "java", "javascript", "typescript", "python", "html", "css", 
-            "sql", "bash", "shell", "json", "xml", "yaml", "markdown", 
+            "java", "javascript", "typescript", "python", "html", "css",
+            "sql", "bash", "shell", "json", "xml", "yaml", "markdown",
             "plaintext", "c", "cpp", "csharp", "go", "rust", "kotlin", "swift"
     );
 
@@ -257,7 +271,7 @@ public class ContentBlockProcessingUtil {
      * @param caption The caption for the image
      * @return The saved image content block entity
      */
-    public ImageContentBlockEntity processImageContentBlock(
+    public ImageContentBlockEntity processImageContentBlock_old(
             MultipartFile file,
             Long collectionId,
             Integer orderIndex,
@@ -267,6 +281,13 @@ public class ContentBlockProcessingUtil {
         log.info("Processing image content block for collection {}", collectionId);
 
         try {
+            // Convert JPG to WebP if needed
+            MultipartFile processedFile = file;
+            if (isJpgFile(file)) {
+                log.info("Converting JPG to WebP for file: {}", file.getOriginalFilename());
+                processedFile = convertToWebPMultipartFile(file);
+            }
+
             // Fetch the collection to get its location
             String collectionLocation = contentCollectionRepository.findById(collectionId)
                     .map(ContentCollectionEntity::getLocation)
@@ -274,7 +295,7 @@ public class ContentBlockProcessingUtil {
 
             // Use ImageProcessingUtil to process the image and upload to S3
             // Use "content_collection" as the type and the collection ID as the context name
-            ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(file, "content_collection", collectionId.toString(), collectionLocation);
+            ImageEntity imageEntity = imageProcessingUtil.processAndSaveImage(processedFile, "content_collection", collectionId.toString(), collectionLocation);
 
             if (imageEntity == null) {
                 log.error("Failed to process image - ImageProcessingUtil returned null");
@@ -726,7 +747,7 @@ public class ContentBlockProcessingUtil {
 
     /**
      * Generate an S3 key for a file.
-     * 
+     *
      * @param date The date to use in the key
      * @param filename The filename
      * @param type The type of file (gif, thumbnail, etc.)
@@ -734,5 +755,511 @@ public class ContentBlockProcessingUtil {
      */
     private String generateS3Key(String date, String filename, String type) {
         return String.format("%s/%s/%s", date, type, filename);
+    }
+
+    /**
+     * Check if a file is a JPG/JPEG file.
+     *
+     * @param file The file to check
+     * @return true if the file is a JPG/JPEG, false otherwise
+     */
+    private boolean isJpgFile(MultipartFile file) {
+        String contentType = file.getContentType();
+        String filename = file.getOriginalFilename();
+
+        return (contentType != null && (contentType.equals("image/jpeg") || contentType.equals("image/jpg"))) ||
+               (filename != null && (filename.toLowerCase().endsWith(".jpg") || filename.toLowerCase().endsWith(".jpeg")));
+    }
+
+    /**
+     * Convert JPG image to WebP format and wrap in a MultipartFile.
+     *
+     * @param file The JPG file to convert
+     * @return MultipartFile containing the WebP image
+     * @throws IOException If there's an error during conversion
+     */
+    private MultipartFile convertToWebPMultipartFile(MultipartFile file) throws IOException {
+        byte[] webpBytes = convertJpgToWebP(file);
+        String originalFilename = file.getOriginalFilename();
+        String webpFilename = originalFilename != null ?
+            originalFilename.replaceAll("(?i)\\.(jpg|jpeg)$", ".webp") : "image.webp";
+
+        return new MultipartFile() {
+            @Override
+            public String getName() {
+                return file.getName();
+            }
+
+            @Override
+            public String getOriginalFilename() {
+                return webpFilename;
+            }
+
+            @Override
+            public String getContentType() {
+                return "image/webp";
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return webpBytes.length == 0;
+            }
+
+            @Override
+            public long getSize() {
+                return webpBytes.length;
+            }
+
+            @Override
+            public byte[] getBytes() {
+                return webpBytes;
+            }
+
+            @Override
+            public InputStream getInputStream() {
+                return new ByteArrayInputStream(webpBytes);
+            }
+
+            @Override
+            public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
+                java.nio.file.Files.write(dest.toPath(), webpBytes);
+            }
+        };
+    }
+
+    /**
+     * Convert JPG image to WebP format using ImageIO with sejda webp-imageio library.
+     *
+     * The conversion process:
+     * 1. Read the JPG file as a BufferedImage using standard ImageIO
+     * 2. Get a WebP ImageWriter from ImageIO (provided by sejda webp-imageio plugin)
+     * 3. Configure compression settings (quality, etc.)
+     * 4. Write the BufferedImage to a ByteArrayOutputStream in WebP format
+     * 5. Return the byte array for further processing or S3 upload
+     *
+     * The sejda webp-imageio library automatically registers itself with ImageIO's service provider
+     * interface (SPI), so we can use standard ImageIO.getImageWritersByFormatName("webp") to get
+     * a WebP writer. This approach keeps the code clean and doesn't require direct dependency on
+     * the sejda-specific classes.
+     *
+     * @param file The JPG file to convert
+     * @return byte array containing the WebP image data
+     * @throws IOException If there's an error during conversion
+     */
+    private byte[] convertJpgToWebP(MultipartFile file) throws IOException {
+        log.info("Converting JPG to WebP: {}", file.getOriginalFilename());
+
+        // STEP 1: Read the JPG image as a BufferedImage
+        // BufferedImage is an in-memory representation that works with all ImageIO readers/writers
+        BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
+        if (bufferedImage == null) {
+            throw new IOException("Failed to read JPG image: " + file.getOriginalFilename());
+        }
+        log.info("Successfully read JPG image: {}x{}", bufferedImage.getWidth(), bufferedImage.getHeight());
+
+        // STEP 2: Create a ByteArrayOutputStream to capture the WebP bytes
+        // We write to memory instead of a file so we can return the bytes for S3 upload
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        // STEP 3: Get a WebP ImageWriter from ImageIO
+        // The sejda webp-imageio library registers a WebP writer via Java's ServiceLoader mechanism
+        // When we call getImageWritersByFormatName("webp"), it returns the sejda writer
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("webp");
+        if (!writers.hasNext()) {
+            throw new IOException("No WebP writer found. Make sure webp-imageio is on the classpath.");
+        }
+
+        ImageWriter writer = writers.next();
+        log.info("Using WebP writer: {}", writer.getClass().getName());
+
+        // STEP 4: Configure compression settings for the WebP output
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+
+        // Check if the writer supports compression (it should for WebP)
+        if (writeParam.canWriteCompressed()) {
+            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            // Must set compression type before setting quality
+            String[] compressionTypes = writeParam.getCompressionTypes();
+            if (compressionTypes != null && compressionTypes.length > 0) {
+                writeParam.setCompressionType(compressionTypes[0]);
+            }
+            writeParam.setCompressionQuality(0.85f); // 85% quality (0.0 = max compression, 1.0 = max quality)
+            log.info("Set WebP compression quality to 85%");
+        } else {
+            log.warn("WebP writer does not support compression settings");
+        }
+
+        // STEP 5: Write the BufferedImage to the ByteArrayOutputStream in WebP format
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
+            writer.setOutput(ios);
+            // IIOImage wraps the BufferedImage along with optional metadata and thumbnails
+            writer.write(null, new IIOImage(bufferedImage, null, null), writeParam);
+            writer.dispose();
+        }
+
+        byte[] webpBytes = outputStream.toByteArray();
+        log.info("Successfully converted JPG to WebP. Original size: {} bytes, WebP size: {} bytes",
+                file.getSize(), webpBytes.length);
+
+        // Return the WebP byte array for further processing (resizing, S3 upload, etc.)
+        return webpBytes;
+    }
+
+    // ============================================================================
+    // NEW STREAMLINED IMAGE PROCESSING METHODS
+    // ============================================================================
+
+    /**
+     * STREAMLINED: Process and save an image content block.
+     *
+     * Flow:
+     * 1. Extract metadata from original file
+     * 2. Convert JPG → WebP (with compression)
+     * 3. Resize if needed
+     * 4. Upload to S3
+     * 5. Save metadata to database
+     * 6. Return ImageContentBlockEntity
+     *
+     * @param file The image file to process
+     * @param collectionId The ID of the collection this block belongs to
+     * @param orderIndex The order index of this block within the collection
+     * @param title The title of the image
+     * @param caption The caption for the image
+     * @return The saved image content block entity
+     */
+    public ImageContentBlockEntity processImageContentBlock(
+            MultipartFile file,
+            Long collectionId,
+            Integer orderIndex,
+            String title,
+            String caption
+    ) {
+        log.info("STREAMLINED: Processing image content block for collection {}", collectionId);
+
+        try {
+            // STEP 1: Extract metadata from original file (before any conversion)
+            log.info("Step 1: Extracting metadata from original file");
+            Map<String, String> metadata = extractImageMetadata(file);
+
+            // STEP 2: Convert JPG to WebP (includes compression)
+            log.info("Step 2: Converting to WebP and compressing");
+            byte[] processedImageBytes;
+            String finalFilename;
+
+            if (isJpgFile(file)) {
+                processedImageBytes = convertJpgToWebP(file);
+                finalFilename = file.getOriginalFilename().replaceAll("(?i)\\.(jpg|jpeg)$", ".webp");
+            } else if (isWebPFile(file)) {
+                // Already WebP, just read the bytes
+                processedImageBytes = file.getBytes();
+                finalFilename = file.getOriginalFilename();
+            } else {
+                throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
+            }
+
+            // STEP 3: Resize if needed (max 2500px on longest side)
+            log.info("Step 3: Resizing if needed");
+            processedImageBytes = resizeWebPIfNeeded(processedImageBytes, metadata, 2500);
+
+            // STEP 4: Upload to S3
+            log.info("Step 4: Uploading to S3");
+            String s3Url = uploadImageToS3(processedImageBytes, finalFilename, collectionId);
+
+            // STEP 5: Create and save ImageContentBlockEntity with metadata
+            log.info("Step 5: Saving to database");
+            ImageContentBlockEntity entity = ImageContentBlockEntity.builder()
+                    .collectionId(collectionId)
+                    .orderIndex(orderIndex)
+                    .blockType(ContentBlockType.IMAGE)
+                    .caption(caption)
+                    .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
+                    .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
+                    .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
+                    .iso(parseIntegerOrDefault(metadata.get("iso"), null))
+                    .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
+                    .rating(parseIntegerOrDefault(metadata.get("rating"), null))
+                    .fStop(metadata.get("fStop"))
+                    .lens(metadata.get("lens"))
+                    .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
+                    .isFilm(metadata.get("fStop") == null)
+                    .shutterSpeed(metadata.get("shutterSpeed"))
+                    .rawFileName(finalFilename)
+                    .camera(metadata.get("camera"))
+                    .focalLength(metadata.get("focalLength"))
+                    .location(metadata.get("location"))
+                    .imageUrlWeb(s3Url)
+                    .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
+                    .build();
+
+            // STEP 6: Save and return
+            ImageContentBlockEntity savedEntity = contentBlockRepository.save(entity);
+            log.info("Successfully processed image content block with ID: {}", savedEntity.getId());
+            return savedEntity;
+
+        } catch (Exception e) {
+            log.error("Error processing image content block: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Extract metadata from an image file using Drew Noakes metadata-extractor.
+     *
+     * @param file The image file to extract metadata from
+     * @return Map of metadata key-value pairs
+     * @throws IOException If there's an error reading the file
+     */
+    private Map<String, String> extractImageMetadata(MultipartFile file) throws IOException {
+        Map<String, String> metadata = new HashMap<>();
+
+        try (InputStream inputStream = file.getInputStream()) {
+            Metadata imageMetadata = ImageMetadataReader.readMetadata(inputStream);
+
+            // Extract all metadata tags
+            for (Directory directory : imageMetadata.getDirectories()) {
+                for (Tag tag : directory.getTags()) {
+                    String tagName = tag.getTagName();
+                    String description = tag.getDescription();
+
+                    if (description != null && !description.isEmpty()) {
+                        // Map common EXIF tags to our metadata keys
+                        switch (tagName) {
+                            case "Image Width" -> metadata.put("imageWidth", description.replaceAll("[^0-9]", ""));
+                            case "Image Height" -> metadata.put("imageHeight", description.replaceAll("[^0-9]", ""));
+                            case "ISO Speed Ratings" -> metadata.put("iso", description);
+                            case "Artist" -> metadata.put("author", description);
+                            case "Rating" -> metadata.put("rating", description);
+                            case "F-Number" -> metadata.put("fStop", description);
+                            case "Lens Model", "Lens" -> metadata.put("lens", description);
+                            case "Exposure Time" -> metadata.put("shutterSpeed", description);
+                            case "Model" -> metadata.put("camera", description);
+                            case "Focal Length" -> metadata.put("focalLength", description);
+                            case "GPS Latitude", "GPS Longitude" -> {
+                                String existingLocation = metadata.getOrDefault("location", "");
+                                metadata.put("location", existingLocation + " " + description);
+                            }
+                            case "Date/Time Original", "Date/Time" -> metadata.put("createDate", description);
+                        }
+                    }
+                }
+            }
+
+            // Check for XMP data for additional metadata
+            for (Directory directory : imageMetadata.getDirectories()) {
+                if (directory instanceof XmpDirectory xmpDirectory) {
+                    String xmpXml = xmpDirectory.getXMPMeta().dumpObject();
+
+                    // Check for film simulation indicators
+                    if (xmpXml.contains("Film") || xmpXml.contains("film")) {
+                        metadata.put("isFilm", "true");
+                    }
+
+                    // Check for black and white
+                    if (xmpXml.contains("Monochrome") || xmpXml.contains("BlackAndWhite")) {
+                        metadata.put("blackAndWhite", "true");
+                    }
+                }
+            }
+
+            // If we couldn't get dimensions from metadata, read from BufferedImage
+            if (!metadata.containsKey("imageWidth") || !metadata.containsKey("imageHeight")) {
+                try (InputStream is2 = file.getInputStream()) {
+                    BufferedImage img = ImageIO.read(is2);
+                    if (img != null) {
+                        metadata.put("imageWidth", String.valueOf(img.getWidth()));
+                        metadata.put("imageHeight", String.valueOf(img.getHeight()));
+                    }
+                }
+            }
+
+            log.info("Extracted metadata: {} tags", metadata.size());
+
+        } catch (Exception e) {
+            log.warn("Failed to extract full metadata: {}", e.getMessage());
+
+            // Fallback: At minimum, get dimensions from BufferedImage
+            try (InputStream is = file.getInputStream()) {
+                BufferedImage img = ImageIO.read(is);
+                if (img != null) {
+                    metadata.put("imageWidth", String.valueOf(img.getWidth()));
+                    metadata.put("imageHeight", String.valueOf(img.getHeight()));
+                }
+            }
+        }
+
+        return metadata;
+    }
+
+    /**
+     * Check if a file is a WebP file.
+     *
+     * @param file The file to check
+     * @return true if the file is WebP, false otherwise
+     */
+    private boolean isWebPFile(MultipartFile file) {
+        String contentType = file.getContentType();
+        String filename = file.getOriginalFilename();
+
+        return (contentType != null && contentType.equals("image/webp")) ||
+               (filename != null && filename.toLowerCase().endsWith(".webp"));
+    }
+
+    /**
+     * Resize a WebP image if it exceeds the maximum dimension.
+     *
+     * @param webpBytes The WebP image bytes
+     * @param metadata The image metadata containing dimensions
+     * @param maxDimension The maximum allowed dimension (width or height)
+     * @return Resized WebP image bytes, or original if no resize needed
+     * @throws IOException If there's an error processing the image
+     */
+    private byte[] resizeWebPIfNeeded(byte[] webpBytes, Map<String, String> metadata, int maxDimension) throws IOException {
+        int originalWidth = parseIntegerOrDefault(metadata.get("imageWidth"), 0);
+        int originalHeight = parseIntegerOrDefault(metadata.get("imageHeight"), 0);
+
+        // Calculate new dimensions
+        int newWidth, newHeight;
+        boolean needsResize = false;
+
+        if (originalWidth > originalHeight) {
+            if (originalWidth > maxDimension) {
+                newWidth = maxDimension;
+                newHeight = (int) (originalHeight * (((double) maxDimension / originalWidth)));
+                needsResize = true;
+            } else {
+                newWidth = originalWidth;
+                newHeight = originalHeight;
+            }
+        } else {
+            if (originalHeight > maxDimension) {
+                newHeight = maxDimension;
+                newWidth = (int) (originalWidth * (((double) maxDimension / originalHeight)));
+                needsResize = true;
+            } else {
+                newHeight = originalHeight;
+                newWidth = originalWidth;
+            }
+        }
+
+        if (!needsResize) {
+            log.info("Image is within size limits ({}x{}), no resize needed", originalWidth, originalHeight);
+            return webpBytes;
+        }
+
+        log.info("Resizing image from {}x{} to {}x{}", originalWidth, originalHeight, newWidth, newHeight);
+
+        // Read WebP bytes as BufferedImage
+        BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(webpBytes));
+        if (originalImage == null) {
+            throw new IOException("Failed to read WebP image for resizing");
+        }
+
+        // Create resized image
+        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = resizedImage.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
+        g.dispose();
+
+        // Write back to WebP
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("webp");
+        if (!writers.hasNext()) {
+            throw new IOException("No WebP writer found");
+        }
+
+        ImageWriter writer = writers.next();
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+
+        if (writeParam.canWriteCompressed()) {
+            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            // Must set compression type before setting quality
+            String[] compressionTypes = writeParam.getCompressionTypes();
+            if (compressionTypes != null && compressionTypes.length > 0) {
+                writeParam.setCompressionType(compressionTypes[0]);
+            }
+            writeParam.setCompressionQuality(0.85f);
+        }
+
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(resizedImage, null, null), writeParam);
+            writer.dispose();
+        }
+
+        // Update metadata with new dimensions
+        metadata.put("imageWidth", String.valueOf(newWidth));
+        metadata.put("imageHeight", String.valueOf(newHeight));
+
+        return outputStream.toByteArray();
+    }
+
+    /**
+     * Upload an image to S3 and return the CloudFront URL.
+     *
+     * @param imageBytes The image bytes to upload
+     * @param filename The filename
+     * @param collectionId The collection ID (not used in S3 path, kept for signature compatibility)
+     * @return The CloudFront URL of the uploaded image
+     * @throws IOException If there's an error uploading to S3
+     */
+    private String uploadImageToS3(byte[] imageBytes, String filename, Long collectionId) throws IOException {
+        String date = LocalDate.now().toString();
+        String s3Key = String.format("images/%s/%s", date, filename);
+
+        log.info("Uploading image to S3: {}", s3Key);
+
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentType("image/webp");
+        metadata.setContentLength(imageBytes.length);
+
+        PutObjectRequest putRequest = new PutObjectRequest(
+                bucketName,
+                s3Key,
+                inputStream,
+                metadata
+        );
+
+        amazonS3.putObject(putRequest);
+
+        String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
+        log.info("Image uploaded successfully: {}", cloudfrontUrl);
+
+        return cloudfrontUrl;
+    }
+
+    /**
+     * Parse a string to an Integer, returning a default value if parsing fails.
+     *
+     * @param value The string value to parse
+     * @param defaultValue The default value to return if parsing fails
+     * @return The parsed integer or default value
+     */
+    private Integer parseIntegerOrDefault(String value, Integer defaultValue) {
+        if (value == null || value.trim().isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            // Remove any non-numeric characters except minus sign
+            String cleaned = value.replaceAll("[^0-9-]", "");
+            return Integer.parseInt(cleaned);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Parse a string to a Boolean, returning a default value if parsing fails.
+     *
+     * @param value The string value to parse
+     * @param defaultValue The default value to return if parsing fails
+     * @return The parsed boolean or default value
+     */
+    private Boolean parseBooleanOrDefault(String value, Boolean defaultValue) {
+        if (value == null || value.trim().isEmpty()) {
+            return defaultValue;
+        }
+        return Boolean.parseBoolean(value) || value.equalsIgnoreCase("true") || value.equals("1");
     }
 }

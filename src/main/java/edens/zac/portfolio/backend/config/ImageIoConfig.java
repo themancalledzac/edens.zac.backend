@@ -17,11 +17,6 @@ class ImageIoConfig {
 
     @PostConstruct
     void registerPlugins() {
-        // Ensure all ImageIO plugins on the classpath (e.g., WebP) are discovered,
-        // especially important in packaged/Docker environments.
-        ImageIO.scanForPlugins();
-
-        // Diagnostics to confirm WebP availability at startup
         String os = System.getProperty("os.name");
         String arch = System.getProperty("os.arch");
         log.info("ImageIO environment: OS='{}', Arch='{}'", os, arch);
