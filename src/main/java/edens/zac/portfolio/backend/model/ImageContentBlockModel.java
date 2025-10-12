@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
@@ -50,4 +52,10 @@ public class ImageContentBlockModel extends ContentBlockModel {
     private String imageUrlWeb;
 
     private String createDate;
+
+    // Tags associated with this image block
+    private List<String> tags;
+
+    // People tagged in this image block
+    private List<String> people;
 }

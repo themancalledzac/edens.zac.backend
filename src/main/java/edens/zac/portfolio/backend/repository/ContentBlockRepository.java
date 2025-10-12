@@ -125,4 +125,14 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * Find a content block by collection and its exact order index.
      */
     ContentBlockEntity findByCollectionIdAndOrderIndex(Long collectionId, Integer orderIndex);
+
+    /**
+     * Check if an image with the given fileIdentifier already exists in the database.
+     * This is used for duplicate detection during image uploads.
+     *
+     * @param fileIdentifier The file identifier (format: "YYYY-MM-DD/filename.jpg")
+     * @return true if an image with this identifier exists, false otherwise
+     */
+    @Query("SELECT CASE WHEN COUNT(i) > 0 THEN true ELSE false END FROM ImageContentBlockEntity i WHERE i.fileIdentifier = :fileIdentifier")
+    boolean existsByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 }

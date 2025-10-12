@@ -42,7 +42,7 @@ public class ContentCollectionControllerProd {
     @GetMapping
     public ResponseEntity<?> getAllCollections(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "50") int size) {
         try {
             // Normalize pagination parameters: 0-based pages; negative coerced to 0.
             if (page < 0) {

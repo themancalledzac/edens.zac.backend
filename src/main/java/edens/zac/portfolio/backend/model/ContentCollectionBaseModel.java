@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Base model containing common fields shared across all ContentCollection DTOs.
@@ -53,6 +54,9 @@ public abstract class ContentCollectionBaseModel {
     // chronological: by time; ordered: by explicit orderIndex
     public enum DisplayMode { CHRONOLOGICAL, ORDERED }
     private DisplayMode displayMode;
+
+    // Tags associated with this collection
+    private List<String> tags;
 
     // Timestamps
     private LocalDateTime createdAt;

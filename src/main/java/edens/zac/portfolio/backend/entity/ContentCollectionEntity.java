@@ -9,7 +9,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Entity representing a content collection in the portfolio.
@@ -108,6 +110,19 @@ public class ContentCollectionEntity {
     @OrderBy("orderIndex ASC")
     private List<ContentBlockEntity> contentBlocks = new ArrayList<>();
 
+    // Many-to-many relationship with ContentTagEntity
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "content_collection_tags",
+            joinColumns = @JoinColumn(name = "collection_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id"),
+            indexes = {
+                    @Index(name = "idx_collection_tags_collection", columnList = "collection_id"),
+                    @Index(name = "idx_collection_tags_tag", columnList = "tag_id")
+            }
+    )
+    private Set<ContentTagEntity> tags = new HashSet<>();
+
     /**
      * Constructor that ensures all collections are properly initialized
      */
@@ -119,6 +134,7 @@ public class ContentCollectionEntity {
         this.totalBlocks = 0;
         this.passwordProtected = false;
         this.contentBlocks = new ArrayList<>();
+        this.tags = new HashSet<>();
     }
 
     /**
