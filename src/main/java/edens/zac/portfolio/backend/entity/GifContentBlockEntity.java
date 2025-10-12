@@ -1,16 +1,15 @@
 package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentBlockType;
-import jakarta.persistence.Column;
-import jakarta.persistence.DiscriminatorValue;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.PrimaryKeyJoinColumn;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "gif_content_block")
@@ -43,7 +42,20 @@ public class GifContentBlockEntity extends ContentBlockEntity {
     
     @Column(name = "create_date")
     private String createDate;
-    
+
+    // Many-to-many relationship with ContentTagEntity
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "gif_content_block_tags",
+            joinColumns = @JoinColumn(name = "gif_block_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id"),
+            indexes = {
+                    @Index(name = "idx_gif_block_tags_gif", columnList = "gif_block_id"),
+                    @Index(name = "idx_gif_block_tags_tag", columnList = "tag_id")
+            }
+    )
+    private Set<ContentTagEntity> tags = new HashSet<>();
+
     @Override
     public ContentBlockType getBlockType() {
         return ContentBlockType.GIF;

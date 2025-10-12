@@ -240,6 +240,22 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
 
         for (MultipartFile file : files) {
             try {
+                // First check if this image already exists in the database (duplicate detection)
+                if (file.getContentType() != null && file.getContentType().startsWith("image/") && !file.getContentType().equals("image/gif")) {
+                    // Generate file identifier to check for duplicates
+                    String originalFilename = file.getOriginalFilename();
+                    if (originalFilename != null) {
+                        String date = java.time.LocalDate.now().toString();
+                        String fileIdentifier = date + "/" + originalFilename;
+
+                        // Check if image already exists
+                        if (contentBlockRepository.existsByFileIdentifier(fileIdentifier)) {
+                            log.info("Skipping duplicate image: {}", originalFilename);
+                            continue; // Skip this file and move to the next
+                        }
+                    }
+                }
+
                 // Process file based on content type
                 if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
                     if (file.getContentType().equals("image/gif")) {

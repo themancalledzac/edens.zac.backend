@@ -15,7 +15,6 @@ import edens.zac.portfolio.backend.model.GifContentBlockModel;
 import edens.zac.portfolio.backend.model.ImageContentBlockModel;
 import edens.zac.portfolio.backend.model.TextContentBlockModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
-import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -692,82 +691,6 @@ public class ContentBlockProcessingUtil {
                 (filename != null && (filename.toLowerCase().endsWith(".jpg") || filename.toLowerCase().endsWith(".jpeg")));
     }
 
-    /**
-     * Convert JPG image to WebP format using ImageIO with sejda webp-imageio library.
-     * The conversion process:
-     * 1. Read the JPG file as a BufferedImage using standard ImageIO
-     * 2. Get a WebP ImageWriter from ImageIO (provided by sejda webp-imageio plugin)
-     * 3. Configure compression settings (quality, etc.)
-     * 4. Write the BufferedImage to a ByteArrayOutputStream in WebP format
-     * 5. Return the byte array for further processing or S3 upload
-     * The sejda webp-imageio library automatically registers itself with ImageIO's service provider
-     * interface (SPI), so we can use standard ImageIO.getImageWritersByFormatName("webp") to get
-     * a WebP writer. This approach keeps the code clean and doesn't require direct dependency on
-     * the sejda-specific classes.
-     *
-     * @param file The JPG file to convert
-     * @return byte array containing the WebP image data
-     * @throws IOException If there's an error during conversion
-     */
-    private byte[] convertJpgToWebP(MultipartFile file) throws IOException {
-        log.info("Converting JPG to WebP: {}", file.getOriginalFilename());
-
-        // STEP 1: Read the JPG image as a BufferedImage
-        // BufferedImage is an in-memory representation that works with all ImageIO readers/writers
-        BufferedImage bufferedImage = ImageIO.read(file.getInputStream());
-        if (bufferedImage == null) {
-            throw new IOException("Failed to read JPG image: " + file.getOriginalFilename());
-        }
-        log.info("Successfully read JPG image: {}x{}", bufferedImage.getWidth(), bufferedImage.getHeight());
-
-        // STEP 2: Create a ByteArrayOutputStream to capture the WebP bytes
-        // We write to memory instead of a file so we can return the bytes for S3 upload
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-        // STEP 3: Get a WebP ImageWriter from ImageIO
-        // The sejda webp-imageio library registers a WebP writer via Java's ServiceLoader mechanism
-        // When we call getImageWritersByFormatName("webp"), it returns the sejda writer
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("webp");
-        if (!writers.hasNext()) {
-            throw new IOException("No WebP writer found. Make sure webp-imageio is on the classpath.");
-        }
-
-        ImageWriter writer = writers.next();
-        log.info("Using WebP writer: {}", writer.getClass().getName());
-
-        // STEP 4: Configure compression settings for the WebP output
-        ImageWriteParam writeParam = writer.getDefaultWriteParam();
-
-        // Check if the writer supports compression (it should for WebP)
-        if (writeParam.canWriteCompressed()) {
-            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            // Must set compression type before setting quality
-            String[] compressionTypes = writeParam.getCompressionTypes();
-            if (compressionTypes != null && compressionTypes.length > 0) {
-                writeParam.setCompressionType(compressionTypes[0]);
-            }
-            writeParam.setCompressionQuality(0.85f); // 85% quality (0.0 = max compression, 1.0 = max quality)
-            log.info("Set WebP compression quality to 85%");
-        } else {
-            log.warn("WebP writer does not support compression settings");
-        }
-
-        // STEP 5: Write the BufferedImage to the ByteArrayOutputStream in WebP format
-        try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
-            writer.setOutput(ios);
-            // IIOImage wraps the BufferedImage along with optional metadata and thumbnails
-            writer.write(null, new IIOImage(bufferedImage, null, null), writeParam);
-            writer.dispose();
-        }
-
-        byte[] webpBytes = outputStream.toByteArray();
-        log.info("Successfully converted JPG to WebP. Original size: {} bytes, WebP size: {} bytes",
-                file.getSize(), webpBytes.length);
-
-        // Return the WebP byte array for further processing (resizing, S3 upload, etc.)
-        return webpBytes;
-    }
-
     // ============================================================================
     // NEW STREAMLINED IMAGE PROCESSING METHODS
     // ============================================================================
@@ -811,26 +734,28 @@ public class ContentBlockProcessingUtil {
             String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
             String imageUrlFullSize = uploadImageToS3(file.getBytes(), originalFilename, contentType, "full");
 
-            // STEP 3: Convert JPG to WebP (includes compression)
-            log.info("Step 3: Converting to WebP and compressing");
+            // STEP 3: Resize FIRST if needed (max 2500px on longest side)
+            // We resize BEFORE converting to WebP to avoid having to decode WebP back to BufferedImage
+            log.info("Step 3: Resizing original image if needed");
+            BufferedImage originalImage = ImageIO.read(file.getInputStream());
+            if (originalImage == null) {
+                throw new IOException("Failed to read image: " + originalFilename);
+            }
+
+            BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+
+            // STEP 4: Convert to WebP (includes compression)
+            log.info("Step 4: Converting to WebP and compressing");
             byte[] processedImageBytes;
             String finalFilename;
 
-            if (isJpgFile(file)) {
-                processedImageBytes = convertJpgToWebP(file);
+            if (isJpgFile(file) || isWebPFile(file)) {
+                processedImageBytes = convertJpgToWebP(resizedImage);
                 assert originalFilename != null;
-                finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg)$", ".webp");
-            } else if (isWebPFile(file)) {
-                // Already WebP, just read the bytes
-                processedImageBytes = file.getBytes();
-                finalFilename = originalFilename;
+                finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
             } else {
                 throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
             }
-
-            // STEP 4: Resize if needed (max 2500px on longest side)
-            log.info("Step 4: Resizing if needed");
-            processedImageBytes = resizeWebPIfNeeded(processedImageBytes, metadata, 2500);
 
             // STEP 5: Upload web-optimized image to S3
             log.info("Step 5: Uploading web-optimized image to S3");
@@ -838,6 +763,11 @@ public class ContentBlockProcessingUtil {
 
             // STEP 6: Create and save ImageContentBlockEntity with metadata
             log.info("Step 6: Saving to database");
+
+            // Generate file identifier for duplicate detection (format: "YYYY-MM-DD/filename.jpg")
+            String date = LocalDate.now().toString();
+            String fileIdentifier = date + "/" + originalFilename;
+
             ImageContentBlockEntity entity = ImageContentBlockEntity.builder()
                     .collectionId(collectionId)
                     .orderIndex(orderIndex)
@@ -860,6 +790,7 @@ public class ContentBlockProcessingUtil {
                     .location(metadata.get("location"))
                     .imageUrlWeb(imageUrlWeb)
                     .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
+                    .fileIdentifier(fileIdentifier)
                     .build();
 
             // STEP 7: Save and return
@@ -976,101 +907,6 @@ public class ContentBlockProcessingUtil {
     }
 
     /**
-     * Resize a WebP image if it exceeds the maximum dimension.
-     *
-     * @param webpBytes    The WebP image bytes
-     * @param metadata     The image metadata containing dimensions
-     * @param maxDimension The maximum allowed dimension (width or height)
-     * @return Resized WebP image bytes, or original if no resize needed
-     * @throws IOException If there's an error processing the image
-     */
-    private byte[] resizeWebPIfNeeded(byte[] webpBytes, Map<String, String> metadata, int maxDimension) throws IOException {
-        int originalWidth = parseIntegerOrDefault(metadata.get("imageWidth"), 0);
-        int originalHeight = parseIntegerOrDefault(metadata.get("imageHeight"), 0);
-
-        // Calculate new dimensions
-        int newWidth, newHeight;
-        boolean needsResize = false;
-
-        if (originalWidth > originalHeight) {
-            if (originalWidth > maxDimension) {
-                newWidth = maxDimension;
-                newHeight = (int) (originalHeight * (((double) maxDimension / originalWidth)));
-                needsResize = true;
-            } else {
-                newWidth = originalWidth;
-                newHeight = originalHeight;
-            }
-        } else {
-            if (originalHeight > maxDimension) {
-                newHeight = maxDimension;
-                newWidth = (int) (originalWidth * (((double) maxDimension / originalHeight)));
-                needsResize = true;
-            } else {
-                newHeight = originalHeight;
-                newWidth = originalWidth;
-            }
-        }
-
-        if (!needsResize) {
-            log.info("Image is within size limits ({}x{}), no resize needed", originalWidth, originalHeight);
-            return webpBytes;
-        }
-
-        log.info("Resizing image from {}x{} to {}x{}", originalWidth, originalHeight, newWidth, newHeight);
-
-        // Read WebP bytes as BufferedImage
-        BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(webpBytes));
-        if (originalImage == null) {
-            throw new IOException("Failed to read WebP image for resizing");
-        }
-
-        // Create resized image
-        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = resizedImage.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        g.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
-        g.dispose();
-
-        // Write back to WebP
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("webp");
-        if (!writers.hasNext()) {
-            throw new IOException("No WebP writer found");
-        }
-
-        ImageWriter writer = writers.next();
-        ImageWriteParam writeParam = getImageWriteParam(writer);
-
-        try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
-            writer.setOutput(ios);
-            writer.write(null, new IIOImage(resizedImage, null, null), writeParam);
-            writer.dispose();
-        }
-
-        // Update metadata with new dimensions
-        metadata.put("imageWidth", String.valueOf(newWidth));
-        metadata.put("imageHeight", String.valueOf(newHeight));
-
-        return outputStream.toByteArray();
-    }
-
-    private static ImageWriteParam getImageWriteParam(ImageWriter writer) {
-        ImageWriteParam writeParam = writer.getDefaultWriteParam();
-
-        if (writeParam.canWriteCompressed()) {
-            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            // Must set compression type before setting quality
-            String[] compressionTypes = writeParam.getCompressionTypes();
-            if (compressionTypes != null && compressionTypes.length > 0) {
-                writeParam.setCompressionType(compressionTypes[0]);
-            }
-            writeParam.setCompressionQuality(0.85f);
-        }
-        return writeParam;
-    }
-
-    /**
      * Upload an image to S3 and return the CloudFront URL.
      *
      * @param imageBytes  The image bytes to upload
@@ -1103,6 +939,119 @@ public class ContentBlockProcessingUtil {
         log.info("Successfully uploaded {} image: {}", folderType, cloudfrontUrl);
 
         return cloudfrontUrl;
+    }
+
+    /**
+     * Resize a BufferedImage to fit within the maximum dimension.
+     * This method resizes the ORIGINAL image format (JPG/PNG) before WebP conversion,
+     * avoiding the need to decode WebP back to BufferedImage which causes native library crashes.
+     * If the image is already within the size limits, it returns the original unchanged.
+     *
+     * @param originalImage The original BufferedImage to resize
+     * @param metadata      The image metadata containing dimensions (will be updated)
+     * @param maxDimension  The maximum allowed dimension (width or height)
+     * @return Resized BufferedImage, or original if no resize needed
+     */
+    private BufferedImage resizeImage(BufferedImage originalImage, Map<String, String> metadata, int maxDimension) {
+        int originalWidth = originalImage.getWidth();
+        int originalHeight = originalImage.getHeight();
+
+        // Calculate new dimensions
+        int newWidth, newHeight;
+        boolean needsResize = false;
+
+        if (originalWidth > originalHeight) {
+            if (originalWidth > maxDimension) {
+                newWidth = maxDimension;
+                newHeight = (int) (originalHeight * (((double) maxDimension / originalWidth)));
+                needsResize = true;
+            } else {
+                newWidth = originalWidth;
+                newHeight = originalHeight;
+            }
+        } else {
+            if (originalHeight > maxDimension) {
+                newHeight = maxDimension;
+                newWidth = (int) (originalWidth * (((double) maxDimension / originalHeight)));
+                needsResize = true;
+            } else {
+                newHeight = originalHeight;
+                newWidth = originalWidth;
+            }
+        }
+
+        if (!needsResize) {
+            log.info("Image is within size limits ({}x{}), no resize needed", originalWidth, originalHeight);
+            return originalImage;
+        }
+
+        log.info("Resizing image from {}x{} to {}x{}", originalWidth, originalHeight, newWidth, newHeight);
+
+        // Create resized image with proper color model
+        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = resizedImage.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
+        g.dispose();
+
+        // Update metadata with new dimensions
+        metadata.put("imageWidth", String.valueOf(newWidth));
+        metadata.put("imageHeight", String.valueOf(newHeight));
+
+        return resizedImage;
+    }
+
+    /**
+     * Convert a BufferedImage to WebP format with compression.
+     * This method accepts an already-resized BufferedImage, avoiding the need to decode WebP.
+     *
+     * @param bufferedImage The BufferedImage to convert
+     * @return byte array containing the WebP image data
+     * @throws IOException If there's an error during conversion
+     */
+    private byte[] convertJpgToWebP(BufferedImage bufferedImage) throws IOException {
+        log.info("Converting BufferedImage to WebP: {}x{}", bufferedImage.getWidth(), bufferedImage.getHeight());
+
+        // Create a ByteArrayOutputStream to capture the WebP bytes
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        // Get a WebP ImageWriter from ImageIO
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("webp");
+        if (!writers.hasNext()) {
+            throw new IOException("No WebP writer found. Make sure webp-imageio is on the classpath.");
+        }
+
+        ImageWriter writer = writers.next();
+        log.info("Using WebP writer: {}", writer.getClass().getName());
+
+        // Configure compression settings for the WebP output
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+
+        if (writeParam.canWriteCompressed()) {
+            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            String[] compressionTypes = writeParam.getCompressionTypes();
+            if (compressionTypes != null && compressionTypes.length > 0) {
+                writeParam.setCompressionType(compressionTypes[0]);
+            }
+            writeParam.setCompressionQuality(0.85f); // 85% quality
+            log.info("Set WebP compression quality to 85%");
+        } else {
+            log.warn("WebP writer does not support compression settings");
+        }
+
+        // Write the BufferedImage to the ByteArrayOutputStream in WebP format
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(bufferedImage, null, null), writeParam);
+            writer.dispose();
+        }
+
+        byte[] webpBytes = outputStream.toByteArray();
+        log.info("Successfully converted BufferedImage to WebP. WebP size: {} bytes", webpBytes.length);
+
+        return webpBytes;
     }
 
     /**

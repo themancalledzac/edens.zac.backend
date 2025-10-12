@@ -1,15 +1,15 @@
 package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentBlockType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.PrimaryKeyJoinColumn;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "image_content_block")
@@ -48,7 +48,37 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
     // Additional fields that might be useful
     @Column(name = "create_date")
     private String createDate; // Consider updating to LocalDateTime in future
-    
+
+    // File identifier for duplicate detection (format: "YYYY-MM-DD/filename.jpg")
+    @Column(name = "file_identifier", unique = true)
+    private String fileIdentifier;
+
+    // Many-to-many relationship with ContentTagEntity
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "image_content_block_tags",
+            joinColumns = @JoinColumn(name = "image_block_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id"),
+            indexes = {
+                    @Index(name = "idx_image_block_tags_image", columnList = "image_block_id"),
+                    @Index(name = "idx_image_block_tags_tag", columnList = "tag_id")
+            }
+    )
+    private Set<ContentTagEntity> tags = new HashSet<>();
+
+    // Many-to-many relationship with ContentPersonEntity
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "image_content_block_people",
+            joinColumns = @JoinColumn(name = "image_block_id"),
+            inverseJoinColumns = @JoinColumn(name = "person_id"),
+            indexes = {
+                    @Index(name = "idx_image_block_people_image", columnList = "image_block_id"),
+                    @Index(name = "idx_image_block_people_person", columnList = "person_id")
+            }
+    )
+    private Set<ContentPersonEntity> people = new HashSet<>();
+
     @Override
     public ContentBlockType getBlockType() {
         return ContentBlockType.IMAGE;

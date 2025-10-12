@@ -41,6 +41,10 @@ public class ContentCollectionUpdateDTO extends ContentCollectionBaseModel {
     private List<String> newTextBlocks;
     private List<String> newCodeBlocks;
 
+    // TODO: Add a List<String> of new Tags. logic in serviceimpl layer will need to 'create' tags based on non-existant, otherwise just connect the two
+    private List<String> newTags;
+    private List<String> newPeople;
+
     /**
      * Inner class for content block reordering operations.
      */

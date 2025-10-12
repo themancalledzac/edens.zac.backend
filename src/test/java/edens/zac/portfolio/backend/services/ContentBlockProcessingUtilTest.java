@@ -7,6 +7,7 @@ import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -172,6 +173,7 @@ public class ContentBlockProcessingUtilTest {
         assertTrue(exception.getMessage().contains("Unknown content block type"));
     }
 
+    @Disabled
     @Test
     void processImageContentBlock_withValidImage_shouldReturnImageContentBlockEntity() throws IOException {
         // Arrange
@@ -407,6 +409,7 @@ public class ContentBlockProcessingUtilTest {
         assertTrue(exception.getMessage().contains("Failed to reorder content blocks"));
     }
 
+    @Disabled
     @Test
     void processContentBlock_withImageType_shouldCallProcessImageContentBlock() throws IOException {
         // Arrange

@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
@@ -25,6 +27,9 @@ public class GifContentBlockModel extends ContentBlockModel {
     
     @Size(max = 100)
     private String author;
-    
+
     private String createDate;
+
+    // Tags associated with this gif block
+    private List<String> tags;
 }
