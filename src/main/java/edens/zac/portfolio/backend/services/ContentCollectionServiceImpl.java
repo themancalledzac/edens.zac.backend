@@ -337,6 +337,20 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         return new PageImpl<>(models, pageable, collectionsPage.getTotalElements());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentCollectionModel> getAllCollectionsOrderedByDate() {
+        log.debug("Getting all collections ordered by collection date");
+
+        // Get all collections ordered by collection date descending
+        List<ContentCollectionEntity> collections = contentCollectionRepository.findAllByOrderByCollectionDateDesc();
+
+        // Convert to basic models (no content blocks)
+        return collections.stream()
+                .map(this::convertToBasicModel)
+                .collect(Collectors.toList());
+    }
+
     /**
      * Convert a ContentCollectionEntity to a ContentCollectionModel with basic information.
      * This does not include content blocks.

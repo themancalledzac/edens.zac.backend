@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.ContentTagEntity;
 import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
+import edens.zac.portfolio.backend.model.ImageUpdateRequest;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentPersonRepository;
 import edens.zac.portfolio.backend.repository.ContentTagRepository;
@@ -31,6 +32,7 @@ class ContentBlockServiceImpl implements ContentBlockService {
     private final ContentTagRepository contentTagRepository;
     private final ContentPersonRepository contentPersonRepository;
     private final ContentBlockRepository contentBlockRepository;
+    private final ContentBlockProcessingUtil contentBlockProcessingUtil;
 
     @Override
     @Transactional
@@ -102,20 +104,9 @@ class ContentBlockServiceImpl implements ContentBlockService {
                         .findById(imageId)
                         .orElseThrow(() -> new EntityNotFoundException("Image not found: " + imageId));
 
-                // Update fields if provided
-                if (update.getTitle() != null) image.setTitle(update.getTitle());
-                if (update.getRating() != null) image.setRating(update.getRating());
-                if (update.getLocation() != null) image.setLocation(update.getLocation());
-                if (update.getAuthor() != null) image.setAuthor(update.getAuthor());
-                if (update.getIsFilm() != null) image.setIsFilm(update.getIsFilm());
-                if (update.getBlackAndWhite() != null) image.setBlackAndWhite(update.getBlackAndWhite());
-                if (update.getCamera() != null) image.setCamera(update.getCamera());
-                if (update.getLens() != null) image.setLens(update.getLens());
-                if (update.getFocalLength() != null) image.setFocalLength(update.getFocalLength());
-                if (update.getFStop() != null) image.setFStop(update.getFStop());
-                if (update.getShutterSpeed() != null) image.setShutterSpeed(update.getShutterSpeed());
-                if (update.getIso() != null) image.setIso(update.getIso());
-                if (update.getCreateDate() != null) image.setCreateDate(update.getCreateDate());
+                // Apply basic image metadata updates using the processing util
+                // This follows the same pattern as ContentCollectionProcessingUtil.applyBasicUpdates
+                contentBlockProcessingUtil.applyImageUpdates(image, update);
 
                 // Update tags if provided
                 if (update.getTagIds() != null) {
@@ -135,6 +126,11 @@ class ContentBlockServiceImpl implements ContentBlockService {
                     image.setPeople(people);
                 }
 
+                // Handle collection visibility updates if provided
+                if (update.getCollections() != null && !update.getCollections().isEmpty()) {
+                    contentBlockProcessingUtil.handleCollectionVisibilityUpdates(image, update.getCollections());
+                }
+
                 contentBlockRepository.save(image);
                 updatedIds.add(imageId);
 
@@ -144,6 +140,9 @@ class ContentBlockServiceImpl implements ContentBlockService {
             } catch (ClassCastException e) {
                 errors.add("Block is not an image: " + update.getId());
                 log.warn("Attempted to update non-image block as image: {}", update.getId());
+            } catch (Exception e) {
+                errors.add("Error updating image " + update.getId() + ": " + e.getMessage());
+                log.error("Error updating image {}: {}", update.getId(), e.getMessage(), e);
             }
         }
 

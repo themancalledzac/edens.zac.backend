@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.controller.dev;
 
+import edens.zac.portfolio.backend.model.ImageUpdateRequest;
 import edens.zac.portfolio.backend.services.ContentBlockService;
-import edens.zac.portfolio.backend.services.ContentBlockService.ImageUpdateRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

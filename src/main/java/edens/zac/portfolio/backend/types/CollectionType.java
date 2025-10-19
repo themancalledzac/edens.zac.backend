@@ -9,9 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public enum CollectionType {
     BLOG("Blog"),
+    PORTFOLIO("Portfolio"),
     ART_GALLERY("Art Gallery"),
-    CLIENT_GALLERY("Client Gallery"),
-    PORTFOLIO("Portfolio");
+    CLIENT_GALLERY("Client Gallery");
 
     @NotNull
     @Getter

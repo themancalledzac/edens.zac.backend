@@ -52,6 +52,10 @@ public abstract class ContentBlockEntity {
     @Column(name = "caption", length = 500)
     private String caption;
 
+    @NotNull
+    @Column(name = "visible", nullable = false, columnDefinition = "BOOLEAN DEFAULT TRUE")
+    private Boolean visible = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

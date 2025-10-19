@@ -58,4 +58,11 @@ public class ImageContentBlockModel extends ContentBlockModel {
 
     // People tagged in this image block
     private List<String> people;
+
+    /**
+     * All collections this image belongs to.
+     * Since the same image (by fileIdentifier) can exist in multiple collections,
+     * this array contains all collection relationships with their visibility and order settings.
+     */
+    private List<ImageCollection> collections;
 }

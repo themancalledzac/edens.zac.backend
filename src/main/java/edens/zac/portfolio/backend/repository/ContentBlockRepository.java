@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.ContentBlockEntity;
+import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -135,4 +136,14 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      */
     @Query("SELECT CASE WHEN COUNT(i) > 0 THEN true ELSE false END FROM ImageContentBlockEntity i WHERE i.fileIdentifier = :fileIdentifier")
     boolean existsByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
+
+    /**
+     * Find all ImageContentBlockEntity instances with the given fileIdentifier.
+     * This returns all collection relationships for the same image.
+     *
+     * @param fileIdentifier The file identifier (format: "YYYY-MM-DD/filename.jpg")
+     * @return List of all image content blocks with this file identifier across all collections
+     */
+    @Query("SELECT i FROM ImageContentBlockEntity i WHERE i.fileIdentifier = :fileIdentifier")
+    List<ImageContentBlockEntity> findAllByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 }

@@ -190,4 +190,26 @@ public class ContentCollectionControllerDev {
                     .body("Failed to delete collection: " + e.getMessage());
         }
     }
+
+    /**
+     * Get all collections ordered by collection date.
+     * Returns all collections regardless of visibility, hidden status, or lacking images.
+     * Dev/admin only endpoint for viewing complete collection list.
+     *
+     * @return ResponseEntity with list of all collections ordered by collection date DESC
+     */
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllCollectionsOrderedByDate() {
+        try {
+            List<ContentCollectionModel> collections = contentCollectionService.getAllCollectionsOrderedByDate();
+            log.info("Successfully retrieved {} collections ordered by date", collections.size());
+
+            return ResponseEntity.ok(collections);
+        } catch (Exception e) {
+            log.error("Error retrieving all collections: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve collections: " + e.getMessage());
+        }
+    }
 }

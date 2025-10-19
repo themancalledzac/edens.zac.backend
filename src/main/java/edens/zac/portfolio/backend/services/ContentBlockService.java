@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.ContentTagEntity;
+import edens.zac.portfolio.backend.model.ImageUpdateRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -57,27 +58,4 @@ public interface ContentBlockService {
      * @return List of all people
      */
     List<ContentPersonEntity> getAllPeople();
-
-    /**
-     * Request DTO for image updates
-     */
-    @lombok.Data
-    class ImageUpdateRequest {
-        private Long id;
-        private String title;
-        private Integer rating;
-        private String location;
-        private String author;
-        private Boolean isFilm;
-        private Boolean blackAndWhite;
-        private String camera;
-        private String lens;
-        private String focalLength;
-        private String fStop;
-        private String shutterSpeed;
-        private Integer iso;
-        private String createDate;
-        private List<Long> tagIds;
-        private List<Long> personIds;
-    }
 }

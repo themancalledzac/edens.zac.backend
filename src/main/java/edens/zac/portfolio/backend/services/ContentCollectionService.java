@@ -105,4 +105,13 @@ public interface ContentCollectionService {
      * @return Page of collections with basic information
      */
     Page<ContentCollectionModel> getAllCollections(Pageable pageable);
+
+    /**
+     * Get all collections ordered by collection date descending.
+     * Returns all collections regardless of visibility or other filters.
+     * Intended for admin/dev use only.
+     *
+     * @return List of all collections ordered by collection date DESC
+     */
+    List<ContentCollectionModel> getAllCollectionsOrderedByDate();
 }

@@ -92,14 +92,14 @@ public class ContentCollectionProcessingUtil {
 
         // Fetch home page card settings from home card table
         homeCardRepository.findByReferenceId(entity.getId()).ifPresentOrElse(
-            homeCard -> {
-                model.setHomeCardEnabled(homeCard.isActiveHomeCard());
-                model.setHomeCardText(homeCard.getText());
-            },
-            () -> {
-                model.setHomeCardEnabled(false);
-                model.setHomeCardText(null);
-            }
+                homeCard -> {
+                    model.setHomeCardEnabled(homeCard.isActiveHomeCard());
+                    model.setHomeCardText(homeCard.getText());
+                },
+                () -> {
+                    model.setHomeCardEnabled(false);
+                    model.setHomeCardText(null);
+                }
         );
 
         model.setIsPasswordProtected(entity.isPasswordProtected());
@@ -150,7 +150,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Convert a ContentCollectionEntity and a Page of ContentBlockEntity to a ContentCollectionModel.
      *
-     * @param entity The entity to convert
+     * @param entity      The entity to convert
      * @param contentPage The page of content blocks
      * @return The converted model
      */
@@ -222,12 +222,15 @@ public class ContentCollectionProcessingUtil {
      * - client gallery password updates via provided password hasher
      */
     public void applyBasicUpdates(ContentCollectionEntity entity,
-                                 ContentCollectionUpdateDTO updateDTO) {
+                                  ContentCollectionUpdateDTO updateDTO) {
         if (updateDTO.getTitle() != null) {
             entity.setTitle(updateDTO.getTitle());
         }
         if (updateDTO.getDescription() != null) {
             entity.setDescription(updateDTO.getDescription());
+        }
+        if (updateDTO.getType() != null) {
+            entity.setType(updateDTO.getType());
         }
         if (updateDTO.getLocation() != null) {
             entity.setLocation(updateDTO.getLocation());
@@ -266,11 +269,12 @@ public class ContentCollectionProcessingUtil {
         }
 
         // Handle password updates for client galleries
+        // TODO: Need to determine what the 'updateDTO' logic is doing, and if we can simplify it with existing logic
         if (entity.getType() == CollectionType.CLIENT_GALLERY) {
-            if (updateDTO.getHasAccess() != null && updateDTO.getHasAccess()) {
-                entity.setPasswordProtected(false);
-                entity.setPasswordHash(null);
-            }
+//            if (updateDTO.getHasAccess() != null && updateDTO.getHasAccess()) {
+//                entity.setPasswordProtected(false);
+//                entity.setPasswordHash(null);
+//            }
             if (hasPasswordUpdate(updateDTO)) {
                 entity.setPasswordProtected(true);
                 entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
@@ -403,8 +407,8 @@ public class ContentCollectionProcessingUtil {
     /**
      * Validate and ensure a slug is unique.
      * If the slug already exists, append a number to make it unique.
-     * 
-     * @param slug The slug to validate
+     *
+     * @param slug       The slug to validate
      * @param existingId The ID of the existing entity (null for new entities)
      * @return A unique slug
      */
@@ -444,7 +448,7 @@ public class ContentCollectionProcessingUtil {
 
     /**
      * Update entity with type-specific defaults.
-     * 
+     *
      * @param entity The entity to update
      * @return The updated entity
      */
@@ -585,7 +589,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Get the range of items being displayed for a page DTO.
      * Example: "Showing 1-30 of 150 items"
-     * 
+     *
      * @return array with [startItem, endItem] or null if empty
      */
     public static int[] getDisplayRange(ContentCollectionPageDTO dto) {
@@ -619,9 +623,9 @@ public class ContentCollectionProcessingUtil {
      */
     public static boolean hasContentOperations(ContentCollectionUpdateDTO dto) {
         return (dto.getReorderOperations() != null && !dto.getReorderOperations().isEmpty()) ||
-               (dto.getContentBlockIdsToRemove() != null && !dto.getContentBlockIdsToRemove().isEmpty()) ||
-               (dto.getNewTextBlocks() != null && !dto.getNewTextBlocks().isEmpty()) ||
-               (dto.getNewCodeBlocks() != null && !dto.getNewCodeBlocks().isEmpty());
+                (dto.getContentBlockIdsToRemove() != null && !dto.getContentBlockIdsToRemove().isEmpty()) ||
+                (dto.getNewTextBlocks() != null && !dto.getNewTextBlocks().isEmpty()) ||
+                (dto.getNewCodeBlocks() != null && !dto.getNewCodeBlocks().isEmpty());
     }
 
     // =============================================================================

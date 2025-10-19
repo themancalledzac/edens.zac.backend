@@ -12,9 +12,12 @@ import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.CodeContentBlockModel;
 import edens.zac.portfolio.backend.model.ContentBlockModel;
 import edens.zac.portfolio.backend.model.GifContentBlockModel;
+import edens.zac.portfolio.backend.model.ImageCollection;
 import edens.zac.portfolio.backend.model.ImageContentBlockModel;
+import edens.zac.portfolio.backend.model.ImageUpdateRequest;
 import edens.zac.portfolio.backend.model.TextContentBlockModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,9 +47,10 @@ import java.util.*;
 @Slf4j
 public class ContentBlockProcessingUtil {
 
-    // Dependencies for S3 upload and content block repository
+    // Dependencies for S3 upload and repositories
     private final AmazonS3 amazonS3;
     private final ContentBlockRepository contentBlockRepository;
+    private final ContentCollectionRepository contentCollectionRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
     private String bucketName;
@@ -140,6 +144,32 @@ public class ContentBlockProcessingUtil {
         model.setLocation(entity.getLocation());
         model.setImageUrlWeb(entity.getImageUrlWeb());
         model.setCreateDate(entity.getCreateDate());
+
+        // Populate collections array - fetch all collections this image belongs to
+        List<ImageContentBlockEntity> instances = new ArrayList<>();
+        if (entity.getFileIdentifier() != null) {
+            instances = contentBlockRepository.findAllByFileIdentifier(entity.getFileIdentifier());
+        } else {
+            // Fallback if no fileIdentifier - just use the current entity
+            instances.add(entity);
+        }
+
+        List<ImageCollection> collections = new ArrayList<>();
+        for (ImageContentBlockEntity instance : instances) {
+            if (instance.getCollectionId() != null) {
+                contentCollectionRepository.findById(instance.getCollectionId())
+                        .ifPresent(collection -> {
+                            ImageCollection ic = ImageCollection.builder()
+                                    .collectionId(collection.getId())
+                                    .collectionName(collection.getTitle())
+                                    .visible(instance.getVisible() != null ? instance.getVisible() : true)
+                                    .orderIndex(instance.getOrderIndex())
+                                    .build();
+                            collections.add(ic);
+                        });
+            }
+        }
+        model.setCollections(collections);
 
         return model;
     }
@@ -1086,5 +1116,92 @@ public class ContentBlockProcessingUtil {
             return defaultValue;
         }
         return Boolean.parseBoolean(value) || value.equalsIgnoreCase("true") || value.equals("1");
+    }
+
+    // =============================================================================
+    // IMAGE UPDATE HELPERS (following the pattern from ContentCollectionProcessingUtil)
+    // =============================================================================
+
+    /**
+     * Apply partial updates from ImageUpdateRequest to an ImageContentBlockEntity.
+     * Only fields provided in the update request will be updated.
+     * This follows the same pattern as ContentCollectionProcessingUtil.applyBasicUpdates.
+     *
+     * @param entity The image entity to update
+     * @param updateRequest The update request containing the fields to update
+     */
+    public void applyImageUpdates(ImageContentBlockEntity entity, ImageUpdateRequest updateRequest) {
+        // Update basic image metadata fields if provided
+        if (updateRequest.getTitle() != null) {
+            entity.setTitle(updateRequest.getTitle());
+        }
+        if (updateRequest.getRating() != null) {
+            entity.setRating(updateRequest.getRating());
+        }
+        if (updateRequest.getLocation() != null) {
+            entity.setLocation(updateRequest.getLocation());
+        }
+        if (updateRequest.getAuthor() != null) {
+            entity.setAuthor(updateRequest.getAuthor());
+        }
+        if (updateRequest.getIsFilm() != null) {
+            entity.setIsFilm(updateRequest.getIsFilm());
+        }
+        if (updateRequest.getBlackAndWhite() != null) {
+            entity.setBlackAndWhite(updateRequest.getBlackAndWhite());
+        }
+        if (updateRequest.getCamera() != null) {
+            entity.setCamera(updateRequest.getCamera());
+        }
+        if (updateRequest.getLens() != null) {
+            entity.setLens(updateRequest.getLens());
+        }
+        if (updateRequest.getFocalLength() != null) {
+            entity.setFocalLength(updateRequest.getFocalLength());
+        }
+        if (updateRequest.getFStop() != null) {
+            entity.setFStop(updateRequest.getFStop());
+        }
+        if (updateRequest.getShutterSpeed() != null) {
+            entity.setShutterSpeed(updateRequest.getShutterSpeed());
+        }
+        if (updateRequest.getIso() != null) {
+            entity.setIso(updateRequest.getIso());
+        }
+        if (updateRequest.getCreateDate() != null) {
+            entity.setCreateDate(updateRequest.getCreateDate());
+        }
+
+        // Note: Tag and person relationship updates are handled separately in the service layer
+        // Collection visibility updates are also handled separately in handleCollectionVisibilityUpdates
+    }
+
+    /**
+     * Handle collection visibility updates for an image.
+     * This method updates the 'visible' flag for the content_block entry in the current collection.
+     *
+     * Note: For cross-collection visibility updates (updating the same image in multiple collections),
+     * you would need to add a repository method to find blocks by fileIdentifier.
+     * For now, this handles visibility for the current image/collection relationship.
+     *
+     * @param image The image entity being updated
+     * @param collectionUpdates List of collection updates containing visibility information
+     */
+    public void handleCollectionVisibilityUpdates(ImageContentBlockEntity image, List<ImageCollection> collectionUpdates) {
+        if (collectionUpdates == null || collectionUpdates.isEmpty()) {
+            return;
+        }
+
+        // Update visibility for the current image if its collection is in the updates
+        for (ImageCollection collectionUpdate : collectionUpdates) {
+            if (collectionUpdate.getCollectionId() != null &&
+                collectionUpdate.getCollectionId().equals(image.getCollectionId()) &&
+                collectionUpdate.getVisible() != null) {
+                image.setVisible(collectionUpdate.getVisible());
+                log.info("Updated visibility for image {} in collection {} to {}",
+                        image.getId(), image.getCollectionId(), collectionUpdate.getVisible());
+                break; // Only update once for the matching collection
+            }
+        }
     }
 }
