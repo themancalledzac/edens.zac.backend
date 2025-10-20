@@ -17,6 +17,7 @@ import edens.zac.portfolio.backend.model.ImageContentBlockModel;
 import edens.zac.portfolio.backend.model.ImageUpdateRequest;
 import edens.zac.portfolio.backend.model.TextContentBlockModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentCameraRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +51,9 @@ public class ContentBlockProcessingUtil {
     // Dependencies for S3 upload and repositories
     private final AmazonS3 amazonS3;
     private final ContentBlockRepository contentBlockRepository;
+    private final ContentCameraRepository contentCameraRepository;
     private final ContentCollectionRepository contentCollectionRepository;
+    private final edens.zac.portfolio.backend.repository.ContentFilmTypeRepository contentFilmTypeRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
     private String bucketName;
@@ -137,9 +140,12 @@ public class ContentBlockProcessingUtil {
         model.setLens(entity.getLens());
         model.setBlackAndWhite(entity.getBlackAndWhite());
         model.setIsFilm(entity.getIsFilm());
+        // Convert film type entity to display name
+        model.setFilmType(entity.getFilmType() != null ? entity.getFilmType().getDisplayName() : null);
+        model.setFilmFormat(entity.getFilmFormat());
         model.setShutterSpeed(entity.getShutterSpeed());
         model.setImageUrlFullSize(entity.getImageUrlFullSize());
-        model.setCamera(entity.getCamera());
+        model.setCamera(entity.getCamera() != null ? entity.getCamera().getCameraName() : null);
         model.setFocalLength(entity.getFocalLength());
         model.setLocation(entity.getLocation());
         model.setImageUrlWeb(entity.getImageUrlWeb());
@@ -815,13 +821,24 @@ public class ContentBlockProcessingUtil {
                     .isFilm(metadata.get("fStop") == null)
                     .shutterSpeed(metadata.get("shutterSpeed"))
                     .imageUrlFullSize(imageUrlFullSize)
-                    .camera(metadata.get("camera"))
                     .focalLength(metadata.get("focalLength"))
                     .location(metadata.get("location"))
                     .imageUrlWeb(imageUrlWeb)
                     .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
                     .fileIdentifier(fileIdentifier)
                     .build();
+
+            // Handle camera - find existing or create new from metadata
+            String cameraName = metadata.get("camera");
+            if (cameraName != null && !cameraName.trim().isEmpty()) {
+                ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName.trim())
+                        .orElseGet(() -> {
+                            log.info("Creating new camera from metadata: {}", cameraName);
+                            ContentCameraEntity newCamera = new ContentCameraEntity(cameraName.trim());
+                            return contentCameraRepository.save(newCamera);
+                        });
+                entity.setCamera(camera);
+            }
 
             // STEP 7: Save and return
             ImageContentBlockEntity savedEntity = contentBlockRepository.save(entity);
@@ -1147,12 +1164,42 @@ public class ContentBlockProcessingUtil {
         if (updateRequest.getIsFilm() != null) {
             entity.setIsFilm(updateRequest.getIsFilm());
         }
+        // Handle film type - fetch entity by ID
+        if (updateRequest.getFilmTypeId() != null) {
+            ContentFilmTypeEntity filmType = contentFilmTypeRepository.findById(updateRequest.getFilmTypeId())
+                    .orElseThrow(() -> new IllegalArgumentException("Film type not found with ID: " + updateRequest.getFilmTypeId()));
+            entity.setFilmType(filmType);
+        }
+        if (updateRequest.getFilmFormat() != null) {
+            entity.setFilmFormat(updateRequest.getFilmFormat());
+        }
+
+        // Validate: if isFilm is true, filmFormat must be set
+        // Check both the update request and the entity's current state
+        Boolean isFilm = updateRequest.getIsFilm() != null ? updateRequest.getIsFilm() : entity.getIsFilm();
+        if (Boolean.TRUE.equals(isFilm)) {
+            // If isFilm is true, check if filmFormat is set (either from update or existing entity)
+            if (entity.getFilmFormat() == null && updateRequest.getFilmFormat() == null) {
+                throw new IllegalArgumentException("filmFormat is required when isFilm is true");
+            }
+        }
+
         if (updateRequest.getBlackAndWhite() != null) {
             entity.setBlackAndWhite(updateRequest.getBlackAndWhite());
         }
-        if (updateRequest.getCamera() != null) {
-            entity.setCamera(updateRequest.getCamera());
+
+        // Handle camera - find existing or create new
+        if (updateRequest.getCameraName() != null && !updateRequest.getCameraName().trim().isEmpty()) {
+            String cameraName = updateRequest.getCameraName().trim();
+            ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName)
+                    .orElseGet(() -> {
+                        log.info("Creating new camera: {}", cameraName);
+                        ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
+                        return contentCameraRepository.save(newCamera);
+                    });
+            entity.setCamera(camera);
         }
+
         if (updateRequest.getLens() != null) {
             entity.setLens(updateRequest.getLens());
         }

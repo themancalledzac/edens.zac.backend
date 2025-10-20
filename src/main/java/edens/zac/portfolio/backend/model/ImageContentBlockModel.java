@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -33,6 +34,11 @@ public class ImageContentBlockModel extends ContentBlockModel {
 
     private Boolean blackAndWhite;
     private Boolean isFilm;
+
+    // Film-specific metadata (only used when isFilm is true)
+    // Film type for this image (display name)
+    private String filmType;
+    private FilmFormat filmFormat;
 
     @Size(max = 20)
     private String shutterSpeed;

@@ -1,10 +1,18 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.entity.ContentCameraEntity;
+import edens.zac.portfolio.backend.entity.ContentFilmTypeEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.ContentTagEntity;
 import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
+import edens.zac.portfolio.backend.model.ContentCameraModel;
+import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
+import edens.zac.portfolio.backend.model.ContentPersonModel;
+import edens.zac.portfolio.backend.model.ContentTagModel;
 import edens.zac.portfolio.backend.model.ImageUpdateRequest;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentCameraRepository;
+import edens.zac.portfolio.backend.repository.ContentFilmTypeRepository;
 import edens.zac.portfolio.backend.repository.ContentPersonRepository;
 import edens.zac.portfolio.backend.repository.ContentTagRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -31,6 +39,8 @@ class ContentBlockServiceImpl implements ContentBlockService {
 
     private final ContentTagRepository contentTagRepository;
     private final ContentPersonRepository contentPersonRepository;
+    private final ContentCameraRepository contentCameraRepository;
+    private final ContentFilmTypeRepository contentFilmTypeRepository;
     private final ContentBlockRepository contentBlockRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
 
@@ -79,6 +89,30 @@ class ContentBlockServiceImpl implements ContentBlockService {
                 "id", savedPerson.getId(),
                 "personName", savedPerson.getPersonName(),
                 "createdAt", savedPerson.getCreatedAt()
+        );
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> createCamera(String cameraName) {
+        if (cameraName == null || cameraName.trim().isEmpty()) {
+            throw new IllegalArgumentException("cameraName is required");
+        }
+
+        cameraName = cameraName.trim();
+
+        // Check if camera already exists (case-insensitive)
+        if (contentCameraRepository.existsByCameraNameIgnoreCase(cameraName)) {
+            throw new DataIntegrityViolationException("Camera already exists: " + cameraName);
+        }
+
+        ContentCameraEntity camera = new ContentCameraEntity(cameraName);
+        ContentCameraEntity savedCamera = contentCameraRepository.save(camera);
+
+        return Map.of(
+                "id", savedCamera.getId(),
+                "cameraName", savedCamera.getCameraName(),
+                "createdAt", savedCamera.getCreatedAt()
         );
     }
 
@@ -188,13 +222,111 @@ class ContentBlockServiceImpl implements ContentBlockService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ContentTagEntity> getAllTags() {
-        return contentTagRepository.findAllByOrderByTagNameAsc();
+    public List<ContentTagModel> getAllTags() {
+        return contentTagRepository.findAllByOrderByTagNameAsc().stream()
+                .map(this::toTagModel)
+                .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ContentPersonEntity> getAllPeople() {
-        return contentPersonRepository.findAllByOrderByPersonNameAsc();
+    public List<ContentPersonModel> getAllPeople() {
+        return contentPersonRepository.findAllByOrderByPersonNameAsc().stream()
+                .map(this::toPersonModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentCameraModel> getAllCameras() {
+        return contentCameraRepository.findAllByOrderByCameraNameAsc().stream()
+                .map(this::toCameraModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentFilmTypeModel> getAllFilmTypes() {
+        return contentFilmTypeRepository.findAllByOrderByDisplayNameAsc().stream()
+                .map(this::toFilmTypeModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> createFilmType(String filmTypeName, String displayName, Integer defaultIso) {
+        if (filmTypeName == null || filmTypeName.trim().isEmpty()) {
+            throw new IllegalArgumentException("filmTypeName is required");
+        }
+        if (displayName == null || displayName.trim().isEmpty()) {
+            throw new IllegalArgumentException("displayName is required");
+        }
+        if (defaultIso == null || defaultIso <= 0) {
+            throw new IllegalArgumentException("defaultIso must be a positive integer");
+        }
+
+        filmTypeName = filmTypeName.trim();
+        displayName = displayName.trim();
+
+        // Check if film type already exists
+        if (contentFilmTypeRepository.existsByFilmTypeNameIgnoreCase(filmTypeName)) {
+            throw new DataIntegrityViolationException("Film type already exists: " + filmTypeName);
+        }
+
+        // Create and save
+        ContentFilmTypeEntity filmType = new ContentFilmTypeEntity(filmTypeName, displayName, defaultIso);
+        filmType = contentFilmTypeRepository.save(filmType);
+        log.info("Created film type: {} (ID: {})", filmType.getDisplayName(), filmType.getId());
+
+        // Return result
+        return Map.of(
+                "success", true,
+                "message", "Film type created successfully",
+                "filmType", toFilmTypeModel(filmType)
+        );
+    }
+
+    // ========== Helper Methods: Entity to Model Conversion ==========
+
+    /**
+     * Convert ContentTagEntity to ContentTagModel
+     */
+    private ContentTagModel toTagModel(ContentTagEntity entity) {
+        return ContentTagModel.builder()
+                .id(entity.getId())
+                .tagName(entity.getTagName())
+                .build();
+    }
+
+    /**
+     * Convert ContentPersonEntity to ContentPersonModel
+     */
+    private ContentPersonModel toPersonModel(ContentPersonEntity entity) {
+        return ContentPersonModel.builder()
+                .id(entity.getId())
+                .personName(entity.getPersonName())
+                .build();
+    }
+
+    /**
+     * Convert ContentCameraEntity to ContentCameraModel
+     */
+    private ContentCameraModel toCameraModel(ContentCameraEntity entity) {
+        return ContentCameraModel.builder()
+                .id(entity.getId())
+                .cameraName(entity.getCameraName())
+                .build();
+    }
+
+    /**
+     * Convert ContentFilmTypeEntity to ContentFilmTypeModel
+     */
+    private ContentFilmTypeModel toFilmTypeModel(ContentFilmTypeEntity entity) {
+        return ContentFilmTypeModel.builder()
+                .id(entity.getId())
+                .filmTypeName(entity.getFilmTypeName())
+                .displayName(entity.getDisplayName())
+                .defaultIso(entity.getDefaultIso())
+                .build();
     }
 }

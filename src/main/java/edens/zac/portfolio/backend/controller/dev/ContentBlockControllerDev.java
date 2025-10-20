@@ -20,7 +20,7 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/dev/blocks")
+@RequestMapping("/api/write/blocks")
 public class ContentBlockControllerDev {
 
     private final ContentBlockService contentBlockService;

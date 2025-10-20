@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentBlockType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -31,8 +32,24 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
     private String lens;
     private Boolean blackAndWhite;
     private Boolean isFilm;
+
+    // Film-specific metadata (only used when isFilm is true)
+    // Many-to-one relationship with ContentFilmTypeEntity
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "film_type_id")
+    private ContentFilmTypeEntity filmType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "film_format")
+    private FilmFormat filmFormat;
+
     private String shutterSpeed;
-    private String camera;
+
+    // Many-to-one relationship with ContentCameraEntity
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "camera_id")
+    private ContentCameraEntity camera;
+
     private String focalLength;
     private String location;
 

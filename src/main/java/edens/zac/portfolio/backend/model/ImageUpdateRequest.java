@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -51,14 +52,24 @@ public class ImageUpdateRequest {
     private Boolean isFilm;
 
     /**
+     * Film type ID to associate with this image (only applicable when isFilm is true)
+     */
+    private Long filmTypeId;
+
+    /**
+     * Film format (35mm, 120, etc.) - required when isFilm is true
+     */
+    private FilmFormat filmFormat;
+
+    /**
      * Whether the image is black and white
      */
     private Boolean blackAndWhite;
 
     /**
-     * Camera used
+     * Camera name - will find existing or create new camera entity
      */
-    private String camera;
+    private String cameraName;
 
     /**
      * Lens used

@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.data.domain.Page;
@@ -64,6 +65,15 @@ public interface ContentCollectionService {
     Optional<ContentCollectionModel> findBySlug(String slug);
 
     /**
+     * Find a collection by ID.
+     *
+     * @param id The ID of the collection
+     * @return The collection if found
+     * @throws jakarta.persistence.EntityNotFoundException if collection not found
+     */
+    ContentCollectionModel findById(Long id);
+
+    /**
      * Create a new collection with content.
      *
      * @param createRequest The request containing collection data
@@ -114,4 +124,15 @@ public interface ContentCollectionService {
      * @return List of all collections ordered by collection date DESC
      */
     List<ContentCollectionModel> getAllCollectionsOrderedByDate();
+
+    /**
+     * Get collection with all metadata for the update/manage page.
+     * Returns the collection along with all available tags, people, cameras, and film metadata.
+     * This provides everything needed for the image management UI in a single call.
+     *
+     * @param slug The collection slug
+     * @return Complete update data including collection and all metadata
+     * @throws jakarta.persistence.EntityNotFoundException if collection not found
+     */
+    ContentCollectionUpdateResponseDTO getUpdateCollectionData(String slug);
 }
