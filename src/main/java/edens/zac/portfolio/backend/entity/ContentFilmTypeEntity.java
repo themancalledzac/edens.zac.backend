@@ -33,6 +33,18 @@ import java.util.Set;
 @Builder
 public class ContentFilmTypeEntity {
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ContentFilmTypeEntity that)) return false;
+        return filmTypeName != null && filmTypeName.equals(that.filmTypeName);
+    }
+
+    @Override
+    public int hashCode() {
+        return filmTypeName != null ? filmTypeName.hashCode() : 0;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

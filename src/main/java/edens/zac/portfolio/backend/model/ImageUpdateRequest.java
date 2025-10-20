@@ -53,8 +53,15 @@ public class ImageUpdateRequest {
 
     /**
      * Film type ID to associate with this image (only applicable when isFilm is true)
+     * This is used to select an existing film type from the database.
      */
     private Long filmTypeId;
+
+    /**
+     * New film type to create and associate with this image.
+     * If both filmTypeId and newFilmType are provided, newFilmType takes precedence.
+     */
+    private NewFilmTypeRequest newFilmType;
 
     /**
      * Film format (35mm, 120, etc.) - required when isFilm is true
@@ -102,14 +109,24 @@ public class ImageUpdateRequest {
     private String createDate;
 
     /**
-     * List of tag IDs to associate with this image
+     * List of tag IDs to associate with this image (existing tags)
      */
     private List<Long> tagIds;
 
     /**
-     * List of person IDs to associate with this image
+     * List of new tag names to create and associate with this image
+     */
+    private List<String> newTags;
+
+    /**
+     * List of person IDs to associate with this image (existing people)
      */
     private List<Long> personIds;
+
+    /**
+     * List of new person names to create and associate with this image
+     */
+    private List<String> newPeople;
 
     /**
      * List of collection updates - manages visibility of this image in different collections

@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -143,20 +144,78 @@ class ContentBlockServiceImpl implements ContentBlockService {
                 contentBlockProcessingUtil.applyImageUpdates(image, update);
 
                 // Update tags if provided
+                // Start with the image's existing tags to preserve them
+                Set<ContentTagEntity> tags = new HashSet<>(image.getTags());
+
+                // If tagIds is explicitly provided (even if empty), it means we want to replace the tags
+                // Otherwise, we're adding to the existing tags
                 if (update.getTagIds() != null) {
-                    Set<ContentTagEntity> tags = update.getTagIds().stream()
+                    // Replace with the specified tags
+                    tags.clear();
+                    Set<ContentTagEntity> existingTags = update.getTagIds().stream()
                             .map(tagId -> contentTagRepository.findById(tagId)
                                     .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + tagId)))
                             .collect(Collectors.toSet());
+                    tags.addAll(existingTags);
+                }
+
+                // Create or find new tags by name and ADD them to the collection
+                if (update.getNewTags() != null) {
+                    Set<ContentTagEntity> newTags = update.getNewTags().stream()
+                            .filter(tagName -> tagName != null && !tagName.trim().isEmpty())
+                            .map(tagName -> {
+                                String trimmedName = tagName.trim();
+                                return contentTagRepository.findByTagNameIgnoreCase(trimmedName)
+                                        .orElseGet(() -> {
+                                            log.info("Creating new tag: {}", trimmedName);
+                                            ContentTagEntity newTag = new ContentTagEntity(trimmedName);
+                                            return contentTagRepository.save(newTag);
+                                        });
+                            })
+                            .collect(Collectors.toSet());
+                    tags.addAll(newTags);
+                }
+
+                // Update the image's tags with the modified collection
+                if (update.getTagIds() != null || update.getNewTags() != null) {
                     image.setTags(tags);
                 }
 
                 // Update people if provided
+                // Start with the image's existing people to preserve them
+                Set<ContentPersonEntity> people = new HashSet<>(image.getPeople());
+
+                // If personIds is explicitly provided (even if empty), it means we want to replace the people
+                // Otherwise, we're adding to the existing people
                 if (update.getPersonIds() != null) {
-                    Set<ContentPersonEntity> people = update.getPersonIds().stream()
+                    // Replace with the specified people
+                    people.clear();
+                    Set<ContentPersonEntity> existingPeople = update.getPersonIds().stream()
                             .map(personId -> contentPersonRepository.findById(personId)
                                     .orElseThrow(() -> new EntityNotFoundException("Person not found: " + personId)))
                             .collect(Collectors.toSet());
+                    people.addAll(existingPeople);
+                }
+
+                // Create or find new people by name and ADD them to the collection
+                if (update.getNewPeople() != null) {
+                    Set<ContentPersonEntity> newPeople = update.getNewPeople().stream()
+                            .filter(personName -> personName != null && !personName.trim().isEmpty())
+                            .map(personName -> {
+                                String trimmedName = personName.trim();
+                                return contentPersonRepository.findByPersonNameIgnoreCase(trimmedName)
+                                        .orElseGet(() -> {
+                                            log.info("Creating new person: {}", trimmedName);
+                                            ContentPersonEntity newPerson = new ContentPersonEntity(trimmedName);
+                                            return contentPersonRepository.save(newPerson);
+                                        });
+                            })
+                            .collect(Collectors.toSet());
+                    people.addAll(newPeople);
+                }
+
+                // Update the image's people with the modified collection
+                if (update.getPersonIds() != null || update.getNewPeople() != null) {
                     image.setPeople(people);
                 }
 

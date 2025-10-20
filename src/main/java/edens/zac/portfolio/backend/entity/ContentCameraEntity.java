@@ -31,6 +31,18 @@ import java.util.Set;
 @Builder
 public class ContentCameraEntity {
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ContentCameraEntity that)) return false;
+        return cameraName != null && cameraName.equals(that.cameraName);
+    }
+
+    @Override
+    public int hashCode() {
+        return cameraName != null ? cameraName.hashCode() : 0;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

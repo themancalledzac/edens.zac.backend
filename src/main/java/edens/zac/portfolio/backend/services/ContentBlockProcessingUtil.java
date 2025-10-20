@@ -151,6 +151,30 @@ public class ContentBlockProcessingUtil {
         model.setImageUrlWeb(entity.getImageUrlWeb());
         model.setCreateDate(entity.getCreateDate());
 
+        // Map tags - convert entities to full tag objects with id and tagName
+        if (entity.getTags() != null && !entity.getTags().isEmpty()) {
+            List<edens.zac.portfolio.backend.model.ContentTagModel> tagModels = entity.getTags().stream()
+                    .map(tag -> edens.zac.portfolio.backend.model.ContentTagModel.builder()
+                            .id(tag.getId())
+                            .tagName(tag.getTagName())
+                            .build())
+                    .sorted((a, b) -> a.getTagName().compareToIgnoreCase(b.getTagName()))
+                    .toList();
+            model.setTags(tagModels);
+        }
+
+        // Map people - convert entities to full person objects with id and personName
+        if (entity.getPeople() != null && !entity.getPeople().isEmpty()) {
+            List<edens.zac.portfolio.backend.model.ContentPersonModel> personModels = entity.getPeople().stream()
+                    .map(person -> edens.zac.portfolio.backend.model.ContentPersonModel.builder()
+                            .id(person.getId())
+                            .personName(person.getPersonName())
+                            .build())
+                    .sorted((a, b) -> a.getPersonName().compareToIgnoreCase(b.getPersonName()))
+                    .toList();
+            model.setPeople(personModels);
+        }
+
         // Populate collections array - fetch all collections this image belongs to
         List<ImageContentBlockEntity> instances = new ArrayList<>();
         if (entity.getFileIdentifier() != null) {
@@ -254,6 +278,15 @@ public class ContentBlockProcessingUtil {
         model.setHeight(entity.getHeight());
         model.setAuthor(entity.getAuthor());
         model.setCreateDate(entity.getCreateDate());
+
+        // Map tags - convert entities to tag names
+        if (entity.getTags() != null && !entity.getTags().isEmpty()) {
+            List<String> tagNames = entity.getTags().stream()
+                    .map(ContentTagEntity::getTagName)
+                    .sorted()
+                    .toList();
+            model.setTags(tagNames);
+        }
 
         return model;
     }
@@ -1164,8 +1197,28 @@ public class ContentBlockProcessingUtil {
         if (updateRequest.getIsFilm() != null) {
             entity.setIsFilm(updateRequest.getIsFilm());
         }
-        // Handle film type - fetch entity by ID
-        if (updateRequest.getFilmTypeId() != null) {
+        // Handle film type - create new or fetch existing by ID
+        // newFilmType takes precedence over filmTypeId if both are provided
+        if (updateRequest.getNewFilmType() != null) {
+            // Create new film type or find existing one
+            String displayName = updateRequest.getNewFilmType().getFilmTypeName().trim();
+            // Generate technical name from display name: "Kodak Portra 400" -> "KODAK_PORTRA_400"
+            String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
+
+            ContentFilmTypeEntity filmType = contentFilmTypeRepository
+                    .findByFilmTypeNameIgnoreCase(technicalName)
+                    .orElseGet(() -> {
+                        log.info("Creating new film type: {} (technical name: {})", displayName, technicalName);
+                        ContentFilmTypeEntity newFilmType = new ContentFilmTypeEntity(
+                                technicalName,
+                                displayName,
+                                updateRequest.getNewFilmType().getDefaultIso()
+                        );
+                        return contentFilmTypeRepository.save(newFilmType);
+                    });
+            entity.setFilmType(filmType);
+        } else if (updateRequest.getFilmTypeId() != null) {
+            // Use existing film type by ID
             ContentFilmTypeEntity filmType = contentFilmTypeRepository.findById(updateRequest.getFilmTypeId())
                     .orElseThrow(() -> new IllegalArgumentException("Film type not found with ID: " + updateRequest.getFilmTypeId()));
             entity.setFilmType(filmType);
@@ -1174,11 +1227,10 @@ public class ContentBlockProcessingUtil {
             entity.setFilmFormat(updateRequest.getFilmFormat());
         }
 
-        // Validate: if isFilm is true, filmFormat must be set
-        // Check both the update request and the entity's current state
-        Boolean isFilm = updateRequest.getIsFilm() != null ? updateRequest.getIsFilm() : entity.getIsFilm();
-        if (Boolean.TRUE.equals(isFilm)) {
-            // If isFilm is true, check if filmFormat is set (either from update or existing entity)
+        // Validate: if isFilm is being set to true in the update request,
+        // filmFormat must also be provided in the update request (or already exist on the entity)
+        if (updateRequest.getIsFilm() != null && Boolean.TRUE.equals(updateRequest.getIsFilm())) {
+            // Check if filmFormat will be set after this update
             if (entity.getFilmFormat() == null && updateRequest.getFilmFormat() == null) {
                 throw new IllegalArgumentException("filmFormat is required when isFilm is true");
             }

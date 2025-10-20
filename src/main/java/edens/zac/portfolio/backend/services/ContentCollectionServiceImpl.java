@@ -488,6 +488,14 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         List<edens.zac.portfolio.backend.model.ContentCameraModel> cameras = contentBlockService.getAllCameras();
         List<edens.zac.portfolio.backend.model.ContentFilmTypeModel> filmTypes = contentBlockService.getAllFilmTypes();
 
+        // Get all collections as CollectionListModel
+        List<edens.zac.portfolio.backend.model.CollectionListModel> collections = contentCollectionRepository.findAll().stream()
+                .map(entity -> edens.zac.portfolio.backend.model.CollectionListModel.builder()
+                        .id(entity.getId())
+                        .collectionName(entity.getTitle())
+                        .build())
+                .collect(Collectors.toList());
+
         // Convert FilmFormat enums to DTOs
         List<edens.zac.portfolio.backend.model.FilmFormatDTO> filmFormats = java.util.Arrays.stream(edens.zac.portfolio.backend.types.FilmFormat.values())
                 .map(this::convertToFilmFormatDTO)
@@ -498,6 +506,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
                 .collection(collection)
                 .tags(tags)
                 .people(people)
+                .collections(collections)
                 .cameras(cameras)
                 .filmTypes(filmTypes)
                 .filmFormats(filmFormats)

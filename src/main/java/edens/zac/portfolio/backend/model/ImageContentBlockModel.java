@@ -60,10 +60,10 @@ public class ImageContentBlockModel extends ContentBlockModel {
     private String createDate;
 
     // Tags associated with this image block
-    private List<String> tags;
+    private List<ContentTagModel> tags;
 
     // People tagged in this image block
-    private List<String> people;
+    private List<ContentPersonModel> people;
 
     /**
      * All collections this image belongs to.

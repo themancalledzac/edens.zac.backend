@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.types.ContentBlockType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -81,6 +82,7 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
                     @Index(name = "idx_image_block_tags_tag", columnList = "tag_id")
             }
     )
+    @Builder.Default
     private Set<ContentTagEntity> tags = new HashSet<>();
 
     // Many-to-many relationship with ContentPersonEntity
@@ -94,6 +96,7 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
                     @Index(name = "idx_image_block_people_person", columnList = "person_id")
             }
     )
+    @Builder.Default
     private Set<ContentPersonEntity> people = new HashSet<>();
 
     @Override

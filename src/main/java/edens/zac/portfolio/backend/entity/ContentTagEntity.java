@@ -30,6 +30,18 @@ import java.util.Set;
 @Builder
 public class ContentTagEntity {
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ContentTagEntity that)) return false;
+        return tagName != null && tagName.equals(that.tagName);
+    }
+
+    @Override
+    public int hashCode() {
+        return tagName != null ? tagName.hashCode() : 0;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -30,6 +30,18 @@ import java.util.Set;
 @Builder
 public class ContentPersonEntity {
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ContentPersonEntity that)) return false;
+        return personName != null && personName.equals(that.personName);
+    }
+
+    @Override
+    public int hashCode() {
+        return personName != null ? personName.hashCode() : 0;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

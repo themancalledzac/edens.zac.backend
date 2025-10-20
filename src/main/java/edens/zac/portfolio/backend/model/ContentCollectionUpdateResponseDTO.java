@@ -34,6 +34,11 @@ public class ContentCollectionUpdateResponseDTO {
     private List<ContentPersonModel> people;
 
     /**
+     * All available collections in the system
+     */
+    private List<CollectionListModel> collections;
+
+    /**
      * All available cameras for film photography metadata
      */
     private List<ContentCameraModel> cameras;

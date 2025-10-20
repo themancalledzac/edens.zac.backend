@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.entity;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -54,6 +55,7 @@ public class GifContentBlockEntity extends ContentBlockEntity {
                     @Index(name = "idx_gif_block_tags_tag", columnList = "tag_id")
             }
     )
+    @Builder.Default
     private Set<ContentTagEntity> tags = new HashSet<>();
 
     @Override
