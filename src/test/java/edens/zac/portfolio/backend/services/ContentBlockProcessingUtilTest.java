@@ -40,12 +40,6 @@ public class ContentBlockProcessingUtilTest {
     @Mock
     private ContentBlockRepository contentBlockRepository;
 
-    @Mock
-    private ContentCameraRepository contentCameraRepository;
-
-    @Mock
-    private ContentCollectionRepository contentCollectionRepository;
-
     @InjectMocks
     private ContentBlockProcessingUtil contentBlockProcessingUtil;
 
