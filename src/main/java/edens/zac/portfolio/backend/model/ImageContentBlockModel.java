@@ -43,8 +43,7 @@ public class ImageContentBlockModel extends ContentBlockModel {
     @Size(max = 20)
     private String shutterSpeed;
 
-    @Size(max = 25)
-    private String camera;
+    private ContentCameraModel camera;
 
     @Size(max = 20)
     private String focalLength;
@@ -59,11 +58,11 @@ public class ImageContentBlockModel extends ContentBlockModel {
 
     private String createDate;
 
-    // Tags associated with this image block
-    private List<ContentTagModel> tags;
+    // Tags associated with this image block (simplified for content block arrays)
+    private List<ContentBlockTagModel> tags;
 
-    // People tagged in this image block
-    private List<ContentPersonModel> people;
+    // People tagged in this image block (simplified for content block arrays)
+    private List<ContentBlockPersonModel> people;
 
     /**
      * All collections this image belongs to.

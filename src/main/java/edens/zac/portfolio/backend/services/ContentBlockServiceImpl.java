@@ -1,10 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.ContentCameraEntity;
-import edens.zac.portfolio.backend.entity.ContentFilmTypeEntity;
-import edens.zac.portfolio.backend.entity.ContentPersonEntity;
-import edens.zac.portfolio.backend.entity.ContentTagEntity;
-import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
+import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.ContentCameraModel;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
 import edens.zac.portfolio.backend.model.ContentPersonModel;
@@ -299,7 +295,7 @@ class ContentBlockServiceImpl implements ContentBlockService {
     @Transactional(readOnly = true)
     public List<ContentCameraModel> getAllCameras() {
         return contentCameraRepository.findAllByOrderByCameraNameAsc().stream()
-                .map(this::toCameraModel)
+                .map(ContentBlockProcessingUtil::cameraEntityToCameraModel)
                 .collect(Collectors.toList());
     }
 
@@ -348,34 +344,53 @@ class ContentBlockServiceImpl implements ContentBlockService {
     // ========== Helper Methods: Entity to Model Conversion ==========
 
     /**
-     * Convert ContentTagEntity to ContentTagModel
+     * Convert ContentTagEntity to ContentTagModel with associated content IDs
      */
     private ContentTagModel toTagModel(ContentTagEntity entity) {
+        // Collect associated content collection IDs
+        List<Long> contentCollectionIds = entity.getContentCollections().stream()
+                .map(ContentCollectionEntity::getId)
+                .sorted()
+                .toList();
+
+        // Collect associated image content block IDs
+        List<Long> imageContentBlockIds = entity.getImageContentBlocks().stream()
+                .map(ImageContentBlockEntity::getId)
+                .sorted()
+                .toList();
+
+        // Collect associated gif content block IDs
+        List<Long> gifContentBlockIds = entity.getGifContentBlocks().stream()
+                .map(GifContentBlockEntity::getId)
+                .sorted()
+                .toList();
+
         return ContentTagModel.builder()
                 .id(entity.getId())
                 .tagName(entity.getTagName())
+                .contentCollectionIds(contentCollectionIds)
+                .imageContentBlockIds(imageContentBlockIds)
+                .gifContentBlockIds(gifContentBlockIds)
                 .build();
     }
 
     /**
-     * Convert ContentPersonEntity to ContentPersonModel
+     * Convert ContentPersonEntity to ContentPersonModel with associated content IDs
      */
     private ContentPersonModel toPersonModel(ContentPersonEntity entity) {
+        // Collect associated image content block IDs
+        List<Long> imageContentBlockIds = entity.getImageContentBlocks().stream()
+                .map(ImageContentBlockEntity::getId)
+                .sorted()
+                .toList();
+
         return ContentPersonModel.builder()
                 .id(entity.getId())
                 .personName(entity.getPersonName())
+                .imageContentBlockIds(imageContentBlockIds)
                 .build();
     }
 
-    /**
-     * Convert ContentCameraEntity to ContentCameraModel
-     */
-    private ContentCameraModel toCameraModel(ContentCameraEntity entity) {
-        return ContentCameraModel.builder()
-                .id(entity.getId())
-                .cameraName(entity.getCameraName())
-                .build();
-    }
 
     /**
      * Convert ContentFilmTypeEntity to ContentFilmTypeModel

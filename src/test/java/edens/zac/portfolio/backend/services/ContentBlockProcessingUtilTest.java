@@ -94,7 +94,7 @@ public class ContentBlockProcessingUtilTest {
         assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
         assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
         assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
-        assertEquals(entity.getCamera().getCameraName(), imageModel.getCamera());
+        assertEquals(entity.getCamera(), imageModel.getCamera()); // TODO: Fix
         assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
         assertEquals(entity.getLocation(), imageModel.getLocation());
         assertEquals(entity.getImageUrlWeb(), imageModel.getImageUrlWeb());

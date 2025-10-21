@@ -9,13 +9,7 @@ import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
 import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.CodeContentBlockModel;
-import edens.zac.portfolio.backend.model.ContentBlockModel;
-import edens.zac.portfolio.backend.model.GifContentBlockModel;
-import edens.zac.portfolio.backend.model.ImageCollection;
-import edens.zac.portfolio.backend.model.ImageContentBlockModel;
-import edens.zac.portfolio.backend.model.ImageUpdateRequest;
-import edens.zac.portfolio.backend.model.TextContentBlockModel;
+import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCameraRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
@@ -113,6 +107,13 @@ public class ContentBlockProcessingUtil {
         model.setUpdatedAt(entity.getUpdatedAt());
     }
 
+    public static ContentCameraModel cameraEntityToCameraModel(ContentCameraEntity entity) {
+        return ContentCameraModel.builder()
+                .id(entity.getId())
+                .cameraName(entity.getCameraName())
+                .build();
+    }
+
     /**
      * Convert an ImageContentBlockEntity to an ImageContentBlockModel.
      *
@@ -145,16 +146,16 @@ public class ContentBlockProcessingUtil {
         model.setFilmFormat(entity.getFilmFormat());
         model.setShutterSpeed(entity.getShutterSpeed());
         model.setImageUrlFullSize(entity.getImageUrlFullSize());
-        model.setCamera(entity.getCamera() != null ? entity.getCamera().getCameraName() : null);
+        model.setCamera(entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null);
         model.setFocalLength(entity.getFocalLength());
         model.setLocation(entity.getLocation());
         model.setImageUrlWeb(entity.getImageUrlWeb());
         model.setCreateDate(entity.getCreateDate());
 
-        // Map tags - convert entities to full tag objects with id and tagName
+        // Map tags - convert entities to simplified tag objects (id and tagName only)
         if (entity.getTags() != null && !entity.getTags().isEmpty()) {
-            List<edens.zac.portfolio.backend.model.ContentTagModel> tagModels = entity.getTags().stream()
-                    .map(tag -> edens.zac.portfolio.backend.model.ContentTagModel.builder()
+            List<edens.zac.portfolio.backend.model.ContentBlockTagModel> tagModels = entity.getTags().stream()
+                    .map(tag -> edens.zac.portfolio.backend.model.ContentBlockTagModel.builder()
                             .id(tag.getId())
                             .tagName(tag.getTagName())
                             .build())
@@ -163,10 +164,10 @@ public class ContentBlockProcessingUtil {
             model.setTags(tagModels);
         }
 
-        // Map people - convert entities to full person objects with id and personName
+        // Map people - convert entities to simplified person objects (id and personName only)
         if (entity.getPeople() != null && !entity.getPeople().isEmpty()) {
-            List<edens.zac.portfolio.backend.model.ContentPersonModel> personModels = entity.getPeople().stream()
-                    .map(person -> edens.zac.portfolio.backend.model.ContentPersonModel.builder()
+            List<edens.zac.portfolio.backend.model.ContentBlockPersonModel> personModels = entity.getPeople().stream()
+                    .map(person -> edens.zac.portfolio.backend.model.ContentBlockPersonModel.builder()
                             .id(person.getId())
                             .personName(person.getPersonName())
                             .build())
@@ -1240,8 +1241,14 @@ public class ContentBlockProcessingUtil {
             entity.setBlackAndWhite(updateRequest.getBlackAndWhite());
         }
 
-        // Handle camera - find existing or create new
-        if (updateRequest.getCameraName() != null && !updateRequest.getCameraName().trim().isEmpty()) {
+        // Handle camera - cameraId takes precedence over cameraName
+        if (updateRequest.getCameraId() != null) {
+            // Use existing camera by ID
+            ContentCameraEntity camera = contentCameraRepository.findById(updateRequest.getCameraId())
+                    .orElseThrow(() -> new IllegalArgumentException("Camera not found with ID: " + updateRequest.getCameraId()));
+            entity.setCamera(camera);
+        } else if (updateRequest.getCameraName() != null && !updateRequest.getCameraName().trim().isEmpty()) {
+            // Find existing or create new camera by name
             String cameraName = updateRequest.getCameraName().trim();
             ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName)
                     .orElseGet(() -> {

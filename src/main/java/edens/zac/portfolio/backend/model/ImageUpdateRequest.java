@@ -74,7 +74,14 @@ public class ImageUpdateRequest {
     private Boolean blackAndWhite;
 
     /**
-     * Camera name - will find existing or create new camera entity
+     * Camera ID to associate with this image (select existing camera)
+     * If both cameraId and cameraName are provided, cameraId takes precedence.
+     */
+    private Long cameraId;
+
+    /**
+     * New camera name to create and associate with this image.
+     * If both cameraId and cameraName are provided, cameraId takes precedence.
      */
     private String cameraName;
 
