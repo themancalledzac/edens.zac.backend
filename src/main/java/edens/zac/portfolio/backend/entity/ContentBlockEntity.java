@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.entity;
 import jakarta.validation.constraints.NotNull;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -51,6 +52,11 @@ public abstract class ContentBlockEntity {
 
     @Column(name = "caption", length = 500)
     private String caption;
+
+    @NotNull
+    @Column(name = "visible", nullable = false, columnDefinition = "BOOLEAN DEFAULT TRUE")
+    @Builder.Default
+    private Boolean visible = true;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

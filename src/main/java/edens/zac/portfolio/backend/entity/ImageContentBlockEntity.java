@@ -1,8 +1,10 @@
 package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentBlockType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -31,8 +33,24 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
     private String lens;
     private Boolean blackAndWhite;
     private Boolean isFilm;
+
+    // Film-specific metadata (only used when isFilm is true)
+    // Many-to-one relationship with ContentFilmTypeEntity
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "film_type_id")
+    private ContentFilmTypeEntity filmType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "film_format")
+    private FilmFormat filmFormat;
+
     private String shutterSpeed;
-    private String camera;
+
+    // Many-to-one relationship with ContentCameraEntity
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "camera_id")
+    private ContentCameraEntity camera;
+
     private String focalLength;
     private String location;
 
@@ -64,6 +82,7 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
                     @Index(name = "idx_image_block_tags_tag", columnList = "tag_id")
             }
     )
+    @Builder.Default
     private Set<ContentTagEntity> tags = new HashSet<>();
 
     // Many-to-many relationship with ContentPersonEntity
@@ -77,6 +96,7 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
                     @Index(name = "idx_image_block_people_person", columnList = "person_id")
             }
     )
+    @Builder.Default
     private Set<ContentPersonEntity> people = new HashSet<>();
 
     @Override

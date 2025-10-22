@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -34,11 +35,15 @@ public class ImageContentBlockModel extends ContentBlockModel {
     private Boolean blackAndWhite;
     private Boolean isFilm;
 
+    // Film-specific metadata (only used when isFilm is true)
+    // Film type for this image (display name)
+    private String filmType;
+    private FilmFormat filmFormat;
+
     @Size(max = 20)
     private String shutterSpeed;
 
-    @Size(max = 25)
-    private String camera;
+    private ContentCameraModel camera;
 
     @Size(max = 20)
     private String focalLength;
@@ -53,9 +58,16 @@ public class ImageContentBlockModel extends ContentBlockModel {
 
     private String createDate;
 
-    // Tags associated with this image block
-    private List<String> tags;
+    // Tags associated with this image block (simplified for content block arrays)
+    private List<ContentBlockTagModel> tags;
 
-    // People tagged in this image block
-    private List<String> people;
+    // People tagged in this image block (simplified for content block arrays)
+    private List<ContentBlockPersonModel> people;
+
+    /**
+     * All collections this image belongs to.
+     * Since the same image (by fileIdentifier) can exist in multiple collections,
+     * this array contains all collection relationships with their visibility and order settings.
+     */
+    private List<ImageCollection> collections;
 }

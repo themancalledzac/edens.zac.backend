@@ -42,6 +42,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
     private final ContentCollectionProcessingUtil contentCollectionProcessingUtil;
     private final HomeService homeService;
+    private final ContentBlockService contentBlockService;
 
     private static final int DEFAULT_PAGE_SIZE = edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page;
 
@@ -142,6 +143,19 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         // Get collection with content blocks
         return contentCollectionRepository.findBySlugWithContentBlocks(slug)
                 .map(this::convertToFullModel);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ContentCollectionModel findById(Long id) {
+        log.debug("Finding collection by ID: {}", id);
+
+        // Get collection entity with content blocks
+        ContentCollectionEntity entity = contentCollectionRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
+
+        // Convert to full model (includes content blocks)
+        return convertToFullModel(entity);
     }
 
     @Override
@@ -337,6 +351,20 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         return new PageImpl<>(models, pageable, collectionsPage.getTotalElements());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentCollectionModel> getAllCollectionsOrderedByDate() {
+        log.debug("Getting all collections ordered by collection date");
+
+        // Get all collections ordered by collection date descending
+        List<ContentCollectionEntity> collections = contentCollectionRepository.findAllByOrderByCollectionDateDesc();
+
+        // Convert to basic models (no content blocks)
+        return collections.stream()
+                .map(this::convertToBasicModel)
+                .collect(Collectors.toList());
+    }
+
     /**
      * Convert a ContentCollectionEntity to a ContentCollectionModel with basic information.
      * This does not include content blocks.
@@ -443,5 +471,55 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
             // No explicit toggle provided; keep in sync if a card exists
             homeService.syncHomeCardOnCollectionUpdate(entity);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO getUpdateCollectionData(String slug) {
+        log.debug("Getting update collection data for slug: {}", slug);
+
+        // Get the collection
+        ContentCollectionModel collection = findBySlug(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
+
+        // Get all tags, people, cameras, and film types from ContentBlockService
+        List<edens.zac.portfolio.backend.model.ContentTagModel> tags = contentBlockService.getAllTags();
+        List<edens.zac.portfolio.backend.model.ContentPersonModel> people = contentBlockService.getAllPeople();
+        List<edens.zac.portfolio.backend.model.ContentCameraModel> cameras = contentBlockService.getAllCameras();
+        List<edens.zac.portfolio.backend.model.ContentFilmTypeModel> filmTypes = contentBlockService.getAllFilmTypes();
+
+        // Get all collections as CollectionListModel
+        List<edens.zac.portfolio.backend.model.CollectionListModel> collections = contentCollectionRepository.findAll().stream()
+                .map(entity -> edens.zac.portfolio.backend.model.CollectionListModel.builder()
+                        .id(entity.getId())
+                        .collectionName(entity.getTitle())
+                        .build())
+                .collect(Collectors.toList());
+
+        // Convert FilmFormat enums to DTOs
+        List<edens.zac.portfolio.backend.model.FilmFormatDTO> filmFormats = java.util.Arrays.stream(edens.zac.portfolio.backend.types.FilmFormat.values())
+                .map(this::convertToFilmFormatDTO)
+                .collect(Collectors.toList());
+
+        // Build and return response DTO
+        return edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO.builder()
+                .collection(collection)
+                .tags(tags)
+                .people(people)
+                .collections(collections)
+                .cameras(cameras)
+                .filmTypes(filmTypes)
+                .filmFormats(filmFormats)
+                .build();
+    }
+
+    /**
+     * Convert FilmFormat enum to FilmFormatDTO
+     */
+    private edens.zac.portfolio.backend.model.FilmFormatDTO convertToFilmFormatDTO(edens.zac.portfolio.backend.types.FilmFormat filmFormat) {
+        return edens.zac.portfolio.backend.model.FilmFormatDTO.builder()
+                .name(filmFormat.name())
+                .displayName(filmFormat.getDisplayName())
+                .build();
     }
 }

@@ -145,25 +145,6 @@ class ImageContentBlockModelTest {
         assertTrue(violation.getMessage().contains("size must be between 0 and 20"));
     }
 
-
-    @Test
-    @DisplayName("Camera over 25 characters should fail validation")
-    void longCamera_shouldFailValidation() {
-        // Arrange
-        setupValidImageContentBlock();
-        String longCamera = "A".repeat(26); // 26 characters
-        imageContentBlock.setCamera(longCamera); // Invalid
-
-        // Act
-        Set<ConstraintViolation<ImageContentBlockModel>> violations = validator.validate(imageContentBlock);
-
-        // Assert
-        assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentBlockModel> violation = violations.iterator().next();
-        assertEquals("camera", violation.getPropertyPath().toString());
-        assertTrue(violation.getMessage().contains("size must be between 0 and 25"));
-    }
-
     @Test
     @DisplayName("FocalLength over 20 characters should fail validation")
     void longFocalLength_shouldFailValidation() {
@@ -210,7 +191,6 @@ class ImageContentBlockModelTest {
         imageContentBlock.setFStop("A".repeat(15));
         imageContentBlock.setLens("A".repeat(100));
         imageContentBlock.setShutterSpeed("A".repeat(20));
-        imageContentBlock.setCamera("A".repeat(25));
         imageContentBlock.setFocalLength("A".repeat(20));
         imageContentBlock.setLocation("A".repeat(250));
 
@@ -342,7 +322,7 @@ class ImageContentBlockModelTest {
         imageContentBlock.setBlackAndWhite(false);
         imageContentBlock.setIsFilm(false);
         imageContentBlock.setShutterSpeed("1/125");
-        imageContentBlock.setCamera("Canon EOS R5");
+        imageContentBlock.setCamera(new ContentCameraModel());
         imageContentBlock.setFocalLength("35mm");
         imageContentBlock.setLocation("Arches National Park, Utah");
         imageContentBlock.setCreateDate("2024-03-15");

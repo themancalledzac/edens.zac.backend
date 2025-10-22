@@ -14,32 +14,33 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Entity representing a person who can be tagged in image content blocks.
- * This allows tracking which people appear in photographs.
+ * Entity representing a camera model.
+ * Cameras can be associated with ImageContentBlocks.
+ * New cameras are automatically created when an image is updated with a new camera name.
  */
 @Entity
 @Table(
-        name = "content_people",
+        name = "content_cameras",
         indexes = {
-                @Index(name = "idx_content_person_name", columnList = "person_name", unique = true)
+                @Index(name = "idx_content_camera_name", columnList = "camera_name", unique = true)
         }
 )
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ContentPersonEntity {
+public class ContentCameraEntity {
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ContentPersonEntity that)) return false;
-        return personName != null && personName.equals(that.personName);
+        if (!(o instanceof ContentCameraEntity that)) return false;
+        return cameraName != null && cameraName.equals(that.cameraName);
     }
 
     @Override
     public int hashCode() {
-        return personName != null ? personName.hashCode() : 0;
+        return cameraName != null ? cameraName.hashCode() : 0;
     }
 
     @Id
@@ -48,33 +49,33 @@ public class ContentPersonEntity {
 
     @NotBlank
     @Size(min = 1, max = 100)
-    @Column(name = "person_name", unique = true, nullable = false, length = 100)
-    private String personName;
+    @Column(name = "camera_name", unique = true, nullable = false, length = 100)
+    private String cameraName;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // Many-to-many relationship with ImageContentBlock (mappedBy side - non-owning)
-    @ManyToMany(mappedBy = "people", fetch = FetchType.LAZY)
+    // One-to-many relationship with ImageContentBlocks (mappedBy side)
+    @OneToMany(mappedBy = "camera", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<ImageContentBlockEntity> imageContentBlocks = new HashSet<>();
 
     /**
-     * Constructor for creating a person with just a name.
-     * Useful for quick person creation.
+     * Constructor for creating a camera with just a name.
+     * Useful for quick camera creation during image updates.
      *
-     * @param personName The name of the person
+     * @param cameraName The name of the camera
      */
-    public ContentPersonEntity(String personName) {
-        this.personName = personName;
+    public ContentCameraEntity(String cameraName) {
+        this.cameraName = cameraName;
         this.imageContentBlocks = new HashSet<>();
     }
 
     /**
-     * Get the number of images this person appears in.
+     * Get the number of images using this camera.
      *
-     * @return The total number of images featuring this person
+     * @return The number of images associated with this camera
      */
     public int getImageCount() {
         return imageContentBlocks.size();

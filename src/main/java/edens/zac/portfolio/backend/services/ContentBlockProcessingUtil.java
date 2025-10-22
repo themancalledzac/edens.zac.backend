@@ -9,12 +9,10 @@ import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
 import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.CodeContentBlockModel;
-import edens.zac.portfolio.backend.model.ContentBlockModel;
-import edens.zac.portfolio.backend.model.GifContentBlockModel;
-import edens.zac.portfolio.backend.model.ImageContentBlockModel;
-import edens.zac.portfolio.backend.model.TextContentBlockModel;
+import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentCameraRepository;
+import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,9 +42,12 @@ import java.util.*;
 @Slf4j
 public class ContentBlockProcessingUtil {
 
-    // Dependencies for S3 upload and content block repository
+    // Dependencies for S3 upload and repositories
     private final AmazonS3 amazonS3;
     private final ContentBlockRepository contentBlockRepository;
+    private final ContentCameraRepository contentCameraRepository;
+    private final ContentCollectionRepository contentCollectionRepository;
+    private final edens.zac.portfolio.backend.repository.ContentFilmTypeRepository contentFilmTypeRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
     private String bucketName;
@@ -106,6 +107,13 @@ public class ContentBlockProcessingUtil {
         model.setUpdatedAt(entity.getUpdatedAt());
     }
 
+    public static ContentCameraModel cameraEntityToCameraModel(ContentCameraEntity entity) {
+        return ContentCameraModel.builder()
+                .id(entity.getId())
+                .cameraName(entity.getCameraName())
+                .build();
+    }
+
     /**
      * Convert an ImageContentBlockEntity to an ImageContentBlockModel.
      *
@@ -133,13 +141,66 @@ public class ContentBlockProcessingUtil {
         model.setLens(entity.getLens());
         model.setBlackAndWhite(entity.getBlackAndWhite());
         model.setIsFilm(entity.getIsFilm());
+        // Convert film type entity to display name
+        model.setFilmType(entity.getFilmType() != null ? entity.getFilmType().getDisplayName() : null);
+        model.setFilmFormat(entity.getFilmFormat());
         model.setShutterSpeed(entity.getShutterSpeed());
         model.setImageUrlFullSize(entity.getImageUrlFullSize());
-        model.setCamera(entity.getCamera());
+        model.setCamera(entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null);
         model.setFocalLength(entity.getFocalLength());
         model.setLocation(entity.getLocation());
         model.setImageUrlWeb(entity.getImageUrlWeb());
         model.setCreateDate(entity.getCreateDate());
+
+        // Map tags - convert entities to simplified tag objects (id and tagName only)
+        if (entity.getTags() != null && !entity.getTags().isEmpty()) {
+            List<edens.zac.portfolio.backend.model.ContentBlockTagModel> tagModels = entity.getTags().stream()
+                    .map(tag -> edens.zac.portfolio.backend.model.ContentBlockTagModel.builder()
+                            .id(tag.getId())
+                            .tagName(tag.getTagName())
+                            .build())
+                    .sorted((a, b) -> a.getTagName().compareToIgnoreCase(b.getTagName()))
+                    .toList();
+            model.setTags(tagModels);
+        }
+
+        // Map people - convert entities to simplified person objects (id and personName only)
+        if (entity.getPeople() != null && !entity.getPeople().isEmpty()) {
+            List<edens.zac.portfolio.backend.model.ContentBlockPersonModel> personModels = entity.getPeople().stream()
+                    .map(person -> edens.zac.portfolio.backend.model.ContentBlockPersonModel.builder()
+                            .id(person.getId())
+                            .personName(person.getPersonName())
+                            .build())
+                    .sorted((a, b) -> a.getPersonName().compareToIgnoreCase(b.getPersonName()))
+                    .toList();
+            model.setPeople(personModels);
+        }
+
+        // Populate collections array - fetch all collections this image belongs to
+        List<ImageContentBlockEntity> instances = new ArrayList<>();
+        if (entity.getFileIdentifier() != null) {
+            instances = contentBlockRepository.findAllByFileIdentifier(entity.getFileIdentifier());
+        } else {
+            // Fallback if no fileIdentifier - just use the current entity
+            instances.add(entity);
+        }
+
+        List<ImageCollection> collections = new ArrayList<>();
+        for (ImageContentBlockEntity instance : instances) {
+            if (instance.getCollectionId() != null) {
+                contentCollectionRepository.findById(instance.getCollectionId())
+                        .ifPresent(collection -> {
+                            ImageCollection ic = ImageCollection.builder()
+                                    .collectionId(collection.getId())
+                                    .collectionName(collection.getTitle())
+                                    .visible(instance.getVisible() != null ? instance.getVisible() : true)
+                                    .orderIndex(instance.getOrderIndex())
+                                    .build();
+                            collections.add(ic);
+                        });
+            }
+        }
+        model.setCollections(collections);
 
         return model;
     }
@@ -218,6 +279,15 @@ public class ContentBlockProcessingUtil {
         model.setHeight(entity.getHeight());
         model.setAuthor(entity.getAuthor());
         model.setCreateDate(entity.getCreateDate());
+
+        // Map tags - convert entities to tag names
+        if (entity.getTags() != null && !entity.getTags().isEmpty()) {
+            List<String> tagNames = entity.getTags().stream()
+                    .map(ContentTagEntity::getTagName)
+                    .sorted()
+                    .toList();
+            model.setTags(tagNames);
+        }
 
         return model;
     }
@@ -785,13 +855,24 @@ public class ContentBlockProcessingUtil {
                     .isFilm(metadata.get("fStop") == null)
                     .shutterSpeed(metadata.get("shutterSpeed"))
                     .imageUrlFullSize(imageUrlFullSize)
-                    .camera(metadata.get("camera"))
                     .focalLength(metadata.get("focalLength"))
                     .location(metadata.get("location"))
                     .imageUrlWeb(imageUrlWeb)
                     .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
                     .fileIdentifier(fileIdentifier)
                     .build();
+
+            // Handle camera - find existing or create new from metadata
+            String cameraName = metadata.get("camera");
+            if (cameraName != null && !cameraName.trim().isEmpty()) {
+                ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName.trim())
+                        .orElseGet(() -> {
+                            log.info("Creating new camera from metadata: {}", cameraName);
+                            ContentCameraEntity newCamera = new ContentCameraEntity(cameraName.trim());
+                            return contentCameraRepository.save(newCamera);
+                        });
+                entity.setCamera(camera);
+            }
 
             // STEP 7: Save and return
             ImageContentBlockEntity savedEntity = contentBlockRepository.save(entity);
@@ -1086,5 +1167,147 @@ public class ContentBlockProcessingUtil {
             return defaultValue;
         }
         return Boolean.parseBoolean(value) || value.equalsIgnoreCase("true") || value.equals("1");
+    }
+
+    // =============================================================================
+    // IMAGE UPDATE HELPERS (following the pattern from ContentCollectionProcessingUtil)
+    // =============================================================================
+
+    /**
+     * Apply partial updates from ImageUpdateRequest to an ImageContentBlockEntity.
+     * Only fields provided in the update request will be updated.
+     * This follows the same pattern as ContentCollectionProcessingUtil.applyBasicUpdates.
+     *
+     * @param entity The image entity to update
+     * @param updateRequest The update request containing the fields to update
+     */
+    public void applyImageUpdates(ImageContentBlockEntity entity, ImageUpdateRequest updateRequest) {
+        // Update basic image metadata fields if provided
+        if (updateRequest.getTitle() != null) {
+            entity.setTitle(updateRequest.getTitle());
+        }
+        if (updateRequest.getRating() != null) {
+            entity.setRating(updateRequest.getRating());
+        }
+        if (updateRequest.getLocation() != null) {
+            entity.setLocation(updateRequest.getLocation());
+        }
+        if (updateRequest.getAuthor() != null) {
+            entity.setAuthor(updateRequest.getAuthor());
+        }
+        if (updateRequest.getIsFilm() != null) {
+            entity.setIsFilm(updateRequest.getIsFilm());
+        }
+        // Handle film type - create new or fetch existing by ID
+        // newFilmType takes precedence over filmTypeId if both are provided
+        if (updateRequest.getNewFilmType() != null) {
+            // Create new film type or find existing one
+            String displayName = updateRequest.getNewFilmType().getFilmTypeName().trim();
+            // Generate technical name from display name: "Kodak Portra 400" -> "KODAK_PORTRA_400"
+            String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
+
+            ContentFilmTypeEntity filmType = contentFilmTypeRepository
+                    .findByFilmTypeNameIgnoreCase(technicalName)
+                    .orElseGet(() -> {
+                        log.info("Creating new film type: {} (technical name: {})", displayName, technicalName);
+                        ContentFilmTypeEntity newFilmType = new ContentFilmTypeEntity(
+                                technicalName,
+                                displayName,
+                                updateRequest.getNewFilmType().getDefaultIso()
+                        );
+                        return contentFilmTypeRepository.save(newFilmType);
+                    });
+            entity.setFilmType(filmType);
+        } else if (updateRequest.getFilmTypeId() != null) {
+            // Use existing film type by ID
+            ContentFilmTypeEntity filmType = contentFilmTypeRepository.findById(updateRequest.getFilmTypeId())
+                    .orElseThrow(() -> new IllegalArgumentException("Film type not found with ID: " + updateRequest.getFilmTypeId()));
+            entity.setFilmType(filmType);
+        }
+        if (updateRequest.getFilmFormat() != null) {
+            entity.setFilmFormat(updateRequest.getFilmFormat());
+        }
+
+        // Validate: if isFilm is being set to true in the update request,
+        // filmFormat must also be provided in the update request (or already exist on the entity)
+        if (updateRequest.getIsFilm() != null && Boolean.TRUE.equals(updateRequest.getIsFilm())) {
+            // Check if filmFormat will be set after this update
+            if (entity.getFilmFormat() == null && updateRequest.getFilmFormat() == null) {
+                throw new IllegalArgumentException("filmFormat is required when isFilm is true");
+            }
+        }
+
+        if (updateRequest.getBlackAndWhite() != null) {
+            entity.setBlackAndWhite(updateRequest.getBlackAndWhite());
+        }
+
+        // Handle camera - cameraId takes precedence over cameraName
+        if (updateRequest.getCameraId() != null) {
+            // Use existing camera by ID
+            ContentCameraEntity camera = contentCameraRepository.findById(updateRequest.getCameraId())
+                    .orElseThrow(() -> new IllegalArgumentException("Camera not found with ID: " + updateRequest.getCameraId()));
+            entity.setCamera(camera);
+        } else if (updateRequest.getCameraName() != null && !updateRequest.getCameraName().trim().isEmpty()) {
+            // Find existing or create new camera by name
+            String cameraName = updateRequest.getCameraName().trim();
+            ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName)
+                    .orElseGet(() -> {
+                        log.info("Creating new camera: {}", cameraName);
+                        ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
+                        return contentCameraRepository.save(newCamera);
+                    });
+            entity.setCamera(camera);
+        }
+
+        if (updateRequest.getLens() != null) {
+            entity.setLens(updateRequest.getLens());
+        }
+        if (updateRequest.getFocalLength() != null) {
+            entity.setFocalLength(updateRequest.getFocalLength());
+        }
+        if (updateRequest.getFStop() != null) {
+            entity.setFStop(updateRequest.getFStop());
+        }
+        if (updateRequest.getShutterSpeed() != null) {
+            entity.setShutterSpeed(updateRequest.getShutterSpeed());
+        }
+        if (updateRequest.getIso() != null) {
+            entity.setIso(updateRequest.getIso());
+        }
+        if (updateRequest.getCreateDate() != null) {
+            entity.setCreateDate(updateRequest.getCreateDate());
+        }
+
+        // Note: Tag and person relationship updates are handled separately in the service layer
+        // Collection visibility updates are also handled separately in handleCollectionVisibilityUpdates
+    }
+
+    /**
+     * Handle collection visibility updates for an image.
+     * This method updates the 'visible' flag for the content_block entry in the current collection.
+     *
+     * Note: For cross-collection visibility updates (updating the same image in multiple collections),
+     * you would need to add a repository method to find blocks by fileIdentifier.
+     * For now, this handles visibility for the current image/collection relationship.
+     *
+     * @param image The image entity being updated
+     * @param collectionUpdates List of collection updates containing visibility information
+     */
+    public void handleCollectionVisibilityUpdates(ImageContentBlockEntity image, List<ImageCollection> collectionUpdates) {
+        if (collectionUpdates == null || collectionUpdates.isEmpty()) {
+            return;
+        }
+
+        // Update visibility for the current image if its collection is in the updates
+        for (ImageCollection collectionUpdate : collectionUpdates) {
+            if (collectionUpdate.getCollectionId() != null &&
+                collectionUpdate.getCollectionId().equals(image.getCollectionId()) &&
+                collectionUpdate.getVisible() != null) {
+                image.setVisible(collectionUpdate.getVisible());
+                log.info("Updated visibility for image {} in collection {} to {}",
+                        image.getId(), image.getCollectionId(), collectionUpdate.getVisible());
+                break; // Only update once for the matching collection
+            }
+        }
     }
 }

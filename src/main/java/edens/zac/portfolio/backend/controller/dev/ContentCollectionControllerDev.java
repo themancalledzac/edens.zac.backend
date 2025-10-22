@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.dev;
 import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.services.ContentCollectionService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -188,6 +189,55 @@ public class ContentCollectionControllerDev {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to delete collection: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get all collections ordered by collection date.
+     * Returns all collections regardless of visibility, hidden status, or lacking images.
+     * Dev/admin only endpoint for viewing complete collection list.
+     *
+     * @return ResponseEntity with list of all collections ordered by collection date DESC
+     */
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllCollectionsOrderedByDate() {
+        try {
+            List<ContentCollectionModel> collections = contentCollectionService.getAllCollectionsOrderedByDate();
+            log.info("Successfully retrieved {} collections ordered by date", collections.size());
+
+            return ResponseEntity.ok(collections);
+        } catch (Exception e) {
+            log.error("Error retrieving all collections: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve collections: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get collection with all metadata for the update/manage page.
+     * Returns the collection along with all available tags, people, cameras, and film metadata.
+     * This single endpoint provides everything needed for the image management UI.
+     *
+     * @param slug Collection slug
+     * @return ResponseEntity with collection and metadata
+     */
+    @GetMapping("/{slug}/update")
+    public ResponseEntity<?> getUpdateCollection(@PathVariable String slug) {
+        try {
+            ContentCollectionUpdateResponseDTO response = contentCollectionService.getUpdateCollectionData(slug);
+            log.info("Successfully retrieved update data for collection: {}", slug);
+            return ResponseEntity.ok(response);
+        } catch (EntityNotFoundException e) {
+            log.warn("Collection not found: {}", slug);
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body("Collection with slug: " + slug + " not found");
+        } catch (Exception e) {
+            log.error("Error retrieving update data for collection {}: {}", slug, e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve update data: " + e.getMessage());
         }
     }
 }

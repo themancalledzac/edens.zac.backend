@@ -96,4 +96,13 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @return The count of visible collections of the specified type
      */
     long countByTypeAndVisibleTrue(CollectionType type);
+
+    /**
+     * Find all collections ordered by collection date descending.
+     * Returns all collections regardless of visibility or other filters.
+     * Intended for admin/dev use only.
+     *
+     * @return List of all collections ordered by collection date DESC
+     */
+    List<ContentCollectionEntity> findAllByOrderByCollectionDateDesc();
 }

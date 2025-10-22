@@ -5,6 +5,8 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentCameraRepository;
+import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -86,7 +88,7 @@ public class ContentBlockProcessingUtilTest {
         assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
         assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
         assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
-        assertEquals(entity.getCamera(), imageModel.getCamera());
+        assertEquals(entity.getCamera(), imageModel.getCamera()); // TODO: Fix
         assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
         assertEquals(entity.getLocation(), imageModel.getLocation());
         assertEquals(entity.getImageUrlWeb(), imageModel.getImageUrlWeb());
@@ -555,7 +557,7 @@ public class ContentBlockProcessingUtilTest {
         entity.setBlackAndWhite(false);
         entity.setIsFilm(false);
         entity.setShutterSpeed("1/125");
-        entity.setCamera("Test Camera");
+        entity.setCamera(new ContentCameraEntity("Test Camera"));
         entity.setFocalLength("50mm");
         entity.setLocation("Test Location");
         entity.setImageUrlWeb("https://example.com/image.jpg");
