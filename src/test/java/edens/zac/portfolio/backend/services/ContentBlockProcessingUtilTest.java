@@ -5,8 +5,6 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
-import edens.zac.portfolio.backend.repository.ContentCameraRepository;
-import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -84,7 +82,7 @@ public class ContentBlockProcessingUtilTest {
         assertEquals(entity.getAuthor(), imageModel.getAuthor());
         assertEquals(entity.getRating(), imageModel.getRating());
         assertEquals(entity.getFStop(), imageModel.getFStop());
-        assertEquals(entity.getLens(), imageModel.getLens());
+        assertEquals(entity.getLens().getLensName(), imageModel.getLens().getName());
         assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
         assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
         assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
@@ -232,12 +230,12 @@ public class ContentBlockProcessingUtilTest {
         when(contentBlockRepository.save(any(TextContentBlockEntity.class))).thenReturn(savedEntity);
 
         // Act
-        ContentBlockEntity result = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, orderIndex, caption);
+        TextContentBlockEntity result = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, orderIndex, caption);
 
         // Assert
         assertNotNull(result);
         assertInstanceOf(TextContentBlockEntity.class, result);
-        assertEquals(text, ((TextContentBlockEntity) result).getContent());
+        assertEquals(text, result.getContent());
         verify(contentBlockRepository).save(any(TextContentBlockEntity.class));
     }
 
@@ -512,7 +510,7 @@ public class ContentBlockProcessingUtilTest {
 
         // Assert
         assertNotNull(result);
-        assertTrue(result instanceof GifContentBlockEntity);
+        assertInstanceOf(GifContentBlockEntity.class, result);
     }
 
     @Test
@@ -553,7 +551,7 @@ public class ContentBlockProcessingUtilTest {
         entity.setAuthor("Test Author");
         entity.setRating(5);
         entity.setFStop("f/2.8");
-        entity.setLens("Test Lens");
+        entity.setLens(new ContentLensEntity("Test Lens"));
         entity.setBlackAndWhite(false);
         entity.setIsFilm(false);
         entity.setShutterSpeed("1/125");

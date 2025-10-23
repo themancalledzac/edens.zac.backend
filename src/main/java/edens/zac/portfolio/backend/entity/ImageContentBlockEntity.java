@@ -30,7 +30,12 @@ public class ImageContentBlockEntity extends ContentBlockEntity {
     private String author;
     private Integer rating;
     private String fStop;
-    private String lens;
+
+    // Many-to-one relationship with ContentLensEntity
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "lens_id")
+    private ContentLensEntity lens;
+
     private Boolean blackAndWhite;
     private Boolean isFilm;
 

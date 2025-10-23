@@ -109,23 +109,8 @@ class ImageContentBlockModelTest {
         assertTrue(violation.getMessage().contains("size must be between 0 and 15"));
     }
 
-    @Test
-    @DisplayName("Lens over 100 characters should fail validation")
-    void longLens_shouldFailValidation() {
-        // Arrange
-        setupValidImageContentBlock();
-        String longLens = "A".repeat(101); // 101 characters
-        imageContentBlock.setLens(longLens); // Invalid
-
-        // Act
-        Set<ConstraintViolation<ImageContentBlockModel>> violations = validator.validate(imageContentBlock);
-
-        // Assert
-        assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentBlockModel> violation = violations.iterator().next();
-        assertEquals("lens", violation.getPropertyPath().toString());
-        assertTrue(violation.getMessage().contains("size must be between 0 and 100"));
-    }
+    // Note: Lens validation test removed - lens is now a ContentLensModel object,
+    // not a String field. Validation is handled at the entity level (ContentLensEntity).
 
     @Test
     @DisplayName("ShutterSpeed over 20 characters should fail validation")
@@ -189,7 +174,7 @@ class ImageContentBlockModelTest {
         imageContentBlock.setTitle("A".repeat(250));
         imageContentBlock.setAuthor("A".repeat(100));
         imageContentBlock.setFStop("A".repeat(15));
-        imageContentBlock.setLens("A".repeat(100));
+        // Note: lens is now a ContentLensModel object, not a validated String
         imageContentBlock.setShutterSpeed("A".repeat(20));
         imageContentBlock.setFocalLength("A".repeat(20));
         imageContentBlock.setLocation("A".repeat(250));
@@ -318,7 +303,10 @@ class ImageContentBlockModelTest {
         imageContentBlock.setAuthor("Zac Eden");
         imageContentBlock.setRating(5);
         imageContentBlock.setFStop("f/8.0");
-        imageContentBlock.setLens("Canon 24-70mm f/2.8L");
+        imageContentBlock.setLens(ContentLensModel.builder()
+                .id(1L)
+                .name("Canon 24-70mm f/2.8L")
+                .build());
         imageContentBlock.setBlackAndWhite(false);
         imageContentBlock.setIsFilm(false);
         imageContentBlock.setShutterSpeed("1/125");

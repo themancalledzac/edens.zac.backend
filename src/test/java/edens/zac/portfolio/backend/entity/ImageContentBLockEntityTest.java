@@ -37,7 +37,7 @@ class ImageContentBlockEntityTest {
                 .author("John Doe")
                 .rating(5)
                 .fStop("f/2.8")
-                .lens("24-70mm")
+                .lens(new ContentLensEntity("24-70mm"))
                 .blackAndWhite(false)
                 .isFilm(false)
                 .shutterSpeed("1/125")
@@ -91,7 +91,7 @@ class ImageContentBlockEntityTest {
                 .author("John Doe")
                 .rating(5)
                 .fStop("f/2.8")
-                .lens("24-70mm")
+                .lens(new ContentLensEntity("24-70mm"))
                 .blackAndWhite(false)
                 .isFilm(false)
                 .shutterSpeed("1/125")
@@ -114,7 +114,7 @@ class ImageContentBlockEntityTest {
         assertEquals("John Doe", imageBlock.getAuthor());
         assertEquals(5, imageBlock.getRating());
         assertEquals("f/2.8", imageBlock.getFStop());
-        assertEquals("24-70mm", imageBlock.getLens());
+        assertEquals("24-70mm", imageBlock.getLens().getLensName());
         assertFalse(imageBlock.getBlackAndWhite());
         assertFalse(imageBlock.getIsFilm());
         assertEquals("1/125", imageBlock.getShutterSpeed());

@@ -6,15 +6,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Simplified person model for use within content blocks.
- * Contains only the person's ID and name, without related entity IDs.
- * This prevents over-fetching when people are nested inside content block arrays.
+ * Model representing a lens for API responses.
+ * Contains the lens's ID and name.
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ContentBlockPersonModel {
+public class ContentLensModel {
 
     private Long id;
     private String name;

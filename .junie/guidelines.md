@@ -168,6 +168,31 @@ The project is transitioning from a simple Catalog/Image system to a flexible Co
 - **Track S3 usage patterns** with mixed content types
 - **Optimize slow queries** discovered in production
 
+## Docker Development Environment
+
+### 1. Build & Compilation
+- **ALWAYS use docker-compose for builds** - This project runs in a dockerized environment
+- **NEVER use `./mvnw` directly** - Java runtime may not be available on the host machine
+- **Use `docker-compose` commands** for all build operations:
+  ```bash
+  # Correct way to build/compile
+  docker-compose run --rm app mvn clean compile
+  docker-compose run --rm app mvn clean install
+  docker-compose run --rm app mvn test
+
+  # WRONG - Don't do this
+  ./mvnw clean compile  # This will fail if Java isn't installed on host
+  ```
+
+### 2. Running the Application
+- **Use docker-compose up** to start the application
+- **Database is managed by docker-compose** - don't expect local MySQL
+- **Environment variables** are defined in docker-compose.yml
+
+### 3. Testing in Docker
+- **Run tests via docker-compose** to ensure correct environment
+- **Integration tests need docker** for TestContainers and database access
+
 ## Summary
 
 These guidelines prioritize:
@@ -176,5 +201,6 @@ These guidelines prioritize:
 3. **Maintainable code** - clear structure, comprehensive tests
 4. **Modern practices** - latest Java features, proper patterns
 5. **Real testing** - TestContainers over mocks, comprehensive coverage
+6. **Docker-first development** - all builds and tests run in containers
 
 When in doubt, choose the approach that makes the code more **secure**, **performant**, **testable**, and **maintainable**.
