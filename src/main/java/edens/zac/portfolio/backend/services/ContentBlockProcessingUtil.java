@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCameraRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
+import edens.zac.portfolio.backend.repository.ContentLensRepository;
 import edens.zac.portfolio.backend.types.ContentBlockType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,7 @@ public class ContentBlockProcessingUtil {
     private final ContentBlockRepository contentBlockRepository;
     private final ContentCameraRepository contentCameraRepository;
     private final ContentCollectionRepository contentCollectionRepository;
+    private final ContentLensRepository contentLensRepository;
     private final edens.zac.portfolio.backend.repository.ContentFilmTypeRepository contentFilmTypeRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
@@ -110,7 +112,14 @@ public class ContentBlockProcessingUtil {
     public static ContentCameraModel cameraEntityToCameraModel(ContentCameraEntity entity) {
         return ContentCameraModel.builder()
                 .id(entity.getId())
-                .cameraName(entity.getCameraName())
+                .name(entity.getCameraName())
+                .build();
+    }
+
+    public static ContentLensModel lensEntityToLensModel(ContentLensEntity entity) {
+        return ContentLensModel.builder()
+                .id(entity.getId())
+                .name(entity.getLensName())
                 .build();
     }
 
@@ -138,7 +147,7 @@ public class ContentBlockProcessingUtil {
         model.setAuthor(entity.getAuthor());
         model.setRating(entity.getRating());
         model.setFStop(entity.getFStop());
-        model.setLens(entity.getLens());
+        model.setLens(entity.getLens() != null ? lensEntityToLensModel(entity.getLens()) : null);
         model.setBlackAndWhite(entity.getBlackAndWhite());
         model.setIsFilm(entity.getIsFilm());
         // Convert film type entity to display name
@@ -152,26 +161,26 @@ public class ContentBlockProcessingUtil {
         model.setImageUrlWeb(entity.getImageUrlWeb());
         model.setCreateDate(entity.getCreateDate());
 
-        // Map tags - convert entities to simplified tag objects (id and tagName only)
+        // Map tags - convert entities to simplified tag objects (id and name only)
         if (entity.getTags() != null && !entity.getTags().isEmpty()) {
             List<edens.zac.portfolio.backend.model.ContentBlockTagModel> tagModels = entity.getTags().stream()
                     .map(tag -> edens.zac.portfolio.backend.model.ContentBlockTagModel.builder()
                             .id(tag.getId())
-                            .tagName(tag.getTagName())
+                            .name(tag.getTagName())
                             .build())
-                    .sorted((a, b) -> a.getTagName().compareToIgnoreCase(b.getTagName()))
+                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                     .toList();
             model.setTags(tagModels);
         }
 
-        // Map people - convert entities to simplified person objects (id and personName only)
+        // Map people - convert entities to simplified person objects (id and name only)
         if (entity.getPeople() != null && !entity.getPeople().isEmpty()) {
             List<edens.zac.portfolio.backend.model.ContentBlockPersonModel> personModels = entity.getPeople().stream()
                     .map(person -> edens.zac.portfolio.backend.model.ContentBlockPersonModel.builder()
                             .id(person.getId())
-                            .personName(person.getPersonName())
+                            .name(person.getPersonName())
                             .build())
-                    .sorted((a, b) -> a.getPersonName().compareToIgnoreCase(b.getPersonName()))
+                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                     .toList();
             model.setPeople(personModels);
         }
@@ -850,7 +859,6 @@ public class ContentBlockProcessingUtil {
                     .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
                     .rating(parseIntegerOrDefault(metadata.get("rating"), null))
                     .fStop(metadata.get("fStop"))
-                    .lens(metadata.get("lens"))
                     .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
                     .isFilm(metadata.get("fStop") == null)
                     .shutterSpeed(metadata.get("shutterSpeed"))
@@ -872,6 +880,18 @@ public class ContentBlockProcessingUtil {
                             return contentCameraRepository.save(newCamera);
                         });
                 entity.setCamera(camera);
+            }
+
+            // Handle lens - find existing or create new from metadata
+            String lensName = metadata.get("lens");
+            if (lensName != null && !lensName.trim().isEmpty()) {
+                ContentLensEntity lens = contentLensRepository.findByLensNameIgnoreCase(lensName.trim())
+                        .orElseGet(() -> {
+                            log.info("Creating new lens from metadata: {}", lensName);
+                            ContentLensEntity newLens = new ContentLensEntity(lensName.trim());
+                            return contentLensRepository.save(newLens);
+                        });
+                entity.setLens(lens);
             }
 
             // STEP 7: Save and return
@@ -1230,7 +1250,7 @@ public class ContentBlockProcessingUtil {
 
         // Validate: if isFilm is being set to true in the update request,
         // filmFormat must also be provided in the update request (or already exist on the entity)
-        if (updateRequest.getIsFilm() != null && Boolean.TRUE.equals(updateRequest.getIsFilm())) {
+        if (updateRequest.getIsFilm() != null && updateRequest.getIsFilm()) {
             // Check if filmFormat will be set after this update
             if (entity.getFilmFormat() == null && updateRequest.getFilmFormat() == null) {
                 throw new IllegalArgumentException("filmFormat is required when isFilm is true");
@@ -1259,8 +1279,22 @@ public class ContentBlockProcessingUtil {
             entity.setCamera(camera);
         }
 
-        if (updateRequest.getLens() != null) {
-            entity.setLens(updateRequest.getLens());
+        // Handle lens - lensId takes precedence over lensName
+        if (updateRequest.getLensId() != null) {
+            // Use existing lens by ID
+            ContentLensEntity lens = contentLensRepository.findById(updateRequest.getLensId())
+                    .orElseThrow(() -> new IllegalArgumentException("Lens not found with ID: " + updateRequest.getLensId()));
+            entity.setLens(lens);
+        } else if (updateRequest.getLensName() != null && !updateRequest.getLensName().trim().isEmpty()) {
+            // Find existing or create new lens by name
+            String lensName = updateRequest.getLensName().trim();
+            ContentLensEntity lens = contentLensRepository.findByLensNameIgnoreCase(lensName)
+                    .orElseGet(() -> {
+                        log.info("Creating new lens: {}", lensName);
+                        ContentLensEntity newLens = new ContentLensEntity(lensName);
+                        return contentLensRepository.save(newLens);
+                    });
+            entity.setLens(lens);
         }
         if (updateRequest.getFocalLength() != null) {
             entity.setFocalLength(updateRequest.getFocalLength());
@@ -1285,7 +1319,6 @@ public class ContentBlockProcessingUtil {
     /**
      * Handle collection visibility updates for an image.
      * This method updates the 'visible' flag for the content_block entry in the current collection.
-     *
      * Note: For cross-collection visibility updates (updating the same image in multiple collections),
      * you would need to add a repository method to find blocks by fileIdentifier.
      * For now, this handles visibility for the current image/collection relationship.

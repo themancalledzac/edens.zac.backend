@@ -17,5 +17,5 @@ import lombok.NoArgsConstructor;
 public class ContentBlockTagModel {
 
     private Long id;
-    private String tagName;
+    private String name;
 }

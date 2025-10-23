@@ -86,9 +86,16 @@ public class ImageUpdateRequest {
     private String cameraName;
 
     /**
-     * Lens used
+     * Lens ID to associate with this image (select existing lens)
+     * If both lensId and lensName are provided, lensId takes precedence.
      */
-    private String lens;
+    private Long lensId;
+
+    /**
+     * New lens name to create and associate with this image.
+     * If both lensId and lensName are provided, lensId takes precedence.
+     */
+    private String lensName;
 
     /**
      * Focal length

@@ -16,8 +16,5 @@ import lombok.NoArgsConstructor;
 public class ContentCameraModel {
 
     private Long id;
-    private String cameraName;
-
-    // Future: Include related entity IDs if needed
-    // private List<Long> imageContentBlockIds;
+    private String name;
 }

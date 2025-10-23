@@ -29,8 +29,7 @@ public class ImageContentBlockModel extends ContentBlockModel {
     @Size(max = 15)
     private String fStop;
 
-    @Size(max = 100)
-    private String lens;
+    private ContentLensModel lens;
 
     private Boolean blackAndWhite;
     private Boolean isFilm;
