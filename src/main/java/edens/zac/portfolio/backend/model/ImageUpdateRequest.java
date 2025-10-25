@@ -13,6 +13,10 @@ import java.util.List;
  * Request DTO for updating image content blocks.
  * All fields except 'id' are optional to support partial updates.
  * Only fields included in the request will be updated.
+ * Uses a prev/new/remove pattern for entity relationships:
+ * - prev: Reference to existing entity by ID
+ * - newValue: Create new entity (by name or request object)
+ * - remove: Remove the association (for single entities) or remove specific IDs (for collections)
  */
 @Data
 @Builder
@@ -52,18 +56,6 @@ public class ImageUpdateRequest {
     private Boolean isFilm;
 
     /**
-     * Film type ID to associate with this image (only applicable when isFilm is true)
-     * This is used to select an existing film type from the database.
-     */
-    private Long filmTypeId;
-
-    /**
-     * New film type to create and associate with this image.
-     * If both filmTypeId and newFilmType are provided, newFilmType takes precedence.
-     */
-    private NewFilmTypeRequest newFilmType;
-
-    /**
      * Film format (35mm, 120, etc.) - required when isFilm is true
      */
     private FilmFormat filmFormat;
@@ -72,30 +64,6 @@ public class ImageUpdateRequest {
      * Whether the image is black and white
      */
     private Boolean blackAndWhite;
-
-    /**
-     * Camera ID to associate with this image (select existing camera)
-     * If both cameraId and cameraName are provided, cameraId takes precedence.
-     */
-    private Long cameraId;
-
-    /**
-     * New camera name to create and associate with this image.
-     * If both cameraId and cameraName are provided, cameraId takes precedence.
-     */
-    private String cameraName;
-
-    /**
-     * Lens ID to associate with this image (select existing lens)
-     * If both lensId and lensName are provided, lensId takes precedence.
-     */
-    private Long lensId;
-
-    /**
-     * New lens name to create and associate with this image.
-     * If both lensId and lensName are provided, lensId takes precedence.
-     */
-    private String lensName;
 
     /**
      * Focal length
@@ -123,27 +91,162 @@ public class ImageUpdateRequest {
     private String createDate;
 
     /**
-     * List of tag IDs to associate with this image (existing tags)
+     * Camera update using prev/new/remove pattern
      */
-    private List<Long> tagIds;
+    private CameraUpdate camera;
 
     /**
-     * List of new tag names to create and associate with this image
+     * Lens update using prev/new/remove pattern
      */
-    private List<String> newTags;
+    private LensUpdate lens;
 
     /**
-     * List of person IDs to associate with this image (existing people)
+     * Film type update using prev/new/remove pattern
      */
-    private List<Long> personIds;
+    private FilmTypeUpdate filmType;
 
     /**
-     * List of new person names to create and associate with this image
+     * Tag updates using prev/new/remove pattern
      */
-    private List<String> newPeople;
+    private TagUpdate tags;
 
     /**
-     * List of collection updates - manages visibility of this image in different collections
+     * Person updates using prev/new/remove pattern
      */
-    private List<ImageCollection> collections;
+    private PersonUpdate people;
+
+    /**
+     * Collection updates using prev/new/remove pattern
+     */
+    private CollectionUpdate collections;
+
+    // ========== Nested Update Classes ==========
+
+    /**
+     * Camera update wrapper (all fields optional)
+     * - prev: ID of existing camera to use
+     * - newValue: Name of new camera to create
+     * - remove: true to remove camera association
+     * <p>
+     * Examples:
+     * - {prev: 5} = Use existing camera ID 5
+     * - {newValue: "X100V"} = Create new camera "X100V"
+     * - {remove: true} = Remove camera association
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CameraUpdate {
+        private Long prev;
+        private String newValue;
+        private Boolean remove;
+    }
+
+    /**
+     * Lens update wrapper (all fields optional)
+     * - prev: ID of existing lens to use
+     * - newValue: Name of new lens to create
+     * - remove: true to remove lens association
+     * <p>
+     * Examples:
+     * - {prev: 3} = Use existing lens ID 3
+     * - {newValue: "50mm f/1.8"} = Create new lens "50mm f/1.8"
+     * - {remove: true} = Remove lens association
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LensUpdate {
+        private Long prev;
+        private String newValue;
+        private Boolean remove;
+    }
+
+    /**
+     * Film type update wrapper (all fields optional)
+     * - prev: ID of existing film type to use
+     * - newValue: Film type request to create new type
+     * - remove: true to remove film type association
+     * <p>
+     * Examples:
+     * - {prev: 2} = Use existing film type ID 2
+     * - {newValue: {filmTypeName: "Portra 400", defaultIso: 400}} = Create new film type
+     * - {remove: true} = Remove film type association
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FilmTypeUpdate {
+        private Long prev;
+        private NewFilmTypeRequest newValue;
+        private Boolean remove;
+    }
+
+    /**
+     * Tag update wrapper (all fields optional)
+     * - prev: List of existing tag IDs to keep/add
+     * - newValue: List of new tag names to create and add
+     * - remove: List of tag IDs to remove
+     * <p>
+     * Examples:
+     * - {prev: [2, 3]} = Add existing tags 2 and 3
+     * - {newValue: ["landscape", "nature"]} = Create and add new tags
+     * - {remove: [1]} = Remove tag ID 1
+     * - {prev: [2], newValue: ["landscape"], remove: [1]} = All operations at once
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TagUpdate {
+        private List<Long> prev;
+        private List<String> newValue;
+        private List<Long> remove;
+    }
+
+    /**
+     * Person update wrapper (all fields optional)
+     * - prev: List of existing person IDs to keep/add
+     * - newValue: List of new person names to create and add
+     * - remove: List of person IDs to remove
+     * <p>
+     * Examples:
+     * - {prev: [5, 6]} = Add existing people 5 and 6
+     * - {newValue: ["John Doe"]} = Create and add new person
+     * - {remove: [3]} = Remove person ID 3
+     * - {prev: [5], newValue: ["Jane"], remove: [3]} = All operations at once
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PersonUpdate {
+        private List<Long> prev;
+        private List<String> newValue;
+        private List<Long> remove;
+    }
+
+    /**
+     * Collection update wrapper (all fields optional)
+     * - prev: Collections to keep/update (with visibility/order)
+     * - newValue: New collections to add
+     * - remove: Collection IDs to remove image from
+     * <p>
+     * Examples:
+     * - {prev: [{collectionId: 1, visible: true, orderIndex: 0}]} = Update visibility/order
+     * - {newValue: [{collectionId: 2, visible: true, orderIndex: 5}]} = Add to new collection
+     * - {remove: [3]} = Remove from collection ID 3
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CollectionUpdate {
+        private List<ImageCollection> prev;
+        private List<ImageCollection> newValue;
+        private List<Long> remove;
+    }
 }

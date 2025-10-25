@@ -492,7 +492,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         List<edens.zac.portfolio.backend.model.CollectionListModel> collections = contentCollectionRepository.findAll().stream()
                 .map(entity -> edens.zac.portfolio.backend.model.CollectionListModel.builder()
                         .id(entity.getId())
-                        .collectionName(entity.getTitle())
+                        .name(entity.getTitle())
                         .build())
                 .collect(Collectors.toList());
 

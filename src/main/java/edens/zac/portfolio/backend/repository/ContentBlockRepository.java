@@ -146,4 +146,13 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      */
     @Query("SELECT i FROM ImageContentBlockEntity i WHERE i.fileIdentifier = :fileIdentifier")
     List<ImageContentBlockEntity> findAllByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
+
+    /**
+     * Find all ImageContentBlockEntity instances ordered by createDate descending.
+     * This returns all images across all collections, sorted by most recent first.
+     *
+     * @return List of all image content blocks ordered by createDate descending
+     */
+    @Query("SELECT i FROM ImageContentBlockEntity i ORDER BY i.createDate DESC")
+    List<ImageContentBlockEntity> findAllImagesOrderByCreateDateDesc();
 }

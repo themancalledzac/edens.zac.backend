@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.dev;
 
+import edens.zac.portfolio.backend.model.ImageContentBlockModel;
 import edens.zac.portfolio.backend.model.ImageUpdateRequest;
 import edens.zac.portfolio.backend.services.ContentBlockService;
 import jakarta.validation.Valid;
@@ -156,6 +157,25 @@ public class ContentBlockControllerDev {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to delete images: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get all images ordered by date descending
+     * GET /api/write/blocks/images
+     *
+     * @return ResponseEntity with list of all images
+     */
+    @GetMapping("/images")
+    public ResponseEntity<List<ImageContentBlockModel>> getAllImages() {
+        try {
+            List<ImageContentBlockModel> images = contentBlockService.getAllImages();
+            return ResponseEntity.ok(images);
+        } catch (Exception e) {
+            log.error("Error fetching all images: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .build();
         }
     }
 }

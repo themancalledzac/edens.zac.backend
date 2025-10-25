@@ -19,7 +19,7 @@ import java.util.List;
 public class ContentPersonModel {
 
     private Long id;
-    private String personName;
+    private String name;
 
     /**
      * List of image content block IDs that this person is tagged in.

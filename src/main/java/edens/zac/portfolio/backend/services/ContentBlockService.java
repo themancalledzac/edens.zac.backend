@@ -91,4 +91,11 @@ public interface ContentBlockService {
      * @return Map containing created film type data
      */
     Map<String, Object> createFilmType(String filmTypeName, String displayName, Integer defaultIso);
+
+    /**
+     * Get all images ordered by createDate descending
+     *
+     * @return List of all images
+     */
+    List<edens.zac.portfolio.backend.model.ImageContentBlockModel> getAllImages();
 }

@@ -16,5 +16,5 @@ import lombok.NoArgsConstructor;
 public class CollectionListModel {
 
     private Long id;
-    private String collectionName;
+    private String name;
 }
