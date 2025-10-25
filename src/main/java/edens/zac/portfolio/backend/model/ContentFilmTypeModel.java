@@ -28,7 +28,7 @@ public class ContentFilmTypeModel {
     /**
      * Human-readable display name (e.g., "Kodak Portra 400").
      */
-    private String displayName;
+    private String name;
 
     /**
      * Default ISO value for this film stock.

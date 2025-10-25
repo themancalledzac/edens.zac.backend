@@ -201,7 +201,7 @@ public class ContentBlockProcessingUtil {
                         .ifPresent(collection -> {
                             ImageCollection ic = ImageCollection.builder()
                                     .collectionId(collection.getId())
-                                    .collectionName(collection.getTitle())
+                                    .name(collection.getTitle())
                                     .visible(instance.getVisible() != null ? instance.getVisible() : true)
                                     .orderIndex(instance.getOrderIndex())
                                     .build();
@@ -1317,29 +1317,46 @@ public class ContentBlockProcessingUtil {
     }
 
     /**
-     * Handle collection visibility updates for an image.
-     * This method updates the 'visible' flag for the content_block entry in the current collection.
-     * Note: For cross-collection visibility updates (updating the same image in multiple collections),
+     * Handle collection visibility and orderIndex updates for an image.
+     * This method updates the 'visible' flag and 'orderIndex' for the content_block entry in the current collection.
+     * Note: For cross-collection updates (updating the same image in multiple collections),
      * you would need to add a repository method to find blocks by fileIdentifier.
-     * For now, this handles visibility for the current image/collection relationship.
+     * For now, this handles visibility and orderIndex for the current image/collection relationship.
      *
      * @param image The image entity being updated
-     * @param collectionUpdates List of collection updates containing visibility information
+     * @param collectionUpdates List of collection updates containing visibility and orderIndex information
      */
     public void handleCollectionVisibilityUpdates(ImageContentBlockEntity image, List<ImageCollection> collectionUpdates) {
         if (collectionUpdates == null || collectionUpdates.isEmpty()) {
             return;
         }
 
-        // Update visibility for the current image if its collection is in the updates
+        // Update visibility and orderIndex for the current image if its collection is in the updates
         for (ImageCollection collectionUpdate : collectionUpdates) {
             if (collectionUpdate.getCollectionId() != null &&
-                collectionUpdate.getCollectionId().equals(image.getCollectionId()) &&
-                collectionUpdate.getVisible() != null) {
-                image.setVisible(collectionUpdate.getVisible());
-                log.info("Updated visibility for image {} in collection {} to {}",
-                        image.getId(), image.getCollectionId(), collectionUpdate.getVisible());
-                break; // Only update once for the matching collection
+                collectionUpdate.getCollectionId().equals(image.getCollectionId())) {
+
+                boolean updated = false;
+
+                // Update visible if provided
+                if (collectionUpdate.getVisible() != null) {
+                    image.setVisible(collectionUpdate.getVisible());
+                    log.info("Updated visibility for image {} in collection {} to {}",
+                            image.getId(), image.getCollectionId(), collectionUpdate.getVisible());
+                    updated = true;
+                }
+
+                // Update orderIndex if provided
+                if (collectionUpdate.getOrderIndex() != null) {
+                    image.setOrderIndex(collectionUpdate.getOrderIndex());
+                    log.info("Updated orderIndex for image {} in collection {} to {}",
+                            image.getId(), image.getCollectionId(), collectionUpdate.getOrderIndex());
+                    updated = true;
+                }
+
+                if (updated) {
+                    break; // Only update once for the matching collection
+                }
             }
         }
     }

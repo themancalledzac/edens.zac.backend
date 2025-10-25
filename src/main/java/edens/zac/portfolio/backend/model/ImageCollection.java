@@ -24,7 +24,7 @@ public class ImageCollection {
     /**
      * The name of the collection (for reference/validation)
      */
-    private String collectionName;
+    private String name;
 
     /**
      * Whether the image is visible in this collection

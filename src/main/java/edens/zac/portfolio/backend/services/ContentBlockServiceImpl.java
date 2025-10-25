@@ -367,7 +367,7 @@ class ContentBlockServiceImpl implements ContentBlockService {
 
         return ContentTagModel.builder()
                 .id(entity.getId())
-                .tagName(entity.getTagName())
+                .name(entity.getTagName())
                 .contentCollectionIds(contentCollectionIds)
                 .imageContentBlockIds(imageContentBlockIds)
                 .gifContentBlockIds(gifContentBlockIds)
@@ -386,7 +386,7 @@ class ContentBlockServiceImpl implements ContentBlockService {
 
         return ContentPersonModel.builder()
                 .id(entity.getId())
-                .personName(entity.getPersonName())
+                .name(entity.getPersonName())
                 .imageContentBlockIds(imageContentBlockIds)
                 .build();
     }
@@ -399,8 +399,17 @@ class ContentBlockServiceImpl implements ContentBlockService {
         return ContentFilmTypeModel.builder()
                 .id(entity.getId())
                 .filmTypeName(entity.getFilmTypeName())
-                .displayName(entity.getDisplayName())
+                .name(entity.getDisplayName())
                 .defaultIso(entity.getDefaultIso())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<edens.zac.portfolio.backend.model.ImageContentBlockModel> getAllImages() {
+        return contentBlockRepository.findAllImagesOrderByCreateDateDesc().stream()
+                .map(entity -> (edens.zac.portfolio.backend.model.ImageContentBlockModel)
+                        contentBlockProcessingUtil.convertToModel(entity))
+                .collect(Collectors.toList());
     }
 }

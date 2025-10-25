@@ -19,7 +19,7 @@ import java.util.List;
 public class ContentTagModel {
 
     private Long id;
-    private String tagName;
+    private String name;
 
     /**
      * List of content collection IDs that use this tag.
