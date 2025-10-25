@@ -811,7 +811,7 @@ public class ContentBlockProcessingUtil {
             log.info("Step 2: Uploading original full-size image to S3");
             String originalFilename = file.getOriginalFilename();
             String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
-            String imageUrlFullSize = uploadImageToS3(file.getBytes(), originalFilename, contentType, "full");
+//            String imageUrlFullSize = uploadImageToS3(file.getBytes(), originalFilename, contentType, "full");
 
             // STEP 3: Resize FIRST if needed (max 2500px on longest side)
             // We resize BEFORE converting to WebP to avoid having to decode WebP back to BufferedImage
@@ -862,7 +862,7 @@ public class ContentBlockProcessingUtil {
                     .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
                     .isFilm(metadata.get("fStop") == null)
                     .shutterSpeed(metadata.get("shutterSpeed"))
-                    .imageUrlFullSize(imageUrlFullSize)
+//                    .imageUrlFullSize(imageUrlFullSize)
                     .focalLength(metadata.get("focalLength"))
                     .location(metadata.get("location"))
                     .imageUrlWeb(imageUrlWeb)
@@ -1196,7 +1196,7 @@ public class ContentBlockProcessingUtil {
     /**
      * Apply partial updates from ImageUpdateRequest to an ImageContentBlockEntity.
      * Only fields provided in the update request will be updated.
-     * This follows the same pattern as ContentCollectionProcessingUtil.applyBasicUpdates.
+     * This uses the new prev/new/remove pattern for entity relationships.
      *
      * @param entity The image entity to update
      * @param updateRequest The update request containing the fields to update
@@ -1218,32 +1218,6 @@ public class ContentBlockProcessingUtil {
         if (updateRequest.getIsFilm() != null) {
             entity.setIsFilm(updateRequest.getIsFilm());
         }
-        // Handle film type - create new or fetch existing by ID
-        // newFilmType takes precedence over filmTypeId if both are provided
-        if (updateRequest.getNewFilmType() != null) {
-            // Create new film type or find existing one
-            String displayName = updateRequest.getNewFilmType().getFilmTypeName().trim();
-            // Generate technical name from display name: "Kodak Portra 400" -> "KODAK_PORTRA_400"
-            String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
-
-            ContentFilmTypeEntity filmType = contentFilmTypeRepository
-                    .findByFilmTypeNameIgnoreCase(technicalName)
-                    .orElseGet(() -> {
-                        log.info("Creating new film type: {} (technical name: {})", displayName, technicalName);
-                        ContentFilmTypeEntity newFilmType = new ContentFilmTypeEntity(
-                                technicalName,
-                                displayName,
-                                updateRequest.getNewFilmType().getDefaultIso()
-                        );
-                        return contentFilmTypeRepository.save(newFilmType);
-                    });
-            entity.setFilmType(filmType);
-        } else if (updateRequest.getFilmTypeId() != null) {
-            // Use existing film type by ID
-            ContentFilmTypeEntity filmType = contentFilmTypeRepository.findById(updateRequest.getFilmTypeId())
-                    .orElseThrow(() -> new IllegalArgumentException("Film type not found with ID: " + updateRequest.getFilmTypeId()));
-            entity.setFilmType(filmType);
-        }
         if (updateRequest.getFilmFormat() != null) {
             entity.setFilmFormat(updateRequest.getFilmFormat());
         }
@@ -1261,41 +1235,93 @@ public class ContentBlockProcessingUtil {
             entity.setBlackAndWhite(updateRequest.getBlackAndWhite());
         }
 
-        // Handle camera - cameraId takes precedence over cameraName
-        if (updateRequest.getCameraId() != null) {
-            // Use existing camera by ID
-            ContentCameraEntity camera = contentCameraRepository.findById(updateRequest.getCameraId())
-                    .orElseThrow(() -> new IllegalArgumentException("Camera not found with ID: " + updateRequest.getCameraId()));
-            entity.setCamera(camera);
-        } else if (updateRequest.getCameraName() != null && !updateRequest.getCameraName().trim().isEmpty()) {
-            // Find existing or create new camera by name
-            String cameraName = updateRequest.getCameraName().trim();
-            ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName)
-                    .orElseGet(() -> {
-                        log.info("Creating new camera: {}", cameraName);
-                        ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
-                        return contentCameraRepository.save(newCamera);
-                    });
-            entity.setCamera(camera);
+        // Handle camera update using prev/new/remove pattern
+        if (updateRequest.getCamera() != null) {
+            ImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
+
+            if (Boolean.TRUE.equals(cameraUpdate.getRemove())) {
+                // Remove camera association
+                entity.setCamera(null);
+                log.info("Removed camera association from image {}", entity.getId());
+            } else if (cameraUpdate.getNewValue() != null && !cameraUpdate.getNewValue().trim().isEmpty()) {
+                // Create new camera by name
+                String cameraName = cameraUpdate.getNewValue().trim();
+                ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName)
+                        .orElseGet(() -> {
+                            log.info("Creating new camera: {}", cameraName);
+                            ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
+                            return contentCameraRepository.save(newCamera);
+                        });
+                entity.setCamera(camera);
+            } else if (cameraUpdate.getPrev() != null) {
+                // Use existing camera by ID
+                ContentCameraEntity camera = contentCameraRepository.findById(cameraUpdate.getPrev())
+                        .orElseThrow(() -> new IllegalArgumentException("Camera not found with ID: " + cameraUpdate.getPrev()));
+                entity.setCamera(camera);
+            }
         }
 
-        // Handle lens - lensId takes precedence over lensName
-        if (updateRequest.getLensId() != null) {
-            // Use existing lens by ID
-            ContentLensEntity lens = contentLensRepository.findById(updateRequest.getLensId())
-                    .orElseThrow(() -> new IllegalArgumentException("Lens not found with ID: " + updateRequest.getLensId()));
-            entity.setLens(lens);
-        } else if (updateRequest.getLensName() != null && !updateRequest.getLensName().trim().isEmpty()) {
-            // Find existing or create new lens by name
-            String lensName = updateRequest.getLensName().trim();
-            ContentLensEntity lens = contentLensRepository.findByLensNameIgnoreCase(lensName)
-                    .orElseGet(() -> {
-                        log.info("Creating new lens: {}", lensName);
-                        ContentLensEntity newLens = new ContentLensEntity(lensName);
-                        return contentLensRepository.save(newLens);
-                    });
-            entity.setLens(lens);
+        // Handle lens update using prev/new/remove pattern
+        if (updateRequest.getLens() != null) {
+            ImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
+
+            if (Boolean.TRUE.equals(lensUpdate.getRemove())) {
+                // Remove lens association
+                entity.setLens(null);
+                log.info("Removed lens association from image {}", entity.getId());
+            } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
+                // Create new lens by name
+                String lensName = lensUpdate.getNewValue().trim();
+                ContentLensEntity lens = contentLensRepository.findByLensNameIgnoreCase(lensName)
+                        .orElseGet(() -> {
+                            log.info("Creating new lens: {}", lensName);
+                            ContentLensEntity newLens = new ContentLensEntity(lensName);
+                            return contentLensRepository.save(newLens);
+                        });
+                entity.setLens(lens);
+            } else if (lensUpdate.getPrev() != null) {
+                // Use existing lens by ID
+                ContentLensEntity lens = contentLensRepository.findById(lensUpdate.getPrev())
+                        .orElseThrow(() -> new IllegalArgumentException("Lens not found with ID: " + lensUpdate.getPrev()));
+                entity.setLens(lens);
+            }
         }
+
+        // Handle film type update using prev/new/remove pattern
+        if (updateRequest.getFilmType() != null) {
+            ImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
+
+            if (Boolean.TRUE.equals(filmTypeUpdate.getRemove())) {
+                // Remove film type association
+                entity.setFilmType(null);
+                log.info("Removed film type association from image {}", entity.getId());
+            } else if (filmTypeUpdate.getNewValue() != null) {
+                // Create new film type
+                NewFilmTypeRequest newFilmTypeRequest = filmTypeUpdate.getNewValue();
+                String displayName = newFilmTypeRequest.getFilmTypeName().trim();
+                // Generate technical name from display name: "Kodak Portra 400" -> "KODAK_PORTRA_400"
+                String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
+
+                ContentFilmTypeEntity filmType = contentFilmTypeRepository
+                        .findByFilmTypeNameIgnoreCase(technicalName)
+                        .orElseGet(() -> {
+                            log.info("Creating new film type: {} (technical name: {})", displayName, technicalName);
+                            ContentFilmTypeEntity newFilmType = new ContentFilmTypeEntity(
+                                    technicalName,
+                                    displayName,
+                                    newFilmTypeRequest.getDefaultIso()
+                            );
+                            return contentFilmTypeRepository.save(newFilmType);
+                        });
+                entity.setFilmType(filmType);
+            } else if (filmTypeUpdate.getPrev() != null) {
+                // Use existing film type by ID
+                ContentFilmTypeEntity filmType = contentFilmTypeRepository.findById(filmTypeUpdate.getPrev())
+                        .orElseThrow(() -> new IllegalArgumentException("Film type not found with ID: " + filmTypeUpdate.getPrev()));
+                entity.setFilmType(filmType);
+            }
+        }
+
         if (updateRequest.getFocalLength() != null) {
             entity.setFocalLength(updateRequest.getFocalLength());
         }
