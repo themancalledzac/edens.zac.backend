@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -29,6 +30,7 @@ class ContentCollectionServiceImplTest {
     @Mock private ContentBlockProcessingUtil contentBlockProcessingUtil;
     @Mock private ContentCollectionProcessingUtil contentCollectionProcessingUtil;
     @Mock private HomeService homeService;
+    @Mock private ContentBlockService contentBlockService;
 
     @InjectMocks
     private ContentCollectionServiceImpl service;
@@ -58,15 +60,32 @@ class ContentCollectionServiceImplTest {
         saved.setCoverImageBlockId(unsaved.getCoverImageBlockId());
         saved.setCreatedAt(unsaved.getCreatedAt());
 
+        ContentCollectionModel mockModel = new ContentCollectionModel();
+        mockModel.setId(42L);
+        mockModel.setTitle("My Blog");
+        mockModel.setSlug("my-blog");
+
         when(contentCollectionProcessingUtil.toEntity(eq(dto), anyInt())).thenReturn(unsaved);
         when(contentCollectionRepository.save(unsaved)).thenReturn(saved);
+        when(contentCollectionRepository.findBySlug("my-blog")).thenReturn(java.util.Optional.of(saved));
         when(contentBlockRepository.findByCollectionIdOrderByOrderIndex(42L)).thenReturn(Collections.emptyList());
+        when(contentCollectionProcessingUtil.convertToBasicModel(saved)).thenReturn(mockModel);
+
+        // Mock dependencies for getUpdateCollectionData
+        when(contentBlockService.getAllTags()).thenReturn(Collections.emptyList());
+        when(contentBlockService.getAllPeople()).thenReturn(Collections.emptyList());
+        when(contentBlockService.getAllCameras()).thenReturn(Collections.emptyList());
+        when(contentBlockService.getAllLenses()).thenReturn(Collections.emptyList());
+        when(contentBlockService.getAllFilmTypes()).thenReturn(Collections.emptyList());
+        when(contentCollectionRepository.findAll()).thenReturn(Collections.emptyList());
 
         // Act
-        ContentCollectionModel result = service.createCollection(dto);
+        ContentCollectionUpdateResponseDTO result = service.createCollection(dto);
 
         // Assert
         assertThat(result).isNotNull();
+        assertThat(result.getCollection()).isNotNull();
+        assertThat(result.getCollection().getId()).isEqualTo(42L);
         // No home card interactions on create
         verifyNoInteractions(homeService);
     }

@@ -77,9 +77,9 @@ public interface ContentCollectionService {
      * Create a new collection with content.
      *
      * @param createRequest The request containing collection data
-     * @return The created collection
+     * @return The created collection with all metadata for the manage page
      */
-    ContentCollectionModel createCollection(ContentCollectionCreateRequest createRequest);
+    ContentCollectionUpdateResponseDTO createCollection(ContentCollectionCreateRequest createRequest);
 
 
     /**
@@ -135,4 +135,13 @@ public interface ContentCollectionService {
      * @throws jakarta.persistence.EntityNotFoundException if collection not found
      */
     ContentCollectionUpdateResponseDTO getUpdateCollectionData(String slug);
+
+    /**
+     * Get all general metadata without a specific collection.
+     * Returns all available tags, people, cameras, lenses, film types, film formats, and collections.
+     * This is useful when you already have collection data and only need the metadata.
+     *
+     * @return General metadata including tags, people, cameras, lenses, film types, film formats, and collections
+     */
+    edens.zac.portfolio.backend.model.GeneralMetadataDTO getGeneralMetadata();
 }

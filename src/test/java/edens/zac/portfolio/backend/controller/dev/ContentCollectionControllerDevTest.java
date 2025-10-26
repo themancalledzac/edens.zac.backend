@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO;
+import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.ContentCollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
@@ -45,6 +47,7 @@ class ContentCollectionControllerDevTest {
     private ObjectMapper objectMapper;
 
     private ContentCollectionModel testCollection;
+    private ContentCollectionUpdateResponseDTO testCollectionUpdateResponse;
     private ContentCollectionCreateRequest testCreateRequest;
     private ContentCollectionUpdateDTO testUpdateDTO;
 
@@ -57,7 +60,7 @@ class ContentCollectionControllerDevTest {
         // Set up MockMvc
         mockMvc = MockMvcBuilders.standaloneSetup(contentCollectionController).build();
 
-        // Create test collection
+        // Create test collection model (for updateContent, addContentBlocks)
         testCollection = new ContentCollectionModel();
         testCollection.setId(1L);
         testCollection.setType(CollectionType.BLOG);
@@ -73,6 +76,22 @@ class ContentCollectionControllerDevTest {
         testCollection.setContentBlocks(new ArrayList<>());
         testCollection.setCreatedAt(LocalDateTime.now());
         testCollection.setUpdatedAt(LocalDateTime.now());
+
+        // Create test collection update response (for createCollection)
+        GeneralMetadataDTO metadata = GeneralMetadataDTO.builder()
+                .tags(new ArrayList<>())
+                .people(new ArrayList<>())
+                .collections(new ArrayList<>())
+                .cameras(new ArrayList<>())
+                .lenses(new ArrayList<>())
+                .filmTypes(new ArrayList<>())
+                .filmFormats(new ArrayList<>())
+                .build();
+
+        testCollectionUpdateResponse = ContentCollectionUpdateResponseDTO.builder()
+                .collection(testCollection)
+                .metadata(metadata)
+                .build();
 
         // Create minimal test create request
         testCreateRequest = new ContentCollectionCreateRequest();
@@ -90,16 +109,16 @@ class ContentCollectionControllerDevTest {
     void createCollection_shouldCreateNewCollection() throws Exception {
         // Arrange
         when(contentCollectionService.createCollection(any(ContentCollectionCreateRequest.class)))
-                .thenReturn(testCollection);
+                .thenReturn(testCollectionUpdateResponse);
 
         // Act & Assert
         mockMvc.perform(post("/api/write/collections/createCollection")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testCreateRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(1)))
-                .andExpect(jsonPath("$.title", is("Test Blog")))
-                .andExpect(jsonPath("$.type", is("BLOG")));
+                .andExpect(jsonPath("$.collection.id", is(1)))
+                .andExpect(jsonPath("$.collection.title", is("Test Blog")))
+                .andExpect(jsonPath("$.collection.type", is("BLOG")));
 
         verify(contentCollectionService).createCollection(any(ContentCollectionCreateRequest.class));
     }

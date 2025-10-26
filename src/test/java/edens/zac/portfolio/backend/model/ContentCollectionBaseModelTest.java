@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -50,7 +51,8 @@ class ContentCollectionBaseModelTest {
         @DisplayName("Should create model with all valid fields using builder")
         void shouldCreateModelWithAllValidFields() {
             LocalDateTime now = LocalDateTime.now();
-            
+            LocalDate today = LocalDate.now();
+
             ContentCollectionModel model = ContentCollectionModel.builder()
                     .id(1L)
                     .type(CollectionType.PORTFOLIO)
@@ -58,7 +60,7 @@ class ContentCollectionBaseModelTest {
                     .slug("valid-slug")
                     .description("Valid description")
                     .location("Valid location")
-                    .collectionDate(now)
+                    .collectionDate(today)
                     .visible(true)
                     .priority(1)
                     .coverImage(createTestImageContentBlock("https://example.com/cover.jpg"))
@@ -75,7 +77,7 @@ class ContentCollectionBaseModelTest {
             assertEquals("valid-slug", model.getSlug());
             assertEquals("Valid description", model.getDescription());
             assertEquals("Valid location", model.getLocation());
-            assertEquals(now, model.getCollectionDate());
+            assertEquals(today, model.getCollectionDate());
             assertTrue(model.getVisible());
             assertEquals(1, model.getPriority());
             assertNotNull(model.getCoverImage());
@@ -610,8 +612,8 @@ class ContentCollectionBaseModelTest {
         void shouldHandleTimestampFields() {
             LocalDateTime created = LocalDateTime.now().minusDays(1);
             LocalDateTime updated = LocalDateTime.now();
-            LocalDateTime collectionDate = LocalDateTime.now().minusMonths(1);
-            
+            LocalDate collectionDate = LocalDate.now().minusMonths(1);
+
             ContentCollectionModel model = ContentCollectionModel.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")

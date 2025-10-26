@@ -94,7 +94,7 @@ public class ContentBlockControllerDev {
      * PATCH /api/dev/blocks/images
      *
      * @param updates List of image updates
-     * @return ResponseEntity with updated image IDs
+     * @return ResponseEntity with updated images and newly created metadata
      */
     @PatchMapping("/images")
     public ResponseEntity<?> updateImages(@RequestBody @Valid List<ImageUpdateRequest> updates) {
@@ -102,9 +102,9 @@ public class ContentBlockControllerDev {
             Map<String, Object> response = contentBlockService.updateImages(updates);
 
             @SuppressWarnings("unchecked")
-            List<Long> updatedIds = (List<Long>) response.get("updatedIds");
+            List<ImageContentBlockModel> updatedImages = (List<ImageContentBlockModel>) response.get("updatedImages");
 
-            if (updatedIds.isEmpty()) {
+            if (updatedImages == null || updatedImages.isEmpty()) {
                 return ResponseEntity
                         .status(HttpStatus.BAD_REQUEST)
                         .body(response);

@@ -13,6 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Set;
@@ -40,6 +41,7 @@ class ContentCollectionPageDTOTest {
      */
     private static ContentCollectionPageDTO.ContentCollectionPageDTOBuilder<?, ?> defaultValidBuilder() {
         LocalDateTime now = LocalDateTime.now();
+        LocalDate today = LocalDate.now();
         return ContentCollectionPageDTO.builder()
                 .id(1L)
                 .type(CollectionType.PORTFOLIO)
@@ -47,7 +49,7 @@ class ContentCollectionPageDTOTest {
                 .slug("test-portfolio")
                 .description("Test description")
                 .location("Test Location")
-                .collectionDate(now)
+                .collectionDate(today)
                 .visible(true)
                 .priority(1)
                 .isPasswordProtected(false)
@@ -351,21 +353,22 @@ class ContentCollectionPageDTOTest {
     void shouldHaveWorkingEqualsAndHashCode() {
         // Use a fixed timestamp to ensure consistent comparisons
         LocalDateTime fixedTime = LocalDateTime.of(2025, 6, 7, 14, 0, 0);
-        
+        LocalDate fixedDate = LocalDate.of(2025, 6, 7);
+
         ContentCollectionPageDTO dto1 = defaultValidBuilder()
-                .collectionDate(fixedTime)
+                .collectionDate(fixedDate)
                 .createdAt(fixedTime)
                 .updatedAt(fixedTime)
                 .build();
-        
+
         ContentCollectionPageDTO dto2 = defaultValidBuilder()
-                .collectionDate(fixedTime)
+                .collectionDate(fixedDate)
                 .createdAt(fixedTime)
                 .updatedAt(fixedTime)
                 .build();
-        
+
         ContentCollectionPageDTO dto3 = defaultValidBuilder()
-                .collectionDate(fixedTime)
+                .collectionDate(fixedDate)
                 .createdAt(fixedTime)
                 .updatedAt(fixedTime)
                 .title("Different Title")

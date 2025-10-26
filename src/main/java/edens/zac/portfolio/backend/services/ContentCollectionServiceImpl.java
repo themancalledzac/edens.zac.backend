@@ -3,14 +3,11 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.entity.ContentBlockEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
-import edens.zac.portfolio.backend.model.ContentBlockModel;
-import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
-import edens.zac.portfolio.backend.model.ContentCollectionModel;
-import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
-import edens.zac.portfolio.backend.model.HomeCardModel;
+import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +25,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page;
+
 /**
  * Implementation of ContentCollectionService that provides methods for
  * managing ContentCollection entities with pagination and client gallery access.
@@ -44,7 +43,7 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     private final HomeService homeService;
     private final ContentBlockService contentBlockService;
 
-    private static final int DEFAULT_PAGE_SIZE = edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page;
+    private static final int DEFAULT_PAGE_SIZE = default_blocks_per_page;
 
 
     @Override
@@ -146,21 +145,8 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public ContentCollectionModel findById(Long id) {
-        log.debug("Finding collection by ID: {}", id);
-
-        // Get collection entity with content blocks
-        ContentCollectionEntity entity = contentCollectionRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
-
-        // Convert to full model (includes content blocks)
-        return convertToFullModel(entity);
-    }
-
-    @Override
     @Transactional
-    public ContentCollectionModel createCollection(ContentCollectionCreateRequest createRequest) {
+    public ContentCollectionUpdateResponseDTO createCollection(ContentCollectionCreateRequest createRequest) {
         log.debug("Creating new collection: {}", createRequest.getTitle());
 
         // Create entity using utility converter
@@ -172,7 +158,21 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
         // Save entity
         ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
 
-        return convertToFullModel(savedEntity);
+        // Return full update response with all metadata (tags, people, cameras, etc.)
+        return getUpdateCollectionData(savedEntity.getSlug());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ContentCollectionModel findById(Long id) {
+        log.debug("Finding collection by ID: {}", id);
+
+        // Get collection entity with content blocks
+        ContentCollectionEntity entity = contentCollectionRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
+
+        // Convert to full model (includes content blocks)
+        return convertToFullModel(entity);
     }
 
 
@@ -475,39 +475,55 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
 
     @Override
     @Transactional(readOnly = true)
-    public edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO getUpdateCollectionData(String slug) {
+    public ContentCollectionUpdateResponseDTO getUpdateCollectionData(String slug) {
         log.debug("Getting update collection data for slug: {}", slug);
 
         // Get the collection
         ContentCollectionModel collection = findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
 
-        // Get all tags, people, cameras, and film types from ContentBlockService
-        List<edens.zac.portfolio.backend.model.ContentTagModel> tags = contentBlockService.getAllTags();
-        List<edens.zac.portfolio.backend.model.ContentPersonModel> people = contentBlockService.getAllPeople();
-        List<edens.zac.portfolio.backend.model.ContentCameraModel> cameras = contentBlockService.getAllCameras();
-        List<edens.zac.portfolio.backend.model.ContentFilmTypeModel> filmTypes = contentBlockService.getAllFilmTypes();
+        // Get all general metadata using helper method
+        GeneralMetadataDTO metadata = getGeneralMetadata();
+
+        // Build and return response DTO with collection and metadata
+        return ContentCollectionUpdateResponseDTO.builder()
+                .collection(collection)
+                .metadata(metadata)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GeneralMetadataDTO getGeneralMetadata() {
+        log.debug("Getting general metadata");
+
+        // Get all tags, people, cameras, lenses, and film types from ContentBlockService
+        List<ContentTagModel> tags = contentBlockService.getAllTags();
+        List<ContentPersonModel> people = contentBlockService.getAllPeople();
+        List<ContentCameraModel> cameras = contentBlockService.getAllCameras();
+        List<ContentLensModel> lenses = contentBlockService.getAllLenses();
+        List<ContentFilmTypeModel> filmTypes = contentBlockService.getAllFilmTypes();
 
         // Get all collections as CollectionListModel
-        List<edens.zac.portfolio.backend.model.CollectionListModel> collections = contentCollectionRepository.findAll().stream()
-                .map(entity -> edens.zac.portfolio.backend.model.CollectionListModel.builder()
+        List<CollectionListModel> collections = contentCollectionRepository.findAll().stream()
+                .map(entity -> CollectionListModel.builder()
                         .id(entity.getId())
                         .name(entity.getTitle())
                         .build())
                 .collect(Collectors.toList());
 
         // Convert FilmFormat enums to DTOs
-        List<edens.zac.portfolio.backend.model.FilmFormatDTO> filmFormats = java.util.Arrays.stream(edens.zac.portfolio.backend.types.FilmFormat.values())
+        List<FilmFormatDTO> filmFormats = java.util.Arrays.stream(FilmFormat.values())
                 .map(this::convertToFilmFormatDTO)
                 .collect(Collectors.toList());
 
-        // Build and return response DTO
-        return edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO.builder()
-                .collection(collection)
+        // Build and return metadata DTO
+        return GeneralMetadataDTO.builder()
                 .tags(tags)
                 .people(people)
                 .collections(collections)
                 .cameras(cameras)
+                .lenses(lenses)
                 .filmTypes(filmTypes)
                 .filmFormats(filmFormats)
                 .build();
@@ -516,8 +532,8 @@ class ContentCollectionServiceImpl implements ContentCollectionService {
     /**
      * Convert FilmFormat enum to FilmFormatDTO
      */
-    private edens.zac.portfolio.backend.model.FilmFormatDTO convertToFilmFormatDTO(edens.zac.portfolio.backend.types.FilmFormat filmFormat) {
-        return edens.zac.portfolio.backend.model.FilmFormatDTO.builder()
+    private FilmFormatDTO convertToFilmFormatDTO(FilmFormat filmFormat) {
+        return FilmFormatDTO.builder()
                 .name(filmFormat.name())
                 .displayName(filmFormat.getDisplayName())
                 .build();

@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -197,7 +197,7 @@ public class ContentCollectionProcessingUtil {
         entity.setSlug(uniqueSlug);
         entity.setDescription("");
         entity.setLocation("");
-        entity.setCollectionDate(LocalDateTime.now());
+        entity.setCollectionDate(LocalDate.now());
         entity.setVisible(false);
         entity.setPriority(4);
         entity.setBlocksPerPage(defaultPageSize);

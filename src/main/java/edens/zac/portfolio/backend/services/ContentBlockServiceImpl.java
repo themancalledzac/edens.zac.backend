@@ -1,14 +1,11 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.ContentCameraModel;
-import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
-import edens.zac.portfolio.backend.model.ContentPersonModel;
-import edens.zac.portfolio.backend.model.ContentTagModel;
-import edens.zac.portfolio.backend.model.ImageUpdateRequest;
+import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCameraRepository;
 import edens.zac.portfolio.backend.repository.ContentFilmTypeRepository;
+import edens.zac.portfolio.backend.repository.ContentLensRepository;
 import edens.zac.portfolio.backend.repository.ContentPersonRepository;
 import edens.zac.portfolio.backend.repository.ContentTagRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -37,6 +34,7 @@ class ContentBlockServiceImpl implements ContentBlockService {
     private final ContentTagRepository contentTagRepository;
     private final ContentPersonRepository contentPersonRepository;
     private final ContentCameraRepository contentCameraRepository;
+    private final ContentLensRepository contentLensRepository;
     private final ContentFilmTypeRepository contentFilmTypeRepository;
     private final ContentBlockRepository contentBlockRepository;
     private final ContentBlockProcessingUtil contentBlockProcessingUtil;
@@ -120,7 +118,13 @@ class ContentBlockServiceImpl implements ContentBlockService {
             throw new IllegalArgumentException("At least one image update is required");
         }
 
-        List<Long> updatedIds = new ArrayList<>();
+        // Track updated images and newly created metadata
+        List<ImageContentBlockModel> updatedImages = new ArrayList<>();
+        Set<ContentTagEntity> newlyCreatedTags = new HashSet<>();
+        Set<ContentPersonEntity> newlyCreatedPeople = new HashSet<>();
+        Set<ContentCameraEntity> newlyCreatedCameras = new HashSet<>();
+        Set<ContentLensEntity> newlyCreatedLenses = new HashSet<>();
+        Set<ContentFilmTypeEntity> newlyCreatedFilmTypes = new HashSet<>();
         List<String> errors = new ArrayList<>();
 
         for (ImageUpdateRequest update : updates) {
@@ -136,109 +140,34 @@ class ContentBlockServiceImpl implements ContentBlockService {
                         .orElseThrow(() -> new EntityNotFoundException("Image not found: " + imageId));
 
                 // Apply basic image metadata updates using the processing util
-                // This uses the new prev/new/remove pattern for entity relationships
-                contentBlockProcessingUtil.applyImageUpdates(image, update);
+                // Note: This handles camera, lens, and filmType updates via the util
+                // We'll need to track which ones were created
+                applyImageUpdatesWithTracking(image, update, newlyCreatedCameras, newlyCreatedLenses, newlyCreatedFilmTypes);
 
-                // Update tags using prev/new/remove pattern
+                // Update tags using prev/new/remove pattern (with tracking)
                 if (update.getTags() != null) {
-                    ImageUpdateRequest.TagUpdate tagUpdate = update.getTags();
-                    Set<ContentTagEntity> tags = new HashSet<>(image.getTags());
-
-                    // Remove tags if specified
-                    if (tagUpdate.getRemove() != null && !tagUpdate.getRemove().isEmpty()) {
-                        tags.removeIf(tag -> tagUpdate.getRemove().contains(tag.getId()));
-                        log.info("Removed {} tags from image {}", tagUpdate.getRemove().size(), imageId);
-                    }
-
-                    // Add existing tags by ID (prev)
-                    if (tagUpdate.getPrev() != null && !tagUpdate.getPrev().isEmpty()) {
-                        Set<ContentTagEntity> existingTags = tagUpdate.getPrev().stream()
-                                .map(tagId -> contentTagRepository.findById(tagId)
-                                        .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + tagId)))
-                                .collect(Collectors.toSet());
-                        tags.addAll(existingTags);
-                        log.info("Added {} existing tags to image {}", existingTags.size(), imageId);
-                    }
-
-                    // Create and add new tags by name (newValue)
-                    if (tagUpdate.getNewValue() != null && !tagUpdate.getNewValue().isEmpty()) {
-                        Set<ContentTagEntity> newTags = tagUpdate.getNewValue().stream()
-                                .filter(tagName -> tagName != null && !tagName.trim().isEmpty())
-                                .map(tagName -> {
-                                    String trimmedName = tagName.trim();
-                                    return contentTagRepository.findByTagNameIgnoreCase(trimmedName)
-                                            .orElseGet(() -> {
-                                                log.info("Creating new tag: {}", trimmedName);
-                                                ContentTagEntity newTag = new ContentTagEntity(trimmedName);
-                                                return contentTagRepository.save(newTag);
-                                            });
-                                })
-                                .collect(Collectors.toSet());
-                        tags.addAll(newTags);
-                        log.info("Created and added {} new tags to image {}", newTags.size(), imageId);
-                    }
-
-                    image.setTags(tags);
+                    updateImageTags(image, update.getTags(), newlyCreatedTags);
                 }
 
-                // Update people using prev/new/remove pattern
+                // Update people using prev/new/remove pattern (with tracking)
                 if (update.getPeople() != null) {
-                    ImageUpdateRequest.PersonUpdate personUpdate = update.getPeople();
-                    Set<ContentPersonEntity> people = new HashSet<>(image.getPeople());
-
-                    // Remove people if specified
-                    if (personUpdate.getRemove() != null && !personUpdate.getRemove().isEmpty()) {
-                        people.removeIf(person -> personUpdate.getRemove().contains(person.getId()));
-                        log.info("Removed {} people from image {}", personUpdate.getRemove().size(), imageId);
-                    }
-
-                    // Add existing people by ID (prev)
-                    if (personUpdate.getPrev() != null && !personUpdate.getPrev().isEmpty()) {
-                        Set<ContentPersonEntity> existingPeople = personUpdate.getPrev().stream()
-                                .map(personId -> contentPersonRepository.findById(personId)
-                                        .orElseThrow(() -> new EntityNotFoundException("Person not found: " + personId)))
-                                .collect(Collectors.toSet());
-                        people.addAll(existingPeople);
-                        log.info("Added {} existing people to image {}", existingPeople.size(), imageId);
-                    }
-
-                    // Create and add new people by name (newValue)
-                    if (personUpdate.getNewValue() != null && !personUpdate.getNewValue().isEmpty()) {
-                        Set<ContentPersonEntity> newPeople = personUpdate.getNewValue().stream()
-                                .filter(personName -> personName != null && !personName.trim().isEmpty())
-                                .map(personName -> {
-                                    String trimmedName = personName.trim();
-                                    return contentPersonRepository.findByPersonNameIgnoreCase(trimmedName)
-                                            .orElseGet(() -> {
-                                                log.info("Creating new person: {}", trimmedName);
-                                                ContentPersonEntity newPerson = new ContentPersonEntity(trimmedName);
-                                                return contentPersonRepository.save(newPerson);
-                                            });
-                                })
-                                .collect(Collectors.toSet());
-                        people.addAll(newPeople);
-                        log.info("Created and added {} new people to image {}", newPeople.size(), imageId);
-                    }
-
-                    image.setPeople(people);
+                    updateImagePeople(image, update.getPeople(), newlyCreatedPeople);
                 }
 
                 // Handle collection updates using prev/new/remove pattern
                 if (update.getCollections() != null) {
                     ImageUpdateRequest.CollectionUpdate collectionUpdate = update.getCollections();
-
-                    // For now, we're handling visibility/orderIndex updates for the current collection
-                    // In the future, this could be extended to handle adding/removing from collections
                     if (collectionUpdate.getPrev() != null && !collectionUpdate.getPrev().isEmpty()) {
                         contentBlockProcessingUtil.handleCollectionVisibilityUpdates(image, collectionUpdate.getPrev());
                     }
-
-                    // TODO: Implement newValue and remove for collection associations
-                    // This would require creating/deleting ImageContentBlockEntity instances
                 }
 
-                contentBlockRepository.save(image);
-                updatedIds.add(imageId);
+                // Save the updated image
+                ImageContentBlockEntity savedImage = contentBlockRepository.save(image);
+
+                // Convert to model and add to results
+                ImageContentBlockModel imageModel = (ImageContentBlockModel) contentBlockProcessingUtil.convertToModel(savedImage);
+                updatedImages.add(imageModel);
 
             } catch (EntityNotFoundException e) {
                 errors.add(e.getMessage());
@@ -252,11 +181,212 @@ class ContentBlockServiceImpl implements ContentBlockService {
             }
         }
 
+        // Build the response with updated images and new metadata
+        ImageUpdateResponse.NewMetadata newMetadata = ImageUpdateResponse.NewMetadata.builder()
+                .tags(newlyCreatedTags.isEmpty() ? null : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
+                .people(newlyCreatedPeople.isEmpty() ? null : newlyCreatedPeople.stream().map(this::toPersonModel).collect(Collectors.toList()))
+                .cameras(newlyCreatedCameras.isEmpty() ? null : newlyCreatedCameras.stream().map(ContentBlockProcessingUtil::cameraEntityToCameraModel).collect(Collectors.toList()))
+                .lenses(newlyCreatedLenses.isEmpty() ? null : newlyCreatedLenses.stream().map(ContentBlockProcessingUtil::lensEntityToLensModel).collect(Collectors.toList()))
+                .filmTypes(newlyCreatedFilmTypes.isEmpty() ? null : newlyCreatedFilmTypes.stream().map(this::toFilmTypeModel).collect(Collectors.toList()))
+                .build();
+
+        ImageUpdateResponse response = ImageUpdateResponse.builder()
+                .updatedImages(updatedImages)
+                .newMetadata(newMetadata)
+                .errors(errors.isEmpty() ? null : errors)
+                .build();
+
+        // Return as Map for backward compatibility with interface
         return Map.of(
-                "updatedIds", updatedIds,
-                "updatedCount", updatedIds.size(),
-                "errors", errors
+                "updatedImages", response.getUpdatedImages(),
+                "newMetadata", response.getNewMetadata(),
+                "errors", response.getErrors() != null ? response.getErrors() : List.of()
         );
+    }
+
+    /**
+     * Apply image metadata updates and track newly created entities (cameras, lenses, film types).
+     */
+    private void applyImageUpdatesWithTracking(
+            ImageContentBlockEntity image,
+            ImageUpdateRequest updateRequest,
+            Set<ContentCameraEntity> newCameras,
+            Set<ContentLensEntity> newLenses,
+            Set<ContentFilmTypeEntity> newFilmTypes) {
+
+        // Update basic metadata fields
+        if (updateRequest.getTitle() != null) image.setTitle(updateRequest.getTitle());
+        if (updateRequest.getRating() != null) image.setRating(updateRequest.getRating());
+        if (updateRequest.getLocation() != null) image.setLocation(updateRequest.getLocation());
+        if (updateRequest.getAuthor() != null) image.setAuthor(updateRequest.getAuthor());
+        if (updateRequest.getIsFilm() != null) image.setIsFilm(updateRequest.getIsFilm());
+        if (updateRequest.getFilmFormat() != null) image.setFilmFormat(updateRequest.getFilmFormat());
+        if (updateRequest.getBlackAndWhite() != null) image.setBlackAndWhite(updateRequest.getBlackAndWhite());
+        if (updateRequest.getFocalLength() != null) image.setFocalLength(updateRequest.getFocalLength());
+        if (updateRequest.getFStop() != null) image.setFStop(updateRequest.getFStop());
+        if (updateRequest.getShutterSpeed() != null) image.setShutterSpeed(updateRequest.getShutterSpeed());
+        if (updateRequest.getIso() != null) image.setIso(updateRequest.getIso());
+        if (updateRequest.getCreateDate() != null) image.setCreateDate(updateRequest.getCreateDate());
+
+        // Handle camera update with tracking
+        if (updateRequest.getCamera() != null) {
+            ImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
+            if (Boolean.TRUE.equals(cameraUpdate.getRemove())) {
+                image.setCamera(null);
+            } else if (cameraUpdate.getNewValue() != null && !cameraUpdate.getNewValue().trim().isEmpty()) {
+                String cameraName = cameraUpdate.getNewValue().trim();
+                var existing = contentCameraRepository.findByCameraNameIgnoreCase(cameraName);
+                if (existing.isPresent()) {
+                    image.setCamera(existing.get());
+                } else {
+                    ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
+                    newCamera = contentCameraRepository.save(newCamera);
+                    image.setCamera(newCamera);
+                    newCameras.add(newCamera);
+                    log.info("Created new camera: {}", cameraName);
+                }
+            } else if (cameraUpdate.getPrev() != null) {
+                ContentCameraEntity camera = contentCameraRepository.findById(cameraUpdate.getPrev())
+                        .orElseThrow(() -> new IllegalArgumentException("Camera not found: " + cameraUpdate.getPrev()));
+                image.setCamera(camera);
+            }
+        }
+
+        // Handle lens update with tracking
+        if (updateRequest.getLens() != null) {
+            ImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
+            if (Boolean.TRUE.equals(lensUpdate.getRemove())) {
+                image.setLens(null);
+            } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
+                String lensName = lensUpdate.getNewValue().trim();
+                var existing = contentLensRepository.findByLensNameIgnoreCase(lensName);
+                if (existing.isPresent()) {
+                    image.setLens(existing.get());
+                } else {
+                    ContentLensEntity newLens = new ContentLensEntity(lensName);
+                    newLens = contentLensRepository.save(newLens);
+                    image.setLens(newLens);
+                    newLenses.add(newLens);
+                    log.info("Created new lens: {}", lensName);
+                }
+            } else if (lensUpdate.getPrev() != null) {
+                ContentLensEntity lens = contentLensRepository.findById(lensUpdate.getPrev())
+                        .orElseThrow(() -> new IllegalArgumentException("Lens not found: " + lensUpdate.getPrev()));
+                image.setLens(lens);
+            }
+        }
+
+        // Handle film type update with tracking
+        if (updateRequest.getFilmType() != null) {
+            ImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
+            if (Boolean.TRUE.equals(filmTypeUpdate.getRemove())) {
+                image.setFilmType(null);
+            } else if (filmTypeUpdate.getNewValue() != null) {
+                NewFilmTypeRequest newFilmTypeRequest = filmTypeUpdate.getNewValue();
+                String displayName = newFilmTypeRequest.getFilmTypeName().trim();
+                String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
+
+                var existing = contentFilmTypeRepository.findByFilmTypeNameIgnoreCase(technicalName);
+                if (existing.isPresent()) {
+                    image.setFilmType(existing.get());
+                } else {
+                    ContentFilmTypeEntity newFilmType = new ContentFilmTypeEntity(
+                            technicalName, displayName, newFilmTypeRequest.getDefaultIso());
+                    newFilmType = contentFilmTypeRepository.save(newFilmType);
+                    image.setFilmType(newFilmType);
+                    newFilmTypes.add(newFilmType);
+                    log.info("Created new film type: {}", displayName);
+                }
+            } else if (filmTypeUpdate.getPrev() != null) {
+                ContentFilmTypeEntity filmType = contentFilmTypeRepository.findById(filmTypeUpdate.getPrev())
+                        .orElseThrow(() -> new IllegalArgumentException("Film type not found: " + filmTypeUpdate.getPrev()));
+                image.setFilmType(filmType);
+            }
+        }
+    }
+
+    /**
+     * Update image tags and track newly created ones.
+     */
+    private void updateImageTags(ImageContentBlockEntity image, ImageUpdateRequest.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
+        Set<ContentTagEntity> tags = new HashSet<>(image.getTags());
+
+        // Remove tags if specified
+        if (tagUpdate.getRemove() != null && !tagUpdate.getRemove().isEmpty()) {
+            tags.removeIf(tag -> tagUpdate.getRemove().contains(tag.getId()));
+        }
+
+        // Add existing tags by ID (prev)
+        if (tagUpdate.getPrev() != null && !tagUpdate.getPrev().isEmpty()) {
+            Set<ContentTagEntity> existingTags = tagUpdate.getPrev().stream()
+                    .map(tagId -> contentTagRepository.findById(tagId)
+                            .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + tagId)))
+                    .collect(Collectors.toSet());
+            tags.addAll(existingTags);
+        }
+
+        // Create and add new tags by name (newValue) with tracking
+        if (tagUpdate.getNewValue() != null && !tagUpdate.getNewValue().isEmpty()) {
+            for (String tagName : tagUpdate.getNewValue()) {
+                if (tagName != null && !tagName.trim().isEmpty()) {
+                    String trimmedName = tagName.trim();
+                    var existing = contentTagRepository.findByTagNameIgnoreCase(trimmedName);
+                    if (existing.isPresent()) {
+                        tags.add(existing.get());
+                    } else {
+                        ContentTagEntity newTag = new ContentTagEntity(trimmedName);
+                        newTag = contentTagRepository.save(newTag);
+                        tags.add(newTag);
+                        newTags.add(newTag);
+                        log.info("Created new tag: {}", trimmedName);
+                    }
+                }
+            }
+        }
+
+        image.setTags(tags);
+    }
+
+    /**
+     * Update image people and track newly created ones.
+     */
+    private void updateImagePeople(ImageContentBlockEntity image, ImageUpdateRequest.PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
+        Set<ContentPersonEntity> people = new HashSet<>(image.getPeople());
+
+        // Remove people if specified
+        if (personUpdate.getRemove() != null && !personUpdate.getRemove().isEmpty()) {
+            people.removeIf(person -> personUpdate.getRemove().contains(person.getId()));
+        }
+
+        // Add existing people by ID (prev)
+        if (personUpdate.getPrev() != null && !personUpdate.getPrev().isEmpty()) {
+            Set<ContentPersonEntity> existingPeople = personUpdate.getPrev().stream()
+                    .map(personId -> contentPersonRepository.findById(personId)
+                            .orElseThrow(() -> new EntityNotFoundException("Person not found: " + personId)))
+                    .collect(Collectors.toSet());
+            people.addAll(existingPeople);
+        }
+
+        // Create and add new people by name (newValue) with tracking
+        if (personUpdate.getNewValue() != null && !personUpdate.getNewValue().isEmpty()) {
+            for (String personName : personUpdate.getNewValue()) {
+                if (personName != null && !personName.trim().isEmpty()) {
+                    String trimmedName = personName.trim();
+                    var existing = contentPersonRepository.findByPersonNameIgnoreCase(trimmedName);
+                    if (existing.isPresent()) {
+                        people.add(existing.get());
+                    } else {
+                        ContentPersonEntity newPerson = new ContentPersonEntity(trimmedName);
+                        newPerson = contentPersonRepository.save(newPerson);
+                        people.add(newPerson);
+                        newPeople.add(newPerson);
+                        log.info("Created new person: {}", trimmedName);
+                    }
+                }
+            }
+        }
+
+        image.setPeople(people);
     }
 
     @Override
@@ -321,6 +451,14 @@ class ContentBlockServiceImpl implements ContentBlockService {
     public List<ContentFilmTypeModel> getAllFilmTypes() {
         return contentFilmTypeRepository.findAllByOrderByDisplayNameAsc().stream()
                 .map(this::toFilmTypeModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentLensModel> getAllLenses() {
+        return contentLensRepository.findAllByOrderByLensNameAsc().stream()
+                .map(ContentBlockProcessingUtil::lensEntityToLensModel)
                 .collect(Collectors.toList());
     }
 

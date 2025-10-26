@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,7 +29,6 @@ class ContentCollectionRepositoryTest {
 
     private ContentCollectionEntity blogCollection;
     private ContentCollectionEntity portfolioCollection;
-    private ContentCollectionEntity hiddenCollection;
 
     @BeforeEach
     void setUp() {
@@ -40,7 +39,7 @@ class ContentCollectionRepositoryTest {
         blogCollection.setSlug("test-blog");
         blogCollection.setVisible(true);
         blogCollection.setPriority(1);
-        blogCollection.setCollectionDate(LocalDateTime.now().minusDays(1));
+        blogCollection.setCollectionDate(LocalDate.now().minusDays(1));
 
         portfolioCollection = new ContentCollectionEntity();
         portfolioCollection.setType(CollectionType.PORTFOLIO);
@@ -49,13 +48,13 @@ class ContentCollectionRepositoryTest {
         portfolioCollection.setVisible(true);
         portfolioCollection.setPriority(2);
 
-        hiddenCollection = new ContentCollectionEntity();
+        ContentCollectionEntity hiddenCollection = new ContentCollectionEntity();
         hiddenCollection.setType(CollectionType.BLOG);
         hiddenCollection.setTitle("Hidden Blog");
         hiddenCollection.setSlug("hidden-blog");
         hiddenCollection.setVisible(false);
         hiddenCollection.setPriority(1);
-        hiddenCollection.setCollectionDate(LocalDateTime.now());
+        hiddenCollection.setCollectionDate(LocalDate.now());
 
         entityManager.persist(blogCollection);
         entityManager.flush();
@@ -70,8 +69,8 @@ class ContentCollectionRepositoryTest {
         List<ContentCollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType.BLOG);
 
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).getSlug()).isEqualTo("test-blog");
-        assertThat(results.get(0).getVisible()).isTrue();
+        assertThat(results.getFirst().getSlug()).isEqualTo("test-blog");
+        assertThat(results.getFirst().getVisible()).isTrue();
     }
 
     @Test
