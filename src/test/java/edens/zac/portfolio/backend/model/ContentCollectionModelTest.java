@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +40,9 @@ class ContentCollectionModelTest {
         @DisplayName("Should create model with all valid fields using builder")
         void shouldCreateModelWithAllValidFields() {
             LocalDateTime now = LocalDateTime.now();
+            LocalDate today = LocalDate.now();
             List<ContentBlockModel> contentBlocks = new ArrayList<>();
-            
+
             ContentCollectionModel model = ContentCollectionModel.builder()
                     .id(1L)
                     .type(CollectionType.PORTFOLIO)
@@ -48,7 +50,7 @@ class ContentCollectionModelTest {
                     .slug("test-portfolio")
                     .description("Test description")
                     .location("Test location")
-                    .collectionDate(now)
+                    .collectionDate(today)
                     .visible(true)
                     .priority(1)
                     .isPasswordProtected(false)
@@ -69,7 +71,7 @@ class ContentCollectionModelTest {
             assertEquals("test-portfolio", model.getSlug());
             assertEquals("Test description", model.getDescription());
             assertEquals("Test location", model.getLocation());
-            assertEquals(now, model.getCollectionDate());
+            assertEquals(today, model.getCollectionDate());
             assertTrue(model.getVisible());
             assertEquals(1, model.getPriority());
             assertNull(model.getCoverImage());

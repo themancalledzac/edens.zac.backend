@@ -1,16 +1,15 @@
 package edens.zac.portfolio.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 /**
  * Response DTO for the collection update/manage endpoint.
- * Contains the collection along with all metadata needed for the update UI:
- * tags, people, cameras, film types, and film formats.
+ * Contains the collection along with all metadata needed for the update UI.
+ * Uses composition with GeneralMetadataDTO to avoid field duplication.
  */
 @Data
 @NoArgsConstructor
@@ -24,32 +23,9 @@ public class ContentCollectionUpdateResponseDTO {
     private ContentCollectionModel collection;
 
     /**
-     * All available tags that can be assigned to content blocks
+     * General metadata including tags, people, cameras, lenses, film types, film formats, and collections.
+     * This is unwrapped during JSON serialization to maintain backwards compatibility with the API.
      */
-    private List<ContentTagModel> tags;
-
-    /**
-     * All available people that can be tagged in content blocks
-     */
-    private List<ContentPersonModel> people;
-
-    /**
-     * All available collections in the system
-     */
-    private List<CollectionListModel> collections;
-
-    /**
-     * All available cameras for film photography metadata
-     */
-    private List<ContentCameraModel> cameras;
-
-    /**
-     * All available film types with their metadata (display name, default ISO)
-     */
-    private List<ContentFilmTypeModel> filmTypes;
-
-    /**
-     * All available film formats (35mm, 120, etc.)
-     */
-    private List<FilmFormatDTO> filmFormats;
+    @JsonUnwrapped
+    private GeneralMetadataDTO metadata;
 }

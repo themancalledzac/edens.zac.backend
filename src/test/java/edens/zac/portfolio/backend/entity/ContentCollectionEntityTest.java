@@ -8,7 +8,7 @@ import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -129,16 +129,14 @@ class ContentCollectionEntityTest {
     @Test
     void testLocationLengthValidation() {
         // Test with location that is too long
-        StringBuilder longLocationBuilder = new StringBuilder();
-        for (int i = 0; i < 256; i++) { // 256 characters, max is 255
-            longLocationBuilder.append("A");
-        }
+        // 256 characters, max is 255
+        String longLocationBuilder = "A".repeat(256);
 
         ContentCollectionEntity longLocation = new ContentCollectionEntity();
         longLocation.setType(CollectionType.BLOG);
         longLocation.setTitle("Test Collection");
         longLocation.setSlug("test-collection");
-        longLocation.setLocation(longLocationBuilder.toString());
+        longLocation.setLocation(longLocationBuilder);
 
         Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(longLocation);
         assertFalse(violations.isEmpty());
@@ -255,7 +253,7 @@ class ContentCollectionEntityTest {
 
     @Test
     void testBuilderWithAllFields() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = LocalDate.now();
 
         // Test builder with all fields
         ContentCollectionEntity collection = new ContentCollectionEntity();
@@ -264,7 +262,7 @@ class ContentCollectionEntityTest {
         collection.setSlug("complete-portfolio");
         collection.setDescription("A portfolio with all fields populated");
         collection.setLocation("Test Location");
-        collection.setCollectionDate(now);
+        collection.setCollectionDate(today);
         collection.setPriority(5);
         collection.setBlocksPerPage(20);
         collection.setTotalBlocks(100);
@@ -278,7 +276,7 @@ class ContentCollectionEntityTest {
         assertEquals("complete-portfolio", collection.getSlug());
         assertEquals("A portfolio with all fields populated", collection.getDescription());
         assertEquals("Test Location", collection.getLocation());
-        assertEquals(now, collection.getCollectionDate());
+        assertEquals(today, collection.getCollectionDate());
         assertTrue(collection.getVisible());
         assertEquals(5, collection.getPriority());
         assertEquals(20, collection.getBlocksPerPage());

@@ -171,27 +171,28 @@ The project is transitioning from a simple Catalog/Image system to a flexible Co
 ## Docker Development Environment
 
 ### 1. Build & Compilation
-- **ALWAYS use docker-compose for builds** - This project runs in a dockerized environment
-- **NEVER use `./mvnw` directly** - Java runtime may not be available on the host machine
-- **Use `docker-compose` commands** for all build operations:
+- **DO NOT run build/compile commands in Claude Code sessions** - The development environment does not support running builds
+- **NEVER use `./mvnw` directly** - Java runtime is not available on the host machine
+- **NEVER use `docker-compose run --rm app mvn`** - This is not supported in the Claude Code environment
+- **The user will handle builds manually** outside of the Claude Code session
+- **Focus on code changes only** - Trust that the code will compile correctly based on Java type safety
+- Examples of commands to AVOID:
   ```bash
-  # Correct way to build/compile
+  # WRONG - Don't do any of these
+  ./mvnw clean compile
+  ./mvnw test
   docker-compose run --rm app mvn clean compile
-  docker-compose run --rm app mvn clean install
   docker-compose run --rm app mvn test
-
-  # WRONG - Don't do this
-  ./mvnw clean compile  # This will fail if Java isn't installed on host
   ```
 
 ### 2. Running the Application
-- **Use docker-compose up** to start the application
+- **Use docker-compose up** to start the application (user will do this manually)
 - **Database is managed by docker-compose** - don't expect local MySQL
 - **Environment variables** are defined in docker-compose.yml
 
-### 3. Testing in Docker
-- **Run tests via docker-compose** to ensure correct environment
-- **Integration tests need docker** for TestContainers and database access
+### 3. Testing
+- **DO NOT run tests via Claude Code** - Tests will be run manually by the user
+- **Integration tests need docker** for TestContainers and database access (user handles this)
 
 ## Summary
 

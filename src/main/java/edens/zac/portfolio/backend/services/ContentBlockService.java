@@ -83,6 +83,13 @@ public interface ContentBlockService {
     List<edens.zac.portfolio.backend.model.ContentFilmTypeModel> getAllFilmTypes();
 
     /**
+     * Get all lenses ordered alphabetically
+     *
+     * @return List of all lenses
+     */
+    List<edens.zac.portfolio.backend.model.ContentLensModel> getAllLenses();
+
+    /**
      * Create a new film type
      *
      * @param filmTypeName The technical name of the film type (e.g., "KODAK_PORTRA_400")

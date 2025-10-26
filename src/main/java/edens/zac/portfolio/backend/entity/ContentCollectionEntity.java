@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -7,6 +8,7 @@ import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -60,8 +62,9 @@ public class ContentCollectionEntity {
     @Column(name = "location")
     private String location;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @Column(name = "collection_date")
-    private LocalDateTime collectionDate;
+    private LocalDate collectionDate;
 
     @NotNull
     @Column(name = "visible", nullable = false)

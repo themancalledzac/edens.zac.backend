@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,11 +41,12 @@ class ContentCollectionUpdateDTOTest {
         @DisplayName("Should create DTO with all valid fields using builder")
         void shouldCreateDTOWithAllValidFields() {
             LocalDateTime now = LocalDateTime.now();
+            LocalDate today = LocalDate.now();
             List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = new ArrayList<>();
             List<Long> idsToRemove = Arrays.asList(1L, 2L, 3L);
             List<String> newTextBlocks = Arrays.asList("New text content 1", "New text content 2");
             List<String> newCodeBlocks = Arrays.asList("console.log('Hello');", "function test() {}");
-            
+
             ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
                     .id(1L)
                     .type(CollectionType.CLIENT_GALLERY)
@@ -52,7 +54,7 @@ class ContentCollectionUpdateDTOTest {
                     .slug("updated-client-gallery")
                     .description("Updated professional client gallery")
                     .location("Updated Location")
-                    .collectionDate(now)
+                    .collectionDate(today)
                     .visible(true)
                     .priority(2)
                     .isPasswordProtected(true)
@@ -74,7 +76,7 @@ class ContentCollectionUpdateDTOTest {
             assertEquals("updated-client-gallery", dto.getSlug());
             assertEquals("Updated professional client gallery", dto.getDescription());
             assertEquals("Updated Location", dto.getLocation());
-            assertEquals(now, dto.getCollectionDate());
+            assertEquals(today, dto.getCollectionDate());
             assertTrue(dto.getVisible());
             assertEquals(2, dto.getPriority());
             assertTrue(dto.getIsPasswordProtected());

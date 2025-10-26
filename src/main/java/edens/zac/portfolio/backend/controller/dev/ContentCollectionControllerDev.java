@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
 import edens.zac.portfolio.backend.model.ContentCollectionModel;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
 import edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO;
+import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.ContentCollectionService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,7 @@ public class ContentCollectionControllerDev {
      * Create a new collection
      *
      * @param createRequest Collection creation data
-     * @return ResponseEntity with the created collection
+     * @return ResponseEntity with the created collection and all metadata for the manage page
      */
     @PostMapping(
             value = "/createCollection",
@@ -46,11 +47,11 @@ public class ContentCollectionControllerDev {
     public ResponseEntity<?> createCollection(
             @RequestBody ContentCollectionCreateRequest createRequest) {
         try {
-            // Create collection with content
-            ContentCollectionModel createdCollection = contentCollectionService.createCollection(createRequest);
-            log.info("Successfully created collection: {}", createdCollection.getId());
+            // Create collection and get full update response with all metadata (tags, people, cameras, etc.)
+            ContentCollectionUpdateResponseDTO response = contentCollectionService.createCollection(createRequest);
+            log.info("Successfully created collection: {}", response.getCollection().getId());
 
-            return ResponseEntity.ok(createdCollection);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error creating collection: {}", e.getMessage(), e);
             return ResponseEntity
@@ -238,6 +239,27 @@ public class ContentCollectionControllerDev {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to retrieve update data: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get general metadata without a specific collection.
+     * Returns all available tags, people, cameras, lenses, film types, film formats, and collections.
+     * This is useful when you already have collection data and only need the metadata.
+     *
+     * @return ResponseEntity with general metadata
+     */
+    @GetMapping("/metadata")
+    public ResponseEntity<?> getMetadata() {
+        try {
+            GeneralMetadataDTO response = contentCollectionService.getGeneralMetadata();
+            log.info("Successfully retrieved general metadata");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error retrieving general metadata: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve general metadata: " + e.getMessage());
         }
     }
 }

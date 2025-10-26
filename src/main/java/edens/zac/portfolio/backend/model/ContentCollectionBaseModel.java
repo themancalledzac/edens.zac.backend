@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -7,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -37,7 +39,8 @@ public abstract class ContentCollectionBaseModel {
     @Size(max = 255, message = "Location cannot exceed 255 characters")
     private String location;
 
-    private LocalDateTime collectionDate;
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate collectionDate;
 
     private Boolean visible;
 
