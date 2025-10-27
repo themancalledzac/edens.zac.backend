@@ -499,50 +499,22 @@ class ContentBlockServiceImpl implements ContentBlockService {
     // ========== Helper Methods: Entity to Model Conversion ==========
 
     /**
-     * Convert ContentTagEntity to ContentTagModel with associated content IDs
+     * Convert ContentTagEntity to ContentTagModel
      */
     private ContentTagModel toTagModel(ContentTagEntity entity) {
-        // Collect associated content collection IDs
-        List<Long> contentCollectionIds = entity.getContentCollections().stream()
-                .map(ContentCollectionEntity::getId)
-                .sorted()
-                .toList();
-
-        // Collect associated image content block IDs
-        List<Long> imageContentBlockIds = entity.getImageContentBlocks().stream()
-                .map(ImageContentBlockEntity::getId)
-                .sorted()
-                .toList();
-
-        // Collect associated gif content block IDs
-        List<Long> gifContentBlockIds = entity.getGifContentBlocks().stream()
-                .map(GifContentBlockEntity::getId)
-                .sorted()
-                .toList();
-
         return ContentTagModel.builder()
                 .id(entity.getId())
                 .name(entity.getTagName())
-                .contentCollectionIds(contentCollectionIds)
-                .imageContentBlockIds(imageContentBlockIds)
-                .gifContentBlockIds(gifContentBlockIds)
                 .build();
     }
 
     /**
-     * Convert ContentPersonEntity to ContentPersonModel with associated content IDs
+     * Convert ContentPersonEntity to ContentPersonModel
      */
     private ContentPersonModel toPersonModel(ContentPersonEntity entity) {
-        // Collect associated image content block IDs
-        List<Long> imageContentBlockIds = entity.getImageContentBlocks().stream()
-                .map(ImageContentBlockEntity::getId)
-                .sorted()
-                .toList();
-
         return ContentPersonModel.builder()
                 .id(entity.getId())
                 .name(entity.getPersonName())
-                .imageContentBlockIds(imageContentBlockIds)
                 .build();
     }
 

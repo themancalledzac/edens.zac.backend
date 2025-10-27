@@ -12,7 +12,14 @@ import java.util.Optional;
 @Repository
 public interface ContentCollectionHomeCardRepository extends JpaRepository<ContentCollectionHomeCardEntity, Long> {
 
-    @Query("SELECT c FROM ContentCollectionHomeCardEntity c WHERE c.priority <= :maxPriority AND c.isActiveHomeCard = true AND c.coverImageUrl IS NOT NULL AND c.coverImageUrl <> '' ORDER BY c.priority ASC, c.createdDate DESC")
+    @Query("SELECT h FROM ContentCollectionHomeCardEntity h " +
+           "LEFT JOIN ContentCollectionEntity c ON h.referenceId = c.id " +
+           "WHERE h.priority <= :maxPriority " +
+           "AND h.isActiveHomeCard = true " +
+           "AND h.coverImageUrl IS NOT NULL " +
+           "AND h.coverImageUrl <> '' " +
+           "AND (h.referenceId IS NULL OR c.visible = true) " +
+           "ORDER BY h.priority ASC, h.createdDate DESC")
     List<ContentCollectionHomeCardEntity> getHomePage(@Param("maxPriority") Integer maxPriority);
 
     Optional<ContentCollectionHomeCardEntity> findByCardTypeAndReferenceId(String cardType, Long referenceId);
