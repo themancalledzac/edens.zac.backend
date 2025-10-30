@@ -69,11 +69,11 @@ class ContentCollectionControllerDevTest {
         testCollection.setDescription("A test blog collection");
         testCollection.setVisible(true);
         testCollection.setPriority(1);
-        testCollection.setBlocksPerPage(30);
-        testCollection.setTotalBlocks(5);
+        testCollection.setContentPerPage(30);
+        testCollection.setTotalContent(5);
         testCollection.setTotalPages(1);
         testCollection.setCurrentPage(0);
-        testCollection.setContentBlocks(new ArrayList<>());
+        testCollection.setContent(new ArrayList<>());
         testCollection.setCreatedAt(LocalDateTime.now());
         testCollection.setUpdatedAt(LocalDateTime.now());
 

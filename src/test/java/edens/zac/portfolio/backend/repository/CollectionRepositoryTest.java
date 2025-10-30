@@ -127,28 +127,28 @@ class CollectionRepositoryTest {
 
         assertThat(result).isPresent();
         assertThat(result.get().getTitle()).isEqualTo("Test Blog");
-        assertThat(result.get().getContent()).isEmpty(); // No blocks fetched
+        assertThat(result.get().getContent()).isEmpty(); // No content fetched
     }
 
     @Test
-    void findBySlugWithContentBlocks_ShouldReturnCollectionWith() {
-        // Add content blocks
-        TextContentEntity block1 = TextContentEntity.builder()
+    void findBySlugWithContent_ShouldReturnCollectionWith() {
+        // Add content
+        TextContentEntity content1 = TextContentEntity.builder()
                 .collectionId(blogCollection.getId())
                 .orderIndex(0)
-                .blockType(ContentType.TEXT)
-                .content("First block content")
+                .contentType(ContentType.TEXT)
+                .content("First content")
                 .build();
 
-        TextContentEntity block2 = TextContentEntity.builder()
+        TextContentEntity content2 = TextContentEntity.builder()
                 .collectionId(blogCollection.getId())
                 .orderIndex(1)
-                .blockType(ContentType.TEXT)
-                .content("Second block content")
+                .contentType(ContentType.TEXT)
+                .content("Second content")
                 .build();
 
-        entityManager.persist(block1);
-        entityManager.persist(block2);
+        entityManager.persist(content1);
+        entityManager.persist(content2);
         entityManager.flush();
         
         // Clear the persistence context to force a fresh query

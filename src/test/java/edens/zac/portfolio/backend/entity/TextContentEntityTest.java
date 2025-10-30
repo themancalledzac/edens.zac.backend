@@ -28,7 +28,7 @@ class TextContentEntityTest {
         TextContentEntity textBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 .content("This is a sample text content with enough characters to be meaningful.")
                 .formatType("markdown")
                 .build();
@@ -44,7 +44,7 @@ class TextContentEntityTest {
         TextContentEntity textBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 // content is missing
                 .formatType("markdown")
                 .build();
@@ -67,7 +67,7 @@ class TextContentEntityTest {
         TextContentEntity textBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 .caption("Text content caption")
                 .content("This is a sample text content with enough characters to be meaningful.")
                 .formatType("markdown")
@@ -88,7 +88,7 @@ class TextContentEntityTest {
         TextContentEntity markdownBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 .content("Markdown content")
                 .formatType("markdown")
                 .build();
@@ -96,7 +96,7 @@ class TextContentEntityTest {
         TextContentEntity htmlBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(1)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 .content("<p>HTML content</p>")
                 .formatType("html")
                 .build();
@@ -104,7 +104,7 @@ class TextContentEntityTest {
         TextContentEntity plainBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(2)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 .content("Plain text content")
                 .formatType("plain")
                 .build();
@@ -120,7 +120,7 @@ class TextContentEntityTest {
         TextContentEntity textBlock1 = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 .content("This is a sample text content.")
                 .formatType("markdown")
                 .build();
@@ -128,7 +128,7 @@ class TextContentEntityTest {
         TextContentEntity textBlock2 = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.TEXT)
+                .contentType(ContentType.TEXT)
                 .content("This is a sample text content.")
                 .formatType("markdown")
                 .build();

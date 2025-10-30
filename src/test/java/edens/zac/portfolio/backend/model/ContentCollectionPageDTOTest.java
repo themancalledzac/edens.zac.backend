@@ -39,7 +39,7 @@ class ContentCollectionPageDTOTest {
     /**
      * Creates a valid default builder for ContentCollectionPageDTO with all required fields populated
      */
-    private static CollectionPageDTO.ContentCollectionPageDTOBuilder<?, ?> defaultValidBuilder() {
+    private static CollectionPageDTO.CollectionPageDTOBuilder<?, ?> defaultValidBuilder() {
         LocalDateTime now = LocalDateTime.now();
         LocalDate today = LocalDate.now();
         return CollectionPageDTO.builder()
@@ -402,27 +402,19 @@ class ContentCollectionPageDTOTest {
     }
 
     /**
-     * Helper class for parameterized testing of required fields
-     */
-    private static class TestCase {
-        final String fieldName;
-        final Consumer<CollectionPageDTO.ContentCollectionPageDTOBuilder> builderModifier;
-        final String expectedMessage;
+         * Helper class for parameterized testing of required fields
+         */
+        private record TestCase(String fieldName, Consumer<CollectionPageDTO.CollectionPageDTOBuilder> builderModifier,
+                                String expectedMessage) {
 
-        TestCase(String fieldName, Consumer<CollectionPageDTO.ContentCollectionPageDTOBuilder> builderModifier, String expectedMessage) {
-            this.fieldName = fieldName;
-            this.builderModifier = builderModifier;
-            this.expectedMessage = expectedMessage;
-        }
+        CollectionPageDTO.CollectionPageDTOBuilder applyToBuilder(CollectionPageDTO.CollectionPageDTOBuilder builder) {
+                builderModifier.accept(builder);
+                return builder;
+            }
 
-        CollectionPageDTO.ContentCollectionPageDTOBuilder applyToBuilder(CollectionPageDTO.ContentCollectionPageDTOBuilder builder) {
-            builderModifier.accept(builder);
-            return builder;
+            @Override
+            public String toString() {
+                return fieldName;
+            }
         }
-
-        @Override
-        public String toString() {
-            return fieldName;
-        }
-    }
 }

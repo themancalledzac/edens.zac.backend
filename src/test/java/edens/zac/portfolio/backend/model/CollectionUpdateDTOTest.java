@@ -314,19 +314,19 @@ class CollectionUpdateDTOTest {
     }
 
     @Nested
-    @DisplayName("Content Block Operations Tests")
-    class ContentBlockOperationsTests {
+    @DisplayName("Content Operations Tests")
+    class ContentOperationsTests {
 
         @Test
         @DisplayName("Should accept valid reorder operations")
         void shouldAcceptValidReorderOperations() {
             List<CollectionUpdateDTO.ContentReorderOperation> reorderOps = Arrays.asList(
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(1L)
+                            .contentId(1L)
                             .newOrderIndex(0)
                             .build(),
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(2L)
+                            .contentId(2L)
                             .newOrderIndex(1)
                             .build()
             );
@@ -386,8 +386,8 @@ class CollectionUpdateDTOTest {
         }
 
         @Test
-        @DisplayName("Should accept valid content block IDs to remove")
-        void shouldAcceptValidContentBlockIdsToRemove() {
+        @DisplayName("Should accept valid content IDs to remove")
+        void shouldAcceptValidContentIdsToRemove() {
             List<Long> idsToRemove = Arrays.asList(1L, 5L, 10L, 15L);
             
             CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
@@ -407,9 +407,9 @@ class CollectionUpdateDTOTest {
         @DisplayName("Should accept valid new text content")
         void shouldAcceptValidNewTextContent() {
             List<String> newTextContent = Arrays.asList(
-                    "This is a new text block with some content.",
-                    "Another text block that provides additional information.",
-                    "A final text block to complete the story."
+                    "This is a new text content with some content.",
+                    "Another text content that provides additional information.",
+                    "A final text content to complete the story."
             );
             
             CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
@@ -422,7 +422,7 @@ class CollectionUpdateDTOTest {
             Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(3, dto.getNewTextContent().size());
-            assertEquals("This is a new text block with some content.", dto.getNewTextContent().get(0));
+            assertEquals("This is a new text content with some content.", dto.getNewTextContent().get(0));
         }
 
         @Test
@@ -449,7 +449,7 @@ class CollectionUpdateDTOTest {
     }
 
     @Nested
-    @DisplayName("Content Block Reorder Operation Tests")
+    @DisplayName("Content Reorder Operation Tests")
     class ContentReorderOperationTests {
 
         @Test
@@ -457,23 +457,23 @@ class CollectionUpdateDTOTest {
         void shouldCreateValidReorderOperation() {
             CollectionUpdateDTO.ContentReorderOperation operation =
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(5L)
+                            .contentId(5L)
                             .newOrderIndex(2)
                             .build();
 
             Set<ConstraintViolation<CollectionUpdateDTO.ContentReorderOperation>> violations =
                     validator.validate(operation);
             assertTrue(violations.isEmpty());
-            assertEquals(5L, operation.getContentBlockId());
+            assertEquals(5L, operation.getContentId());
             assertEquals(2, operation.getNewOrderIndex());
         }
 
         @Test
-        @DisplayName("Should accept null contentBlockId when oldOrderIndex is provided")
-        void shouldAcceptNullContentBlockIdWhenOldOrderIndexProvided() {
+        @DisplayName("Should accept null contentId when oldOrderIndex is provided")
+        void shouldAcceptNullContentIdWhenOldOrderIndexProvided() {
             CollectionUpdateDTO.ContentReorderOperation operation =
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(null) // Can be null if oldOrderIndex is set
+                            .contentId(null) // Can be null if oldOrderIndex is set
                             .oldOrderIndex(0)
                             .newOrderIndex(1)
                             .build();
@@ -488,7 +488,7 @@ class CollectionUpdateDTOTest {
         void shouldFailValidationWhenNewOrderIndexIsNegative() {
             CollectionUpdateDTO.ContentReorderOperation operation =
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(3L)
+                            .contentId(3L)
                             .newOrderIndex(-1) // Invalid - below minimum
                             .build();
 
@@ -504,7 +504,7 @@ class CollectionUpdateDTOTest {
         void shouldAcceptNewOrderIndexAtMinBoundary() {
             CollectionUpdateDTO.ContentReorderOperation operation =
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(7L)
+                            .contentId(7L)
                             .newOrderIndex(0) // Exactly at minimum
                             .build();
 
@@ -520,7 +520,7 @@ class CollectionUpdateDTOTest {
                     new CollectionUpdateDTO.ContentReorderOperation();
             
             assertNotNull(operation);
-            assertNull(operation.getContentBlockId());
+            assertNull(operation.getContentId());
             assertNull(operation.getNewOrderIndex());
         }
 
@@ -531,7 +531,7 @@ class CollectionUpdateDTOTest {
                     new CollectionUpdateDTO.ContentReorderOperation(9L, 4);
             
             assertNotNull(operation);
-            assertEquals(9L, operation.getContentBlockId());
+            assertEquals(9L, operation.getContentId());
             assertEquals(4, operation.getNewOrderIndex());
         }
     }
@@ -589,15 +589,15 @@ class CollectionUpdateDTOTest {
         void shouldHandlePortfolioReordering() {
             List<CollectionUpdateDTO.ContentReorderOperation> reorderOps = Arrays.asList(
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(10L)
+                            .contentId(10L)
                             .newOrderIndex(0)
                             .build(),
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(5L)
+                            .contentId(5L)
                             .newOrderIndex(1)
                             .build(),
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(15L)
+                            .contentId(15L)
                             .newOrderIndex(2)
                             .build()
             );
@@ -613,7 +613,7 @@ class CollectionUpdateDTOTest {
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.PORTFOLIO, dto.getType());
             assertEquals(3, dto.getReorderOperations().size());
-            assertEquals(10L, dto.getReorderOperations().get(0).getContentBlockId());
+            assertEquals(10L, dto.getReorderOperations().get(0).getContentId());
             assertEquals(0, dto.getReorderOperations().get(0).getNewOrderIndex());
         }
 
@@ -766,7 +766,7 @@ class CollectionUpdateDTOTest {
         void shouldHandleComprehensiveContentUpdateWithAllOperations() {
             List<CollectionUpdateDTO.ContentReorderOperation> reorderOps = Arrays.asList(
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(1L)
+                            .contentId(1L)
                             .newOrderIndex(2)
                             .build()
             );
@@ -876,11 +876,11 @@ class CollectionUpdateDTOTest {
         void shouldHandleValidationErrorsInNestedReorderOperations() {
             List<CollectionUpdateDTO.ContentReorderOperation> reorderOps = Arrays.asList(
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(1L)
+                            .contentId(1L)
                             .newOrderIndex(-5) // Error: Below minimum
                             .build(),
                     CollectionUpdateDTO.ContentReorderOperation.builder()
-                            .contentBlockId(2L)
+                            .contentId(2L)
                             .newOrderIndex(-1) // Error: Below minimum
                             .build()
             );

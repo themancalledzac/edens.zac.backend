@@ -25,8 +25,8 @@ class ContentModelSerializationTest {
     }
 
     @Test
-    @DisplayName("ContentBlockModel should serialize to JSON correctly")
-    void contentBlockModel_shouldSerializeToJson() throws IOException {
+    @DisplayName("ContentModel should serialize to JSON correctly")
+    void contentModel_shouldSerializeToJson() throws IOException {
         // Arrange
         LocalDateTime now = LocalDateTime.of(2023, 1, 1, 12, 0, 0);
 
@@ -46,7 +46,7 @@ class ContentModelSerializationTest {
         assertTrue(json.contains("\"id\":1"));
         assertTrue(json.contains("\"collectionId\":2"));
         assertTrue(json.contains("\"orderIndex\":3"));
-        assertTrue(json.contains("\"blockType\":\"IMAGE\""));
+        assertTrue(json.contains("\"contentType\":\"IMAGE\""));
         assertTrue(json.contains("\"caption\":\"Test caption\""));
 
         // Check for date format as array [year,month,day,hour,minute]
@@ -55,12 +55,12 @@ class ContentModelSerializationTest {
     }
 
     @Test
-    @DisplayName("ContentBlockModel should deserialize from JSON correctly")
-    void contentBlockModel_shouldDeserializeFromJson() throws IOException {
+    @DisplayName("ContentModel should deserialize from JSON correctly")
+    void contentModel_shouldDeserializeFromJson() throws IOException {
         // Arrange
         String jsonContent = """
             {
-                "blockType": "IMAGE",
+                "contentType": "IMAGE",
                 "id": 1,
                 "collectionId": 2,
                 "orderIndex": 3,
@@ -73,7 +73,7 @@ class ContentModelSerializationTest {
         // Act
         ImageContentModel result = objectMapper.readValue(jsonContent, ImageContentModel.class);
 
-        // Set blockType explicitly since it's not being properly deserialized
+        // Set contentType explicitly since it's not being properly deserialized
         result.setContentType(ContentType.IMAGE);
 
         // Assert
@@ -87,8 +87,8 @@ class ContentModelSerializationTest {
     }
 
     @Test
-    @DisplayName("ContentBlockModel should handle null optional fields during serialization")
-    void contentBlockModel_shouldHandleNullOptionalFields() throws IOException {
+    @DisplayName("ContentModel should handle null optional fields during serialization")
+    void contentModel_shouldHandleNullOptionalFields() throws IOException {
         // Arrange
         ContentModel model = new ContentModel();
         model.setCollectionId(1L);
@@ -102,7 +102,7 @@ class ContentModelSerializationTest {
         // Assert
         assertTrue(json.contains("\"collectionId\":1"));
         assertTrue(json.contains("\"orderIndex\":0"));
-        assertTrue(json.contains("\"blockType\":\"TEXT\""));
+        assertTrue(json.contains("\"contentType\":\"TEXT\""));
 
         // Check that null fields are either not present or explicitly null
         // Different Jackson configurations might handle this differently
@@ -113,12 +113,12 @@ class ContentModelSerializationTest {
     }
 
     @Test
-    @DisplayName("ContentBlockModel subclasses should serialize and deserialize with polymorphism")
-    void contentBlockModel_shouldHandlePolymorphicSerialization() throws IOException {
+    @DisplayName("ContentModel subclasses should serialize and deserialize with polymorphism")
+    void contentModel_shouldHandlePolymorphicSerialization() throws IOException {
         // Arrange
         LocalDateTime now = LocalDateTime.of(2023, 1, 1, 12, 0, 0);
 
-        // Create an ImageContentBlockModel
+        // Create an ImageContentModel
         ImageContentModel imageModel = new ImageContentModel();
         imageModel.setId(1L);
         imageModel.setCollectionId(2L);
@@ -131,7 +131,7 @@ class ContentModelSerializationTest {
         imageModel.setImageWidth(1200);
         imageModel.setImageHeight(800);
 
-        // Create a TextContentBlockModel
+        // Create a TextContentModel
         TextContentModel textModel = new TextContentModel();
         textModel.setId(2L);
         textModel.setCollectionId(2L);
@@ -142,36 +142,36 @@ class ContentModelSerializationTest {
         textModel.setUpdatedAt(now);
         textModel.setContent("This is some text content");
 
-        // Create a list of ContentBlockModel containing different subclasses
-        List<ContentModel> contentBlocks = new ArrayList<>();
-        contentBlocks.add(imageModel);
-        contentBlocks.add(textModel);
+        // Create a list of ContentModel containing different subclasses
+        List<ContentModel> content = new ArrayList<>();
+        content.add(imageModel);
+        content.add(textModel);
 
         // Act
         // Serialize the list to JSON
-        String json = objectMapper.writeValueAsString(contentBlocks);
+        String json = objectMapper.writeValueAsString(content);
 
-        // Deserialize back to a list of ContentBlockModel
-        List<ContentModel> deserializedBlocks = objectMapper.readValue(
+        // Deserialize back to a list of ContentModel
+        List<ContentModel> deserializedContent = objectMapper.readValue(
             json, 
             objectMapper.getTypeFactory().constructCollectionType(List.class, ContentModel.class)
         );
 
         // Assert
-        assertEquals(2, deserializedBlocks.size());
+        assertEquals(2, deserializedContent.size());
 
-        // First item should be an ImageContentBlockModel
-        assertInstanceOf(ImageContentModel.class, deserializedBlocks.get(0));
-        ImageContentModel deserializedImageModel = (ImageContentModel) deserializedBlocks.get(0);
+        // First item should be an ImageContentModel
+        assertInstanceOf(ImageContentModel.class, deserializedContent.getFirst());
+        ImageContentModel deserializedImageModel = (ImageContentModel) deserializedContent.getFirst();
         assertEquals(1L, deserializedImageModel.getId());
         assertEquals("Image caption", deserializedImageModel.getCaption());
         assertEquals("https://example.com/image.jpg", deserializedImageModel.getImageUrlWeb());
         assertEquals(1200, deserializedImageModel.getImageWidth());
         assertEquals(800, deserializedImageModel.getImageHeight());
 
-        // Second item should be a TextContentBlockModel
-        assertInstanceOf(TextContentModel.class, deserializedBlocks.get(1));
-        TextContentModel deserializedTextModel = (TextContentModel) deserializedBlocks.get(1);
+        // Second item should be a TextContentModel
+        assertInstanceOf(TextContentModel.class, deserializedContent.get(1));
+        TextContentModel deserializedTextModel = (TextContentModel) deserializedContent.get(1);
         assertEquals(2L, deserializedTextModel.getId());
         assertEquals("Text caption", deserializedTextModel.getCaption());
         assertEquals("This is some text content", deserializedTextModel.getContent());

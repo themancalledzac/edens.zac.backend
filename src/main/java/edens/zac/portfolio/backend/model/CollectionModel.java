@@ -26,11 +26,11 @@ import java.util.List;
 public class CollectionModel extends CollectionBaseModel {
 
     // Pagination metadata (specific to this model)
-    @Min(value = DefaultValues.default_blocks_per_page, message = "Blocks per page must be 30 or greater")
-    private Integer blocksPerPage;
+    @Min(value = DefaultValues.default_content_per_page, message = "Content per page must be 30 or greater")
+    private Integer contentPerPage;
 
-    @Min(value = 0, message = "Total blocks must be 0 or greater")
-    private Integer totalBlocks;
+    @Min(value = 0, message = "Total content must be 0 or greater")
+    private Integer totalContent;
 
     @Min(value = 1, message = "Current page must be 1 or greater")
     private Integer currentPage;
@@ -48,5 +48,5 @@ public class CollectionModel extends CollectionBaseModel {
 
     // Content blocks (paginated)
     @Valid
-    private List<ContentModel> contentBlocks;
+    private List<ContentModel> content;
 }

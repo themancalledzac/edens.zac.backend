@@ -28,7 +28,7 @@ class ContentImageEntityTest {
         ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.IMAGE)
+                .contentType(ContentType.IMAGE)
                 .title("Mountain Landscape")
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .imageWidth(1920)
@@ -58,7 +58,7 @@ class ContentImageEntityTest {
         ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.IMAGE)
+                .contentType(ContentType.IMAGE)
                 .title("Mountain Landscape")
                 // imageUrlWeb is missing
                 .build();
@@ -81,7 +81,7 @@ class ContentImageEntityTest {
         ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.IMAGE)
+                .contentType(ContentType.IMAGE)
                 .caption("A beautiful mountain landscape")
                 .title("Mountain Landscape")
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
@@ -130,14 +130,14 @@ class ContentImageEntityTest {
         ContentImageEntity imageBlock1 = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.IMAGE)
+                .contentType(ContentType.IMAGE)
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .build();
 
         ContentImageEntity imageBlock2 = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.IMAGE)
+                .contentType(ContentType.IMAGE)
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .build();
 

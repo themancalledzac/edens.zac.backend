@@ -14,70 +14,70 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 /**
- * Repository interface for ContentBlockEntity that extends JpaRepository
+ * Repository interface for ContentEntity that extends JpaRepository
  * to provide standard CRUD operations, pagination, and custom query methods.
  */
 @Repository
 public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
     
     /**
-     * Find all content blocks for a specific collection, ordered by their order_index.
+     * Find all content for a specific collection, ordered by their order_index.
      *
      * @param collectionId The ID of the collection
-     * @return List of ordered content blocks for the collection
+     * @return List of ordered content for the collection
      */
     List<ContentEntity> findByCollectionIdOrderByOrderIndex(Long collectionId);
     
     /**
-     * Find content blocks for a specific collection with pagination.
+     * Find content for a specific collection with pagination.
      *
      * @param collectionId The ID of the collection
      * @param pageable Pagination information
-     * @return Page of content blocks for the collection
+     * @return Page of content for the collection
      */
     Page<ContentEntity> findByCollectionId(Long collectionId, Pageable pageable);
     
     /**
-     * Count the number of content blocks in a collection.
+     * Count the number of content in a collection.
      *
      * @param collectionId The ID of the collection
-     * @return The count of content blocks in the collection
+     * @return The count of content in the collection
      */
     long countByCollectionId(Long collectionId);
     
     /**
-     * Find content blocks of a specific type for a collection.
+     * Find content of a specific type for a collection.
      *
      * @param collectionId The ID of the collection
-     * @param blockType The type of content block
-     * @return List of content blocks of the specified type for the collection
+     * @param contentType The type of content
+     * @return List of content of the specified type for the collection
      */
-    List<ContentEntity> findByCollectionIdAndBlockType(Long collectionId, ContentType blockType);
+    List<ContentEntity> findByCollectionIdAndContentType(Long collectionId, ContentType contentType);
     
     /**
-     * Find content blocks of a specific type for a collection with pagination.
+     * Find content of a specific type for a collection with pagination.
      *
      * @param collectionId The ID of the collection
-     * @param blockType The type of content block
+     * @param contentType The type of content
      * @param pageable Pagination information
-     * @return Page of content blocks of the specified type for the collection
+     * @return Page of content of the specified type for the collection
      */
-    Page<ContentEntity> findByCollectionIdAndBlockType(Long collectionId, ContentType blockType, Pageable pageable);
+    Page<ContentEntity> findByCollectionIdAndContentType(Long collectionId, ContentType contentType, Pageable pageable);
     
     /**
-     * Get the maximum order_index value for a collection's content blocks.
-     * This is useful when adding new blocks to ensure correct ordering.
+     * Get the maximum order_index value for a collection's content.
+     * This is useful when adding new to ensure correct ordering.
      *
      * @param collectionId The ID of the collection
-     * @return The maximum order_index value, or null if no content blocks exist
+     * @return The maximum order_index value, or null if no content exist
      */
     @Query("SELECT MAX(cb.orderIndex) FROM ContentEntity cb WHERE cb.collectionId = :collectionId")
     Integer getMaxOrderIndexForCollection(@Param("collectionId") Long collectionId);
     
     /**
-     * Update the order_index of a specific content block.
+     * Update the order_index of a specific content.
      *
-     * @param id The ID of the content block
+     * @param id The ID of the content
      * @param orderIndex The new order_index value
      * @return The number of affected rows (should be 1)
      */
@@ -86,8 +86,8 @@ public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
     int updateOrderIndex(@Param("id") Long id, @Param("orderIndex") Integer orderIndex);
     
     /**
-     * Shift the order_index values for a range of content blocks in a collection.
-     * This is useful when reordering content blocks.
+     * Shift the order_index values for a range of content in a collection.
+     * This is useful when reordering content.
      *
      * @param collectionId The ID of the collection
      * @param startIndex The starting order_index (inclusive)
@@ -104,7 +104,7 @@ public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
                           @Param("shiftAmount") Integer shiftAmount);
     
     /**
-     * Delete all content blocks for a specific collection.
+     * Delete all content for a specific collection.
      * This is useful when deleting a collection.
      *
      * @param collectionId The ID of the collection
@@ -112,18 +112,18 @@ public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
     void deleteByCollectionId(Long collectionId);
 
     /**
-     * Dissociate the given content block IDs from a specific collection by setting their collectionId to NULL.
-     * This does not delete the blocks and allows them to be reassigned to another collection later.
+     * Dissociate the given content IDs from a specific collection by setting their collectionId to NULL.
+     * This does not delete the and allows them to be reassigned to another collection later.
      *
      * @param collectionId The collection to dissociate from
-     * @param ids          The block IDs to dissociate
+     * @param ids          The IDs to dissociate
      */
     @Modifying
     @Query("UPDATE ContentEntity cb SET cb.collectionId = NULL WHERE cb.collectionId = :collectionId AND cb.id IN :ids")
     void dissociateFromCollection(@Param("collectionId") Long collectionId, @Param("ids") List<Long> ids);
 
     /**
-     * Find a content block by collection and its exact order index.
+     * Find a content by collection and its exact order index.
      */
     ContentEntity findByCollectionIdAndOrderIndex(Long collectionId, Integer orderIndex);
 
@@ -138,20 +138,20 @@ public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
     boolean existsByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 
     /**
-     * Find all ImageContentBlockEntity instances with the given fileIdentifier.
+     * Find all ContentImageEntity instances with the given fileIdentifier.
      * This returns all collection relationships for the same image.
      *
      * @param fileIdentifier The file identifier (format: "YYYY-MM-DD/filename.jpg")
-     * @return List of all image content blocks with this file identifier across all collections
+     * @return List of all image content with this file identifier across all collections
      */
     @Query("SELECT i FROM ContentImageEntity i WHERE i.fileIdentifier = :fileIdentifier")
     List<ContentImageEntity> findAllByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 
     /**
-     * Find all ImageContentBlockEntity instances ordered by createDate descending.
+     * Find all ContentImageEntity instances ordered by createDate descending.
      * This returns all images across all collections, sorted by most recent first.
      *
-     * @return List of all image content blocks ordered by createDate descending
+     * @return List of all image content ordered by createDate descending
      */
     @Query("SELECT i FROM ContentImageEntity i ORDER BY i.createDate DESC")
     List<ContentImageEntity> findAllImagesOrderByCreateDateDesc();

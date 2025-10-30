@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page;
+import static edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page;
 
 /**
  * Implementation of ContentCollectionService that provides methods for
@@ -43,7 +43,7 @@ class CollectionServiceImpl implements CollectionService {
     private final HomeService homeService;
     private final ContentService contentService;
 
-    private static final int DEFAULT_PAGE_SIZE = default_blocks_per_page;
+    private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
 
 
     @Override
@@ -191,13 +191,13 @@ class CollectionServiceImpl implements CollectionService {
         // Handle content block removals - dissociate blocks from this collection instead of deleting
         if (updateDTO.getContentIdsToRemove() != null && !updateDTO.getContentIdsToRemove().isEmpty()) {
             contentRepository.dissociateFromCollection(id, updateDTO.getContentIdsToRemove());
-            if (entity.getCoverImageBlockId() != null && updateDTO.getContentIdsToRemove().contains(entity.getCoverImageBlockId())) {
+            if (entity.getCoverImageId() != null && updateDTO.getContentIdsToRemove().contains(entity.getCoverImageId())) {
                 // Removed the current cover image; choose the next available image as new cover if any
-                entity.setCoverImageBlockId(null);
+                entity.setCoverImageId(null);
                 List<ContentEntity> remaining = contentRepository.findByCollectionIdOrderByOrderIndex(id);
                 for (ContentEntity b : remaining) {
                     if (b instanceof ContentImageEntity img) {
-                        entity.setCoverImageBlockId(img.getId());
+                        entity.setCoverImageId(img.getId());
                         break;
                     }
                 }
@@ -205,10 +205,10 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
-        List<Long> newTextIds = contentCollectionProcessingUtil.handleNewTextBlocksReturnIds(id, updateDTO);
+        List<Long> newTextIds = contentCollectionProcessingUtil.handleNewTextContentReturnIds(id, updateDTO);
 
         // Handle content block reordering via utility helper with explicit mapping for new text placeholders
-        contentCollectionProcessingUtil.handleContentBlockReordering(id, updateDTO, newTextIds);
+        contentCollectionProcessingUtil.handleContentReordering(id, updateDTO, newTextIds);
 
         // Save updated entity
         CollectionEntity savedEntity = collectionRepository.save(entity);
@@ -222,7 +222,7 @@ class CollectionServiceImpl implements CollectionService {
 
         // Update total blocks count
         long totalBlocks = contentRepository.countByCollectionId(savedEntity.getId());
-        savedEntity.setTotalBlocks((int) totalBlocks);
+        savedEntity.setTotalContent((int) totalBlocks);
         collectionRepository.save(savedEntity);
 
         return convertToFullModel(savedEntity);
@@ -301,8 +301,8 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // If no cover yet and we uploaded at least one non-GIF image, set it now and sync HomeCard
-        if (entity.getCoverImageBlockId() == null && firstImageBlockId != null) {
-            entity.setCoverImageBlockId(firstImageBlockId);
+        if (entity.getCoverImageId() == null && firstImageBlockId != null) {
+            entity.setCoverImageId(firstImageBlockId);
             collectionRepository.save(entity);
             homeService.syncHomeCardOnCollectionUpdate(entity);
         }
@@ -310,7 +310,7 @@ class CollectionServiceImpl implements CollectionService {
         // Update total blocks count if any blocks were added
         if (!contentBlocks.isEmpty()) {
             long totalBlocks = contentRepository.countByCollectionId(id);
-            entity.setTotalBlocks((int) totalBlocks);
+            entity.setTotalContent((int) totalBlocks);
             collectionRepository.save(entity);
         }
 
@@ -396,7 +396,7 @@ class CollectionServiceImpl implements CollectionService {
                 .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
-        model.setContentBlocks(contentBlocks);
+        model.setContent(contentBlocks);
         return model;
     }
 
@@ -438,11 +438,11 @@ class CollectionServiceImpl implements CollectionService {
      * Helper method to get cover image URL from collection's coverImageBlockId
      */
     private String getCoverImageUrl(CollectionEntity collection) {
-        if (collection.getCoverImageBlockId() == null) {
+        if (collection.getCoverImageId() == null) {
             return null;
         }
 
-        return contentRepository.findById(collection.getCoverImageBlockId())
+        return contentRepository.findById(collection.getCoverImageId())
                 .filter(block -> block instanceof ContentImageEntity)
                 .map(block -> ((ContentImageEntity) block).getImageUrlWeb())
                 .orElse(null);

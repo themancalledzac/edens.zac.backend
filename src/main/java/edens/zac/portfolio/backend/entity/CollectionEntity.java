@@ -75,11 +75,11 @@ public class CollectionEntity {
     @Column(name = "priority")
     private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
 
-    // Foreign key reference to the image content block used as cover (nullable)
+    // Foreign key reference to the image content used as cover (nullable)
     // TODO: Why should this be the 'id'? rather than the src itself? what's the benefit? who cares if it disassociates?
     //  - would it be faster IF we didn't have to do a 'getCoverImageByImage' logic?
-    @Column(name = "cover_image_block_id")
-    private Long coverImageBlockId;
+    @Column(name = "cover_image_id")
+    private Long coverImageId;
 
     // Client gallery security
     @Column(name = "password_hash")
@@ -93,8 +93,8 @@ public class CollectionEntity {
     @Column(name = "content_per_page")
     private Integer contentPerPage;
 
-    @Column(name = "total_blocks")
-    private Integer totalBlocks;
+    @Column(name = "total_content")
+    private Integer totalContent;
 
     // Timestamps
     @CreationTimestamp
@@ -136,7 +136,7 @@ public class CollectionEntity {
         this.visible = true;
         this.priority = 1; // Changed from 0 to 1 to satisfy @Min(1) constraint
         this.contentPerPage = 50;
-        this.totalBlocks = 0;
+        this.totalContent = 0;
         this.passwordProtected = false;
         this.content = new ArrayList<>();
         this.tags = new HashSet<>();
@@ -157,9 +157,9 @@ public class CollectionEntity {
      * @return The total number of pages
      */
     public int getTotalPages() {
-        if (totalBlocks == null || totalBlocks == 0 || contentPerPage == null || contentPerPage == 0) {
+        if (totalContent == null || totalContent == 0 || contentPerPage == null || contentPerPage == 0) {
             return 0;
         }
-        return (int) Math.ceil((double) totalBlocks / contentPerPage);
+        return (int) Math.ceil((double) totalContent / contentPerPage);
     }
 }

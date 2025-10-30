@@ -225,24 +225,24 @@ class CollectionEntityTest {
         collection.setType(CollectionType.BLOG);
         collection.setTitle("Test Collection");
         collection.setSlug("test-collection");
-        collection.setTotalBlocks(100);
+        collection.setTotalContent(100);
         collection.setContentPerPage(30);
 
         assertEquals(4, collection.getTotalPages()); // 100/30 = 3.33, rounded up to 4
 
         // Test with exact division
-        collection.setTotalBlocks(90);
+        collection.setTotalContent(90);
         assertEquals(3, collection.getTotalPages()); // 90/30 = 3.0
 
         // Test with zero blocks
-        collection.setTotalBlocks(0);
+        collection.setTotalContent(0);
         assertEquals(0, collection.getTotalPages());
 
         // Test with null values
-        collection.setTotalBlocks(null);
+        collection.setTotalContent(null);
         assertEquals(0, collection.getTotalPages());
 
-        collection.setTotalBlocks(100);
+        collection.setTotalContent(100);
         collection.setContentPerPage(null);
         assertEquals(0, collection.getTotalPages());
 
@@ -265,10 +265,10 @@ class CollectionEntityTest {
         collection.setCollectionDate(today);
         collection.setPriority(5);
         collection.setContentPerPage(20);
-        collection.setTotalBlocks(100);
+        collection.setTotalContent(100);
         collection.setPasswordHash("$2a$10$someHashValue");
         collection.setPasswordProtected(true);
-        collection.setCoverImageBlockId(123L);
+        collection.setCoverImageId(123L);
 
         // Verify all fields were set correctly
         assertEquals(CollectionType.PORTFOLIO, collection.getType());
@@ -280,10 +280,10 @@ class CollectionEntityTest {
         assertTrue(collection.getVisible());
         assertEquals(5, collection.getPriority());
         assertEquals(20, collection.getContentPerPage());
-        assertEquals(100, collection.getTotalBlocks());
+        assertEquals(100, collection.getTotalContent());
         assertEquals("$2a$10$someHashValue", collection.getPasswordHash());
         assertTrue(collection.getPasswordProtected());
-        assertEquals(123L, collection.getCoverImageBlockId());
+        assertEquals(123L, collection.getCoverImageId());
     }
 
     @Test

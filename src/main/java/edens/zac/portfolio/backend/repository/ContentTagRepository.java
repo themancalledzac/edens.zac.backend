@@ -63,17 +63,17 @@ public interface ContentTagRepository extends JpaRepository<ContentTagEntity, Lo
      */
     boolean existsByTagNameIgnoreCase(String tagName);
 
-    /**
-     * Find the most commonly used tags across all entities.
-     * Ordered by usage count (collections + image blocks + gif blocks).
-     *
-     * @return List of tags ordered by total usage count descending
-     */
-    @Query("SELECT t FROM ContentTagEntity t " +
-            "LEFT JOIN t.collections cc " +
-            "LEFT JOIN t.ContentImage icb " +
-            "LEFT JOIN t.gifContentBlocks gcb " +
-            "GROUP BY t.id " +
-            "ORDER BY (COUNT(DISTINCT cc.id) + COUNT(DISTINCT icb.id) + COUNT(DISTINCT gcb.id)) DESC")
-    List<ContentTagEntity> findAllOrderByUsageCountDesc();
+//    /**
+//     * Find the most commonly used tags across all entities.
+//     * Ordered by usage count (collections + image content + gif content).
+//     *
+//     * @return List of tags ordered by total usage count descending
+//     */
+//    @Query("SELECT t FROM ContentTagEntity t " +
+//            "LEFT JOIN t.collections cc " +
+//            "LEFT JOIN t.ContentImage icb " +
+//            "LEFT JOIN t.contentGifs gcb " +
+//            "GROUP BY t.id " +
+//            "ORDER BY (COUNT(DISTINCT cc.id) + COUNT(DISTINCT icb.id) + COUNT(DISTINCT gcb.id)) DESC")
+//    List<ContentTagEntity> findAllOrderByUsageCountDesc();
 }

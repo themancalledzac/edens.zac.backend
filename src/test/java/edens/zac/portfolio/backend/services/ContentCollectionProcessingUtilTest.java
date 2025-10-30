@@ -48,8 +48,8 @@ class ContentCollectionProcessingUtilTest {
     @Mock
     private ExceptionUtils exceptionUtils;
 
-    @Mock
-    private edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
+//    @Mock
+//    private edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
     @InjectMocks
     private ContentCollectionProcessingUtil util;
@@ -69,7 +69,7 @@ class ContentCollectionProcessingUtilTest {
         testEntity.setVisible(true);
         testEntity.setPriority(1);
         testEntity.setContentPerPage(30);
-        testEntity.setTotalBlocks(2);
+        testEntity.setTotalContent(2);
         testEntity.setCreatedAt(LocalDateTime.now());
         testEntity.setUpdatedAt(LocalDateTime.now());
 
@@ -139,7 +139,7 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void convertToBasicModel_shouldConvertEntityToModel() {
         // Arrange
-        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
+//        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
 
         // Act
         CollectionModel model = util.convertToBasicModel(testEntity);
@@ -153,8 +153,8 @@ class ContentCollectionProcessingUtilTest {
         assertEquals(testEntity.getDescription(), model.getDescription());
         assertEquals(testEntity.getVisible(), model.getVisible());
         assertEquals(testEntity.getPriority(), model.getPriority());
-        assertEquals(testEntity.getContentPerPage(), model.getBlocksPerPage());
-        assertEquals(testEntity.getTotalBlocks(), model.getTotalBlocks());
+        assertEquals(testEntity.getContentPerPage(), model.getContentPerPage());
+        assertEquals(testEntity.getTotalContent(), model.getTotalContent());
         assertEquals(testEntity.getTotalPages(), model.getTotalPages());
         assertEquals(0, model.getCurrentPage());
     }
@@ -162,7 +162,7 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void convertToFullModel_shouldConvertEntityWithContentBlocks() {
         // Arrange
-        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
+//        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
         when(contentRepository.findByCollectionIdOrderByOrderIndex(any())).thenReturn(testBlocks);
         when(contentProcessingUtil.convertToModel(any(ContentEntity.class)))
                 .thenAnswer(invocation -> {
@@ -179,16 +179,16 @@ class ContentCollectionProcessingUtilTest {
 
         // Assert
         assertNotNull(model);
-        assertNotNull(model.getContentBlocks());
-        assertEquals(2, model.getContentBlocks().size());
-        assertEquals(testBlocks.get(0).getId(), model.getContentBlocks().get(0).getId());
-        assertEquals(testBlocks.get(1).getId(), model.getContentBlocks().get(1).getId());
+        assertNotNull(model.getContent());
+        assertEquals(2, model.getContent().size());
+        assertEquals(testBlocks.get(0).getId(), model.getContent().get(0).getId());
+        assertEquals(testBlocks.get(1).getId(), model.getContent().get(1).getId());
     }
 
     @Test
     void convertToModel_shouldConvertEntityWithPaginatedContentBlocks() {
         // Arrange
-        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
+//        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
         Page<ContentEntity> page = new PageImpl<>(testBlocks, PageRequest.of(0, 10), 2);
 
         when(contentProcessingUtil.convertToModel(any(ContentEntity.class)))
@@ -206,12 +206,12 @@ class ContentCollectionProcessingUtilTest {
 
         // Assert
         assertNotNull(model);
-        assertNotNull(model.getContentBlocks());
-        assertEquals(2, model.getContentBlocks().size());
+        assertNotNull(model.getContent());
+        assertEquals(2, model.getContent().size());
         assertEquals(page.getNumber(), model.getCurrentPage());
         assertEquals(page.getTotalPages(), model.getTotalPages());
-        assertEquals((int) page.getTotalElements(), model.getTotalBlocks());
-        assertEquals(page.getSize(), model.getBlocksPerPage());
+        assertEquals((int) page.getTotalElements(), model.getTotalContent());
+        assertEquals(page.getSize(), model.getContentPerPage());
     }
 
     @Test

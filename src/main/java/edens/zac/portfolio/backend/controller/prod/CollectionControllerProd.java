@@ -27,7 +27,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/read/collections")
-public class ContentCollectionControllerProd {
+public class CollectionControllerProd {
 
     private final CollectionService collectionService;
     private final HomeService homeService;
@@ -49,7 +49,7 @@ public class ContentCollectionControllerProd {
                 page = 0;
             }
             if (size <= 0) {
-                size = DefaultValues.default_content_collection_per_page;
+                size = DefaultValues.default_collection_per_page;
             }
 
             Pageable pageable = PageRequest.of(page, size);
@@ -88,7 +88,7 @@ public class ContentCollectionControllerProd {
                 page = 0;
             }
             if (size <= 0) {
-                size = DefaultValues.default_blocks_per_page;
+                size = DefaultValues.default_content_per_page;
             }
 
             CollectionModel collection = collectionService.getCollectionWithPagination(slug, page, size);

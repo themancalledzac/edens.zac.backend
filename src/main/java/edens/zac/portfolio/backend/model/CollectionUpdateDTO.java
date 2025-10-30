@@ -60,7 +60,7 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
          *   Use -1 for the first newTextContent entry, -2 for the second, etc.
          * - Null: when null, the block will be resolved by oldOrderIndex.
          */
-        private Long contentBlockId;
+        private Long contentId;
 
         /**
          * The original order index of the block prior to reordering. Used when contentBlockId is null
@@ -75,8 +75,8 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
         /**
          * Backward-compatible convenience constructor used by existing tests: only ID and new index.
          */
-        public ContentReorderOperation(Long contentBlockId, Integer newOrderIndex) {
-            this.contentBlockId = contentBlockId;
+        public ContentReorderOperation(Long contentId, Integer newOrderIndex) {
+            this.contentId = contentId;
             this.newOrderIndex = newOrderIndex;
             this.oldOrderIndex = null;
         }

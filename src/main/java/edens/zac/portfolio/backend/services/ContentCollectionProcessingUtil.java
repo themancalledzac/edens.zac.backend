@@ -29,7 +29,7 @@ public class ContentCollectionProcessingUtil {
     private final CollectionRepository collectionRepository;
     private final ContentRepository contentRepository;
     private final ContentProcessingUtil contentProcessingUtil;
-    private final edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
+//    private final edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
     // =============================================================================
     // ERROR HANDLING
@@ -46,8 +46,8 @@ public class ContentCollectionProcessingUtil {
      * Only accepts image blocks as cover images.
      */
     private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
-        if (entity.getCoverImageBlockId() != null) {
-            ContentEntity block = contentRepository.findById(entity.getCoverImageBlockId())
+        if (entity.getCoverImageId() != null) {
+            ContentEntity block = contentRepository.findById(entity.getCoverImageId())
                     .orElse(null);
             if (block instanceof ContentImageEntity) {
                 ContentModel blockModel = contentProcessingUtil.convertToModel(block);
@@ -55,11 +55,11 @@ public class ContentCollectionProcessingUtil {
                     model.setCoverImage(imageModel);
                 } else {
                     log.warn("Cover image block {} converted to non-ImageContentBlockModel: {}",
-                            entity.getCoverImageBlockId(), blockModel.getClass().getSimpleName());
+                            entity.getCoverImageId(), blockModel.getClass().getSimpleName());
                 }
             } else if (block != null) {
                 log.warn("Cover image block {} is not an ImageContentBlockEntity: {}",
-                        entity.getCoverImageBlockId(), block.getClass().getSimpleName());
+                        entity.getCoverImageId(), block.getClass().getSimpleName());
             }
         }
     }
@@ -90,17 +90,17 @@ public class ContentCollectionProcessingUtil {
         // Populate coverImage using helper method
         populateCoverImage(model, entity);
 
-        // Fetch home page card settings from home card table
-        homeCardRepository.findByReferenceId(entity.getId()).ifPresentOrElse(
-                homeCard -> {
-                    model.setHomeCardEnabled(homeCard.isActiveHomeCard());
-                    model.setHomeCardText(homeCard.getText());
-                },
-                () -> {
-                    model.setHomeCardEnabled(false);
-                    model.setHomeCardText(null);
-                }
-        );
+//        // Fetch home page card settings from home card table
+//        homeCardRepository.findByReferenceId(entity.getId()).ifPresentOrElse(
+//                homeCard -> {
+//                    model.setHomeCardEnabled(homeCard.isActiveHomeCard());
+//                    model.setHomeCardText(homeCard.getText());
+//                },
+//                () -> {
+//                    model.setHomeCardEnabled(false);
+//                    model.setHomeCardText(null);
+//                }
+//        );
 
         model.setIsPasswordProtected(entity.isPasswordProtected());
         model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
@@ -114,8 +114,8 @@ public class ContentCollectionProcessingUtil {
         model.setDisplayMode(mode);
 
         // Set pagination metadata
-        model.setTotalBlocks(entity.getTotalBlocks());
-        model.setBlocksPerPage(entity.getContentPerPage());
+        model.setTotalContent(entity.getTotalContent());
+        model.setContentPerPage(entity.getContentPerPage());
         model.setTotalPages(entity.getTotalPages());
         model.setCurrentPage(0);
 
@@ -143,7 +143,7 @@ public class ContentCollectionProcessingUtil {
                 .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
-        model.setContentBlocks(contentBlocks);
+        model.setContent(contentBlocks);
         return model;
     }
 
@@ -167,13 +167,13 @@ public class ContentCollectionProcessingUtil {
                 .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
-        model.setContentBlocks(contentBlocks);
+        model.setContent(contentBlocks);
 
         // Set pagination metadata
         model.setCurrentPage(contentPage.getNumber());
         model.setTotalPages(contentPage.getTotalPages());
-        model.setTotalBlocks((int) contentPage.getTotalElements());
-        model.setBlocksPerPage(contentPage.getSize());
+        model.setTotalContent((int) contentPage.getTotalElements());
+        model.setContentPerPage(contentPage.getSize());
         return model;
     }
 
@@ -201,7 +201,7 @@ public class ContentCollectionProcessingUtil {
         entity.setVisible(false);
         entity.setPriority(4);
         entity.setContentPerPage(defaultPageSize);
-        entity.setTotalBlocks(0);
+        entity.setTotalContent(0);
         entity.setPasswordProtected(false);
         entity.setPasswordHash(null);
         // Apply type-specific defaults (may adjust visibility etc.)
@@ -258,7 +258,7 @@ public class ContentCollectionProcessingUtil {
             ContentEntity coverBlock = contentRepository.findById(updateDTO.getCoverImageId())
                     .orElse(null);
             if (coverBlock instanceof ContentImageEntity) {
-                entity.setCoverImageBlockId(updateDTO.getCoverImageId());
+                entity.setCoverImageId(updateDTO.getCoverImageId());
             } else if (coverBlock != null) {
                 throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
                         + " does not reference an image block (found: " + coverBlock.getClass().getSimpleName() + ")");
@@ -304,7 +304,7 @@ public class ContentCollectionProcessingUtil {
      * in the same order as provided in updateDTO.getNewTextBlocks(). This enables
      * deterministic placeholder mapping during subsequent reordering.
      */
-    public List<Long> handleNewTextBlocksReturnIds(Long collectionId, CollectionUpdateDTO updateDTO) {
+    public List<Long> handleNewTextContentReturnIds(Long collectionId, CollectionUpdateDTO updateDTO) {
         List<Long> createdIds = new ArrayList<>();
         if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
             return createdIds;
@@ -326,7 +326,7 @@ public class ContentCollectionProcessingUtil {
      * Handle content block reordering operations. Supports reference by ID, placeholder for newly
      * added text blocks (negative IDs: -1 for first new text, etc.), or by old order index.
      */
-    public void handleContentBlockReordering(Long collectionId, CollectionUpdateDTO updateDTO) {
+    public void handleContentReordering(Long collectionId, CollectionUpdateDTO updateDTO) {
         if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
             return;
         }
@@ -340,21 +340,21 @@ public class ContentCollectionProcessingUtil {
                 inferredNewTextIds.add(allBlocks.get(i).getId());
             }
         }
-        handleContentBlockReordering(collectionId, updateDTO, inferredNewTextIds);
+        handleContentReordering(collectionId, updateDTO, inferredNewTextIds);
     }
 
     /**
      * Overloaded reordering that accepts explicit newTextIds mapping. This ensures
      * correct placeholder resolution regardless of insert position.
      */
-    public void handleContentBlockReordering(Long collectionId, CollectionUpdateDTO updateDTO, List<Long> newTextIds) {
+    public void handleContentReordering(Long collectionId, CollectionUpdateDTO updateDTO, List<Long> newTextIds) {
         if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
             return;
         }
         List<Long> mapping = (newTextIds != null) ? newTextIds : new ArrayList<>();
         for (CollectionUpdateDTO.ContentReorderOperation op : updateDTO.getReorderOperations()) {
             Long targetId = null;
-            Long providedId = op.getContentBlockId();
+            Long providedId = op.getContentId();
             if (providedId != null) {
                 if (providedId > 0) {
                     targetId = providedId;
@@ -460,7 +460,7 @@ public class ContentCollectionProcessingUtil {
 
         // Set default blocks per page if not set
         if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
-            entity.setContentPerPage(edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page); // Default page size
+            entity.setContentPerPage(edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page); // Default page size
         }
 
         // Set type-specific visibility defaults
@@ -569,7 +569,7 @@ public class ContentCollectionProcessingUtil {
      * Check if a collection model is empty.
      */
     public static boolean isEmpty(CollectionModel model) {
-        return model.getTotalBlocks() == null || model.getTotalBlocks() == 0;
+        return model.getTotalContent() == null || model.getTotalContent() == 0;
     }
 
     /**

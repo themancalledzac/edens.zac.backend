@@ -19,8 +19,8 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for ContentCollectionModel
- * Tests validation annotations, builder pattern, pagination metadata, and content blocks
+ * Unit tests for CollectionModel
+ * Tests validation annotations, builder pattern, pagination metadata, and content
  */
 class CollectionModelTest {
 
@@ -41,7 +41,7 @@ class CollectionModelTest {
         void shouldCreateModelWithAllValidFields() {
             LocalDateTime now = LocalDateTime.now();
             LocalDate today = LocalDate.now();
-            List<ContentModel> contentBlocks = new ArrayList<>();
+            List<ContentModel> content = new ArrayList<>();
 
             CollectionModel model = CollectionModel.builder()
                     .id(1L)
@@ -57,11 +57,11 @@ class CollectionModelTest {
                     .hasAccess(true)
                     .createdAt(now)
                     .updatedAt(now)
-                    .blocksPerPage(30)
-                    .totalBlocks(150)
+                    .contentPerPage(30)
+                    .totalContent(150)
                     .currentPage(1)
                     .totalPages(5)
-                    .contentBlocks(contentBlocks)
+                    .content(content)
                     .build();
 
             assertNotNull(model);
@@ -79,11 +79,11 @@ class CollectionModelTest {
             assertTrue(model.getHasAccess());
             assertEquals(now, model.getCreatedAt());
             assertEquals(now, model.getUpdatedAt());
-            assertEquals(30, model.getBlocksPerPage());
-            assertEquals(150, model.getTotalBlocks());
+            assertEquals(30, model.getContentPerPage());
+            assertEquals(150, model.getTotalContent());
             assertEquals(1, model.getCurrentPage());
             assertEquals(5, model.getTotalPages());
-            assertEquals(contentBlocks, model.getContentBlocks());
+            assertEquals(content, model.getContent());
         }
 
         @Test
@@ -99,11 +99,11 @@ class CollectionModelTest {
             assertEquals(CollectionType.BLOG, model.getType());
             assertEquals("Min", model.getTitle());
             assertEquals("min", model.getSlug());
-            assertNull(model.getBlocksPerPage());
-            assertNull(model.getTotalBlocks());
+            assertNull(model.getContentPerPage());
+            assertNull(model.getTotalContent());
             assertNull(model.getCurrentPage());
             assertNull(model.getTotalPages());
-            assertNull(model.getContentBlocks());
+            assertNull(model.getContent());
         }
 
         @Test
@@ -115,11 +115,11 @@ class CollectionModelTest {
             assertNull(model.getId());
             assertNull(model.getType());
             assertNull(model.getTitle());
-            assertNull(model.getBlocksPerPage());
-            assertNull(model.getTotalBlocks());
+            assertNull(model.getContentPerPage());
+            assertNull(model.getTotalContent());
             assertNull(model.getCurrentPage());
             assertNull(model.getTotalPages());
-            assertNull(model.getContentBlocks());
+            assertNull(model.getContent());
         }
     }
 
@@ -134,8 +134,8 @@ class CollectionModelTest {
                     .type(CollectionType.ART_GALLERY)
                     .title("Art Gallery")
                     .slug("art-gallery")
-                    .blocksPerPage(30)
-                    .totalBlocks(150)
+                    .contentPerPage(30)
+                    .totalContent(150)
                     .currentPage(1)
                     .totalPages(5)
                     .build();
@@ -145,29 +145,29 @@ class CollectionModelTest {
         }
 
         @Test
-        @DisplayName("Should reject blocksPerPage below minimum")
-        void shouldRejectBlocksPerPageBelowMin() {
+        @DisplayName("Should reject contentPerPage below minimum")
+        void shouldRejectContentPerPageBelowMin() {
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.BLOG)
                     .title("Blog Post")
                     .slug("blog-post")
-                    .blocksPerPage(0) // Invalid - below minimum
+                    .contentPerPage(0) // Invalid - below minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
-                    .anyMatch(v -> v.getMessage().contains("Blocks per page must be 30 or greater")));
+                    .anyMatch(v -> v.getMessage().contains("Content per page must be 30 or greater")));
         }
 
         @Test
-        @DisplayName("Should accept blocksPerPage at minimum boundary")
-        void shouldAcceptBlocksPerPageAtMinBoundary() {
+        @DisplayName("Should accept contentPerPage at minimum boundary")
+        void shouldAcceptContentPerPageAtMinBoundary() {
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.BLOG)
                     .title("Blog Post")
                     .slug("blog-post")
-                    .blocksPerPage(30) // Exactly at minimum
+                    .contentPerPage(30) // Exactly at minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -175,29 +175,29 @@ class CollectionModelTest {
         }
 
         @Test
-        @DisplayName("Should reject totalBlocks below minimum")
-        void shouldRejectTotalBlocksBelowMin() {
+        @DisplayName("Should reject totalContent below minimum")
+        void shouldRejectTotalContentBelowMin() {
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
-                    .totalBlocks(-1) // Invalid - below minimum
+                    .totalContent(-1) // Invalid - below minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
-                    .anyMatch(v -> v.getMessage().contains("Total blocks must be 0 or greater")));
+                    .anyMatch(v -> v.getMessage().contains("Total content must be 0 or greater")));
         }
 
         @Test
-        @DisplayName("Should accept totalBlocks at minimum boundary")
-        void shouldAcceptTotalBlocksAtMinBoundary() {
+        @DisplayName("Should accept totalContent at minimum boundary")
+        void shouldAcceptTotalContentAtMinBoundary() {
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
-                    .totalBlocks(0) // Exactly at minimum
+                    .totalContent(0) // Exactly at minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -271,8 +271,8 @@ class CollectionModelTest {
                     .type(CollectionType.BLOG)
                     .title("Blog Post")
                     .slug("blog-post")
-                    .blocksPerPage(null)
-                    .totalBlocks(null)
+                    .contentPerPage(null)
+                    .totalContent(null)
                     .currentPage(null)
                     .totalPages(null)
                     .build();
@@ -283,20 +283,20 @@ class CollectionModelTest {
     }
 
     @Nested
-    @DisplayName("Content Blocks Tests")
-    class ContentBlocksTests {
+    @DisplayName("Content Tests")
+    class ContentTests {
 
         @Test
-        @DisplayName("Should accept valid content blocks list")
-        void shouldAcceptValidContentBlocksList() {
-            List<ContentModel> contentBlocks = new ArrayList<>();
-            // Note: We're not adding actual ContentBlockModel instances since we'd need to validate those separately
+        @DisplayName("Should accept valid content list")
+        void shouldAcceptValidContentList() {
+            List<ContentModel> content = new ArrayList<>();
+            // Note: We're not adding actual ContentModel instances since we'd need to validate those separately
             
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
-                    .contentBlocks(contentBlocks)
+                    .content(content)
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -304,13 +304,13 @@ class CollectionModelTest {
         }
 
         @Test
-        @DisplayName("Should accept null content blocks")
-        void shouldAcceptNullContentBlocks() {
+        @DisplayName("Should accept null content")
+        void shouldAcceptNullContent() {
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.BLOG)
                     .title("Blog Post")
                     .slug("blog-post")
-                    .contentBlocks(null)
+                    .content(null)
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -318,13 +318,13 @@ class CollectionModelTest {
         }
 
         @Test
-        @DisplayName("Should accept empty content blocks list")
-        void shouldAcceptEmptyContentBlocksList() {
+        @DisplayName("Should accept empty content list")
+        void shouldAcceptEmptyContentList() {
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.ART_GALLERY)
                     .title("Art Gallery")
                     .slug("art-gallery")
-                    .contentBlocks(new ArrayList<>())
+                    .content(new ArrayList<>())
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -359,7 +359,7 @@ class CollectionModelTest {
                     .type(CollectionType.PORTFOLIO)
                     .title("AB") // Base validation error
                     .slug("valid-slug")
-                    .blocksPerPage(0) // Subclass validation error
+                    .contentPerPage(0) // Subclass validation error
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -382,8 +382,8 @@ class CollectionModelTest {
                     .title("Test Blog")
                     .slug("test-blog")
                     .createdAt(now)
-                    .blocksPerPage(30)
-                    .totalBlocks(150)
+                    .contentPerPage(30)
+                    .totalContent(150)
                     .build();
 
             CollectionModel model2 = CollectionModel.builder()
@@ -392,8 +392,8 @@ class CollectionModelTest {
                     .title("Test Blog")
                     .slug("test-blog")
                     .createdAt(now)
-                    .blocksPerPage(30)
-                    .totalBlocks(150)
+                    .contentPerPage(30)
+                    .totalContent(150)
                     .build();
 
             CollectionModel model3 = CollectionModel.builder()
@@ -402,8 +402,8 @@ class CollectionModelTest {
                     .title("Test Blog")
                     .slug("test-blog")
                     .createdAt(now)
-                    .blocksPerPage(20) // Different pagination
-                    .totalBlocks(150)
+                    .contentPerPage(20) // Different pagination
+                    .totalContent(150)
                     .build();
 
             // Test equals
@@ -422,8 +422,8 @@ class CollectionModelTest {
                     .type(CollectionType.PORTFOLIO)
                     .title("Test Portfolio")
                     .slug("test-portfolio")
-                    .blocksPerPage(30)
-                    .totalBlocks(150)
+                    .contentPerPage(30)
+                    .totalContent(150)
                     .currentPage(1)
                     .totalPages(5)
                     .build();
@@ -432,12 +432,12 @@ class CollectionModelTest {
             
             assertNotNull(toString);
             // Should contain both base class and subclass information
-            assertTrue(toString.contains("ContentCollectionModel"));
+            assertTrue(toString.contains("CollectionModel"));
             assertTrue(toString.contains("id=1"));
             assertTrue(toString.contains("PORTFOLIO"));
             assertTrue(toString.contains("Test Portfolio"));
-            assertTrue(toString.contains("blocksPerPage=30"));
-            assertTrue(toString.contains("totalBlocks=150"));
+            assertTrue(toString.contains("contentPerPage=30"));
+            assertTrue(toString.contains("totalContent=150"));
         }
     }
 
@@ -453,8 +453,8 @@ class CollectionModelTest {
                         .type(type)
                         .title("Test " + type.getDisplayName())
                         .slug("test-" + type.name().toLowerCase())
-                        .blocksPerPage(30)
-                        .totalBlocks(100)
+                        .contentPerPage(30)
+                        .totalContent(100)
                         .currentPage(1)
                         .totalPages(4)
                         .build();
@@ -473,8 +473,8 @@ class CollectionModelTest {
                     .slug("client-wedding-gallery")
                     .isPasswordProtected(true)
                     .hasAccess(false)
-                    .blocksPerPage(30)
-                    .totalBlocks(200)
+                    .contentPerPage(30)
+                    .totalContent(200)
                     .currentPage(1)
                     .totalPages(8)
                     .build();
@@ -484,8 +484,8 @@ class CollectionModelTest {
             assertEquals(CollectionType.CLIENT_GALLERY, model.getType());
             assertTrue(model.getIsPasswordProtected());
             assertFalse(model.getHasAccess());
-            assertEquals(30, model.getBlocksPerPage());
-            assertEquals(200, model.getTotalBlocks());
+            assertEquals(30, model.getContentPerPage());
+            assertEquals(200, model.getTotalContent());
         }
     }
 
@@ -504,9 +504,9 @@ class CollectionModelTest {
                     .title(longTitle) // Error 1: Title too long
                     .slug("AB") // Error 2: Slug too short
                     .description(longDescription) // Error 3: Description too long
-                    .blocksPerPage(0) // Error 4: BlocksPerPage below minimum
+                    .contentPerPage(0) // Error 4: ContentPerPage below minimum
                     .currentPage(0) // Error 5: CurrentPage below minimum
-                    .totalBlocks(-1) // Error 6: TotalBlocks below minimum
+                    .totalContent(-1) // Error 6: TotalContent below minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);

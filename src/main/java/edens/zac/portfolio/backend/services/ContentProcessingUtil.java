@@ -243,12 +243,12 @@ public class ContentProcessingUtil {
      * @param entity The code content entity to convert
      * @return The corresponding code content model
      */
-    private CodeContentModel convertCodeToModel(ContentCodeEntity entity) {
+    private ContentCodeModel convertCodeToModel(ContentCodeEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        CodeContentModel model = new CodeContentModel();
+        ContentCodeModel model = new ContentCodeModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);
@@ -270,12 +270,12 @@ public class ContentProcessingUtil {
      * @param entity The gif content entity to convert
      * @return The corresponding gif content model
      */
-    private GifContentModel convertGifToModel(ContentGifEntity entity) {
+    private ContentGifModel convertGifToModel(ContentGifEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        GifContentModel model = new GifContentModel();
+        ContentGifModel model = new ContentGifModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);

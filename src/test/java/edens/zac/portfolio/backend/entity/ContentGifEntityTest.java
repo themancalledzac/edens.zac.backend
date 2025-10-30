@@ -28,7 +28,7 @@ class ContentGifEntityTest {
         ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.GIF)
+                .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
                 .thumbnailUrl("https://example.com/gifs/thumbnails/funny-cat.jpg")
@@ -49,7 +49,7 @@ class ContentGifEntityTest {
         ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.GIF)
+                .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 // gifUrl is missing
                 .build();
@@ -72,7 +72,7 @@ class ContentGifEntityTest {
         ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.GIF)
+                .contentType(ContentType.GIF)
                 .caption("A funny cat gif")
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
@@ -103,7 +103,7 @@ class ContentGifEntityTest {
         ContentGifEntity minimalGifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.GIF)
+                .contentType(ContentType.GIF)
                 .gifUrl("https://example.com/gifs/minimal.gif")
                 .build();
         
@@ -125,7 +125,7 @@ class ContentGifEntityTest {
         ContentGifEntity gifBlock1 = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.GIF)
+                .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
                 .build();
@@ -133,7 +133,7 @@ class ContentGifEntityTest {
         ContentGifEntity gifBlock2 = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentType.GIF)
+                .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
                 .build();

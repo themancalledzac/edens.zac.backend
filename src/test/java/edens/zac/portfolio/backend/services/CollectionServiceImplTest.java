@@ -57,7 +57,7 @@ class CollectionServiceImplTest {
         saved.setTitle(unsaved.getTitle());
         saved.setSlug(unsaved.getSlug());
         saved.setPriority(unsaved.getPriority());
-        saved.setCoverImageBlockId(unsaved.getCoverImageBlockId());
+        saved.setCoverImageId(unsaved.getCoverImageId());
         saved.setCreatedAt(unsaved.getCreatedAt());
 
         CollectionModel mockModel = new CollectionModel();
@@ -111,10 +111,10 @@ class CollectionServiceImplTest {
         // Basic updates do nothing in this test
         doNothing().when(contentCollectionProcessingUtil).applyBasicUpdates(existing, updateDTO);
         // No removals
-        when(contentCollectionProcessingUtil.handleNewTextBlocksReturnIds(eq(id), eq(updateDTO)))
+        when(contentCollectionProcessingUtil.handleNewTextContentReturnIds(eq(id), eq(updateDTO)))
                 .thenReturn(Collections.emptyList());
         doNothing().when(contentCollectionProcessingUtil)
-                .handleContentBlockReordering(eq(id), eq(updateDTO), anyList());
+                .handleContentReordering(eq(id), eq(updateDTO), anyList());
         when(collectionRepository.save(existing)).thenReturn(existing);
         when(contentRepository.countByCollectionId(id)).thenReturn(0L);
         when(contentCollectionProcessingUtil.convertToBasicModel(existing)).thenReturn(new CollectionModel());

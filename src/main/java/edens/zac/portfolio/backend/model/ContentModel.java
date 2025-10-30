@@ -13,12 +13,12 @@ import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "blockType")
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "contentType")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ImageContentModel.class, name = "IMAGE"),
     @JsonSubTypes.Type(value = TextContentModel.class, name = "TEXT"),
-    @JsonSubTypes.Type(value = CodeContentModel.class, name = "CODE"),
-    @JsonSubTypes.Type(value = GifContentModel.class, name = "GIF")
+    @JsonSubTypes.Type(value = ContentCodeModel.class, name = "CODE"),
+    @JsonSubTypes.Type(value = ContentGifModel.class, name = "GIF")
 })
 public class ContentModel {
     private Long id;

@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
-public class CodeContentModel extends ContentModel {
+public class ContentCodeModel extends ContentModel {
     
     @NotBlank
     @Size(max = 50000) // Large code content (bigger than text for long files)
@@ -21,7 +21,7 @@ public class CodeContentModel extends ContentModel {
     private String language; // "java", "javascript", "python", "sql", etc.
     
     @Size(max = 255)
-    private String title; // Optional title for the code block
+    private String title; // Optional title for the code
     
     @Size(max = 255)
     private String fileName; // Optional filename for context

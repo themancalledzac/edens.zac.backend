@@ -13,16 +13,16 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GifContentModelTest {
+class ContentGifModelTest {
 
     private Validator validator;
-    private GifContentModel gifContentBlock;
+    private ContentGifModel gifContentBlock;
 
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
-        gifContentBlock = new GifContentModel();
+        gifContentBlock = new ContentGifModel();
     }
 
     @Test
@@ -41,7 +41,7 @@ class GifContentModelTest {
         gifContentBlock.setCreateDate("2024-01-01");
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -57,11 +57,11 @@ class GifContentModelTest {
         gifContentBlock.setGifUrl(null); // Invalid - null
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<GifContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentGifModel> violation = violations.iterator().next();
         assertEquals("gifUrl", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
@@ -78,11 +78,11 @@ class GifContentModelTest {
         gifContentBlock.setTitle(longTitle); // Invalid - too long
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<GifContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentGifModel> violation = violations.iterator().next();
         assertEquals("title", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 255"));
     }
@@ -99,7 +99,7 @@ class GifContentModelTest {
         gifContentBlock.setTitle(maxTitle);
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -117,11 +117,11 @@ class GifContentModelTest {
         gifContentBlock.setThumbnailUrl(longThumbnailUrl); // Invalid - too long
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<GifContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentGifModel> violation = violations.iterator().next();
         assertEquals("thumbnailUrl", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 255"));
     }
@@ -138,7 +138,7 @@ class GifContentModelTest {
         gifContentBlock.setThumbnailUrl(maxThumbnailUrl);
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -156,11 +156,11 @@ class GifContentModelTest {
         gifContentBlock.setAuthor(longAuthor); // Invalid - too long
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<GifContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentGifModel> violation = violations.iterator().next();
         assertEquals("author", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 100"));
     }
@@ -177,7 +177,7 @@ class GifContentModelTest {
         gifContentBlock.setAuthor(maxAuthor);
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -194,7 +194,7 @@ class GifContentModelTest {
         // Leave title, thumbnailUrl, width, height, author, createDate as null
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -212,7 +212,7 @@ class GifContentModelTest {
         gifContentBlock.setHeight(1080);
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -230,7 +230,7 @@ class GifContentModelTest {
         gifContentBlock.setHeight(0);
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -248,7 +248,7 @@ class GifContentModelTest {
         gifContentBlock.setHeight(-1);
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -258,7 +258,7 @@ class GifContentModelTest {
     @DisplayName("Lombok inheritance works correctly")
     void lombokInheritance_worksCorrectly() {
         // Arrange
-        GifContentModel block1 = new GifContentModel();
+        ContentGifModel block1 = new ContentGifModel();
         block1.setId(1L);
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
@@ -266,7 +266,7 @@ class GifContentModelTest {
         block1.setGifUrl("https://example.com/gif.gif");
         block1.setTitle("Test GIF");
 
-        GifContentModel block2 = new GifContentModel();
+        ContentGifModel block2 = new ContentGifModel();
         block2.setId(1L);
         block2.setCollectionId(1L);
         block2.setOrderIndex(0);
@@ -284,13 +284,13 @@ class GifContentModelTest {
     @DisplayName("Different gifUrl creates different objects")
     void differentGifUrl_createsDifferentObjects() {
         // Arrange
-        GifContentModel block1 = new GifContentModel();
+        ContentGifModel block1 = new ContentGifModel();
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.GIF);
         block1.setGifUrl("https://example.com/gif1.gif");
 
-        GifContentModel block2 = new GifContentModel();
+        ContentGifModel block2 = new ContentGifModel();
         block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.GIF);
@@ -304,7 +304,7 @@ class GifContentModelTest {
     @DisplayName("Different dimensions create different objects")
     void differentDimensions_createDifferentObjects() {
         // Arrange
-        GifContentModel block1 = new GifContentModel();
+        ContentGifModel block1 = new ContentGifModel();
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.GIF);
@@ -312,7 +312,7 @@ class GifContentModelTest {
         block1.setWidth(400);
         block1.setHeight(300);
 
-        GifContentModel block2 = new GifContentModel();
+        ContentGifModel block2 = new ContentGifModel();
         block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.GIF);
@@ -341,7 +341,7 @@ class GifContentModelTest {
         gifContentBlock.setAuthor(longAuthor); // Error 7 - long author
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertEquals(7, violations.size());
@@ -357,11 +357,11 @@ class GifContentModelTest {
         gifContentBlock.setGifUrl("https://example.com/gif.gif");
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<GifContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentGifModel> violation = violations.iterator().next();
         assertEquals("collectionId", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
@@ -386,7 +386,7 @@ class GifContentModelTest {
             gifContentBlock.setGifUrl(url);
 
             // Act
-            Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+            Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
             // Assert
             assertTrue(violations.isEmpty(), "URL '" + url + "' should be valid");
@@ -404,7 +404,7 @@ class GifContentModelTest {
         gifContentBlock.setCreateDate("2024-01-01T10:30:00Z"); // ISO format
 
         // Act
-        Set<ConstraintViolation<GifContentModel>> violations = validator.validate(gifContentBlock);
+        Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(gifContentBlock);
 
         // Assert
         assertTrue(violations.isEmpty());

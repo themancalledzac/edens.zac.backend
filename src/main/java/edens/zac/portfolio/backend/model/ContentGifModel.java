@@ -11,7 +11,7 @@ import java.util.List;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
-public class GifContentModel extends ContentModel {
+public class ContentGifModel extends ContentModel {
     
     @Size(max = 255)
     private String title;

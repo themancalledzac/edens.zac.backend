@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
-class ContentCollectionControllerProdTest {
+class CollectionControllerProdTest {
 
     private MockMvc mockMvc;
 
@@ -46,7 +46,7 @@ class ContentCollectionControllerProdTest {
     private CollectionService collectionService;
 
     @InjectMocks
-    private ContentCollectionControllerProd contentCollectionController;
+    private CollectionControllerProd contentCollectionController;
 
     private ObjectMapper objectMapper;
 
@@ -74,11 +74,11 @@ class ContentCollectionControllerProdTest {
         blog.setDescription("A test blog collection");
         blog.setVisible(true);
         blog.setPriority(1);
-        blog.setBlocksPerPage(30);
-        blog.setTotalBlocks(5);
+        blog.setContentPerPage(30);
+        blog.setTotalContent(5);
         blog.setTotalPages(1);
         blog.setCurrentPage(0);
-        blog.setContentBlocks(new ArrayList<>());
+        blog.setContent(new ArrayList<>());
         blog.setCreatedAt(LocalDateTime.now());
         blog.setUpdatedAt(LocalDateTime.now());
 
@@ -91,11 +91,11 @@ class ContentCollectionControllerProdTest {
         artGallery.setDescription("A test art gallery collection");
         artGallery.setVisible(true);
         artGallery.setPriority(2);
-        artGallery.setBlocksPerPage(30);
-        artGallery.setTotalBlocks(10);
+        artGallery.setContentPerPage(30);
+        artGallery.setTotalContent(10);
         artGallery.setTotalPages(1);
         artGallery.setCurrentPage(0);
-        artGallery.setContentBlocks(new ArrayList<>());
+        artGallery.setContent(new ArrayList<>());
         artGallery.setCreatedAt(LocalDateTime.now());
         artGallery.setUpdatedAt(LocalDateTime.now());
 
@@ -108,11 +108,11 @@ class ContentCollectionControllerProdTest {
         clientGallery.setDescription("A test client gallery collection");
         clientGallery.setVisible(true);
         clientGallery.setPriority(3);
-        clientGallery.setBlocksPerPage(50);
-        clientGallery.setTotalBlocks(100);
+        clientGallery.setContentPerPage(50);
+        clientGallery.setTotalContent(100);
         clientGallery.setTotalPages(2);
         clientGallery.setCurrentPage(0);
-        clientGallery.setContentBlocks(new ArrayList<>());
+        clientGallery.setContent(new ArrayList<>());
         clientGallery.setCreatedAt(LocalDateTime.now());
         clientGallery.setUpdatedAt(LocalDateTime.now());
         clientGallery.setIsPasswordProtected(true);
