@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
-class ContentCollectionControllerDevTest {
+class CollectionControllerDevTest {
 
     private MockMvc mockMvc;
 
@@ -60,7 +60,7 @@ class ContentCollectionControllerDevTest {
         // Set up MockMvc
         mockMvc = MockMvcBuilders.standaloneSetup(contentCollectionController).build();
 
-        // Create test collection model (for updateContent, addContentBlocks)
+        // Create test collection model (for updateContent, addContents)
         testCollection = new CollectionModel();
         testCollection.setId(1L);
         testCollection.setType(CollectionType.BLOG);
@@ -178,7 +178,7 @@ class ContentCollectionControllerDevTest {
 
     @Test
     @DisplayName("POST /collections/{id}/content should add content blocks (files only)")
-    void addContentBlocks_shouldAddContent() throws Exception {
+    void addContents_shouldAddContent() throws Exception {
         // Arrange
         when(collectionService.addContent(eq(1L), anyList()))
                 .thenReturn(testCollection);
@@ -227,7 +227,7 @@ class ContentCollectionControllerDevTest {
 
     @Test
     @DisplayName("DELETE /collections/{id}/content/{blockId} should remove content block")
-    void removeContentBlock_shouldRemoveContent() throws Exception {
+    void removeContent_shouldRemoveContent() throws Exception {
         // Arrange
         when(collectionService.updateContent(eq(1L), any(CollectionUpdateDTO.class)))
                 .thenReturn(testCollection);

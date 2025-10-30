@@ -60,9 +60,9 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withImageContentBlock_shouldReturnImageContentBlockModel() {
+    void convertToModel_withContentImage_shouldReturnContentImageModel() {
         // Arrange
-        ContentImageEntity entity = createImageContentBlockEntity();
+        ContentImageEntity entity = createContentImageEntity();
 
         // Act
         ContentModel result = contentProcessingUtil.convertToModel(entity);
@@ -94,9 +94,9 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withTextContentBlock_shouldReturnTextContentBlockModel() {
+    void convertToModel_withTextContent_shouldReturnTextContentModel() {
         // Arrange
-        TextContentEntity entity = createTextContentBlockEntity();
+        TextContentEntity entity = createTextContentEntity();
 
         // Act
         ContentModel result = contentProcessingUtil.convertToModel(entity);
@@ -114,9 +114,9 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withCodeContentBlock_shouldReturnCodeContentBlockModel() {
+    void convertToModel_withContentCode_shouldReturnContentCodeModel() {
         // Arrange
-        ContentCodeEntity entity = createCodeContentBlockEntity();
+        ContentCodeEntity entity = createContentCodeEntity();
 
         // Act
         ContentModel result = contentProcessingUtil.convertToModel(entity);
@@ -136,9 +136,9 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withGifContentBlock_shouldReturnGifContentBlockModel() {
+    void convertToModel_withContentGif_shouldReturnContentGifModel() {
         // Arrange
-        ContentGifEntity entity = createGifContentBlockEntity();
+        ContentGifEntity entity = createContentGifEntity();
 
         // Act
         ContentModel result = contentProcessingUtil.convertToModel(entity);
@@ -175,7 +175,7 @@ public class ContentProcessingUtilTest {
 
     @Disabled
     @Test
-    void processImageContentBlock_withValidImage_shouldReturnImageContentEntity() throws IOException {
+    void processContentImage_withValidImage_shouldReturnImageContentEntity() throws IOException {
         // Arrange
         MultipartFile file = createMockImageFile();
         Long collectionId = 1L;
@@ -186,7 +186,7 @@ public class ContentProcessingUtilTest {
         // Mock S3 upload (new implementation uploads directly to S3)
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        ContentImageEntity savedEntity = createImageContentBlockEntity();
+        ContentImageEntity savedEntity = createContentImageEntity();
         when(contentRepository.save(any(ContentImageEntity.class))).thenReturn(savedEntity);
 
         // Act
@@ -200,7 +200,7 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void processImageContentBlock_whenImageProcessingFails_shouldReturnNull() throws IOException {
+    void processContentImage_whenImageProcessingFails_shouldReturnNull() throws IOException {
         // Arrange
         MultipartFile file = createMockImageFile();
         Long collectionId = 1L;
@@ -219,14 +219,14 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void processTextContentBlock_withValidText_shouldReturnTextContentEntity() {
+    void processTextContent_withValidText_shouldReturnTextContentEntity() {
         // Arrange
         String text = "This is test content";
         Long collectionId = 1L;
         Integer orderIndex = 0;
         String caption = "Test Caption";
 
-        TextContentEntity savedEntity = createTextContentBlockEntity();
+        TextContentEntity savedEntity = createTextContentEntity();
         when(contentRepository.save(any(TextContentEntity.class))).thenReturn(savedEntity);
 
         // Act
@@ -240,7 +240,7 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void processTextContentBlock_withEmptyText_shouldThrowException() {
+    void processTextContent_withEmptyText_shouldThrowException() {
         // Arrange
         String text = "";
         Long collectionId = 1L;
@@ -255,7 +255,7 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void processCodeContentBlock_withValidCode_shouldReturnCodeContentEntity() {
+    void processContentCode_withValidCode_shouldReturnCodeContentEntity() {
         // Arrange
         String code = "public class Test { }";
         String language = "java";
@@ -264,7 +264,7 @@ public class ContentProcessingUtilTest {
         String title = "Test Code";
         String caption = "Test Caption";
 
-        ContentCodeEntity savedEntity = createCodeContentBlockEntity();
+        ContentCodeEntity savedEntity = createContentCodeEntity();
         when(contentRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
 
         // Act
@@ -288,7 +288,7 @@ public class ContentProcessingUtilTest {
         String title = "Test Code";
         String caption = "Test Caption";
 
-        ContentCodeEntity savedEntity = createCodeContentBlockEntity();
+        ContentCodeEntity savedEntity = createContentCodeEntity();
         when(contentRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
 
         // Act
@@ -301,7 +301,7 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void processGifContentBlock_withValidGif_shouldReturnGifContentEntity() throws IOException {
+    void processContentGif_withValidGif_shouldReturnGifContentEntity() throws IOException {
         // Arrange
         MultipartFile file = createMockGifFile();
         Long collectionId = 1L;
@@ -312,7 +312,7 @@ public class ContentProcessingUtilTest {
         // Mock S3 upload
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        ContentGifEntity savedEntity = createGifContentBlockEntity();
+        ContentGifEntity savedEntity = createContentGifEntity();
         when(contentRepository.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
 
         // Act
@@ -425,7 +425,7 @@ public class ContentProcessingUtilTest {
         // Mock S3 upload (new implementation uploads directly to S3)
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        ContentImageEntity imageEntity = createImageContentBlockEntity();
+        ContentImageEntity imageEntity = createContentImageEntity();
         when(contentRepository.save(any(ContentImageEntity.class))).thenReturn(imageEntity);
 
         // Act
@@ -450,7 +450,7 @@ public class ContentProcessingUtilTest {
         String title = null;
         String caption = "Test Caption";
 
-        TextContentEntity textEntity = createTextContentBlockEntity();
+        TextContentEntity textEntity = createTextContentEntity();
         when(contentRepository.save(any(TextContentEntity.class))).thenReturn(textEntity);
 
         // Act
@@ -474,7 +474,7 @@ public class ContentProcessingUtilTest {
         String title = "Test Code";
         String caption = "Test Caption";
 
-        ContentCodeEntity codeEntity = createCodeContentBlockEntity();
+        ContentCodeEntity codeEntity = createContentCodeEntity();
         when(contentRepository.save(any(ContentCodeEntity.class))).thenReturn(codeEntity);
 
         // Act
@@ -501,7 +501,7 @@ public class ContentProcessingUtilTest {
         // Mock S3 upload
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        ContentGifEntity gifEntity = createGifContentBlockEntity();
+        ContentGifEntity gifEntity = createContentGifEntity();
         when(contentRepository.save(any(ContentGifEntity.class))).thenReturn(gifEntity);
 
         // Act
@@ -535,7 +535,7 @@ public class ContentProcessingUtilTest {
 
     // Helper methods to create test entities and models
 
-    private ContentImageEntity createImageContentBlockEntity() {
+    private ContentImageEntity createContentImageEntity() {
         ContentImageEntity entity = new ContentImageEntity();
         entity.setId(1L);
         entity.setCollectionId(1L);
@@ -563,7 +563,7 @@ public class ContentProcessingUtilTest {
         return entity;
     }
 
-    private TextContentEntity createTextContentBlockEntity() {
+    private TextContentEntity createTextContentEntity() {
         TextContentEntity entity = new TextContentEntity();
         entity.setId(2L);
         entity.setCollectionId(1L);
@@ -577,7 +577,7 @@ public class ContentProcessingUtilTest {
         return entity;
     }
 
-    private ContentCodeEntity createCodeContentBlockEntity() {
+    private ContentCodeEntity createContentCodeEntity() {
         ContentCodeEntity entity = new ContentCodeEntity();
         entity.setId(3L);
         entity.setCollectionId(1L);
@@ -592,7 +592,7 @@ public class ContentProcessingUtilTest {
         return entity;
     }
 
-    private ContentGifEntity createGifContentBlockEntity() {
+    private ContentGifEntity createContentGifEntity() {
         ContentGifEntity entity = new ContentGifEntity();
         entity.setId(4L);
         entity.setCollectionId(1L);

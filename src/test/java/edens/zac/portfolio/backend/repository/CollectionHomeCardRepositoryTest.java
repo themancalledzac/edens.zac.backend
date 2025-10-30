@@ -1,7 +1,7 @@
 //package edens.zac.portfolio.backend.repository;
 //
 //import edens.zac.portfolio.backend.entity.CollectionEntity;
-//import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
+//import edens.zac.portfolio.backend.entity.CollectionHomeCardEntity;
 //import edens.zac.portfolio.backend.types.CollectionType;
 //import org.junit.jupiter.api.DisplayName;
 //import org.junit.jupiter.api.Test;
@@ -17,16 +17,16 @@
 //
 //@DataJpaTest
 //@ActiveProfiles("test")
-//class ContentCollectionHomeCardRepositoryTest {
+//class CollectionHomeCardRepositoryTest {
 //
 //    @Autowired
-//    private ContentCollectionHomeCardRepository repository;
+//    private CollectionHomeCardRepository repository;
 //
 //    @Autowired
-//    private ContentCollectionRepository collectionRepository;
+//    private CollectionRepository collectionRepository;
 //
-//    private ContentCollectionHomeCardEntity card(int priority, boolean active, String coverUrl, LocalDateTime created) {
-//        return ContentCollectionHomeCardEntity.builder()
+//    private CollectionHomeCardEntity card(int priority, boolean active, String coverUrl, LocalDateTime created) {
+//        return CollectionHomeCardEntity.builder()
 //                .title("t" + priority)
 //                .cardType("PORTFOLIO")
 //                .location("loc")
@@ -64,20 +64,20 @@
 //        CollectionEntity collection3 = collectionRepository.save(collection("collection-3", true));
 //
 //        // valid priorities 1..2
-//        ContentCollectionHomeCardEntity card1 = card(1, true, "https://img/1.jpg", now.minusHours(2));
+//        CollectionHomeCardEntity card1 = card(1, true, "https://img/1.jpg", now.minusHours(2));
 //        card1.setReferenceId(collection1.getId());
 //        repository.save(card1);
 //
-//        ContentCollectionHomeCardEntity card2a = card(2, true, "https://img/2a.jpg", now.minusHours(1));
+//        CollectionHomeCardEntity card2a = card(2, true, "https://img/2a.jpg", now.minusHours(1));
 //        card2a.setReferenceId(collection2.getId());
 //        repository.save(card2a);
 //
-//        ContentCollectionHomeCardEntity card2b = card(2, true, "https://img/2b.jpg", now.minusMinutes(10));
+//        CollectionHomeCardEntity card2b = card(2, true, "https://img/2b.jpg", now.minusMinutes(10));
 //        card2b.setReferenceId(collection2.getId());
 //        repository.save(card2b);
 //
 //        // outside maxPriority (should be excluded)
-//        ContentCollectionHomeCardEntity card3 = card(3, true, "https://img/3.jpg", now.minusHours(3));
+//        CollectionHomeCardEntity card3 = card(3, true, "https://img/3.jpg", now.minusHours(3));
 //        card3.setReferenceId(collection3.getId());
 //        repository.save(card3);
 //
@@ -87,11 +87,11 @@
 //        repository.save(card(2, true, null, now.minusHours(6)));
 //
 //        // Act
-//        List<ContentCollectionHomeCardEntity> results = repository.getHomePage(2);
+//        List<CollectionHomeCardEntity> results = repository.getHomePage(2);
 //
 //        // Assert
 //        assertThat(results)
-//                .extracting(ContentCollectionHomeCardEntity::getPriority)
+//                .extracting(CollectionHomeCardEntity::getPriority)
 //                .containsExactly(1, 2, 2);
 //
 //        // First should be priority 1; then within priority 2, createdDate DESC so the newer (2b) comes before (2a)
@@ -119,26 +119,26 @@
 //        CollectionEntity invisibleCollection = collectionRepository.save(collection("invisible-collection", false));
 //
 //        // Create home cards referencing these collections
-//        ContentCollectionHomeCardEntity visibleCard = card(1, true, "https://img/visible.jpg", now.minusHours(1));
+//        CollectionHomeCardEntity visibleCard = card(1, true, "https://img/visible.jpg", now.minusHours(1));
 //        visibleCard.setReferenceId(visibleCollection.getId());
 //        repository.save(visibleCard);
 //
-//        ContentCollectionHomeCardEntity invisibleCard = card(1, true, "https://img/invisible.jpg", now.minusHours(2));
+//        CollectionHomeCardEntity invisibleCard = card(1, true, "https://img/invisible.jpg", now.minusHours(2));
 //        invisibleCard.setReferenceId(invisibleCollection.getId());
 //        repository.save(invisibleCard);
 //
 //        // Create a home card with no referenceId (should be included)
-//        ContentCollectionHomeCardEntity noRefCard = card(1, true, "https://img/noref.jpg", now.minusHours(3));
+//        CollectionHomeCardEntity noRefCard = card(1, true, "https://img/noref.jpg", now.minusHours(3));
 //        noRefCard.setReferenceId(null);
 //        repository.save(noRefCard);
 //
 //        // Act
-//        List<ContentCollectionHomeCardEntity> results = repository.getHomePage(2);
+//        List<CollectionHomeCardEntity> results = repository.getHomePage(2);
 //
 //        // Assert
 //        assertThat(results).hasSize(2);
 //        assertThat(results)
-//                .extracting(ContentCollectionHomeCardEntity::getCoverImageUrl)
+//                .extracting(CollectionHomeCardEntity::getCoverImageUrl)
 //                .containsExactlyInAnyOrder("https://img/visible.jpg", "https://img/noref.jpg")
 //                .doesNotContain("https://img/invisible.jpg");
 //    }

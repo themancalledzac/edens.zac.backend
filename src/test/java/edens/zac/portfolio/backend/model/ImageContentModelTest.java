@@ -16,23 +16,23 @@ import static org.junit.jupiter.api.Assertions.*;
 class ImageContentModelTest {
 
     private Validator validator;
-    private ImageContentModel imageContentBlock;
+    private ImageContentModel contentImage;
 
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
-        imageContentBlock = new ImageContentModel();
+        contentImage = new ImageContentModel();
     }
 
     @Test
-    @DisplayName("Valid ImageContentBlockModel should pass validation")
-    void validImageContentBlockModel_shouldPassValidation() {
+    @DisplayName("Valid ContentImageModel should pass validation")
+    void validContentImageModel_shouldPassValidation() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -42,11 +42,11 @@ class ImageContentModelTest {
     @DisplayName("Null imageUrlWeb should fail validation")
     void nullImageUrlWeb_shouldFailValidation() {
         // Arrange
-        setupValidImageContentBlock();
-        imageContentBlock.setImageUrlWeb(null); // Invalid
+        setupValidContentImage();
+        contentImage.setImageUrlWeb(null); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
@@ -59,12 +59,12 @@ class ImageContentModelTest {
     @DisplayName("Title over 250 characters should fail validation")
     void longTitle_shouldFailValidation() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
         String longTitle = "A".repeat(251); // 251 characters
-        imageContentBlock.setTitle(longTitle); // Invalid
+        contentImage.setTitle(longTitle); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
@@ -77,12 +77,12 @@ class ImageContentModelTest {
     @DisplayName("Author over 100 characters should fail validation")
     void longAuthor_shouldFailValidation() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
         String longAuthor = "A".repeat(101); // 101 characters
-        imageContentBlock.setAuthor(longAuthor); // Invalid
+        contentImage.setAuthor(longAuthor); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
@@ -95,12 +95,12 @@ class ImageContentModelTest {
     @DisplayName("fStop over 15 characters should fail validation")
     void longFStop_shouldFailValidation() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
         String longFStop = "A".repeat(16); // 16 characters
-        imageContentBlock.setFStop(longFStop); // Invalid
+        contentImage.setFStop(longFStop); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
@@ -116,12 +116,12 @@ class ImageContentModelTest {
     @DisplayName("ShutterSpeed over 20 characters should fail validation")
     void longShutterSpeed_shouldFailValidation() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
         String longShutterSpeed = "A".repeat(21); // 21 characters
-        imageContentBlock.setShutterSpeed(longShutterSpeed); // Invalid
+        contentImage.setShutterSpeed(longShutterSpeed); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
@@ -134,12 +134,12 @@ class ImageContentModelTest {
     @DisplayName("FocalLength over 20 characters should fail validation")
     void longFocalLength_shouldFailValidation() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
         String longFocalLength = "A".repeat(21); // 21 characters
-        imageContentBlock.setFocalLength(longFocalLength); // Invalid
+        contentImage.setFocalLength(longFocalLength); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
@@ -152,12 +152,12 @@ class ImageContentModelTest {
     @DisplayName("Location over 250 characters should fail validation")
     void longLocation_shouldFailValidation() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
         String longLocation = "A".repeat(251); // 251 characters
-        imageContentBlock.setLocation(longLocation); // Invalid
+        contentImage.setLocation(longLocation); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
@@ -170,17 +170,17 @@ class ImageContentModelTest {
     @DisplayName("Valid fields at max length should pass validation")
     void maxLengthFields_shouldPassValidation() {
         // Arrange
-        setupValidImageContentBlock();
-        imageContentBlock.setTitle("A".repeat(250));
-        imageContentBlock.setAuthor("A".repeat(100));
-        imageContentBlock.setFStop("A".repeat(15));
+        setupValidContentImage();
+        contentImage.setTitle("A".repeat(250));
+        contentImage.setAuthor("A".repeat(100));
+        contentImage.setFStop("A".repeat(15));
         // Note: lens is now a ContentLensModel object, not a validated String
-        imageContentBlock.setShutterSpeed("A".repeat(20));
-        imageContentBlock.setFocalLength("A".repeat(20));
-        imageContentBlock.setLocation("A".repeat(250));
+        contentImage.setShutterSpeed("A".repeat(20));
+        contentImage.setFocalLength("A".repeat(20));
+        contentImage.setLocation("A".repeat(250));
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -190,26 +190,26 @@ class ImageContentModelTest {
     @DisplayName("Optional fields can be null")
     void optionalFields_canBeNull() {
         // Arrange
-        setupValidImageContentBlock();
+        setupValidContentImage();
         // Set optional fields to null
-        imageContentBlock.setTitle(null);
-        imageContentBlock.setImageWidth(null);
-        imageContentBlock.setImageHeight(null);
-        imageContentBlock.setIso(null);
-        imageContentBlock.setAuthor(null);
-        imageContentBlock.setRating(null);
-        imageContentBlock.setFStop(null);
-        imageContentBlock.setLens(null);
-        imageContentBlock.setBlackAndWhite(null);
-        imageContentBlock.setIsFilm(null);
-        imageContentBlock.setShutterSpeed(null);
-        imageContentBlock.setCamera(null);
-        imageContentBlock.setFocalLength(null);
-        imageContentBlock.setLocation(null);
-        imageContentBlock.setCreateDate(null);
+        contentImage.setTitle(null);
+        contentImage.setImageWidth(null);
+        contentImage.setImageHeight(null);
+        contentImage.setIso(null);
+        contentImage.setAuthor(null);
+        contentImage.setRating(null);
+        contentImage.setFStop(null);
+        contentImage.setLens(null);
+        contentImage.setBlackAndWhite(null);
+        contentImage.setIsFilm(null);
+        contentImage.setShutterSpeed(null);
+        contentImage.setCamera(null);
+        contentImage.setFocalLength(null);
+        contentImage.setLocation(null);
+        contentImage.setCreateDate(null);
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -219,30 +219,30 @@ class ImageContentModelTest {
     @DisplayName("Multiple validation errors are captured")
     void multipleValidationErrors_areCaptured() {
         // Arrange
-        setupValidImageContentBlock();
-        imageContentBlock.setImageUrlWeb(null); // Error 1
-        imageContentBlock.setTitle("A".repeat(251)); // Error 2
-        imageContentBlock.setAuthor("A".repeat(101)); // Error 3
-        imageContentBlock.setLocation("A".repeat(251)); // Error 4
+        setupValidContentImage();
+        contentImage.setImageUrlWeb(null); // Error 1
+        contentImage.setTitle("A".repeat(251)); // Error 2
+        contentImage.setAuthor("A".repeat(101)); // Error 3
+        contentImage.setLocation("A".repeat(251)); // Error 4
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(4, violations.size());
     }
 
     @Test
-    @DisplayName("Inherited ContentBlockModel validations work correctly")
+    @DisplayName("Inherited ContentModel validations work correctly")
     void inheritedValidations_workCorrectly() {
         // Arrange
-        setupValidImageContentBlock();
-        imageContentBlock.setCollectionId(null); // Invalid from parent
-        imageContentBlock.setOrderIndex(-1); // Invalid from parent
-        imageContentBlock.setContentType(null); // Invalid from parent
+        setupValidContentImage();
+        contentImage.setCollectionId(null); // Invalid from parent
+        contentImage.setOrderIndex(-1); // Invalid from parent
+        contentImage.setContentType(null); // Invalid from parent
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(3, violations.size());
@@ -265,15 +265,15 @@ class ImageContentModelTest {
     void lombokMethods_workCorrectly() {
         // Arrange
         ImageContentModel image1 = new ImageContentModel();
-        setupValidImageContentBlock(image1);
+        setupValidContentImage(image1);
 
         ImageContentModel image2 = new ImageContentModel();
-        setupValidImageContentBlock(image2);
+        setupValidContentImage(image2);
 
         // Act & Assert
         assertEquals(image1, image2);
         assertEquals(image1.hashCode(), image2.hashCode());
-        assertTrue(image1.toString().contains("ImageContentBlockModel"));
+        assertTrue(image1.toString().contains("ContentImageModel"));
     }
 
     @Test
@@ -281,10 +281,10 @@ class ImageContentModelTest {
     void differentImageFields_createsDifferentObjects() {
         // Arrange
         ImageContentModel image1 = new ImageContentModel();
-        setupValidImageContentBlock(image1);
+        setupValidContentImage(image1);
 
         ImageContentModel image2 = new ImageContentModel();
-        setupValidImageContentBlock(image2);
+        setupValidContentImage(image2);
         image2.setTitle("Different Title");
 
         // Act & Assert
@@ -295,44 +295,44 @@ class ImageContentModelTest {
     @DisplayName("Realistic image metadata values should pass validation")
     void realisticImageMetadata_shouldPassValidation() {
         // Arrange
-        setupValidImageContentBlock();
-        imageContentBlock.setTitle("Sunset at Arches National Park");
-        imageContentBlock.setImageWidth(4000);
-        imageContentBlock.setImageHeight(6000);
-        imageContentBlock.setIso(100);
-        imageContentBlock.setAuthor("Zac Eden");
-        imageContentBlock.setRating(5);
-        imageContentBlock.setFStop("f/8.0");
-        imageContentBlock.setLens(ContentLensModel.builder()
+        setupValidContentImage();
+        contentImage.setTitle("Sunset at Arches National Park");
+        contentImage.setImageWidth(4000);
+        contentImage.setImageHeight(6000);
+        contentImage.setIso(100);
+        contentImage.setAuthor("Zac Eden");
+        contentImage.setRating(5);
+        contentImage.setFStop("f/8.0");
+        contentImage.setLens(ContentLensModel.builder()
                 .id(1L)
                 .name("Canon 24-70mm f/2.8L")
                 .build());
-        imageContentBlock.setBlackAndWhite(false);
-        imageContentBlock.setIsFilm(false);
-        imageContentBlock.setShutterSpeed("1/125");
-        imageContentBlock.setCamera(new ContentCameraModel());
-        imageContentBlock.setFocalLength("35mm");
-        imageContentBlock.setLocation("Arches National Park, Utah");
-        imageContentBlock.setCreateDate("2024-03-15");
+        contentImage.setBlackAndWhite(false);
+        contentImage.setIsFilm(false);
+        contentImage.setShutterSpeed("1/125");
+        contentImage.setCamera(new ContentCameraModel());
+        contentImage.setFocalLength("35mm");
+        contentImage.setLocation("Arches National Park, Utah");
+        contentImage.setCreateDate("2024-03-15");
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(imageContentBlock);
+        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
     }
 
-    private void setupValidImageContentBlock() {
-        setupValidImageContentBlock(imageContentBlock);
+    private void setupValidContentImage() {
+        setupValidContentImage(contentImage);
     }
 
-    private void setupValidImageContentBlock(ImageContentModel image) {
-        // Set required fields from parent ContentBlockModel
+    private void setupValidContentImage(ImageContentModel image) {
+        // Set required fields from parent ContentModel
         image.setCollectionId(1L);
         image.setOrderIndex(0);
         image.setContentType(ContentType.IMAGE);
         
-        // Set required fields specific to ImageContentBlockModel
+        // Set required fields specific to ContentImageModel
         image.setImageUrlWeb("https://s3.amazonaws.com/portfolio/web/test-image.jpg");
         
         // Set optional fields with valid values

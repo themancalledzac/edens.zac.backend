@@ -17,9 +17,9 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for ContentCollectionBaseModel
+ * Unit tests for CollectionBaseModel
  * Tests validation annotations, builder pattern, and common functionality
- * Uses ContentCollectionModel as concrete implementation to test the abstract base class
+ * Uses CollectionModel as concrete implementation to test the abstract base class
  */
 class CollectionBaseModelTest {
 
@@ -34,7 +34,7 @@ class CollectionBaseModelTest {
     /**
      * Helper method to create a test ImageContentBlockModel
      */
-    private static ImageContentModel createTestImageContentBlock(String imageUrl) {
+    private static ImageContentModel createTestContentImage(String imageUrl) {
         ImageContentModel imageBlock = new ImageContentModel();
         imageBlock.setId(123L);
         imageBlock.setImageUrlWeb(imageUrl);
@@ -63,7 +63,7 @@ class CollectionBaseModelTest {
                     .collectionDate(today)
                     .visible(true)
                     .priority(1)
-                    .coverImage(createTestImageContentBlock("https://example.com/cover.jpg"))
+                    .coverImage(createTestContentImage("https://example.com/cover.jpg"))
                     .isPasswordProtected(false)
                     .hasAccess(true)
                     .createdAt(now)
@@ -559,7 +559,7 @@ class CollectionBaseModelTest {
             String toString = model.toString();
             
             assertNotNull(toString);
-            assertTrue(toString.contains("ContentCollectionModel"));
+            assertTrue(toString.contains("CollectionModel"));
             assertTrue(toString.contains("id=1"));
             assertTrue(toString.contains("PORTFOLIO"));
             assertTrue(toString.contains("Test Portfolio"));

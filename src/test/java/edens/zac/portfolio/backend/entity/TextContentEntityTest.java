@@ -23,8 +23,8 @@ class TextContentEntityTest {
     }
 
     @Test
-    void testValidTextContentBlock() {
-        // Create a valid text content block
+    void testValidTextContent() {
+        // Create a valid text content
         TextContentEntity textBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
@@ -39,8 +39,8 @@ class TextContentEntityTest {
     }
 
     @Test
-    void testInvalidTextContentBlockMissingRequiredField() {
-        // Create an invalid text content block (missing required content)
+    void testInvalidTextContentMissingRequiredField() {
+        // Create an invalid text content (missing required content)
         TextContentEntity textBlock = TextContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)

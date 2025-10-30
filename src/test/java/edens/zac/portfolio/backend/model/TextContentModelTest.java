@@ -16,28 +16,28 @@ import static org.junit.jupiter.api.Assertions.*;
 class TextContentModelTest {
 
     private Validator validator;
-    private TextContentModel textContentBlock;
+    private TextContentModel textContent;
 
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
-        textContentBlock = new TextContentModel();
+        textContent = new TextContentModel();
     }
 
     @Test
-    @DisplayName("Valid TextContentBlockModel should pass validation")
-    void validTextContentBlockModel_shouldPassValidation() {
+    @DisplayName("Valid TextContentModel should pass validation")
+    void validTextContentModel_shouldPassValidation() {
         // Arrange
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("This is some test content");
-        textContentBlock.setFormatType("markdown");
-        textContentBlock.setTitle("Test Title");
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("This is some test content");
+        textContent.setFormatType("markdown");
+        textContent.setTitle("Test Title");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -47,14 +47,14 @@ class TextContentModelTest {
     @DisplayName("Blank content should fail validation")
     void blankContent_shouldFailValidation() {
         // Arrange
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent(""); // Invalid - blank
-        textContentBlock.setFormatType("markdown");
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent(""); // Invalid - blank
+        textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
@@ -67,14 +67,14 @@ class TextContentModelTest {
     @DisplayName("Null content should fail validation")
     void nullContent_shouldFailValidation() {
         // Arrange
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent(null); // Invalid - null
-        textContentBlock.setFormatType("markdown");
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent(null); // Invalid - null
+        textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
@@ -88,14 +88,14 @@ class TextContentModelTest {
     void longContent_shouldFailValidation() {
         // Arrange
         String longContent = "A".repeat(10001); // 10001 characters
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent(longContent); // Invalid - too long
-        textContentBlock.setFormatType("markdown");
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent(longContent); // Invalid - too long
+        textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
@@ -109,14 +109,14 @@ class TextContentModelTest {
     void maxLengthContent_shouldPassValidation() {
         // Arrange
         String maxContent = "A".repeat(10000); // Exactly 10000 characters
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent(maxContent);
-        textContentBlock.setFormatType("markdown");
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent(maxContent);
+        textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -126,14 +126,14 @@ class TextContentModelTest {
     @DisplayName("Null formatType should fail validation")
     void nullFormatType_shouldFailValidation() {
         // Arrange
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("Test content");
-        textContentBlock.setFormatType(null); // Invalid - null
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("Test content");
+        textContent.setFormatType(null); // Invalid - null
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
@@ -147,14 +147,14 @@ class TextContentModelTest {
     void longFormatType_shouldFailValidation() {
         // Arrange
         String longFormatType = "A".repeat(21); // 21 characters
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("Test content");
-        textContentBlock.setFormatType(longFormatType); // Invalid - too long
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("Test content");
+        textContent.setFormatType(longFormatType); // Invalid - too long
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
@@ -168,14 +168,14 @@ class TextContentModelTest {
     void maxLengthFormatType_shouldPassValidation() {
         // Arrange
         String maxFormatType = "A".repeat(20); // Exactly 20 characters
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("Test content");
-        textContentBlock.setFormatType(maxFormatType);
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("Test content");
+        textContent.setFormatType(maxFormatType);
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -189,14 +189,14 @@ class TextContentModelTest {
         
         for (String format : validFormats) {
             // Arrange
-            textContentBlock.setCollectionId(1L);
-            textContentBlock.setOrderIndex(0);
-            textContentBlock.setContentType(ContentType.TEXT);
-            textContentBlock.setContent("Test content for " + format);
-            textContentBlock.setFormatType(format);
+            textContent.setCollectionId(1L);
+            textContent.setOrderIndex(0);
+            textContent.setContentType(ContentType.TEXT);
+            textContent.setContent("Test content for " + format);
+            textContent.setFormatType(format);
 
             // Act
-            Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+            Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
             // Assert
             assertTrue(violations.isEmpty(), "Format type '" + format + "' should be valid");
@@ -208,15 +208,15 @@ class TextContentModelTest {
     void longTitle_shouldFailValidation() {
         // Arrange
         String longTitle = "A".repeat(251); // 251 characters
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("Test content");
-        textContentBlock.setFormatType("markdown");
-        textContentBlock.setTitle(longTitle); // Invalid - too long
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("Test content");
+        textContent.setFormatType("markdown");
+        textContent.setTitle(longTitle); // Invalid - too long
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
@@ -230,15 +230,15 @@ class TextContentModelTest {
     void maxLengthTitle_shouldPassValidation() {
         // Arrange
         String maxTitle = "A".repeat(250); // Exactly 250 characters
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("Test content");
-        textContentBlock.setFormatType("markdown");
-        textContentBlock.setTitle(maxTitle);
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("Test content");
+        textContent.setFormatType("markdown");
+        textContent.setTitle(maxTitle);
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -248,15 +248,15 @@ class TextContentModelTest {
     @DisplayName("Title can be null")
     void nullTitle_shouldPassValidation() {
         // Arrange
-        textContentBlock.setCollectionId(1L);
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("Test content");
-        textContentBlock.setFormatType("markdown");
-        textContentBlock.setTitle(null); // Should be valid - title is optional
+        textContent.setCollectionId(1L);
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("Test content");
+        textContent.setFormatType("markdown");
+        textContent.setTitle(null); // Should be valid - title is optional
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -287,7 +287,7 @@ class TextContentModelTest {
         // Act & Assert
         assertEquals(block1, block2);
         assertEquals(block1.hashCode(), block2.hashCode());
-        assertTrue(block1.toString().contains("TextContentBlockModel"));
+        assertTrue(block1.toString().contains("TextContentModel"));
     }
 
     @Test
@@ -342,32 +342,32 @@ class TextContentModelTest {
         String longFormatType = "A".repeat(21);
         String longTitle = "A".repeat(251);
         
-        textContentBlock.setCollectionId(null); // Error 1 - inherited
-        textContentBlock.setOrderIndex(-1); // Error 2 - inherited
-        textContentBlock.setContentType(null); // Error 3 - inherited
-        textContentBlock.setContent(""); // Error 4 - blank content
-        textContentBlock.setFormatType(longFormatType); // Error 5 - long format type
-        textContentBlock.setTitle(longTitle); // Error 6 - long title
+        textContent.setCollectionId(null); // Error 1 - inherited
+        textContent.setOrderIndex(-1); // Error 2 - inherited
+        textContent.setContentType(null); // Error 3 - inherited
+        textContent.setContent(""); // Error 4 - blank content
+        textContent.setFormatType(longFormatType); // Error 5 - long format type
+        textContent.setTitle(longTitle); // Error 6 - long title
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(6, violations.size());
     }
 
     @Test
-    @DisplayName("Inherits validation from ContentBlockModel")
-    void inheritsValidation_fromContentBlockModel() {
+    @DisplayName("Inherits validation from ContentModel")
+    void inheritsValidation_fromContentModel() {
         // Arrange - Test that inherited validation still works
-        textContentBlock.setCollectionId(null); // Invalid from parent
-        textContentBlock.setOrderIndex(0);
-        textContentBlock.setContentType(ContentType.TEXT);
-        textContentBlock.setContent("Test content");
-        textContentBlock.setFormatType("markdown");
+        textContent.setCollectionId(null); // Invalid from parent
+        textContent.setOrderIndex(0);
+        textContent.setContentType(ContentType.TEXT);
+        textContent.setContent("Test content");
+        textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContentBlock);
+        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());

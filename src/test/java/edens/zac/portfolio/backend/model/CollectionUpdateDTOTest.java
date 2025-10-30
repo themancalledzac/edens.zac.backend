@@ -20,7 +20,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for ContentCollectionUpdateDTO
+ * Unit tests for CollectionUpdateDTO
  * Tests partial update validation, password handling, and content operations
  */
 class CollectionUpdateDTOTest {
@@ -748,7 +748,7 @@ class CollectionUpdateDTOTest {
             
             assertNotNull(toString);
             // Should contain both base class and subclass information
-            assertTrue(toString.contains("ContentCollectionUpdateDTO"));
+            assertTrue(toString.contains("CollectionUpdateDTO"));
             assertTrue(toString.contains("id=1"));
             assertTrue(toString.contains("PORTFOLIO"));
             assertTrue(toString.contains("Test Portfolio"));

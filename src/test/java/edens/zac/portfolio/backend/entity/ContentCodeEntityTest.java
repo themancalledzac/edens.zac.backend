@@ -23,8 +23,8 @@ class ContentCodeEntityTest {
     }
 
     @Test
-    void testValidCodeContentBlock() {
-        // Create a valid code content block
+    void testValidContentCode() {
+        // Create a valid code content
         ContentCodeEntity codeBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
@@ -40,8 +40,8 @@ class ContentCodeEntityTest {
     }
 
     @Test
-    void testInvalidCodeContentBlockMissingRequiredFields() {
-        // Create an invalid code content block (missing required fields)
+    void testInvalidContentCodeMissingRequiredFields() {
+        // Create an invalid code content (missing required fields)
         ContentCodeEntity codeBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)

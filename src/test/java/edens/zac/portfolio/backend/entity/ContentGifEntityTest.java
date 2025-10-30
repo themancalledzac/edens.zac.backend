@@ -23,8 +23,8 @@ class ContentGifEntityTest {
     }
 
     @Test
-    void testValidGifContentBlock() {
-        // Create a valid gif content block
+    void testValidContentGif() {
+        // Create a valid content gif
         ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
@@ -44,8 +44,8 @@ class ContentGifEntityTest {
     }
 
     @Test
-    void testInvalidGifContentBlockMissingRequiredField() {
-        // Create an invalid gif content block (missing required gifUrl)
+    void testInvalidContentGifMissingRequiredField() {
+        // Create an invalid content gif (missing required gifUrl)
         ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)

@@ -23,8 +23,8 @@ class ContentImageEntityTest {
     }
 
     @Test
-    void testValidImageContentBlock() {
-        // Create a valid image content block
+    void testValidContentImage() {
+        // Create a valid content image
         ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
@@ -53,8 +53,8 @@ class ContentImageEntityTest {
     }
 
     @Test
-    void testInvalidImageContentBlockMissingRequiredField() {
-        // Create an invalid image content block (missing required imageUrlWeb)
+    void testInvalidContentImageMissingRequiredField() {
+        // Create an invalid content image (missing required imageUrlWeb)
         ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)

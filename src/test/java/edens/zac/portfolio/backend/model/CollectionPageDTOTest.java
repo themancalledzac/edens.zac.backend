@@ -23,10 +23,10 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for ContentCollectionPageDTO
+ * Unit tests for CollectionPageDTO
  * Tests pagination-specific validation annotations, required fields, and content block handling
  */
-class ContentCollectionPageDTOTest {
+class CollectionPageDTOTest {
 
     private Validator validator;
 
@@ -37,7 +37,7 @@ class ContentCollectionPageDTOTest {
     }
 
     /**
-     * Creates a valid default builder for ContentCollectionPageDTO with all required fields populated
+     * Creates a valid default builder for CollectionPageDTO with all required fields populated
      */
     private static CollectionPageDTO.CollectionPageDTOBuilder<?, ?> defaultValidBuilder() {
         LocalDateTime now = LocalDateTime.now();
@@ -70,7 +70,7 @@ class ContentCollectionPageDTOTest {
                 .textBlockCount(3)
                 .codeBlockCount(1)
                 .gifBlockCount(1)
-                .contentBlocks(new ArrayList<>());
+                .contents(new ArrayList<>());
 }
 
     @Nested
@@ -102,7 +102,7 @@ class ContentCollectionPageDTOTest {
                     .hasNext(false)
                     .isFirst(true)
                     .isLast(true)
-                    .contentBlocks(new ArrayList<>())
+                    .contents(new ArrayList<>())
                     .build();
 
             Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
@@ -128,7 +128,7 @@ class ContentCollectionPageDTOTest {
                 new TestCase("hasNext", builder -> builder.hasNext(null), "Has next page flag is required"),
                 new TestCase("isFirst", builder -> builder.isFirst(null), "Is first page flag is required"),
                 new TestCase("isLast", builder -> builder.isLast(null), "Is last page flag is required"),
-                new TestCase("contentBlocks", builder -> builder.contentBlocks(null), "Content blocks list is required")
+                new TestCase("contents", builder -> builder.contents(null), "Content blocks list is required")
             );
         }
 
@@ -395,7 +395,7 @@ class ContentCollectionPageDTOTest {
             
             assertNotNull(toString);
             // Should contain both base class and subclass information
-            assertTrue(toString.contains("ContentCollectionPageDTO"));
+            assertTrue(toString.contains("CollectionPageDTO"));
             assertTrue(toString.contains("currentPage=1"));
             assertTrue(toString.contains("pageSize=25"));
         }
