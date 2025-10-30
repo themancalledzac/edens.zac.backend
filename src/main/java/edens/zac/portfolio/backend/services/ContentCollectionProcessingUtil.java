@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.ContentBlockEntity;
-import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
+import edens.zac.portfolio.backend.entity.ContentEntity;
+import edens.zac.portfolio.backend.entity.ImageContentEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
@@ -45,13 +45,13 @@ public class ContentCollectionProcessingUtil {
      * Loads the full ImageContentBlockModel if coverImageBlockId is set.
      * Only accepts image blocks as cover images.
      */
-    private void populateCoverImage(ContentCollectionModel model, ContentCollectionEntity entity) {
+    private void populateCoverImage(CollectionModel model, ContentCollectionEntity entity) {
         if (entity.getCoverImageBlockId() != null) {
-            ContentBlockEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId())
+            ContentEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId())
                     .orElse(null);
-            if (block instanceof ImageContentBlockEntity) {
-                ContentBlockModel blockModel = contentBlockProcessingUtil.convertToModel(block);
-                if (blockModel instanceof ImageContentBlockModel imageModel) {
+            if (block instanceof ImageContentEntity) {
+                ContentModel blockModel = contentBlockProcessingUtil.convertToModel(block);
+                if (blockModel instanceof ImageContentModel imageModel) {
                     model.setCoverImage(imageModel);
                 } else {
                     log.warn("Cover image block {} converted to non-ImageContentBlockModel: {}",
@@ -71,12 +71,12 @@ public class ContentCollectionProcessingUtil {
      * @param entity The entity to convert
      * @return The converted model
      */
-    public ContentCollectionModel convertToBasicModel(ContentCollectionEntity entity) {
+    public CollectionModel convertToBasicModel(ContentCollectionEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        ContentCollectionModel model = new ContentCollectionModel();
+        CollectionModel model = new CollectionModel();
         model.setId(entity.getId());
         model.setType(entity.getType());
         model.setTitle(entity.getTitle());
@@ -107,10 +107,10 @@ public class ContentCollectionProcessingUtil {
         model.setCreatedAt(entity.getCreatedAt());
         model.setUpdatedAt(entity.getUpdatedAt());
         // Basic display mode: BLOG default chronological, others default ordered
-        ContentCollectionBaseModel.DisplayMode mode =
+        CollectionBaseModel.DisplayMode mode =
                 entity.getType() == CollectionType.BLOG
-                        ? ContentCollectionBaseModel.DisplayMode.CHRONOLOGICAL
-                        : ContentCollectionBaseModel.DisplayMode.ORDERED;
+                        ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
+                        : CollectionBaseModel.DisplayMode.ORDERED;
         model.setDisplayMode(mode);
 
         // Set pagination metadata
@@ -128,15 +128,15 @@ public class ContentCollectionProcessingUtil {
      * @param entity The entity to convert
      * @return The converted model
      */
-    public ContentCollectionModel convertToFullModel(ContentCollectionEntity entity) {
+    public CollectionModel convertToFullModel(ContentCollectionEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        ContentCollectionModel model = convertToBasicModel(entity);
+        CollectionModel model = convertToBasicModel(entity);
 
         // Fetch blocks explicitly to avoid LAZY polymorphic initializer issues
-        List<ContentBlockModel> contentBlocks = contentBlockRepository
+        List<ContentModel> contentBlocks = contentBlockRepository
                 .findByCollectionIdOrderByOrderIndex(entity.getId())
                 .stream()
                 .filter(Objects::nonNull)
@@ -154,15 +154,15 @@ public class ContentCollectionProcessingUtil {
      * @param contentPage The page of content blocks
      * @return The converted model
      */
-    public ContentCollectionModel convertToModel(ContentCollectionEntity entity, Page<ContentBlockEntity> contentPage) {
+    public CollectionModel convertToModel(ContentCollectionEntity entity, Page<ContentEntity> contentPage) {
         if (entity == null) {
             return null;
         }
 
-        ContentCollectionModel model = convertToBasicModel(entity);
+        CollectionModel model = convertToBasicModel(entity);
 
         // Convert content blocks
-        List<ContentBlockModel> contentBlocks = contentPage.getContent().stream()
+        List<ContentModel> contentBlocks = contentPage.getContent().stream()
                 .filter(Objects::nonNull)
                 .map(contentBlockProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
@@ -185,7 +185,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Minimal create: from ContentCollectionCreateRequest (type, title only), apply defaults for the rest.
      */
-    public ContentCollectionEntity toEntity(ContentCollectionCreateRequest request, int defaultPageSize) {
+    public ContentCollectionEntity toEntity(CollectionCreateRequest request, int defaultPageSize) {
         if (request == null) {
             throw new IllegalArgumentException("Create request cannot be null");
         }
@@ -222,7 +222,7 @@ public class ContentCollectionProcessingUtil {
      * - client gallery password updates via provided password hasher
      */
     public void applyBasicUpdates(ContentCollectionEntity entity,
-                                  ContentCollectionUpdateDTO updateDTO) {
+                                  CollectionUpdateDTO updateDTO) {
         if (updateDTO.getTitle() != null) {
             entity.setTitle(updateDTO.getTitle());
         }
@@ -255,9 +255,9 @@ public class ContentCollectionProcessingUtil {
         // Handle coverImage updates
         if (updateDTO.getCoverImageId() != null) {
             // Validate that the cover image ID references an actual image block
-            ContentBlockEntity coverBlock = contentBlockRepository.findById(updateDTO.getCoverImageId())
+            ContentEntity coverBlock = contentBlockRepository.findById(updateDTO.getCoverImageId())
                     .orElse(null);
-            if (coverBlock instanceof ImageContentBlockEntity) {
+            if (coverBlock instanceof ImageContentEntity) {
                 entity.setCoverImageBlockId(updateDTO.getCoverImageId());
             } else if (coverBlock != null) {
                 throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
@@ -286,7 +286,7 @@ public class ContentCollectionProcessingUtil {
      * Handle adding new text blocks, either appending to the end or inserting at a specific index.
      * Behavior matches the original service implementation.
      */
-    public void handleNewTextBlocks(Long collectionId, ContentCollectionUpdateDTO updateDTO) {
+    public void handleNewTextBlocks(Long collectionId, CollectionUpdateDTO updateDTO) {
         if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
             return;
         }
@@ -304,7 +304,7 @@ public class ContentCollectionProcessingUtil {
      * in the same order as provided in updateDTO.getNewTextBlocks(). This enables
      * deterministic placeholder mapping during subsequent reordering.
      */
-    public List<Long> handleNewTextBlocksReturnIds(Long collectionId, ContentCollectionUpdateDTO updateDTO) {
+    public List<Long> handleNewTextBlocksReturnIds(Long collectionId, CollectionUpdateDTO updateDTO) {
         List<Long> createdIds = new ArrayList<>();
         if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
             return createdIds;
@@ -313,7 +313,7 @@ public class ContentCollectionProcessingUtil {
         Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
         int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
         for (String text : updateDTO.getNewTextBlocks()) {
-            ContentBlockEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+            ContentEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
             if (created != null && created.getId() != null) {
                 createdIds.add(created.getId());
             }
@@ -326,7 +326,7 @@ public class ContentCollectionProcessingUtil {
      * Handle content block reordering operations. Supports reference by ID, placeholder for newly
      * added text blocks (negative IDs: -1 for first new text, etc.), or by old order index.
      */
-    public void handleContentBlockReordering(Long collectionId, ContentCollectionUpdateDTO updateDTO) {
+    public void handleContentBlockReordering(Long collectionId, CollectionUpdateDTO updateDTO) {
         if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
             return;
         }
@@ -334,7 +334,7 @@ public class ContentCollectionProcessingUtil {
         List<Long> inferredNewTextIds = new ArrayList<>();
         if (updateDTO.getNewTextBlocks() != null && !updateDTO.getNewTextBlocks().isEmpty()) {
             int n = updateDTO.getNewTextBlocks().size();
-            List<ContentBlockEntity> allBlocks = contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId);
+            List<ContentEntity> allBlocks = contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId);
             int total = allBlocks.size();
             for (int i = Math.max(0, total - n); i < total; i++) {
                 inferredNewTextIds.add(allBlocks.get(i).getId());
@@ -347,12 +347,12 @@ public class ContentCollectionProcessingUtil {
      * Overloaded reordering that accepts explicit newTextIds mapping. This ensures
      * correct placeholder resolution regardless of insert position.
      */
-    public void handleContentBlockReordering(Long collectionId, ContentCollectionUpdateDTO updateDTO, List<Long> newTextIds) {
+    public void handleContentBlockReordering(Long collectionId, CollectionUpdateDTO updateDTO, List<Long> newTextIds) {
         if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
             return;
         }
         List<Long> mapping = (newTextIds != null) ? newTextIds : new ArrayList<>();
-        for (ContentCollectionUpdateDTO.ContentBlockReorderOperation op : updateDTO.getReorderOperations()) {
+        for (CollectionUpdateDTO.ContentBlockReorderOperation op : updateDTO.getReorderOperations()) {
             Long targetId = null;
             Long providedId = op.getContentBlockId();
             if (providedId != null) {
@@ -372,7 +372,7 @@ public class ContentCollectionProcessingUtil {
                 if (oldIdx == null) {
                     throw new IllegalArgumentException("Reorder operation must include either contentBlockId or oldOrderIndex");
                 }
-                ContentBlockEntity byIndex = contentBlockRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
+                ContentEntity byIndex = contentBlockRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
                 if (byIndex == null) {
                     throw new IllegalArgumentException("No content block found at oldOrderIndex=" + oldIdx);
                 }
@@ -484,7 +484,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Check if a collection (any type) is password-protected.
      */
-    public static boolean isPasswordProtected(ContentCollectionBaseModel model) {
+    public static boolean isPasswordProtected(CollectionBaseModel model) {
         return model.getIsPasswordProtected() != null && model.getIsPasswordProtected();
     }
 
@@ -492,7 +492,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Check if an UpdateDTO includes password changes.
      */
-    public static boolean hasPasswordUpdate(ContentCollectionUpdateDTO dto) {
+    public static boolean hasPasswordUpdate(CollectionUpdateDTO dto) {
         return dto.getPassword() != null && !dto.getPassword().trim().isEmpty();
     }
 
@@ -531,7 +531,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Check if a collection is publicly visible.
      */
-    public static boolean isVisible(ContentCollectionBaseModel model) {
+    public static boolean isVisible(CollectionBaseModel model) {
         return model.getVisible() != null && model.getVisible();
     }
 
@@ -542,7 +542,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Get priority as display text.
      */
-    public static String getPriorityDisplay(ContentCollectionBaseModel model) {
+    public static String getPriorityDisplay(CollectionBaseModel model) {
         Integer priority = model.getPriority();
         if (priority == null) return "Not Set";
         return switch (priority) {
@@ -561,28 +561,28 @@ public class ContentCollectionProcessingUtil {
     /**
      * Check if a collection model supports pagination.
      */
-    public static boolean isPaginated(ContentCollectionModel model) {
+    public static boolean isPaginated(CollectionModel model) {
         return model.getTotalPages() != null && model.getTotalPages() > 1;
     }
 
     /**
      * Check if a collection model is empty.
      */
-    public static boolean isEmpty(ContentCollectionModel model) {
+    public static boolean isEmpty(CollectionModel model) {
         return model.getTotalBlocks() == null || model.getTotalBlocks() == 0;
     }
 
     /**
      * Check if a page DTO is empty.
      */
-    public static boolean isEmpty(ContentCollectionPageDTO dto) {
+    public static boolean isEmpty(CollectionPageDTO dto) {
         return dto.getTotalElements() == null || dto.getTotalElements() == 0;
     }
 
     /**
      * Check if a page DTO supports pagination.
      */
-    public static boolean isPaginated(ContentCollectionPageDTO dto) {
+    public static boolean isPaginated(CollectionPageDTO dto) {
         return dto.getTotalPages() != null && dto.getTotalPages() > 1;
     }
 
@@ -592,7 +592,7 @@ public class ContentCollectionProcessingUtil {
      *
      * @return array with [startItem, endItem] or null if empty
      */
-    public static int[] getDisplayRange(ContentCollectionPageDTO dto) {
+    public static int[] getDisplayRange(CollectionPageDTO dto) {
         if (isEmpty(dto)) {
             return null;
         }
@@ -606,7 +606,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Get display range as formatted string.
      */
-    public static String getDisplayRangeText(ContentCollectionPageDTO dto) {
+    public static String getDisplayRangeText(CollectionPageDTO dto) {
         int[] range = getDisplayRange(dto);
         if (range == null) {
             return "No items";
@@ -621,9 +621,9 @@ public class ContentCollectionProcessingUtil {
     /**
      * Check if an update DTO includes content operations.
      */
-    public static boolean hasContentOperations(ContentCollectionUpdateDTO dto) {
+    public static boolean hasContentOperations(CollectionUpdateDTO dto) {
         return (dto.getReorderOperations() != null && !dto.getReorderOperations().isEmpty()) ||
-                (dto.getContentBlockIdsToRemove() != null && !dto.getContentBlockIdsToRemove().isEmpty()) ||
+                (dto.getContentIdsToRemove() != null && !dto.getContentIdsToRemove().isEmpty()) ||
                 (dto.getNewTextBlocks() != null && !dto.getNewTextBlocks().isEmpty()) ||
                 (dto.getNewCodeBlocks() != null && !dto.getNewCodeBlocks().isEmpty());
     }
@@ -635,7 +635,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Get total content blocks from page DTO content summary.
      */
-    public static int getTotalContentBlocks(ContentCollectionPageDTO dto) {
+    public static int getTotalContentBlocks(CollectionPageDTO dto) {
         int total = 0;
         if (dto.getImageBlockCount() != null) total += dto.getImageBlockCount();
         if (dto.getTextBlockCount() != null) total += dto.getTextBlockCount();
@@ -647,7 +647,7 @@ public class ContentCollectionProcessingUtil {
     /**
      * Get content summary as formatted string.
      */
-    public static String getContentSummary(ContentCollectionPageDTO dto) {
+    public static String getContentSummary(CollectionPageDTO dto) {
         StringBuilder summary = new StringBuilder();
 
         if (dto.getImageBlockCount() != null && dto.getImageBlockCount() > 0) {

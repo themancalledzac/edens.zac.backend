@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.repository;
 
-import edens.zac.portfolio.backend.entity.ContentBlockEntity;
-import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
-import edens.zac.portfolio.backend.types.ContentBlockType;
+import edens.zac.portfolio.backend.entity.ContentEntity;
+import edens.zac.portfolio.backend.entity.ImageContentEntity;
+import edens.zac.portfolio.backend.types.ContentType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,7 +18,7 @@ import java.util.List;
  * to provide standard CRUD operations, pagination, and custom query methods.
  */
 @Repository
-public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity, Long> {
+public interface ContentBlockRepository extends JpaRepository<ContentEntity, Long> {
     
     /**
      * Find all content blocks for a specific collection, ordered by their order_index.
@@ -26,7 +26,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param collectionId The ID of the collection
      * @return List of ordered content blocks for the collection
      */
-    List<ContentBlockEntity> findByCollectionIdOrderByOrderIndex(Long collectionId);
+    List<ContentEntity> findByCollectionIdOrderByOrderIndex(Long collectionId);
     
     /**
      * Find content blocks for a specific collection with pagination.
@@ -35,7 +35,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param pageable Pagination information
      * @return Page of content blocks for the collection
      */
-    Page<ContentBlockEntity> findByCollectionId(Long collectionId, Pageable pageable);
+    Page<ContentEntity> findByCollectionId(Long collectionId, Pageable pageable);
     
     /**
      * Count the number of content blocks in a collection.
@@ -52,7 +52,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param blockType The type of content block
      * @return List of content blocks of the specified type for the collection
      */
-    List<ContentBlockEntity> findByCollectionIdAndBlockType(Long collectionId, ContentBlockType blockType);
+    List<ContentEntity> findByCollectionIdAndBlockType(Long collectionId, ContentType blockType);
     
     /**
      * Find content blocks of a specific type for a collection with pagination.
@@ -62,7 +62,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param pageable Pagination information
      * @return Page of content blocks of the specified type for the collection
      */
-    Page<ContentBlockEntity> findByCollectionIdAndBlockType(Long collectionId, ContentBlockType blockType, Pageable pageable);
+    Page<ContentEntity> findByCollectionIdAndBlockType(Long collectionId, ContentType blockType, Pageable pageable);
     
     /**
      * Get the maximum order_index value for a collection's content blocks.
@@ -71,7 +71,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param collectionId The ID of the collection
      * @return The maximum order_index value, or null if no content blocks exist
      */
-    @Query("SELECT MAX(cb.orderIndex) FROM ContentBlockEntity cb WHERE cb.collectionId = :collectionId")
+    @Query("SELECT MAX(cb.orderIndex) FROM ContentEntity cb WHERE cb.collectionId = :collectionId")
     Integer getMaxOrderIndexForCollection(@Param("collectionId") Long collectionId);
     
     /**
@@ -82,7 +82,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @return The number of affected rows (should be 1)
      */
     @Modifying
-    @Query("UPDATE ContentBlockEntity cb SET cb.orderIndex = :orderIndex WHERE cb.id = :id")
+    @Query("UPDATE ContentEntity cb SET cb.orderIndex = :orderIndex WHERE cb.id = :id")
     int updateOrderIndex(@Param("id") Long id, @Param("orderIndex") Integer orderIndex);
     
     /**
@@ -96,7 +96,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @return The number of affected rows
      */
     @Modifying
-    @Query("UPDATE ContentBlockEntity cb SET cb.orderIndex = cb.orderIndex + :shiftAmount " +
+    @Query("UPDATE ContentEntity cb SET cb.orderIndex = cb.orderIndex + :shiftAmount " +
            "WHERE cb.collectionId = :collectionId AND cb.orderIndex >= :startIndex AND cb.orderIndex <= :endIndex")
     int shiftOrderIndices(@Param("collectionId") Long collectionId,
                           @Param("startIndex") Integer startIndex,
@@ -119,13 +119,13 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param ids          The block IDs to dissociate
      */
     @Modifying
-    @Query("UPDATE ContentBlockEntity cb SET cb.collectionId = NULL WHERE cb.collectionId = :collectionId AND cb.id IN :ids")
+    @Query("UPDATE ContentEntity cb SET cb.collectionId = NULL WHERE cb.collectionId = :collectionId AND cb.id IN :ids")
     void dissociateFromCollection(@Param("collectionId") Long collectionId, @Param("ids") List<Long> ids);
 
     /**
      * Find a content block by collection and its exact order index.
      */
-    ContentBlockEntity findByCollectionIdAndOrderIndex(Long collectionId, Integer orderIndex);
+    ContentEntity findByCollectionIdAndOrderIndex(Long collectionId, Integer orderIndex);
 
     /**
      * Check if an image with the given fileIdentifier already exists in the database.
@@ -134,7 +134,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param fileIdentifier The file identifier (format: "YYYY-MM-DD/filename.jpg")
      * @return true if an image with this identifier exists, false otherwise
      */
-    @Query("SELECT CASE WHEN COUNT(i) > 0 THEN true ELSE false END FROM ImageContentBlockEntity i WHERE i.fileIdentifier = :fileIdentifier")
+    @Query("SELECT CASE WHEN COUNT(i) > 0 THEN true ELSE false END FROM ImageContentEntity i WHERE i.fileIdentifier = :fileIdentifier")
     boolean existsByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 
     /**
@@ -144,8 +144,8 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      * @param fileIdentifier The file identifier (format: "YYYY-MM-DD/filename.jpg")
      * @return List of all image content blocks with this file identifier across all collections
      */
-    @Query("SELECT i FROM ImageContentBlockEntity i WHERE i.fileIdentifier = :fileIdentifier")
-    List<ImageContentBlockEntity> findAllByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
+    @Query("SELECT i FROM ImageContentEntity i WHERE i.fileIdentifier = :fileIdentifier")
+    List<ImageContentEntity> findAllByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 
     /**
      * Find all ImageContentBlockEntity instances ordered by createDate descending.
@@ -153,6 +153,6 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlockEntity
      *
      * @return List of all image content blocks ordered by createDate descending
      */
-    @Query("SELECT i FROM ImageContentBlockEntity i ORDER BY i.createDate DESC")
-    List<ImageContentBlockEntity> findAllImagesOrderByCreateDateDesc();
+    @Query("SELECT i FROM ImageContentEntity i ORDER BY i.createDate DESC")
+    List<ImageContentEntity> findAllImagesOrderByCreateDateDesc();
 }

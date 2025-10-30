@@ -42,12 +42,12 @@ class ContentCollectionUpdateDTOTest {
         void shouldCreateDTOWithAllValidFields() {
             LocalDateTime now = LocalDateTime.now();
             LocalDate today = LocalDate.now();
-            List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = new ArrayList<>();
+            List<CollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = new ArrayList<>();
             List<Long> idsToRemove = Arrays.asList(1L, 2L, 3L);
             List<String> newTextBlocks = Arrays.asList("New text content 1", "New text content 2");
             List<String> newCodeBlocks = Arrays.asList("console.log('Hello');", "function test() {}");
 
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .id(1L)
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Updated Client Gallery")
@@ -64,7 +64,7 @@ class ContentCollectionUpdateDTOTest {
                     .password("newpassword123")
                     .blocksPerPage(25)
                     .reorderOperations(reorderOps)
-                    .contentBlockIdsToRemove(idsToRemove)
+                    .contentIdsToRemove(idsToRemove)
                     .newTextBlocks(newTextBlocks)
                     .newCodeBlocks(newCodeBlocks)
                     .build();
@@ -86,7 +86,7 @@ class ContentCollectionUpdateDTOTest {
             assertEquals("newpassword123", dto.getPassword());
             assertEquals(25, dto.getBlocksPerPage());
             assertEquals(reorderOps, dto.getReorderOperations());
-            assertEquals(idsToRemove, dto.getContentBlockIdsToRemove());
+            assertEquals(idsToRemove, dto.getContentIdsToRemove());
             assertEquals(newTextBlocks, dto.getNewTextBlocks());
             assertEquals(newCodeBlocks, dto.getNewCodeBlocks());
         }
@@ -94,7 +94,7 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should create DTO with minimal fields for partial update")
         void shouldCreateDTOWithMinimalFields() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .id(1L)
                     .title("Updated Title")
                     .build();
@@ -107,7 +107,7 @@ class ContentCollectionUpdateDTOTest {
             assertNull(dto.getPassword());
             assertNull(dto.getBlocksPerPage());
             assertNull(dto.getReorderOperations());
-            assertNull(dto.getContentBlockIdsToRemove());
+            assertNull(dto.getContentIdsToRemove());
             assertNull(dto.getNewTextBlocks());
             assertNull(dto.getNewCodeBlocks());
         }
@@ -118,15 +118,15 @@ class ContentCollectionUpdateDTOTest {
             List<Long> idsToRemove = Arrays.asList(5L, 10L);
             List<String> newTextBlocks = Arrays.asList("Just added this text");
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .id(1L)
-                    .contentBlockIdsToRemove(idsToRemove)
+                    .contentIdsToRemove(idsToRemove)
                     .newTextBlocks(newTextBlocks)
                     .build();
 
             assertNotNull(dto);
             assertEquals(1L, dto.getId());
-            assertEquals(idsToRemove, dto.getContentBlockIdsToRemove());
+            assertEquals(idsToRemove, dto.getContentIdsToRemove());
             assertEquals(newTextBlocks, dto.getNewTextBlocks());
             assertNull(dto.getTitle());
             assertNull(dto.getPassword());
@@ -137,7 +137,7 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should create DTO using no-args constructor")
         void shouldCreateDTOWithNoArgsConstructor() {
-            ContentCollectionUpdateDTO dto = new ContentCollectionUpdateDTO();
+            CollectionUpdateDTO dto = new CollectionUpdateDTO();
             
             assertNotNull(dto);
             assertNull(dto.getId());
@@ -146,7 +146,7 @@ class ContentCollectionUpdateDTOTest {
             assertNull(dto.getPassword());
             assertNull(dto.getBlocksPerPage());
             assertNull(dto.getReorderOperations());
-            assertNull(dto.getContentBlockIdsToRemove());
+            assertNull(dto.getContentIdsToRemove());
             assertNull(dto.getNewTextBlocks());
             assertNull(dto.getNewCodeBlocks());
         }
@@ -159,14 +159,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept valid password")
         void shouldAcceptValidPassword() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Client Gallery")
                     .slug("client-gallery")
                     .password("validpass123")
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals("validpass123", dto.getPassword());
         }
@@ -174,14 +174,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept null password for partial updates")
         void shouldAcceptNullPassword() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.BLOG)
                     .title("Blog Update")
                     .slug("blog-update")
                     .password(null) // Null means no password change
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertNull(dto.getPassword());
         }
@@ -189,14 +189,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should reject password that is too short")
         void shouldRejectPasswordTooShort() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Client Gallery")
                     .slug("client-gallery")
                     .password("short") // Only 5 characters
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
                     .anyMatch(v -> v.getMessage().contains("Password must be between 8 and 100 characters")));
@@ -207,14 +207,14 @@ class ContentCollectionUpdateDTOTest {
         void shouldRejectPasswordTooLong() {
             String longPassword = "a".repeat(101); // 101 characters
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Client Gallery")
                     .slug("client-gallery")
                     .password(longPassword)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
                     .anyMatch(v -> v.getMessage().contains("Password must be between 8 and 100 characters")));
@@ -224,26 +224,26 @@ class ContentCollectionUpdateDTOTest {
         @DisplayName("Should accept password at boundary lengths")
         void shouldAcceptPasswordAtBoundaryLengths() {
             // Test minimum boundary
-            ContentCollectionUpdateDTO minDto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO minDto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Client Gallery")
                     .slug("client-gallery")
                     .password("12345678") // Exactly 8 characters
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> minViolations = validator.validate(minDto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> minViolations = validator.validate(minDto);
             assertTrue(minViolations.isEmpty());
 
             // Test maximum boundary
             String maxPassword = "a".repeat(100); // Exactly 100 characters
-            ContentCollectionUpdateDTO maxDto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO maxDto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Client Gallery")
                     .slug("client-gallery")
                     .password(maxPassword)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> maxViolations = validator.validate(maxDto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> maxViolations = validator.validate(maxDto);
             assertTrue(maxViolations.isEmpty());
         }
     }
@@ -255,14 +255,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept valid blocksPerPage")
         void shouldAcceptValidBlocksPerPage() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
                     .blocksPerPage(30)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(30, dto.getBlocksPerPage());
         }
@@ -270,14 +270,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept null blocksPerPage for partial updates")
         void shouldAcceptNullBlocksPerPage() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.ART_GALLERY)
                     .title("Art Gallery")
                     .slug("art-gallery")
                     .blocksPerPage(null) // Null means no change
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertNull(dto.getBlocksPerPage());
         }
@@ -285,14 +285,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should reject blocksPerPage below minimum")
         void shouldRejectBlocksPerPageBelowMin() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.BLOG)
                     .title("Blog")
                     .slug("blog")
                     .blocksPerPage(0) // Invalid - below minimum
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
                     .anyMatch(v -> v.getMessage().contains("Blocks per page must be 1 or greater")));
@@ -301,14 +301,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept blocksPerPage at minimum boundary")
         void shouldAcceptBlocksPerPageAtMinBoundary() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
                     .blocksPerPage(1) // Exactly at minimum
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
         }
     }
@@ -320,25 +320,25 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept valid reorder operations")
         void shouldAcceptValidReorderOperations() {
-            List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            List<CollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(1L)
                             .newOrderIndex(0)
                             .build(),
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(2L)
                             .newOrderIndex(1)
                             .build()
             );
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.ART_GALLERY)
                     .title("Art Gallery")
                     .slug("art-gallery")
                     .reorderOperations(reorderOps)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(2, dto.getReorderOperations().size());
         }
@@ -346,20 +346,20 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept empty content operation lists")
         void shouldAcceptEmptyContentOperationLists() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.BLOG)
                     .title("Blog")
                     .slug("blog")
                     .reorderOperations(new ArrayList<>())
-                    .contentBlockIdsToRemove(new ArrayList<>())
+                    .contentIdsToRemove(new ArrayList<>())
                     .newTextBlocks(new ArrayList<>())
                     .newCodeBlocks(new ArrayList<>())
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertTrue(dto.getReorderOperations().isEmpty());
-            assertTrue(dto.getContentBlockIdsToRemove().isEmpty());
+            assertTrue(dto.getContentIdsToRemove().isEmpty());
             assertTrue(dto.getNewTextBlocks().isEmpty());
             assertTrue(dto.getNewCodeBlocks().isEmpty());
         }
@@ -367,20 +367,20 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept null content operation lists for partial updates")
         void shouldAcceptNullContentOperationLists() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
                     .reorderOperations(null)
-                    .contentBlockIdsToRemove(null)
+                    .contentIdsToRemove(null)
                     .newTextBlocks(null)
                     .newCodeBlocks(null)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertNull(dto.getReorderOperations());
-            assertNull(dto.getContentBlockIdsToRemove());
+            assertNull(dto.getContentIdsToRemove());
             assertNull(dto.getNewTextBlocks());
             assertNull(dto.getNewCodeBlocks());
         }
@@ -390,17 +390,17 @@ class ContentCollectionUpdateDTOTest {
         void shouldAcceptValidContentBlockIdsToRemove() {
             List<Long> idsToRemove = Arrays.asList(1L, 5L, 10L, 15L);
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Client Gallery")
                     .slug("client-gallery")
-                    .contentBlockIdsToRemove(idsToRemove)
+                    .contentIdsToRemove(idsToRemove)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
-            assertEquals(4, dto.getContentBlockIdsToRemove().size());
-            assertTrue(dto.getContentBlockIdsToRemove().containsAll(Arrays.asList(1L, 5L, 10L, 15L)));
+            assertEquals(4, dto.getContentIdsToRemove().size());
+            assertTrue(dto.getContentIdsToRemove().containsAll(Arrays.asList(1L, 5L, 10L, 15L)));
         }
 
         @Test
@@ -412,14 +412,14 @@ class ContentCollectionUpdateDTOTest {
                     "A final text block to complete the story."
             );
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.BLOG)
                     .title("Blog")
                     .slug("blog")
                     .newTextBlocks(newTextBlocks)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(3, dto.getNewTextBlocks().size());
             assertEquals("This is a new text block with some content.", dto.getNewTextBlocks().get(0));
@@ -434,14 +434,14 @@ class ContentCollectionUpdateDTOTest {
                     "// This is a comment\nlet x = 42;"
             );
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
                     .newCodeBlocks(newCodeBlocks)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(3, dto.getNewCodeBlocks().size());
             assertTrue(dto.getNewCodeBlocks().get(0).contains("function greet"));
@@ -455,13 +455,13 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should create valid reorder operation")
         void shouldCreateValidReorderOperation() {
-            ContentCollectionUpdateDTO.ContentBlockReorderOperation operation = 
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            CollectionUpdateDTO.ContentBlockReorderOperation operation =
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(5L)
                             .newOrderIndex(2)
                             .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO.ContentBlockReorderOperation>> violations = 
+            Set<ConstraintViolation<CollectionUpdateDTO.ContentBlockReorderOperation>> violations =
                     validator.validate(operation);
             assertTrue(violations.isEmpty());
             assertEquals(5L, operation.getContentBlockId());
@@ -471,14 +471,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept null contentBlockId when oldOrderIndex is provided")
         void shouldAcceptNullContentBlockIdWhenOldOrderIndexProvided() {
-            ContentCollectionUpdateDTO.ContentBlockReorderOperation operation = 
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            CollectionUpdateDTO.ContentBlockReorderOperation operation =
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(null) // Can be null if oldOrderIndex is set
                             .oldOrderIndex(0)
                             .newOrderIndex(1)
                             .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO.ContentBlockReorderOperation>> violations = 
+            Set<ConstraintViolation<CollectionUpdateDTO.ContentBlockReorderOperation>> violations =
                     validator.validate(operation);
             assertTrue(violations.isEmpty());
         }
@@ -486,13 +486,13 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should fail validation when newOrderIndex is negative")
         void shouldFailValidationWhenNewOrderIndexIsNegative() {
-            ContentCollectionUpdateDTO.ContentBlockReorderOperation operation = 
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            CollectionUpdateDTO.ContentBlockReorderOperation operation =
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(3L)
                             .newOrderIndex(-1) // Invalid - below minimum
                             .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO.ContentBlockReorderOperation>> violations = 
+            Set<ConstraintViolation<CollectionUpdateDTO.ContentBlockReorderOperation>> violations =
                     validator.validate(operation);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
@@ -502,13 +502,13 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should accept newOrderIndex at minimum boundary")
         void shouldAcceptNewOrderIndexAtMinBoundary() {
-            ContentCollectionUpdateDTO.ContentBlockReorderOperation operation = 
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            CollectionUpdateDTO.ContentBlockReorderOperation operation =
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(7L)
                             .newOrderIndex(0) // Exactly at minimum
                             .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO.ContentBlockReorderOperation>> violations = 
+            Set<ConstraintViolation<CollectionUpdateDTO.ContentBlockReorderOperation>> violations =
                     validator.validate(operation);
             assertTrue(violations.isEmpty());
         }
@@ -516,8 +516,8 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should create reorder operation using no-args constructor")
         void shouldCreateReorderOperationWithNoArgsConstructor() {
-            ContentCollectionUpdateDTO.ContentBlockReorderOperation operation = 
-                    new ContentCollectionUpdateDTO.ContentBlockReorderOperation();
+            CollectionUpdateDTO.ContentBlockReorderOperation operation =
+                    new CollectionUpdateDTO.ContentBlockReorderOperation();
             
             assertNotNull(operation);
             assertNull(operation.getContentBlockId());
@@ -527,8 +527,8 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should create reorder operation using all-args constructor")
         void shouldCreateReorderOperationWithAllArgsConstructor() {
-            ContentCollectionUpdateDTO.ContentBlockReorderOperation operation = 
-                    new ContentCollectionUpdateDTO.ContentBlockReorderOperation(9L, 4);
+            CollectionUpdateDTO.ContentBlockReorderOperation operation =
+                    new CollectionUpdateDTO.ContentBlockReorderOperation(9L, 4);
             
             assertNotNull(operation);
             assertEquals(9L, operation.getContentBlockId());
@@ -543,7 +543,7 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should handle client gallery password update")
         void shouldHandleClientGalleryPasswordUpdate() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Johnson Wedding Update")
                     .slug("johnson-wedding")
@@ -552,7 +552,7 @@ class ContentCollectionUpdateDTOTest {
                     .blocksPerPage(50)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.CLIENT_GALLERY, dto.getType());
             assertTrue(dto.getIsPasswordProtected());
@@ -569,7 +569,7 @@ class ContentCollectionUpdateDTOTest {
                     "Can't wait to share more moments like this."
             );
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.BLOG)
                     .title("Daily Moments - Updated")
                     .slug("daily-moments")
@@ -577,7 +577,7 @@ class ContentCollectionUpdateDTOTest {
                     .newTextBlocks(newTextBlocks)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.BLOG, dto.getType());
             assertEquals(15, dto.getBlocksPerPage());
@@ -587,29 +587,29 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should handle portfolio reordering")
         void shouldHandlePortfolioReordering() {
-            List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            List<CollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(10L)
                             .newOrderIndex(0)
                             .build(),
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(5L)
                             .newOrderIndex(1)
                             .build(),
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(15L)
                             .newOrderIndex(2)
                             .build()
             );
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Wedding Portfolio - Reordered")
                     .slug("wedding-portfolio")
                     .reorderOperations(reorderOps)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.PORTFOLIO, dto.getType());
             assertEquals(3, dto.getReorderOperations().size());
@@ -622,21 +622,21 @@ class ContentCollectionUpdateDTOTest {
         void shouldHandleArtGalleryContentRemoval() {
             List<Long> idsToRemove = Arrays.asList(8L, 12L, 16L);
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.ART_GALLERY)
                     .title("Urban Landscapes - Curated")
                     .slug("urban-landscapes")
                     .description("Updated curated collection")
-                    .contentBlockIdsToRemove(idsToRemove)
+                    .contentIdsToRemove(idsToRemove)
                     .blocksPerPage(20)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.ART_GALLERY, dto.getType());
             assertEquals("Updated curated collection", dto.getDescription());
-            assertEquals(3, dto.getContentBlockIdsToRemove().size());
-            assertTrue(dto.getContentBlockIdsToRemove().contains(8L));
+            assertEquals(3, dto.getContentIdsToRemove().size());
+            assertTrue(dto.getContentIdsToRemove().contains(8L));
         }
     }
 
@@ -647,14 +647,14 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should inherit base model validation rules")
         void shouldInheritBaseModelValidationRules() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.BLOG)
                     .title("AB") // Too short - should trigger base model validation
                     .slug("valid-slug")
                     .password("validpass123")
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
                     .anyMatch(v -> v.getMessage().contains("Title must be between 3 and 100 characters")));
@@ -663,7 +663,7 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should combine base and subclass validation rules")
         void shouldCombineBaseAndSubclassValidationRules() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("AB") // Base validation error - title too short
                     .slug("valid-slug")
@@ -671,7 +671,7 @@ class ContentCollectionUpdateDTOTest {
                     .blocksPerPage(0) // UpdateDTO validation error - below minimum
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertEquals(3, violations.size()); // Should have both base and UpdateDTO validation errors
         }
     }
@@ -686,7 +686,7 @@ class ContentCollectionUpdateDTOTest {
             LocalDateTime now = LocalDateTime.now();
             List<String> textBlocks = Arrays.asList("Same text content");
             
-            ContentCollectionUpdateDTO dto1 = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto1 = CollectionUpdateDTO.builder()
                     .id(1L)
                     .type(CollectionType.BLOG)
                     .title("Test Blog")
@@ -697,7 +697,7 @@ class ContentCollectionUpdateDTOTest {
                     .newTextBlocks(textBlocks)
                     .build();
 
-            ContentCollectionUpdateDTO dto2 = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto2 = CollectionUpdateDTO.builder()
                     .id(1L)
                     .type(CollectionType.BLOG)
                     .title("Test Blog")
@@ -708,7 +708,7 @@ class ContentCollectionUpdateDTOTest {
                     .newTextBlocks(textBlocks)
                     .build();
 
-            ContentCollectionUpdateDTO dto3 = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto3 = CollectionUpdateDTO.builder()
                     .id(1L)
                     .type(CollectionType.BLOG)
                     .title("Test Blog")
@@ -733,14 +733,14 @@ class ContentCollectionUpdateDTOTest {
             List<Long> idsToRemove = Arrays.asList(1L, 2L);
             List<String> newTextBlocks = Arrays.asList("New content");
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .id(1L)
                     .type(CollectionType.PORTFOLIO)
                     .title("Test Portfolio")
                     .slug("test-portfolio")
                     .password("password123")
                     .blocksPerPage(25)
-                    .contentBlockIdsToRemove(idsToRemove)
+                    .contentIdsToRemove(idsToRemove)
                     .newTextBlocks(newTextBlocks)
                     .build();
 
@@ -764,8 +764,8 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should handle comprehensive content update with all operations")
         void shouldHandleComprehensiveContentUpdateWithAllOperations() {
-            List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            List<CollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(1L)
                             .newOrderIndex(2)
                             .build()
@@ -774,7 +774,7 @@ class ContentCollectionUpdateDTOTest {
             List<String> newTextBlocks = Arrays.asList("New text content");
             List<String> newCodeBlocks = Arrays.asList("console.log('new code');");
             
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .id(1L)
                     .type(CollectionType.BLOG)
                     .title("Comprehensive Update")
@@ -784,17 +784,17 @@ class ContentCollectionUpdateDTOTest {
                     .priority(1)
                     .blocksPerPage(30)
                     .reorderOperations(reorderOps)
-                    .contentBlockIdsToRemove(idsToRemove)
+                    .contentIdsToRemove(idsToRemove)
                     .newTextBlocks(newTextBlocks)
                     .newCodeBlocks(newCodeBlocks)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             
             // Verify all operations are present
             assertEquals(1, dto.getReorderOperations().size());
-            assertEquals(2, dto.getContentBlockIdsToRemove().size());
+            assertEquals(2, dto.getContentIdsToRemove().size());
             assertEquals(1, dto.getNewTextBlocks().size());
             assertEquals(1, dto.getNewCodeBlocks().size());
             
@@ -809,7 +809,7 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should handle client gallery security update scenario")
         void shouldHandleClientGallerySecurityUpdateScenario() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .id(5L)
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Smith Family Session - Updated")
@@ -819,7 +819,7 @@ class ContentCollectionUpdateDTOTest {
                     .blocksPerPage(40)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             
             assertEquals(CollectionType.CLIENT_GALLERY, dto.getType());
@@ -832,12 +832,12 @@ class ContentCollectionUpdateDTOTest {
         @Test
         @DisplayName("Should handle minimal update scenario")
         void shouldHandleMinimalUpdateScenario() {
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .id(3L)
                     .visible(false) // Just changing visibility
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             
             assertEquals(3L, dto.getId());
@@ -845,7 +845,7 @@ class ContentCollectionUpdateDTOTest {
             assertNull(dto.getTitle());
             assertNull(dto.getPassword());
             assertNull(dto.getReorderOperations());
-            assertNull(dto.getContentBlockIdsToRemove());
+            assertNull(dto.getContentIdsToRemove());
         }
     }
 
@@ -858,7 +858,7 @@ class ContentCollectionUpdateDTOTest {
         void shouldCaptureMultipleValidationErrorsFromBothBaseAndSubclass() {
             String longDescription = "A".repeat(501); // Base class validation error
 
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("AB") // Error 1: Title too short (base validation)
                     .slug("A") // Error 2: Slug too short (base validation)
@@ -867,32 +867,32 @@ class ContentCollectionUpdateDTOTest {
                     .blocksPerPage(0) // Error 5: Blocks per page below minimum (UpdateDTO validation)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertEquals(5, violations.size());
         }
 
         @Test
         @DisplayName("Should handle validation errors in nested reorder operations")
         void shouldHandleValidationErrorsInNestedReorderOperations() {
-            List<ContentCollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+            List<CollectionUpdateDTO.ContentBlockReorderOperation> reorderOps = Arrays.asList(
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(1L)
                             .newOrderIndex(-5) // Error: Below minimum
                             .build(),
-                    ContentCollectionUpdateDTO.ContentBlockReorderOperation.builder()
+                    CollectionUpdateDTO.ContentBlockReorderOperation.builder()
                             .contentBlockId(2L)
                             .newOrderIndex(-1) // Error: Below minimum
                             .build()
             );
 
-            ContentCollectionUpdateDTO dto = ContentCollectionUpdateDTO.builder()
+            CollectionUpdateDTO dto = CollectionUpdateDTO.builder()
                     .type(CollectionType.ART_GALLERY)
                     .title("Valid Title")
                     .slug("valid-slug")
                     .reorderOperations(reorderOps)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionUpdateDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionUpdateDTO>> violations = validator.validate(dto);
             assertEquals(2, violations.size()); // Two nested validation errors
         }
     }

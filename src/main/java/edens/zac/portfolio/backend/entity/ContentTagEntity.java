@@ -62,11 +62,11 @@ public class ContentTagEntity {
 
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentBlockEntity> imageContentBlocks = new HashSet<>();
+    private Set<ImageContentEntity> imageContentBlocks = new HashSet<>();
 
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<GifContentBlockEntity> gifContentBlocks = new HashSet<>();
+    private Set<GifContentEntity> gifContentBlocks = new HashSet<>();
 
     /**
      * Constructor for creating a tag with just a name.

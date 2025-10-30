@@ -1,9 +1,9 @@
 package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
-import edens.zac.portfolio.backend.entity.TextContentBlockEntity;
+import edens.zac.portfolio.backend.entity.TextContentEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
-import edens.zac.portfolio.backend.types.ContentBlockType;
+import edens.zac.portfolio.backend.types.ContentType;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -133,17 +133,17 @@ class ContentCollectionRepositoryTest {
     @Test
     void findBySlugWithContentBlocks_ShouldReturnCollectionWithBlocks() {
         // Add content blocks
-        TextContentBlockEntity block1 = TextContentBlockEntity.builder()
+        TextContentEntity block1 = TextContentEntity.builder()
                 .collectionId(blogCollection.getId())
                 .orderIndex(0)
-                .blockType(ContentBlockType.TEXT)
+                .blockType(ContentType.TEXT)
                 .content("First block content")
                 .build();
 
-        TextContentBlockEntity block2 = TextContentBlockEntity.builder()
+        TextContentEntity block2 = TextContentEntity.builder()
                 .collectionId(blogCollection.getId())
                 .orderIndex(1)
-                .blockType(ContentBlockType.TEXT)
+                .blockType(ContentType.TEXT)
                 .content("Second block content")
                 .build();
 

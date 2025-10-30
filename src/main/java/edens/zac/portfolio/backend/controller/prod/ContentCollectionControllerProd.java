@@ -1,10 +1,10 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.config.DefaultValues;
-import edens.zac.portfolio.backend.model.ContentCollectionModel;
+import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.model.HomePageResponse;
-import edens.zac.portfolio.backend.services.ContentCollectionService;
+import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.HomeService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
@@ -29,7 +29,7 @@ import java.util.Map;
 @RequestMapping("/api/read/collections")
 public class ContentCollectionControllerProd {
 
-    private final ContentCollectionService contentCollectionService;
+    private final CollectionService collectionService;
     private final HomeService homeService;
 
     /**
@@ -53,7 +53,7 @@ public class ContentCollectionControllerProd {
             }
 
             Pageable pageable = PageRequest.of(page, size);
-            Page<ContentCollectionModel> collections = contentCollectionService.getAllCollections(pageable);
+            Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
 
             return ResponseEntity.ok(collections);
         } catch (Exception e) {
@@ -91,7 +91,7 @@ public class ContentCollectionControllerProd {
                 size = DefaultValues.default_blocks_per_page;
             }
 
-            ContentCollectionModel collection = contentCollectionService.getCollectionWithPagination(slug, page, size);
+            CollectionModel collection = collectionService.getCollectionWithPagination(slug, page, size);
             return ResponseEntity.ok(collection);
         } catch (EntityNotFoundException e) {
             log.warn("Collection not found: {}", slug);
@@ -126,7 +126,7 @@ public class ContentCollectionControllerProd {
             }
 
             // Get visible collections ordered by date (newest first)
-            List<HomeCardModel> collections = contentCollectionService.findVisibleByTypeOrderByDate(collectionType);
+            List<HomeCardModel> collections = collectionService.findVisibleByTypeOrderByDate(collectionType);
 
             return ResponseEntity.ok(collections);
         } catch (Exception e) {
@@ -157,7 +157,7 @@ public class ContentCollectionControllerProd {
                         .body("Password is required");
             }
 
-            boolean hasAccess = contentCollectionService.validateClientGalleryAccess(slug, password);
+            boolean hasAccess = collectionService.validateClientGalleryAccess(slug, password);
 
             Map<String, Object> response = new HashMap<>();
             response.put("hasAccess", hasAccess);

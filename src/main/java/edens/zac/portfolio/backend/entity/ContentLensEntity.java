@@ -59,7 +59,7 @@ public class ContentLensEntity {
     // One-to-many relationship with ImageContentBlocks (mappedBy side)
     @OneToMany(mappedBy = "lens", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentBlockEntity> imageContentBlocks = new HashSet<>();
+    private Set<ImageContentEntity> imageContentBlocks = new HashSet<>();
 
     /**
      * Constructor for creating a lens with just a name.

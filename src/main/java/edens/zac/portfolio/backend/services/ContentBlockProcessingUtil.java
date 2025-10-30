@@ -14,7 +14,7 @@ import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCameraRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.repository.ContentLensRepository;
-import edens.zac.portfolio.backend.types.ContentBlockType;
+import edens.zac.portfolio.backend.types.ContentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -75,21 +75,21 @@ public class ContentBlockProcessingUtil {
      * @param entity The content block entity to convert
      * @return The corresponding content block model
      */
-    public ContentBlockModel convertToModel(ContentBlockEntity entity) {
+    public ContentModel convertToModel(ContentEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        if (entity.getBlockType() == null) {
+        if (entity.getContentType() == null) {
             log.error("Unknown content block type: null");
             throw new IllegalArgumentException("Unknown content block type: null");
         }
 
-        return switch (entity.getBlockType()) {
-            case IMAGE -> convertImageToModel((ImageContentBlockEntity) entity);
-            case TEXT -> convertTextToModel((TextContentBlockEntity) entity);
-            case CODE -> convertCodeToModel((CodeContentBlockEntity) entity);
-            case GIF -> convertGifToModel((GifContentBlockEntity) entity);
+        return switch (entity.getContentType()) {
+            case IMAGE -> convertImageToModel((ImageContentEntity) entity);
+            case TEXT -> convertTextToModel((TextContentEntity) entity);
+            case CODE -> convertCodeToModel((CodeContentEntity) entity);
+            case GIF -> convertGifToModel((GifContentEntity) entity);
         };
     }
 
@@ -99,11 +99,11 @@ public class ContentBlockProcessingUtil {
      * @param entity The source entity
      * @param model  The target model
      */
-    private void copyBaseProperties(ContentBlockEntity entity, ContentBlockModel model) {
+    private void copyBaseProperties(ContentEntity entity, ContentModel model) {
         model.setId(entity.getId());
         model.setCollectionId(entity.getCollectionId());
         model.setOrderIndex(entity.getOrderIndex());
-        model.setBlockType(entity.getBlockType());
+        model.setContentType(entity.getContentType());
         model.setCaption(entity.getCaption());
         model.setCreatedAt(entity.getCreatedAt());
         model.setUpdatedAt(entity.getUpdatedAt());
@@ -129,12 +129,12 @@ public class ContentBlockProcessingUtil {
      * @param entity The image content block entity to convert
      * @return The corresponding image content block model
      */
-    private ImageContentBlockModel convertImageToModel(ImageContentBlockEntity entity) {
+    private ImageContentModel convertImageToModel(ImageContentEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        ImageContentBlockModel model = new ImageContentBlockModel();
+        ImageContentModel model = new ImageContentModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);
@@ -163,8 +163,8 @@ public class ContentBlockProcessingUtil {
 
         // Map tags - convert entities to simplified tag objects (id and name only)
         if (entity.getTags() != null && !entity.getTags().isEmpty()) {
-            List<edens.zac.portfolio.backend.model.ContentBlockTagModel> tagModels = entity.getTags().stream()
-                    .map(tag -> edens.zac.portfolio.backend.model.ContentBlockTagModel.builder()
+            List<edens.zac.portfolio.backend.model.ContentTagModel> tagModels = entity.getTags().stream()
+                    .map(tag -> edens.zac.portfolio.backend.model.ContentTagModel.builder()
                             .id(tag.getId())
                             .name(tag.getTagName())
                             .build())
@@ -175,8 +175,8 @@ public class ContentBlockProcessingUtil {
 
         // Map people - convert entities to simplified person objects (id and name only)
         if (entity.getPeople() != null && !entity.getPeople().isEmpty()) {
-            List<edens.zac.portfolio.backend.model.ContentBlockPersonModel> personModels = entity.getPeople().stream()
-                    .map(person -> edens.zac.portfolio.backend.model.ContentBlockPersonModel.builder()
+            List<ContentPersonModel> personModels = entity.getPeople().stream()
+                    .map(person -> ContentPersonModel.builder()
                             .id(person.getId())
                             .name(person.getPersonName())
                             .build())
@@ -186,7 +186,7 @@ public class ContentBlockProcessingUtil {
         }
 
         // Populate collections array - fetch all collections this image belongs to
-        List<ImageContentBlockEntity> instances = new ArrayList<>();
+        List<ImageContentEntity> instances = new ArrayList<>();
         if (entity.getFileIdentifier() != null) {
             instances = contentBlockRepository.findAllByFileIdentifier(entity.getFileIdentifier());
         } else {
@@ -195,7 +195,7 @@ public class ContentBlockProcessingUtil {
         }
 
         List<ImageCollection> collections = new ArrayList<>();
-        for (ImageContentBlockEntity instance : instances) {
+        for (ImageContentEntity instance : instances) {
             if (instance.getCollectionId() != null) {
                 contentCollectionRepository.findById(instance.getCollectionId())
                         .ifPresent(collection -> {
@@ -220,12 +220,12 @@ public class ContentBlockProcessingUtil {
      * @param entity The text content block entity to convert
      * @return The corresponding text content block model
      */
-    private TextContentBlockModel convertTextToModel(TextContentBlockEntity entity) {
+    private TextContentModel convertTextToModel(TextContentEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        TextContentBlockModel model = new TextContentBlockModel();
+        TextContentModel model = new TextContentModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);
@@ -243,12 +243,12 @@ public class ContentBlockProcessingUtil {
      * @param entity The code content block entity to convert
      * @return The corresponding code content block model
      */
-    private CodeContentBlockModel convertCodeToModel(CodeContentBlockEntity entity) {
+    private CodeContentModel convertCodeToModel(CodeContentEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        CodeContentBlockModel model = new CodeContentBlockModel();
+        CodeContentModel model = new CodeContentModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);
@@ -270,12 +270,12 @@ public class ContentBlockProcessingUtil {
      * @param entity The gif content block entity to convert
      * @return The corresponding gif content block model
      */
-    private GifContentBlockModel convertGifToModel(GifContentBlockEntity entity) {
+    private GifContentModel convertGifToModel(GifContentEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        GifContentBlockModel model = new GifContentBlockModel();
+        GifContentModel model = new GifContentModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);
@@ -310,9 +310,9 @@ public class ContentBlockProcessingUtil {
      * @param orderIndex   The order index of this block within the collection
      * @return The saved content block entity
      */
-    public ContentBlockEntity processContentBlock(
+    public ContentEntity processContentBlock(
             MultipartFile file,
-            ContentBlockType type,
+            ContentType type,
             Long collectionId,
             Integer orderIndex,
             String content,
@@ -344,7 +344,7 @@ public class ContentBlockProcessingUtil {
      * @param caption      The caption for the text block
      * @return The saved text content block entity
      */
-    public TextContentBlockEntity processTextContentBlock(
+    public TextContentEntity processTextContentBlock(
             String text,
             Long collectionId,
             Integer orderIndex,
@@ -357,10 +357,10 @@ public class ContentBlockProcessingUtil {
             String validatedContent = validateAndSanitizeTextContent(text);
 
             // Create and return the text content block entity
-            TextContentBlockEntity entity = new TextContentBlockEntity();
+            TextContentEntity entity = new TextContentEntity();
             entity.setCollectionId(collectionId);
             entity.setOrderIndex(orderIndex);
-            entity.setBlockType(ContentBlockType.TEXT);
+            entity.setBlockType(ContentType.TEXT);
             entity.setCaption(caption);
             entity.setContent(validatedContent);
             entity.setFormatType("markdown"); // Default format type
@@ -385,7 +385,7 @@ public class ContentBlockProcessingUtil {
      * @param caption      The caption for the code block
      * @return The saved code content block entity
      */
-    public CodeContentBlockEntity processCodeContentBlock(
+    public CodeContentEntity processCodeContentBlock(
             String code,
             String language,
             Long collectionId,
@@ -401,10 +401,10 @@ public class ContentBlockProcessingUtil {
             String validatedLanguage = validateCodeLanguage(language);
 
             // Create and return the code content block entity
-            CodeContentBlockEntity entity = new CodeContentBlockEntity();
+            CodeContentEntity entity = new CodeContentEntity();
             entity.setCollectionId(collectionId);
             entity.setOrderIndex(orderIndex);
-            entity.setBlockType(ContentBlockType.CODE);
+            entity.setBlockType(ContentType.CODE);
             entity.setCaption(caption);
             entity.setCode(validatedCode);
             entity.setLanguage(validatedLanguage);
@@ -429,7 +429,7 @@ public class ContentBlockProcessingUtil {
      * @param caption      The caption for the gif
      * @return The saved gif content block entity
      */
-    public GifContentBlockEntity processGifContentBlock(
+    public GifContentEntity processGifContentBlock(
             MultipartFile file,
             Long collectionId,
             Integer orderIndex,
@@ -455,10 +455,10 @@ public class ContentBlockProcessingUtil {
             int height = firstFrame.getHeight();
 
             // Create the gif content block entity
-            GifContentBlockEntity entity = new GifContentBlockEntity();
+            GifContentEntity entity = new GifContentEntity();
             entity.setCollectionId(collectionId);
             entity.setOrderIndex(orderIndex);
-            entity.setBlockType(ContentBlockType.GIF);
+            entity.setBlockType(ContentType.GIF);
             entity.setCaption(caption);
             entity.setTitle(title != null ? title : file.getOriginalFilename());
             entity.setGifUrl(gifUrl);
@@ -484,7 +484,7 @@ public class ContentBlockProcessingUtil {
      * @param blockIds     The ordered list of block IDs
      * @return The updated list of content block entities
      */
-    public List<ContentBlockEntity> reorderContentBlocks(Long collectionId, List<Long> blockIds) {
+    public List<ContentEntity> reorderContentBlocks(Long collectionId, List<Long> blockIds) {
         log.info("Reordering content blocks for collection {}", collectionId);
 
         if (blockIds == null || blockIds.isEmpty()) {
@@ -493,27 +493,27 @@ public class ContentBlockProcessingUtil {
 
         try {
             // Get all blocks for this collection
-            List<ContentBlockEntity> blocks = contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId);
+            List<ContentEntity> blocks = contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId);
 
             // Create a map of block ID to entity for quick lookup
-            Map<Long, ContentBlockEntity> blockMap = new HashMap<>();
-            for (ContentBlockEntity block : blocks) {
+            Map<Long, ContentEntity> blockMap = new HashMap<>();
+            for (ContentEntity block : blocks) {
                 blockMap.put(block.getId(), block);
             }
 
             // Validate that all block IDs belong to this collection
             for (Long blockId : blockIds) {
-                ContentBlockEntity block = blockMap.get(blockId);
+                ContentEntity block = blockMap.get(blockId);
                 if (block == null) {
                     throw new IllegalArgumentException("Block ID " + blockId + " does not belong to collection " + collectionId);
                 }
             }
 
             // Update order index for each block based on its position in the list
-            List<ContentBlockEntity> updatedBlocks = new ArrayList<>();
+            List<ContentEntity> updatedBlocks = new ArrayList<>();
             for (int i = 0; i < blockIds.size(); i++) {
                 Long blockId = blockIds.get(i);
-                ContentBlockEntity block = blockMap.get(blockId);
+                ContentEntity block = blockMap.get(blockId);
                 block.setOrderIndex(i);
                 updatedBlocks.add(block);
             }
@@ -793,7 +793,7 @@ public class ContentBlockProcessingUtil {
      * @param caption      The caption for the image
      * @return The saved image content block entity
      */
-    public ImageContentBlockEntity processImageContentBlock(
+    public ImageContentEntity processImageContentBlock(
             MultipartFile file,
             Long collectionId,
             Integer orderIndex,
@@ -847,10 +847,10 @@ public class ContentBlockProcessingUtil {
             String date = LocalDate.now().toString();
             String fileIdentifier = date + "/" + originalFilename;
 
-            ImageContentBlockEntity entity = ImageContentBlockEntity.builder()
+            ImageContentEntity entity = ImageContentEntity.builder()
                     .collectionId(collectionId)
                     .orderIndex(orderIndex)
-                    .blockType(ContentBlockType.IMAGE)
+                    .blockType(ContentType.IMAGE)
                     .caption(caption)
                     .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
                     .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
@@ -895,7 +895,7 @@ public class ContentBlockProcessingUtil {
             }
 
             // STEP 7: Save and return
-            ImageContentBlockEntity savedEntity = contentBlockRepository.save(entity);
+            ImageContentEntity savedEntity = contentBlockRepository.save(entity);
             log.info("Successfully processed image content block with ID: {}", savedEntity.getId());
             return savedEntity;
 
@@ -1201,7 +1201,7 @@ public class ContentBlockProcessingUtil {
      * @param entity The image entity to update
      * @param updateRequest The update request containing the fields to update
      */
-    public void applyImageUpdates(ImageContentBlockEntity entity, ImageUpdateRequest updateRequest) {
+    public void applyImageUpdates(ImageContentEntity entity, ImageUpdateRequest updateRequest) {
         // Update basic image metadata fields if provided
         if (updateRequest.getTitle() != null) {
             entity.setTitle(updateRequest.getTitle());
@@ -1352,7 +1352,7 @@ public class ContentBlockProcessingUtil {
      * @param image The image entity being updated
      * @param collectionUpdates List of collection updates containing visibility and orderIndex information
      */
-    public void handleCollectionVisibilityUpdates(ImageContentBlockEntity image, List<ImageCollection> collectionUpdates) {
+    public void handleCollectionVisibilityUpdates(ImageContentEntity image, List<ImageCollection> collectionUpdates) {
         if (collectionUpdates == null || collectionUpdates.isEmpty()) {
             return;
         }

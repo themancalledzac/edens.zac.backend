@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
-import edens.zac.portfolio.backend.types.ContentBlockType;
+import edens.zac.portfolio.backend.types.ContentType;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -12,7 +12,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ImageContentBlockEntityTest {
+class ImageContentEntityTest {
 
     private Validator validator;
 
@@ -25,10 +25,10 @@ class ImageContentBlockEntityTest {
     @Test
     void testValidImageContentBlock() {
         // Create a valid image content block
-        ImageContentBlockEntity imageBlock = ImageContentBlockEntity.builder()
+        ImageContentEntity imageBlock = ImageContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentBlockType.IMAGE)
+                .blockType(ContentType.IMAGE)
                 .title("Mountain Landscape")
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .imageWidth(1920)
@@ -47,41 +47,41 @@ class ImageContentBlockEntityTest {
                 .createDate("2023-05-15")
                 .build();
 
-        Set<ConstraintViolation<ImageContentBlockEntity>> violations = validator.validate(imageBlock);
+        Set<ConstraintViolation<ImageContentEntity>> violations = validator.validate(imageBlock);
         assertTrue(violations.isEmpty());
-        assertEquals(ContentBlockType.IMAGE, imageBlock.getBlockType());
+        assertEquals(ContentType.IMAGE, imageBlock.getContentType());
     }
 
     @Test
     void testInvalidImageContentBlockMissingRequiredField() {
         // Create an invalid image content block (missing required imageUrlWeb)
-        ImageContentBlockEntity imageBlock = ImageContentBlockEntity.builder()
+        ImageContentEntity imageBlock = ImageContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentBlockType.IMAGE)
+                .blockType(ContentType.IMAGE)
                 .title("Mountain Landscape")
                 // imageUrlWeb is missing
                 .build();
 
-        Set<ConstraintViolation<ImageContentBlockEntity>> violations = validator.validate(imageBlock);
+        Set<ConstraintViolation<ImageContentEntity>> violations = validator.validate(imageBlock);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("imageUrlWeb")));
     }
 
     @Test
-    void testGetBlockTypeReturnsImage() {
-        ImageContentBlockEntity imageBlock = new ImageContentBlockEntity();
-        assertEquals(ContentBlockType.IMAGE, imageBlock.getBlockType());
+    void testGetContentTypeReturnsImage() {
+        ImageContentEntity imageBlock = new ImageContentEntity();
+        assertEquals(ContentType.IMAGE, imageBlock.getContentType());
     }
 
     @Test
     void testBuilderWithAllFields() {
         // Test the builder pattern with all fields
-        ImageContentBlockEntity imageBlock = ImageContentBlockEntity.builder()
+        ImageContentEntity imageBlock = ImageContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentBlockType.IMAGE)
+                .blockType(ContentType.IMAGE)
                 .caption("A beautiful mountain landscape")
                 .title("Mountain Landscape")
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
@@ -104,7 +104,7 @@ class ImageContentBlockEntityTest {
         // Verify all fields were set correctly
         assertEquals(1L, imageBlock.getCollectionId());
         assertEquals(0, imageBlock.getOrderIndex());
-        assertEquals(ContentBlockType.IMAGE, imageBlock.getBlockType());
+        assertEquals(ContentType.IMAGE, imageBlock.getContentType());
         assertEquals("A beautiful mountain landscape", imageBlock.getCaption());
         assertEquals("Mountain Landscape", imageBlock.getTitle());
         assertEquals("https://example.com/images/mountain.jpg", imageBlock.getImageUrlWeb());
@@ -127,17 +127,17 @@ class ImageContentBlockEntityTest {
     @Test
     void testEqualsAndHashCode() {
         // Create two identical image blocks
-        ImageContentBlockEntity imageBlock1 = ImageContentBlockEntity.builder()
+        ImageContentEntity imageBlock1 = ImageContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentBlockType.IMAGE)
+                .blockType(ContentType.IMAGE)
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .build();
 
-        ImageContentBlockEntity imageBlock2 = ImageContentBlockEntity.builder()
+        ImageContentEntity imageBlock2 = ImageContentEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
-                .blockType(ContentBlockType.IMAGE)
+                .blockType(ContentType.IMAGE)
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .build();
 

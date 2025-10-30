@@ -58,7 +58,7 @@ public class ContentPersonEntity {
     // Many-to-many relationship with ImageContentBlock (mappedBy side - non-owning)
     @ManyToMany(mappedBy = "people", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentBlockEntity> imageContentBlocks = new HashSet<>();
+    private Set<ImageContentEntity> imageContentBlocks = new HashSet<>();
 
     /**
      * Constructor for creating a person with just a name.

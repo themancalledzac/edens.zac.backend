@@ -1,14 +1,14 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.ContentBlockEntity;
+import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
-import edens.zac.portfolio.backend.entity.TextContentBlockEntity;
-import edens.zac.portfolio.backend.model.ContentBlockModel;
-import edens.zac.portfolio.backend.model.ContentCollectionModel;
-import edens.zac.portfolio.backend.model.ContentCollectionPageDTO;
+import edens.zac.portfolio.backend.entity.TextContentEntity;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionPageDTO;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
-import edens.zac.portfolio.backend.types.ContentBlockType;
+import edens.zac.portfolio.backend.types.ContentType;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class ContentCollectionProcessingUtilTest {
     private ContentCollectionProcessingUtil util;
 
     private ContentCollectionEntity testEntity;
-    private List<ContentBlockEntity> testBlocks;
+    private List<ContentEntity> testBlocks;
 
     @BeforeEach
     void setUp() {
@@ -74,18 +74,18 @@ class ContentCollectionProcessingUtilTest {
 
         // Create test blocks
         testBlocks = new ArrayList<>();
-        TextContentBlockEntity block1 = new TextContentBlockEntity();
+        TextContentEntity block1 = new TextContentEntity();
         block1.setId(1L);
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
-        block1.setBlockType(ContentBlockType.TEXT);
+        block1.setBlockType(ContentType.TEXT);
         block1.setContent("Test content 1");
 
-        TextContentBlockEntity block2 = new TextContentBlockEntity();
+        TextContentEntity block2 = new TextContentEntity();
         block2.setId(2L);
         block2.setCollectionId(1L);
         block2.setOrderIndex(1);
-        block2.setBlockType(ContentBlockType.TEXT);
+        block2.setBlockType(ContentType.TEXT);
         block2.setContent("Test content 2");
 
         testBlocks.add(block1);
@@ -141,7 +141,7 @@ class ContentCollectionProcessingUtilTest {
         when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
 
         // Act
-        ContentCollectionModel model = util.convertToBasicModel(testEntity);
+        CollectionModel model = util.convertToBasicModel(testEntity);
 
         // Assert
         assertNotNull(model);
@@ -163,18 +163,18 @@ class ContentCollectionProcessingUtilTest {
         // Arrange
         when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
         when(contentBlockRepository.findByCollectionIdOrderByOrderIndex(any())).thenReturn(testBlocks);
-        when(contentBlockProcessingUtil.convertToModel(any(ContentBlockEntity.class)))
+        when(contentBlockProcessingUtil.convertToModel(any(ContentEntity.class)))
                 .thenAnswer(invocation -> {
-                    ContentBlockEntity entity = invocation.getArgument(0);
-                    ContentBlockModel model = new ContentBlockModel();
+                    ContentEntity entity = invocation.getArgument(0);
+                    ContentModel model = new ContentModel();
                     model.setId(entity.getId());
-                    model.setBlockType(entity.getBlockType());
+                    model.setContentType(entity.getContentType());
                     model.setOrderIndex(entity.getOrderIndex());
                     return model;
                 });
 
         // Act
-        ContentCollectionModel model = util.convertToFullModel(testEntity);
+        CollectionModel model = util.convertToFullModel(testEntity);
 
         // Assert
         assertNotNull(model);
@@ -188,20 +188,20 @@ class ContentCollectionProcessingUtilTest {
     void convertToModel_shouldConvertEntityWithPaginatedContentBlocks() {
         // Arrange
         when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
-        Page<ContentBlockEntity> page = new PageImpl<>(testBlocks, PageRequest.of(0, 10), 2);
+        Page<ContentEntity> page = new PageImpl<>(testBlocks, PageRequest.of(0, 10), 2);
 
-        when(contentBlockProcessingUtil.convertToModel(any(ContentBlockEntity.class)))
+        when(contentBlockProcessingUtil.convertToModel(any(ContentEntity.class)))
                 .thenAnswer(invocation -> {
-                    ContentBlockEntity entity = invocation.getArgument(0);
-                    ContentBlockModel model = new ContentBlockModel();
+                    ContentEntity entity = invocation.getArgument(0);
+                    ContentModel model = new ContentModel();
                     model.setId(entity.getId());
-                    model.setBlockType(entity.getBlockType());
+                    model.setContentType(entity.getContentType());
                     model.setOrderIndex(entity.getOrderIndex());
                     return model;
                 });
 
         // Act
-        ContentCollectionModel model = util.convertToModel(testEntity, page);
+        CollectionModel model = util.convertToModel(testEntity, page);
 
         // Assert
         assertNotNull(model);
@@ -265,7 +265,7 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void getContentSummary_shouldFormatSummaryCorrectly() {
         // Arrange
-        ContentCollectionPageDTO dto = new ContentCollectionPageDTO();
+        CollectionPageDTO dto = new CollectionPageDTO();
         dto.setImageBlockCount(5);
         dto.setTextBlockCount(3);
         dto.setCodeBlockCount(2);

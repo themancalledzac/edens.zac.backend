@@ -111,7 +111,7 @@ public class ContentCollectionEntity {
             fetch = FetchType.LAZY
     )
     @OrderBy("orderIndex ASC")
-    private List<ContentBlockEntity> contentBlocks = new ArrayList<>();
+    private List<ContentEntity> contentBlocks = new ArrayList<>();
 
     // Many-to-many relationship with ContentTagEntity
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})

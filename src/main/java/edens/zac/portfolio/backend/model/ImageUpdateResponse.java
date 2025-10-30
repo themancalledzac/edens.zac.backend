@@ -22,7 +22,7 @@ public class ImageUpdateResponse {
      * Full image content blocks for all successfully updated images.
      * Includes all metadata (tags, people, camera, lens, film type, etc.)
      */
-    private List<ImageContentBlockModel> updatedImages;
+    private List<ImageContentModel> updatedImages;
 
     /**
      * Metadata for newly created entities during the update operation.

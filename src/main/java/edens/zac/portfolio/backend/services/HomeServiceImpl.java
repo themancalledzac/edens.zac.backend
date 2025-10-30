@@ -2,7 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
-import edens.zac.portfolio.backend.entity.ImageContentBlockEntity;
+import edens.zac.portfolio.backend.entity.ImageContentEntity;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository;
@@ -40,8 +40,8 @@ public class HomeServiceImpl implements HomeService {
         }
 
         return contentBlockRepository.findById(collection.getCoverImageBlockId())
-                .filter(block -> block instanceof ImageContentBlockEntity)
-                .map(block -> ((ImageContentBlockEntity) block).getImageUrlWeb())
+                .filter(block -> block instanceof ImageContentEntity)
+                .map(block -> ((ImageContentEntity) block).getImageUrlWeb())
                 .orElse(null);
     }
 

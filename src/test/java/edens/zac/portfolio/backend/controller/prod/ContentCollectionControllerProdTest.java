@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edens.zac.portfolio.backend.model.ContentCollectionModel;
-import edens.zac.portfolio.backend.services.ContentCollectionService;
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,15 +43,15 @@ class ContentCollectionControllerProdTest {
     private MockMvc mockMvc;
 
     @Mock
-    private ContentCollectionService contentCollectionService;
+    private CollectionService collectionService;
 
     @InjectMocks
     private ContentCollectionControllerProd contentCollectionController;
 
     private ObjectMapper objectMapper;
 
-    private List<ContentCollectionModel> testCollections;
-    private ContentCollectionModel testCollection;
+    private List<CollectionModel> testCollections;
+    private CollectionModel testCollection;
 
     @BeforeEach
     void setUp() {
@@ -66,7 +66,7 @@ class ContentCollectionControllerProdTest {
         testCollections = new ArrayList<>();
 
         // Create a blog collection
-        ContentCollectionModel blog = new ContentCollectionModel();
+        CollectionModel blog = new CollectionModel();
         blog.setId(1L);
         blog.setType(CollectionType.BLOG);
         blog.setTitle("Test Blog");
@@ -83,7 +83,7 @@ class ContentCollectionControllerProdTest {
         blog.setUpdatedAt(LocalDateTime.now());
 
         // Create an art gallery collection
-        ContentCollectionModel artGallery = new ContentCollectionModel();
+        CollectionModel artGallery = new CollectionModel();
         artGallery.setId(2L);
         artGallery.setType(CollectionType.ART_GALLERY);
         artGallery.setTitle("Test Art Gallery");
@@ -100,7 +100,7 @@ class ContentCollectionControllerProdTest {
         artGallery.setUpdatedAt(LocalDateTime.now());
 
         // Create a client gallery collection with password protection
-        ContentCollectionModel clientGallery = new ContentCollectionModel();
+        CollectionModel clientGallery = new CollectionModel();
         clientGallery.setId(3L);
         clientGallery.setType(CollectionType.CLIENT_GALLERY);
         clientGallery.setTitle("Test Client Gallery");
@@ -129,8 +129,8 @@ class ContentCollectionControllerProdTest {
     @DisplayName("GET /collections should return paginated collections")
     void getAllCollections_shouldReturnPaginatedCollections() throws Exception {
         // Arrange
-        Page<ContentCollectionModel> page = new PageImpl<>(testCollections, PageRequest.of(0, 10), 3);
-        when(contentCollectionService.getAllCollections(any(Pageable.class))).thenReturn(page);
+        Page<CollectionModel> page = new PageImpl<>(testCollections, PageRequest.of(0, 10), 3);
+        when(collectionService.getAllCollections(any(Pageable.class))).thenReturn(page);
 
         // Act & Assert
         mockMvc.perform(get("/api/read/collections")
@@ -151,8 +151,8 @@ class ContentCollectionControllerProdTest {
     @DisplayName("GET /collections with negative page should normalize to page 0")
     void getAllCollections_withNegativePage_shouldNormalizeToZero() throws Exception {
         // Arrange
-        Page<ContentCollectionModel> page = new PageImpl<>(testCollections, PageRequest.of(0, 10), 3);
-        when(contentCollectionService.getAllCollections(any(Pageable.class))).thenReturn(page);
+        Page<CollectionModel> page = new PageImpl<>(testCollections, PageRequest.of(0, 10), 3);
+        when(collectionService.getAllCollections(any(Pageable.class))).thenReturn(page);
 
         // Act & Assert - Controller normalizes negative page to 0
         mockMvc.perform(get("/api/read/collections")
@@ -168,7 +168,7 @@ class ContentCollectionControllerProdTest {
     @DisplayName("GET /collections/{slug} should return collection with paginated content")
     void getCollectionBySlug_shouldReturnCollectionWithPaginatedContent() throws Exception {
         // Arrange
-        when(contentCollectionService.getCollectionWithPagination(eq("test-blog"), anyInt(), anyInt()))
+        when(collectionService.getCollectionWithPagination(eq("test-blog"), anyInt(), anyInt()))
                 .thenReturn(testCollection);
 
         // Act & Assert
@@ -190,7 +190,7 @@ class ContentCollectionControllerProdTest {
     @DisplayName("GET /collections/{slug} with non-existent slug should return not found")
     void getCollectionBySlug_withNonExistentSlug_shouldReturnNotFound() throws Exception {
         // Arrange
-        when(contentCollectionService.getCollectionWithPagination(eq("non-existent"), anyInt(), anyInt()))
+        when(collectionService.getCollectionWithPagination(eq("non-existent"), anyInt(), anyInt()))
                 .thenThrow(new EntityNotFoundException("Collection with slug: non-existent not found"));
 
         // Act & Assert
@@ -206,7 +206,7 @@ class ContentCollectionControllerProdTest {
     @DisplayName("GET /collections/{slug} with negative page should normalize to page 0")
     void getCollectionBySlug_withNegativePage_shouldNormalizeToZero() throws Exception {
         // Arrange
-        when(contentCollectionService.getCollectionWithPagination(eq("test-blog"), eq(0), eq(30)))
+        when(collectionService.getCollectionWithPagination(eq("test-blog"), eq(0), eq(30)))
                 .thenReturn(testCollection);
 
         // Act & Assert - Controller normalizes negative page to 0
@@ -232,7 +232,7 @@ class ContentCollectionControllerProdTest {
                         .build()
         );
 
-        when(contentCollectionService.findVisibleByTypeOrderByDate(eq(CollectionType.BLOG)))
+        when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.BLOG)))
                 .thenReturn(homeCards);
 
         // Act & Assert
@@ -263,7 +263,7 @@ class ContentCollectionControllerProdTest {
         Map<String, String> passwordRequest = new HashMap<>();
         passwordRequest.put("password", "correct-password");
 
-        when(contentCollectionService.validateClientGalleryAccess(eq("test-client-gallery"), eq("correct-password")))
+        when(collectionService.validateClientGalleryAccess(eq("test-client-gallery"), eq("correct-password")))
                 .thenReturn(true);
 
         // Act & Assert
@@ -281,7 +281,7 @@ class ContentCollectionControllerProdTest {
         Map<String, String> passwordRequest = new HashMap<>();
         passwordRequest.put("password", "wrong-password");
 
-        when(contentCollectionService.validateClientGalleryAccess(eq("test-client-gallery"), eq("wrong-password")))
+        when(collectionService.validateClientGalleryAccess(eq("test-client-gallery"), eq("wrong-password")))
                 .thenReturn(false);
 
         // Act & Assert
@@ -313,7 +313,7 @@ class ContentCollectionControllerProdTest {
         Map<String, String> passwordRequest = new HashMap<>();
         passwordRequest.put("password", "any-password");
 
-        when(contentCollectionService.validateClientGalleryAccess(eq("non-existent"), anyString()))
+        when(collectionService.validateClientGalleryAccess(eq("non-existent"), anyString()))
                 .thenThrow(new EntityNotFoundException("Collection with slug: non-existent not found"));
 
         // Act & Assert

@@ -39,10 +39,10 @@ class ContentCollectionPageDTOTest {
     /**
      * Creates a valid default builder for ContentCollectionPageDTO with all required fields populated
      */
-    private static ContentCollectionPageDTO.ContentCollectionPageDTOBuilder<?, ?> defaultValidBuilder() {
+    private static CollectionPageDTO.ContentCollectionPageDTOBuilder<?, ?> defaultValidBuilder() {
         LocalDateTime now = LocalDateTime.now();
         LocalDate today = LocalDate.now();
-        return ContentCollectionPageDTO.builder()
+        return CollectionPageDTO.builder()
                 .id(1L)
                 .type(CollectionType.PORTFOLIO)
                 .title("Test Portfolio")
@@ -80,9 +80,9 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should create valid DTO with all fields")
         void shouldCreateValidDTOWithAllFields() {
-            ContentCollectionPageDTO dto = defaultValidBuilder().build();
+            CollectionPageDTO dto = defaultValidBuilder().build();
             
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertTrue(violations.isEmpty(), "Should have no validation errors");
             assertEquals(1L, dto.getId());
@@ -93,7 +93,7 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should create valid DTO with minimal required fields")
         void shouldCreateValidDTOWithMinimalFields() {
-            ContentCollectionPageDTO dto = ContentCollectionPageDTO.builder()
+            CollectionPageDTO dto = CollectionPageDTO.builder()
                     .currentPage(1)
                     .pageSize(25)
                     .totalElements(0)
@@ -105,7 +105,7 @@ class ContentCollectionPageDTOTest {
                     .contentBlocks(new ArrayList<>())
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertTrue(violations.isEmpty(), "Should have no validation errors with minimal fields");
         }
@@ -136,9 +136,9 @@ class ContentCollectionPageDTOTest {
         @MethodSource("requiredFieldTestCases")
         @DisplayName("Should fail validation when required field is null")
         void shouldFailValidationWhenRequiredFieldIsNull(TestCase testCase) {
-            ContentCollectionPageDTO dto = testCase.applyToBuilder(defaultValidBuilder()).build();
+            CollectionPageDTO dto = testCase.applyToBuilder(defaultValidBuilder()).build();
             
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertFalse(violations.isEmpty(), "Should have validation errors when " + testCase.fieldName + " is null");
             assertTrue(violations.stream()
@@ -155,11 +155,11 @@ class ContentCollectionPageDTOTest {
         @ValueSource(ints = {0, -1, -10})
         @DisplayName("Should reject currentPage below minimum")
         void shouldRejectCurrentPageBelowMin(int invalidValue) {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .currentPage(invalidValue)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
@@ -170,11 +170,11 @@ class ContentCollectionPageDTOTest {
         @ValueSource(ints = {0, -1, -10})
         @DisplayName("Should reject pageSize below minimum")
         void shouldRejectPageSizeBelowMin(int invalidValue) {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .pageSize(invalidValue)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
@@ -185,11 +185,11 @@ class ContentCollectionPageDTOTest {
         @ValueSource(ints = {101, 200, 1000})
         @DisplayName("Should reject pageSize above maximum")
         void shouldRejectPageSizeAboveMax(int invalidValue) {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .pageSize(invalidValue)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
@@ -199,14 +199,14 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should accept boundary values for pagination fields")
         void shouldAcceptBoundaryValues() {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .currentPage(1)      // minimum
                     .pageSize(1)         // minimum
                     .totalElements(0)    // minimum
                     .totalPages(0)       // minimum
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertTrue(violations.isEmpty(), "Should accept minimum boundary values");
 
@@ -227,7 +227,7 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should handle navigation for middle page")
         void shouldHandleNavigationForMiddlePage() {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .currentPage(2)
                     .totalPages(5)
                     .hasPrevious(true)
@@ -238,7 +238,7 @@ class ContentCollectionPageDTOTest {
                     .nextPage(3)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             
             assertEquals(2, dto.getCurrentPage());
@@ -251,7 +251,7 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should handle navigation for first page")
         void shouldHandleNavigationForFirstPage() {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .currentPage(1)
                     .totalPages(5)
                     .hasPrevious(false)
@@ -262,7 +262,7 @@ class ContentCollectionPageDTOTest {
                     .nextPage(2)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             
             assertEquals(1, dto.getCurrentPage());
@@ -275,7 +275,7 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should handle navigation for single page")
         void shouldHandleNavigationForSinglePage() {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .currentPage(1)
                     .totalPages(1)
                     .hasPrevious(false)
@@ -286,7 +286,7 @@ class ContentCollectionPageDTOTest {
                     .nextPage(null)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             
             assertEquals(1, dto.getCurrentPage());
@@ -304,28 +304,28 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should accept null content block counts")
         void shouldAcceptNullContentBlockCounts() {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .imageBlockCount(null)
                     .textBlockCount(null)
                     .codeBlockCount(null)
                     .gifBlockCount(null)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty(), "Should accept null content block counts");
         }
 
         @Test
         @DisplayName("Should accept zero content block counts")
         void shouldAcceptZeroContentBlockCounts() {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .imageBlockCount(0)
                     .textBlockCount(0)
                     .codeBlockCount(0)
                     .gifBlockCount(0)
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty(), "Should accept zero content block counts");
         }
     }
@@ -337,11 +337,11 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should inherit base model validation rules")
         void shouldInheritBaseModelValidationRules() {
-            ContentCollectionPageDTO dto = defaultValidBuilder()
+            CollectionPageDTO dto = defaultValidBuilder()
                     .title("ab")  // Too short for base model validation
                     .build();
 
-            Set<ConstraintViolation<ContentCollectionPageDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
             
             assertFalse(violations.isEmpty());
             assertTrue(violations.stream()
@@ -355,19 +355,19 @@ class ContentCollectionPageDTOTest {
         LocalDateTime fixedTime = LocalDateTime.of(2025, 6, 7, 14, 0, 0);
         LocalDate fixedDate = LocalDate.of(2025, 6, 7);
 
-        ContentCollectionPageDTO dto1 = defaultValidBuilder()
+        CollectionPageDTO dto1 = defaultValidBuilder()
                 .collectionDate(fixedDate)
                 .createdAt(fixedTime)
                 .updatedAt(fixedTime)
                 .build();
 
-        ContentCollectionPageDTO dto2 = defaultValidBuilder()
+        CollectionPageDTO dto2 = defaultValidBuilder()
                 .collectionDate(fixedDate)
                 .createdAt(fixedTime)
                 .updatedAt(fixedTime)
                 .build();
 
-        ContentCollectionPageDTO dto3 = defaultValidBuilder()
+        CollectionPageDTO dto3 = defaultValidBuilder()
                 .collectionDate(fixedDate)
                 .createdAt(fixedTime)
                 .updatedAt(fixedTime)
@@ -390,7 +390,7 @@ class ContentCollectionPageDTOTest {
         @Test
         @DisplayName("Should have working toString method")
         void shouldHaveWorkingToString() {
-            ContentCollectionPageDTO dto = defaultValidBuilder().build();
+            CollectionPageDTO dto = defaultValidBuilder().build();
             String toString = dto.toString();
             
             assertNotNull(toString);
@@ -406,16 +406,16 @@ class ContentCollectionPageDTOTest {
      */
     private static class TestCase {
         final String fieldName;
-        final Consumer<ContentCollectionPageDTO.ContentCollectionPageDTOBuilder> builderModifier;
+        final Consumer<CollectionPageDTO.ContentCollectionPageDTOBuilder> builderModifier;
         final String expectedMessage;
 
-        TestCase(String fieldName, Consumer<ContentCollectionPageDTO.ContentCollectionPageDTOBuilder> builderModifier, String expectedMessage) {
+        TestCase(String fieldName, Consumer<CollectionPageDTO.ContentCollectionPageDTOBuilder> builderModifier, String expectedMessage) {
             this.fieldName = fieldName;
             this.builderModifier = builderModifier;
             this.expectedMessage = expectedMessage;
         }
 
-        ContentCollectionPageDTO.ContentCollectionPageDTOBuilder applyToBuilder(ContentCollectionPageDTO.ContentCollectionPageDTOBuilder builder) {
+        CollectionPageDTO.ContentCollectionPageDTOBuilder applyToBuilder(CollectionPageDTO.ContentCollectionPageDTOBuilder builder) {
             builderModifier.accept(builder);
             return builder;
         }

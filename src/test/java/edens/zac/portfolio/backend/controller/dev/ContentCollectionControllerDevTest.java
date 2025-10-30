@@ -1,12 +1,12 @@
 package edens.zac.portfolio.backend.controller.dev;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edens.zac.portfolio.backend.model.ContentCollectionCreateRequest;
-import edens.zac.portfolio.backend.model.ContentCollectionModel;
-import edens.zac.portfolio.backend.model.ContentCollectionUpdateDTO;
-import edens.zac.portfolio.backend.model.ContentCollectionUpdateResponseDTO;
+import edens.zac.portfolio.backend.model.CollectionCreateRequest;
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
-import edens.zac.portfolio.backend.services.ContentCollectionService;
+import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,17 +39,17 @@ class ContentCollectionControllerDevTest {
     private MockMvc mockMvc;
 
     @Mock
-    private ContentCollectionService contentCollectionService;
+    private CollectionService collectionService;
 
     @InjectMocks
-    private ContentCollectionControllerDev contentCollectionController;
+    private CollectionControllerDev contentCollectionController;
 
     private ObjectMapper objectMapper;
 
-    private ContentCollectionModel testCollection;
-    private ContentCollectionUpdateResponseDTO testCollectionUpdateResponse;
-    private ContentCollectionCreateRequest testCreateRequest;
-    private ContentCollectionUpdateDTO testUpdateDTO;
+    private CollectionModel testCollection;
+    private CollectionUpdateResponseDTO testCollectionUpdateResponse;
+    private CollectionCreateRequest testCreateRequest;
+    private CollectionUpdateDTO testUpdateDTO;
 
     @BeforeEach
     void setUp() {
@@ -61,7 +61,7 @@ class ContentCollectionControllerDevTest {
         mockMvc = MockMvcBuilders.standaloneSetup(contentCollectionController).build();
 
         // Create test collection model (for updateContent, addContentBlocks)
-        testCollection = new ContentCollectionModel();
+        testCollection = new CollectionModel();
         testCollection.setId(1L);
         testCollection.setType(CollectionType.BLOG);
         testCollection.setTitle("Test Blog");
@@ -88,18 +88,18 @@ class ContentCollectionControllerDevTest {
                 .filmFormats(new ArrayList<>())
                 .build();
 
-        testCollectionUpdateResponse = ContentCollectionUpdateResponseDTO.builder()
+        testCollectionUpdateResponse = CollectionUpdateResponseDTO.builder()
                 .collection(testCollection)
                 .metadata(metadata)
                 .build();
 
         // Create minimal test create request
-        testCreateRequest = new ContentCollectionCreateRequest();
+        testCreateRequest = new CollectionCreateRequest();
         testCreateRequest.setType(CollectionType.BLOG);
         testCreateRequest.setTitle("New Test Blog");
 
         // Create test update DTO
-        testUpdateDTO = new ContentCollectionUpdateDTO();
+        testUpdateDTO = new CollectionUpdateDTO();
         testUpdateDTO.setTitle("Updated Test Blog");
         testUpdateDTO.setDescription("An updated test blog collection");
     }
@@ -108,7 +108,7 @@ class ContentCollectionControllerDevTest {
     @DisplayName("POST /collections/createCollection should create a new collection")
     void createCollection_shouldCreateNewCollection() throws Exception {
         // Arrange
-        when(contentCollectionService.createCollection(any(ContentCollectionCreateRequest.class)))
+        when(collectionService.createCollection(any(CollectionCreateRequest.class)))
                 .thenReturn(testCollectionUpdateResponse);
 
         // Act & Assert
@@ -120,14 +120,14 @@ class ContentCollectionControllerDevTest {
                 .andExpect(jsonPath("$.collection.title", is("Test Blog")))
                 .andExpect(jsonPath("$.collection.type", is("BLOG")));
 
-        verify(contentCollectionService).createCollection(any(ContentCollectionCreateRequest.class));
+        verify(collectionService).createCollection(any(CollectionCreateRequest.class));
     }
 
     @Test
     @DisplayName("POST /collections/createCollection should handle errors")
     void createCollection_shouldHandleErrors() throws Exception {
         // Arrange
-        when(contentCollectionService.createCollection(any(ContentCollectionCreateRequest.class)))
+        when(collectionService.createCollection(any(CollectionCreateRequest.class)))
                 .thenThrow(new RuntimeException("Test error"));
 
         // Act & Assert
@@ -137,14 +137,14 @@ class ContentCollectionControllerDevTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$", containsString("Failed to create collection")));
 
-        verify(contentCollectionService).createCollection(any(ContentCollectionCreateRequest.class));
+        verify(collectionService).createCollection(any(CollectionCreateRequest.class));
     }
 
     @Test
     @DisplayName("PUT /collections/{id} should update collection metadata")
     void updateCollection_shouldUpdateCollectionMetadata() throws Exception {
         // Arrange
-        when(contentCollectionService.updateContent(eq(1L), any(ContentCollectionUpdateDTO.class)))
+        when(collectionService.updateContent(eq(1L), any(CollectionUpdateDTO.class)))
                 .thenReturn(testCollection);
 
         // Act & Assert
@@ -155,14 +155,14 @@ class ContentCollectionControllerDevTest {
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.title", is("Test Blog")));
 
-        verify(contentCollectionService).updateContent(eq(1L), any(ContentCollectionUpdateDTO.class));
+        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateDTO.class));
     }
 
     @Test
     @DisplayName("PUT /collections/{id} should handle not found error")
     void updateCollection_shouldHandleNotFoundError() throws Exception {
         // Arrange
-        when(contentCollectionService.updateContent(eq(999L), any(ContentCollectionUpdateDTO.class)))
+        when(collectionService.updateContent(eq(999L), any(CollectionUpdateDTO.class)))
                 .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
 
         // Act & Assert
@@ -172,15 +172,15 @@ class ContentCollectionControllerDevTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$", containsString("not found")));
 
-        verify(contentCollectionService).updateContent(eq(999L), any(ContentCollectionUpdateDTO.class));
+        verify(collectionService).updateContent(eq(999L), any(CollectionUpdateDTO.class));
     }
 
 
     @Test
     @DisplayName("POST /collections/{id}/content should add content blocks (files only)")
-    void addContentBlocks_shouldAddContentBlocks() throws Exception {
+    void addContentBlocks_shouldAddContent() throws Exception {
         // Arrange
-        when(contentCollectionService.addContentBlocks(eq(1L), anyList()))
+        when(collectionService.addContent(eq(1L), anyList()))
                 .thenReturn(testCollection);
 
         // Create a mock image file
@@ -198,14 +198,14 @@ class ContentCollectionControllerDevTest {
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.title", is("Test Blog")));
 
-        verify(contentCollectionService).addContentBlocks(eq(1L), anyList());
+        verify(collectionService).addContent(eq(1L), anyList());
     }
 
     @Test
     @DisplayName("POST /collections/{id}/content should handle not found error")
-    void addContentBlocks_shouldHandleNotFoundError() throws Exception {
+    void addContent_shouldHandleNotFoundError() throws Exception {
         // Arrange
-        when(contentCollectionService.addContentBlocks(eq(999L), anyList()))
+        when(collectionService.addContent(eq(999L), anyList()))
                 .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
 
         // Create a mock image file
@@ -222,14 +222,14 @@ class ContentCollectionControllerDevTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$", containsString("not found")));
 
-        verify(contentCollectionService).addContentBlocks(eq(999L), anyList());
+        verify(collectionService).addContent(eq(999L), anyList());
     }
 
     @Test
     @DisplayName("DELETE /collections/{id}/content/{blockId} should remove content block")
-    void removeContentBlock_shouldRemoveContentBlock() throws Exception {
+    void removeContentBlock_shouldRemoveContent() throws Exception {
         // Arrange
-        when(contentCollectionService.updateContent(eq(1L), any(ContentCollectionUpdateDTO.class)))
+        when(collectionService.updateContent(eq(1L), any(CollectionUpdateDTO.class)))
                 .thenReturn(testCollection);
 
         // Act & Assert
@@ -238,21 +238,21 @@ class ContentCollectionControllerDevTest {
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.title", is("Test Blog")));
 
-        verify(contentCollectionService).updateContent(eq(1L), any(ContentCollectionUpdateDTO.class));
+        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateDTO.class));
     }
 
     @Test
     @DisplayName("DELETE /collections/{id} should delete collection")
     void deleteCollection_shouldDeleteCollection() throws Exception {
         // Arrange
-        doNothing().when(contentCollectionService).deleteCollection(1L);
+        doNothing().when(collectionService).deleteCollection(1L);
 
         // Act & Assert
         mockMvc.perform(delete("/api/write/collections/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", is("Collection deleted successfully")));
 
-        verify(contentCollectionService).deleteCollection(1L);
+        verify(collectionService).deleteCollection(1L);
     }
 
     @Test
@@ -260,13 +260,13 @@ class ContentCollectionControllerDevTest {
     void deleteCollection_shouldHandleNotFoundError() throws Exception {
         // Arrange
         doThrow(new EntityNotFoundException("Collection with ID: 999 not found"))
-                .when(contentCollectionService).deleteCollection(999L);
+                .when(collectionService).deleteCollection(999L);
 
         // Act & Assert
         mockMvc.perform(delete("/api/write/collections/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$", containsString("not found")));
 
-        verify(contentCollectionService).deleteCollection(999L);
+        verify(collectionService).deleteCollection(999L);
     }
 }
