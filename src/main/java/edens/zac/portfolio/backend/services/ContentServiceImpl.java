@@ -2,7 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.repository.ContentCameraRepository;
 import edens.zac.portfolio.backend.repository.ContentFilmTypeRepository;
 import edens.zac.portfolio.backend.repository.ContentLensRepository;
@@ -36,8 +36,8 @@ class ContentServiceImpl implements ContentService {
     private final ContentCameraRepository contentCameraRepository;
     private final ContentLensRepository contentLensRepository;
     private final ContentFilmTypeRepository contentFilmTypeRepository;
-    private final ContentBlockRepository contentBlockRepository;
-    private final ContentBlockProcessingUtil contentBlockProcessingUtil;
+    private final ContentRepository contentRepository;
+    private final ContentProcessingUtil contentProcessingUtil;
 
     @Override
     @Transactional
@@ -135,7 +135,7 @@ class ContentServiceImpl implements ContentService {
                     continue;
                 }
 
-                ContentImageEntity image = (ContentImageEntity) contentBlockRepository
+                ContentImageEntity image = (ContentImageEntity) contentRepository
                         .findById(imageId)
                         .orElseThrow(() -> new EntityNotFoundException("Image not found: " + imageId));
 
@@ -158,15 +158,15 @@ class ContentServiceImpl implements ContentService {
                 if (update.getCollections() != null) {
                     ImageUpdateRequest.CollectionUpdate collectionUpdate = update.getCollections();
                     if (collectionUpdate.getPrev() != null && !collectionUpdate.getPrev().isEmpty()) {
-                        contentBlockProcessingUtil.handleCollectionVisibilityUpdates(image, collectionUpdate.getPrev());
+                        contentProcessingUtil.handleCollectionVisibilityUpdates(image, collectionUpdate.getPrev());
                     }
                 }
 
                 // Save the updated image
-                ContentImageEntity savedImage = contentBlockRepository.save(image);
+                ContentImageEntity savedImage = contentRepository.save(image);
 
                 // Convert to model and add to results
-                ImageContentModel imageModel = (ImageContentModel) contentBlockProcessingUtil.convertToModel(savedImage);
+                ImageContentModel imageModel = (ImageContentModel) contentProcessingUtil.convertToModel(savedImage);
                 updatedImages.add(imageModel);
 
             } catch (EntityNotFoundException e) {
@@ -185,8 +185,8 @@ class ContentServiceImpl implements ContentService {
         ImageUpdateResponse.NewMetadata newMetadata = ImageUpdateResponse.NewMetadata.builder()
                 .tags(newlyCreatedTags.isEmpty() ? null : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
                 .people(newlyCreatedPeople.isEmpty() ? null : newlyCreatedPeople.stream().map(this::toPersonModel).collect(Collectors.toList()))
-                .cameras(newlyCreatedCameras.isEmpty() ? null : newlyCreatedCameras.stream().map(ContentBlockProcessingUtil::cameraEntityToCameraModel).collect(Collectors.toList()))
-                .lenses(newlyCreatedLenses.isEmpty() ? null : newlyCreatedLenses.stream().map(ContentBlockProcessingUtil::lensEntityToLensModel).collect(Collectors.toList()))
+                .cameras(newlyCreatedCameras.isEmpty() ? null : newlyCreatedCameras.stream().map(ContentProcessingUtil::cameraEntityToCameraModel).collect(Collectors.toList()))
+                .lenses(newlyCreatedLenses.isEmpty() ? null : newlyCreatedLenses.stream().map(ContentProcessingUtil::lensEntityToLensModel).collect(Collectors.toList()))
                 .filmTypes(newlyCreatedFilmTypes.isEmpty() ? null : newlyCreatedFilmTypes.stream().map(this::toFilmTypeModel).collect(Collectors.toList()))
                 .build();
 
@@ -401,12 +401,12 @@ class ContentServiceImpl implements ContentService {
 
         for (Long imageId : imageIds) {
             try {
-                if (!contentBlockRepository.existsById(imageId)) {
+                if (!contentRepository.existsById(imageId)) {
                     errors.add("Image not found: " + imageId);
                     continue;
                 }
 
-                contentBlockRepository.deleteById(imageId);
+                contentRepository.deleteById(imageId);
                 deletedIds.add(imageId);
 
             } catch (Exception e) {
@@ -442,7 +442,7 @@ class ContentServiceImpl implements ContentService {
     @Transactional(readOnly = true)
     public List<ContentCameraModel> getAllCameras() {
         return contentCameraRepository.findAllByOrderByCameraNameAsc().stream()
-                .map(ContentBlockProcessingUtil::cameraEntityToCameraModel)
+                .map(ContentProcessingUtil::cameraEntityToCameraModel)
                 .collect(Collectors.toList());
     }
 
@@ -458,7 +458,7 @@ class ContentServiceImpl implements ContentService {
     @Transactional(readOnly = true)
     public List<ContentLensModel> getAllLenses() {
         return contentLensRepository.findAllByOrderByLensNameAsc().stream()
-                .map(ContentBlockProcessingUtil::lensEntityToLensModel)
+                .map(ContentProcessingUtil::lensEntityToLensModel)
                 .collect(Collectors.toList());
     }
 
@@ -534,9 +534,9 @@ class ContentServiceImpl implements ContentService {
     @Override
     @Transactional(readOnly = true)
     public List<ImageContentModel> getAllImages() {
-        return contentBlockRepository.findAllImagesOrderByCreateDateDesc().stream()
+        return contentRepository.findAllImagesOrderByCreateDateDesc().stream()
                 .map(entity -> (ImageContentModel)
-                        contentBlockProcessingUtil.convertToModel(entity))
+                        contentProcessingUtil.convertToModel(entity))
                 .collect(Collectors.toList());
     }
 }

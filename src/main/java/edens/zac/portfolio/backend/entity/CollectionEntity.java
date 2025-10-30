@@ -90,8 +90,8 @@ public class CollectionEntity {
 
     // Pagination metadata
     @Min(1)
-    @Column(name = "blocks_per_page")
-    private Integer blocksPerPage;
+    @Column(name = "content_per_page")
+    private Integer contentPerPage;
 
     @Column(name = "total_blocks")
     private Integer totalBlocks;
@@ -113,7 +113,7 @@ public class CollectionEntity {
             fetch = FetchType.LAZY
     )
     @OrderBy("orderIndex ASC")
-    private List<ContentEntity> contentBlocks = new ArrayList<>();
+    private List<ContentEntity> content = new ArrayList<>();
 
     // Many-to-many relationship with ContentTagEntity
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
@@ -135,10 +135,10 @@ public class CollectionEntity {
         // Set all defaults in constructor
         this.visible = true;
         this.priority = 1; // Changed from 0 to 1 to satisfy @Min(1) constraint
-        this.blocksPerPage = 50;
+        this.contentPerPage = 50;
         this.totalBlocks = 0;
         this.passwordProtected = false;
-        this.contentBlocks = new ArrayList<>();
+        this.content = new ArrayList<>();
         this.tags = new HashSet<>();
     }
 
@@ -157,9 +157,9 @@ public class CollectionEntity {
      * @return The total number of pages
      */
     public int getTotalPages() {
-        if (totalBlocks == null || totalBlocks == 0 || blocksPerPage == null || blocksPerPage == 0) {
+        if (totalBlocks == null || totalBlocks == 0 || contentPerPage == null || contentPerPage == 0) {
             return 0;
         }
-        return (int) Math.ceil((double) totalBlocks / blocksPerPage);
+        return (int) Math.ceil((double) totalBlocks / contentPerPage);
     }
 }

@@ -18,7 +18,7 @@ import java.util.List;
  * to provide standard CRUD operations, pagination, and custom query methods.
  */
 @Repository
-public interface ContentBlockRepository extends JpaRepository<ContentEntity, Long> {
+public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
     
     /**
      * Find all content blocks for a specific collection, ordered by their order_index.

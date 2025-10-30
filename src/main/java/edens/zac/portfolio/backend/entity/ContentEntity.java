@@ -48,7 +48,7 @@ public abstract class ContentEntity {
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "block_type")
-    private ContentType blockType;
+    private ContentType contentType;
 
     @Column(name = "caption", length = 500)
     private String caption;

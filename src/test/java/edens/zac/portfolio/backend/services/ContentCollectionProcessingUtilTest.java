@@ -6,7 +6,8 @@ import edens.zac.portfolio.backend.entity.TextContentEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionPageDTO;
-import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
+import edens.zac.portfolio.backend.repository.CollectionRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import jakarta.persistence.EntityNotFoundException;
@@ -36,13 +37,13 @@ import static org.mockito.Mockito.*;
 class ContentCollectionProcessingUtilTest {
 
     @Mock
-    private ContentCollectionRepository contentCollectionRepository;
+    private CollectionRepository collectionRepository;
 
     @Mock
-    private edens.zac.portfolio.backend.repository.ContentBlockRepository contentBlockRepository;
+    private ContentRepository contentRepository;
 
     @Mock
-    private ContentBlockProcessingUtil contentBlockProcessingUtil;
+    private ContentProcessingUtil contentProcessingUtil;
 
     @Mock
     private ExceptionUtils exceptionUtils;
@@ -67,7 +68,7 @@ class ContentCollectionProcessingUtilTest {
         testEntity.setDescription("Test description");
         testEntity.setVisible(true);
         testEntity.setPriority(1);
-        testEntity.setBlocksPerPage(30);
+        testEntity.setContentPerPage(30);
         testEntity.setTotalBlocks(2);
         testEntity.setCreatedAt(LocalDateTime.now());
         testEntity.setUpdatedAt(LocalDateTime.now());
@@ -78,19 +79,19 @@ class ContentCollectionProcessingUtilTest {
         block1.setId(1L);
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
-        block1.setBlockType(ContentType.TEXT);
+        block1.setContentType(ContentType.TEXT);
         block1.setContent("Test content 1");
 
         TextContentEntity block2 = new TextContentEntity();
         block2.setId(2L);
         block2.setCollectionId(1L);
         block2.setOrderIndex(1);
-        block2.setBlockType(ContentType.TEXT);
+        block2.setContentType(ContentType.TEXT);
         block2.setContent("Test content 2");
 
         testBlocks.add(block1);
         testBlocks.add(block2);
-        testEntity.setContentBlocks(testBlocks);
+        testEntity.setContent(testBlocks);
     }
 
     @Test
@@ -152,7 +153,7 @@ class ContentCollectionProcessingUtilTest {
         assertEquals(testEntity.getDescription(), model.getDescription());
         assertEquals(testEntity.getVisible(), model.getVisible());
         assertEquals(testEntity.getPriority(), model.getPriority());
-        assertEquals(testEntity.getBlocksPerPage(), model.getBlocksPerPage());
+        assertEquals(testEntity.getContentPerPage(), model.getBlocksPerPage());
         assertEquals(testEntity.getTotalBlocks(), model.getTotalBlocks());
         assertEquals(testEntity.getTotalPages(), model.getTotalPages());
         assertEquals(0, model.getCurrentPage());
@@ -162,8 +163,8 @@ class ContentCollectionProcessingUtilTest {
     void convertToFullModel_shouldConvertEntityWithContentBlocks() {
         // Arrange
         when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
-        when(contentBlockRepository.findByCollectionIdOrderByOrderIndex(any())).thenReturn(testBlocks);
-        when(contentBlockProcessingUtil.convertToModel(any(ContentEntity.class)))
+        when(contentRepository.findByCollectionIdOrderByOrderIndex(any())).thenReturn(testBlocks);
+        when(contentProcessingUtil.convertToModel(any(ContentEntity.class)))
                 .thenAnswer(invocation -> {
                     ContentEntity entity = invocation.getArgument(0);
                     ContentModel model = new ContentModel();
@@ -190,7 +191,7 @@ class ContentCollectionProcessingUtilTest {
         when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
         Page<ContentEntity> page = new PageImpl<>(testBlocks, PageRequest.of(0, 10), 2);
 
-        when(contentBlockProcessingUtil.convertToModel(any(ContentEntity.class)))
+        when(contentProcessingUtil.convertToModel(any(ContentEntity.class)))
                 .thenAnswer(invocation -> {
                     ContentEntity entity = invocation.getArgument(0);
                     ContentModel model = new ContentModel();
@@ -216,7 +217,7 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void validateAndEnsureUniqueSlug_shouldReturnOriginalSlugWhenUnique() {
         // Arrange
-        when(contentCollectionRepository.findBySlug("test-slug"))
+        when(collectionRepository.findBySlug("test-slug"))
                 .thenReturn(Optional.empty());
 
         // Act
@@ -232,9 +233,9 @@ class ContentCollectionProcessingUtilTest {
         CollectionEntity existingEntity = new CollectionEntity();
         existingEntity.setId(2L);
 
-        when(contentCollectionRepository.findBySlug("test-slug"))
+        when(collectionRepository.findBySlug("test-slug"))
                 .thenReturn(Optional.of(existingEntity));
-        when(contentCollectionRepository.findBySlug("test-slug-1"))
+        when(collectionRepository.findBySlug("test-slug-1"))
                 .thenReturn(Optional.empty());
 
         // Act
@@ -257,7 +258,7 @@ class ContentCollectionProcessingUtilTest {
 
         // Assert
         // Config JSON removed; ensure other defaults still apply
-        assertEquals(50, result.getBlocksPerPage());
+        assertEquals(50, result.getContentPerPage());
         assertFalse(result.getVisible()); // Client galleries are private by default
     }
 

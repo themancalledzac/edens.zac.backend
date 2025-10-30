@@ -4,7 +4,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.types.ContentType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -30,30 +30,30 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class ContentBlockProcessingUtilTest {
+public class ContentProcessingUtilTest {
 
     @Mock
     private AmazonS3 amazonS3;
 
     @Mock
-    private ContentBlockRepository contentBlockRepository;
+    private ContentRepository contentRepository;
 
     @InjectMocks
-    private ContentBlockProcessingUtil contentBlockProcessingUtil;
+    private ContentProcessingUtil contentProcessingUtil;
 
     private static final String BUCKET_NAME = "test-bucket";
     private static final String CLOUDFRONT_DOMAIN = "test.cloudfront.net";
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(contentBlockProcessingUtil, "bucketName", BUCKET_NAME);
-        ReflectionTestUtils.setField(contentBlockProcessingUtil, "cloudfrontDomain", CLOUDFRONT_DOMAIN);
+        ReflectionTestUtils.setField(contentProcessingUtil, "bucketName", BUCKET_NAME);
+        ReflectionTestUtils.setField(contentProcessingUtil, "cloudfrontDomain", CLOUDFRONT_DOMAIN);
     }
 
     @Test
     void convertToModel_withNullEntity_shouldReturnNull() {
         // Act
-        ContentModel result = contentBlockProcessingUtil.convertToModel(null);
+        ContentModel result = contentProcessingUtil.convertToModel(null);
 
         // Assert
         assertNull(result);
@@ -65,7 +65,7 @@ public class ContentBlockProcessingUtilTest {
         ContentImageEntity entity = createImageContentBlockEntity();
 
         // Act
-        ContentModel result = contentBlockProcessingUtil.convertToModel(entity);
+        ContentModel result = contentProcessingUtil.convertToModel(entity);
 
         // Assert
         assertInstanceOf(ImageContentModel.class, result);
@@ -99,7 +99,7 @@ public class ContentBlockProcessingUtilTest {
         TextContentEntity entity = createTextContentBlockEntity();
 
         // Act
-        ContentModel result = contentBlockProcessingUtil.convertToModel(entity);
+        ContentModel result = contentProcessingUtil.convertToModel(entity);
 
         // Assert
         assertInstanceOf(TextContentModel.class, result);
@@ -119,7 +119,7 @@ public class ContentBlockProcessingUtilTest {
         ContentCodeEntity entity = createCodeContentBlockEntity();
 
         // Act
-        ContentModel result = contentBlockProcessingUtil.convertToModel(entity);
+        ContentModel result = contentProcessingUtil.convertToModel(entity);
 
         // Assert
         assertInstanceOf(CodeContentModel.class, result);
@@ -141,7 +141,7 @@ public class ContentBlockProcessingUtilTest {
         ContentGifEntity entity = createGifContentBlockEntity();
 
         // Act
-        ContentModel result = contentBlockProcessingUtil.convertToModel(entity);
+        ContentModel result = contentProcessingUtil.convertToModel(entity);
 
         // Assert
         assertInstanceOf(GifContentModel.class, result);
@@ -168,14 +168,14 @@ public class ContentBlockProcessingUtilTest {
 
         // Act & Assert
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            contentBlockProcessingUtil.convertToModel(entity);
+            contentProcessingUtil.convertToModel(entity);
         });
         assertTrue(exception.getMessage().contains("Unknown content block type"));
     }
 
     @Disabled
     @Test
-    void processImageContentBlock_withValidImage_shouldReturnImageContentBlockEntity() throws IOException {
+    void processImageContentBlock_withValidImage_shouldReturnImageContentEntity() throws IOException {
         // Arrange
         MultipartFile file = createMockImageFile();
         Long collectionId = 1L;
@@ -187,16 +187,16 @@ public class ContentBlockProcessingUtilTest {
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ContentImageEntity savedEntity = createImageContentBlockEntity();
-        when(contentBlockRepository.save(any(ContentImageEntity.class))).thenReturn(savedEntity);
+        when(contentRepository.save(any(ContentImageEntity.class))).thenReturn(savedEntity);
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processImageContentBlock(file, collectionId, orderIndex, title, caption);
+        ContentEntity result = contentProcessingUtil.processImageContent(file, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
         assertInstanceOf(ContentImageEntity.class, result);
         verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
-        verify(contentBlockRepository).save(any(ContentImageEntity.class));
+        verify(contentRepository).save(any(ContentImageEntity.class));
     }
 
     @Test
@@ -212,14 +212,14 @@ public class ContentBlockProcessingUtilTest {
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenThrow(new RuntimeException("S3 upload failed"));
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processImageContentBlock(file, collectionId, orderIndex, title, caption);
+        ContentEntity result = contentProcessingUtil.processImageContent(file, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNull(result); // Should return null when processing fails
     }
 
     @Test
-    void processTextContentBlock_withValidText_shouldReturnTextContentBlockEntity() {
+    void processTextContentBlock_withValidText_shouldReturnTextContentEntity() {
         // Arrange
         String text = "This is test content";
         Long collectionId = 1L;
@@ -227,16 +227,16 @@ public class ContentBlockProcessingUtilTest {
         String caption = "Test Caption";
 
         TextContentEntity savedEntity = createTextContentBlockEntity();
-        when(contentBlockRepository.save(any(TextContentEntity.class))).thenReturn(savedEntity);
+        when(contentRepository.save(any(TextContentEntity.class))).thenReturn(savedEntity);
 
         // Act
-        TextContentEntity result = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, orderIndex, caption);
+        TextContentEntity result = contentProcessingUtil.processTextContent(text, collectionId, orderIndex, caption);
 
         // Assert
         assertNotNull(result);
         assertInstanceOf(TextContentEntity.class, result);
         assertEquals(text, result.getContent());
-        verify(contentBlockRepository).save(any(TextContentEntity.class));
+        verify(contentRepository).save(any(TextContentEntity.class));
     }
 
     @Test
@@ -249,13 +249,13 @@ public class ContentBlockProcessingUtilTest {
 
         // Act & Assert
         Exception exception = assertThrows(RuntimeException.class, () -> {
-            contentBlockProcessingUtil.processTextContentBlock(text, collectionId, orderIndex, caption);
+            contentProcessingUtil.processTextContent(text, collectionId, orderIndex, caption);
         });
         assertTrue(exception.getMessage().contains("Failed to process text content block"));
     }
 
     @Test
-    void processCodeContentBlock_withValidCode_shouldReturnCodeContentBlockEntity() {
+    void processCodeContentBlock_withValidCode_shouldReturnCodeContentEntity() {
         // Arrange
         String code = "public class Test { }";
         String language = "java";
@@ -265,21 +265,21 @@ public class ContentBlockProcessingUtilTest {
         String caption = "Test Caption";
 
         ContentCodeEntity savedEntity = createCodeContentBlockEntity();
-        when(contentBlockRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
+        when(contentRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
 
         // Act
-        ContentCodeEntity result = contentBlockProcessingUtil.processCodeContentBlock(code, language, collectionId, orderIndex, title, caption);
+        ContentCodeEntity result = contentProcessingUtil.processCodeContent(code, language, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
         assertInstanceOf(ContentCodeEntity.class, result);
         assertEquals(code, result.getCode());
         assertEquals(language, result.getLanguage());
-        verify(contentBlockRepository).save(any(ContentCodeEntity.class));
+        verify(contentRepository).save(any(ContentCodeEntity.class));
     }
 
     @Test
-    void processCodeContentBlock_withUnsupportedLanguage_shouldUseDefaultLanguage() {
+    void processCodeContent_withUnsupportedLanguage_shouldUseDefaultLanguage() {
         // Arrange
         String code = "public class Test { }";
         String language = "unsupported";
@@ -289,19 +289,19 @@ public class ContentBlockProcessingUtilTest {
         String caption = "Test Caption";
 
         ContentCodeEntity savedEntity = createCodeContentBlockEntity();
-        when(contentBlockRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
+        when(contentRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processCodeContentBlock(code, language, collectionId, orderIndex, title, caption);
+        ContentEntity result = contentProcessingUtil.processCodeContent(code, language, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
         assertInstanceOf(ContentCodeEntity.class, result);
-        verify(contentBlockRepository).save(any(ContentCodeEntity.class));
+        verify(contentRepository).save(any(ContentCodeEntity.class));
     }
 
     @Test
-    void processGifContentBlock_withValidGif_shouldReturnGifContentBlockEntity() throws IOException {
+    void processGifContentBlock_withValidGif_shouldReturnGifContentEntity() throws IOException {
         // Arrange
         MultipartFile file = createMockGifFile();
         Long collectionId = 1L;
@@ -313,20 +313,20 @@ public class ContentBlockProcessingUtilTest {
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ContentGifEntity savedEntity = createGifContentBlockEntity();
-        when(contentBlockRepository.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
+        when(contentRepository.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processGifContentBlock(file, collectionId, orderIndex, title, caption);
+        ContentEntity result = contentProcessingUtil.processGifContent(file, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
         assertInstanceOf(ContentGifEntity.class, result);
         verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class));
-        verify(contentBlockRepository).save(any(ContentGifEntity.class));
+        verify(contentRepository).save(any(ContentGifEntity.class));
     }
 
     @Test
-    void processGifContentBlock_withEmptyFile_shouldThrowException() {
+    void processGifContent_withEmptyFile_shouldThrowException() {
         // Arrange
         MultipartFile file = new MockMultipartFile("file", "test.gif", "image/gif", new byte[0]);
         Long collectionId = 1L;
@@ -336,13 +336,13 @@ public class ContentBlockProcessingUtilTest {
 
         // Act & Assert
         Exception exception = assertThrows(RuntimeException.class, () -> {
-            contentBlockProcessingUtil.processGifContentBlock(file, collectionId, orderIndex, title, caption);
+            contentProcessingUtil.processGifContent(file, collectionId, orderIndex, title, caption);
         });
         assertTrue(exception.getMessage().contains("Failed to process GIF content block"));
     }
 
     @Test
-    void reorderContentBlocks_withValidBlockIds_shouldUpdateOrderIndexes() {
+    void reorderContent_withValidBlockIds_shouldUpdateOrderIndexes() {
         // Arrange
         Long collectionId = 1L;
         List<Long> blockIds = List.of(3L, 1L, 2L);
@@ -358,11 +358,11 @@ public class ContentBlockProcessingUtilTest {
         existingBlocks.add(block2);
         existingBlocks.add(block3);
 
-        when(contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
-        when(contentBlockRepository.saveAll(anyList())).thenReturn(existingBlocks);
+        when(contentRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
+        when(contentRepository.saveAll(anyList())).thenReturn(existingBlocks);
 
         // Act
-        List<ContentEntity> result = contentBlockProcessingUtil.reorderContentBlocks(collectionId, blockIds);
+        List<ContentEntity> result = contentProcessingUtil.reorderContent(collectionId, blockIds);
 
         // Assert
         assertNotNull(result);
@@ -370,24 +370,24 @@ public class ContentBlockProcessingUtilTest {
         verify(block3).setOrderIndex(0);
         verify(block1).setOrderIndex(1);
         verify(block2).setOrderIndex(2);
-        verify(contentBlockRepository).saveAll(anyList());
+        verify(contentRepository).saveAll(anyList());
     }
 
     @Test
-    void reorderContentBlocks_withEmptyBlockIds_shouldThrowException() {
+    void reorderContent_withEmptyBlockIds_shouldThrowException() {
         // Arrange
         Long collectionId = 1L;
         List<Long> blockIds = List.of();
 
         // Act & Assert
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            contentBlockProcessingUtil.reorderContentBlocks(collectionId, blockIds);
+            contentProcessingUtil.reorderContent(collectionId, blockIds);
         });
         assertTrue(exception.getMessage().contains("Block IDs list cannot be empty"));
     }
 
     @Test
-    void reorderContentBlocks_withInvalidBlockId_shouldThrowException() {
+    void reorderContent_withInvalidBlockId_shouldThrowException() {
         // Arrange
         Long collectionId = 1L;
         List<Long> blockIds = List.of(1L, 2L, 99L); // 99L doesn't exist
@@ -400,18 +400,18 @@ public class ContentBlockProcessingUtilTest {
         existingBlocks.add(block1);
         existingBlocks.add(block2);
 
-        when(contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
+        when(contentRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
 
         // Act & Assert
         Exception exception = assertThrows(RuntimeException.class, () -> {
-            contentBlockProcessingUtil.reorderContentBlocks(collectionId, blockIds);
+            contentProcessingUtil.reorderContent(collectionId, blockIds);
         });
         assertTrue(exception.getMessage().contains("Failed to reorder content blocks"));
     }
 
     @Disabled
     @Test
-    void processContentBlock_withImageType_shouldCallProcessImageContentBlock() throws IOException {
+    void processContentBlock_withImageType_shouldCallProcessImageContent() throws IOException {
         // Arrange
         MultipartFile file = createMockImageFile();
         ContentType type = ContentType.IMAGE;
@@ -426,10 +426,10 @@ public class ContentBlockProcessingUtilTest {
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ContentImageEntity imageEntity = createImageContentBlockEntity();
-        when(contentBlockRepository.save(any(ContentImageEntity.class))).thenReturn(imageEntity);
+        when(contentRepository.save(any(ContentImageEntity.class))).thenReturn(imageEntity);
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processContentBlock(
+        ContentEntity result = contentProcessingUtil.processContent(
                 file, type, collectionId, orderIndex, content, language, title, caption);
 
         // Assert
@@ -439,7 +439,7 @@ public class ContentBlockProcessingUtilTest {
     }
 
     @Test
-    void processContentBlock_withTextType_shouldCallProcessTextContentBlock() {
+    void processContentBlock_withTextType_shouldCallProcessTextContent() {
         // Arrange
         MultipartFile file = null;
         ContentType type = ContentType.TEXT;
@@ -451,10 +451,10 @@ public class ContentBlockProcessingUtilTest {
         String caption = "Test Caption";
 
         TextContentEntity textEntity = createTextContentBlockEntity();
-        when(contentBlockRepository.save(any(TextContentEntity.class))).thenReturn(textEntity);
+        when(contentRepository.save(any(TextContentEntity.class))).thenReturn(textEntity);
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processContentBlock(
+        ContentEntity result = contentProcessingUtil.processContent(
                 file, type, collectionId, orderIndex, content, language, title, caption);
 
         // Assert
@@ -463,7 +463,7 @@ public class ContentBlockProcessingUtilTest {
     }
 
     @Test
-    void processContentBlock_withCodeType_shouldCallProcessCodeContentBlock() {
+    void processContentBlock_withCodeType_shouldCallProcessCodeContent() {
         // Arrange
         MultipartFile file = null;
         ContentType type = ContentType.CODE;
@@ -475,10 +475,10 @@ public class ContentBlockProcessingUtilTest {
         String caption = "Test Caption";
 
         ContentCodeEntity codeEntity = createCodeContentBlockEntity();
-        when(contentBlockRepository.save(any(ContentCodeEntity.class))).thenReturn(codeEntity);
+        when(contentRepository.save(any(ContentCodeEntity.class))).thenReturn(codeEntity);
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processContentBlock(
+        ContentEntity result = contentProcessingUtil.processContent(
                 file, type, collectionId, orderIndex, content, language, title, caption);
 
         // Assert
@@ -487,7 +487,7 @@ public class ContentBlockProcessingUtilTest {
     }
 
     @Test
-    void processContentBlock_withGifType_shouldCallProcessGifContentBlock() throws IOException {
+    void processContentBlock_withGifType_shouldCallProcessGifContent() throws IOException {
         // Arrange
         MultipartFile file = createMockGifFile();
         ContentType type = ContentType.GIF;
@@ -502,10 +502,10 @@ public class ContentBlockProcessingUtilTest {
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ContentGifEntity gifEntity = createGifContentBlockEntity();
-        when(contentBlockRepository.save(any(ContentGifEntity.class))).thenReturn(gifEntity);
+        when(contentRepository.save(any(ContentGifEntity.class))).thenReturn(gifEntity);
 
         // Act
-        ContentEntity result = contentBlockProcessingUtil.processContentBlock(
+        ContentEntity result = contentProcessingUtil.processContent(
                 file, type, collectionId, orderIndex, content, language, title, caption);
 
         // Assert
@@ -514,7 +514,7 @@ public class ContentBlockProcessingUtilTest {
     }
 
     @Test
-    void processContentBlock_withUnknownType_shouldThrowException() {
+    void processContent_withUnknownType_shouldThrowException() {
         // Arrange
         MultipartFile file = null;
         ContentType type = null;
@@ -527,7 +527,7 @@ public class ContentBlockProcessingUtilTest {
 
         // Act & Assert
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            contentBlockProcessingUtil.processContentBlock(
+            contentProcessingUtil.processContent(
                     file, type, collectionId, orderIndex, content, language, title, caption);
         });
         assertTrue(exception.getMessage().contains("Unknown content block type"));
@@ -540,7 +540,7 @@ public class ContentBlockProcessingUtilTest {
         entity.setId(1L);
         entity.setCollectionId(1L);
         entity.setOrderIndex(0);
-        entity.setBlockType(ContentType.IMAGE);
+        entity.setContentType(ContentType.IMAGE);
         entity.setCaption("Test Caption");
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
@@ -568,7 +568,7 @@ public class ContentBlockProcessingUtilTest {
         entity.setId(2L);
         entity.setCollectionId(1L);
         entity.setOrderIndex(1);
-        entity.setBlockType(ContentType.TEXT);
+        entity.setContentType(ContentType.TEXT);
         entity.setCaption("Test Caption");
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
@@ -582,7 +582,7 @@ public class ContentBlockProcessingUtilTest {
         entity.setId(3L);
         entity.setCollectionId(1L);
         entity.setOrderIndex(2);
-        entity.setBlockType(ContentType.CODE);
+        entity.setContentType(ContentType.CODE);
         entity.setCaption("Test Caption");
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
@@ -597,7 +597,7 @@ public class ContentBlockProcessingUtilTest {
         entity.setId(4L);
         entity.setCollectionId(1L);
         entity.setOrderIndex(3);
-        entity.setBlockType(ContentType.GIF);
+        entity.setContentType(ContentType.GIF);
         entity.setCaption("Test Caption");
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());

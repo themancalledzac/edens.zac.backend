@@ -38,7 +38,7 @@ class ContentEntityTest {
         ContentEntity block = new TestContent();
         block.setCollectionId(1L);
         block.setOrderIndex(1);
-        block.setBlockType(ContentType.TEXT);
+        block.setContentType(ContentType.TEXT);
         block.setCaption("Test Caption");
         
         // When
@@ -53,7 +53,7 @@ class ContentEntityTest {
         // Given
         ContentEntity block = new TestContent();
         block.setOrderIndex(1);
-        block.setBlockType(ContentType.TEXT);
+        block.setContentType(ContentType.TEXT);
         
         // When
         Set<ConstraintViolation<ContentEntity>> violations = validator.validate(block);
@@ -68,7 +68,7 @@ class ContentEntityTest {
         // Given
         ContentEntity block = new TestContent();
         block.setCollectionId(1L);
-        block.setBlockType(ContentType.TEXT);
+        block.setContentType(ContentType.TEXT);
         
         // When
         Set<ConstraintViolation<ContentEntity>> violations = validator.validate(block);

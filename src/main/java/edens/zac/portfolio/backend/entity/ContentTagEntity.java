@@ -58,7 +58,7 @@ public class ContentTagEntity {
     // Many-to-many relationships (mappedBy side - non-owning)
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<CollectionEntity> contentCollections = new HashSet<>();
+    private Set<CollectionEntity> collections = new HashSet<>();
 
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
@@ -76,7 +76,7 @@ public class ContentTagEntity {
      */
     public ContentTagEntity(String tagName) {
         this.tagName = tagName;
-        this.contentCollections = new HashSet<>();
+        this.collections = new HashSet<>();
         this.ContentImage = new HashSet<>();
         this.gifContentBlocks = new HashSet<>();
     }
@@ -87,6 +87,6 @@ public class ContentTagEntity {
      * @return The total number of times this tag is used
      */
     public int getTotalUsageCount() {
-        return contentCollections.size() + ContentImage.size() + gifContentBlocks.size();
+        return collections.size() + ContentImage.size() + gifContentBlocks.size();
     }
 }

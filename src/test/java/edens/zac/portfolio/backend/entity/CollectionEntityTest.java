@@ -166,7 +166,7 @@ class CollectionEntityTest {
         zeroBlocksPerPage.setType(CollectionType.BLOG);
         zeroBlocksPerPage.setTitle("Test Collection");
         zeroBlocksPerPage.setSlug("test-collection");
-        zeroBlocksPerPage.setBlocksPerPage(0); // Should be minimum 1
+        zeroBlocksPerPage.setContentPerPage(0); // Should be minimum 1
 
         Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(zeroBlocksPerPage);
         assertFalse(violations.isEmpty());
@@ -226,7 +226,7 @@ class CollectionEntityTest {
         collection.setTitle("Test Collection");
         collection.setSlug("test-collection");
         collection.setTotalBlocks(100);
-        collection.setBlocksPerPage(30);
+        collection.setContentPerPage(30);
 
         assertEquals(4, collection.getTotalPages()); // 100/30 = 3.33, rounded up to 4
 
@@ -243,11 +243,11 @@ class CollectionEntityTest {
         assertEquals(0, collection.getTotalPages());
 
         collection.setTotalBlocks(100);
-        collection.setBlocksPerPage(null);
+        collection.setContentPerPage(null);
         assertEquals(0, collection.getTotalPages());
 
         // Test with zero blocks per page
-        collection.setBlocksPerPage(0);
+        collection.setContentPerPage(0);
         assertEquals(0, collection.getTotalPages());
     }
 
@@ -264,7 +264,7 @@ class CollectionEntityTest {
         collection.setLocation("Test Location");
         collection.setCollectionDate(today);
         collection.setPriority(5);
-        collection.setBlocksPerPage(20);
+        collection.setContentPerPage(20);
         collection.setTotalBlocks(100);
         collection.setPasswordHash("$2a$10$someHashValue");
         collection.setPasswordProtected(true);
@@ -279,7 +279,7 @@ class CollectionEntityTest {
         assertEquals(today, collection.getCollectionDate());
         assertTrue(collection.getVisible());
         assertEquals(5, collection.getPriority());
-        assertEquals(20, collection.getBlocksPerPage());
+        assertEquals(20, collection.getContentPerPage());
         assertEquals(100, collection.getTotalBlocks());
         assertEquals("$2a$10$someHashValue", collection.getPasswordHash());
         assertTrue(collection.getPasswordProtected());

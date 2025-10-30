@@ -19,13 +19,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class ContentCollectionRepositoryTest {
+class CollectionRepositoryTest {
 
     @Autowired
     private EntityManager entityManager;
 
     @Autowired
-    private ContentCollectionRepository repository;
+    private CollectionRepository repository;
 
     private CollectionEntity blogCollection;
     private CollectionEntity portfolioCollection;
@@ -127,11 +127,11 @@ class ContentCollectionRepositoryTest {
 
         assertThat(result).isPresent();
         assertThat(result.get().getTitle()).isEqualTo("Test Blog");
-        assertThat(result.get().getContentBlocks()).isEmpty(); // No blocks fetched
+        assertThat(result.get().getContent()).isEmpty(); // No blocks fetched
     }
 
     @Test
-    void findBySlugWithContentBlocks_ShouldReturnCollectionWithBlocks() {
+    void findBySlugWithContentBlocks_ShouldReturnCollectionWith() {
         // Add content blocks
         TextContentEntity block1 = TextContentEntity.builder()
                 .collectionId(blogCollection.getId())
@@ -154,12 +154,12 @@ class ContentCollectionRepositoryTest {
         // Clear the persistence context to force a fresh query
         entityManager.clear();
 
-        Optional<CollectionEntity> result = repository.findBySlugWithContentBlocks("test-blog");
+        Optional<CollectionEntity> result = repository.findBySlugWithContent("test-blog");
 
         assertThat(result).isPresent();
-        assertThat(result.get().getContentBlocks()).hasSize(2);
-        assertThat(result.get().getContentBlocks().get(0).getOrderIndex()).isEqualTo(0);
-        assertThat(result.get().getContentBlocks().get(1).getOrderIndex()).isEqualTo(1);
+        assertThat(result.get().getContent()).hasSize(2);
+        assertThat(result.get().getContent().get(0).getOrderIndex()).isEqualTo(0);
+        assertThat(result.get().getContent().get(1).getOrderIndex()).isEqualTo(1);
     }
 
     @Test

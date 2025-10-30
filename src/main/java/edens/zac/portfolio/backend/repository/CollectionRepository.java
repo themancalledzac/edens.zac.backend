@@ -15,7 +15,7 @@ import java.util.Optional;
  * to provide standard CRUD operations, pagination, and custom query methods.
  */
 @Repository
-public interface ContentCollectionRepository extends JpaRepository<CollectionEntity, Long> {
+public interface CollectionRepository extends JpaRepository<CollectionEntity, Long> {
 
     /**
      * Find a collection of Content Collections for ART_GALLERY/PORTFOLIO
@@ -62,24 +62,24 @@ public interface ContentCollectionRepository extends JpaRepository<CollectionEnt
     Optional<CollectionEntity> findBySlugAndPasswordHash(String slug, String passwordHash);
 
     /**
-     * Find a Collection's metadata. Used in conjunction with paginated endpoints in ContentBlockRepository
+     * Find a Collection's metadata. Used in conjunction with paginated endpoints in ContentRepository
      * @param slug Slug of Collection
      * @return Metadata of Collection
      */
     Optional<CollectionEntity> findBySlug(String slug);
 
     /**
-     * Find a collection by slug with first 50 content blocks, ordered by their order_index.
-     * This is the main "basic" endpoint that auto-limits to 50 blocks for performance.
+     * Find a collection by slug with first 50 content, ordered by their order_index.
+     * This is the main "basic" endpoint that auto-limits to 50 content for performance.
      * If more than 50 exist, frontend should use pagination endpoints.
      *
      * @param slug The unique slug of the collection
-     * @return Optional containing the collection with up to 50 content blocks if found
+     * @return Optional containing the collection with up to 50 content if found
      */
-    @Query("SELECT c FROM CollectionEntity c LEFT JOIN FETCH c.contentBlocks b " +
+    @Query("SELECT c FROM CollectionEntity c LEFT JOIN FETCH c.content b " +
             "WHERE c.slug = :slug " +
             "ORDER BY b.orderIndex ASC")
-    Optional<CollectionEntity> findBySlugWithContentBlocks(@Param("slug") String slug);
+    Optional<CollectionEntity> findBySlugWithContent(@Param("slug") String slug);
     
     /**
      * Count the number of collections of a specific type.

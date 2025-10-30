@@ -70,7 +70,7 @@ public interface ContentTagRepository extends JpaRepository<ContentTagEntity, Lo
      * @return List of tags ordered by total usage count descending
      */
     @Query("SELECT t FROM ContentTagEntity t " +
-            "LEFT JOIN t.contentCollections cc " +
+            "LEFT JOIN t.collections cc " +
             "LEFT JOIN t.ContentImage icb " +
             "LEFT JOIN t.gifContentBlocks gcb " +
             "GROUP BY t.id " +

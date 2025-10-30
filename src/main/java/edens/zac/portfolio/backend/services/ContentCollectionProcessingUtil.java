@@ -4,8 +4,8 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
-import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.CollectionRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +26,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ContentCollectionProcessingUtil {
 
-    private final ContentCollectionRepository contentCollectionRepository;
-    private final ContentBlockRepository contentBlockRepository;
-    private final ContentBlockProcessingUtil contentBlockProcessingUtil;
+    private final CollectionRepository collectionRepository;
+    private final ContentRepository contentRepository;
+    private final ContentProcessingUtil contentProcessingUtil;
     private final edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
     // =============================================================================
@@ -47,10 +47,10 @@ public class ContentCollectionProcessingUtil {
      */
     private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
         if (entity.getCoverImageBlockId() != null) {
-            ContentEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId())
+            ContentEntity block = contentRepository.findById(entity.getCoverImageBlockId())
                     .orElse(null);
             if (block instanceof ContentImageEntity) {
-                ContentModel blockModel = contentBlockProcessingUtil.convertToModel(block);
+                ContentModel blockModel = contentProcessingUtil.convertToModel(block);
                 if (blockModel instanceof ImageContentModel imageModel) {
                     model.setCoverImage(imageModel);
                 } else {
@@ -115,7 +115,7 @@ public class ContentCollectionProcessingUtil {
 
         // Set pagination metadata
         model.setTotalBlocks(entity.getTotalBlocks());
-        model.setBlocksPerPage(entity.getBlocksPerPage());
+        model.setBlocksPerPage(entity.getContentPerPage());
         model.setTotalPages(entity.getTotalPages());
         model.setCurrentPage(0);
 
@@ -136,11 +136,11 @@ public class ContentCollectionProcessingUtil {
         CollectionModel model = convertToBasicModel(entity);
 
         // Fetch blocks explicitly to avoid LAZY polymorphic initializer issues
-        List<ContentModel> contentBlocks = contentBlockRepository
+        List<ContentModel> contentBlocks = contentRepository
                 .findByCollectionIdOrderByOrderIndex(entity.getId())
                 .stream()
                 .filter(Objects::nonNull)
-                .map(contentBlockProcessingUtil::convertToModel)
+                .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
         model.setContentBlocks(contentBlocks);
@@ -164,7 +164,7 @@ public class ContentCollectionProcessingUtil {
         // Convert content blocks
         List<ContentModel> contentBlocks = contentPage.getContent().stream()
                 .filter(Objects::nonNull)
-                .map(contentBlockProcessingUtil::convertToModel)
+                .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
         model.setContentBlocks(contentBlocks);
@@ -200,7 +200,7 @@ public class ContentCollectionProcessingUtil {
         entity.setCollectionDate(LocalDate.now());
         entity.setVisible(false);
         entity.setPriority(4);
-        entity.setBlocksPerPage(defaultPageSize);
+        entity.setContentPerPage(defaultPageSize);
         entity.setTotalBlocks(0);
         entity.setPasswordProtected(false);
         entity.setPasswordHash(null);
@@ -248,14 +248,14 @@ public class ContentCollectionProcessingUtil {
             String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.getSlug().trim(), entity.getId());
             entity.setSlug(uniqueSlug);
         }
-        if (updateDTO.getBlocksPerPage() != null && updateDTO.getBlocksPerPage() >= 1) {
-            entity.setBlocksPerPage(updateDTO.getBlocksPerPage());
+        if (updateDTO.getContentPerPage() != null && updateDTO.getContentPerPage() >= 1) {
+            entity.setContentPerPage(updateDTO.getContentPerPage());
         }
 
         // Handle coverImage updates
         if (updateDTO.getCoverImageId() != null) {
             // Validate that the cover image ID references an actual image block
-            ContentEntity coverBlock = contentBlockRepository.findById(updateDTO.getCoverImageId())
+            ContentEntity coverBlock = contentRepository.findById(updateDTO.getCoverImageId())
                     .orElse(null);
             if (coverBlock instanceof ContentImageEntity) {
                 entity.setCoverImageBlockId(updateDTO.getCoverImageId());
@@ -287,14 +287,14 @@ public class ContentCollectionProcessingUtil {
      * Behavior matches the original service implementation.
      */
     public void handleNewTextBlocks(Long collectionId, CollectionUpdateDTO updateDTO) {
-        if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
+        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
             return;
         }
         // Always append new text blocks to the end
-        Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
+        Integer maxOrderIndex = contentRepository.getMaxOrderIndexForCollection(collectionId);
         int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
-        for (String text : updateDTO.getNewTextBlocks()) {
-            contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+        for (String text : updateDTO.getNewTextContent()) {
+            contentProcessingUtil.processTextContent(text, collectionId, currentIndex, null);
             currentIndex++;
         }
     }
@@ -306,14 +306,14 @@ public class ContentCollectionProcessingUtil {
      */
     public List<Long> handleNewTextBlocksReturnIds(Long collectionId, CollectionUpdateDTO updateDTO) {
         List<Long> createdIds = new ArrayList<>();
-        if (updateDTO.getNewTextBlocks() == null || updateDTO.getNewTextBlocks().isEmpty()) {
+        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
             return createdIds;
         }
         // Always append to the end
-        Integer maxOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(collectionId);
+        Integer maxOrderIndex = contentRepository.getMaxOrderIndexForCollection(collectionId);
         int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
-        for (String text : updateDTO.getNewTextBlocks()) {
-            ContentEntity created = contentBlockProcessingUtil.processTextContentBlock(text, collectionId, currentIndex, null);
+        for (String text : updateDTO.getNewTextContent()) {
+            ContentEntity created = contentProcessingUtil.processTextContent(text, collectionId, currentIndex, null);
             if (created != null && created.getId() != null) {
                 createdIds.add(created.getId());
             }
@@ -332,9 +332,9 @@ public class ContentCollectionProcessingUtil {
         }
         // Backward-compatible behavior: try to infer newTextIds by taking the last N blocks
         List<Long> inferredNewTextIds = new ArrayList<>();
-        if (updateDTO.getNewTextBlocks() != null && !updateDTO.getNewTextBlocks().isEmpty()) {
-            int n = updateDTO.getNewTextBlocks().size();
-            List<ContentEntity> allBlocks = contentBlockRepository.findByCollectionIdOrderByOrderIndex(collectionId);
+        if (updateDTO.getNewTextContent() != null && !updateDTO.getNewTextContent().isEmpty()) {
+            int n = updateDTO.getNewTextContent().size();
+            List<ContentEntity> allBlocks = contentRepository.findByCollectionIdOrderByOrderIndex(collectionId);
             int total = allBlocks.size();
             for (int i = Math.max(0, total - n); i < total; i++) {
                 inferredNewTextIds.add(allBlocks.get(i).getId());
@@ -352,7 +352,7 @@ public class ContentCollectionProcessingUtil {
             return;
         }
         List<Long> mapping = (newTextIds != null) ? newTextIds : new ArrayList<>();
-        for (CollectionUpdateDTO.ContentBlockReorderOperation op : updateDTO.getReorderOperations()) {
+        for (CollectionUpdateDTO.ContentReorderOperation op : updateDTO.getReorderOperations()) {
             Long targetId = null;
             Long providedId = op.getContentBlockId();
             if (providedId != null) {
@@ -372,13 +372,13 @@ public class ContentCollectionProcessingUtil {
                 if (oldIdx == null) {
                     throw new IllegalArgumentException("Reorder operation must include either contentBlockId or oldOrderIndex");
                 }
-                ContentEntity byIndex = contentBlockRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
+                ContentEntity byIndex = contentRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
                 if (byIndex == null) {
                     throw new IllegalArgumentException("No content block found at oldOrderIndex=" + oldIdx);
                 }
                 targetId = byIndex.getId();
             }
-            contentBlockRepository.updateOrderIndex(targetId, op.getNewOrderIndex());
+            contentRepository.updateOrderIndex(targetId, op.getNewOrderIndex());
         }
     }
 
@@ -418,7 +418,7 @@ public class ContentCollectionProcessingUtil {
         }
 
         // Check if slug already exists
-        boolean exists = contentCollectionRepository.findBySlug(slug)
+        boolean exists = collectionRepository.findBySlug(slug)
                 .map(entity -> !entity.getId().equals(existingId))
                 .orElse(false);
 
@@ -431,7 +431,7 @@ public class ContentCollectionProcessingUtil {
         String newSlug;
         do {
             newSlug = slug + "-" + counter++;
-            exists = contentCollectionRepository.findBySlug(newSlug).isPresent();
+            exists = collectionRepository.findBySlug(newSlug).isPresent();
         } while (exists && counter < 100); // Limit to prevent infinite loop
 
         if (exists) {
@@ -459,8 +459,8 @@ public class ContentCollectionProcessingUtil {
 
 
         // Set default blocks per page if not set
-        if (entity.getBlocksPerPage() == null || entity.getBlocksPerPage() <= 0) {
-            entity.setBlocksPerPage(edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page); // Default page size
+        if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
+            entity.setContentPerPage(edens.zac.portfolio.backend.config.DefaultValues.default_blocks_per_page); // Default page size
         }
 
         // Set type-specific visibility defaults
@@ -624,8 +624,8 @@ public class ContentCollectionProcessingUtil {
     public static boolean hasContentOperations(CollectionUpdateDTO dto) {
         return (dto.getReorderOperations() != null && !dto.getReorderOperations().isEmpty()) ||
                 (dto.getContentIdsToRemove() != null && !dto.getContentIdsToRemove().isEmpty()) ||
-                (dto.getNewTextBlocks() != null && !dto.getNewTextBlocks().isEmpty()) ||
-                (dto.getNewCodeBlocks() != null && !dto.getNewCodeBlocks().isEmpty());
+                (dto.getNewTextContent() != null && !dto.getNewTextContent().isEmpty()) ||
+                (dto.getNewCodeContent() != null && !dto.getNewCodeContent().isEmpty());
     }
 
     // =============================================================================

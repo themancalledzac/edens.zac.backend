@@ -4,8 +4,8 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentBlockRepository;
-import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
+import edens.zac.portfolio.backend.repository.CollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.persistence.EntityNotFoundException;
@@ -36,9 +36,9 @@ import static edens.zac.portfolio.backend.config.DefaultValues.default_blocks_pe
 @RequiredArgsConstructor
 class CollectionServiceImpl implements CollectionService {
 
-    private final ContentCollectionRepository contentCollectionRepository;
-    private final ContentBlockRepository contentBlockRepository;
-    private final ContentBlockProcessingUtil contentBlockProcessingUtil;
+    private final CollectionRepository collectionRepository;
+    private final ContentRepository contentRepository;
+    private final ContentProcessingUtil contentProcessingUtil;
     private final ContentCollectionProcessingUtil contentCollectionProcessingUtil;
     private final HomeService homeService;
     private final ContentService contentService;
@@ -52,7 +52,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting collection with slug: {} (page: {}, size: {})", slug, page, size);
 
         // Get collection metadata
-        CollectionEntity collection = contentCollectionRepository.findBySlug(slug)
+        CollectionEntity collection = collectionRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
 
         // Use default page size if not specified or invalid
@@ -64,7 +64,7 @@ class CollectionServiceImpl implements CollectionService {
         Pageable pageable = PageRequest.of(Math.max(0, page), size);
 
         // Get paginated content blocks
-        Page<ContentEntity> contentPage = contentBlockRepository
+        Page<ContentEntity> contentPage = contentRepository
                 .findByCollectionId(collection.getId(), pageable);
 
         // Convert to model
@@ -77,7 +77,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Validating access to client gallery: {}", slug);
 
         // Get collection metadata
-        CollectionEntity collection = contentCollectionRepository.findBySlug(slug)
+        CollectionEntity collection = collectionRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
 
         // Check if collection is password-protected
@@ -104,10 +104,10 @@ class CollectionServiceImpl implements CollectionService {
 
         if (type == CollectionType.BLOG) {
             // Blogs are ordered by date descending
-            collectionsPage = contentCollectionRepository.findAll(pageable);
+            collectionsPage = collectionRepository.findAll(pageable);
         } else {
             // Other types are ordered by priority
-            collectionsPage = contentCollectionRepository.findAll(pageable);
+            collectionsPage = collectionRepository.findAll(pageable);
         }
 
         // Convert to models
@@ -124,7 +124,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding visible collections by type ordered by date: {}", type);
 
         // Get visible collections by type, ordered by collection date descending (newest first)
-        List<CollectionEntity> collections = contentCollectionRepository
+        List<CollectionEntity> collections = collectionRepository
                 .findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
 
 
@@ -140,7 +140,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding collection by slug: {}", slug);
 
         // Get collection with content blocks
-        return contentCollectionRepository.findBySlugWithContentBlocks(slug)
+        return collectionRepository.findBySlugWithContent(slug)
                 .map(this::convertToFullModel);
     }
 
@@ -156,7 +156,7 @@ class CollectionServiceImpl implements CollectionService {
         );
 
         // Save entity
-        CollectionEntity savedEntity = contentCollectionRepository.save(entity);
+        CollectionEntity savedEntity = collectionRepository.save(entity);
 
         // Return full update response with all metadata (tags, people, cameras, etc.)
         return getUpdateCollectionData(savedEntity.getSlug());
@@ -168,7 +168,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding collection by ID: {}", id);
 
         // Get collection entity with content blocks
-        CollectionEntity entity = contentCollectionRepository.findById(id)
+        CollectionEntity entity = collectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
         // Convert to full model (includes content blocks)
@@ -182,7 +182,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Updating collection with ID: {}", id);
 
         // Get existing entity
-        CollectionEntity entity = contentCollectionRepository.findById(id)
+        CollectionEntity entity = collectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
         // Update basic properties via utility helper
@@ -190,11 +190,11 @@ class CollectionServiceImpl implements CollectionService {
 
         // Handle content block removals - dissociate blocks from this collection instead of deleting
         if (updateDTO.getContentIdsToRemove() != null && !updateDTO.getContentIdsToRemove().isEmpty()) {
-            contentBlockRepository.dissociateFromCollection(id, updateDTO.getContentIdsToRemove());
+            contentRepository.dissociateFromCollection(id, updateDTO.getContentIdsToRemove());
             if (entity.getCoverImageBlockId() != null && updateDTO.getContentIdsToRemove().contains(entity.getCoverImageBlockId())) {
                 // Removed the current cover image; choose the next available image as new cover if any
                 entity.setCoverImageBlockId(null);
-                List<ContentEntity> remaining = contentBlockRepository.findByCollectionIdOrderByOrderIndex(id);
+                List<ContentEntity> remaining = contentRepository.findByCollectionIdOrderByOrderIndex(id);
                 for (ContentEntity b : remaining) {
                     if (b instanceof ContentImageEntity img) {
                         entity.setCoverImageBlockId(img.getId());
@@ -211,7 +211,7 @@ class CollectionServiceImpl implements CollectionService {
         contentCollectionProcessingUtil.handleContentBlockReordering(id, updateDTO, newTextIds);
 
         // Save updated entity
-        CollectionEntity savedEntity = contentCollectionRepository.save(entity);
+        CollectionEntity savedEntity = collectionRepository.save(entity);
 
         applyHomeCardOptions(
                 savedEntity,
@@ -221,9 +221,9 @@ class CollectionServiceImpl implements CollectionService {
         );
 
         // Update total blocks count
-        long totalBlocks = contentBlockRepository.countByCollectionId(savedEntity.getId());
+        long totalBlocks = contentRepository.countByCollectionId(savedEntity.getId());
         savedEntity.setTotalBlocks((int) totalBlocks);
-        contentCollectionRepository.save(savedEntity);
+        collectionRepository.save(savedEntity);
 
         return convertToFullModel(savedEntity);
     }
@@ -235,7 +235,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Adding content blocks (files only) to collection ID: {}", id);
 
         // Ensure collection exists and fetch entity/title
-        CollectionEntity entity = contentCollectionRepository.findById(id)
+        CollectionEntity entity = collectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
         if (files == null || files.isEmpty()) {
@@ -245,7 +245,7 @@ class CollectionServiceImpl implements CollectionService {
         List<ContentEntity> contentBlocks = new ArrayList<>();
 
         // Get the current highest order index for this collection
-        Integer startOrderIndex = contentBlockRepository.getMaxOrderIndexForCollection(id);
+        Integer startOrderIndex = contentRepository.getMaxOrderIndexForCollection(id);
         Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
 
         // Track the first non-GIF image URL and blockId for potential cover usage
@@ -263,7 +263,7 @@ class CollectionServiceImpl implements CollectionService {
                         String fileIdentifier = date + "/" + originalFilename;
 
                         // Check if image already exists
-                        if (contentBlockRepository.existsByFileIdentifier(fileIdentifier)) {
+                        if (contentRepository.existsByFileIdentifier(fileIdentifier)) {
                             log.info("Skipping duplicate image: {}", originalFilename);
                             continue; // Skip this file and move to the next
                         }
@@ -274,14 +274,14 @@ class CollectionServiceImpl implements CollectionService {
                 if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
                     if (file.getContentType().equals("image/gif")) {
                         // Process as GIF
-                        ContentEntity gifBlock = contentBlockProcessingUtil.processGifContentBlock(
+                        ContentEntity gifBlock = contentProcessingUtil.processGifContent(
                                 file, id, orderIndex, entity.getTitle(), null);
                         if (gifBlock != null && gifBlock.getId() != null) {
                             contentBlocks.add(gifBlock);
                         }
                     } else {
                         // Process as image
-                        ContentImageEntity img = contentBlockProcessingUtil.processImageContentBlock(
+                        ContentImageEntity img = contentProcessingUtil.processImageContent(
                                 file, id, orderIndex, entity.getTitle(), null);
                         if (img != null && img.getId() != null) {
                             contentBlocks.add(img);
@@ -303,15 +303,15 @@ class CollectionServiceImpl implements CollectionService {
         // If no cover yet and we uploaded at least one non-GIF image, set it now and sync HomeCard
         if (entity.getCoverImageBlockId() == null && firstImageBlockId != null) {
             entity.setCoverImageBlockId(firstImageBlockId);
-            contentCollectionRepository.save(entity);
+            collectionRepository.save(entity);
             homeService.syncHomeCardOnCollectionUpdate(entity);
         }
 
         // Update total blocks count if any blocks were added
         if (!contentBlocks.isEmpty()) {
-            long totalBlocks = contentBlockRepository.countByCollectionId(id);
+            long totalBlocks = contentRepository.countByCollectionId(id);
             entity.setTotalBlocks((int) totalBlocks);
-            contentCollectionRepository.save(entity);
+            collectionRepository.save(entity);
         }
 
         // Return fresh model
@@ -324,15 +324,15 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Deleting collection with ID: {}", id);
 
         // Check if collection exists
-        if (!contentCollectionRepository.existsById(id)) {
+        if (!collectionRepository.existsById(id)) {
             throw new EntityNotFoundException("Collection not found with ID: " + id);
         }
 
         // Delete all content blocks first
-        contentBlockRepository.deleteByCollectionId(id);
+        contentRepository.deleteByCollectionId(id);
 
         // Delete collection
-        contentCollectionRepository.deleteById(id);
+        collectionRepository.deleteById(id);
     }
 
     @Override
@@ -341,7 +341,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting all collections with pagination");
 
         // Get all collections with pagination
-        Page<CollectionEntity> collectionsPage = contentCollectionRepository.findAll(pageable);
+        Page<CollectionEntity> collectionsPage = collectionRepository.findAll(pageable);
 
         // Convert to models
         List<CollectionModel> models = collectionsPage.getContent().stream()
@@ -357,7 +357,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting all collections ordered by collection date");
 
         // Get all collections ordered by collection date descending
-        List<CollectionEntity> collections = contentCollectionRepository.findAllByOrderByCollectionDateDesc();
+        List<CollectionEntity> collections = collectionRepository.findAllByOrderByCollectionDateDesc();
 
         // Convert to basic models (no content blocks)
         return collections.stream()
@@ -390,10 +390,10 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // Fetch content blocks explicitly to avoid LAZY polymorphic initializer issues
-        List<ContentModel> contentBlocks = contentBlockRepository
+        List<ContentModel> contentBlocks = contentRepository
                 .findByCollectionIdOrderByOrderIndex(entity.getId())
                 .stream()
-                .map(contentBlockProcessingUtil::convertToModel)
+                .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
         model.setContentBlocks(contentBlocks);
@@ -442,7 +442,7 @@ class CollectionServiceImpl implements CollectionService {
             return null;
         }
 
-        return contentBlockRepository.findById(collection.getCoverImageBlockId())
+        return contentRepository.findById(collection.getCoverImageBlockId())
                 .filter(block -> block instanceof ContentImageEntity)
                 .map(block -> ((ContentImageEntity) block).getImageUrlWeb())
                 .orElse(null);
@@ -505,7 +505,7 @@ class CollectionServiceImpl implements CollectionService {
         List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
 
         // Get all collections as CollectionListModel
-        List<CollectionListModel> collections = contentCollectionRepository.findAll().stream()
+        List<CollectionListModel> collections = collectionRepository.findAll().stream()
                 .map(entity -> CollectionListModel.builder()
                         .id(entity.getId())
                         .name(entity.getTitle())

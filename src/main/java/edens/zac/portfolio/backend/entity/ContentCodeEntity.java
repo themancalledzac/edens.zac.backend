@@ -26,7 +26,7 @@ public class ContentCodeEntity extends ContentEntity {
     @NotNull
     @Column(name = "language")
     private String language;
-    
+    \
     @NotNull
     @Lob
     @Column(name = "code", columnDefinition = "TEXT")

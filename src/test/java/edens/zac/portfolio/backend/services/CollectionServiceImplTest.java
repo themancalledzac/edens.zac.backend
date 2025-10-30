@@ -5,8 +5,8 @@ import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionUpdateDTO;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
-import edens.zac.portfolio.backend.repository.ContentBlockRepository;
-import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
+import edens.zac.portfolio.backend.repository.CollectionRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,9 +25,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class CollectionServiceImplTest {
 
-    @Mock private ContentCollectionRepository contentCollectionRepository;
-    @Mock private ContentBlockRepository contentBlockRepository;
-    @Mock private ContentBlockProcessingUtil contentBlockProcessingUtil;
+    @Mock private CollectionRepository collectionRepository;
+    @Mock private ContentRepository contentRepository;
+    @Mock private ContentProcessingUtil contentProcessingUtil;
     @Mock private ContentCollectionProcessingUtil contentCollectionProcessingUtil;
     @Mock private HomeService homeService;
     @Mock private ContentService contentService;
@@ -66,9 +66,9 @@ class CollectionServiceImplTest {
         mockModel.setSlug("my-blog");
 
         when(contentCollectionProcessingUtil.toEntity(eq(dto), anyInt())).thenReturn(unsaved);
-        when(contentCollectionRepository.save(unsaved)).thenReturn(saved);
-        when(contentCollectionRepository.findBySlug("my-blog")).thenReturn(java.util.Optional.of(saved));
-        when(contentBlockRepository.findByCollectionIdOrderByOrderIndex(42L)).thenReturn(Collections.emptyList());
+        when(collectionRepository.save(unsaved)).thenReturn(saved);
+        when(collectionRepository.findBySlug("my-blog")).thenReturn(java.util.Optional.of(saved));
+        when(contentRepository.findByCollectionIdOrderByOrderIndex(42L)).thenReturn(Collections.emptyList());
         when(contentCollectionProcessingUtil.convertToBasicModel(saved)).thenReturn(mockModel);
 
         // Mock dependencies for getUpdateCollectionData
@@ -77,7 +77,7 @@ class CollectionServiceImplTest {
         when(contentService.getAllCameras()).thenReturn(Collections.emptyList());
         when(contentService.getAllLenses()).thenReturn(Collections.emptyList());
         when(contentService.getAllFilmTypes()).thenReturn(Collections.emptyList());
-        when(contentCollectionRepository.findAll()).thenReturn(Collections.emptyList());
+        when(collectionRepository.findAll()).thenReturn(Collections.emptyList());
 
         // Act
         CollectionUpdateResponseDTO result = service.createCollection(dto);
@@ -107,7 +107,7 @@ class CollectionServiceImplTest {
         existing.setPriority(2);
         existing.setCreatedAt(LocalDateTime.now());
 
-        when(contentCollectionRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(collectionRepository.findById(id)).thenReturn(Optional.of(existing));
         // Basic updates do nothing in this test
         doNothing().when(contentCollectionProcessingUtil).applyBasicUpdates(existing, updateDTO);
         // No removals
@@ -115,8 +115,8 @@ class CollectionServiceImplTest {
                 .thenReturn(Collections.emptyList());
         doNothing().when(contentCollectionProcessingUtil)
                 .handleContentBlockReordering(eq(id), eq(updateDTO), anyList());
-        when(contentCollectionRepository.save(existing)).thenReturn(existing);
-        when(contentBlockRepository.countByCollectionId(id)).thenReturn(0L);
+        when(collectionRepository.save(existing)).thenReturn(existing);
+        when(contentRepository.countByCollectionId(id)).thenReturn(0L);
         when(contentCollectionProcessingUtil.convertToBasicModel(existing)).thenReturn(new CollectionModel());
 
         // Act

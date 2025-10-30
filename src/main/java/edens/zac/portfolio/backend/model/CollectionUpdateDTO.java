@@ -25,8 +25,8 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
     private String password; // Raw password, will be hashed (null = no change)
 
     // Pagination settings
-    @Min(value = 1, message = "Blocks per page must be 1 or greater")
-    private Integer blocksPerPage;
+    @Min(value = 1, message = "Content per page must be 1 or greater")
+    private Integer contentPerPage;
 
     // Home page card settings (optional)
     private Boolean homeCardEnabled; // null = no change
@@ -36,10 +36,10 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
 
     // Content block operations (processed separately in service layer)
     @Valid  // Add this annotation to enable nested validation
-    private List<ContentBlockReorderOperation> reorderOperations;
+    private List<ContentReorderOperation> reorderOperations;
     private List<Long> contentIdsToRemove;
-    private List<String> newTextBlocks;
-    private List<String> newCodeBlocks;
+    private List<String> newTextContent;
+    private List<String> newCodeContent;
 
     // TODO: Add a List<String> of new Tags. logic in serviceimpl layer will need to 'create' tags based on non-existant, otherwise just connect the two
     private List<String> newTags;
@@ -52,12 +52,12 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
     @SuperBuilder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ContentBlockReorderOperation {
+    public static class ContentReorderOperation {
         /**
          * Identifier of the block to move. Optional:
          * - Positive ID: refers to an existing block in the collection.
-         * - Negative ID: placeholder mapping for newly added text blocks in this request.
-         *   Use -1 for the first newTextBlocks entry, -2 for the second, etc.
+         * - Negative ID: placeholder mapping for newly added text Content in this request.
+         *   Use -1 for the first newTextContent entry, -2 for the second, etc.
          * - Null: when null, the block will be resolved by oldOrderIndex.
          */
         private Long contentBlockId;
@@ -75,7 +75,7 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
         /**
          * Backward-compatible convenience constructor used by existing tests: only ID and new index.
          */
-        public ContentBlockReorderOperation(Long contentBlockId, Integer newOrderIndex) {
+        public ContentReorderOperation(Long contentBlockId, Integer newOrderIndex) {
             this.contentBlockId = contentBlockId;
             this.newOrderIndex = newOrderIndex;
             this.oldOrderIndex = null;

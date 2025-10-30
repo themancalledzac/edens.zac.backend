@@ -4,7 +4,7 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.HomeCardModel;
-import edens.zac.portfolio.backend.repository.ContentBlockRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,14 +21,14 @@ public class HomeServiceImpl implements HomeService {
 
     private final ContentCollectionHomeCardRepository homeCardRepository;
     private final HomeProcessingUtil homeCardProcessingUtil;
-    private final ContentBlockRepository contentBlockRepository;
+    private final ContentRepository contentRepository;
 
     public HomeServiceImpl(ContentCollectionHomeCardRepository homeCardRepository,
                           HomeProcessingUtil homeCardProcessingUtil,
-                          ContentBlockRepository contentBlockRepository) {
+                          ContentRepository contentRepository) {
         this.homeCardRepository = homeCardRepository;
         this.homeCardProcessingUtil = homeCardProcessingUtil;
-        this.contentBlockRepository = contentBlockRepository;
+        this.contentRepository = contentRepository;
     }
 
     /**
@@ -39,7 +39,7 @@ public class HomeServiceImpl implements HomeService {
             return null;
         }
 
-        return contentBlockRepository.findById(collection.getCoverImageBlockId())
+        return contentRepository.findById(collection.getCoverImageBlockId())
                 .filter(block -> block instanceof ContentImageEntity)
                 .map(block -> ((ContentImageEntity) block).getImageUrlWeb())
                 .orElse(null);
