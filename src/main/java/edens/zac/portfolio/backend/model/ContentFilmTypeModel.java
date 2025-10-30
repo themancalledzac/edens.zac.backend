@@ -36,8 +36,8 @@ public class ContentFilmTypeModel {
     private Integer defaultIso;
 
     /**
-     * List of image content block IDs that use this film type.
+     * List of content image IDs that use this film type.
      */
     @Builder.Default
-    private List<Long> imageContentBlockIds = new ArrayList<>();
+    private List<Long> contentImageIds = new ArrayList<>();
 }

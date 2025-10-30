@@ -20,8 +20,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 /**
- * Controller for ContentCollection write operations (dev environment only).
- * Provides endpoints for creating, updating, and managing content collections.
+ * Controller for Collection write operations (dev environment only).
+ * Provides endpoints for creating, updating, and managing collections.
  * TODO: Probably update 'write' to `/api/admin/collections` as we will add an admin 'read' or two
  */
 @Slf4j

@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * DTO representing the relationship between an image and a collection.
- * Used in both ImageContentBlockModel (for reading) and ImageUpdateRequest (for updating).
- * Represents one entry in the content_block join table for a specific image/collection relationship.
+ * Used in both ContentImageModel (for reading) and ImageUpdateRequest (for updating).
+ * Represents one entry in the content join table for a specific image/collection relationship.
  */
 @Data
 @Builder

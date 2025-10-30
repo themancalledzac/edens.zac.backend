@@ -13,7 +13,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "content_gif_block")
+@Table(name = "content_gif")
 @PrimaryKeyJoinColumn(name = "content_id")
 @Data
 @EqualsAndHashCode(callSuper = true)

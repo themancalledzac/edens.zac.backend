@@ -70,7 +70,7 @@ public interface ContentLensRepository extends JpaRepository<ContentLensEntity, 
      * @return List of lenses ordered by usage count descending
      */
     @Query("SELECT l FROM ContentLensEntity l " +
-            "LEFT JOIN l.imageContentBlocks icb " +
+            "LEFT JOIN l.contentImages icb " +
             "GROUP BY l.id " +
             "ORDER BY COUNT(DISTINCT icb.id) DESC")
     List<ContentLensEntity> findAllOrderByUsageCountDesc();

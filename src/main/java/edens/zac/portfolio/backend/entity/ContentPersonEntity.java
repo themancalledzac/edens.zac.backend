@@ -14,7 +14,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Entity representing a person who can be tagged in image content blocks.
+ * Entity representing a person who can be tagged in image content.
  * This allows tracking which people appear in photographs.
  */
 @Entity

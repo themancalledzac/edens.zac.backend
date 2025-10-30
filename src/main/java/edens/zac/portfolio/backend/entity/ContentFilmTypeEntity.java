@@ -17,7 +17,7 @@ import java.util.Set;
 
 /**
  * Entity representing a film stock type.
- * Film types can be associated with ImageContentBlocks via many-to-many relationship.
+ * Film types can be associated with ContentImages via many-to-many relationship.
  * This replaces the static FilmType enum to allow dynamic film type management.
  */
 @Entity
@@ -68,10 +68,10 @@ public class ContentFilmTypeEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // One-to-many relationship with ImageContentBlocks (mappedBy side)
+    // One-to-many relationship with ContentImages (mappedBy side)
     @OneToMany(mappedBy = "filmType", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ContentImageEntity> imageContentBlocks = new HashSet<>();
+    private Set<ContentImageEntity> contentImages = new HashSet<>();
 
     /**
      * Constructor for creating a film type with name, display name, and ISO.
@@ -85,7 +85,7 @@ public class ContentFilmTypeEntity {
         this.filmTypeName = filmTypeName;
         this.displayName = displayName;
         this.defaultIso = defaultIso;
-        this.imageContentBlocks = new HashSet<>();
+        this.contentImages = new HashSet<>();
     }
 
     /**
@@ -94,6 +94,6 @@ public class ContentFilmTypeEntity {
      * @return The number of images associated with this film type
      */
     public int getImageCount() {
-        return imageContentBlocks.size();
+        return contentImages.size();
     }
 }

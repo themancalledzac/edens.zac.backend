@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class ContentCollectionProcessingUtil {
+public class CollectionProcessingUtil {
 
     private final CollectionRepository collectionRepository;
     private final ContentRepository contentRepository;
@@ -42,31 +42,31 @@ public class ContentCollectionProcessingUtil {
 
     /**
      * Helper method to populate coverImage on a model from an entity.
-     * Loads the full ImageContentBlockModel if coverImageBlockId is set.
-     * Only accepts image blocks as cover images.
+     * Loads the full ContentImageModel if coverImageId is set.
+     * Only accepts images as cover images.
      */
     private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
         if (entity.getCoverImageId() != null) {
-            ContentEntity block = contentRepository.findById(entity.getCoverImageId())
+            ContentEntity content = contentRepository.findById(entity.getCoverImageId())
                     .orElse(null);
-            if (block instanceof ContentImageEntity) {
-                ContentModel blockModel = contentProcessingUtil.convertToModel(block);
-                if (blockModel instanceof ImageContentModel imageModel) {
+            if (content instanceof ContentImageEntity) {
+                ContentModel contentModel = contentProcessingUtil.convertToModel(content);
+                if (contentModel instanceof ImageContentModel imageModel) {
                     model.setCoverImage(imageModel);
                 } else {
-                    log.warn("Cover image block {} converted to non-ImageContentBlockModel: {}",
-                            entity.getCoverImageId(), blockModel.getClass().getSimpleName());
+                    log.warn("Cover image {} converted to non-ContentImageModel: {}",
+                            entity.getCoverImageId(), contentModel.getClass().getSimpleName());
                 }
-            } else if (block != null) {
-                log.warn("Cover image block {} is not an ImageContentBlockEntity: {}",
-                        entity.getCoverImageId(), block.getClass().getSimpleName());
+            } else if (content != null) {
+                log.warn("Cover image {} is not a ContentImageEntity: {}",
+                        entity.getCoverImageId(), content.getClass().getSimpleName());
             }
         }
     }
 
     /**
-     * Convert a ContentCollectionEntity to a ContentCollectionModel with basic information.
-     * This does not include content blocks.
+     * Convert a CollectionEntity to a CollectionModel with basic information.
+     * This does not include content.
      *
      * @param entity The entity to convert
      * @return The converted model
@@ -123,7 +123,7 @@ public class ContentCollectionProcessingUtil {
     }
 
     /**
-     * Convert a ContentCollectionEntity to a ContentCollectionModel with all content blocks.
+     * Convert a CollectionEntity to a CollectionModel with all content.
      *
      * @param entity The entity to convert
      * @return The converted model
@@ -135,23 +135,23 @@ public class ContentCollectionProcessingUtil {
 
         CollectionModel model = convertToBasicModel(entity);
 
-        // Fetch blocks explicitly to avoid LAZY polymorphic initializer issues
-        List<ContentModel> contentBlocks = contentRepository
+        // Fetch content explicitly to avoid LAZY polymorphic initializer issues
+        List<ContentModel> contents = contentRepository
                 .findByCollectionIdOrderByOrderIndex(entity.getId())
                 .stream()
                 .filter(Objects::nonNull)
                 .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
-        model.setContent(contentBlocks);
+        model.setContent(contents);
         return model;
     }
 
     /**
-     * Convert a ContentCollectionEntity and a Page of ContentBlockEntity to a ContentCollectionModel.
+     * Convert a CollectionEntity and a Page of ContentEntity to a CollectionModel.
      *
      * @param entity      The entity to convert
-     * @param contentPage The page of content blocks
+     * @param contentPage The page of content
      * @return The converted model
      */
     public CollectionModel convertToModel(CollectionEntity entity, Page<ContentEntity> contentPage) {
@@ -161,13 +161,13 @@ public class ContentCollectionProcessingUtil {
 
         CollectionModel model = convertToBasicModel(entity);
 
-        // Convert content blocks
-        List<ContentModel> contentBlocks = contentPage.getContent().stream()
+        // Convert content
+        List<ContentModel> contents = contentPage.getContent().stream()
                 .filter(Objects::nonNull)
                 .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
-        model.setContent(contentBlocks);
+        model.setContent(contents);
 
         // Set pagination metadata
         model.setCurrentPage(contentPage.getNumber());
@@ -183,7 +183,7 @@ public class ContentCollectionProcessingUtil {
 
 
     /**
-     * Minimal create: from ContentCollectionCreateRequest (type, title only), apply defaults for the rest.
+     * Minimal create: from CollectionCreateRequest (type, title only), apply defaults for the rest.
      */
     public CollectionEntity toEntity(CollectionCreateRequest request, int defaultPageSize) {
         if (request == null) {
@@ -370,11 +370,11 @@ public class ContentCollectionProcessingUtil {
             if (targetId == null) {
                 Integer oldIdx = op.getOldOrderIndex();
                 if (oldIdx == null) {
-                    throw new IllegalArgumentException("Reorder operation must include either contentBlockId or oldOrderIndex");
+                    throw new IllegalArgumentException("Reorder operation must include either contentId or oldOrderIndex");
                 }
                 ContentEntity byIndex = contentRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
                 if (byIndex == null) {
-                    throw new IllegalArgumentException("No content block found at oldOrderIndex=" + oldIdx);
+                    throw new IllegalArgumentException("No content found at oldOrderIndex=" + oldIdx);
                 }
                 targetId = byIndex.getId();
             }
@@ -633,9 +633,9 @@ public class ContentCollectionProcessingUtil {
     // =============================================================================
 
     /**
-     * Get total content blocks from page DTO content summary.
+     * Get total contents from page DTO content summary.
      */
-    public static int getTotalContentBlocks(CollectionPageDTO dto) {
+    public static int getTotalContents(CollectionPageDTO dto) {
         int total = 0;
         if (dto.getImageBlockCount() != null) total += dto.getImageBlockCount();
         if (dto.getTextBlockCount() != null) total += dto.getTextBlockCount();

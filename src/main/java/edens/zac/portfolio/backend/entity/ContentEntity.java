@@ -14,11 +14,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(
-    name = "content_block", 
+    name = "content",
     indexes = {
-        @Index(name = "idx_content_block_collection_id", columnList = "collection_id"),
-        @Index(name = "idx_content_block_order_index", columnList = "order_index"),
-        @Index(name = "idx_content_block_collection_order", columnList = "collection_id, order_index")
+        @Index(name = "idx_content_collection_id", columnList = "collection_id"),
+        @Index(name = "idx_content_order_index", columnList = "order_index"),
+        @Index(name = "idx_content_collection_order", columnList = "collection_id, order_index")
     }
 )
 @Inheritance(strategy = InheritanceType.JOINED)
@@ -66,6 +66,6 @@ public abstract class ContentEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Method to get the specific content block type
+    // Method to get the specific content type
     public abstract ContentType getContentType();
 }

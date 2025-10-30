@@ -63,7 +63,7 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
         private Long contentId;
 
         /**
-         * The original order index of the block prior to reordering. Used when contentBlockId is null
+         * The original order index of the content prior to reordering. Used when contentId is null
          * or to double-check position in conflict scenarios.
          */
         @Min(value = 0, message = "Old order index must be 0 or greater")

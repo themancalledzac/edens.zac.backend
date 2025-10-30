@@ -1190,7 +1190,7 @@ public class ContentProcessingUtil {
     }
 
     // =============================================================================
-    // IMAGE UPDATE HELPERS (following the pattern from ContentCollectionProcessingUtil)
+    // IMAGE UPDATE HELPERS (following the pattern from CollectionProcessingUtil)
     // =============================================================================
 
     /**

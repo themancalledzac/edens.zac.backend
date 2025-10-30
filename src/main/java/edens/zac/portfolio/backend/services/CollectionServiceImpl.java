@@ -39,8 +39,8 @@ class CollectionServiceImpl implements CollectionService {
     private final CollectionRepository collectionRepository;
     private final ContentRepository contentRepository;
     private final ContentProcessingUtil contentProcessingUtil;
-    private final ContentCollectionProcessingUtil contentCollectionProcessingUtil;
-    private final HomeService homeService;
+    private final CollectionProcessingUtil collectionProcessingUtil;
+//    private final HomeService homeService;
     private final ContentService contentService;
 
     private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -91,7 +91,7 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // Check if password matches
-        return ContentCollectionProcessingUtil.passwordMatches(password, collection.getPasswordHash());
+        return CollectionProcessingUtil.passwordMatches(password, collection.getPasswordHash());
     }
 
     @Override
@@ -150,7 +150,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Creating new collection: {}", createRequest.getTitle());
 
         // Create entity using utility converter
-        CollectionEntity entity = contentCollectionProcessingUtil.toEntity(
+        CollectionEntity entity = collectionProcessingUtil.toEntity(
                 createRequest,
                 DEFAULT_PAGE_SIZE
         );
@@ -186,7 +186,7 @@ class CollectionServiceImpl implements CollectionService {
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
         // Update basic properties via utility helper
-        contentCollectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
+        collectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
 
         // Handle content block removals - dissociate blocks from this collection instead of deleting
         if (updateDTO.getContentIdsToRemove() != null && !updateDTO.getContentIdsToRemove().isEmpty()) {
@@ -205,10 +205,10 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
-        List<Long> newTextIds = contentCollectionProcessingUtil.handleNewTextContentReturnIds(id, updateDTO);
+        List<Long> newTextIds = collectionProcessingUtil.handleNewTextContentReturnIds(id, updateDTO);
 
         // Handle content block reordering via utility helper with explicit mapping for new text placeholders
-        contentCollectionProcessingUtil.handleContentReordering(id, updateDTO, newTextIds);
+        collectionProcessingUtil.handleContentReordering(id, updateDTO, newTextIds);
 
         // Save updated entity
         CollectionEntity savedEntity = collectionRepository.save(entity);
@@ -242,15 +242,15 @@ class CollectionServiceImpl implements CollectionService {
             return convertToFullModel(entity);
         }
 
-        List<ContentEntity> contentBlocks = new ArrayList<>();
+        List<ContentEntity> contents = new ArrayList<>();
 
         // Get the current highest order index for this collection
         Integer startOrderIndex = contentRepository.getMaxOrderIndexForCollection(id);
         Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
 
-        // Track the first non-GIF image URL and blockId for potential cover usage
+        // Track the first non-GIF image URL and id for potential cover usage
         String firstImageUrlWeb = null;
-        Long firstImageBlockId = null;
+        Long firstImageId = null;
 
         for (MultipartFile file : files) {
             try {
@@ -277,19 +277,19 @@ class CollectionServiceImpl implements CollectionService {
                         ContentEntity gifBlock = contentProcessingUtil.processGifContent(
                                 file, id, orderIndex, entity.getTitle(), null);
                         if (gifBlock != null && gifBlock.getId() != null) {
-                            contentBlocks.add(gifBlock);
+                            contents.add(gifBlock);
                         }
                     } else {
                         // Process as image
                         ContentImageEntity img = contentProcessingUtil.processImageContent(
                                 file, id, orderIndex, entity.getTitle(), null);
                         if (img != null && img.getId() != null) {
-                            contentBlocks.add(img);
+                            contents.add(img);
 
-                            // Capture the first non-GIF image URL and block id for cover if needed
+                            // Capture the first non-GIF image URL and id for cover if needed
                             if (firstImageUrlWeb == null) {
                                 firstImageUrlWeb = img.getImageUrlWeb();
-                                firstImageBlockId = img.getId();
+                                firstImageId = img.getId();
                             }
                         }
                     }
@@ -301,16 +301,16 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // If no cover yet and we uploaded at least one non-GIF image, set it now and sync HomeCard
-        if (entity.getCoverImageId() == null && firstImageBlockId != null) {
-            entity.setCoverImageId(firstImageBlockId);
+        if (entity.getCoverImageId() == null && firstImageId != null) {
+            entity.setCoverImageId(firstImageId);
             collectionRepository.save(entity);
-            homeService.syncHomeCardOnCollectionUpdate(entity);
+//            homeService.syncHomeCardOnCollectionUpdate(entity);
         }
 
-        // Update total blocks count if any blocks were added
-        if (!contentBlocks.isEmpty()) {
-            long totalBlocks = contentRepository.countByCollectionId(id);
-            entity.setTotalContent((int) totalBlocks);
+        // Update total content count if any contents were added
+        if (!contents.isEmpty()) {
+            long totalContent = contentRepository.countByCollectionId(id);
+            entity.setTotalContent((int) totalContent);
             collectionRepository.save(entity);
         }
 
@@ -366,18 +366,18 @@ class CollectionServiceImpl implements CollectionService {
     }
 
     /**
-     * Convert a ContentCollectionEntity to a ContentCollectionModel with basic information.
-     * This does not include content blocks.
+     * Convert a CollectionEntity to a CollectionModel with basic information.
+     * This does not include content.
      *
      * @param entity The entity to convert
      * @return The converted model
      */
     private CollectionModel convertToBasicModel(CollectionEntity entity) {
-        return contentCollectionProcessingUtil.convertToBasicModel(entity);
+        return collectionProcessingUtil.convertToBasicModel(entity);
     }
 
     /**
-     * Convert a ContentCollectionEntity to a ContentCollectionModel with all content blocks.
+     * Convert a CollectionEntity to a CollectionModel with all content.
      *
      * @param entity The entity to convert
      * @return The converted model
@@ -389,27 +389,27 @@ class CollectionServiceImpl implements CollectionService {
             model = new CollectionModel();
         }
 
-        // Fetch content blocks explicitly to avoid LAZY polymorphic initializer issues
-        List<ContentModel> contentBlocks = contentRepository
+        // Fetch content explicitly to avoid LAZY polymorphic initializer issues
+        List<ContentModel> contents = contentRepository
                 .findByCollectionIdOrderByOrderIndex(entity.getId())
                 .stream()
                 .map(contentProcessingUtil::convertToModel)
                 .collect(Collectors.toList());
 
-        model.setContent(contentBlocks);
+        model.setContent(contents);
         return model;
     }
 
     /**
-     * Convert a ContentCollectionEntity and a Page of ContentBlockEntity to a ContentCollectionModel.
+     * Convert a CollectionEntity and a Page of ContentEntity to a CollectionModel.
      *
      * @param entity      The entity to convert
-     * @param contentPage The page of content blocks
+     * @param contentPage The page of content
      * @return The converted model
      */
     private CollectionModel convertToModel(CollectionEntity entity, Page<ContentEntity> contentPage) {
         // Delegate to the shared ProcessingUtil to ensure consistent enrichment (coverImage, etc.)
-        return contentCollectionProcessingUtil.convertToModel(entity, contentPage);
+        return collectionProcessingUtil.convertToModel(entity, contentPage);
     }
 
     /**
@@ -448,30 +448,30 @@ class CollectionServiceImpl implements CollectionService {
                 .orElse(null);
     }
 
-    /**
-     * Shared handler for applying Home Card options for a collection during create/update flows.
-     * - If homeCardEnabled is non-null, upsert/deactivate accordingly via HomeService
-     * - If null, keep the HomeCard in sync with the current collection state
-     */
-    private void applyHomeCardOptions(
-            CollectionEntity entity,
-            Boolean homeCardEnabled,
-            Integer priority,
-            String text
-    ) {
-        if (homeCardEnabled != null) {
-            boolean enabled = homeCardEnabled;
-            homeService.upsertHomeCardForCollection(
-                    entity,
-                    enabled,
-                    priority,
-                    text
-            );
-        } else {
-            // No explicit toggle provided; keep in sync if a card exists
-            homeService.syncHomeCardOnCollectionUpdate(entity);
-        }
-    }
+//    /**
+//     * Shared handler for applying Home Card options for a collection during create/update flows.
+//     * - If homeCardEnabled is non-null, upsert/deactivate accordingly via HomeService
+//     * - If null, keep the HomeCard in sync with the current collection state
+//     */
+//    private void applyHomeCardOptions(
+//            CollectionEntity entity,
+//            Boolean homeCardEnabled,
+//            Integer priority,
+//            String text
+//    ) {
+//        if (homeCardEnabled != null) {
+//            boolean enabled = homeCardEnabled;
+//            homeService.upsertHomeCardForCollection(
+//                    entity,
+//                    enabled,
+//                    priority,
+//                    text
+//            );
+//        } else {
+//            // No explicit toggle provided; keep in sync if a card exists
+//            homeService.syncHomeCardOnCollectionUpdate(entity);
+//        }
+//    }
 
     @Override
     @Transactional(readOnly = true)

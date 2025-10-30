@@ -13,9 +13,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Base model containing common fields shared across all ContentCollection DTOs.
- * This eliminates duplication between ContentCollectionModel, ContentCollectionPageDTO,
- * and ContentCollectionUpdateDTO.
+ * Base model containing common fields shared across all Collection DTOs.
+ * This eliminates duplication between CollectionModel, CollectionPageDTO,
+ * and CollectionUpdateDTO.
  */
 @NoArgsConstructor
 @AllArgsConstructor

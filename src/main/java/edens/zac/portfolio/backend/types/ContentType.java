@@ -29,14 +29,14 @@ public enum ContentType {
     @JsonCreator
     public static ContentType forValue(String value) {
         if (value == null) {
-            log.warn("Null ContentBlockType value, defaulting to 'Text'");
+            log.warn("Null ContentType value, defaulting to 'Text'");
             return TEXT;
         }
 
         try {
             return ContentType.valueOf(value);
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid ContentBlockType value: {}, defaulting to TEXT", value);
+            log.warn("Invalid ContentType value: {}, defaulting to TEXT", value);
             return TEXT;
         }
     }

@@ -70,7 +70,7 @@ public class CollectionControllerProd {
      *  - regular would check if 'hasAccess' is true. if true, we would simply return a response body of 'no access'
      *  - admin would simply return all regardless.
      *  - Curious if we can just extend this, or otherwise duplicate it, while keeping 'local' dev development truly local only
-     *  - Might be easiest to simply have a ContentCollectionControllerDev endpoint to save time
+     *  - Might be easiest to simply have a CollectionControllerDev endpoint to save time
      * @param slug Collection slug
      * @param page Page number (0-based)
      * @param size Page size

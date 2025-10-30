@@ -23,8 +23,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Implementation of ContentBlockService that provides methods for
- * managing content blocks, tags, and people.
+ * Implementation of ContentService that provides methods for
+ * managing content, tags, and people.
  */
 @Service
 @Slf4j
@@ -173,8 +173,8 @@ class ContentServiceImpl implements ContentService {
                 errors.add(e.getMessage());
                 log.warn("Entity not found during update: {}", e.getMessage());
             } catch (ClassCastException e) {
-                errors.add("Block is not an image: " + update.getId());
-                log.warn("Attempted to update non-image block as image: {}", update.getId());
+                errors.add("Content is not an image: " + update.getId());
+                log.warn("Attempted to update non-image Content as image: {}", update.getId());
             } catch (Exception e) {
                 errors.add("Error updating image " + update.getId() + ": " + e.getMessage());
                 log.error("Error updating image {}: {}", update.getId(), e.getMessage(), e);

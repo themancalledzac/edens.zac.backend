@@ -13,8 +13,8 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 @Entity
-@Table(name = "text_content_block")
-@PrimaryKeyJoinColumn(name = "content_block_id")
+@Table(name = "content_text")
+@PrimaryKeyJoinColumn(name = "content_id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor

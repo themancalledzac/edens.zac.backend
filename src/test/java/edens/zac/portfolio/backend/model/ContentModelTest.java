@@ -16,28 +16,28 @@ import static org.junit.jupiter.api.Assertions.*;
 class ContentModelTest {
 
     private Validator validator;
-    private ContentModel contentBlock;
+    private ContentModel content;
 
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
         
-        // Create ContentBlockModel directly since it's not abstract
-        contentBlock = new ContentModel();
+        // Create ContentModel directly since it's not abstract
+        content = new ContentModel();
     }
 
     @Test
-    @DisplayName("Valid ContentBlockModel should pass validation")
-    void validContentBlockModel_shouldPassValidation() {
+    @DisplayName("Valid ContentModel should pass validation")
+    void validContentModel_shouldPassValidation() {
         // Arrange
-        contentBlock.setCollectionId(1L);
-        contentBlock.setOrderIndex(0);
-        contentBlock.setContentType(ContentType.IMAGE);
-        contentBlock.setCaption("Test caption");
+        content.setCollectionId(1L);
+        content.setOrderIndex(0);
+        content.setContentType(ContentType.IMAGE);
+        content.setCaption("Test caption");
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -47,12 +47,12 @@ class ContentModelTest {
     @DisplayName("Null collectionId should fail validation")
     void nullCollectionId_shouldFailValidation() {
         // Arrange
-        contentBlock.setCollectionId(null); // Invalid
-        contentBlock.setOrderIndex(0);
-        contentBlock.setContentType(ContentType.IMAGE);
+        content.setCollectionId(null); // Invalid
+        content.setOrderIndex(0);
+        content.setContentType(ContentType.IMAGE);
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertEquals(1, violations.size());
@@ -65,12 +65,12 @@ class ContentModelTest {
     @DisplayName("Negative orderIndex should fail validation")
     void negativeOrderIndex_shouldFailValidation() {
         // Arrange
-        contentBlock.setCollectionId(1L);
-        contentBlock.setOrderIndex(-1); // Invalid
-        contentBlock.setContentType(ContentType.IMAGE);
+        content.setCollectionId(1L);
+        content.setOrderIndex(-1); // Invalid
+        content.setContentType(ContentType.IMAGE);
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertEquals(1, violations.size());
@@ -80,20 +80,20 @@ class ContentModelTest {
     }
 
     @Test
-    @DisplayName("Null blockType should fail validation")
-    void nullBlockType_shouldFailValidation() {
+    @DisplayName("Null contentType should fail validation")
+    void nullContentType_shouldFailValidation() {
         // Arrange
-        contentBlock.setCollectionId(1L);
-        contentBlock.setOrderIndex(0);
-        contentBlock.setContentType(null); // Invalid
+        content.setCollectionId(1L);
+        content.setOrderIndex(0);
+        content.setContentType(null); // Invalid
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentModel> violation = violations.iterator().next();
-        assertEquals("blockType", violation.getPropertyPath().toString());
+        assertEquals("contentType", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
 
@@ -102,13 +102,13 @@ class ContentModelTest {
     void longCaption_shouldFailValidation() {
         // Arrange
         String longCaption = "A".repeat(501); // 501 characters
-        contentBlock.setCollectionId(1L);
-        contentBlock.setOrderIndex(0);
-        contentBlock.setContentType(ContentType.IMAGE);
-        contentBlock.setCaption(longCaption); // Invalid
+        content.setCollectionId(1L);
+        content.setOrderIndex(0);
+        content.setContentType(ContentType.IMAGE);
+        content.setCaption(longCaption); // Invalid
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertEquals(1, violations.size());
@@ -122,13 +122,13 @@ class ContentModelTest {
     void maxLengthCaption_shouldPassValidation() {
         // Arrange
         String maxCaption = "A".repeat(500); // Exactly 500 characters
-        contentBlock.setCollectionId(1L);
-        contentBlock.setOrderIndex(0);
-        contentBlock.setContentType(ContentType.IMAGE);
-        contentBlock.setCaption(maxCaption);
+        content.setCollectionId(1L);
+        content.setOrderIndex(0);
+        content.setContentType(ContentType.IMAGE);
+        content.setCaption(maxCaption);
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -138,13 +138,13 @@ class ContentModelTest {
     @DisplayName("Optional fields can be null")
     void optionalFields_canBeNull() {
         // Arrange
-        contentBlock.setCollectionId(1L);
-        contentBlock.setOrderIndex(0);
-        contentBlock.setContentType(ContentType.IMAGE);
+        content.setCollectionId(1L);
+        content.setOrderIndex(0);
+        content.setContentType(ContentType.IMAGE);
         // Leave id, caption, createdAt, updatedAt as null
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -154,22 +154,22 @@ class ContentModelTest {
     @DisplayName("Lombok equality and hashCode work correctly")
     void lombokMethods_workCorrectly() {
         // Arrange
-        ContentModel block1 = new ContentModel();
-        block1.setId(1L);
-        block1.setCollectionId(1L);
-        block1.setOrderIndex(0);
-        block1.setContentType(ContentType.IMAGE);
+        ContentModel content1 = new ContentModel();
+        content1.setId(1L);
+        content1.setCollectionId(1L);
+        content1.setOrderIndex(0);
+        content1.setContentType(ContentType.IMAGE);
 
-        ContentModel block2 = new ContentModel();
-        block2.setId(1L);
-        block2.setCollectionId(1L);
-        block2.setOrderIndex(0);
-        block2.setContentType(ContentType.IMAGE);
+        ContentModel content2 = new ContentModel();
+        content2.setId(1L);
+        content2.setCollectionId(1L);
+        content2.setOrderIndex(0);
+        content2.setContentType(ContentType.IMAGE);
 
         // Act & Assert
-        assertEquals(block1, block2);
-        assertEquals(block1.hashCode(), block2.hashCode());
-        assertTrue(block1.toString().contains("ContentBlockModel"));
+        assertEquals(content1, content2);
+        assertEquals(content1.hashCode(), content2.hashCode());
+        assertTrue(content1.toString().contains("ContentBlockModel"));
     }
 
     @Test
@@ -195,13 +195,13 @@ class ContentModelTest {
     void multipleValidationErrors_areCaptured() {
         // Arrange
         String longCaption = "A".repeat(501);
-        contentBlock.setCollectionId(null); // Error 1
-        contentBlock.setOrderIndex(-1); // Error 2
-        contentBlock.setContentType(null); // Error 3
-        contentBlock.setCaption(longCaption); // Error 4
+        content.setCollectionId(null); // Error 1
+        content.setOrderIndex(-1); // Error 2
+        content.setContentType(null); // Error 3
+        content.setCaption(longCaption); // Error 4
 
         // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(contentBlock);
+        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
 
         // Assert
         assertEquals(4, violations.size());

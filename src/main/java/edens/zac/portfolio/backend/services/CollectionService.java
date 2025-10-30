@@ -14,18 +14,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service interface for managing ContentCollection entities.
+ * Service interface for managing Collection entities.
  * Provides methods for CRUD operations, pagination, and client gallery access.
  */
 public interface CollectionService {
 
     /**
-     * Get a collection by slug with pagination for content blocks.
+     * Get a collection by slug with pagination for content.
      *
      * @param slug The unique slug of the collection
      * @param page The page number (0-based)
      * @param size The page size (default: 30)
-     * @return ContentCollectionModel with paginated content blocks
+     * @return CollectionModel with paginated content
      */
     CollectionModel getCollectionWithPagination(String slug, int page, int size);
 
@@ -93,10 +93,10 @@ public interface CollectionService {
 
 
     /**
-     * Add media files (images/gifs) to a collection as new content blocks without changing metadata.
+     * Add media files (images/gifs) to a collection as new content without changing metadata.
      *
      * @param id The ID of the collection
-     * @param files The files to be processed and added as content blocks
+     * @param files The files to be processed and added as content
      * @return The updated collection after files are added
      */
     CollectionModel addContent(Long id, List<MultipartFile> files);
@@ -109,7 +109,7 @@ public interface CollectionService {
     void deleteCollection(Long id);
 
     /**
-     * Get all collections with basic information (no content blocks).
+     * Get all collections with basic information (no content).
      *
      * @param pageable Pagination information
      * @return Page of collections with basic information

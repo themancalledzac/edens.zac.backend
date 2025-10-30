@@ -24,8 +24,8 @@ class CollectionEntityTest {
     }
 
     @Test
-    void testValidContentCollection() {
-        // Create a valid content collection
+    void testValidCollection() {
+        // Create a valid collection
         CollectionEntity collection = new CollectionEntity();
         collection.setType(CollectionType.BLOG);
         collection.setTitle("Test Collection");
@@ -36,8 +36,8 @@ class CollectionEntityTest {
     }
 
     @Test
-    void testInvalidContentCollectionMissingRequiredFields() {
-        // Create an invalid content collection (missing required fields)
+    void testInvalidCollectionMissingRequiredFields() {
+        // Create an invalid collection (missing required fields)
         CollectionEntity collection = new CollectionEntity();
 
         Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(collection);

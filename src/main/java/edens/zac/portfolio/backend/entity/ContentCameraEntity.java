@@ -15,7 +15,7 @@ import java.util.Set;
 
 /**
  * Entity representing a camera model.
- * Cameras can be associated with ImageContentBlocks.
+ * Cameras can be associated with ContentImages.
  * New cameras are automatically created when an image is updated with a new camera name.
  */
 @Entity
@@ -56,7 +56,7 @@ public class ContentCameraEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // One-to-many relationship with ImageContentBlocks (mappedBy side)
+    // One-to-many relationship with ContentImages (mappedBy side)
     @OneToMany(mappedBy = "camera", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<ContentImageEntity> contentImages = new HashSet<>();

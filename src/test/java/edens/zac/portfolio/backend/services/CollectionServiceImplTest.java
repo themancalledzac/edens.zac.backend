@@ -28,7 +28,7 @@ class CollectionServiceImplTest {
     @Mock private CollectionRepository collectionRepository;
     @Mock private ContentRepository contentRepository;
     @Mock private ContentProcessingUtil contentProcessingUtil;
-    @Mock private ContentCollectionProcessingUtil contentCollectionProcessingUtil;
+    @Mock private CollectionProcessingUtil collectionProcessingUtil;
     @Mock private HomeService homeService;
     @Mock private ContentService contentService;
 
@@ -65,11 +65,11 @@ class CollectionServiceImplTest {
         mockModel.setTitle("My Blog");
         mockModel.setSlug("my-blog");
 
-        when(contentCollectionProcessingUtil.toEntity(eq(dto), anyInt())).thenReturn(unsaved);
+        when(collectionProcessingUtil.toEntity(eq(dto), anyInt())).thenReturn(unsaved);
         when(collectionRepository.save(unsaved)).thenReturn(saved);
         when(collectionRepository.findBySlug("my-blog")).thenReturn(java.util.Optional.of(saved));
         when(contentRepository.findByCollectionIdOrderByOrderIndex(42L)).thenReturn(Collections.emptyList());
-        when(contentCollectionProcessingUtil.convertToBasicModel(saved)).thenReturn(mockModel);
+        when(collectionProcessingUtil.convertToBasicModel(saved)).thenReturn(mockModel);
 
         // Mock dependencies for getUpdateCollectionData
         when(contentService.getAllTags()).thenReturn(Collections.emptyList());
@@ -109,15 +109,15 @@ class CollectionServiceImplTest {
 
         when(collectionRepository.findById(id)).thenReturn(Optional.of(existing));
         // Basic updates do nothing in this test
-        doNothing().when(contentCollectionProcessingUtil).applyBasicUpdates(existing, updateDTO);
+        doNothing().when(collectionProcessingUtil).applyBasicUpdates(existing, updateDTO);
         // No removals
-        when(contentCollectionProcessingUtil.handleNewTextContentReturnIds(eq(id), eq(updateDTO)))
+        when(collectionProcessingUtil.handleNewTextContentReturnIds(eq(id), eq(updateDTO)))
                 .thenReturn(Collections.emptyList());
-        doNothing().when(contentCollectionProcessingUtil)
+        doNothing().when(collectionProcessingUtil)
                 .handleContentReordering(eq(id), eq(updateDTO), anyList());
         when(collectionRepository.save(existing)).thenReturn(existing);
         when(contentRepository.countByCollectionId(id)).thenReturn(0L);
-        when(contentCollectionProcessingUtil.convertToBasicModel(existing)).thenReturn(new CollectionModel());
+        when(collectionProcessingUtil.convertToBasicModel(existing)).thenReturn(new CollectionModel());
 
         // Act
         CollectionModel result = service.updateContent(id, updateDTO);

@@ -13,9 +13,9 @@ import lombok.experimental.SuperBuilder;
 import java.util.List;
 
 /**
- * ContentCollection Model - extends base with pagination and content blocks.
- * Object returned to the frontend for content collections.
- * Includes pagination metadata and content blocks.
+ * Collection Model - extends base with pagination and content.
+ * Object returned to the frontend for collections.
+ * Includes pagination metadata and content.
  */
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)  // Add this line
@@ -38,7 +38,7 @@ public class CollectionModel extends CollectionBaseModel {
     @Min(value = 0, message = "Total pages must be 0 or greater")
     private Integer totalPages;
 
-    // Cover image for the collection (full ImageContentBlockModel when set)
+    // Cover image for the collection (full ContentImageModel when set)
     @Valid
     private ImageContentModel coverImage;
 
@@ -46,7 +46,7 @@ public class CollectionModel extends CollectionBaseModel {
     private Boolean homeCardEnabled;
     private String homeCardText;
 
-    // Content blocks (paginated)
+    // Content (paginated)
     @Valid
     private List<ContentModel> content;
 }

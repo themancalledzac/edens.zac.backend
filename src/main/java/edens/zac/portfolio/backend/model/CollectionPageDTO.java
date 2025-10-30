@@ -64,8 +64,8 @@ public class CollectionPageDTO extends CollectionBaseModel {
     private Integer codeBlockCount;
     private Integer gifBlockCount;
 
-    // Content blocks for current page
+    // Contents for current page
     @Valid
-    @NotNull(message = "Content blocks list is required")
-    private List<ContentModel> contentBlocks;
+    @NotNull(message = "Content list is required")
+    private List<ContentModel> content;
 }

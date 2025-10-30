@@ -22,14 +22,14 @@ import java.util.Set;
  */
 @Entity
 @Table(
-        name = "content_collection",
+        name = "collection",
         indexes = {
-                @Index(name = "idx_content_collection_slug", columnList = "slug", unique = true),
-                @Index(name = "idx_content_collection_type", columnList = "type"),
-                @Index(name = "idx_content_collection_created_at", columnList = "created_at"),
-                @Index(name = "idx_content_collection_priority", columnList = "priority"),
-                @Index(name = "idx_content_collection_type_priority", columnList = "type, priority"),
-                @Index(name = "idx_content_collection_cover_block", columnList = "cover_image_block_id")
+                @Index(name = "idx_collection_slug", columnList = "slug", unique = true),
+                @Index(name = "idx_collection_type", columnList = "type"),
+                @Index(name = "idx_collection_created_at", columnList = "created_at"),
+                @Index(name = "idx_collection_priority", columnList = "priority"),
+                @Index(name = "idx_collection_type_priority", columnList = "type, priority"),
+                @Index(name = "idx_collection_cover_image", columnList = "cover_image_id")
         }
 )
 @Data
@@ -105,7 +105,7 @@ public class CollectionEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Relationship with ContentBlockEntity - bidirectional
+    // Relationship with ContentEntity - bidirectional
     @OneToMany(
             mappedBy = "collection",
             cascade = CascadeType.ALL,
