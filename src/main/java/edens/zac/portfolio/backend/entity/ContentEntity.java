@@ -39,7 +39,7 @@ public abstract class ContentEntity {
     // Bidirectional association for read/navigation; use same FK column
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "collection_id", insertable = false, updatable = false)
-    private ContentCollectionEntity collection;
+    private CollectionEntity collection;
 
     @NotNull
     @Column(name = "order_index")

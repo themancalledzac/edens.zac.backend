@@ -14,13 +14,13 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "image_content_block")
-@PrimaryKeyJoinColumn(name = "content_block_id")
+@Table(name = "content_image")
+@PrimaryKeyJoinColumn(name = "content_id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @SuperBuilder
-public class ImageContentEntity extends ContentEntity {
+public class ContentImageEntity extends ContentEntity {
 
     // Image metadata fields from existing ImageEntity
     private String title;
@@ -79,12 +79,12 @@ public class ImageContentEntity extends ContentEntity {
     // Many-to-many relationship with ContentTagEntity
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
-            name = "image_content_block_tags",
-            joinColumns = @JoinColumn(name = "image_block_id"),
+            name = "content_image_tags",
+            joinColumns = @JoinColumn(name = "image_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id"),
             indexes = {
-                    @Index(name = "idx_image_block_tags_image", columnList = "image_block_id"),
-                    @Index(name = "idx_image_block_tags_tag", columnList = "tag_id")
+                    @Index(name = "idx_image_tags_image", columnList = "image_id"),
+                    @Index(name = "idx_image_tags_tag", columnList = "tag_id")
             }
     )
     @Builder.Default
@@ -93,12 +93,12 @@ public class ImageContentEntity extends ContentEntity {
     // Many-to-many relationship with ContentPersonEntity
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
-            name = "image_content_block_people",
-            joinColumns = @JoinColumn(name = "image_block_id"),
+            name = "content_image_people",
+            joinColumns = @JoinColumn(name = "image_id"),
             inverseJoinColumns = @JoinColumn(name = "person_id"),
             indexes = {
-                    @Index(name = "idx_image_block_people_image", columnList = "image_block_id"),
-                    @Index(name = "idx_image_block_people_person", columnList = "person_id")
+                    @Index(name = "idx_image_people_image", columnList = "image_id"),
+                    @Index(name = "idx_image_people_person", columnList = "person_id")
             }
     )
     @Builder.Default

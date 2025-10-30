@@ -12,7 +12,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class CodeContentEntityTest {
+class ContentCodeEntityTest {
 
     private Validator validator;
 
@@ -25,7 +25,7 @@ class CodeContentEntityTest {
     @Test
     void testValidCodeContentBlock() {
         // Create a valid code content block
-        CodeContentEntity codeBlock = CodeContentEntity.builder()
+        ContentCodeEntity codeBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.CODE)
@@ -34,7 +34,7 @@ class CodeContentEntityTest {
                 .code("public class HelloWorld {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");\n    }\n}")
                 .build();
 
-        Set<ConstraintViolation<CodeContentEntity>> violations = validator.validate(codeBlock);
+        Set<ConstraintViolation<ContentCodeEntity>> violations = validator.validate(codeBlock);
         assertTrue(violations.isEmpty());
         assertEquals(ContentType.CODE, codeBlock.getContentType());
     }
@@ -42,7 +42,7 @@ class CodeContentEntityTest {
     @Test
     void testInvalidCodeContentBlockMissingRequiredFields() {
         // Create an invalid code content block (missing required fields)
-        CodeContentEntity codeBlock = CodeContentEntity.builder()
+        ContentCodeEntity codeBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.CODE)
@@ -51,7 +51,7 @@ class CodeContentEntityTest {
                 // code is missing
                 .build();
 
-        Set<ConstraintViolation<CodeContentEntity>> violations = validator.validate(codeBlock);
+        Set<ConstraintViolation<ContentCodeEntity>> violations = validator.validate(codeBlock);
         assertFalse(violations.isEmpty());
         assertEquals(2, violations.size());
         assertTrue(violations.stream()
@@ -62,14 +62,14 @@ class CodeContentEntityTest {
 
     @Test
     void testGetContentTypeReturnsCode() {
-        CodeContentEntity codeBlock = new CodeContentEntity();
+        ContentCodeEntity codeBlock = new ContentCodeEntity();
         assertEquals(ContentType.CODE, codeBlock.getContentType());
     }
 
     @Test
     void testBuilderWithAllFields() {
         // Test the builder pattern with all fields
-        CodeContentEntity codeBlock = CodeContentEntity.builder()
+        ContentCodeEntity codeBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.CODE)
@@ -92,7 +92,7 @@ class CodeContentEntityTest {
     @Test
     void testDifferentProgrammingLanguages() {
         // Test with different programming languages
-        CodeContentEntity javaBlock = CodeContentEntity.builder()
+        ContentCodeEntity javaBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.CODE)
@@ -101,7 +101,7 @@ class CodeContentEntityTest {
                 .code("System.out.println(\"Hello\");")
                 .build();
         
-        CodeContentEntity pythonBlock = CodeContentEntity.builder()
+        ContentCodeEntity pythonBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(1)
                 .blockType(ContentType.CODE)
@@ -110,7 +110,7 @@ class CodeContentEntityTest {
                 .code("print('Hello')")
                 .build();
         
-        CodeContentEntity javascriptBlock = CodeContentEntity.builder()
+        ContentCodeEntity javascriptBlock = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(2)
                 .blockType(ContentType.CODE)
@@ -127,7 +127,7 @@ class CodeContentEntityTest {
     @Test
     void testEqualsAndHashCode() {
         // Create two identical code blocks
-        CodeContentEntity codeBlock1 = CodeContentEntity.builder()
+        ContentCodeEntity codeBlock1 = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.CODE)
@@ -136,7 +136,7 @@ class CodeContentEntityTest {
                 .code("System.out.println(\"Hello\");")
                 .build();
 
-        CodeContentEntity codeBlock2 = CodeContentEntity.builder()
+        ContentCodeEntity codeBlock2 = ContentCodeEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.CODE)

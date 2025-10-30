@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.repository;
 
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -15,7 +15,7 @@ import java.util.Optional;
  * to provide standard CRUD operations, pagination, and custom query methods.
  */
 @Repository
-public interface ContentCollectionRepository extends JpaRepository<ContentCollectionEntity, Long> {
+public interface ContentCollectionRepository extends JpaRepository<CollectionEntity, Long> {
 
     /**
      * Find a collection of Content Collections for ART_GALLERY/PORTFOLIO
@@ -23,7 +23,7 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @param type Collection type such as ART_GALLERY/PORTFOLIO
      * @return List of ART_GALLERY/PORTFOLIO that are visible (public) and ordered by Priority (max 50)
      */
-    List<ContentCollectionEntity> findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType type);
+    List<CollectionEntity> findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType type);
 
     /**
      * Find a collection of Content Collections for ART_GALLERY/PORTFOLIO
@@ -31,7 +31,7 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @param type Collection type such as ART_GALLERY/PORTFOLIO
      * @return List of ART_GALLERY/PORTFOLIO that are ordered by Priority
      */
-    List<ContentCollectionEntity> findTop50ByTypeOrderByPriorityAsc(CollectionType type);
+    List<CollectionEntity> findTop50ByTypeOrderByPriorityAsc(CollectionType type);
 
     // Blog - ordered by date descending, visible only
 
@@ -41,7 +41,7 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @param type Collection type BLOG
      * @return List of BLOG that are ordered by Date Desc and Visible
      */
-    List<ContentCollectionEntity> findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type);
+    List<CollectionEntity> findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type);
 
     // Blog - ordered by date descending, visibility irrelevant (admin)
     /**
@@ -50,7 +50,7 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @param type Collection type BLOG
      * @return List of BLOG that are ordered by Date Desc
      */
-    List<ContentCollectionEntity> findTop50ByTypeOrderByCollectionDateDesc(CollectionType type);
+    List<CollectionEntity> findTop50ByTypeOrderByCollectionDateDesc(CollectionType type);
 
     /**
      * Find a collection by slug and verify it with a password hash for client galleries.
@@ -59,14 +59,14 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @param passwordHash The hashed password for verification
      * @return Optional containing the collection if found and password matches
      */
-    Optional<ContentCollectionEntity> findBySlugAndPasswordHash(String slug, String passwordHash);
+    Optional<CollectionEntity> findBySlugAndPasswordHash(String slug, String passwordHash);
 
     /**
      * Find a Collection's metadata. Used in conjunction with paginated endpoints in ContentBlockRepository
      * @param slug Slug of Collection
      * @return Metadata of Collection
      */
-    Optional<ContentCollectionEntity> findBySlug(String slug);
+    Optional<CollectionEntity> findBySlug(String slug);
 
     /**
      * Find a collection by slug with first 50 content blocks, ordered by their order_index.
@@ -76,10 +76,10 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      * @param slug The unique slug of the collection
      * @return Optional containing the collection with up to 50 content blocks if found
      */
-    @Query("SELECT c FROM ContentCollectionEntity c LEFT JOIN FETCH c.contentBlocks b " +
+    @Query("SELECT c FROM CollectionEntity c LEFT JOIN FETCH c.contentBlocks b " +
             "WHERE c.slug = :slug " +
             "ORDER BY b.orderIndex ASC")
-    Optional<ContentCollectionEntity> findBySlugWithContentBlocks(@Param("slug") String slug);
+    Optional<CollectionEntity> findBySlugWithContentBlocks(@Param("slug") String slug);
     
     /**
      * Count the number of collections of a specific type.
@@ -104,5 +104,5 @@ public interface ContentCollectionRepository extends JpaRepository<ContentCollec
      *
      * @return List of all collections ordered by collection date DESC
      */
-    List<ContentCollectionEntity> findAllByOrderByCollectionDateDesc();
+    List<CollectionEntity> findAllByOrderByCollectionDateDesc();
 }

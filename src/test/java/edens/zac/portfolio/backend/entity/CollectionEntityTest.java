@@ -13,7 +13,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ContentCollectionEntityTest {
+class CollectionEntityTest {
 
     private Validator validator;
 
@@ -26,21 +26,21 @@ class ContentCollectionEntityTest {
     @Test
     void testValidContentCollection() {
         // Create a valid content collection
-        ContentCollectionEntity collection = new ContentCollectionEntity();
+        CollectionEntity collection = new CollectionEntity();
         collection.setType(CollectionType.BLOG);
         collection.setTitle("Test Collection");
         collection.setSlug("test-collection");
 
-        Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(collection);
+        Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(collection);
         assertTrue(violations.isEmpty());
     }
 
     @Test
     void testInvalidContentCollectionMissingRequiredFields() {
         // Create an invalid content collection (missing required fields)
-        ContentCollectionEntity collection = new ContentCollectionEntity();
+        CollectionEntity collection = new CollectionEntity();
 
-        Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(collection);
+        Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(collection);
         assertFalse(violations.isEmpty());
         assertEquals(3, violations.size()); // type, title, and slug are required
 
@@ -55,12 +55,12 @@ class ContentCollectionEntityTest {
     @Test
     void testTitleLengthValidation() {
         // Test with title that is too short
-        ContentCollectionEntity shortTitle = new ContentCollectionEntity();
+        CollectionEntity shortTitle = new CollectionEntity();
         shortTitle.setType(CollectionType.BLOG);
         shortTitle.setTitle("AB"); // Less than minimum 3 characters
         shortTitle.setSlug("test-collection");
 
-        Set<ConstraintViolation<ContentCollectionEntity>> shortViolations = validator.validate(shortTitle);
+        Set<ConstraintViolation<CollectionEntity>> shortViolations = validator.validate(shortTitle);
         assertFalse(shortViolations.isEmpty());
         assertTrue(shortViolations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("title")));
@@ -69,12 +69,12 @@ class ContentCollectionEntityTest {
         // 101 characters, max is 100
         String longTitleBuilder = "A".repeat(101);
 
-        ContentCollectionEntity longTitle = new ContentCollectionEntity();
+        CollectionEntity longTitle = new CollectionEntity();
         longTitle.setType(CollectionType.BLOG);
         longTitle.setTitle(longTitleBuilder);
         longTitle.setSlug("test-collection");
 
-        Set<ConstraintViolation<ContentCollectionEntity>> longViolations = validator.validate(longTitle);
+        Set<ConstraintViolation<CollectionEntity>> longViolations = validator.validate(longTitle);
         assertFalse(longViolations.isEmpty());
         assertTrue(longViolations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("title")));
@@ -83,12 +83,12 @@ class ContentCollectionEntityTest {
     @Test
     void testSlugLengthValidation() {
         // Test with slug that is too short
-        ContentCollectionEntity shortSlug = new ContentCollectionEntity();
+        CollectionEntity shortSlug = new CollectionEntity();
         shortSlug.setType(CollectionType.BLOG);
         shortSlug.setTitle("Test Collection");
         shortSlug.setSlug("ab"); // Less than minimum 3 characters
 
-        Set<ConstraintViolation<ContentCollectionEntity>> shortViolations = validator.validate(shortSlug);
+        Set<ConstraintViolation<CollectionEntity>> shortViolations = validator.validate(shortSlug);
         assertFalse(shortViolations.isEmpty());
         assertTrue(shortViolations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("slug")));
@@ -97,12 +97,12 @@ class ContentCollectionEntityTest {
         // 151 characters, max is 150
         String longSlugBuilder = "a".repeat(151);
 
-        ContentCollectionEntity longSlug = new ContentCollectionEntity();
+        CollectionEntity longSlug = new CollectionEntity();
         longSlug.setType(CollectionType.BLOG);
         longSlug.setTitle("Test Collection");
         longSlug.setSlug(longSlugBuilder);
 
-        Set<ConstraintViolation<ContentCollectionEntity>> longViolations = validator.validate(longSlug);
+        Set<ConstraintViolation<CollectionEntity>> longViolations = validator.validate(longSlug);
         assertFalse(longViolations.isEmpty());
         assertTrue(longViolations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("slug")));
@@ -114,13 +114,13 @@ class ContentCollectionEntityTest {
         // 501 characters, max is 500
         String longDescriptionBuilder = "A".repeat(501);
 
-        ContentCollectionEntity longDescription = new ContentCollectionEntity();
+        CollectionEntity longDescription = new CollectionEntity();
         longDescription.setType(CollectionType.BLOG);
         longDescription.setTitle("Test Collection");
         longDescription.setSlug("test-collection");
         longDescription.setDescription(longDescriptionBuilder);
 
-        Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(longDescription);
+        Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(longDescription);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("description")));
@@ -132,13 +132,13 @@ class ContentCollectionEntityTest {
         // 256 characters, max is 255
         String longLocationBuilder = "A".repeat(256);
 
-        ContentCollectionEntity longLocation = new ContentCollectionEntity();
+        CollectionEntity longLocation = new CollectionEntity();
         longLocation.setType(CollectionType.BLOG);
         longLocation.setTitle("Test Collection");
         longLocation.setSlug("test-collection");
         longLocation.setLocation(longLocationBuilder);
 
-        Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(longLocation);
+        Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(longLocation);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("location")));
@@ -147,13 +147,13 @@ class ContentCollectionEntityTest {
     @Test
     void testPriorityMinimumValidation() {
         // Test with negative priority
-        ContentCollectionEntity negativePriority = new ContentCollectionEntity();
+        CollectionEntity negativePriority = new CollectionEntity();
         negativePriority.setType(CollectionType.BLOG);
         negativePriority.setTitle("Test Collection");
         negativePriority.setSlug("test-collection");
         negativePriority.setPriority(-1); // Should be minimum 0
 
-        Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(negativePriority);
+        Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(negativePriority);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("priority")));
@@ -162,13 +162,13 @@ class ContentCollectionEntityTest {
     @Test
     void testBlocksPerPageMinimumValidation() {
         // Test with blocks_per_page less than 1
-        ContentCollectionEntity zeroBlocksPerPage = new ContentCollectionEntity();
+        CollectionEntity zeroBlocksPerPage = new CollectionEntity();
         zeroBlocksPerPage.setType(CollectionType.BLOG);
         zeroBlocksPerPage.setTitle("Test Collection");
         zeroBlocksPerPage.setSlug("test-collection");
         zeroBlocksPerPage.setBlocksPerPage(0); // Should be minimum 1
 
-        Set<ConstraintViolation<ContentCollectionEntity>> violations = validator.validate(zeroBlocksPerPage);
+        Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(zeroBlocksPerPage);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("blocksPerPage")));
@@ -177,7 +177,7 @@ class ContentCollectionEntityTest {
     @Test
     void testIsPasswordProtected() {
         // Test with password protection enabled and hash present
-        ContentCollectionEntity protectedCollection = new ContentCollectionEntity();
+        CollectionEntity protectedCollection = new CollectionEntity();
         protectedCollection.setType(CollectionType.CLIENT_GALLERY);
         protectedCollection.setTitle("Protected Collection");
         protectedCollection.setSlug("protected-collection");
@@ -187,7 +187,7 @@ class ContentCollectionEntityTest {
         assertTrue(protectedCollection.isPasswordProtected());
 
         // Test with password protection disabled
-        ContentCollectionEntity unprotectedCollection = new ContentCollectionEntity();
+        CollectionEntity unprotectedCollection = new CollectionEntity();
         unprotectedCollection.setType(CollectionType.BLOG);
         unprotectedCollection.setTitle("Public Collection");
         unprotectedCollection.setSlug("public-collection");
@@ -197,7 +197,7 @@ class ContentCollectionEntityTest {
         assertFalse(unprotectedCollection.isPasswordProtected());
 
         // Test with password protection enabled but no hash
-        ContentCollectionEntity incompleteCollection = new ContentCollectionEntity();
+        CollectionEntity incompleteCollection = new CollectionEntity();
         incompleteCollection.setType(CollectionType.CLIENT_GALLERY);
         incompleteCollection.setTitle("Incomplete Collection");
         incompleteCollection.setSlug("incomplete-collection");
@@ -208,7 +208,7 @@ class ContentCollectionEntityTest {
         assertFalse(incompleteCollection.isPasswordProtected());
 
         // Test with null values
-        ContentCollectionEntity nullCollection = new ContentCollectionEntity();
+        CollectionEntity nullCollection = new CollectionEntity();
         nullCollection.setType(CollectionType.CLIENT_GALLERY);
         nullCollection.setTitle("Null Collection");
         nullCollection.setSlug("null-collection");
@@ -221,7 +221,7 @@ class ContentCollectionEntityTest {
     @Test
     void testGetTotalPages() {
         // Test with typical values
-        ContentCollectionEntity collection = new ContentCollectionEntity();
+        CollectionEntity collection = new CollectionEntity();
         collection.setType(CollectionType.BLOG);
         collection.setTitle("Test Collection");
         collection.setSlug("test-collection");
@@ -256,7 +256,7 @@ class ContentCollectionEntityTest {
         LocalDate today = LocalDate.now();
 
         // Test builder with all fields
-        ContentCollectionEntity collection = new ContentCollectionEntity();
+        CollectionEntity collection = new CollectionEntity();
         collection.setType(CollectionType.PORTFOLIO);
         collection.setTitle("Complete Portfolio");
         collection.setSlug("complete-portfolio");
@@ -289,12 +289,12 @@ class ContentCollectionEntityTest {
     @Test
     void testEqualsAndHashCode() {
         // Create two identical collections
-        ContentCollectionEntity collection1 = new ContentCollectionEntity();
+        CollectionEntity collection1 = new CollectionEntity();
         collection1.setType(CollectionType.BLOG);
         collection1.setTitle("Test Collection");
         collection1.setSlug("test-collection");
 
-        ContentCollectionEntity collection2 = new ContentCollectionEntity();
+        CollectionEntity collection2 = new CollectionEntity();
         collection2.setType(CollectionType.BLOG);
         collection2.setTitle("Test Collection");
         collection2.setSlug("test-collection");
@@ -312,22 +312,22 @@ class ContentCollectionEntityTest {
     @Test
     void testCollectionTypesForAllEnumValues() {
         // Test all enum values work properly with the entity
-        ContentCollectionEntity blogCollection = new ContentCollectionEntity();
+        CollectionEntity blogCollection = new CollectionEntity();
         blogCollection.setType(CollectionType.BLOG);
         blogCollection.setTitle("Blog Collection");
         blogCollection.setSlug("blog-collection");
 
-        ContentCollectionEntity artGalleryCollection = new ContentCollectionEntity();
+        CollectionEntity artGalleryCollection = new CollectionEntity();
         artGalleryCollection.setType(CollectionType.ART_GALLERY);
         artGalleryCollection.setTitle("Art Gallery Collection");
         artGalleryCollection.setSlug("art-gallery-collection");
 
-        ContentCollectionEntity clientGalleryCollection = new ContentCollectionEntity();
+        CollectionEntity clientGalleryCollection = new CollectionEntity();
         clientGalleryCollection.setType(CollectionType.CLIENT_GALLERY);
         clientGalleryCollection.setTitle("Client Gallery Collection");
         clientGalleryCollection.setSlug("client-gallery-collection");
 
-        ContentCollectionEntity portfolioCollection = new ContentCollectionEntity();
+        CollectionEntity portfolioCollection = new CollectionEntity();
         portfolioCollection.setType(CollectionType.PORTFOLIO);
         portfolioCollection.setTitle("Portfolio Collection");
         portfolioCollection.setSlug("portfolio-collection");

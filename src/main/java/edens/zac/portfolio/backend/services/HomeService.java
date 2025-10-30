@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,11 +12,11 @@ public interface HomeService {
     List<HomeCardModel> getHomePage(int maxPriority);
 
     @Transactional
-    void upsertHomeCardForCollection(ContentCollectionEntity collection,
+    void upsertHomeCardForCollection(CollectionEntity collection,
                                      boolean enabled,
                                      Integer priority,
                                      String text);
 
     @Transactional
-    void syncHomeCardOnCollectionUpdate(ContentCollectionEntity collection);
+    void syncHomeCardOnCollectionUpdate(CollectionEntity collection);
 }

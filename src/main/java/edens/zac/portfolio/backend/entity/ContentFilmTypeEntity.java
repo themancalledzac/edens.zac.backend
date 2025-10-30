@@ -71,7 +71,7 @@ public class ContentFilmTypeEntity {
     // One-to-many relationship with ImageContentBlocks (mappedBy side)
     @OneToMany(mappedBy = "filmType", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentEntity> imageContentBlocks = new HashSet<>();
+    private Set<ContentImageEntity> imageContentBlocks = new HashSet<>();
 
     /**
      * Constructor for creating a film type with name, display name, and ISO.

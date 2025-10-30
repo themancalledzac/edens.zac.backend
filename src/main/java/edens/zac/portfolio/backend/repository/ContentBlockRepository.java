@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.ContentEntity;
-import edens.zac.portfolio.backend.entity.ImageContentEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.types.ContentType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -134,7 +134,7 @@ public interface ContentBlockRepository extends JpaRepository<ContentEntity, Lon
      * @param fileIdentifier The file identifier (format: "YYYY-MM-DD/filename.jpg")
      * @return true if an image with this identifier exists, false otherwise
      */
-    @Query("SELECT CASE WHEN COUNT(i) > 0 THEN true ELSE false END FROM ImageContentEntity i WHERE i.fileIdentifier = :fileIdentifier")
+    @Query("SELECT CASE WHEN COUNT(i) > 0 THEN true ELSE false END FROM ContentImageEntity i WHERE i.fileIdentifier = :fileIdentifier")
     boolean existsByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 
     /**
@@ -144,8 +144,8 @@ public interface ContentBlockRepository extends JpaRepository<ContentEntity, Lon
      * @param fileIdentifier The file identifier (format: "YYYY-MM-DD/filename.jpg")
      * @return List of all image content blocks with this file identifier across all collections
      */
-    @Query("SELECT i FROM ImageContentEntity i WHERE i.fileIdentifier = :fileIdentifier")
-    List<ImageContentEntity> findAllByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
+    @Query("SELECT i FROM ContentImageEntity i WHERE i.fileIdentifier = :fileIdentifier")
+    List<ContentImageEntity> findAllByFileIdentifier(@Param("fileIdentifier") String fileIdentifier);
 
     /**
      * Find all ImageContentBlockEntity instances ordered by createDate descending.
@@ -153,6 +153,6 @@ public interface ContentBlockRepository extends JpaRepository<ContentEntity, Lon
      *
      * @return List of all image content blocks ordered by createDate descending
      */
-    @Query("SELECT i FROM ImageContentEntity i ORDER BY i.createDate DESC")
-    List<ImageContentEntity> findAllImagesOrderByCreateDateDesc();
+    @Query("SELECT i FROM ContentImageEntity i ORDER BY i.createDate DESC")
+    List<ContentImageEntity> findAllImagesOrderByCreateDateDesc();
 }

@@ -62,7 +62,7 @@ public class ContentBlockProcessingUtilTest {
     @Test
     void convertToModel_withImageContentBlock_shouldReturnImageContentBlockModel() {
         // Arrange
-        ImageContentEntity entity = createImageContentBlockEntity();
+        ContentImageEntity entity = createImageContentBlockEntity();
 
         // Act
         ContentModel result = contentBlockProcessingUtil.convertToModel(entity);
@@ -116,7 +116,7 @@ public class ContentBlockProcessingUtilTest {
     @Test
     void convertToModel_withCodeContentBlock_shouldReturnCodeContentBlockModel() {
         // Arrange
-        CodeContentEntity entity = createCodeContentBlockEntity();
+        ContentCodeEntity entity = createCodeContentBlockEntity();
 
         // Act
         ContentModel result = contentBlockProcessingUtil.convertToModel(entity);
@@ -138,7 +138,7 @@ public class ContentBlockProcessingUtilTest {
     @Test
     void convertToModel_withGifContentBlock_shouldReturnGifContentBlockModel() {
         // Arrange
-        GifContentEntity entity = createGifContentBlockEntity();
+        ContentGifEntity entity = createGifContentBlockEntity();
 
         // Act
         ContentModel result = contentBlockProcessingUtil.convertToModel(entity);
@@ -186,17 +186,17 @@ public class ContentBlockProcessingUtilTest {
         // Mock S3 upload (new implementation uploads directly to S3)
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        ImageContentEntity savedEntity = createImageContentBlockEntity();
-        when(contentBlockRepository.save(any(ImageContentEntity.class))).thenReturn(savedEntity);
+        ContentImageEntity savedEntity = createImageContentBlockEntity();
+        when(contentBlockRepository.save(any(ContentImageEntity.class))).thenReturn(savedEntity);
 
         // Act
         ContentEntity result = contentBlockProcessingUtil.processImageContentBlock(file, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
-        assertInstanceOf(ImageContentEntity.class, result);
+        assertInstanceOf(ContentImageEntity.class, result);
         verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
-        verify(contentBlockRepository).save(any(ImageContentEntity.class));
+        verify(contentBlockRepository).save(any(ContentImageEntity.class));
     }
 
     @Test
@@ -264,18 +264,18 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Code";
         String caption = "Test Caption";
 
-        CodeContentEntity savedEntity = createCodeContentBlockEntity();
-        when(contentBlockRepository.save(any(CodeContentEntity.class))).thenReturn(savedEntity);
+        ContentCodeEntity savedEntity = createCodeContentBlockEntity();
+        when(contentBlockRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
 
         // Act
-        CodeContentEntity result = contentBlockProcessingUtil.processCodeContentBlock(code, language, collectionId, orderIndex, title, caption);
+        ContentCodeEntity result = contentBlockProcessingUtil.processCodeContentBlock(code, language, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
-        assertInstanceOf(CodeContentEntity.class, result);
+        assertInstanceOf(ContentCodeEntity.class, result);
         assertEquals(code, result.getCode());
         assertEquals(language, result.getLanguage());
-        verify(contentBlockRepository).save(any(CodeContentEntity.class));
+        verify(contentBlockRepository).save(any(ContentCodeEntity.class));
     }
 
     @Test
@@ -288,16 +288,16 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Code";
         String caption = "Test Caption";
 
-        CodeContentEntity savedEntity = createCodeContentBlockEntity();
-        when(contentBlockRepository.save(any(CodeContentEntity.class))).thenReturn(savedEntity);
+        ContentCodeEntity savedEntity = createCodeContentBlockEntity();
+        when(contentBlockRepository.save(any(ContentCodeEntity.class))).thenReturn(savedEntity);
 
         // Act
         ContentEntity result = contentBlockProcessingUtil.processCodeContentBlock(code, language, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
-        assertInstanceOf(CodeContentEntity.class, result);
-        verify(contentBlockRepository).save(any(CodeContentEntity.class));
+        assertInstanceOf(ContentCodeEntity.class, result);
+        verify(contentBlockRepository).save(any(ContentCodeEntity.class));
     }
 
     @Test
@@ -312,17 +312,17 @@ public class ContentBlockProcessingUtilTest {
         // Mock S3 upload
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        GifContentEntity savedEntity = createGifContentBlockEntity();
-        when(contentBlockRepository.save(any(GifContentEntity.class))).thenReturn(savedEntity);
+        ContentGifEntity savedEntity = createGifContentBlockEntity();
+        when(contentBlockRepository.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
 
         // Act
         ContentEntity result = contentBlockProcessingUtil.processGifContentBlock(file, collectionId, orderIndex, title, caption);
 
         // Assert
         assertNotNull(result);
-        assertInstanceOf(GifContentEntity.class, result);
+        assertInstanceOf(ContentGifEntity.class, result);
         verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class));
-        verify(contentBlockRepository).save(any(GifContentEntity.class));
+        verify(contentBlockRepository).save(any(ContentGifEntity.class));
     }
 
     @Test
@@ -425,8 +425,8 @@ public class ContentBlockProcessingUtilTest {
         // Mock S3 upload (new implementation uploads directly to S3)
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        ImageContentEntity imageEntity = createImageContentBlockEntity();
-        when(contentBlockRepository.save(any(ImageContentEntity.class))).thenReturn(imageEntity);
+        ContentImageEntity imageEntity = createImageContentBlockEntity();
+        when(contentBlockRepository.save(any(ContentImageEntity.class))).thenReturn(imageEntity);
 
         // Act
         ContentEntity result = contentBlockProcessingUtil.processContentBlock(
@@ -434,7 +434,7 @@ public class ContentBlockProcessingUtilTest {
 
         // Assert
         assertNotNull(result);
-        assertInstanceOf(ImageContentEntity.class, result);
+        assertInstanceOf(ContentImageEntity.class, result);
         verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
     }
 
@@ -474,8 +474,8 @@ public class ContentBlockProcessingUtilTest {
         String title = "Test Code";
         String caption = "Test Caption";
 
-        CodeContentEntity codeEntity = createCodeContentBlockEntity();
-        when(contentBlockRepository.save(any(CodeContentEntity.class))).thenReturn(codeEntity);
+        ContentCodeEntity codeEntity = createCodeContentBlockEntity();
+        when(contentBlockRepository.save(any(ContentCodeEntity.class))).thenReturn(codeEntity);
 
         // Act
         ContentEntity result = contentBlockProcessingUtil.processContentBlock(
@@ -483,7 +483,7 @@ public class ContentBlockProcessingUtilTest {
 
         // Assert
         assertNotNull(result);
-        assertInstanceOf(CodeContentEntity.class, result);
+        assertInstanceOf(ContentCodeEntity.class, result);
     }
 
     @Test
@@ -501,8 +501,8 @@ public class ContentBlockProcessingUtilTest {
         // Mock S3 upload
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        GifContentEntity gifEntity = createGifContentBlockEntity();
-        when(contentBlockRepository.save(any(GifContentEntity.class))).thenReturn(gifEntity);
+        ContentGifEntity gifEntity = createGifContentBlockEntity();
+        when(contentBlockRepository.save(any(ContentGifEntity.class))).thenReturn(gifEntity);
 
         // Act
         ContentEntity result = contentBlockProcessingUtil.processContentBlock(
@@ -510,7 +510,7 @@ public class ContentBlockProcessingUtilTest {
 
         // Assert
         assertNotNull(result);
-        assertInstanceOf(GifContentEntity.class, result);
+        assertInstanceOf(ContentGifEntity.class, result);
     }
 
     @Test
@@ -535,8 +535,8 @@ public class ContentBlockProcessingUtilTest {
 
     // Helper methods to create test entities and models
 
-    private ImageContentEntity createImageContentBlockEntity() {
-        ImageContentEntity entity = new ImageContentEntity();
+    private ContentImageEntity createImageContentBlockEntity() {
+        ContentImageEntity entity = new ContentImageEntity();
         entity.setId(1L);
         entity.setCollectionId(1L);
         entity.setOrderIndex(0);
@@ -577,8 +577,8 @@ public class ContentBlockProcessingUtilTest {
         return entity;
     }
 
-    private CodeContentEntity createCodeContentBlockEntity() {
-        CodeContentEntity entity = new CodeContentEntity();
+    private ContentCodeEntity createCodeContentBlockEntity() {
+        ContentCodeEntity entity = new ContentCodeEntity();
         entity.setId(3L);
         entity.setCollectionId(1L);
         entity.setOrderIndex(2);
@@ -592,8 +592,8 @@ public class ContentBlockProcessingUtilTest {
         return entity;
     }
 
-    private GifContentEntity createGifContentBlockEntity() {
-        GifContentEntity entity = new GifContentEntity();
+    private ContentGifEntity createGifContentBlockEntity() {
+        ContentGifEntity entity = new ContentGifEntity();
         entity.setId(4L);
         entity.setCollectionId(1L);
         entity.setOrderIndex(3);

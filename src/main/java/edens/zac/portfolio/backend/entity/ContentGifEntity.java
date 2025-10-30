@@ -13,13 +13,13 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "gif_content_block")
-@PrimaryKeyJoinColumn(name = "content_block_id")
+@Table(name = "content_gif_block")
+@PrimaryKeyJoinColumn(name = "content_id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @SuperBuilder
-public class GifContentEntity extends ContentEntity {
+public class ContentGifEntity extends ContentEntity {
 
     private String title;
     
@@ -47,12 +47,12 @@ public class GifContentEntity extends ContentEntity {
     // Many-to-many relationship with ContentTagEntity
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
-            name = "gif_content_block_tags",
-            joinColumns = @JoinColumn(name = "gif_block_id"),
+            name = "content_gif_tags",
+            joinColumns = @JoinColumn(name = "gif_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id"),
             indexes = {
-                    @Index(name = "idx_gif_block_tags_gif", columnList = "gif_block_id"),
-                    @Index(name = "idx_gif_block_tags_tag", columnList = "tag_id")
+                    @Index(name = "idx_gif_tags_gif", columnList = "gif_id"),
+                    @Index(name = "idx_gif_tags_tag", columnList = "tag_id")
             }
     )
     @Builder.Default

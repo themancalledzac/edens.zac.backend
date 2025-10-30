@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface ContentCollectionHomeCardRepository extends JpaRepository<ContentCollectionHomeCardEntity, Long> {
 
     @Query("SELECT h FROM ContentCollectionHomeCardEntity h " +
-           "LEFT JOIN ContentCollectionEntity c ON h.referenceId = c.id " +
+           "LEFT JOIN CollectionEntity c ON h.referenceId = c.id " +
            "WHERE h.priority <= :maxPriority " +
            "AND h.isActiveHomeCard = true " +
            "AND h.coverImageUrl IS NOT NULL " +

@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.repository;
 
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.junit.jupiter.api.DisplayName;
@@ -41,8 +41,8 @@ class ContentCollectionHomeCardRepositoryTest {
                 .build();
     }
 
-    private ContentCollectionEntity collection(String slug, boolean visible) {
-        ContentCollectionEntity entity = new ContentCollectionEntity();
+    private CollectionEntity collection(String slug, boolean visible) {
+        CollectionEntity entity = new CollectionEntity();
         entity.setType(CollectionType.PORTFOLIO);
         entity.setTitle("Collection " + slug);
         entity.setSlug(slug);
@@ -59,9 +59,9 @@ class ContentCollectionHomeCardRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
 
         // Create visible collections for the cards to reference
-        ContentCollectionEntity collection1 = collectionRepository.save(collection("collection-1", true));
-        ContentCollectionEntity collection2 = collectionRepository.save(collection("collection-2", true));
-        ContentCollectionEntity collection3 = collectionRepository.save(collection("collection-3", true));
+        CollectionEntity collection1 = collectionRepository.save(collection("collection-1", true));
+        CollectionEntity collection2 = collectionRepository.save(collection("collection-2", true));
+        CollectionEntity collection3 = collectionRepository.save(collection("collection-3", true));
 
         // valid priorities 1..2
         ContentCollectionHomeCardEntity card1 = card(1, true, "https://img/1.jpg", now.minusHours(2));
@@ -115,8 +115,8 @@ class ContentCollectionHomeCardRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
 
         // Create collections - some visible, some not
-        ContentCollectionEntity visibleCollection = collectionRepository.save(collection("visible-collection", true));
-        ContentCollectionEntity invisibleCollection = collectionRepository.save(collection("invisible-collection", false));
+        CollectionEntity visibleCollection = collectionRepository.save(collection("visible-collection", true));
+        CollectionEntity invisibleCollection = collectionRepository.save(collection("invisible-collection", false));
 
         // Create home cards referencing these collections
         ContentCollectionHomeCardEntity visibleCard = card(1, true, "https://img/visible.jpg", now.minusHours(1));

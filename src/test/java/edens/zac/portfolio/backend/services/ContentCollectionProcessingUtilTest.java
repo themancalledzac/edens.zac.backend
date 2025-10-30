@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentEntity;
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TextContentEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -53,13 +53,13 @@ class ContentCollectionProcessingUtilTest {
     @InjectMocks
     private ContentCollectionProcessingUtil util;
 
-    private ContentCollectionEntity testEntity;
+    private CollectionEntity testEntity;
     private List<ContentEntity> testBlocks;
 
     @BeforeEach
     void setUp() {
         // Create test entity
-        testEntity = new ContentCollectionEntity();
+        testEntity = new CollectionEntity();
         testEntity.setId(1L);
         testEntity.setType(CollectionType.BLOG);
         testEntity.setTitle("Test Blog");
@@ -229,7 +229,7 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void validateAndEnsureUniqueSlug_shouldAppendNumberWhenSlugExists() {
         // Arrange
-        ContentCollectionEntity existingEntity = new ContentCollectionEntity();
+        CollectionEntity existingEntity = new CollectionEntity();
         existingEntity.setId(2L);
 
         when(contentCollectionRepository.findBySlug("test-slug"))
@@ -248,12 +248,12 @@ class ContentCollectionProcessingUtilTest {
     @Test
     void applyTypeSpecificDefaults_shouldSetDefaultsBasedOnType() {
         // Arrange
-        ContentCollectionEntity entity = new ContentCollectionEntity();
+        CollectionEntity entity = new CollectionEntity();
         entity.setType(CollectionType.CLIENT_GALLERY);
         entity.setVisible(null); // Reset to null to test default behavior
 
         // Act
-        ContentCollectionEntity result = util.applyTypeSpecificDefaults(entity);
+        CollectionEntity result = util.applyTypeSpecificDefaults(entity);
 
         // Assert
         // Config JSON removed; ensure other defaults still apply

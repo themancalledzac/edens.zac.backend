@@ -19,7 +19,7 @@ import java.util.Set;
  */
 @Entity
 @Table(
-        name = "content_tags",
+        name = "content_tag",
         indexes = {
                 @Index(name = "idx_content_tag_name", columnList = "tag_name", unique = true)
         }
@@ -58,15 +58,15 @@ public class ContentTagEntity {
     // Many-to-many relationships (mappedBy side - non-owning)
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ContentCollectionEntity> contentCollections = new HashSet<>();
+    private Set<CollectionEntity> contentCollections = new HashSet<>();
 
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentEntity> imageContentBlocks = new HashSet<>();
+    private Set<ContentImageEntity> ContentImage = new HashSet<>();
 
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<GifContentEntity> gifContentBlocks = new HashSet<>();
+    private Set<ContentGifEntity> gifContentBlocks = new HashSet<>();
 
     /**
      * Constructor for creating a tag with just a name.
@@ -77,7 +77,7 @@ public class ContentTagEntity {
     public ContentTagEntity(String tagName) {
         this.tagName = tagName;
         this.contentCollections = new HashSet<>();
-        this.imageContentBlocks = new HashSet<>();
+        this.ContentImage = new HashSet<>();
         this.gifContentBlocks = new HashSet<>();
     }
 
@@ -87,6 +87,6 @@ public class ContentTagEntity {
      * @return The total number of times this tag is used
      */
     public int getTotalUsageCount() {
-        return contentCollections.size() + imageContentBlocks.size() + gifContentBlocks.size();
+        return contentCollections.size() + ContentImage.size() + gifContentBlocks.size();
     }
 }

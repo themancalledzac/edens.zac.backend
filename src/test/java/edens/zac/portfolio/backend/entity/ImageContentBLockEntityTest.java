@@ -12,7 +12,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ImageContentEntityTest {
+class ContentImageEntityTest {
 
     private Validator validator;
 
@@ -25,7 +25,7 @@ class ImageContentEntityTest {
     @Test
     void testValidImageContentBlock() {
         // Create a valid image content block
-        ImageContentEntity imageBlock = ImageContentEntity.builder()
+        ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.IMAGE)
@@ -47,7 +47,7 @@ class ImageContentEntityTest {
                 .createDate("2023-05-15")
                 .build();
 
-        Set<ConstraintViolation<ImageContentEntity>> violations = validator.validate(imageBlock);
+        Set<ConstraintViolation<ContentImageEntity>> violations = validator.validate(imageBlock);
         assertTrue(violations.isEmpty());
         assertEquals(ContentType.IMAGE, imageBlock.getContentType());
     }
@@ -55,7 +55,7 @@ class ImageContentEntityTest {
     @Test
     void testInvalidImageContentBlockMissingRequiredField() {
         // Create an invalid image content block (missing required imageUrlWeb)
-        ImageContentEntity imageBlock = ImageContentEntity.builder()
+        ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.IMAGE)
@@ -63,7 +63,7 @@ class ImageContentEntityTest {
                 // imageUrlWeb is missing
                 .build();
 
-        Set<ConstraintViolation<ImageContentEntity>> violations = validator.validate(imageBlock);
+        Set<ConstraintViolation<ContentImageEntity>> violations = validator.validate(imageBlock);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("imageUrlWeb")));
@@ -71,14 +71,14 @@ class ImageContentEntityTest {
 
     @Test
     void testGetContentTypeReturnsImage() {
-        ImageContentEntity imageBlock = new ImageContentEntity();
+        ContentImageEntity imageBlock = new ContentImageEntity();
         assertEquals(ContentType.IMAGE, imageBlock.getContentType());
     }
 
     @Test
     void testBuilderWithAllFields() {
         // Test the builder pattern with all fields
-        ImageContentEntity imageBlock = ImageContentEntity.builder()
+        ContentImageEntity imageBlock = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.IMAGE)
@@ -127,14 +127,14 @@ class ImageContentEntityTest {
     @Test
     void testEqualsAndHashCode() {
         // Create two identical image blocks
-        ImageContentEntity imageBlock1 = ImageContentEntity.builder()
+        ContentImageEntity imageBlock1 = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.IMAGE)
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .build();
 
-        ImageContentEntity imageBlock2 = ImageContentEntity.builder()
+        ContentImageEntity imageBlock2 = ContentImageEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.IMAGE)

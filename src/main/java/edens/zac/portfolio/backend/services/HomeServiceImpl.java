@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionHomeCardEntity;
-import edens.zac.portfolio.backend.entity.ImageContentEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository;
@@ -34,14 +34,14 @@ public class HomeServiceImpl implements HomeService {
     /**
      * Helper method to get cover image URL from collection's coverImageBlockId
      */
-    private String getCoverImageUrl(ContentCollectionEntity collection) {
+    private String getCoverImageUrl(CollectionEntity collection) {
         if (collection.getCoverImageBlockId() == null) {
             return null;
         }
 
         return contentBlockRepository.findById(collection.getCoverImageBlockId())
-                .filter(block -> block instanceof ImageContentEntity)
-                .map(block -> ((ImageContentEntity) block).getImageUrlWeb())
+                .filter(block -> block instanceof ContentImageEntity)
+                .map(block -> ((ContentImageEntity) block).getImageUrlWeb())
                 .orElse(null);
     }
 
@@ -55,7 +55,7 @@ public class HomeServiceImpl implements HomeService {
     }
 
     @Override
-    public void upsertHomeCardForCollection(ContentCollectionEntity collection,
+    public void upsertHomeCardForCollection(CollectionEntity collection,
                                             boolean enabled,
                                             Integer priority,
                                             String text) {
@@ -90,7 +90,7 @@ public class HomeServiceImpl implements HomeService {
     }
 
     @Override
-    public void syncHomeCardOnCollectionUpdate(ContentCollectionEntity collection) {
+    public void syncHomeCardOnCollectionUpdate(CollectionEntity collection) {
         homeCardRepository.findByReferenceId(collection.getId())
                 .ifPresent(entity -> {
                     entity.setTitle(collection.getTitle());

@@ -12,7 +12,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GifContentEntityTest {
+class ContentGifEntityTest {
 
     private Validator validator;
 
@@ -25,7 +25,7 @@ class GifContentEntityTest {
     @Test
     void testValidGifContentBlock() {
         // Create a valid gif content block
-        GifContentEntity gifBlock = GifContentEntity.builder()
+        ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.GIF)
@@ -38,7 +38,7 @@ class GifContentEntityTest {
                 .createDate("2023-06-10")
                 .build();
 
-        Set<ConstraintViolation<GifContentEntity>> violations = validator.validate(gifBlock);
+        Set<ConstraintViolation<ContentGifEntity>> violations = validator.validate(gifBlock);
         assertTrue(violations.isEmpty());
         assertEquals(ContentType.GIF, gifBlock.getContentType());
     }
@@ -46,7 +46,7 @@ class GifContentEntityTest {
     @Test
     void testInvalidGifContentBlockMissingRequiredField() {
         // Create an invalid gif content block (missing required gifUrl)
-        GifContentEntity gifBlock = GifContentEntity.builder()
+        ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.GIF)
@@ -54,7 +54,7 @@ class GifContentEntityTest {
                 // gifUrl is missing
                 .build();
 
-        Set<ConstraintViolation<GifContentEntity>> violations = validator.validate(gifBlock);
+        Set<ConstraintViolation<ContentGifEntity>> violations = validator.validate(gifBlock);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("gifUrl")));
@@ -62,14 +62,14 @@ class GifContentEntityTest {
 
     @Test
     void testGetContentTypeReturnsGif() {
-        GifContentEntity gifBlock = new GifContentEntity();
+        ContentGifEntity gifBlock = new ContentGifEntity();
         assertEquals(ContentType.GIF, gifBlock.getContentType());
     }
 
     @Test
     void testBuilderWithAllFields() {
         // Test the builder pattern with all fields
-        GifContentEntity gifBlock = GifContentEntity.builder()
+        ContentGifEntity gifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.GIF)
@@ -100,7 +100,7 @@ class GifContentEntityTest {
     @Test
     void testOptionalFields() {
         // Test with only required fields
-        GifContentEntity minimalGifBlock = GifContentEntity.builder()
+        ContentGifEntity minimalGifBlock = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.GIF)
@@ -122,7 +122,7 @@ class GifContentEntityTest {
     @Test
     void testEqualsAndHashCode() {
         // Create two identical gif blocks
-        GifContentEntity gifBlock1 = GifContentEntity.builder()
+        ContentGifEntity gifBlock1 = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.GIF)
@@ -130,7 +130,7 @@ class GifContentEntityTest {
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
                 .build();
 
-        GifContentEntity gifBlock2 = GifContentEntity.builder()
+        ContentGifEntity gifBlock2 = ContentGifEntity.builder()
                 .collectionId(1L)
                 .orderIndex(0)
                 .blockType(ContentType.GIF)

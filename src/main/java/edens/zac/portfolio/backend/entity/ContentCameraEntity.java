@@ -59,7 +59,7 @@ public class ContentCameraEntity {
     // One-to-many relationship with ImageContentBlocks (mappedBy side)
     @OneToMany(mappedBy = "camera", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentEntity> imageContentBlocks = new HashSet<>();
+    private Set<ContentImageEntity> imageContentBlocks = new HashSet<>();
 
     /**
      * Constructor for creating a camera with just a name.

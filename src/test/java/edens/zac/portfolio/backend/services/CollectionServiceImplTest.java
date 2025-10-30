@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionUpdateDTO;
@@ -47,12 +47,12 @@ class CollectionServiceImplTest {
         dto.setType(CollectionType.BLOG);
         dto.setTitle("My Blog");
 
-        ContentCollectionEntity unsaved = new ContentCollectionEntity();
+        CollectionEntity unsaved = new CollectionEntity();
         unsaved.setTitle("My Blog");
         unsaved.setSlug("my-blog");
         unsaved.setCreatedAt(LocalDateTime.now());
 
-        ContentCollectionEntity saved = new ContentCollectionEntity();
+        CollectionEntity saved = new CollectionEntity();
         saved.setId(42L);
         saved.setTitle(unsaved.getTitle());
         saved.setSlug(unsaved.getSlug());
@@ -100,7 +100,7 @@ class CollectionServiceImplTest {
                 .homeCardText("irrelevant when disabled")
                 .build();
 
-        ContentCollectionEntity existing = new ContentCollectionEntity();
+        CollectionEntity existing = new CollectionEntity();
         existing.setId(id);
         existing.setTitle("Existing");
         existing.setSlug("existing");

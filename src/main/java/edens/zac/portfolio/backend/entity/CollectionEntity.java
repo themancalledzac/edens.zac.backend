@@ -33,7 +33,7 @@ import java.util.Set;
         }
 )
 @Data
-public class ContentCollectionEntity {
+public class CollectionEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -76,6 +76,8 @@ public class ContentCollectionEntity {
     private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
 
     // Foreign key reference to the image content block used as cover (nullable)
+    // TODO: Why should this be the 'id'? rather than the src itself? what's the benefit? who cares if it disassociates?
+    //  - would it be faster IF we didn't have to do a 'getCoverImageByImage' logic?
     @Column(name = "cover_image_block_id")
     private Long coverImageBlockId;
 
@@ -116,9 +118,9 @@ public class ContentCollectionEntity {
     // Many-to-many relationship with ContentTagEntity
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
-            name = "content_collection_tags",
+            name = "collection_tags",
             joinColumns = @JoinColumn(name = "collection_id"),
-            inverseJoinColumns = @JoinColumn(name = "tag_id"),
+            inverseJoinColumns = @JoinColumn(name = "content_tag_id"),
             indexes = {
                     @Index(name = "idx_collection_tags_collection", columnList = "collection_id"),
                     @Index(name = "idx_collection_tags_tag", columnList = "tag_id")
@@ -129,7 +131,7 @@ public class ContentCollectionEntity {
     /**
      * Constructor that ensures all collections are properly initialized
      */
-    public ContentCollectionEntity() {
+    public CollectionEntity() {
         // Set all defaults in constructor
         this.visible = true;
         this.priority = 1; // Changed from 0 to 1 to satisfy @Min(1) constraint

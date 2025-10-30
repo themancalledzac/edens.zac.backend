@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentEntity;
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
-import edens.zac.portfolio.backend.entity.ImageContentEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
@@ -52,7 +52,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting collection with slug: {} (page: {}, size: {})", slug, page, size);
 
         // Get collection metadata
-        ContentCollectionEntity collection = contentCollectionRepository.findBySlug(slug)
+        CollectionEntity collection = contentCollectionRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
 
         // Use default page size if not specified or invalid
@@ -77,7 +77,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Validating access to client gallery: {}", slug);
 
         // Get collection metadata
-        ContentCollectionEntity collection = contentCollectionRepository.findBySlug(slug)
+        CollectionEntity collection = contentCollectionRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
 
         // Check if collection is password-protected
@@ -100,7 +100,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding collections by type: {}", type);
 
         // Get collections by type with pagination
-        Page<ContentCollectionEntity> collectionsPage;
+        Page<CollectionEntity> collectionsPage;
 
         if (type == CollectionType.BLOG) {
             // Blogs are ordered by date descending
@@ -124,7 +124,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding visible collections by type ordered by date: {}", type);
 
         // Get visible collections by type, ordered by collection date descending (newest first)
-        List<ContentCollectionEntity> collections = contentCollectionRepository
+        List<CollectionEntity> collections = contentCollectionRepository
                 .findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
 
 
@@ -150,13 +150,13 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Creating new collection: {}", createRequest.getTitle());
 
         // Create entity using utility converter
-        ContentCollectionEntity entity = contentCollectionProcessingUtil.toEntity(
+        CollectionEntity entity = contentCollectionProcessingUtil.toEntity(
                 createRequest,
                 DEFAULT_PAGE_SIZE
         );
 
         // Save entity
-        ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
+        CollectionEntity savedEntity = contentCollectionRepository.save(entity);
 
         // Return full update response with all metadata (tags, people, cameras, etc.)
         return getUpdateCollectionData(savedEntity.getSlug());
@@ -168,7 +168,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding collection by ID: {}", id);
 
         // Get collection entity with content blocks
-        ContentCollectionEntity entity = contentCollectionRepository.findById(id)
+        CollectionEntity entity = contentCollectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
         // Convert to full model (includes content blocks)
@@ -182,7 +182,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Updating collection with ID: {}", id);
 
         // Get existing entity
-        ContentCollectionEntity entity = contentCollectionRepository.findById(id)
+        CollectionEntity entity = contentCollectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
         // Update basic properties via utility helper
@@ -196,7 +196,7 @@ class CollectionServiceImpl implements CollectionService {
                 entity.setCoverImageBlockId(null);
                 List<ContentEntity> remaining = contentBlockRepository.findByCollectionIdOrderByOrderIndex(id);
                 for (ContentEntity b : remaining) {
-                    if (b instanceof ImageContentEntity img) {
+                    if (b instanceof ContentImageEntity img) {
                         entity.setCoverImageBlockId(img.getId());
                         break;
                     }
@@ -211,7 +211,7 @@ class CollectionServiceImpl implements CollectionService {
         contentCollectionProcessingUtil.handleContentBlockReordering(id, updateDTO, newTextIds);
 
         // Save updated entity
-        ContentCollectionEntity savedEntity = contentCollectionRepository.save(entity);
+        CollectionEntity savedEntity = contentCollectionRepository.save(entity);
 
         applyHomeCardOptions(
                 savedEntity,
@@ -235,7 +235,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Adding content blocks (files only) to collection ID: {}", id);
 
         // Ensure collection exists and fetch entity/title
-        ContentCollectionEntity entity = contentCollectionRepository.findById(id)
+        CollectionEntity entity = contentCollectionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
 
         if (files == null || files.isEmpty()) {
@@ -281,7 +281,7 @@ class CollectionServiceImpl implements CollectionService {
                         }
                     } else {
                         // Process as image
-                        ImageContentEntity img = contentBlockProcessingUtil.processImageContentBlock(
+                        ContentImageEntity img = contentBlockProcessingUtil.processImageContentBlock(
                                 file, id, orderIndex, entity.getTitle(), null);
                         if (img != null && img.getId() != null) {
                             contentBlocks.add(img);
@@ -341,7 +341,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting all collections with pagination");
 
         // Get all collections with pagination
-        Page<ContentCollectionEntity> collectionsPage = contentCollectionRepository.findAll(pageable);
+        Page<CollectionEntity> collectionsPage = contentCollectionRepository.findAll(pageable);
 
         // Convert to models
         List<CollectionModel> models = collectionsPage.getContent().stream()
@@ -357,7 +357,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting all collections ordered by collection date");
 
         // Get all collections ordered by collection date descending
-        List<ContentCollectionEntity> collections = contentCollectionRepository.findAllByOrderByCollectionDateDesc();
+        List<CollectionEntity> collections = contentCollectionRepository.findAllByOrderByCollectionDateDesc();
 
         // Convert to basic models (no content blocks)
         return collections.stream()
@@ -372,7 +372,7 @@ class CollectionServiceImpl implements CollectionService {
      * @param entity The entity to convert
      * @return The converted model
      */
-    private CollectionModel convertToBasicModel(ContentCollectionEntity entity) {
+    private CollectionModel convertToBasicModel(CollectionEntity entity) {
         return contentCollectionProcessingUtil.convertToBasicModel(entity);
     }
 
@@ -382,7 +382,7 @@ class CollectionServiceImpl implements CollectionService {
      * @param entity The entity to convert
      * @return The converted model
      */
-    private CollectionModel convertToFullModel(ContentCollectionEntity entity) {
+    private CollectionModel convertToFullModel(CollectionEntity entity) {
         CollectionModel model = convertToBasicModel(entity);
         if (model == null) {
             // Defensive: mocked util may return null in tests; ensure non-null model to avoid NPE
@@ -407,7 +407,7 @@ class CollectionServiceImpl implements CollectionService {
      * @param contentPage The page of content blocks
      * @return The converted model
      */
-    private CollectionModel convertToModel(ContentCollectionEntity entity, Page<ContentEntity> contentPage) {
+    private CollectionModel convertToModel(CollectionEntity entity, Page<ContentEntity> contentPage) {
         // Delegate to the shared ProcessingUtil to ensure consistent enrichment (coverImage, etc.)
         return contentCollectionProcessingUtil.convertToModel(entity, contentPage);
     }
@@ -418,7 +418,7 @@ class CollectionServiceImpl implements CollectionService {
      * @param entity The entity to convert
      * @return The converted HomeCardModel
      */
-    private HomeCardModel convertToHomeCardModel(ContentCollectionEntity entity) {
+    private HomeCardModel convertToHomeCardModel(CollectionEntity entity) {
         return HomeCardModel.builder()
                 .id(entity.getId())
                 .title(entity.getTitle())
@@ -437,14 +437,14 @@ class CollectionServiceImpl implements CollectionService {
     /**
      * Helper method to get cover image URL from collection's coverImageBlockId
      */
-    private String getCoverImageUrl(ContentCollectionEntity collection) {
+    private String getCoverImageUrl(CollectionEntity collection) {
         if (collection.getCoverImageBlockId() == null) {
             return null;
         }
 
         return contentBlockRepository.findById(collection.getCoverImageBlockId())
-                .filter(block -> block instanceof ImageContentEntity)
-                .map(block -> ((ImageContentEntity) block).getImageUrlWeb())
+                .filter(block -> block instanceof ContentImageEntity)
+                .map(block -> ((ContentImageEntity) block).getImageUrlWeb())
                 .orElse(null);
     }
 
@@ -454,7 +454,7 @@ class CollectionServiceImpl implements CollectionService {
      * - If null, keep the HomeCard in sync with the current collection state
      */
     private void applyHomeCardOptions(
-            ContentCollectionEntity entity,
+            CollectionEntity entity,
             Boolean homeCardEnabled,
             Integer priority,
             String text

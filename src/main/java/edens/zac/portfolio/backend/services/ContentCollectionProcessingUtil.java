@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentEntity;
-import edens.zac.portfolio.backend.entity.ImageContentEntity;
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentCollectionRepository;
 import edens.zac.portfolio.backend.repository.ContentBlockRepository;
@@ -45,11 +45,11 @@ public class ContentCollectionProcessingUtil {
      * Loads the full ImageContentBlockModel if coverImageBlockId is set.
      * Only accepts image blocks as cover images.
      */
-    private void populateCoverImage(CollectionModel model, ContentCollectionEntity entity) {
+    private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
         if (entity.getCoverImageBlockId() != null) {
             ContentEntity block = contentBlockRepository.findById(entity.getCoverImageBlockId())
                     .orElse(null);
-            if (block instanceof ImageContentEntity) {
+            if (block instanceof ContentImageEntity) {
                 ContentModel blockModel = contentBlockProcessingUtil.convertToModel(block);
                 if (blockModel instanceof ImageContentModel imageModel) {
                     model.setCoverImage(imageModel);
@@ -71,7 +71,7 @@ public class ContentCollectionProcessingUtil {
      * @param entity The entity to convert
      * @return The converted model
      */
-    public CollectionModel convertToBasicModel(ContentCollectionEntity entity) {
+    public CollectionModel convertToBasicModel(CollectionEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -128,7 +128,7 @@ public class ContentCollectionProcessingUtil {
      * @param entity The entity to convert
      * @return The converted model
      */
-    public CollectionModel convertToFullModel(ContentCollectionEntity entity) {
+    public CollectionModel convertToFullModel(CollectionEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -154,7 +154,7 @@ public class ContentCollectionProcessingUtil {
      * @param contentPage The page of content blocks
      * @return The converted model
      */
-    public CollectionModel convertToModel(ContentCollectionEntity entity, Page<ContentEntity> contentPage) {
+    public CollectionModel convertToModel(CollectionEntity entity, Page<ContentEntity> contentPage) {
         if (entity == null) {
             return null;
         }
@@ -185,11 +185,11 @@ public class ContentCollectionProcessingUtil {
     /**
      * Minimal create: from ContentCollectionCreateRequest (type, title only), apply defaults for the rest.
      */
-    public ContentCollectionEntity toEntity(CollectionCreateRequest request, int defaultPageSize) {
+    public CollectionEntity toEntity(CollectionCreateRequest request, int defaultPageSize) {
         if (request == null) {
             throw new IllegalArgumentException("Create request cannot be null");
         }
-        ContentCollectionEntity entity = new ContentCollectionEntity();
+        CollectionEntity entity = new CollectionEntity();
         entity.setType(request.getType());
         entity.setTitle(request.getTitle());
         String baseSlug = generateSlug(request.getTitle());
@@ -221,7 +221,7 @@ public class ContentCollectionProcessingUtil {
      * - blocksPerPage (>=1)
      * - client gallery password updates via provided password hasher
      */
-    public void applyBasicUpdates(ContentCollectionEntity entity,
+    public void applyBasicUpdates(CollectionEntity entity,
                                   CollectionUpdateDTO updateDTO) {
         if (updateDTO.getTitle() != null) {
             entity.setTitle(updateDTO.getTitle());
@@ -257,7 +257,7 @@ public class ContentCollectionProcessingUtil {
             // Validate that the cover image ID references an actual image block
             ContentEntity coverBlock = contentBlockRepository.findById(updateDTO.getCoverImageId())
                     .orElse(null);
-            if (coverBlock instanceof ImageContentEntity) {
+            if (coverBlock instanceof ContentImageEntity) {
                 entity.setCoverImageBlockId(updateDTO.getCoverImageId());
             } else if (coverBlock != null) {
                 throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
@@ -452,7 +452,7 @@ public class ContentCollectionProcessingUtil {
      * @param entity The entity to update
      * @return The updated entity
      */
-    public ContentCollectionEntity applyTypeSpecificDefaults(ContentCollectionEntity entity) {
+    public CollectionEntity applyTypeSpecificDefaults(CollectionEntity entity) {
         if (entity == null || entity.getType() == null) {
             return entity;
         }

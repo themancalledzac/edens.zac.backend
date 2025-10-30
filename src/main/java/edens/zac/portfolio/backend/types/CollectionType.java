@@ -11,7 +11,9 @@ public enum CollectionType {
     BLOG("Blog"),
     PORTFOLIO("Portfolio"),
     ART_GALLERY("Art Gallery"),
-    CLIENT_GALLERY("Client Gallery");
+    CLIENT_GALLERY("Client Gallery"),
+    HOME("Home"),
+    MISC("Misc");
 
     @NotNull
     @Getter
@@ -45,7 +47,7 @@ public enum CollectionType {
 
             // If no match found, throw exception instead of defaulting
             throw new IllegalArgumentException("Invalid CollectionType value: " + value +
-                ". Valid values are: BLOG, ART_GALLERY, CLIENT_GALLERY, PORTFOLIO or their display names.");
+                ". Valid values are: BLOG, ART_GALLERY, CLIENT_GALLERY, PORTFOLIO, HOME, MISC, or their display names.");
         }
     }
 }

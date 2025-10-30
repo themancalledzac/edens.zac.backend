@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.repository;
 
-import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TextContentEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
@@ -27,13 +27,13 @@ class ContentCollectionRepositoryTest {
     @Autowired
     private ContentCollectionRepository repository;
 
-    private ContentCollectionEntity blogCollection;
-    private ContentCollectionEntity portfolioCollection;
+    private CollectionEntity blogCollection;
+    private CollectionEntity portfolioCollection;
 
     @BeforeEach
     void setUp() {
         // Create test collections
-        blogCollection = new ContentCollectionEntity();
+        blogCollection = new CollectionEntity();
         blogCollection.setType(CollectionType.BLOG);
         blogCollection.setTitle("Test Blog");
         blogCollection.setSlug("test-blog");
@@ -41,14 +41,14 @@ class ContentCollectionRepositoryTest {
         blogCollection.setPriority(1);
         blogCollection.setCollectionDate(LocalDate.now().minusDays(1));
 
-        portfolioCollection = new ContentCollectionEntity();
+        portfolioCollection = new CollectionEntity();
         portfolioCollection.setType(CollectionType.PORTFOLIO);
         portfolioCollection.setTitle("Test Portfolio");
         portfolioCollection.setSlug("test-portfolio");
         portfolioCollection.setVisible(true);
         portfolioCollection.setPriority(2);
 
-        ContentCollectionEntity hiddenCollection = new ContentCollectionEntity();
+        CollectionEntity hiddenCollection = new CollectionEntity();
         hiddenCollection.setType(CollectionType.BLOG);
         hiddenCollection.setTitle("Hidden Blog");
         hiddenCollection.setSlug("hidden-blog");
@@ -66,7 +66,7 @@ class ContentCollectionRepositoryTest {
 
     @Test
     void findByTypeAndVisibleTrueOrderByPriorityAsc_ShouldReturnVisibleCollectionsOrderedByPriority() {
-        List<ContentCollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType.BLOG);
+        List<CollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType.BLOG);
 
         assertThat(results).hasSize(1);
         assertThat(results.getFirst().getSlug()).isEqualTo("test-blog");
@@ -75,7 +75,7 @@ class ContentCollectionRepositoryTest {
 
     @Test
     void findByTypeOrderByPriorityAsc_ShouldReturnAllCollectionsOrderedByPriority() {
-        List<ContentCollectionEntity> results = repository.findTop50ByTypeOrderByPriorityAsc(CollectionType.BLOG);
+        List<CollectionEntity> results = repository.findTop50ByTypeOrderByPriorityAsc(CollectionType.BLOG);
 
         assertThat(results).hasSize(2);
         assertThat(results.get(0).getSlug()).isEqualTo("test-blog");
@@ -84,7 +84,7 @@ class ContentCollectionRepositoryTest {
 
     @Test
     void findByTypeAndVisibleTrueOrderByCollectionDateDesc_ShouldReturnVisibleBlogsOrderedByDate() {
-        List<ContentCollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType.BLOG);
+        List<CollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType.BLOG);
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0).getSlug()).isEqualTo("test-blog");
@@ -92,7 +92,7 @@ class ContentCollectionRepositoryTest {
 
     @Test
     void findByTypeOrderByCollectionDateDesc_ShouldReturnAllBlogsOrderedByDate() {
-        List<ContentCollectionEntity> results = repository.findTop50ByTypeOrderByCollectionDateDesc(CollectionType.BLOG);
+        List<CollectionEntity> results = repository.findTop50ByTypeOrderByCollectionDateDesc(CollectionType.BLOG);
 
         assertThat(results).hasSize(2);
         assertThat(results.get(0).getSlug()).isEqualTo("hidden-blog"); // newer date first
@@ -105,7 +105,7 @@ class ContentCollectionRepositoryTest {
         portfolioCollection.setPasswordProtected(true);
         entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
 
-        Optional<ContentCollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "hashed-password");
+        Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "hashed-password");
 
         assertThat(result).isPresent();
         assertThat(result.get().getSlug()).isEqualTo("test-portfolio");
@@ -116,14 +116,14 @@ class ContentCollectionRepositoryTest {
         portfolioCollection.setPasswordHash("hashed-password");
         entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
 
-        Optional<ContentCollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "wrong-password");
+        Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "wrong-password");
 
         assertThat(result).isEmpty();
     }
 
     @Test
     void findBySlug_ShouldReturnCollectionMetadata() {
-        Optional<ContentCollectionEntity> result = repository.findBySlug("test-blog");
+        Optional<CollectionEntity> result = repository.findBySlug("test-blog");
 
         assertThat(result).isPresent();
         assertThat(result.get().getTitle()).isEqualTo("Test Blog");
@@ -154,7 +154,7 @@ class ContentCollectionRepositoryTest {
         // Clear the persistence context to force a fresh query
         entityManager.clear();
 
-        Optional<ContentCollectionEntity> result = repository.findBySlugWithContentBlocks("test-blog");
+        Optional<CollectionEntity> result = repository.findBySlugWithContentBlocks("test-blog");
 
         assertThat(result).isPresent();
         assertThat(result.get().getContentBlocks()).hasSize(2);

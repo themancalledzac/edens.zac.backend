@@ -86,10 +86,10 @@ public class ContentBlockProcessingUtil {
         }
 
         return switch (entity.getContentType()) {
-            case IMAGE -> convertImageToModel((ImageContentEntity) entity);
+            case IMAGE -> convertImageToModel((ContentImageEntity) entity);
             case TEXT -> convertTextToModel((TextContentEntity) entity);
-            case CODE -> convertCodeToModel((CodeContentEntity) entity);
-            case GIF -> convertGifToModel((GifContentEntity) entity);
+            case CODE -> convertCodeToModel((ContentCodeEntity) entity);
+            case GIF -> convertGifToModel((ContentGifEntity) entity);
         };
     }
 
@@ -129,7 +129,7 @@ public class ContentBlockProcessingUtil {
      * @param entity The image content block entity to convert
      * @return The corresponding image content block model
      */
-    private ImageContentModel convertImageToModel(ImageContentEntity entity) {
+    private ImageContentModel convertImageToModel(ContentImageEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -186,7 +186,7 @@ public class ContentBlockProcessingUtil {
         }
 
         // Populate collections array - fetch all collections this image belongs to
-        List<ImageContentEntity> instances = new ArrayList<>();
+        List<ContentImageEntity> instances = new ArrayList<>();
         if (entity.getFileIdentifier() != null) {
             instances = contentBlockRepository.findAllByFileIdentifier(entity.getFileIdentifier());
         } else {
@@ -195,7 +195,7 @@ public class ContentBlockProcessingUtil {
         }
 
         List<ImageCollection> collections = new ArrayList<>();
-        for (ImageContentEntity instance : instances) {
+        for (ContentImageEntity instance : instances) {
             if (instance.getCollectionId() != null) {
                 contentCollectionRepository.findById(instance.getCollectionId())
                         .ifPresent(collection -> {
@@ -243,7 +243,7 @@ public class ContentBlockProcessingUtil {
      * @param entity The code content block entity to convert
      * @return The corresponding code content block model
      */
-    private CodeContentModel convertCodeToModel(CodeContentEntity entity) {
+    private CodeContentModel convertCodeToModel(ContentCodeEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -270,7 +270,7 @@ public class ContentBlockProcessingUtil {
      * @param entity The gif content block entity to convert
      * @return The corresponding gif content block model
      */
-    private GifContentModel convertGifToModel(GifContentEntity entity) {
+    private GifContentModel convertGifToModel(ContentGifEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -385,7 +385,7 @@ public class ContentBlockProcessingUtil {
      * @param caption      The caption for the code block
      * @return The saved code content block entity
      */
-    public CodeContentEntity processCodeContentBlock(
+    public ContentCodeEntity processCodeContentBlock(
             String code,
             String language,
             Long collectionId,
@@ -401,7 +401,7 @@ public class ContentBlockProcessingUtil {
             String validatedLanguage = validateCodeLanguage(language);
 
             // Create and return the code content block entity
-            CodeContentEntity entity = new CodeContentEntity();
+            ContentCodeEntity entity = new ContentCodeEntity();
             entity.setCollectionId(collectionId);
             entity.setOrderIndex(orderIndex);
             entity.setBlockType(ContentType.CODE);
@@ -429,7 +429,7 @@ public class ContentBlockProcessingUtil {
      * @param caption      The caption for the gif
      * @return The saved gif content block entity
      */
-    public GifContentEntity processGifContentBlock(
+    public ContentGifEntity processGifContentBlock(
             MultipartFile file,
             Long collectionId,
             Integer orderIndex,
@@ -455,7 +455,7 @@ public class ContentBlockProcessingUtil {
             int height = firstFrame.getHeight();
 
             // Create the gif content block entity
-            GifContentEntity entity = new GifContentEntity();
+            ContentGifEntity entity = new ContentGifEntity();
             entity.setCollectionId(collectionId);
             entity.setOrderIndex(orderIndex);
             entity.setBlockType(ContentType.GIF);
@@ -793,7 +793,7 @@ public class ContentBlockProcessingUtil {
      * @param caption      The caption for the image
      * @return The saved image content block entity
      */
-    public ImageContentEntity processImageContentBlock(
+    public ContentImageEntity processImageContentBlock(
             MultipartFile file,
             Long collectionId,
             Integer orderIndex,
@@ -847,7 +847,7 @@ public class ContentBlockProcessingUtil {
             String date = LocalDate.now().toString();
             String fileIdentifier = date + "/" + originalFilename;
 
-            ImageContentEntity entity = ImageContentEntity.builder()
+            ContentImageEntity entity = ContentImageEntity.builder()
                     .collectionId(collectionId)
                     .orderIndex(orderIndex)
                     .blockType(ContentType.IMAGE)
@@ -895,7 +895,7 @@ public class ContentBlockProcessingUtil {
             }
 
             // STEP 7: Save and return
-            ImageContentEntity savedEntity = contentBlockRepository.save(entity);
+            ContentImageEntity savedEntity = contentBlockRepository.save(entity);
             log.info("Successfully processed image content block with ID: {}", savedEntity.getId());
             return savedEntity;
 
@@ -1201,7 +1201,7 @@ public class ContentBlockProcessingUtil {
      * @param entity The image entity to update
      * @param updateRequest The update request containing the fields to update
      */
-    public void applyImageUpdates(ImageContentEntity entity, ImageUpdateRequest updateRequest) {
+    public void applyImageUpdates(ContentImageEntity entity, ImageUpdateRequest updateRequest) {
         // Update basic image metadata fields if provided
         if (updateRequest.getTitle() != null) {
             entity.setTitle(updateRequest.getTitle());
@@ -1352,7 +1352,7 @@ public class ContentBlockProcessingUtil {
      * @param image The image entity being updated
      * @param collectionUpdates List of collection updates containing visibility and orderIndex information
      */
-    public void handleCollectionVisibilityUpdates(ImageContentEntity image, List<ImageCollection> collectionUpdates) {
+    public void handleCollectionVisibilityUpdates(ContentImageEntity image, List<ImageCollection> collectionUpdates) {
         if (collectionUpdates == null || collectionUpdates.isEmpty()) {
             return;
         }

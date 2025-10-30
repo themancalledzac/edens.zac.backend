@@ -55,10 +55,10 @@ public class ContentPersonEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // Many-to-many relationship with ImageContentBlock (mappedBy side - non-owning)
+    // Many-to-many relationship with ImageContent (mappedBy side - non-owning)
     @ManyToMany(mappedBy = "people", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentEntity> imageContentBlocks = new HashSet<>();
+    private Set<ContentImageEntity> ContentImage = new HashSet<>();
 
     /**
      * Constructor for creating a person with just a name.
@@ -68,7 +68,7 @@ public class ContentPersonEntity {
      */
     public ContentPersonEntity(String personName) {
         this.personName = personName;
-        this.imageContentBlocks = new HashSet<>();
+        this.ContentImage = new HashSet<>();
     }
 
     /**
@@ -77,6 +77,6 @@ public class ContentPersonEntity {
      * @return The total number of images featuring this person
      */
     public int getImageCount() {
-        return imageContentBlocks.size();
+        return ContentImage.size();
     }
 }

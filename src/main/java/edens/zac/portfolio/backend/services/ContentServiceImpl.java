@@ -135,7 +135,7 @@ class ContentServiceImpl implements ContentService {
                     continue;
                 }
 
-                ImageContentEntity image = (ImageContentEntity) contentBlockRepository
+                ContentImageEntity image = (ContentImageEntity) contentBlockRepository
                         .findById(imageId)
                         .orElseThrow(() -> new EntityNotFoundException("Image not found: " + imageId));
 
@@ -163,7 +163,7 @@ class ContentServiceImpl implements ContentService {
                 }
 
                 // Save the updated image
-                ImageContentEntity savedImage = contentBlockRepository.save(image);
+                ContentImageEntity savedImage = contentBlockRepository.save(image);
 
                 // Convert to model and add to results
                 ImageContentModel imageModel = (ImageContentModel) contentBlockProcessingUtil.convertToModel(savedImage);
@@ -208,7 +208,7 @@ class ContentServiceImpl implements ContentService {
      * Apply image metadata updates and track newly created entities (cameras, lenses, film types).
      */
     private void applyImageUpdatesWithTracking(
-            ImageContentEntity image,
+            ContentImageEntity image,
             ImageUpdateRequest updateRequest,
             Set<ContentCameraEntity> newCameras,
             Set<ContentLensEntity> newLenses,
@@ -308,7 +308,7 @@ class ContentServiceImpl implements ContentService {
     /**
      * Update image tags and track newly created ones.
      */
-    private void updateImageTags(ImageContentEntity image, ImageUpdateRequest.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
+    private void updateImageTags(ContentImageEntity image, ImageUpdateRequest.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
         Set<ContentTagEntity> tags = new HashSet<>(image.getTags());
 
         // Remove tags if specified
@@ -350,7 +350,7 @@ class ContentServiceImpl implements ContentService {
     /**
      * Update image people and track newly created ones.
      */
-    private void updateImagePeople(ImageContentEntity image, ImageUpdateRequest.PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
+    private void updateImagePeople(ContentImageEntity image, ImageUpdateRequest.PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
         Set<ContentPersonEntity> people = new HashSet<>(image.getPeople());
 
         // Remove people if specified

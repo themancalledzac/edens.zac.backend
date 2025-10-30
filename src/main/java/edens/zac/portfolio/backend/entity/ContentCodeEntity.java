@@ -13,13 +13,13 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 @Entity
-@Table(name = "code_content_block")
-@PrimaryKeyJoinColumn(name = "content_block_id")
+@Table(name = "content_code")
+@PrimaryKeyJoinColumn(name = "content_code_id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @SuperBuilder
-public class CodeContentEntity extends ContentEntity {
+public class ContentCodeEntity extends ContentEntity {
 
     private String title;
     
