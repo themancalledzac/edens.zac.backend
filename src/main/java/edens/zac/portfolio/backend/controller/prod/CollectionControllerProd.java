@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.controller.prod;
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.HomeCardModel;
-import edens.zac.portfolio.backend.model.HomePageResponse;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
@@ -16,7 +15,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +76,6 @@ public class CollectionControllerProd {
     public ResponseEntity<?> getCollectionBySlug(
             @PathVariable String slug,
             @RequestParam(defaultValue = "0") int page,
-            // TODO: need to use a 'default' variable for this, use in all locations
             @RequestParam(defaultValue = "30") int size) {
         try {
             // Normalize pagination parameters: pages are 0-based; coerce negatives to 0 (first page)
@@ -173,38 +170,4 @@ public class CollectionControllerProd {
                     .body("Failed to validate access: " + e.getMessage());
         }
     }
-
-    // TODO: need to use our get collections endpoint from now on. keeping for visibility for now
-//    /**
-//     * Get Home Page cards sourced from HomeCardEntity (collection-aware)
-//     *
-//     * @param maxPriority maximum priority to include (default 2)
-//     * @param limit optional max number of items to return
-//     */
-//    @GetMapping("/homePage")
-//    public ResponseEntity<?> getHomePage(
-//            @RequestParam(defaultValue = "2") int maxPriority,
-//            @RequestParam(required = false) Integer limit) {
-//        try {
-//            if (maxPriority <= 0) {
-//                maxPriority = 2;
-//            }
-//            List<HomeCardModel> items = homeService.getHomePage(maxPriority);
-//            if (limit != null && limit > 0 && items.size() > limit) {
-//                items = items.subList(0, limit);
-//            }
-//            HomePageResponse response = new HomePageResponse(
-//                    items,
-//                    items.size(),
-//                    maxPriority,
-//                    Instant.now()
-//            );
-//            return ResponseEntity.ok(response);
-//        } catch (Exception e) {
-//            log.error("Error getting home page cards: {}", e.getMessage(), e);
-//            return ResponseEntity
-//                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-//                    .body("Failed to retrieve home page: " + e.getMessage());
-//        }
-//    }
 }

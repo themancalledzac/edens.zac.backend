@@ -1,15 +1,16 @@
 package edens.zac.portfolio.backend.controller.dev;
 
-import edens.zac.portfolio.backend.model.ContentImageModel;
-import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
+import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.ContentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -26,66 +27,77 @@ public class ContentControllerDev {
 
     private final ContentService contentService;
 
+
     /**
-     * Create a new tag
-     * POST /api/dev/content/tags
-     * TODO: Update our 'createTagModel' to be a static map of 'tagName' and somethign with image
+     * Create and upload images to a collection
+     * POST /api/write/content/images/{collectionId}
      *
-     * @param request Map containing "tagName"
-     * @return ResponseEntity with created tag
+     * @param collectionId ID of the collection to add images to
+     * @param files        List of image files to upload
+     * @return ResponseEntity with created images
      */
-    @PostMapping("/tags")
-    public ResponseEntity<?> createTag(@RequestBody Map<String, String> request) {
+    @PostMapping(value = "/images/{collectionId}", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
+    public ResponseEntity<?> createImages(
+            @PathVariable Long collectionId,
+            @RequestPart(value = "files", required = true) List<MultipartFile> files) {
         try {
-            String tagName = request.get("tagName");
-            Map<String, Object> response = contentService.createTag(tagName);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            if (files == null || files.isEmpty()) {
+                return ResponseEntity
+                        .status(HttpStatus.BAD_REQUEST)
+                        .body("No files provided. Use 'files' part with one or more images.");
+            }
+
+            List<ContentImageModel> createdImages = contentService.createImages(collectionId, files);
+
+            log.info("Successfully created {} image(s) in collection: {}", files.size(), collectionId);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdImages);
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid tag creation request: {}", e.getMessage());
+            log.warn("Invalid image creation request: {}", e.getMessage());
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(e.getMessage());
-        } catch (DataIntegrityViolationException e) {
-            log.error("Data integrity error creating tag: {}", e.getMessage());
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(e.getMessage());
         } catch (Exception e) {
-            log.error("Error creating tag: {}", e.getMessage(), e);
+            log.error("Error creating images for collection {}: {}", collectionId, e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to create tag: " + e.getMessage());
+                    .body("Failed to create images: " + e.getMessage());
         }
     }
 
     /**
-     * Create a new person
-     * POST /api/dev/content/people
+     * Create text or code content
+     * POST /api/write/content/content
      *
-     * @param request Map containing "personName"
-     * @return ResponseEntity with created person
+     * @param request CreateTextContentRequest or CreateCodeContentRequest
+     * @return ResponseEntity with created content
      */
-    @PostMapping("/people")
-    public ResponseEntity<?> createPerson(@RequestBody Map<String, String> request) {
+    @PostMapping("/content")
+    public ResponseEntity<?> createContent(@RequestBody @Valid CreateContentRequest request) {
         try {
-            String personName = request.get("personName");
-            Map<String, Object> response = contentService.createPerson(personName);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            if (request instanceof CreateTextContentRequest) {
+                ContentTextModel createdContent = contentService.createTextContent((CreateTextContentRequest) request);
+                log.info("Successfully created text content: {}", createdContent.getId());
+                return ResponseEntity.status(HttpStatus.CREATED).body(createdContent);
+            } else if (request instanceof CreateCodeContentRequest) {
+                ContentCodeModel createdContent = contentService.createCodeContent((CreateCodeContentRequest) request);
+                log.info("Successfully created code content: {}", createdContent.getId());
+                return ResponseEntity.status(HttpStatus.CREATED).body(createdContent);
+            } else {
+                return ResponseEntity
+                        .status(HttpStatus.BAD_REQUEST)
+                        .body("Unsupported content type. Use CreateTextContentRequest or CreateCodeContentRequest.");
+            }
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid person creation request: {}", e.getMessage());
+            log.warn("Invalid content creation request: {}", e.getMessage());
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(e.getMessage());
-        } catch (DataIntegrityViolationException e) {
-            log.error("Data integrity error creating person: {}", e.getMessage());
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(e.getMessage());
         } catch (Exception e) {
-            log.error("Error creating person: {}", e.getMessage(), e);
+            log.error("Error creating content: {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to create person: " + e.getMessage());
+                    .body("Failed to create content: " + e.getMessage());
         }
     }
 
@@ -121,6 +133,25 @@ public class ContentControllerDev {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to update images: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get all images ordered by date descending
+     * GET /api/write/content/images
+     *
+     * @return ResponseEntity with list of all images
+     */
+    @GetMapping("/images")
+    public ResponseEntity<List<ContentImageModel>> getAllImages() {
+        try {
+            List<ContentImageModel> images = contentService.getAllImages();
+            return ResponseEntity.ok(images);
+        } catch (Exception e) {
+            log.error("Error fetching all images: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .build();
         }
     }
 
@@ -161,21 +192,65 @@ public class ContentControllerDev {
     }
 
     /**
-     * Get all images ordered by date descending
-     * GET /api/write/content/images
+     * Create a new tag
+     * POST /api/dev/content/tags
      *
-     * @return ResponseEntity with list of all images
+     * @param request CreateTagRequest containing tag name
+     * @return ResponseEntity with created tag
      */
-    @GetMapping("/images")
-    public ResponseEntity<List<ContentImageModel>> getAllImages() {
+    @PostMapping("/tags")
+    public ResponseEntity<?> createTag(@RequestBody @Valid CreateTagRequest request) {
         try {
-            List<ContentImageModel> images = contentService.getAllImages();
-            return ResponseEntity.ok(images);
+            String tagName = request.getTagName();
+            Map<String, Object> response = contentService.createTag(tagName);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid tag creation request: {}", e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(e.getMessage());
+        } catch (DataIntegrityViolationException e) {
+            log.error("Data integrity error creating tag: {}", e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(e.getMessage());
         } catch (Exception e) {
-            log.error("Error fetching all images: {}", e.getMessage(), e);
+            log.error("Error creating tag: {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .build();
+                    .body("Failed to create tag: " + e.getMessage());
         }
     }
+
+    /**
+     * Create a new person
+     * POST /api/dev/content/people
+     *
+     * @param request CreatePersonRequest containing person name
+     * @return ResponseEntity with created person
+     */
+    @PostMapping("/people")
+    public ResponseEntity<?> createPerson(@RequestBody @Valid CreatePersonRequest request) {
+        try {
+            String personName = request.getPersonName();
+            Map<String, Object> response = contentService.createPerson(personName);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid person creation request: {}", e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(e.getMessage());
+        } catch (DataIntegrityViolationException e) {
+            log.error("Data integrity error creating person: {}", e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(e.getMessage());
+        } catch (Exception e) {
+            log.error("Error creating person: {}", e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to create person: " + e.getMessage());
+        }
+    }
+
 }

@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.model.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -102,4 +103,29 @@ public interface ContentService {
      * @return List of all images
      */
     List<ContentImageModel> getAllImages();
+
+    /**
+     * Create one or more images and associate them with a collection
+     *
+     * @param collectionId ID of the collection to associate images with
+     * @param files List of image files to upload
+     * @return List of created image models
+     */
+    List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files);
+
+    /**
+     * Create text content
+     *
+     * @param request Text content creation request
+     * @return Created text content model
+     */
+    ContentTextModel createTextContent(CreateTextContentRequest request);
+
+    /**
+     * Create code content
+     *
+     * @param request Code content creation request
+     * @return Created code content model
+     */
+    ContentCodeModel createCodeContent(CreateCodeContentRequest request);
 }
