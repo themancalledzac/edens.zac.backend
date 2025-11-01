@@ -10,7 +10,9 @@ import lombok.NoArgsConstructor;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
-public class TextContentModel extends ContentModel {
+public class ContentTextModel extends ContentModel {
+
+    // Note: title is inherited from ContentModel
 
     @NotBlank
     @Size(max = 10000)
@@ -20,7 +22,4 @@ public class TextContentModel extends ContentModel {
     @NotNull
     @Size(max = 20)
     private String formatType; // "markdown", "html", "plain"
-
-    @Size(max = 250)
-    private String title;
 }

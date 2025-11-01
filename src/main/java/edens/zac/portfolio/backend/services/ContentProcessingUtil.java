@@ -90,6 +90,7 @@ public class ContentProcessingUtil {
             case TEXT -> convertTextToModel((TextContentEntity) entity);
             case CODE -> convertCodeToModel((ContentCodeEntity) entity);
             case GIF -> convertGifToModel((ContentGifEntity) entity);
+//            case COLLECTION -> convertCollectionToModel((ContentCollectionEntity) entity);
         };
     }
 
@@ -129,12 +130,12 @@ public class ContentProcessingUtil {
      * @param entity The image content entity to convert
      * @return The corresponding image content model
      */
-    private ImageContentModel convertImageToModel(ContentImageEntity entity) {
+    private ContentImageModel convertImageToModel(ContentImageEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        ImageContentModel model = new ImageContentModel();
+        ContentImageModel model = new ContentImageModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);
@@ -220,12 +221,12 @@ public class ContentProcessingUtil {
      * @param entity The text content entity to convert
      * @return The corresponding text content model
      */
-    private TextContentModel convertTextToModel(TextContentEntity entity) {
+    private ContentTextModel convertTextToModel(TextContentEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        TextContentModel model = new TextContentModel();
+        ContentTextModel model = new ContentTextModel();
 
         // Copy base properties
         copyBaseProperties(entity, model);
@@ -1201,7 +1202,7 @@ public class ContentProcessingUtil {
      * @param entity The image entity to update
      * @param updateRequest The update request containing the fields to update
      */
-    public void applyImageUpdates(ContentImageEntity entity, ImageUpdateRequest updateRequest) {
+    public void applyImageUpdates(ContentImageEntity entity, ContentImageUpdateRequest updateRequest) {
         // Update basic image metadata fields if provided
         if (updateRequest.getTitle() != null) {
             entity.setTitle(updateRequest.getTitle());
@@ -1237,7 +1238,7 @@ public class ContentProcessingUtil {
 
         // Handle camera update using prev/new/remove pattern
         if (updateRequest.getCamera() != null) {
-            ImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
+            ContentImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
 
             if (Boolean.TRUE.equals(cameraUpdate.getRemove())) {
                 // Remove camera association
@@ -1263,7 +1264,7 @@ public class ContentProcessingUtil {
 
         // Handle lens update using prev/new/remove pattern
         if (updateRequest.getLens() != null) {
-            ImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
+            ContentImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
 
             if (Boolean.TRUE.equals(lensUpdate.getRemove())) {
                 // Remove lens association
@@ -1289,7 +1290,7 @@ public class ContentProcessingUtil {
 
         // Handle film type update using prev/new/remove pattern
         if (updateRequest.getFilmType() != null) {
-            ImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
+            ContentImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
 
             if (Boolean.TRUE.equals(filmTypeUpdate.getRemove())) {
                 // Remove film type association

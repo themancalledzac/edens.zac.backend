@@ -41,7 +41,7 @@ public interface ContentService {
      * @param updates List of image update requests
      * @return Map containing update results (updatedIds, updatedCount, errors)
      */
-    Map<String, Object> updateImages(List<ImageUpdateRequest> updates);
+    Map<String, Object> updateImages(List<ContentImageUpdateRequest> updates);
 
     /**
      * Delete one or more images
@@ -101,5 +101,5 @@ public interface ContentService {
      *
      * @return List of all images
      */
-    List<ImageContentModel> getAllImages();
+    List<ContentImageModel> getAllImages();
 }

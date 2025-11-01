@@ -15,27 +15,89 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "contentType")
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = ImageContentModel.class, name = "IMAGE"),
-    @JsonSubTypes.Type(value = TextContentModel.class, name = "TEXT"),
-    @JsonSubTypes.Type(value = ContentCodeModel.class, name = "CODE"),
-    @JsonSubTypes.Type(value = ContentGifModel.class, name = "GIF")
+        @JsonSubTypes.Type(value = ContentImageModel.class, name = "IMAGE"),
+        @JsonSubTypes.Type(value = ContentTextModel.class, name = "TEXT"),
+        @JsonSubTypes.Type(value = ContentCodeModel.class, name = "CODE"),
+        @JsonSubTypes.Type(value = ContentGifModel.class, name = "GIF"),
+        @JsonSubTypes.Type(value = ContentCollectionModel.class, name = "COLLECTION")
 })
 public class ContentModel {
+    /**
+     * ID of the actual entity (not the content table ID).
+     * - For IMAGE: ContentImageEntity.id
+     * - For COLLECTION: The referenced CollectionEntity.id
+     * - For TEXT/CODE/GIF: Their respective entity IDs
+     */
     private Long id;
 
+    /**
+     * Type of content (IMAGE, TEXT, CODE, GIF, COLLECTION).
+     * Used for frontend rendering logic.
+     */
     @NotNull
-    private Long collectionId;
+    private ContentType contentType;
 
+    /**
+     * Title of this content.
+     * - For IMAGE: Image title
+     * - For COLLECTION: Collection title
+     * - For TEXT/CODE/GIF: Content title
+     */
+    private String title;
+
+    /**
+     * Description text for this content.
+     * Populated from:
+     * - For COLLECTION content: The referenced collection's description field
+     * - For all other content: The collection_content.caption field (per-collection override)
+     */
+    @Size(max = 500)
+    private String description;
+
+    /**
+     * Preview/cover image URL.
+     * - For IMAGE: The image URL itself
+     * - For COLLECTION: The collection's cover image URL
+     * - For GIF: The GIF or thumbnail URL
+     * - For TEXT/CODE: null (no image)
+     */
+    private String imageUrl;
+
+    // =============================================================================
+    // JOIN TABLE METADATA (from collection_content)
+    // These fields are populated from CollectionContentEntity when content is
+    // fetched in the context of a specific collection. Same content can have
+    // different values in different collections.
+    // =============================================================================
+
+    /**
+     * Position of this content within the parent collection.
+     * Lower values appear first. Collection-specific.
+     * Populated from collection_content.order_index.
+     */
     @NotNull
     @Min(0)
     private Integer orderIndex;
 
-    @NotNull
-    private ContentType contentType;
+    /**
+     * Whether this content is visible in the parent collection.
+     * Same content can be visible in one collection but hidden in another.
+     * Populated from collection_content.visible.
+     * Defaults to true if not specified.
+     */
+    private Boolean visible;
 
-    @Size(max = 500)
-    private String caption;
+    // =============================================================================
+    // CONTENT METADATA (from content table)
+    // =============================================================================
 
+    /**
+     * When this content was created.
+     */
     private LocalDateTime createdAt;
+
+    /**
+     * When this content was last updated.
+     */
     private LocalDateTime updatedAt;
 }

@@ -30,7 +30,7 @@ public class CollectionModel extends CollectionBaseModel {
     private Integer contentPerPage;
 
     @Min(value = 0, message = "Total content must be 0 or greater")
-    private Integer totalContent;
+    private Integer contentCount;
 
     @Min(value = 1, message = "Current page must be 1 or greater")
     private Integer currentPage;
@@ -40,11 +40,7 @@ public class CollectionModel extends CollectionBaseModel {
 
     // Cover image for the collection (full ContentImageModel when set)
     @Valid
-    private ImageContentModel coverImage;
-
-    // Home page card settings
-    private Boolean homeCardEnabled;
-    private String homeCardText;
+    private ContentImageModel coverImage;
 
     // Content (paginated)
     @Valid

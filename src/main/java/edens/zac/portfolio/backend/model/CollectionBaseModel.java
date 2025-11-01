@@ -44,11 +44,6 @@ public abstract class CollectionBaseModel {
 
     private Boolean visible;
 
-    @Min(value = 1, message = "Priority must be between 1 and 4 (1 = best, 4 = worst)")
-    @Max(value = 4, message = "Priority must be between 1 and 4 (1 = best, 4 = worst)")
-    private Integer priority;
-
-
     // Client gallery security fields
     private Boolean isPasswordProtected;
     private Boolean hasAccess;

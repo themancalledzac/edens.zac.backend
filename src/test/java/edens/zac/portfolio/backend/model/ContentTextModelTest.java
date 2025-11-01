@@ -13,16 +13,16 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class TextContentModelTest {
+class ContentTextModelTest {
 
     private Validator validator;
-    private TextContentModel textContent;
+    private ContentTextModel textContent;
 
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
-        textContent = new TextContentModel();
+        textContent = new ContentTextModel();
     }
 
     @Test
@@ -37,7 +37,7 @@ class TextContentModelTest {
         textContent.setTitle("Test Title");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -54,11 +54,11 @@ class TextContentModelTest {
         textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<TextContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
         assertEquals("content", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be blank"));
     }
@@ -74,11 +74,11 @@ class TextContentModelTest {
         textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<TextContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
         assertEquals("content", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be blank"));
     }
@@ -95,11 +95,11 @@ class TextContentModelTest {
         textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<TextContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
         assertEquals("content", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 10000"));
     }
@@ -116,7 +116,7 @@ class TextContentModelTest {
         textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -133,11 +133,11 @@ class TextContentModelTest {
         textContent.setFormatType(null); // Invalid - null
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<TextContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
         assertEquals("formatType", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
@@ -154,11 +154,11 @@ class TextContentModelTest {
         textContent.setFormatType(longFormatType); // Invalid - too long
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<TextContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
         assertEquals("formatType", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 20"));
     }
@@ -175,7 +175,7 @@ class TextContentModelTest {
         textContent.setFormatType(maxFormatType);
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -196,7 +196,7 @@ class TextContentModelTest {
             textContent.setFormatType(format);
 
             // Act
-            Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+            Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
             // Assert
             assertTrue(violations.isEmpty(), "Format type '" + format + "' should be valid");
@@ -216,11 +216,11 @@ class TextContentModelTest {
         textContent.setTitle(longTitle); // Invalid - too long
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<TextContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
         assertEquals("title", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 250"));
     }
@@ -238,7 +238,7 @@ class TextContentModelTest {
         textContent.setTitle(maxTitle);
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -256,7 +256,7 @@ class TextContentModelTest {
         textContent.setTitle(null); // Should be valid - title is optional
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -266,7 +266,7 @@ class TextContentModelTest {
     @DisplayName("Lombok inheritance works correctly")
     void lombokInheritance_worksCorrectly() {
         // Arrange
-        TextContentModel block1 = new TextContentModel();
+        ContentTextModel block1 = new ContentTextModel();
         block1.setId(1L);
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
@@ -275,7 +275,7 @@ class TextContentModelTest {
         block1.setFormatType("markdown");
         block1.setTitle("Test Title");
 
-        TextContentModel block2 = new TextContentModel();
+        ContentTextModel block2 = new ContentTextModel();
         block2.setId(1L);
         block2.setCollectionId(1L);
         block2.setOrderIndex(0);
@@ -294,14 +294,14 @@ class TextContentModelTest {
     @DisplayName("Different content creates different objects")
     void differentContent_createsDifferentObjects() {
         // Arrange
-        TextContentModel block1 = new TextContentModel();
+        ContentTextModel block1 = new ContentTextModel();
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.TEXT);
         block1.setContent("First content");
         block1.setFormatType("markdown");
 
-        TextContentModel block2 = new TextContentModel();
+        ContentTextModel block2 = new ContentTextModel();
         block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.TEXT);
@@ -316,14 +316,14 @@ class TextContentModelTest {
     @DisplayName("Different formatType creates different objects")
     void differentFormatType_createsDifferentObjects() {
         // Arrange
-        TextContentModel block1 = new TextContentModel();
+        ContentTextModel block1 = new ContentTextModel();
         block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.TEXT);
         block1.setContent("Test content");
         block1.setFormatType("markdown");
 
-        TextContentModel block2 = new TextContentModel();
+        ContentTextModel block2 = new ContentTextModel();
         block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.TEXT);
@@ -350,7 +350,7 @@ class TextContentModelTest {
         textContent.setTitle(longTitle); // Error 6 - long title
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(6, violations.size());
@@ -367,11 +367,11 @@ class TextContentModelTest {
         textContent.setFormatType("markdown");
 
         // Act
-        Set<ConstraintViolation<TextContentModel>> violations = validator.validate(textContent);
+        Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<TextContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
         assertEquals("collectionId", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }

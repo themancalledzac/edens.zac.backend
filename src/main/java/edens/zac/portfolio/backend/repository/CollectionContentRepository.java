@@ -1,0 +1,130 @@
+package edens.zac.portfolio.backend.repository;
+
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.ContentEntity;
+import edens.zac.portfolio.backend.types.ContentType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+/**
+ * Repository for CollectionContentEntity (join table between Collection and Content).
+ * This replaces the old ContentRepository methods that referenced collectionId/orderIndex.
+ */
+@Repository
+public interface CollectionContentRepository extends JpaRepository<CollectionContentEntity, Long> {
+
+    /**
+     * Find all join table entries for a collection, ordered by orderIndex.
+     *
+     * @param collectionId The ID of the collection
+     * @return List of CollectionContentEntity ordered by orderIndex
+     */
+    @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId ORDER BY cc.orderIndex ASC")
+    List<CollectionContentEntity> findByCollectionIdOrderByOrderIndex(@Param("collectionId") Long collectionId);
+
+    /**
+     * Find join table entries for a collection with pagination.
+     *
+     * @param collectionId The ID of the collection
+     * @param pageable     Pagination information
+     * @return Page of CollectionContentEntity
+     */
+    @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId")
+    Page<CollectionContentEntity> findByCollectionId(@Param("collectionId") Long collectionId, Pageable pageable);
+
+    /**
+     * Count the number of content items in a collection (via join table).
+     *
+     * @param collectionId The ID of the collection
+     * @return The count of content in the collection
+     */
+    @Query("SELECT COUNT(cc) FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId")
+    long countByCollectionId(@Param("collectionId") Long collectionId);
+
+    /**
+     * Find content of a specific type for a collection.
+     *
+     * @param collectionId The ID of the collection
+     * @param contentType  The type of content
+     * @return List of CollectionContentEntity with specified content type
+     */
+    @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.contentType = :contentType ORDER BY cc.orderIndex ASC")
+    List<CollectionContentEntity> findByCollectionIdAndContentType(@Param("collectionId") Long collectionId,
+                                                                     @Param("contentType") ContentType contentType);
+
+    /**
+     * Get the maximum orderIndex value for a collection's content.
+     *
+     * @param collectionId The ID of the collection
+     * @return The maximum orderIndex value, or null if no content exists
+     */
+    @Query("SELECT MAX(cc.orderIndex) FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId")
+    Integer getMaxOrderIndexForCollection(@Param("collectionId") Long collectionId);
+
+    /**
+     * Update the orderIndex of a specific join table entry.
+     *
+     * @param id         The ID of the CollectionContentEntity
+     * @param orderIndex The new orderIndex value
+     * @return The number of affected rows (should be 1)
+     */
+    @Modifying
+    @Query("UPDATE CollectionContentEntity cc SET cc.orderIndex = :orderIndex WHERE cc.id = :id")
+    int updateOrderIndex(@Param("id") Long id, @Param("orderIndex") Integer orderIndex);
+
+    /**
+     * Shift orderIndex values for a range of content in a collection.
+     *
+     * @param collectionId The ID of the collection
+     * @param startIndex   The starting orderIndex (inclusive)
+     * @param endIndex     The ending orderIndex (inclusive)
+     * @param shiftAmount  The amount to shift (positive or negative)
+     * @return The number of affected rows
+     */
+    @Modifying
+    @Query("UPDATE CollectionContentEntity cc SET cc.orderIndex = cc.orderIndex + :shiftAmount " +
+            "WHERE cc.collection.id = :collectionId AND cc.orderIndex >= :startIndex AND cc.orderIndex <= :endIndex")
+    int shiftOrderIndices(@Param("collectionId") Long collectionId,
+                          @Param("startIndex") Integer startIndex,
+                          @Param("endIndex") Integer endIndex,
+                          @Param("shiftAmount") Integer shiftAmount);
+
+    /**
+     * Delete all join table entries for a collection.
+     * This dissociates all content from the collection but does NOT delete the content itself.
+     *
+     * @param collectionId The ID of the collection
+     */
+    @Modifying
+    @Query("DELETE FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId")
+    void deleteByCollectionId(@Param("collectionId") Long collectionId);
+
+    /**
+     * Find a join table entry by collection and orderIndex.
+     *
+     * @param collectionId The ID of the collection
+     * @param orderIndex   The orderIndex value
+     * @return The CollectionContentEntity, or null if not found
+     */
+    @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.orderIndex = :orderIndex")
+    CollectionContentEntity findByCollectionIdAndOrderIndex(@Param("collectionId") Long collectionId,
+                                                             @Param("orderIndex") Integer orderIndex);
+
+    /**
+     * Remove specific content from a collection (delete join table entries).
+     *
+     * @param collectionId The ID of the collection
+     * @param contentIds   The IDs of the content to remove
+     */
+    @Modifying
+    @Query("DELETE FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.id IN :contentIds")
+    void removeContentFromCollection(@Param("collectionId") Long collectionId,
+                                      @Param("contentIds") List<Long> contentIds);
+}

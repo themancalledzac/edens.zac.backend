@@ -51,7 +51,7 @@ public class CollectionProcessingUtil {
                     .orElse(null);
             if (content instanceof ContentImageEntity) {
                 ContentModel contentModel = contentProcessingUtil.convertToModel(content);
-                if (contentModel instanceof ImageContentModel imageModel) {
+                if (contentModel instanceof ContentImageModel imageModel) {
                     model.setCoverImage(imageModel);
                 } else {
                     log.warn("Cover image {} converted to non-ContentImageModel: {}",
@@ -85,22 +85,9 @@ public class CollectionProcessingUtil {
         model.setLocation(entity.getLocation());
         model.setCollectionDate(entity.getCollectionDate());
         model.setVisible(entity.getVisible());
-        model.setPriority(entity.getPriority());
 
         // Populate coverImage using helper method
         populateCoverImage(model, entity);
-
-//        // Fetch home page card settings from home card table
-//        homeCardRepository.findByReferenceId(entity.getId()).ifPresentOrElse(
-//                homeCard -> {
-//                    model.setHomeCardEnabled(homeCard.isActiveHomeCard());
-//                    model.setHomeCardText(homeCard.getText());
-//                },
-//                () -> {
-//                    model.setHomeCardEnabled(false);
-//                    model.setHomeCardText(null);
-//                }
-//        );
 
         model.setIsPasswordProtected(entity.isPasswordProtected());
         model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
@@ -114,7 +101,7 @@ public class CollectionProcessingUtil {
         model.setDisplayMode(mode);
 
         // Set pagination metadata
-        model.setTotalContent(entity.getTotalContent());
+        model.setContentCount(entity.getTotalContent());
         model.setContentPerPage(entity.getContentPerPage());
         model.setTotalPages(entity.getTotalPages());
         model.setCurrentPage(0);
@@ -172,7 +159,7 @@ public class CollectionProcessingUtil {
         // Set pagination metadata
         model.setCurrentPage(contentPage.getNumber());
         model.setTotalPages(contentPage.getTotalPages());
-        model.setTotalContent((int) contentPage.getTotalElements());
+        model.setContentCount((int) contentPage.getTotalElements());
         model.setContentPerPage(contentPage.getSize());
         return model;
     }
@@ -199,7 +186,6 @@ public class CollectionProcessingUtil {
         entity.setLocation("");
         entity.setCollectionDate(LocalDate.now());
         entity.setVisible(false);
-        entity.setPriority(4);
         entity.setContentPerPage(defaultPageSize);
         entity.setTotalContent(0);
         entity.setPasswordProtected(false);
@@ -240,9 +226,6 @@ public class CollectionProcessingUtil {
         }
         if (updateDTO.getVisible() != null) {
             entity.setVisible(updateDTO.getVisible());
-        }
-        if (updateDTO.getPriority() != null) {
-            entity.setPriority(updateDTO.getPriority());
         }
         if (updateDTO.getSlug() != null && !updateDTO.getSlug().isBlank()) {
             String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.getSlug().trim(), entity.getId());
@@ -536,25 +519,6 @@ public class CollectionProcessingUtil {
     }
 
     // =============================================================================
-    // PRIORITY HELPERS
-    // =============================================================================
-
-    /**
-     * Get priority as display text.
-     */
-    public static String getPriorityDisplay(CollectionBaseModel model) {
-        Integer priority = model.getPriority();
-        if (priority == null) return "Not Set";
-        return switch (priority) {
-            case 1 -> "Highest (1)";
-            case 2 -> "High (2)";
-            case 3 -> "Medium (3)";
-            case 4 -> "Low (4)";
-            default -> "Unknown (" + priority + ")";
-        };
-    }
-
-    // =============================================================================
     // PAGINATION HELPERS
     // =============================================================================
 
@@ -569,7 +533,7 @@ public class CollectionProcessingUtil {
      * Check if a collection model is empty.
      */
     public static boolean isEmpty(CollectionModel model) {
-        return model.getTotalContent() == null || model.getTotalContent() == 0;
+        return model.getContentCount() == null || model.getContentCount() == 0;
     }
 
     /**

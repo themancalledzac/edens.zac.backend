@@ -52,13 +52,12 @@ class CollectionModelTest {
                     .location("Test location")
                     .collectionDate(today)
                     .visible(true)
-                    .priority(1)
                     .isPasswordProtected(false)
                     .hasAccess(true)
                     .createdAt(now)
                     .updatedAt(now)
                     .contentPerPage(30)
-                    .totalContent(150)
+                    .contentCount(150)
                     .currentPage(1)
                     .totalPages(5)
                     .content(content)
@@ -73,14 +72,13 @@ class CollectionModelTest {
             assertEquals("Test location", model.getLocation());
             assertEquals(today, model.getCollectionDate());
             assertTrue(model.getVisible());
-            assertEquals(1, model.getPriority());
             assertNull(model.getCoverImage());
             assertFalse(model.getIsPasswordProtected());
             assertTrue(model.getHasAccess());
             assertEquals(now, model.getCreatedAt());
             assertEquals(now, model.getUpdatedAt());
             assertEquals(30, model.getContentPerPage());
-            assertEquals(150, model.getTotalContent());
+            assertEquals(150, model.getContentCount());
             assertEquals(1, model.getCurrentPage());
             assertEquals(5, model.getTotalPages());
             assertEquals(content, model.getContent());
@@ -100,7 +98,7 @@ class CollectionModelTest {
             assertEquals("Min", model.getTitle());
             assertEquals("min", model.getSlug());
             assertNull(model.getContentPerPage());
-            assertNull(model.getTotalContent());
+            assertNull(model.getContentCount());
             assertNull(model.getCurrentPage());
             assertNull(model.getTotalPages());
             assertNull(model.getContent());
@@ -116,7 +114,7 @@ class CollectionModelTest {
             assertNull(model.getType());
             assertNull(model.getTitle());
             assertNull(model.getContentPerPage());
-            assertNull(model.getTotalContent());
+            assertNull(model.getContentCount());
             assertNull(model.getCurrentPage());
             assertNull(model.getTotalPages());
             assertNull(model.getContent());
@@ -135,7 +133,7 @@ class CollectionModelTest {
                     .title("Art Gallery")
                     .slug("art-gallery")
                     .contentPerPage(30)
-                    .totalContent(150)
+                    .contentCount(150)
                     .currentPage(1)
                     .totalPages(5)
                     .build();
@@ -181,7 +179,7 @@ class CollectionModelTest {
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
-                    .totalContent(-1) // Invalid - below minimum
+                    .contentCount(-1) // Invalid - below minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -197,7 +195,7 @@ class CollectionModelTest {
                     .type(CollectionType.PORTFOLIO)
                     .title("Portfolio")
                     .slug("portfolio")
-                    .totalContent(0) // Exactly at minimum
+                    .contentCount(0) // Exactly at minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -272,7 +270,7 @@ class CollectionModelTest {
                     .title("Blog Post")
                     .slug("blog-post")
                     .contentPerPage(null)
-                    .totalContent(null)
+                    .contentCount(null)
                     .currentPage(null)
                     .totalPages(null)
                     .build();
@@ -383,7 +381,7 @@ class CollectionModelTest {
                     .slug("test-blog")
                     .createdAt(now)
                     .contentPerPage(30)
-                    .totalContent(150)
+                    .contentCount(150)
                     .build();
 
             CollectionModel model2 = CollectionModel.builder()
@@ -393,7 +391,7 @@ class CollectionModelTest {
                     .slug("test-blog")
                     .createdAt(now)
                     .contentPerPage(30)
-                    .totalContent(150)
+                    .contentCount(150)
                     .build();
 
             CollectionModel model3 = CollectionModel.builder()
@@ -403,7 +401,7 @@ class CollectionModelTest {
                     .slug("test-blog")
                     .createdAt(now)
                     .contentPerPage(20) // Different pagination
-                    .totalContent(150)
+                    .contentCount(150)
                     .build();
 
             // Test equals
@@ -423,7 +421,7 @@ class CollectionModelTest {
                     .title("Test Portfolio")
                     .slug("test-portfolio")
                     .contentPerPage(30)
-                    .totalContent(150)
+                    .contentCount(150)
                     .currentPage(1)
                     .totalPages(5)
                     .build();
@@ -454,7 +452,7 @@ class CollectionModelTest {
                         .title("Test " + type.getDisplayName())
                         .slug("test-" + type.name().toLowerCase())
                         .contentPerPage(30)
-                        .totalContent(100)
+                        .contentCount(100)
                         .currentPage(1)
                         .totalPages(4)
                         .build();
@@ -474,7 +472,7 @@ class CollectionModelTest {
                     .isPasswordProtected(true)
                     .hasAccess(false)
                     .contentPerPage(30)
-                    .totalContent(200)
+                    .contentCount(200)
                     .currentPage(1)
                     .totalPages(8)
                     .build();
@@ -485,7 +483,7 @@ class CollectionModelTest {
             assertTrue(model.getIsPasswordProtected());
             assertFalse(model.getHasAccess());
             assertEquals(30, model.getContentPerPage());
-            assertEquals(200, model.getTotalContent());
+            assertEquals(200, model.getContentCount());
         }
     }
 
@@ -506,7 +504,7 @@ class CollectionModelTest {
                     .description(longDescription) // Error 3: Description too long
                     .contentPerPage(0) // Error 4: ContentPerPage below minimum
                     .currentPage(0) // Error 5: CurrentPage below minimum
-                    .totalContent(-1) // Error 6: TotalContent below minimum
+                    .contentCount(-1) // Error 6: TotalContent below minimum
                     .build();
 
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);

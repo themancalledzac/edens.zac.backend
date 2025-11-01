@@ -194,6 +194,33 @@ The project is transitioning from a simple Catalog/Image system to a flexible Co
 - **DO NOT run tests via Claude Code** - Tests will be run manually by the user
 - **Integration tests need docker** for TestContainers and database access (user handles this)
 
+## File Writing Guidelines
+
+### 1. Character Encoding & Special Characters
+- **ALWAYS use plain ASCII characters** in all files (code, documentation, markdown)
+- **NEVER use emojis** unless explicitly requested by the user
+- **NEVER use Unicode symbols** (arrows, checkmarks, etc.) - use ASCII alternatives:
+  - Use `->` instead of `→`
+  - Use `<->` instead of `↔`
+  - Use `*` or `-` for bullets, not `•`
+  - Use `[x]` and `[ ]` for checkboxes, not `☑` and `☐`
+- **Examples of WRONG characters to avoid**:
+  - Emojis: ♻️ 🗑️ ✅ ❌ 🔴 🟠 🟡
+  - Arrows: → ← ↔ ⇒ ⇐
+  - Symbols: • ✓ ✗ ★ ☆
+- **Use standard ASCII alternatives**:
+  - `->` for arrows
+  - `*` for bullets
+  - `[x]` for checked items
+  - `[ ]` for unchecked items
+- **Reason**: Special characters can cause encoding issues, IDE warnings, and compatibility problems
+
+### 2. Markdown & Documentation
+- Use standard markdown syntax only
+- Avoid fancy formatting that requires special characters
+- Keep documentation simple and ASCII-compatible
+- Test that files open without encoding errors
+
 ## Summary
 
 These guidelines prioritize:
@@ -203,5 +230,6 @@ These guidelines prioritize:
 4. **Modern practices** - latest Java features, proper patterns
 5. **Real testing** - TestContainers over mocks, comprehensive coverage
 6. **Docker-first development** - all builds and tests run in containers
+7. **Plain ASCII encoding** - no emojis or special Unicode characters
 
-When in doubt, choose the approach that makes the code more **secure**, **performant**, **testable**, and **maintainable**.
+When in doubt, choose the approach that makes the code more **secure**, **performant**, **testable**, **maintainable**, and **compatible**.

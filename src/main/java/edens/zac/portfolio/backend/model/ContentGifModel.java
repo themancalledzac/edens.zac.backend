@@ -12,24 +12,23 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 public class ContentGifModel extends ContentModel {
-    
-    @Size(max = 255)
-    private String title;
-    
+
+    // Note: title is inherited from ContentModel
+
     @NotNull
     private String gifUrl;
-    
+
     @Size(max = 255)
     private String thumbnailUrl;
-    
+
     private Integer width;
     private Integer height;
-    
+
     @Size(max = 100)
     private String author;
 
     private String createDate;
 
-    // Tags associated with this gif block
-    private List<String> tags;
+    // Tags associated with this gif content
+    private List<ContentTagModel> tags;
 }

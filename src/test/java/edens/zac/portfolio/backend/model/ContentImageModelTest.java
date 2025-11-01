@@ -13,16 +13,16 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ImageContentModelTest {
+class ContentImageModelTest {
 
     private Validator validator;
-    private ImageContentModel contentImage;
+    private ContentImageModel contentImage;
 
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
-        contentImage = new ImageContentModel();
+        contentImage = new ContentImageModel();
     }
 
     @Test
@@ -32,7 +32,7 @@ class ImageContentModelTest {
         setupValidContentImage();
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -46,11 +46,11 @@ class ImageContentModelTest {
         contentImage.setImageUrlWeb(null); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
         assertEquals("imageUrlWeb", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
@@ -64,11 +64,11 @@ class ImageContentModelTest {
         contentImage.setTitle(longTitle); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
         assertEquals("title", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 250"));
     }
@@ -82,11 +82,11 @@ class ImageContentModelTest {
         contentImage.setAuthor(longAuthor); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
         assertEquals("author", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 100"));
     }
@@ -100,11 +100,11 @@ class ImageContentModelTest {
         contentImage.setFStop(longFStop); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
         assertEquals("fStop", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 15"));
     }
@@ -121,11 +121,11 @@ class ImageContentModelTest {
         contentImage.setShutterSpeed(longShutterSpeed); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
         assertEquals("shutterSpeed", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 20"));
     }
@@ -139,11 +139,11 @@ class ImageContentModelTest {
         contentImage.setFocalLength(longFocalLength); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
         assertEquals("focalLength", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 20"));
     }
@@ -157,11 +157,11 @@ class ImageContentModelTest {
         contentImage.setLocation(longLocation); // Invalid
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(1, violations.size());
-        ConstraintViolation<ImageContentModel> violation = violations.iterator().next();
+        ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
         assertEquals("location", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 250"));
     }
@@ -180,7 +180,7 @@ class ImageContentModelTest {
         contentImage.setLocation("A".repeat(250));
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -209,7 +209,7 @@ class ImageContentModelTest {
         contentImage.setCreateDate(null);
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -226,7 +226,7 @@ class ImageContentModelTest {
         contentImage.setLocation("A".repeat(251)); // Error 4
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(4, violations.size());
@@ -242,7 +242,7 @@ class ImageContentModelTest {
         contentImage.setContentType(null); // Invalid from parent
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertEquals(3, violations.size());
@@ -264,10 +264,10 @@ class ImageContentModelTest {
     @DisplayName("Lombok equality and hashCode work correctly")
     void lombokMethods_workCorrectly() {
         // Arrange
-        ImageContentModel image1 = new ImageContentModel();
+        ContentImageModel image1 = new ContentImageModel();
         setupValidContentImage(image1);
 
-        ImageContentModel image2 = new ImageContentModel();
+        ContentImageModel image2 = new ContentImageModel();
         setupValidContentImage(image2);
 
         // Act & Assert
@@ -280,10 +280,10 @@ class ImageContentModelTest {
     @DisplayName("Different image-specific fields create different objects")
     void differentImageFields_createsDifferentObjects() {
         // Arrange
-        ImageContentModel image1 = new ImageContentModel();
+        ContentImageModel image1 = new ContentImageModel();
         setupValidContentImage(image1);
 
-        ImageContentModel image2 = new ImageContentModel();
+        ContentImageModel image2 = new ContentImageModel();
         setupValidContentImage(image2);
         image2.setTitle("Different Title");
 
@@ -316,7 +316,7 @@ class ImageContentModelTest {
         contentImage.setCreateDate("2024-03-15");
 
         // Act
-        Set<ConstraintViolation<ImageContentModel>> violations = validator.validate(contentImage);
+        Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
 
         // Assert
         assertTrue(violations.isEmpty());
@@ -326,7 +326,7 @@ class ImageContentModelTest {
         setupValidContentImage(contentImage);
     }
 
-    private void setupValidContentImage(ImageContentModel image) {
+    private void setupValidContentImage(ContentImageModel image) {
         // Set required fields from parent ContentModel
         image.setCollectionId(1L);
         image.setOrderIndex(0);

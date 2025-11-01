@@ -68,9 +68,8 @@ class CollectionControllerDevTest {
         testCollection.setSlug("test-blog");
         testCollection.setDescription("A test blog collection");
         testCollection.setVisible(true);
-        testCollection.setPriority(1);
         testCollection.setContentPerPage(30);
-        testCollection.setTotalContent(5);
+        testCollection.setContentCount(5);
         testCollection.setTotalPages(1);
         testCollection.setCurrentPage(0);
         testCollection.setContent(new ArrayList<>());

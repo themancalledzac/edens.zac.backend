@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TextContentEntity;
@@ -67,31 +68,46 @@ class CollectionProcessingUtilTest {
         testEntity.setSlug("test-blog");
         testEntity.setDescription("Test description");
         testEntity.setVisible(true);
-        testEntity.setPriority(1);
         testEntity.setContentPerPage(30);
         testEntity.setTotalContent(2);
         testEntity.setCreatedAt(LocalDateTime.now());
         testEntity.setUpdatedAt(LocalDateTime.now());
 
-        // Create test blocks
+        // Create test content blocks
         testBlocks = new ArrayList<>();
         TextContentEntity block1 = new TextContentEntity();
         block1.setId(1L);
-        block1.setCollectionId(1L);
-        block1.setOrderIndex(0);
         block1.setContentType(ContentType.TEXT);
         block1.setContent("Test content 1");
 
         TextContentEntity block2 = new TextContentEntity();
         block2.setId(2L);
-        block2.setCollectionId(1L);
-        block2.setOrderIndex(1);
         block2.setContentType(ContentType.TEXT);
         block2.setContent("Test content 2");
 
         testBlocks.add(block1);
         testBlocks.add(block2);
-        testEntity.setContent(testBlocks);
+
+        // Create join table entities (new architecture)
+        CollectionContentEntity cc1 = CollectionContentEntity.builder()
+                .collection(testEntity)
+                .content(block1)
+                .orderIndex(0)
+                .caption(null)
+                .visible(true)
+                .build();
+
+        CollectionContentEntity cc2 = CollectionContentEntity.builder()
+                .collection(testEntity)
+                .content(block2)
+                .orderIndex(1)
+                .caption(null)
+                .visible(true)
+                .build();
+
+        // Add to collection using the join table
+        testEntity.getCollectionContent().add(cc1);
+        testEntity.getCollectionContent().add(cc2);
     }
 
     @Test
@@ -152,9 +168,8 @@ class CollectionProcessingUtilTest {
         assertEquals(testEntity.getSlug(), model.getSlug());
         assertEquals(testEntity.getDescription(), model.getDescription());
         assertEquals(testEntity.getVisible(), model.getVisible());
-        assertEquals(testEntity.getPriority(), model.getPriority());
         assertEquals(testEntity.getContentPerPage(), model.getContentPerPage());
-        assertEquals(testEntity.getTotalContent(), model.getTotalContent());
+        assertEquals(testEntity.getTotalContent(), model.getContentCount());
         assertEquals(testEntity.getTotalPages(), model.getTotalPages());
         assertEquals(0, model.getCurrentPage());
     }
@@ -170,7 +185,6 @@ class CollectionProcessingUtilTest {
                     ContentModel model = new ContentModel();
                     model.setId(entity.getId());
                     model.setContentType(entity.getContentType());
-                    model.setOrderIndex(entity.getOrderIndex());
                     return model;
                 });
 
@@ -197,7 +211,6 @@ class CollectionProcessingUtilTest {
                     ContentModel model = new ContentModel();
                     model.setId(entity.getId());
                     model.setContentType(entity.getContentType());
-                    model.setOrderIndex(entity.getOrderIndex());
                     return model;
                 });
 
@@ -210,7 +223,7 @@ class CollectionProcessingUtilTest {
         assertEquals(2, model.getContent().size());
         assertEquals(page.getNumber(), model.getCurrentPage());
         assertEquals(page.getTotalPages(), model.getTotalPages());
-        assertEquals((int) page.getTotalElements(), model.getTotalContent());
+        assertEquals((int) page.getTotalElements(), model.getContentCount());
         assertEquals(page.getSize(), model.getContentPerPage());
     }
 

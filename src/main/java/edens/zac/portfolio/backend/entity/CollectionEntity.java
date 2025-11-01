@@ -27,8 +27,6 @@ import java.util.Set;
                 @Index(name = "idx_collection_slug", columnList = "slug", unique = true),
                 @Index(name = "idx_collection_type", columnList = "type"),
                 @Index(name = "idx_collection_created_at", columnList = "created_at"),
-                @Index(name = "idx_collection_priority", columnList = "priority"),
-                @Index(name = "idx_collection_type_priority", columnList = "type, priority"),
                 @Index(name = "idx_collection_cover_image", columnList = "cover_image_id")
         }
 )
@@ -70,23 +68,18 @@ public class CollectionEntity {
     @Column(name = "visible", nullable = false)
     private Boolean visible;
 
-    @Min(value = 1, message = "Priority must be between 1 and 4")
-    @Max(value = 4, message = "Priority must be between 1 and 4")
-    @Column(name = "priority")
-    private Integer priority; // 1 | 2 | 3 | 4 - 1 being 'best', 4 worst
-
     // Foreign key reference to the image content used as cover (nullable)
     // TODO: Why should this be the 'id'? rather than the src itself? what's the benefit? who cares if it disassociates?
     //  - would it be faster IF we didn't have to do a 'getCoverImageByImage' logic?
     @Column(name = "cover_image_id")
     private Long coverImageId;
 
-    // Client gallery security
-    @Column(name = "password_hash")
-    private String passwordHash;
-
-    @Column(name = "password_protected")
-    private Boolean passwordProtected;
+//    // Client gallery security
+//    @Column(name = "password_hash")
+//    private String passwordHash;
+//
+//    @Column(name = "password_protected")
+//    private Boolean passwordProtected;
 
     // Pagination metadata
     @Min(1)
@@ -113,7 +106,7 @@ public class CollectionEntity {
             fetch = FetchType.LAZY
     )
     @OrderBy("orderIndex ASC")
-    private List<ContentEntity> content = new ArrayList<>();
+    private List<CollectionContentEntity> collectionContent = new ArrayList<>();
 
     // Many-to-many relationship with ContentTagEntity
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
@@ -128,28 +121,41 @@ public class CollectionEntity {
     )
     private Set<ContentTagEntity> tags = new HashSet<>();
 
+    // Many-to-many relationship with ContentPersonEntity
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "collection_people",
+            joinColumns = @JoinColumn(name = "collection_id"),
+            inverseJoinColumns = @JoinColumn(name = "person_id"),
+            indexes = {
+                    @Index(name = "idx_collection_people_collection", columnList = "collection_id"),
+                    @Index(name = "idx_collection_people_person", columnList = "person_id")
+            }
+    )
+    private Set<ContentPersonEntity> people = new HashSet<>();
+
     /**
      * Constructor that ensures all collections are properly initialized
      */
     public CollectionEntity() {
         // Set all defaults in constructor
         this.visible = true;
-        this.priority = 1; // Changed from 0 to 1 to satisfy @Min(1) constraint
         this.contentPerPage = 50;
         this.totalContent = 0;
-        this.passwordProtected = false;
-        this.content = new ArrayList<>();
+//        this.passwordProtected = false;
+        this.collectionContent = new ArrayList<>();
         this.tags = new HashSet<>();
+        this.people = new HashSet<>();
     }
 
-    /**
-     * Check if this collection is password-protected.
-     *
-     * @return True if the collection is password-protected
-     */
-    public boolean isPasswordProtected() {
-        return passwordProtected != null && passwordProtected && passwordHash != null && !passwordHash.isEmpty();
-    }
+//    /**
+//     * Check if this collection is password-protected.
+//     *
+//     * @return True if the collection is password-protected
+//     */
+//    public boolean isPasswordProtected() {
+//        return passwordProtected != null && passwordProtected && passwordHash != null && !passwordHash.isEmpty();
+//    }
 
     /**
      * Get the total number of pages based on blocks per page.
@@ -161,5 +167,17 @@ public class CollectionEntity {
             return 0;
         }
         return (int) Math.ceil((double) totalContent / contentPerPage);
+    }
+
+    /**
+     * Helper method to get the actual content entities from the join table.
+     * This provides a convenient way to access content without dealing with the join table directly.
+     *
+     * @return List of ContentEntity objects ordered by orderIndex
+     */
+    public List<ContentEntity> getContent() {
+        return collectionContent.stream()
+                .map(CollectionContentEntity::getContent)
+                .toList();
     }
 }

@@ -40,7 +40,6 @@ class CollectionServiceImpl implements CollectionService {
     private final ContentRepository contentRepository;
     private final ContentProcessingUtil contentProcessingUtil;
     private final CollectionProcessingUtil collectionProcessingUtil;
-//    private final HomeService homeService;
     private final ContentService contentService;
 
     private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -213,13 +212,6 @@ class CollectionServiceImpl implements CollectionService {
         // Save updated entity
         CollectionEntity savedEntity = collectionRepository.save(entity);
 
-        applyHomeCardOptions(
-                savedEntity,
-                updateDTO.getHomeCardEnabled(),
-                updateDTO.getPriority(),
-                updateDTO.getHomeCardText()
-        );
-
         // Update total blocks count
         long totalBlocks = contentRepository.countByCollectionId(savedEntity.getId());
         savedEntity.setTotalContent((int) totalBlocks);
@@ -227,7 +219,6 @@ class CollectionServiceImpl implements CollectionService {
 
         return convertToFullModel(savedEntity);
     }
-
 
     @Override
     @Transactional
@@ -304,7 +295,6 @@ class CollectionServiceImpl implements CollectionService {
         if (entity.getCoverImageId() == null && firstImageId != null) {
             entity.setCoverImageId(firstImageId);
             collectionRepository.save(entity);
-//            homeService.syncHomeCardOnCollectionUpdate(entity);
         }
 
         // Update total content count if any contents were added
@@ -427,7 +417,6 @@ class CollectionServiceImpl implements CollectionService {
                 .date(entity.getCollectionDate() != null
                         ? entity.getCollectionDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
                         : null)
-                .priority(entity.getPriority())
                 .coverImageUrl(getCoverImageUrl(entity))
                 .slug(entity.getSlug())
                 .text(null) // Collections don't have text field
@@ -447,31 +436,6 @@ class CollectionServiceImpl implements CollectionService {
                 .map(block -> ((ContentImageEntity) block).getImageUrlWeb())
                 .orElse(null);
     }
-
-//    /**
-//     * Shared handler for applying Home Card options for a collection during create/update flows.
-//     * - If homeCardEnabled is non-null, upsert/deactivate accordingly via HomeService
-//     * - If null, keep the HomeCard in sync with the current collection state
-//     */
-//    private void applyHomeCardOptions(
-//            CollectionEntity entity,
-//            Boolean homeCardEnabled,
-//            Integer priority,
-//            String text
-//    ) {
-//        if (homeCardEnabled != null) {
-//            boolean enabled = homeCardEnabled;
-//            homeService.upsertHomeCardForCollection(
-//                    entity,
-//                    enabled,
-//                    priority,
-//                    text
-//            );
-//        } else {
-//            // No explicit toggle provided; keep in sync if a card exists
-//            homeService.syncHomeCardOnCollectionUpdate(entity);
-//        }
-//    }
 
     @Override
     @Transactional(readOnly = true)

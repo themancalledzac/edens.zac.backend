@@ -75,7 +75,7 @@ class CollectionControllerProdTest {
         blog.setVisible(true);
         blog.setPriority(1);
         blog.setContentPerPage(30);
-        blog.setTotalContent(5);
+        blog.setContentCount(5);
         blog.setTotalPages(1);
         blog.setCurrentPage(0);
         blog.setContent(new ArrayList<>());
@@ -92,7 +92,7 @@ class CollectionControllerProdTest {
         artGallery.setVisible(true);
         artGallery.setPriority(2);
         artGallery.setContentPerPage(30);
-        artGallery.setTotalContent(10);
+        artGallery.setContentCount(10);
         artGallery.setTotalPages(1);
         artGallery.setCurrentPage(0);
         artGallery.setContent(new ArrayList<>());
@@ -109,7 +109,7 @@ class CollectionControllerProdTest {
         clientGallery.setVisible(true);
         clientGallery.setPriority(3);
         clientGallery.setContentPerPage(50);
-        clientGallery.setTotalContent(100);
+        clientGallery.setContentCount(100);
         clientGallery.setTotalPages(2);
         clientGallery.setCurrentPage(0);
         clientGallery.setContent(new ArrayList<>());

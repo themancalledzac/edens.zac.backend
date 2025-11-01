@@ -68,8 +68,8 @@ public class ContentProcessingUtilTest {
         ContentModel result = contentProcessingUtil.convertToModel(entity);
 
         // Assert
-        assertInstanceOf(ImageContentModel.class, result);
-        ImageContentModel imageModel = (ImageContentModel) result;
+        assertInstanceOf(ContentImageModel.class, result);
+        ContentImageModel imageModel = (ContentImageModel) result;
         assertEquals(entity.getId(), imageModel.getId());
         assertEquals(entity.getCollectionId(), imageModel.getCollectionId());
         assertEquals(entity.getOrderIndex(), imageModel.getOrderIndex());
@@ -102,8 +102,8 @@ public class ContentProcessingUtilTest {
         ContentModel result = contentProcessingUtil.convertToModel(entity);
 
         // Assert
-        assertInstanceOf(TextContentModel.class, result);
-        TextContentModel textModel = (TextContentModel) result;
+        assertInstanceOf(ContentTextModel.class, result);
+        ContentTextModel textModel = (ContentTextModel) result;
         assertEquals(entity.getId(), textModel.getId());
         assertEquals(entity.getCollectionId(), textModel.getCollectionId());
         assertEquals(entity.getOrderIndex(), textModel.getOrderIndex());

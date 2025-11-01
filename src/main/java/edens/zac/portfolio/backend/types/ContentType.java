@@ -11,7 +11,8 @@ public enum ContentType {
     IMAGE("Image"),
     TEXT("Text"),
     GIF("Gif"),
-    CODE("Code");
+    CODE("Code"),
+    COLLECTION("Collection");
 
     @NotNull
     @Getter

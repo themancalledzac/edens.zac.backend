@@ -22,7 +22,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ImageUpdateRequest {
+public class ContentImageUpdateRequest {
 
     /**
      * The ID of the image to update (required)

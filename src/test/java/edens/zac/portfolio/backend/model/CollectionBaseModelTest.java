@@ -34,8 +34,8 @@ class CollectionBaseModelTest {
     /**
      * Helper method to create a test ImageContentBlockModel
      */
-    private static ImageContentModel createTestContentImage(String imageUrl) {
-        ImageContentModel imageBlock = new ImageContentModel();
+    private static ContentImageModel createTestContentImage(String imageUrl) {
+        ContentImageModel imageBlock = new ContentImageModel();
         imageBlock.setId(123L);
         imageBlock.setImageUrlWeb(imageUrl);
         imageBlock.setImageWidth(1920);

@@ -71,7 +71,7 @@ class ContentModelSerializationTest {
             """;
 
         // Act
-        ImageContentModel result = objectMapper.readValue(jsonContent, ImageContentModel.class);
+        ContentImageModel result = objectMapper.readValue(jsonContent, ContentImageModel.class);
 
         // Set contentType explicitly since it's not being properly deserialized
         result.setContentType(ContentType.IMAGE);
@@ -119,7 +119,7 @@ class ContentModelSerializationTest {
         LocalDateTime now = LocalDateTime.of(2023, 1, 1, 12, 0, 0);
 
         // Create an ImageContentModel
-        ImageContentModel imageModel = new ImageContentModel();
+        ContentImageModel imageModel = new ContentImageModel();
         imageModel.setId(1L);
         imageModel.setCollectionId(2L);
         imageModel.setOrderIndex(0);
@@ -132,7 +132,7 @@ class ContentModelSerializationTest {
         imageModel.setImageHeight(800);
 
         // Create a TextContentModel
-        TextContentModel textModel = new TextContentModel();
+        ContentTextModel textModel = new ContentTextModel();
         textModel.setId(2L);
         textModel.setCollectionId(2L);
         textModel.setOrderIndex(1);
@@ -161,8 +161,8 @@ class ContentModelSerializationTest {
         assertEquals(2, deserializedContent.size());
 
         // First item should be an ImageContentModel
-        assertInstanceOf(ImageContentModel.class, deserializedContent.getFirst());
-        ImageContentModel deserializedImageModel = (ImageContentModel) deserializedContent.getFirst();
+        assertInstanceOf(ContentImageModel.class, deserializedContent.getFirst());
+        ContentImageModel deserializedImageModel = (ContentImageModel) deserializedContent.getFirst();
         assertEquals(1L, deserializedImageModel.getId());
         assertEquals("Image caption", deserializedImageModel.getCaption());
         assertEquals("https://example.com/image.jpg", deserializedImageModel.getImageUrlWeb());
@@ -170,8 +170,8 @@ class ContentModelSerializationTest {
         assertEquals(800, deserializedImageModel.getImageHeight());
 
         // Second item should be a TextContentModel
-        assertInstanceOf(TextContentModel.class, deserializedContent.get(1));
-        TextContentModel deserializedTextModel = (TextContentModel) deserializedContent.get(1);
+        assertInstanceOf(ContentTextModel.class, deserializedContent.get(1));
+        ContentTextModel deserializedTextModel = (ContentTextModel) deserializedContent.get(1);
         assertEquals(2L, deserializedTextModel.getId());
         assertEquals("Text caption", deserializedTextModel.getCaption());
         assertEquals("This is some text content", deserializedTextModel.getContent());

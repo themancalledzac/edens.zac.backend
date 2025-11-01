@@ -113,13 +113,13 @@ class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
-    public Map<String, Object> updateImages(List<ImageUpdateRequest> updates) {
+    public Map<String, Object> updateImages(List<ContentImageUpdateRequest> updates) {
         if (updates == null || updates.isEmpty()) {
             throw new IllegalArgumentException("At least one image update is required");
         }
 
         // Track updated images and newly created metadata
-        List<ImageContentModel> updatedImages = new ArrayList<>();
+        List<ContentImageModel> updatedImages = new ArrayList<>();
         Set<ContentTagEntity> newlyCreatedTags = new HashSet<>();
         Set<ContentPersonEntity> newlyCreatedPeople = new HashSet<>();
         Set<ContentCameraEntity> newlyCreatedCameras = new HashSet<>();
@@ -127,7 +127,7 @@ class ContentServiceImpl implements ContentService {
         Set<ContentFilmTypeEntity> newlyCreatedFilmTypes = new HashSet<>();
         List<String> errors = new ArrayList<>();
 
-        for (ImageUpdateRequest update : updates) {
+        for (ContentImageUpdateRequest update : updates) {
             try {
                 Long imageId = update.getId();
                 if (imageId == null) {
@@ -156,7 +156,7 @@ class ContentServiceImpl implements ContentService {
 
                 // Handle collection updates using prev/new/remove pattern
                 if (update.getCollections() != null) {
-                    ImageUpdateRequest.CollectionUpdate collectionUpdate = update.getCollections();
+                    ContentImageUpdateRequest.CollectionUpdate collectionUpdate = update.getCollections();
                     if (collectionUpdate.getPrev() != null && !collectionUpdate.getPrev().isEmpty()) {
                         contentProcessingUtil.handleCollectionVisibilityUpdates(image, collectionUpdate.getPrev());
                     }
@@ -166,7 +166,7 @@ class ContentServiceImpl implements ContentService {
                 ContentImageEntity savedImage = contentRepository.save(image);
 
                 // Convert to model and add to results
-                ImageContentModel imageModel = (ImageContentModel) contentProcessingUtil.convertToModel(savedImage);
+                ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertToModel(savedImage);
                 updatedImages.add(imageModel);
 
             } catch (EntityNotFoundException e) {
@@ -182,7 +182,7 @@ class ContentServiceImpl implements ContentService {
         }
 
         // Build the response with updated images and new metadata
-        ImageUpdateResponse.NewMetadata newMetadata = ImageUpdateResponse.NewMetadata.builder()
+        ContentImageUpdateResponse.NewMetadata newMetadata = ContentImageUpdateResponse.NewMetadata.builder()
                 .tags(newlyCreatedTags.isEmpty() ? null : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
                 .people(newlyCreatedPeople.isEmpty() ? null : newlyCreatedPeople.stream().map(this::toPersonModel).collect(Collectors.toList()))
                 .cameras(newlyCreatedCameras.isEmpty() ? null : newlyCreatedCameras.stream().map(ContentProcessingUtil::cameraEntityToCameraModel).collect(Collectors.toList()))
@@ -190,7 +190,7 @@ class ContentServiceImpl implements ContentService {
                 .filmTypes(newlyCreatedFilmTypes.isEmpty() ? null : newlyCreatedFilmTypes.stream().map(this::toFilmTypeModel).collect(Collectors.toList()))
                 .build();
 
-        ImageUpdateResponse response = ImageUpdateResponse.builder()
+        ContentImageUpdateResponse response = ContentImageUpdateResponse.builder()
                 .updatedImages(updatedImages)
                 .newMetadata(newMetadata)
                 .errors(errors.isEmpty() ? null : errors)
@@ -209,7 +209,7 @@ class ContentServiceImpl implements ContentService {
      */
     private void applyImageUpdatesWithTracking(
             ContentImageEntity image,
-            ImageUpdateRequest updateRequest,
+            ContentImageUpdateRequest updateRequest,
             Set<ContentCameraEntity> newCameras,
             Set<ContentLensEntity> newLenses,
             Set<ContentFilmTypeEntity> newFilmTypes) {
@@ -230,7 +230,7 @@ class ContentServiceImpl implements ContentService {
 
         // Handle camera update with tracking
         if (updateRequest.getCamera() != null) {
-            ImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
+            ContentImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
             if (Boolean.TRUE.equals(cameraUpdate.getRemove())) {
                 image.setCamera(null);
             } else if (cameraUpdate.getNewValue() != null && !cameraUpdate.getNewValue().trim().isEmpty()) {
@@ -254,7 +254,7 @@ class ContentServiceImpl implements ContentService {
 
         // Handle lens update with tracking
         if (updateRequest.getLens() != null) {
-            ImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
+            ContentImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
             if (Boolean.TRUE.equals(lensUpdate.getRemove())) {
                 image.setLens(null);
             } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
@@ -278,7 +278,7 @@ class ContentServiceImpl implements ContentService {
 
         // Handle film type update with tracking
         if (updateRequest.getFilmType() != null) {
-            ImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
+            ContentImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
             if (Boolean.TRUE.equals(filmTypeUpdate.getRemove())) {
                 image.setFilmType(null);
             } else if (filmTypeUpdate.getNewValue() != null) {
@@ -308,7 +308,7 @@ class ContentServiceImpl implements ContentService {
     /**
      * Update image tags and track newly created ones.
      */
-    private void updateImageTags(ContentImageEntity image, ImageUpdateRequest.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
+    private void updateImageTags(ContentImageEntity image, ContentImageUpdateRequest.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
         Set<ContentTagEntity> tags = new HashSet<>(image.getTags());
 
         // Remove tags if specified
@@ -350,7 +350,7 @@ class ContentServiceImpl implements ContentService {
     /**
      * Update image people and track newly created ones.
      */
-    private void updateImagePeople(ContentImageEntity image, ImageUpdateRequest.PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
+    private void updateImagePeople(ContentImageEntity image, ContentImageUpdateRequest.PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
         Set<ContentPersonEntity> people = new HashSet<>(image.getPeople());
 
         // Remove people if specified
@@ -533,9 +533,9 @@ class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ImageContentModel> getAllImages() {
+    public List<ContentImageModel> getAllImages() {
         return contentRepository.findAllImagesOrderByCreateDateDesc().stream()
-                .map(entity -> (ImageContentModel)
+                .map(entity -> (ContentImageModel)
                         contentProcessingUtil.convertToModel(entity))
                 .collect(Collectors.toList());
     }

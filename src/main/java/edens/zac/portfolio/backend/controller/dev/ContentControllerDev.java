@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.controller.dev;
 
-import edens.zac.portfolio.backend.model.ImageContentModel;
-import edens.zac.portfolio.backend.model.ImageUpdateRequest;
+import edens.zac.portfolio.backend.model.ContentImageModel;
+import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.services.ContentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -97,12 +97,12 @@ public class ContentControllerDev {
      * @return ResponseEntity with updated images and newly created metadata
      */
     @PatchMapping("/images")
-    public ResponseEntity<?> updateImages(@RequestBody @Valid List<ImageUpdateRequest> updates) {
+    public ResponseEntity<?> updateImages(@RequestBody @Valid List<ContentImageUpdateRequest> updates) {
         try {
             Map<String, Object> response = contentService.updateImages(updates);
 
             @SuppressWarnings("unchecked")
-            List<ImageContentModel> updatedImages = (List<ImageContentModel>) response.get("updatedImages");
+            List<ContentImageModel> updatedImages = (List<ContentImageModel>) response.get("updatedImages");
 
             if (updatedImages == null || updatedImages.isEmpty()) {
                 return ResponseEntity
@@ -167,9 +167,9 @@ public class ContentControllerDev {
      * @return ResponseEntity with list of all images
      */
     @GetMapping("/images")
-    public ResponseEntity<List<ImageContentModel>> getAllImages() {
+    public ResponseEntity<List<ContentImageModel>> getAllImages() {
         try {
-            List<ImageContentModel> images = contentService.getAllImages();
+            List<ContentImageModel> images = contentService.getAllImages();
             return ResponseEntity.ok(images);
         } catch (Exception e) {
             log.error("Error fetching all images: {}", e.getMessage(), e);

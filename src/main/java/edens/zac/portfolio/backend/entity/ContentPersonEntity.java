@@ -55,10 +55,15 @@ public class ContentPersonEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // Many-to-many relationship with ImageContent (mappedBy side - non-owning)
+    // Many-to-many relationship with ContentImageEntity (mappedBy side - non-owning)
     @ManyToMany(mappedBy = "people", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ContentImageEntity> ContentImage = new HashSet<>();
+    private Set<ContentImageEntity> contentImages = new HashSet<>();
+
+    // Many-to-many relationship with CollectionEntity (mappedBy side - non-owning)
+    @ManyToMany(mappedBy = "people", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<CollectionEntity> collections = new HashSet<>();
 
     /**
      * Constructor for creating a person with just a name.
@@ -68,7 +73,8 @@ public class ContentPersonEntity {
      */
     public ContentPersonEntity(String personName) {
         this.personName = personName;
-        this.ContentImage = new HashSet<>();
+        this.contentImages = new HashSet<>();
+        this.collections = new HashSet<>();
     }
 
     /**
@@ -77,6 +83,24 @@ public class ContentPersonEntity {
      * @return The total number of images featuring this person
      */
     public int getImageCount() {
-        return ContentImage.size();
+        return contentImages.size();
+    }
+
+    /**
+     * Get the number of collections this person is tagged in.
+     *
+     * @return The total number of collections featuring this person
+     */
+    public int getCollectionCount() {
+        return collections.size();
+    }
+
+    /**
+     * Get the total usage count of this person across all entities.
+     *
+     * @return The total number of times this person is tagged
+     */
+    public int getTotalUsageCount() {
+        return contentImages.size() + collections.size();
     }
 }

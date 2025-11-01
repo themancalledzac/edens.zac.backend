@@ -27,6 +27,13 @@ public class ImageCollection {
     private String name;
 
     /**
+     * The cover image URL of the collection.
+     * Useful for displaying collection thumbnails when showing
+     * "This image appears in these collections".
+     */
+    private String coverImageUrl;
+
+    /**
      * Whether the image is visible in this collection
      * Defaults to true if not specified
      */
