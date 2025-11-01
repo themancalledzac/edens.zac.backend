@@ -28,18 +28,16 @@ public class CollectionUpdateDTO extends CollectionBaseModel {
     @Min(value = 1, message = "Content per page must be 1 or greater")
     private Integer contentPerPage;
 
-    // Home page card settings (optional)
-    private Boolean homeCardEnabled; // null = no change
-    private String homeCardText;
-
     private Long coverImageId;
 
     // Content block operations (processed separately in service layer)
     @Valid  // Add this annotation to enable nested validation
     private List<ContentReorderOperation> reorderOperations;
     private List<Long> contentIdsToRemove;
-    private List<String> newTextContent;
-    private List<String> newCodeContent;
+
+//    // TODO: remove newTextContent/newCodeContent, as they should be their own 'createContent' endpoint
+//    private List<String> newTextContent;
+//    private List<String> newCodeContent;
 
     // TODO: Add a List<String> of new Tags. logic in serviceimpl layer will need to 'create' tags based on non-existant, otherwise just connect the two
     private List<String> newTags;

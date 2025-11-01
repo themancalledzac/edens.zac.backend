@@ -19,10 +19,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -148,8 +146,8 @@ class CollectionServiceImpl implements CollectionService {
     public Optional<CollectionModel> findBySlug(String slug) {
         log.debug("Finding collection by slug: {}", slug);
 
-        // Get collection with content blocks
-        return collectionRepository.findBySlugWithContent(slug)
+        // Get collection metadata only - content is fetched via join table in convertToFullModel
+        return collectionRepository.findBySlug(slug)
                 .map(this::convertToFullModel);
     }
 
@@ -219,11 +217,12 @@ class CollectionServiceImpl implements CollectionService {
             }
         }
 
-        // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
-        List<Long> newTextIds = collectionProcessingUtil.handleNewTextContentReturnIds(id, updateDTO);
+//        // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
+//        // TODO: don't handle creating new text blocks from 'updateContent', but rather it's own 'createContent' endpoint
+//        List<Long> newTextIds = collectionProcessingUtil.handleNewTextContentReturnIds(id, updateDTO);
 
-        // Handle content block reordering via utility helper with explicit mapping for new text placeholders
-        collectionProcessingUtil.handleContentReordering(id, updateDTO, newTextIds);
+//        // Handle content block reordering via utility helper with explicit mapping for new text placeholders
+//        collectionProcessingUtil.handleContentReordering(id, updateDTO, newTextIds);
 
         // Save updated entity
         CollectionEntity savedEntity = collectionRepository.save(entity);
@@ -238,94 +237,6 @@ class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional
-    public CollectionModel addContent(Long id, List<MultipartFile> files) {
-        log.debug("Adding content blocks (files only) to collection ID: {}", id);
-
-        // Ensure collection exists and fetch entity/title
-        CollectionEntity entity = collectionRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
-
-        if (files == null || files.isEmpty()) {
-            return convertToFullModel(entity);
-        }
-
-        List<ContentEntity> contents = new ArrayList<>();
-
-        // Get the current highest order index for this collection
-        Integer startOrderIndex = contentRepository.getMaxOrderIndexForCollection(id);
-        Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
-
-        // Track the first non-GIF image URL and id for potential cover usage
-        String firstImageUrlWeb = null;
-        Long firstImageId = null;
-
-        for (MultipartFile file : files) {
-            try {
-                // First check if this image already exists in the database (duplicate detection)
-                if (file.getContentType() != null && file.getContentType().startsWith("image/") && !file.getContentType().equals("image/gif")) {
-                    // Generate file identifier to check for duplicates
-                    String originalFilename = file.getOriginalFilename();
-                    if (originalFilename != null) {
-                        String date = java.time.LocalDate.now().toString();
-                        String fileIdentifier = date + "/" + originalFilename;
-
-                        // Check if image already exists
-                        if (contentRepository.existsByFileIdentifier(fileIdentifier)) {
-                            log.info("Skipping duplicate image: {}", originalFilename);
-                            continue; // Skip this file and move to the next
-                        }
-                    }
-                }
-
-                // Process file based on content type
-                if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
-                    if (file.getContentType().equals("image/gif")) {
-                        // Process as GIF
-                        ContentEntity gifBlock = contentProcessingUtil.processGifContent(
-                                file, id, orderIndex, entity.getTitle(), null);
-                        if (gifBlock != null && gifBlock.getId() != null) {
-                            contents.add(gifBlock);
-                        }
-                    } else {
-                        // Process as image
-                        ContentImageEntity img = contentProcessingUtil.processImageContent(
-                                file, id, orderIndex, entity.getTitle(), null);
-                        if (img != null && img.getId() != null) {
-                            contents.add(img);
-
-                            // Capture the first non-GIF image URL and id for cover if needed
-                            if (firstImageUrlWeb == null) {
-                                firstImageUrlWeb = img.getImageUrlWeb();
-                                firstImageId = img.getId();
-                            }
-                        }
-                    }
-                    orderIndex++;
-                }
-            } catch (Exception e) {
-                log.error("Error processing file: {}", e.getMessage(), e);
-            }
-        }
-
-        // If no cover yet and we uploaded at least one non-GIF image, set it now and sync HomeCard
-        if (entity.getCoverImageId() == null && firstImageId != null) {
-            entity.setCoverImageId(firstImageId);
-            collectionRepository.save(entity);
-        }
-
-        // Update total content count if any contents were added
-        if (!contents.isEmpty()) {
-            long totalContent = contentRepository.countByCollectionId(id);
-            entity.setTotalContent((int) totalContent);
-            collectionRepository.save(entity);
-        }
-
-        // Return fresh model
-        return convertToFullModel(entity);
-    }
-
-    @Override
-    @Transactional
     public void deleteCollection(Long id) {
         log.debug("Deleting collection with ID: {}", id);
 
@@ -334,11 +245,14 @@ class CollectionServiceImpl implements CollectionService {
             throw new EntityNotFoundException("Collection not found with ID: " + id);
         }
 
-        // Delete all content blocks first
-        contentRepository.deleteByCollectionId(id);
+        // Delete all join table entries (dissociate content from collection)
+        // This does NOT delete the content itself - content is reusable!
+        collectionContentRepository.deleteByCollectionId(id);
+        log.debug("Deleted all join table entries for collection ID: {}", id);
 
         // Delete collection
         collectionRepository.deleteById(id);
+        log.info("Successfully deleted collection with ID: {}", id);
     }
 
     @Override

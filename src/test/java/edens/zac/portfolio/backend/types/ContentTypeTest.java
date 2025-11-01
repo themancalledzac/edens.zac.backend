@@ -21,7 +21,6 @@ class ContentTypeTest {
         assertEquals(ContentType.IMAGE, values[0]);
         assertEquals(ContentType.TEXT, values[1]);
         assertEquals(ContentType.GIF, values[2]);
-        assertEquals(ContentType.CODE, values[3]);
     }
 
     @ParameterizedTest
@@ -54,8 +53,7 @@ class ContentTypeTest {
         return Stream.of(
                 Arguments.of(ContentType.IMAGE, "Image"),
                 Arguments.of(ContentType.TEXT, "Text"),
-                Arguments.of(ContentType.GIF, "Gif"),
-                Arguments.of(ContentType.CODE, "Code")
+                Arguments.of(ContentType.GIF, "Gif")
         );
     }
 
@@ -63,8 +61,7 @@ class ContentTypeTest {
         return Stream.of(
                 Arguments.of(ContentType.IMAGE, "IMAGE"),
                 Arguments.of(ContentType.TEXT, "TEXT"),
-                Arguments.of(ContentType.GIF, "GIF"),
-                Arguments.of(ContentType.CODE, "CODE")
+                Arguments.of(ContentType.GIF, "GIF")
         );
     }
 
@@ -72,8 +69,7 @@ class ContentTypeTest {
         return Stream.of(
                 Arguments.of("IMAGE", ContentType.IMAGE),
                 Arguments.of("TEXT", ContentType.TEXT),
-                Arguments.of("GIF", ContentType.GIF),
-                Arguments.of("CODE", ContentType.CODE)
+                Arguments.of("GIF", ContentType.GIF)
         );
     }
 }

@@ -73,21 +73,18 @@ public class ContentControllerDev {
      * @return ResponseEntity with created content
      */
     @PostMapping("/content")
-    public ResponseEntity<?> createContent(@RequestBody @Valid CreateContentRequest request) {
+    public ResponseEntity<?> createTextContent(@RequestBody @Valid CreateTextContentRequest request) {
+
         try {
-            if (request instanceof CreateTextContentRequest) {
-                ContentTextModel createdContent = contentService.createTextContent((CreateTextContentRequest) request);
-                log.info("Successfully created text content: {}", createdContent.getId());
-                return ResponseEntity.status(HttpStatus.CREATED).body(createdContent);
-            } else if (request instanceof CreateCodeContentRequest) {
-                ContentCodeModel createdContent = contentService.createCodeContent((CreateCodeContentRequest) request);
-                log.info("Successfully created code content: {}", createdContent.getId());
-                return ResponseEntity.status(HttpStatus.CREATED).body(createdContent);
-            } else {
+            ContentModel textContent = contentService.createTextContent(request);
+
+            if (textContent == null) {
                 return ResponseEntity
                         .status(HttpStatus.BAD_REQUEST)
-                        .body("Unsupported content type. Use CreateTextContentRequest or CreateCodeContentRequest.");
+                        .body(null);
             }
+            return ResponseEntity.status(HttpStatus.CREATED).body(textContent);
+
         } catch (IllegalArgumentException e) {
             log.warn("Invalid content creation request: {}", e.getMessage());
             return ResponseEntity

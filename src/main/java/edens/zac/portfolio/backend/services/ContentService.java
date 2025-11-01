@@ -113,19 +113,29 @@ public interface ContentService {
      */
     List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files);
 
-    /**
-     * Create text content
-     *
-     * @param request Text content creation request
-     * @return Created text content model
-     */
-    ContentTextModel createTextContent(CreateTextContentRequest request);
+//    /**
+//     * Create text content
+//     *
+//     * @param request Text content creation request
+//     * @return Created text content model
+//     */
+////    ContentTextModel createTextContent(oldCreateTextContentRequest request);
+//
+//    /**
+//     * Create code content
+//     *
+//     * @param request Code content creation request
+//     * @return Created code content model
+//     */
+//    ContentCodeModel createCodeContent(CreateCodeContentRequest request);
 
     /**
      * Create code content
      *
-     * @param request Code content creation request
-     * @return Created code content model
+     * @param request content creation request
+     * @return Created content model of any 'content' type
      */
-    ContentCodeModel createCodeContent(CreateCodeContentRequest request);
+    ContentModel createTextContent(CreateTextContentRequest request);
+
+
 }

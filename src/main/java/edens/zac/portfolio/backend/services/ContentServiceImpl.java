@@ -2,6 +2,8 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.repository.CollectionContentRepository;
+import edens.zac.portfolio.backend.repository.CollectionRepository;
 import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.repository.ContentCameraRepository;
 import edens.zac.portfolio.backend.repository.ContentFilmTypeRepository;
@@ -14,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -37,6 +40,8 @@ class ContentServiceImpl implements ContentService {
     private final ContentLensRepository contentLensRepository;
     private final ContentFilmTypeRepository contentFilmTypeRepository;
     private final ContentRepository contentRepository;
+    private final CollectionContentRepository collectionContentRepository;
+    private final CollectionRepository collectionRepository;
     private final ContentProcessingUtil contentProcessingUtil;
 
     @Override
@@ -158,7 +163,7 @@ class ContentServiceImpl implements ContentService {
                 if (update.getCollections() != null) {
                     ContentImageUpdateRequest.CollectionUpdate collectionUpdate = update.getCollections();
                     if (collectionUpdate.getPrev() != null && !collectionUpdate.getPrev().isEmpty()) {
-                        contentProcessingUtil.handleCollectionVisibilityUpdates(image, collectionUpdate.getPrev());
+                        contentProcessingUtil.handleContentImageCollectionUpdates(image, collectionUpdate.getPrev());
                     }
                 }
 
@@ -539,4 +544,184 @@ class ContentServiceImpl implements ContentService {
                         contentProcessingUtil.convertToModel(entity))
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional
+    public List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files) {
+        log.debug("Creating images for collection ID: {}", collectionId);
+
+        if (files == null || files.isEmpty()) {
+            throw new IllegalArgumentException("At least one file is required");
+        }
+
+        // Verify collection exists
+        CollectionEntity collection = collectionRepository.findById(collectionId)
+                .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + collectionId));
+
+        List<ContentImageModel> createdImages = new ArrayList<>();
+
+        // Get the current highest order index for this collection from the join table
+        Integer startOrderIndex = collectionContentRepository.getMaxOrderIndexForCollection(collectionId);
+        // TODO: Will the orderIndex EVER be null? or do we default to 0? having a test to make sure it always starts at 0 would be great, and then we could simplify this line.
+        Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
+
+        for (MultipartFile file : files) {
+            try {
+                // First, check if this image already exists in the database (duplicate detection)
+                if (file.getContentType() != null && file.getContentType().startsWith("image/") && !file.getContentType().equals("image/gif")) {
+                    // Generate file identifier to check for duplicates
+                    String originalFilename = file.getOriginalFilename();
+                    if (originalFilename != null) {
+                        String date = java.time.LocalDate.now().toString();
+                        String fileIdentifier = date + "/" + originalFilename;
+
+                        // Check if image already exists
+                        if (contentRepository.existsByFileIdentifier(fileIdentifier)) {
+                            log.info("Skipping duplicate image: {}", originalFilename);
+                            continue; // Skip this file and move to the next
+                        }
+                    }
+                }
+
+                // Process file based on content type
+                if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
+                    if (file.getContentType().equals("image/gif")) {
+                        // Process as GIF - skip for now (future implementation)
+                        log.debug("Skipping GIF file (not yet implemented): {}", file.getOriginalFilename());
+                    } else {
+                        // STEP 1: Process and save the image content (NO collection reference)
+                        ContentImageEntity img = contentProcessingUtil.processImageContent(file, null);
+
+                        if (img != null && img.getId() != null) {
+                            // STEP 2: Create join table entry linking content to collection
+                            CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+                                    .collection(collection)
+                                    .content(img)
+                                    .orderIndex(orderIndex)
+                                    .caption(null)  // No caption by default
+                                    .visible(true)   // Visible by default
+                                    .build();
+
+                            collectionContentRepository.save(joinEntry);
+
+                            log.debug("Created join table entry for image {} in collection {} at orderIndex {}",
+                                    img.getId(), collectionId, orderIndex);
+
+                            // STEP 3: Convert to model with join table metadata and add to results
+                            ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertToModel(img, joinEntry);
+                            createdImages.add(imageModel);
+
+                            // Increment order index for next image
+                            orderIndex++;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error processing file: {}", e.getMessage(), e);
+            }
+        }
+
+        return createdImages;
+    }
+
+//    @Override
+//    @Transactional
+//    public ContentModel createContent(CreateTextContentRequest request) {
+//        log.debug("Creating content for collection ID: {}", request.getCollectionId());
+//
+//        if (request.getCollectionId() == null || request.getCollectionId() <= 0) {
+//            throw new IllegalArgumentException("Collection ID is required");
+//        }
+//
+//        if (request.)
+//    }
+
+    @Override
+    @Transactional
+    public ContentTextModel createTextContent(CreateTextContentRequest request) {
+        log.debug("Creating text content for collection ID: {}", request.getCollectionId());
+
+        if (request.getTextContent() == null || request.getTextContent().trim().isEmpty()) {
+            throw new IllegalArgumentException("Text content is required");
+        }
+
+        // Verify collection exists
+        CollectionEntity collection = collectionRepository.findById(request.getCollectionId())
+                .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + request.getCollectionId()));
+
+        // Get the current highest order index for this collection from the join table
+        Integer orderIndex = collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
+        orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
+
+        // Create text content entity
+        ContentTextEntity textEntity = ContentTextEntity.builder()
+                .textContent(request.getTextContent().trim())
+                .formatType(request.getFormType() != null ? request.getFormType().name() : "PLAIN")
+                .build();
+
+        // Save the text content
+        textEntity = contentRepository.save(textEntity);
+
+        // Create join table entry linking content to collection
+        CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+                .collection(collection)
+                .content(textEntity)
+                .orderIndex(orderIndex)
+                .caption(request.getTitle())
+                .visible(true)
+                .build();
+
+        collectionContentRepository.save(joinEntry);
+
+        log.info("Created text content {} in collection {} at orderIndex {}",
+                textEntity.getId(), request.getCollectionId(), orderIndex);
+
+        // Convert to model and return
+        return (ContentTextModel) contentProcessingUtil.convertToModel(textEntity, joinEntry);
+    }
+
+//    @Override
+//    @Transactional
+//    public ContentCodeModel createCodeContent(CreateCodeContentRequest request) {
+//        log.debug("Creating code content for collection ID: {}", request.getCollectionId());
+//
+//        if (request.getCode() == null || request.getCode().trim().isEmpty()) {
+//            throw new IllegalArgumentException("Code content is required");
+//        }
+//
+//        // Verify collection exists
+//        CollectionEntity collection = collectionRepository.findById(request.getCollectionId())
+//                .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + request.getCollectionId()));
+//
+//        // Get the current highest order index for this collection from the join table
+//        Integer orderIndex = collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
+//        orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
+//
+//        // Create code content entity
+//        ContentCodeEntity codeEntity = ContentCodeEntity.builder()
+//                .code(request.getCode().trim())
+//                .language(request.getLanguage() != null ? request.getLanguage() : "plaintext")
+//                .title(request.getTitle())
+//                .build();
+//
+//        // Save the code content
+//        codeEntity = (ContentCodeEntity) contentRepository.save(codeEntity);
+//
+//        // Create join table entry linking content to collection
+//        CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+//                .collection(collection)
+//                .content(codeEntity)
+//                .orderIndex(orderIndex)
+//                .caption(request.getDescription())
+//                .visible(true)
+//                .build();
+//
+//        collectionContentRepository.save(joinEntry);
+//
+//        log.info("Created code content {} in collection {} at orderIndex {}",
+//                codeEntity.getId(), request.getCollectionId(), orderIndex);
+//
+//        // Convert to model and return
+//        return (ContentCodeModel) contentProcessingUtil.convertToModel(codeEntity, joinEntry);
+//    }
 }

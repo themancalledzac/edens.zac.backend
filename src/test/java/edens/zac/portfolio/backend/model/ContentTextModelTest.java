@@ -29,10 +29,9 @@ class ContentTextModelTest {
     @DisplayName("Valid TextContentModel should pass validation")
     void validTextContentModel_shouldPassValidation() {
         // Arrange
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("This is some test content");
+        textContent.setTextContent("This is some test content");
         textContent.setFormatType("markdown");
         textContent.setTitle("Test Title");
 
@@ -47,10 +46,9 @@ class ContentTextModelTest {
     @DisplayName("Blank content should fail validation")
     void blankContent_shouldFailValidation() {
         // Arrange
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent(""); // Invalid - blank
+        textContent.setTextContent(""); // Invalid - blank
         textContent.setFormatType("markdown");
 
         // Act
@@ -67,10 +65,9 @@ class ContentTextModelTest {
     @DisplayName("Null content should fail validation")
     void nullContent_shouldFailValidation() {
         // Arrange
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent(null); // Invalid - null
+        textContent.setTextContent(null); // Invalid - null
         textContent.setFormatType("markdown");
 
         // Act
@@ -88,10 +85,9 @@ class ContentTextModelTest {
     void longContent_shouldFailValidation() {
         // Arrange
         String longContent = "A".repeat(10001); // 10001 characters
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent(longContent); // Invalid - too long
+        textContent.setTextContent(longContent); // Invalid - too long
         textContent.setFormatType("markdown");
 
         // Act
@@ -109,10 +105,9 @@ class ContentTextModelTest {
     void maxLengthContent_shouldPassValidation() {
         // Arrange
         String maxContent = "A".repeat(10000); // Exactly 10000 characters
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent(maxContent);
+        textContent.setTextContent(maxContent);
         textContent.setFormatType("markdown");
 
         // Act
@@ -126,10 +121,9 @@ class ContentTextModelTest {
     @DisplayName("Null formatType should fail validation")
     void nullFormatType_shouldFailValidation() {
         // Arrange
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("Test content");
+        textContent.setTextContent("Test content");
         textContent.setFormatType(null); // Invalid - null
 
         // Act
@@ -147,10 +141,9 @@ class ContentTextModelTest {
     void longFormatType_shouldFailValidation() {
         // Arrange
         String longFormatType = "A".repeat(21); // 21 characters
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("Test content");
+        textContent.setTextContent("Test content");
         textContent.setFormatType(longFormatType); // Invalid - too long
 
         // Act
@@ -168,10 +161,9 @@ class ContentTextModelTest {
     void maxLengthFormatType_shouldPassValidation() {
         // Arrange
         String maxFormatType = "A".repeat(20); // Exactly 20 characters
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("Test content");
+        textContent.setTextContent("Test content");
         textContent.setFormatType(maxFormatType);
 
         // Act
@@ -189,10 +181,9 @@ class ContentTextModelTest {
         
         for (String format : validFormats) {
             // Arrange
-            textContent.setCollectionId(1L);
             textContent.setOrderIndex(0);
             textContent.setContentType(ContentType.TEXT);
-            textContent.setContent("Test content for " + format);
+            textContent.setTextContent("Test content for " + format);
             textContent.setFormatType(format);
 
             // Act
@@ -208,10 +199,9 @@ class ContentTextModelTest {
     void longTitle_shouldFailValidation() {
         // Arrange
         String longTitle = "A".repeat(251); // 251 characters
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("Test content");
+        textContent.setTextContent("Test content");
         textContent.setFormatType("markdown");
         textContent.setTitle(longTitle); // Invalid - too long
 
@@ -230,10 +220,9 @@ class ContentTextModelTest {
     void maxLengthTitle_shouldPassValidation() {
         // Arrange
         String maxTitle = "A".repeat(250); // Exactly 250 characters
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("Test content");
+        textContent.setTextContent("Test content");
         textContent.setFormatType("markdown");
         textContent.setTitle(maxTitle);
 
@@ -248,10 +237,9 @@ class ContentTextModelTest {
     @DisplayName("Title can be null")
     void nullTitle_shouldPassValidation() {
         // Arrange
-        textContent.setCollectionId(1L);
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("Test content");
+        textContent.setTextContent("Test content");
         textContent.setFormatType("markdown");
         textContent.setTitle(null); // Should be valid - title is optional
 
@@ -268,19 +256,17 @@ class ContentTextModelTest {
         // Arrange
         ContentTextModel block1 = new ContentTextModel();
         block1.setId(1L);
-        block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.TEXT);
-        block1.setContent("Test content");
+        block1.setTextContent("Test content");
         block1.setFormatType("markdown");
         block1.setTitle("Test Title");
 
         ContentTextModel block2 = new ContentTextModel();
         block2.setId(1L);
-        block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.TEXT);
-        block2.setContent("Test content");
+        block2.setTextContent("Test content");
         block2.setFormatType("markdown");
         block2.setTitle("Test Title");
 
@@ -295,17 +281,15 @@ class ContentTextModelTest {
     void differentContent_createsDifferentObjects() {
         // Arrange
         ContentTextModel block1 = new ContentTextModel();
-        block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.TEXT);
-        block1.setContent("First content");
+        block1.setTextContent("First content");
         block1.setFormatType("markdown");
 
         ContentTextModel block2 = new ContentTextModel();
-        block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.TEXT);
-        block2.setContent("Second content"); // Different content
+        block2.setTextContent("Second content"); // Different content
         block2.setFormatType("markdown");
 
         // Act & Assert
@@ -317,17 +301,15 @@ class ContentTextModelTest {
     void differentFormatType_createsDifferentObjects() {
         // Arrange
         ContentTextModel block1 = new ContentTextModel();
-        block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.TEXT);
-        block1.setContent("Test content");
+        block1.setTextContent("Test content");
         block1.setFormatType("markdown");
 
         ContentTextModel block2 = new ContentTextModel();
-        block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.TEXT);
-        block2.setContent("Test content");
+        block2.setTextContent("Test content");
         block2.setFormatType("html"); // Different format
 
         // Act & Assert
@@ -342,10 +324,9 @@ class ContentTextModelTest {
         String longFormatType = "A".repeat(21);
         String longTitle = "A".repeat(251);
         
-        textContent.setCollectionId(null); // Error 1 - inherited
         textContent.setOrderIndex(-1); // Error 2 - inherited
         textContent.setContentType(null); // Error 3 - inherited
-        textContent.setContent(""); // Error 4 - blank content
+        textContent.setTextContent(""); // Error 4 - blank content
         textContent.setFormatType(longFormatType); // Error 5 - long format type
         textContent.setTitle(longTitle); // Error 6 - long title
 
@@ -360,10 +341,9 @@ class ContentTextModelTest {
     @DisplayName("Inherits validation from ContentModel")
     void inheritsValidation_fromContentModel() {
         // Arrange - Test that inherited validation still works
-        textContent.setCollectionId(null); // Invalid from parent
         textContent.setOrderIndex(0);
         textContent.setContentType(ContentType.TEXT);
-        textContent.setContent("Test content");
+        textContent.setTextContent("Test content");
         textContent.setFormatType("markdown");
 
         // Act

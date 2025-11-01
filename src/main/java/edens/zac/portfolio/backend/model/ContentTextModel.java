@@ -16,10 +16,9 @@ public class ContentTextModel extends ContentModel {
 
     @NotBlank
     @Size(max = 10000)
-    private String content;
+    private String textContent;
 
-    // TODO: Remove formatType, as text is text, and code would be markdown/html
     @NotNull
     @Size(max = 20)
-    private String formatType; // "markdown", "html", "plain"
+    private String formatType; // "markdown", "html", "plain", "js", "py", "sql", "java", "ts", "tf", "yml"
 }

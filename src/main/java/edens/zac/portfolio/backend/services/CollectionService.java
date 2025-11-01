@@ -8,7 +8,6 @@ import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -91,18 +90,10 @@ public interface CollectionService {
      */
     CollectionModel updateContent(Long id, CollectionUpdateDTO updateDTO);
 
-
-    /**
-     * Add media files (images/gifs) to a collection as new content without changing metadata.
-     *
-     * @param id The ID of the collection
-     * @param files The files to be processed and added as content
-     * @return The updated collection after files are added
-     */
-    CollectionModel addContent(Long id, List<MultipartFile> files);
-
     /**
      * Delete a collection by ID.
+     * This deletes the collection and all join table entries (content associations),
+     * but does NOT delete the content itself as content is reusable.
      *
      * @param id The ID of the collection to delete
      */

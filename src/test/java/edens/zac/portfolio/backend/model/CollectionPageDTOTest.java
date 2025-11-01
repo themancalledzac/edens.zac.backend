@@ -51,7 +51,6 @@ class CollectionPageDTOTest {
                 .location("Test Location")
                 .collectionDate(today)
                 .visible(true)
-                .priority(1)
                 .isPasswordProtected(false)
                 .hasAccess(true)
                 .createdAt(now)
@@ -70,7 +69,7 @@ class CollectionPageDTOTest {
                 .textBlockCount(3)
                 .codeBlockCount(1)
                 .gifBlockCount(1)
-                .contents(new ArrayList<>());
+                .content(new ArrayList<>());
 }
 
     @Nested
@@ -102,7 +101,7 @@ class CollectionPageDTOTest {
                     .hasNext(false)
                     .isFirst(true)
                     .isLast(true)
-                    .contents(new ArrayList<>())
+                    .content(new ArrayList<>())
                     .build();
 
             Set<ConstraintViolation<CollectionPageDTO>> violations = validator.validate(dto);
@@ -128,7 +127,7 @@ class CollectionPageDTOTest {
                 new TestCase("hasNext", builder -> builder.hasNext(null), "Has next page flag is required"),
                 new TestCase("isFirst", builder -> builder.isFirst(null), "Is first page flag is required"),
                 new TestCase("isLast", builder -> builder.isLast(null), "Is last page flag is required"),
-                new TestCase("contents", builder -> builder.contents(null), "Content blocks list is required")
+                new TestCase("contents", builder -> builder.content(null), "Content blocks list is required")
             );
         }
 

@@ -73,7 +73,6 @@ class CollectionControllerProdTest {
         blog.setSlug("test-blog");
         blog.setDescription("A test blog collection");
         blog.setVisible(true);
-        blog.setPriority(1);
         blog.setContentPerPage(30);
         blog.setContentCount(5);
         blog.setTotalPages(1);
@@ -90,7 +89,6 @@ class CollectionControllerProdTest {
         artGallery.setSlug("test-art-gallery");
         artGallery.setDescription("A test art gallery collection");
         artGallery.setVisible(true);
-        artGallery.setPriority(2);
         artGallery.setContentPerPage(30);
         artGallery.setContentCount(10);
         artGallery.setTotalPages(1);
@@ -107,7 +105,6 @@ class CollectionControllerProdTest {
         clientGallery.setSlug("test-client-gallery");
         clientGallery.setDescription("A test client gallery collection");
         clientGallery.setVisible(true);
-        clientGallery.setPriority(3);
         clientGallery.setContentPerPage(50);
         clientGallery.setContentCount(100);
         clientGallery.setTotalPages(2);

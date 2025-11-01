@@ -32,10 +32,8 @@ class ContentModelSerializationTest {
 
         ContentModel model = new ContentModel();
         model.setId(1L);
-        model.setCollectionId(2L);
         model.setOrderIndex(3);
         model.setContentType(ContentType.IMAGE);
-        model.setCaption("Test caption");
         model.setCreatedAt(now);
         model.setUpdatedAt(now);
 
@@ -78,10 +76,8 @@ class ContentModelSerializationTest {
 
         // Assert
         assertEquals(1L, result.getId());
-        assertEquals(2L, result.getCollectionId());
         assertEquals(3, result.getOrderIndex());
         assertEquals(ContentType.IMAGE, result.getContentType());
-        assertEquals("Test caption", result.getCaption());
         assertEquals(LocalDateTime.of(2023, 1, 1, 12, 0, 0), result.getCreatedAt());
         assertEquals(LocalDateTime.of(2023, 1, 1, 12, 0, 0), result.getUpdatedAt());
     }
@@ -91,7 +87,6 @@ class ContentModelSerializationTest {
     void contentModel_shouldHandleNullOptionalFields() throws IOException {
         // Arrange
         ContentModel model = new ContentModel();
-        model.setCollectionId(1L);
         model.setOrderIndex(0);
         model.setContentType(ContentType.TEXT);
         // Leave id, caption, createdAt, updatedAt as null
@@ -121,26 +116,22 @@ class ContentModelSerializationTest {
         // Create an ImageContentModel
         ContentImageModel imageModel = new ContentImageModel();
         imageModel.setId(1L);
-        imageModel.setCollectionId(2L);
         imageModel.setOrderIndex(0);
         imageModel.setContentType(ContentType.IMAGE);
-        imageModel.setCaption("Image caption");
         imageModel.setCreatedAt(now);
         imageModel.setUpdatedAt(now);
-        imageModel.setImageUrlWeb("https://example.com/image.jpg");
+        imageModel.setImageUrl("https://example.com/image.jpg");
         imageModel.setImageWidth(1200);
         imageModel.setImageHeight(800);
 
         // Create a TextContentModel
         ContentTextModel textModel = new ContentTextModel();
         textModel.setId(2L);
-        textModel.setCollectionId(2L);
         textModel.setOrderIndex(1);
         textModel.setContentType(ContentType.TEXT);
-        textModel.setCaption("Text caption");
         textModel.setCreatedAt(now);
         textModel.setUpdatedAt(now);
-        textModel.setContent("This is some text content");
+        textModel.setTextContent("This is some text content");
 
         // Create a list of ContentModel containing different subclasses
         List<ContentModel> content = new ArrayList<>();
@@ -164,8 +155,7 @@ class ContentModelSerializationTest {
         assertInstanceOf(ContentImageModel.class, deserializedContent.getFirst());
         ContentImageModel deserializedImageModel = (ContentImageModel) deserializedContent.getFirst();
         assertEquals(1L, deserializedImageModel.getId());
-        assertEquals("Image caption", deserializedImageModel.getCaption());
-        assertEquals("https://example.com/image.jpg", deserializedImageModel.getImageUrlWeb());
+        assertEquals("https://example.com/image.jpg", deserializedImageModel.getImageUrl());
         assertEquals(1200, deserializedImageModel.getImageWidth());
         assertEquals(800, deserializedImageModel.getImageHeight());
 
@@ -173,7 +163,6 @@ class ContentModelSerializationTest {
         assertInstanceOf(ContentTextModel.class, deserializedContent.get(1));
         ContentTextModel deserializedTextModel = (ContentTextModel) deserializedContent.get(1);
         assertEquals(2L, deserializedTextModel.getId());
-        assertEquals("Text caption", deserializedTextModel.getCaption());
-        assertEquals("This is some text content", deserializedTextModel.getContent());
+        assertEquals("This is some text content", deserializedTextModel.getTextContent());
     }
 }

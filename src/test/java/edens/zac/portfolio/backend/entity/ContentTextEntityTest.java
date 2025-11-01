@@ -12,7 +12,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class TextContentEntityTest {
+class ContentTextEntityTest {
 
     private Validator validator;
 
@@ -25,15 +25,13 @@ class TextContentEntityTest {
     @Test
     void testValidTextContent() {
         // Create a valid text content
-        TextContentEntity textBlock = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
+        ContentTextEntity textBlock = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("This is a sample text content with enough characters to be meaningful.")
+                .textContent("This is a sample text content with enough characters to be meaningful.")
                 .formatType("markdown")
                 .build();
 
-        Set<ConstraintViolation<TextContentEntity>> violations = validator.validate(textBlock);
+        Set<ConstraintViolation<ContentTextEntity>> violations = validator.validate(textBlock);
         assertTrue(violations.isEmpty());
         assertEquals(ContentType.TEXT, textBlock.getContentType());
     }
@@ -41,15 +39,13 @@ class TextContentEntityTest {
     @Test
     void testInvalidTextContentMissingRequiredField() {
         // Create an invalid text content (missing required content)
-        TextContentEntity textBlock = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
+        ContentTextEntity textBlock = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
                 // content is missing
                 .formatType("markdown")
                 .build();
 
-        Set<ConstraintViolation<TextContentEntity>> violations = validator.validate(textBlock);
+        Set<ConstraintViolation<ContentTextEntity>> violations = validator.validate(textBlock);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("content")));
@@ -57,55 +53,43 @@ class TextContentEntityTest {
 
     @Test
     void testGetContentTypeReturnsText() {
-        TextContentEntity textBlock = new TextContentEntity();
+        ContentTextEntity textBlock = new ContentTextEntity();
         assertEquals(ContentType.TEXT, textBlock.getContentType());
     }
 
     @Test
     void testBuilderWithAllFields() {
         // Test the builder pattern with all fields
-        TextContentEntity textBlock = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
+        ContentTextEntity textBlock = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .caption("Text content caption")
-                .content("This is a sample text content with enough characters to be meaningful.")
+                .textContent("This is a sample text content with enough characters to be meaningful.")
                 .formatType("markdown")
                 .build();
 
         // Verify all fields were set correctly
-        assertEquals(1L, textBlock.getCollectionId());
-        assertEquals(0, textBlock.getOrderIndex());
         assertEquals(ContentType.TEXT, textBlock.getContentType());
-        assertEquals("Text content caption", textBlock.getCaption());
-        assertEquals("This is a sample text content with enough characters to be meaningful.", textBlock.getContent());
+        assertEquals("This is a sample text content with enough characters to be meaningful.", textBlock.getTextContent());
         assertEquals("markdown", textBlock.getFormatType());
     }
 
     @Test
     void testFormatTypeValues() {
         // Test with different valid format types
-        TextContentEntity markdownBlock = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
+        ContentTextEntity markdownBlock = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("Markdown content")
+                .textContent("Markdown content")
                 .formatType("markdown")
                 .build();
         
-        TextContentEntity htmlBlock = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(1)
+        ContentTextEntity htmlBlock = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("<p>HTML content</p>")
+                .textContent("<p>HTML content</p>")
                 .formatType("html")
                 .build();
         
-        TextContentEntity plainBlock = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(2)
+        ContentTextEntity plainBlock = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("Plain text content")
+                .textContent("Plain text content")
                 .formatType("plain")
                 .build();
 
@@ -117,19 +101,15 @@ class TextContentEntityTest {
     @Test
     void testEqualsAndHashCode() {
         // Create two identical text blocks
-        TextContentEntity textBlock1 = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
+        ContentTextEntity textBlock1 = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("This is a sample text content.")
+                .textContent("This is a sample text content.")
                 .formatType("markdown")
                 .build();
 
-        TextContentEntity textBlock2 = TextContentEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
+        ContentTextEntity textBlock2 = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("This is a sample text content.")
+                .textContent("This is a sample text content.")
                 .formatType("markdown")
                 .build();
 
@@ -138,7 +118,7 @@ class TextContentEntityTest {
         assertEquals(textBlock1.hashCode(), textBlock2.hashCode());
 
         // Modify one field and test again
-        textBlock2.setContent("Different content");
+        textBlock2.setTextContent("Different content");
         assertNotEquals(textBlock1, textBlock2);
     }
 }

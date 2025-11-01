@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @JsonSubTypes({
         @JsonSubTypes.Type(value = ContentImageModel.class, name = "IMAGE"),
         @JsonSubTypes.Type(value = ContentTextModel.class, name = "TEXT"),
-        @JsonSubTypes.Type(value = ContentCodeModel.class, name = "CODE"),
+//        @JsonSubTypes.Type(value = ContentCodeModel.class, name = "CODE"),
         @JsonSubTypes.Type(value = ContentGifModel.class, name = "GIF"),
         @JsonSubTypes.Type(value = ContentCollectionModel.class, name = "COLLECTION")
 })

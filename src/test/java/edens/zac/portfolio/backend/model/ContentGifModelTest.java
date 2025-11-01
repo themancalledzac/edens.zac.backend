@@ -29,7 +29,6 @@ class ContentGifModelTest {
     @DisplayName("Valid ContentGifModel should pass validation")
     void validContentGifModel_shouldPassValidation() {
         // Arrange
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -51,7 +50,6 @@ class ContentGifModelTest {
     @DisplayName("Null gifUrl should fail validation")
     void nullGifUrl_shouldFailValidation() {
         // Arrange
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl(null); // Invalid - null
@@ -71,7 +69,6 @@ class ContentGifModelTest {
     void longTitle_shouldFailValidation() {
         // Arrange
         String longTitle = "A".repeat(256); // 256 characters
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -92,7 +89,6 @@ class ContentGifModelTest {
     void maxLengthTitle_shouldPassValidation() {
         // Arrange
         String maxTitle = "A".repeat(255); // Exactly 255 characters
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -110,7 +106,6 @@ class ContentGifModelTest {
     void longThumbnailUrl_shouldFailValidation() {
         // Arrange
         String longThumbnailUrl = "https://example.com/" + "A".repeat(240); // Over 255 chars
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -131,7 +126,6 @@ class ContentGifModelTest {
     void maxLengthThumbnailUrl_shouldPassValidation() {
         // Arrange
         String maxThumbnailUrl = "A".repeat(255); // Exactly 255 characters
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -149,7 +143,6 @@ class ContentGifModelTest {
     void longAuthor_shouldFailValidation() {
         // Arrange
         String longAuthor = "A".repeat(101); // 101 characters
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -170,7 +163,6 @@ class ContentGifModelTest {
     void maxLengthAuthor_shouldPassValidation() {
         // Arrange
         String maxAuthor = "A".repeat(100); // Exactly 100 characters
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -187,7 +179,6 @@ class ContentGifModelTest {
     @DisplayName("Optional fields can be null")
     void optionalFields_canBeNull() {
         // Arrange
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -204,7 +195,6 @@ class ContentGifModelTest {
     @DisplayName("Dimensions can be any integer values")
     void dimensions_canBeAnyIntegerValues() {
         // Arrange
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -222,7 +212,6 @@ class ContentGifModelTest {
     @DisplayName("Zero dimensions should pass validation")
     void zeroDimensions_shouldPassValidation() {
         // Arrange
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -240,7 +229,6 @@ class ContentGifModelTest {
     @DisplayName("Negative dimensions should pass validation")
     void negativeDimensions_shouldPassValidation() {
         // Arrange (no constraints on dimensions, so negatives should be allowed)
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -260,7 +248,6 @@ class ContentGifModelTest {
         // Arrange
         ContentGifModel block1 = new ContentGifModel();
         block1.setId(1L);
-        block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.GIF);
         block1.setGifUrl("https://example.com/gif.gif");
@@ -268,7 +255,6 @@ class ContentGifModelTest {
 
         ContentGifModel block2 = new ContentGifModel();
         block2.setId(1L);
-        block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.GIF);
         block2.setGifUrl("https://example.com/gif.gif");
@@ -285,13 +271,11 @@ class ContentGifModelTest {
     void differentGifUrl_createsDifferentObjects() {
         // Arrange
         ContentGifModel block1 = new ContentGifModel();
-        block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.GIF);
         block1.setGifUrl("https://example.com/gif1.gif");
 
         ContentGifModel block2 = new ContentGifModel();
-        block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.GIF);
         block2.setGifUrl("https://example.com/gif2.gif"); // Different URL
@@ -305,7 +289,6 @@ class ContentGifModelTest {
     void differentDimensions_createDifferentObjects() {
         // Arrange
         ContentGifModel block1 = new ContentGifModel();
-        block1.setCollectionId(1L);
         block1.setOrderIndex(0);
         block1.setContentType(ContentType.GIF);
         block1.setGifUrl("https://example.com/gif.gif");
@@ -313,7 +296,6 @@ class ContentGifModelTest {
         block1.setHeight(300);
 
         ContentGifModel block2 = new ContentGifModel();
-        block2.setCollectionId(1L);
         block2.setOrderIndex(0);
         block2.setContentType(ContentType.GIF);
         block2.setGifUrl("https://example.com/gif.gif");
@@ -332,7 +314,6 @@ class ContentGifModelTest {
         String longThumbnailUrl = "A".repeat(256);
         String longAuthor = "A".repeat(101);
         
-        contentGif.setCollectionId(null); // Error 1 - inherited
         contentGif.setOrderIndex(-1); // Error 2 - inherited
         contentGif.setContentType(null); // Error 3 - inherited
         contentGif.setGifUrl(null); // Error 4 - null gif URL
@@ -351,7 +332,6 @@ class ContentGifModelTest {
     @DisplayName("Inherits validation from ContentModel")
     void inheritsValidation_fromContentModel() {
         // Arrange - Test that inherited validation still works
-        contentGif.setCollectionId(null); // Invalid from parent
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -380,7 +360,6 @@ class ContentGifModelTest {
         
         for (String url : validUrls) {
             // Arrange
-            contentGif.setCollectionId(1L);
             contentGif.setOrderIndex(0);
             contentGif.setContentType(ContentType.GIF);
             contentGif.setGifUrl(url);
@@ -397,7 +376,6 @@ class ContentGifModelTest {
     @DisplayName("CreateDate can be any string format")
     void createDate_canBeAnyStringFormat() {
         // Arrange
-        contentGif.setCollectionId(1L);
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");

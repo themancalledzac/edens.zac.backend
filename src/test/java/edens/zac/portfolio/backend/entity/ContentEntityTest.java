@@ -36,61 +36,13 @@ class ContentEntityTest {
     void shouldPassValidationWithValidData() {
         // Given
         ContentEntity block = new TestContent();
-        block.setCollectionId(1L);
-        block.setOrderIndex(1);
         block.setContentType(ContentType.TEXT);
-        block.setCaption("Test Caption");
-        
+
         // When
         Set<ConstraintViolation<ContentEntity>> violations = validator.validate(block);
         
         // Then
         assertThat(violations).isEmpty();
-    }
-
-    @Test
-    void shouldFailValidationWhenCollectionIdIsNull() {
-        // Given
-        ContentEntity block = new TestContent();
-        block.setOrderIndex(1);
-        block.setContentType(ContentType.TEXT);
-        
-        // When
-        Set<ConstraintViolation<ContentEntity>> violations = validator.validate(block);
-        
-        // Then
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("collectionId");
-    }
-
-    @Test
-    void shouldFailValidationWhenOrderIndexIsNull() {
-        // Given
-        ContentEntity block = new TestContent();
-        block.setCollectionId(1L);
-        block.setContentType(ContentType.TEXT);
-        
-        // When
-        Set<ConstraintViolation<ContentEntity>> violations = validator.validate(block);
-        
-        // Then
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("orderIndex");
-    }
-
-    @Test
-    void shouldFailValidationWhenBlockTypeIsNull() {
-        // Given
-        ContentEntity block = new TestContent();
-        block.setCollectionId(1L);
-        block.setOrderIndex(1);
-        
-        // When
-        Set<ConstraintViolation<ContentEntity>> violations = validator.validate(block);
-        
-        // Then
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("blockType");
     }
 
     @Test

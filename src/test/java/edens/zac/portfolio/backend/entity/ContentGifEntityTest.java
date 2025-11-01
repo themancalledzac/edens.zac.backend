@@ -26,8 +26,6 @@ class ContentGifEntityTest {
     void testValidContentGif() {
         // Create a valid content gif
         ContentGifEntity gifBlock = ContentGifEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
@@ -47,8 +45,6 @@ class ContentGifEntityTest {
     void testInvalidContentGifMissingRequiredField() {
         // Create an invalid content gif (missing required gifUrl)
         ContentGifEntity gifBlock = ContentGifEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 // gifUrl is missing
@@ -70,10 +66,7 @@ class ContentGifEntityTest {
     void testBuilderWithAllFields() {
         // Test the builder pattern with all fields
         ContentGifEntity gifBlock = ContentGifEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.GIF)
-                .caption("A funny cat gif")
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
                 .thumbnailUrl("https://example.com/gifs/thumbnails/funny-cat.jpg")
@@ -84,10 +77,7 @@ class ContentGifEntityTest {
                 .build();
 
         // Verify all fields were set correctly
-        assertEquals(1L, gifBlock.getCollectionId());
-        assertEquals(0, gifBlock.getOrderIndex());
         assertEquals(ContentType.GIF, gifBlock.getContentType());
-        assertEquals("A funny cat gif", gifBlock.getCaption());
         assertEquals("Funny Cat", gifBlock.getTitle());
         assertEquals("https://example.com/gifs/funny-cat.gif", gifBlock.getGifUrl());
         assertEquals("https://example.com/gifs/thumbnails/funny-cat.jpg", gifBlock.getThumbnailUrl());
@@ -101,8 +91,6 @@ class ContentGifEntityTest {
     void testOptionalFields() {
         // Test with only required fields
         ContentGifEntity minimalGifBlock = ContentGifEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.GIF)
                 .gifUrl("https://example.com/gifs/minimal.gif")
                 .build();
@@ -123,16 +111,12 @@ class ContentGifEntityTest {
     void testEqualsAndHashCode() {
         // Create two identical gif blocks
         ContentGifEntity gifBlock1 = ContentGifEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")
                 .build();
 
         ContentGifEntity gifBlock2 = ContentGifEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.GIF)
                 .title("Funny Cat")
                 .gifUrl("https://example.com/gifs/funny-cat.gif")

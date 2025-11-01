@@ -19,15 +19,15 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @SuperBuilder
-public class TextContentEntity extends ContentEntity {
+public class ContentTextEntity extends ContentEntity {
 
     @NotNull
     @Lob
     @Column(name = "content", columnDefinition = "TEXT")
-    private String content;
+    private String textContent;
     
     @Column(name = "format_type")
-    private String formatType; // Options: "markdown", "html", "plain"
+    private String formatType; // Options: "markdown", "html", "plain", "js", "py", "sql", "java", "ts", "tf", "yml"
     
     @Override
     public ContentType getContentType() {

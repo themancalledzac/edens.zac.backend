@@ -26,8 +26,6 @@ class ContentImageEntityTest {
     void testValidContentImage() {
         // Create a valid content image
         ContentImageEntity imageBlock = ContentImageEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.IMAGE)
                 .title("Mountain Landscape")
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
@@ -56,8 +54,6 @@ class ContentImageEntityTest {
     void testInvalidContentImageMissingRequiredField() {
         // Create an invalid content image (missing required imageUrlWeb)
         ContentImageEntity imageBlock = ContentImageEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.IMAGE)
                 .title("Mountain Landscape")
                 // imageUrlWeb is missing
@@ -79,10 +75,7 @@ class ContentImageEntityTest {
     void testBuilderWithAllFields() {
         // Test the builder pattern with all fields
         ContentImageEntity imageBlock = ContentImageEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.IMAGE)
-                .caption("A beautiful mountain landscape")
                 .title("Mountain Landscape")
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .imageWidth(1920)
@@ -102,10 +95,7 @@ class ContentImageEntityTest {
                 .build();
 
         // Verify all fields were set correctly
-        assertEquals(1L, imageBlock.getCollectionId());
-        assertEquals(0, imageBlock.getOrderIndex());
         assertEquals(ContentType.IMAGE, imageBlock.getContentType());
-        assertEquals("A beautiful mountain landscape", imageBlock.getCaption());
         assertEquals("Mountain Landscape", imageBlock.getTitle());
         assertEquals("https://example.com/images/mountain.jpg", imageBlock.getImageUrlWeb());
         assertEquals(1920, imageBlock.getImageWidth());
@@ -128,15 +118,11 @@ class ContentImageEntityTest {
     void testEqualsAndHashCode() {
         // Create two identical image blocks
         ContentImageEntity imageBlock1 = ContentImageEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.IMAGE)
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .build();
 
         ContentImageEntity imageBlock2 = ContentImageEntity.builder()
-                .collectionId(1L)
-                .orderIndex(0)
                 .contentType(ContentType.IMAGE)
                 .imageUrlWeb("https://example.com/images/mountain.jpg")
                 .build();

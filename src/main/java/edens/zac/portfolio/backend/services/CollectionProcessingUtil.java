@@ -270,71 +270,68 @@ public class CollectionProcessingUtil {
 //        }
     }
 
-    /**
-     * Handle adding new text blocks, either appending to the end or inserting at a specific index.
-     * Behavior matches the original service implementation.
-     */
-    public void handleNewTextBlocks(Long collectionId, CollectionUpdateDTO updateDTO) {
-        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
-            return;
-        }
-        // Always append new text blocks to the end
-        Integer maxOrderIndex = contentRepository.getMaxOrderIndexForCollection(collectionId);
-        int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
-        for (String text : updateDTO.getNewTextContent()) {
-            contentProcessingUtil.processTextContent(text, collectionId, currentIndex, null);
-            currentIndex++;
-        }
-    }
+//    /**
+//     * Handle adding new text blocks, either appending to the end or inserting at a specific index.
+//     * Behavior matches the original service implementation.
+//     */
+//    public void handleNewTextBlocks(Long collectionId, CollectionUpdateDTO updateDTO) {
+//        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
+//            return;
+//        }
+//        // Always append new text blocks to the end
+//        Integer startOrderIndex = collectionContentRepository.getMaxOrderIndexForCollection(collectionId);
+//        int currentIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
+//        for (String text : updateDTO.getNewTextContent()) {
+//            contentProcessingUtil.processTextContent(text, collectionId);
+//            currentIndex++;
+//        }
+//    }
 
-    /**
-     * Variant of handleNewTextBlocks that returns the IDs of newly created text blocks
-     * in the same order as provided in updateDTO.getNewTextBlocks(). This enables
-     * deterministic placeholder mapping during subsequent reordering.
-     */
-    public List<Long> handleNewTextContentReturnIds(Long collectionId, CollectionUpdateDTO updateDTO) {
-        List<Long> createdIds = new ArrayList<>();
-        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
-            return createdIds;
-        }
-        // Always append to the end - use join table to get max order index
-        Integer maxOrderIndex = collectionContentRepository.getMaxOrderIndexForCollection(collectionId);
-        int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
-        for (String text : updateDTO.getNewTextContent()) {
-            ContentEntity created = contentProcessingUtil.processTextContent(text, collectionId, currentIndex, null);
-            if (created != null && created.getId() != null) {
-                createdIds.add(created.getId());
-            }
-            currentIndex++;
-        }
-        return createdIds;
-    }
+//    /**
+//     * Variant of handleNewTextBlocks that returns the IDs of newly created text blocks
+//     * in the same order as provided in updateDTO.getNewTextBlocks(). This enables
+//     * deterministic placeholder mapping during subsequent reordering.
+//     */
+//    public List<Long> handleNewTextContentReturnIds(Long collectionId, CollectionUpdateDTO updateDTO) {
+//        List<Long> createdIds = new ArrayList<>();
+//        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
+//            return createdIds;
+//        }
+//        for (String text : updateDTO.getNewTextContent()) {
+//            ContentEntity created = contentProcessingUtil.processTextContent(text, collectionId);
+//            if (created != null && created.getId() != null) {
+//                createdIds.add(created.getId());
+//            }
+//            currentIndex++;
+//        }
+//        return createdIds;
+//    }
 
-    /**
-     * Handle content block reordering operations. Supports reference by ID, placeholder for newly
-     * added text blocks (negative IDs: -1 for first new text, etc.), or by old order index.
-     */
-    public void handleContentReordering(Long collectionId, CollectionUpdateDTO updateDTO) {
-        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
-            return;
-        }
-        // Backward-compatible behavior: try to infer newTextIds by taking the last N blocks
-        List<Long> inferredNewTextIds = new ArrayList<>();
-        if (updateDTO.getNewTextContent() != null && !updateDTO.getNewTextContent().isEmpty()) {
-            int n = updateDTO.getNewTextContent().size();
-            // Get all join table entries and extract content entities
-            List<ContentEntity> allBlocks = collectionContentRepository
-                    .findByCollectionIdOrderByOrderIndex(collectionId)
-                    .stream()
-                    .map(CollectionContentEntity::getContent)
-                    .toList();
-            int total = allBlocks.size();
-            for (int i = Math.max(0, total - n); i < total; i++) {
-                inferredNewTextIds.add(allBlocks.get(i).getId());
-            }
-        }
-        handleContentReordering(collectionId, updateDTO, inferredNewTextIds);
-    }
+//    /**
+//     * Handle content block reordering operations. Supports reference by ID, placeholder for newly
+//     * added text blocks (negative IDs: -1 for first new text, etc.), or by old order index.
+//     */
+//    public void handleContentReordering(Long collectionId, CollectionUpdateDTO updateDTO) {
+//        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
+//            return;
+//        }
+//        // Backward-compatible behavior: try to infer newTextIds by taking the last N blocks
+//        List<Long> inferredNewTextIds = new ArrayList<>();
+//        if (updateDTO.getNewTextContent() != null && !updateDTO.getNewTextContent().isEmpty()) {
+//            int n = updateDTO.getNewTextContent().size();
+//            // Get all join table entries and extract content entities
+//            List<ContentEntity> allBlocks = collectionContentRepository
+//                    .findByCollectionIdOrderByOrderIndex(collectionId)
+//                    .stream()
+//                    .map(CollectionContentEntity::getContent)
+//                    .toList();
+//            int total = allBlocks.size();
+//            for (int i = Math.max(0, total - n); i < total; i++) {
+//                inferredNewTextIds.add(allBlocks.get(i).getId());
+//            }
+//        }
+//        handleContentReordering(collectionId, updateDTO, inferredNewTextIds);
+//    }
 
     /**
      * Overloaded reordering that accepts explicit newTextIds mapping. This ensures
@@ -599,31 +596,31 @@ public class CollectionProcessingUtil {
     // CONTENT OPERATION HELPERS
     // =============================================================================
 
-    /**
-     * Check if an update DTO includes content operations.
-     */
-    public static boolean hasContentOperations(CollectionUpdateDTO dto) {
-        return (dto.getReorderOperations() != null && !dto.getReorderOperations().isEmpty()) ||
-                (dto.getContentIdsToRemove() != null && !dto.getContentIdsToRemove().isEmpty()) ||
-                (dto.getNewTextContent() != null && !dto.getNewTextContent().isEmpty()) ||
-                (dto.getNewCodeContent() != null && !dto.getNewCodeContent().isEmpty());
-    }
+//    /**
+//     * Check if an update DTO includes content operations.
+//     */
+//    public static boolean hasContentOperations(CollectionUpdateDTO dto) {
+//        return (dto.getReorderOperations() != null && !dto.getReorderOperations().isEmpty()) ||
+//                (dto.getContentIdsToRemove() != null && !dto.getContentIdsToRemove().isEmpty()) ||
+//                (dto.getNewTextContent() != null && !dto.getNewTextContent().isEmpty()) ||
+//                (dto.getNewCodeContent() != null && !dto.getNewCodeContent().isEmpty());
+//    }
 
     // =============================================================================
     // CONTENT SUMMARY HELPERS
     // =============================================================================
 
-    /**
-     * Get total contents from page DTO content summary.
-     */
-    public static int getTotalContents(CollectionPageDTO dto) {
-        int total = 0;
-        if (dto.getImageBlockCount() != null) total += dto.getImageBlockCount();
-        if (dto.getTextBlockCount() != null) total += dto.getTextBlockCount();
-        if (dto.getCodeBlockCount() != null) total += dto.getCodeBlockCount();
-        if (dto.getGifBlockCount() != null) total += dto.getGifBlockCount();
-        return total;
-    }
+//    /**
+//     * Get total contents from page DTO content summary.
+//     */
+//    public static int getTotalContents(CollectionPageDTO dto) {
+//        int total = 0;
+//        if (dto.getImageBlockCount() != null) total += dto.getImageBlockCount();
+//        if (dto.getTextBlockCount() != null) total += dto.getTextBlockCount();
+//        if (dto.getCodeBlockCount() != null) total += dto.getCodeBlockCount();
+//        if (dto.getGifBlockCount() != null) total += dto.getGifBlockCount();
+//        return total;
+//    }
 
     /**
      * Get content summary as formatted string.

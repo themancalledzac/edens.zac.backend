@@ -4,6 +4,12 @@
 ## Overview
 This document outlines the remaining backend work for the ContentCollection system refactor, organized by priority. All completed work has been removed, and frontend work has been deferred.
 
+
+
+#### ISSUES WE SEE NOW
+* - database needs culling, reorganizing. remove 'priority', not needed, in favor of 'orderIndex
+- '
+
 ---
 
 ## 🔴 HIGH PRIORITY - Critical Missing Features
@@ -16,7 +22,9 @@ This document outlines the remaining backend work for the ContentCollection syst
 *  - Get all people endpoint
 *  - create new tag endpoint
 *  - create new 'person' endpoint
-*  
+*  - Collections can maybe be ALSO a collection of a single person?
+*  - - I'm imagining a 'edens-family' collection, that has different vacations, but also a link to each person?
+*  - - Something like, a picture of Bodin that redirects to the 'Bodin' Collection
 * 
 - With all of these in mind, we probably need a 'ContentBlockControllerDev/Prod'
 *  - - THese include all changes to ImageContentBlock, GifContentBLock, TextContentBLock, and CodeContentBlock
@@ -37,7 +45,8 @@ This document outlines the remaining backend work for the ContentCollection syst
 * 
 *  - Will Tags need to be it's own 'controller/service/repository' layers? or can we do that in 'contentBlock'? does it exist as a contentBlock as well? what about 'People'
 *  - 
-*  - 
+*  - We need a `don't upload duplicate images` feature for image upload logic.
+- - - as we continue to add new images, we need this explicit feature to allow us to upload more freely, without worry of duplication.
 
 
 ### Gif workflow implementation

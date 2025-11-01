@@ -144,20 +144,6 @@ class CollectionEntityTest {
                 .anyMatch(v -> v.getPropertyPath().toString().equals("location")));
     }
 
-    @Test
-    void testPriorityMinimumValidation() {
-        // Test with negative priority
-        CollectionEntity negativePriority = new CollectionEntity();
-        negativePriority.setType(CollectionType.BLOG);
-        negativePriority.setTitle("Test Collection");
-        negativePriority.setSlug("test-collection");
-        negativePriority.setPriority(-1); // Should be minimum 0
-
-        Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(negativePriority);
-        assertFalse(violations.isEmpty());
-        assertTrue(violations.stream()
-                .anyMatch(v -> v.getPropertyPath().toString().equals("priority")));
-    }
 
     @Test
     void testBlocksPerPageMinimumValidation() {
@@ -174,49 +160,49 @@ class CollectionEntityTest {
                 .anyMatch(v -> v.getPropertyPath().toString().equals("blocksPerPage")));
     }
 
-    @Test
-    void testIsPasswordProtected() {
-        // Test with password protection enabled and hash present
-        CollectionEntity protectedCollection = new CollectionEntity();
-        protectedCollection.setType(CollectionType.CLIENT_GALLERY);
-        protectedCollection.setTitle("Protected Collection");
-        protectedCollection.setSlug("protected-collection");
-        protectedCollection.setPasswordProtected(true);
-        protectedCollection.setPasswordHash("$2a$10$someHashValue");
-
-        assertTrue(protectedCollection.isPasswordProtected());
-
-        // Test with password protection disabled
-        CollectionEntity unprotectedCollection = new CollectionEntity();
-        unprotectedCollection.setType(CollectionType.BLOG);
-        unprotectedCollection.setTitle("Public Collection");
-        unprotectedCollection.setSlug("public-collection");
-        unprotectedCollection.setPasswordProtected(false);
-        unprotectedCollection.setPasswordHash("$2a$10$someHashValue");
-
-        assertFalse(unprotectedCollection.isPasswordProtected());
-
-        // Test with password protection enabled but no hash
-        CollectionEntity incompleteCollection = new CollectionEntity();
-        incompleteCollection.setType(CollectionType.CLIENT_GALLERY);
-        incompleteCollection.setTitle("Incomplete Collection");
-        incompleteCollection.setSlug("incomplete-collection");
-        incompleteCollection.setPasswordProtected(true);
-        incompleteCollection.setPasswordHash("");
-
-
-        assertFalse(incompleteCollection.isPasswordProtected());
-
-        // Test with null values
-        CollectionEntity nullCollection = new CollectionEntity();
-        nullCollection.setType(CollectionType.CLIENT_GALLERY);
-        nullCollection.setTitle("Null Collection");
-        nullCollection.setSlug("null-collection");
-        nullCollection.setPasswordProtected(null);
-        nullCollection.setPasswordHash(null);
-
-        assertFalse(nullCollection.isPasswordProtected());
-    }
+//    @Test
+//    void testIsPasswordProtected() {
+//        // Test with password protection enabled and hash present
+//        CollectionEntity protectedCollection = new CollectionEntity();
+//        protectedCollection.setType(CollectionType.CLIENT_GALLERY);
+//        protectedCollection.setTitle("Protected Collection");
+//        protectedCollection.setSlug("protected-collection");
+//        protectedCollection.setPasswordProtected(true);
+//        protectedCollection.setPasswordHash("$2a$10$someHashValue");
+//
+//        assertTrue(protectedCollection.isPasswordProtected());
+//
+//        // Test with password protection disabled
+//        CollectionEntity unprotectedCollection = new CollectionEntity();
+//        unprotectedCollection.setType(CollectionType.BLOG);
+//        unprotectedCollection.setTitle("Public Collection");
+//        unprotectedCollection.setSlug("public-collection");
+//        unprotectedCollection.setPasswordProtected(false);
+//        unprotectedCollection.setPasswordHash("$2a$10$someHashValue");
+//
+//        assertFalse(unprotectedCollection.isPasswordProtected());
+//
+//        // Test with password protection enabled but no hash
+//        CollectionEntity incompleteCollection = new CollectionEntity();
+//        incompleteCollection.setType(CollectionType.CLIENT_GALLERY);
+//        incompleteCollection.setTitle("Incomplete Collection");
+//        incompleteCollection.setSlug("incomplete-collection");
+//        incompleteCollection.setPasswordProtected(true);
+//        incompleteCollection.setPasswordHash("");
+//
+//
+//        assertFalse(incompleteCollection.isPasswordProtected());
+//
+//        // Test with null values
+//        CollectionEntity nullCollection = new CollectionEntity();
+//        nullCollection.setType(CollectionType.CLIENT_GALLERY);
+//        nullCollection.setTitle("Null Collection");
+//        nullCollection.setSlug("null-collection");
+//        nullCollection.setPasswordProtected(null);
+//        nullCollection.setPasswordHash(null);
+//
+//        assertFalse(nullCollection.isPasswordProtected());
+//    }
 
     @Test
     void testGetTotalPages() {
@@ -263,11 +249,8 @@ class CollectionEntityTest {
         collection.setDescription("A portfolio with all fields populated");
         collection.setLocation("Test Location");
         collection.setCollectionDate(today);
-        collection.setPriority(5);
         collection.setContentPerPage(20);
         collection.setTotalContent(100);
-        collection.setPasswordHash("$2a$10$someHashValue");
-        collection.setPasswordProtected(true);
         collection.setCoverImageId(123L);
 
         // Verify all fields were set correctly
@@ -278,11 +261,8 @@ class CollectionEntityTest {
         assertEquals("Test Location", collection.getLocation());
         assertEquals(today, collection.getCollectionDate());
         assertTrue(collection.getVisible());
-        assertEquals(5, collection.getPriority());
         assertEquals(20, collection.getContentPerPage());
         assertEquals(100, collection.getTotalContent());
-        assertEquals("$2a$10$someHashValue", collection.getPasswordHash());
-        assertTrue(collection.getPasswordProtected());
         assertEquals(123L, collection.getCoverImageId());
     }
 

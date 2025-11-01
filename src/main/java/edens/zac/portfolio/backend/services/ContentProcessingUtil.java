@@ -10,10 +10,7 @@ import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentRepository;
-import edens.zac.portfolio.backend.repository.ContentCameraRepository;
-import edens.zac.portfolio.backend.repository.CollectionRepository;
-import edens.zac.portfolio.backend.repository.ContentLensRepository;
+import edens.zac.portfolio.backend.repository.*;
 import edens.zac.portfolio.backend.types.ContentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,9 +44,9 @@ public class ContentProcessingUtil {
     private final AmazonS3 amazonS3;
     private final ContentRepository contentRepository;
     private final ContentCameraRepository contentCameraRepository;
-    private final CollectionRepository collectionRepository;
     private final ContentLensRepository contentLensRepository;
-    private final edens.zac.portfolio.backend.repository.ContentFilmTypeRepository contentFilmTypeRepository;
+    private final ContentFilmTypeRepository contentFilmTypeRepository;
+    private final CollectionContentRepository collectionContentRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
     private String bucketName;
@@ -89,10 +86,10 @@ public class ContentProcessingUtil {
 
         return switch (entity.getContentType()) {
             case IMAGE -> convertImageToModel((ContentImageEntity) entity);
-            case TEXT -> convertTextToModel((TextContentEntity) entity);
-            case CODE -> convertCodeToModel((ContentCodeEntity) entity);
+            case TEXT -> convertTextToModel((ContentTextEntity) entity);
+//            case CODE -> convertCodeToModel((ContentCodeEntity) entity);
             case GIF -> convertGifToModel((ContentGifEntity) entity);
-//            case COLLECTION -> convertCollectionToModel((ContentCollectionEntity) entity);
+            case COLLECTION -> null;
         };
     }
 
@@ -100,8 +97,8 @@ public class ContentProcessingUtil {
      * Convert a ContentEntity to its corresponding ContentModel with join table metadata.
      * This version populates collection-specific fields (orderIndex, caption, visible) from the join table.
      *
-     * @param entity              The content entity to convert
-     * @param collectionContent   The join table entry containing collection-specific metadata
+     * @param entity            The content entity to convert
+     * @param collectionContent The join table entry containing collection-specific metadata
      * @return The corresponding content model with join table metadata populated
      */
     public ContentModel convertToModel(ContentEntity entity, CollectionContentEntity collectionContent) {
@@ -190,17 +187,17 @@ public class ContentProcessingUtil {
         model.setFilmType(entity.getFilmType() != null ? entity.getFilmType().getDisplayName() : null);
         model.setFilmFormat(entity.getFilmFormat());
         model.setShutterSpeed(entity.getShutterSpeed());
-        model.setImageUrlFullSize(entity.getImageUrlFullSize());
+        // Map entity's imageUrlWeb to model's imageUrl field
+        model.setImageUrl(entity.getImageUrlWeb());
         model.setCamera(entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null);
         model.setFocalLength(entity.getFocalLength());
         model.setLocation(entity.getLocation());
-        model.setImageUrlWeb(entity.getImageUrlWeb());
         model.setCreateDate(entity.getCreateDate());
 
         // Map tags - convert entities to simplified tag objects (id and name only)
         if (entity.getTags() != null && !entity.getTags().isEmpty()) {
-            List<edens.zac.portfolio.backend.model.ContentTagModel> tagModels = entity.getTags().stream()
-                    .map(tag -> edens.zac.portfolio.backend.model.ContentTagModel.builder()
+            List<ContentTagModel> tagModels = entity.getTags().stream()
+                    .map(tag -> ContentTagModel.builder()
                             .id(tag.getId())
                             .name(tag.getTagName())
                             .build())
@@ -221,31 +218,10 @@ public class ContentProcessingUtil {
             model.setPeople(personModels);
         }
 
-        // Populate collections array - fetch all collections this image belongs to
-        List<ContentImageEntity> instances = new ArrayList<>();
-        if (entity.getFileIdentifier() != null) {
-            instances = contentRepository.findAllByFileIdentifier(entity.getFileIdentifier());
-        } else {
-            // Fallback if no fileIdentifier - just use the current entity
-            instances.add(entity);
-        }
-
-        List<ImageCollection> collections = new ArrayList<>();
-        for (ContentImageEntity instance : instances) {
-            if (instance.getCollectionId() != null) {
-                collectionRepository.findById(instance.getCollectionId())
-                        .ifPresent(collection -> {
-                            ImageCollection ic = ImageCollection.builder()
-                                    .collectionId(collection.getId())
-                                    .name(collection.getTitle())
-                                    .visible(instance.getVisible() != null ? instance.getVisible() : true)
-                                    .orderIndex(instance.getOrderIndex())
-                                    .build();
-                            collections.add(ic);
-                        });
-            }
-        }
-        model.setCollections(collections);
+        // TODO: Populate collections array using join table
+        // This requires querying CollectionContentRepository to find all collections containing this content
+        // For now, set empty list for minimum functionality
+        model.setCollections(new ArrayList<>());
 
         return model;
     }
@@ -256,7 +232,7 @@ public class ContentProcessingUtil {
      * @param entity The text content entity to convert
      * @return The corresponding text content model
      */
-    private ContentTextModel convertTextToModel(TextContentEntity entity) {
+    private ContentTextModel convertTextToModel(ContentTextEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -267,38 +243,38 @@ public class ContentProcessingUtil {
         copyBaseProperties(entity, model);
 
         // Copy text-specific properties
-        model.setContent(entity.getContent());
+        model.setTextContent(entity.getTextContent());
         model.setFormatType(entity.getFormatType());
 
         return model;
     }
 
-    /**
-     * Convert a CodeContentEntity to a CodeContentModel.
-     *
-     * @param entity The code content entity to convert
-     * @return The corresponding code content model
-     */
-    private ContentCodeModel convertCodeToModel(ContentCodeEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-
-        ContentCodeModel model = new ContentCodeModel();
-
-        // Copy base properties
-        copyBaseProperties(entity, model);
-
-        // Copy code-specific properties
-        model.setCode(entity.getCode());
-        model.setLanguage(entity.getLanguage());
-        model.setTitle(entity.getTitle());
-
-        // Set default values for additional properties
-        model.setShowLineNumbers(true);
-
-        return model;
-    }
+//    /**
+//     * Convert a CodeContentEntity to a CodeContentModel.
+//     *
+//     * @param entity The code content entity to convert
+//     * @return The corresponding code content model
+//     */
+//    private ContentCodeModel convertCodeToModel(ContentCodeEntity entity) {
+//        if (entity == null) {
+//            return null;
+//        }
+//
+//        ContentCodeModel model = new ContentCodeModel();
+//
+//        // Copy base properties
+//        copyBaseProperties(entity, model);
+//
+//        // Copy code-specific properties
+//        model.setCode(entity.getCode());
+//        model.setLanguage(entity.getLanguage());
+//        model.setTitle(entity.getTitle());
+//
+//        // Set default values for additional properties
+//        model.setShowLineNumbers(true);
+//
+//        return model;
+//    }
 
     /**
      * Convert a GifContentEntity to a GifContentModel.
@@ -325,135 +301,100 @@ public class ContentProcessingUtil {
         model.setAuthor(entity.getAuthor());
         model.setCreateDate(entity.getCreateDate());
 
-        // Map tags - convert entities to tag names
+        // Map tags - convert entities to simplified tag objects (id and name only)
         if (entity.getTags() != null && !entity.getTags().isEmpty()) {
-            List<String> tagNames = entity.getTags().stream()
-                    .map(ContentTagEntity::getTagName)
-                    .sorted()
+            List<ContentTagModel> tagModels = entity.getTags().stream()
+                    .map(tag -> ContentTagModel.builder()
+                            .id(tag.getId())
+                            .name(tag.getTagName())
+                            .build())
+                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                     .toList();
-            model.setTags(tagNames);
+            model.setTags(tagModels);
         }
 
         return model;
     }
 
-    /**
-     * Process and save a content based on its type.
-     *
-     * @param file         The file to process (for media content)
-     * @param type         The type of content
-     * @param collectionId The ID of the collection this collection belongs to
-     * @param orderIndex   The order index of this content within the collection
-     * @return The saved content entity
-     */
-    public ContentEntity processContent(
-            MultipartFile file,
-            ContentType type,
-            Long collectionId,
-            Integer orderIndex,
-            String content,
-            String language,
-            String title,
-            String caption
-    ) {
-        log.info("Processing content of type {} for collection {}", type, collectionId);
+// TODO: Is any of this still needed? should we reuse this in favor of our new 'createCodeContent/createTextContent'?
+//    /**
+//     * Process and save a content based on its type.
+//     *
+//     * @param file         The file to process (for media content)
+//     * @param type         The type of content
+//     * @param collectionId The ID of the collection this collection belongs to
+//     * @param orderIndex   The order index of this content within the collection
+//     * @return The saved content entity
+//     */
+//    public ContentEntity processContent(
+//            MultipartFile file,
+//            ContentType type,
+//            Long collectionId,
+//            Integer orderIndex,
+//            String content,
+//            String language,
+//            String title,
+//            String caption
+//    ) {
+//        log.info("Processing content of type {} for collection {}", type, collectionId);
+//
+//        if (type == null) {
+//            log.error("Unknown content type: null");
+//            throw new IllegalArgumentException("Unknown content type: null");
+//        }
+//
+//        return switch (type) {
+//            case IMAGE -> processImageContent(file, title);
+//            case TEXT -> processTextContent(content, collectionId, orderIndex, caption);
+//            case CODE -> processCodeContent(content, language, collectionId, orderIndex, title, caption);
+//            case GIF -> processGifContent(file, collectionId, orderIndex, title, caption);
+//            case COLLECTION -> null;
+//        };
+//    }
 
-        if (type == null) {
-            log.error("Unknown content type: null");
-            throw new IllegalArgumentException("Unknown content type: null");
-        }
+//
 
-        return switch (type) {
-            case IMAGE -> processImageContent(file, collectionId, orderIndex, title, caption);
-            case TEXT -> processTextContent(content, collectionId, orderIndex, caption);
-            case CODE -> processCodeContent(content, language, collectionId, orderIndex, title, caption);
-            case GIF -> processGifContent(file, collectionId, orderIndex, title, caption);
-        };
-    }
-
-    /**
-     * Process and save a text content.
-     *
-     * @param text         The text content
-     * @param collectionId The ID of the collection this Content belongs to
-     * @param orderIndex   The order index of this content within the collection
-     * @param caption      The caption for the text content
-     * @return The saved text content entity
-     */
-    public TextContentEntity processTextContent(
-            String text,
-            Long collectionId,
-            Integer orderIndex,
-            String caption
-    ) {
-        log.info("Processing text content for collection {}", collectionId);
-
-        try {
-            // Validate and sanitize the text content
-            String validatedContent = validateAndSanitizeTextContent(text);
-
-            // Create and return the text content entity
-            TextContentEntity entity = new TextContentEntity();
-            entity.setCollectionId(collectionId);
-            entity.setOrderIndex(orderIndex);
-            entity.setContentType(ContentType.TEXT);
-            entity.setCaption(caption);
-            entity.setContent(validatedContent);
-            entity.setFormatType("markdown"); // Default format type
-
-            // Save the entity using the repository
-            return contentRepository.save(entity);
-
-        } catch (Exception e) {
-            log.error("Error processing text content: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process text content", e);
-        }
-    }
-
-    /**
-     * Process and save a code content.
-     *
-     * @param code         The code content
-     * @param language     The programming language
-     * @param collectionId The ID of the collection this content belongs to
-     * @param orderIndex   The order index of this content within the collection
-     * @param title        The title of the code content
-     * @param caption      The caption for the code content
-     * @return The saved code content entity
-     */
-    public ContentCodeEntity processCodeContent(
-            String code,
-            String language,
-            Long collectionId,
-            Integer orderIndex,
-            String title,
-            String caption
-    ) {
-        log.info("Processing code content for collection {}", collectionId);
-
-        try {
-            // Validate the code content and language
-            String validatedCode = validateCodeContent(code, language);
-            String validatedLanguage = validateCodeLanguage(language);
-
-            // Create and return the code content entity
-            ContentCodeEntity entity = new ContentCodeEntity();
-            entity.setCollectionId(collectionId);
-            entity.setOrderIndex(orderIndex);
-            entity.setContentType(ContentType.CODE);
-            entity.setCaption(caption);
-            entity.setCode(validatedCode);
-            entity.setLanguage(validatedLanguage);
-            entity.setTitle(title);
-
-            // Save the entity using the repository
-            return contentRepository.save(entity);
-
-        } catch (Exception e) {
-            log.error("Error processing code content: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process code content", e);
-        }
-    }
+//    /**
+//     * Process and save a code content.
+//     *
+//     * @param code         The code content
+//     * @param language     The programming language
+//     * @param collectionId The ID of the collection this content belongs to
+//     * @param orderIndex   The order index of this content within the collection
+//     * @param title        The title of the code content
+//     * @param caption      The caption for the code content
+//     * @return The saved code content entity
+//     */
+//    public ContentCodeEntity processCodeContent(
+//            String code,
+//            String language,
+//            Long collectionId,
+//            Integer orderIndex,
+//            String title,
+//            String caption
+//    ) {
+//        log.info("Processing code content for collection {}", collectionId);
+//
+//        try {
+//            // Validate the code content and language
+//            String validatedCode = validateCodeContent(code, language);
+//            String validatedLanguage = validateCodeLanguage(language);
+//
+//            // Create and return the code content entity
+//            ContentCodeEntity entity = new ContentCodeEntity();
+//            entity.setContentType(ContentType.CODE);
+//            entity.setCode(validatedCode);
+//            entity.setLanguage(validatedLanguage);
+//            entity.setTitle(title);
+//
+//            // Save the entity using the repository
+//            return contentRepository.save(entity);
+//
+//        } catch (Exception e) {
+//            log.error("Error processing code content: {}", e.getMessage(), e);
+//            throw new RuntimeException("Failed to process code content", e);
+//        }
+//    }
 
     /**
      * Process and save a gif content.
@@ -492,10 +433,7 @@ public class ContentProcessingUtil {
 
             // Create the gif content entity
             ContentGifEntity entity = new ContentGifEntity();
-            entity.setCollectionId(collectionId);
-            entity.setOrderIndex(orderIndex);
             entity.setContentType(ContentType.GIF);
-            entity.setCaption(caption);
             entity.setTitle(title != null ? title : file.getOriginalFilename());
             entity.setGifUrl(gifUrl);
             entity.setThumbnailUrl(thumbnailUrl);
@@ -513,55 +451,55 @@ public class ContentProcessingUtil {
         }
     }
 
-    /**
-     * Reorder content within a collection.
-     *
-     * @param collectionId The ID of the collection
-     * @param contentIds     The ordered list of content IDs
-     * @return The updated list of content entities
-     */
-    public List<ContentEntity> reorderContent(Long collectionId, List<Long> contentIds) {
-        log.info("Reordering content for collection {}", collectionId);
-
-        if (contentIds == null || contentIds.isEmpty()) {
-            throw new IllegalArgumentException("Content IDs list cannot be empty");
-        }
-
-        try {
-            // Get all Content for this collection
-            List<ContentEntity> contents = contentRepository.findByCollectionIdOrderByOrderIndex(collectionId);
-
-            // Create a map of content ID to entity for quick lookup
-            Map<Long, ContentEntity> contentMap = new HashMap<>();
-            for (ContentEntity contentSingle : contents) {
-                contentMap.put(contentSingle.getId(), contentSingle);
-            }
-
-            // Validate that all content IDs belong to this collection
-            for (Long contentId : contentIds) {
-                ContentEntity content = contentMap.get(contentId);
-                if (content == null) {
-                    throw new IllegalArgumentException("Content ID " + contentId + " does not belong to collection " + collectionId);
-                }
-            }
-
-            // Update order index for each content based on its position in the list
-            List<ContentEntity> updatedContent = new ArrayList<>();
-            for (int i = 0; i < contentIds.size(); i++) {
-                Long contentId = contentIds.get(i);
-                ContentEntity content = contentMap.get(contentId);
-                content.setOrderIndex(i);
-                updatedContent.add(content);
-            }
-
-            // Save all updated content
-            return contentRepository.saveAll(updatedContent);
-
-        } catch (Exception e) {
-            log.error("Error reordering content: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to reorder content", e);
-        }
-    }
+//    /**
+//     * Reorder content within a collection.
+//     *
+//     * @param collectionId The ID of the collection
+//     * @param contentIds   The ordered list of content IDs
+//     * @return The updated list of content entities
+//     */
+//    public List<ContentEntity> reorderContent(Long collectionId, List<Long> contentIds) {
+//        log.info("Reordering content for collection {}", collectionId);
+//
+//        if (contentIds == null || contentIds.isEmpty()) {
+//            throw new IllegalArgumentException("Content IDs list cannot be empty");
+//        }
+//
+//        try {
+//            // Get all Content for this collection
+//            List<ContentEntity> contents = contentRepository.findByCollectionIdOrderByOrderIndex(collectionId);
+//
+//            // Create a map of content ID to entity for quick lookup
+//            Map<Long, ContentEntity> contentMap = new HashMap<>();
+//            for (ContentEntity contentSingle : contents) {
+//                contentMap.put(contentSingle.getId(), contentSingle);
+//            }
+//
+//            // Validate that all content IDs belong to this collection
+//            for (Long contentId : contentIds) {
+//                ContentEntity content = contentMap.get(contentId);
+//                if (content == null) {
+//                    throw new IllegalArgumentException("Content ID " + contentId + " does not belong to collection " + collectionId);
+//                }
+//            }
+//
+//            // Update order index for each content based on its position in the list
+//            List<ContentEntity> updatedContent = new ArrayList<>();
+//            for (int i = 0; i < contentIds.size(); i++) {
+//                Long contentId = contentIds.get(i);
+//                ContentEntity content = contentMap.get(contentId);
+//                content.setOrderIndex(i);
+//                updatedContent.add(content);
+//            }
+//
+//            // Save all updated content
+//            return contentRepository.saveAll(updatedContent);
+//
+//        } catch (Exception e) {
+//            log.error("Error reordering content: {}", e.getMessage(), e);
+//            throw new RuntimeException("Failed to reorder content", e);
+//        }
+//    }
 
     /**
      * Validate and sanitize text content.
@@ -608,103 +546,103 @@ public class ContentProcessingUtil {
                 .replace("/", "&#x2F;");
     }
 
-    /**
-     * Validate and process code content.
-     *
-     * @param content  The code content to validate
-     * @param language The programming language
-     * @return The validated code content
-     */
-    private String validateCodeContent(String content, String language) {
-        if (content == null || content.trim().isEmpty()) {
-            throw new IllegalArgumentException("Code content cannot be empty");
-        }
+//    /**
+//     * Validate and process code content.
+//     *
+//     * @param content  The code content to validate
+//     * @param language The programming language
+//     * @return The validated code content
+//     */
+//    private String validateCodeContent(String content, String language) {
+//        if (content == null || content.trim().isEmpty()) {
+//            throw new IllegalArgumentException("Code content cannot be empty");
+//        }
+//
+//        // Check for maximum length
+//        if (content.length() > 50000) {
+//            log.warn("Code content exceeds maximum length, truncating");
+//            content = content.substring(0, 50000);
+//        }
+//
+//        // Sanitize code content to prevent XSS attacks
+//        // For code content, we need to escape HTML but preserve formatting
+//        content = sanitizeHtml(content);
+//
+//        // Format code based on language
+//        // This is a simplified implementation - in a real-world scenario,
+//        // you might use a code formatting library specific to each language
+//        String validatedLanguage = validateCodeLanguage(language);
+//
+//        // For certain languages, we might want to add specific formatting
+//        // This is just a placeholder for language-specific formatting
+//        switch (validatedLanguage) {
+//            case "html":
+//                // For HTML, we might want to ensure proper indentation
+//                content = formatHtmlCode(content);
+//                break;
+//            case "java":
+//            case "javascript":
+//            case "typescript":
+//                // For these languages, we might want to ensure proper braces
+//                content = ensureProperBraces(content);
+//                break;
+//            default:
+//                // No special formatting for other languages
+//                break;
+//        }
+//
+//        return content;
+//    }
 
-        // Check for maximum length
-        if (content.length() > 50000) {
-            log.warn("Code content exceeds maximum length, truncating");
-            content = content.substring(0, 50000);
-        }
+//    /**
+//     * Validate and normalize programming language.
+//     *
+//     * @param language The programming language to validate
+//     * @return The validated and normalized language
+//     */
+//    private String validateCodeLanguage(String language) {
+//        if (language == null || language.trim().isEmpty()) {
+//            // Default to plain text if no language is specified
+//            return "plaintext";
+//        }
+//
+//        // Normalize language name (lowercase, trim)
+//        String normalizedLanguage = language.toLowerCase().trim();
+//
+//        // Validate against the list of supported languages
+//        if (!SUPPORTED_LANGUAGES.contains(normalizedLanguage)) {
+//            log.warn("Unsupported language: {}. Defaulting to plaintext.", normalizedLanguage);
+//            return "plaintext";
+//        }
+//
+//        return normalizedLanguage;
+//    }
 
-        // Sanitize code content to prevent XSS attacks
-        // For code content, we need to escape HTML but preserve formatting
-        content = sanitizeHtml(content);
+//    /**
+//     * Format HTML code for better readability.
+//     * This is a simplified implementation.
+//     *
+//     * @param htmlCode The HTML code to format
+//     * @return The formatted HTML code
+//     */
+//    private String formatHtmlCode(String htmlCode) {
+//        // This is a placeholder for HTML formatting logic
+//        // In a real implementation, you might use a library like jsoup
+//        return htmlCode;
+//    }
 
-        // Format code based on language
-        // This is a simplified implementation - in a real-world scenario,
-        // you might use a code formatting library specific to each language
-        String validatedLanguage = validateCodeLanguage(language);
-
-        // For certain languages, we might want to add specific formatting
-        // This is just a placeholder for language-specific formatting
-        switch (validatedLanguage) {
-            case "html":
-                // For HTML, we might want to ensure proper indentation
-                content = formatHtmlCode(content);
-                break;
-            case "java":
-            case "javascript":
-            case "typescript":
-                // For these languages, we might want to ensure proper braces
-                content = ensureProperBraces(content);
-                break;
-            default:
-                // No special formatting for other languages
-                break;
-        }
-
-        return content;
-    }
-
-    /**
-     * Validate and normalize programming language.
-     *
-     * @param language The programming language to validate
-     * @return The validated and normalized language
-     */
-    private String validateCodeLanguage(String language) {
-        if (language == null || language.trim().isEmpty()) {
-            // Default to plain text if no language is specified
-            return "plaintext";
-        }
-
-        // Normalize language name (lowercase, trim)
-        String normalizedLanguage = language.toLowerCase().trim();
-
-        // Validate against the list of supported languages
-        if (!SUPPORTED_LANGUAGES.contains(normalizedLanguage)) {
-            log.warn("Unsupported language: {}. Defaulting to plaintext.", normalizedLanguage);
-            return "plaintext";
-        }
-
-        return normalizedLanguage;
-    }
-
-    /**
-     * Format HTML code for better readability.
-     * This is a simplified implementation.
-     *
-     * @param htmlCode The HTML code to format
-     * @return The formatted HTML code
-     */
-    private String formatHtmlCode(String htmlCode) {
-        // This is a placeholder for HTML formatting logic
-        // In a real implementation, you might use a library like jsoup
-        return htmlCode;
-    }
-
-    /**
-     * Ensure proper braces in code.
-     * This is a simplified implementation.
-     *
-     * @param code The code to format
-     * @return The formatted code
-     */
-    private String ensureProperBraces(String code) {
-        // This is a placeholder for brace formatting logic
-        // In a real implementation, you might use a language-specific formatter
-        return code;
-    }
+//    /**
+//     * Ensure proper braces in code.
+//     * This is a simplified implementation.
+//     *
+//     * @param code The code to format
+//     * @return The formatted code
+//     */
+//    private String ensureProperBraces(String code) {
+//        // This is a placeholder for brace formatting logic
+//        // In a real implementation, you might use a language-specific formatter
+//        return code;
+//    }
 
     /**
      * Upload a GIF to S3.
@@ -813,30 +751,27 @@ public class ContentProcessingUtil {
     /**
      * STREAMLINED: Process and save an image content.
      * <p>
+     * NOTE: This method only creates the ContentImageEntity. The caller is responsible for
+     * creating the CollectionContentEntity to link this image to a collection.
+     * <p>
      * Flow:
      * 1. Extract metadata from original file
      * 2. Upload original full-size image to S3
-     * 3. Convert JPG → WebP (with compression)
+     * 3. Convert JPG -> WebP (with compression)
      * 4. Resize if needed
      * 5. Upload web-optimized image to S3
      * 6. Save metadata with both URLs to database
      * 7. Return ImageContentEntity
      *
-     * @param file         The image file to process
-     * @param collectionId The ID of the collection this belongs to
-     * @param orderIndex   The order index of this within the collection
-     * @param title        The title of the image
-     * @param caption      The caption for the image
+     * @param file  The image file to process
+     * @param title The title of the image (optional, will use filename if null)
      * @return The saved image content entity
      */
     public ContentImageEntity processImageContent(
             MultipartFile file,
-            Long collectionId,
-            Integer orderIndex,
-            String title,
-            String caption
+            String title
     ) {
-        log.info("STREAMLINED: Processing image content for collection {}", collectionId);
+        log.info("Processing image content");
 
         try {
             // STEP 1: Extract metadata from original file (before any conversion)
@@ -844,9 +779,10 @@ public class ContentProcessingUtil {
             Map<String, String> metadata = extractImageMetadata(file);
 
             // STEP 2: Upload original full-size image to S3
-            log.info("Step 2: Uploading original full-size image to S3");
+            // TODO: May re-implement full-size image storage later
+//            log.info("Step 2: Uploading original full-size image to S3");
             String originalFilename = file.getOriginalFilename();
-            String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+//            String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
 //            String imageUrlFullSize = uploadImageToS3(file.getBytes(), originalFilename, contentType, "full");
 
             // STEP 3: Resize FIRST if needed (max 2500px on longest side)
@@ -884,10 +820,6 @@ public class ContentProcessingUtil {
             String fileIdentifier = date + "/" + originalFilename;
 
             ContentImageEntity entity = ContentImageEntity.builder()
-                    .collectionId(collectionId)
-                    .orderIndex(orderIndex)
-                    .contentType(ContentType.IMAGE)
-                    .caption(caption)
                     .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
                     .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
                     .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
@@ -1234,7 +1166,7 @@ public class ContentProcessingUtil {
      * Only fields provided in the update request will be updated.
      * This uses the new prev/new/remove pattern for entity relationships.
      *
-     * @param entity The image entity to update
+     * @param entity        The image entity to update
      * @param updateRequest The update request containing the fields to update
      */
     public void applyImageUpdates(ContentImageEntity entity, ContentImageUpdateRequest updateRequest) {
@@ -1385,34 +1317,49 @@ public class ContentProcessingUtil {
      * you would need to add a repository method to find content by fileIdentifier.
      * For now, this handles visibility and orderIndex for the current image/collection relationship.
      *
-     * @param image The image entity being updated
+     * TODO: take a look at 'reorderContent', and see if there is any wisdom to how we update order there.
+     *  - This is currently looping through every image in 'updateImages', and one by time updating their orders.
+     *  - Would it make more sense to do reorder on a 'each image' basis? every time we move an image, make the 'updateImages' call? could be the move
+     *
+     * @param image             The image entity being updated
      * @param collectionUpdates List of collection updates containing visibility and orderIndex information
      */
-    public void handleCollectionVisibilityUpdates(ContentImageEntity image, List<ImageCollection> collectionUpdates) {
+    public void handleContentImageCollectionUpdates(ContentImageEntity image, List<ImageCollection> collectionUpdates) {
         if (collectionUpdates == null || collectionUpdates.isEmpty()) {
             return;
         }
 
         // Update visibility and orderIndex for the current image if its collection is in the updates
         for (ImageCollection collectionUpdate : collectionUpdates) {
-            if (collectionUpdate.getCollectionId() != null &&
-                collectionUpdate.getCollectionId().equals(image.getCollectionId())) {
+            if (collectionUpdate.getCollectionId() != null) {
+                Long collectionId = collectionUpdate.getCollectionId();
+                Integer orderIndex = collectionUpdate.getOrderIndex();
+                Boolean visible = collectionUpdate.getVisible();
 
                 boolean updated = false;
 
-                // Update visible if provided
-                if (collectionUpdate.getVisible() != null) {
-                    image.setVisible(collectionUpdate.getVisible());
-                    log.info("Updated visibility for image {} in collection {} to {}",
-                            image.getId(), image.getCollectionId(), collectionUpdate.getVisible());
+                // Update Order Index if provided
+                if (orderIndex != null) {
+                    collectionContentRepository.updateOrderIndex(
+                            collectionId,
+                            orderIndex
+                    );
+                    log.info("Updated orderIndex for image {} in collection {} to {}",
+                            image.getId(), collectionId, orderIndex);
                     updated = true;
                 }
 
-                // Update orderIndex if provided
-                if (collectionUpdate.getOrderIndex() != null) {
-                    image.setOrderIndex(collectionUpdate.getOrderIndex());
-                    log.info("Updated orderIndex for image {} in collection {} to {}",
-                            image.getId(), image.getCollectionId(), collectionUpdate.getOrderIndex());
+                // Update visibility if provided
+                if (visible != null) {
+                    collectionContentRepository.updateVisible(
+                            collectionId,
+                            visible
+                    );
+                    log.info("Updated visibility for image {} in collection {} to {}",
+                            image.getId(),
+                            collectionId,
+                            visible
+                    );
                     updated = true;
                 }
 

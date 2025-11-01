@@ -63,10 +63,6 @@ public class ContentImageEntity extends ContentEntity {
     @NotNull
     @Column(name = "image_url_web")
     private String imageUrlWeb;
-
-    @Column(name = "image_url_full_size")
-    private String imageUrlFullSize;
-    
     
     // Additional fields that might be useful
     @Column(name = "create_date")

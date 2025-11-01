@@ -37,7 +37,7 @@ class CollectionBaseModelTest {
     private static ContentImageModel createTestContentImage(String imageUrl) {
         ContentImageModel imageBlock = new ContentImageModel();
         imageBlock.setId(123L);
-        imageBlock.setImageUrlWeb(imageUrl);
+        imageBlock.setImageUrl(imageUrl);
         imageBlock.setImageWidth(1920);
         imageBlock.setImageHeight(1080);
         return imageBlock;
@@ -62,7 +62,6 @@ class CollectionBaseModelTest {
                     .location("Valid location")
                     .collectionDate(today)
                     .visible(true)
-                    .priority(1)
                     .coverImage(createTestContentImage("https://example.com/cover.jpg"))
                     .isPasswordProtected(false)
                     .hasAccess(true)
@@ -79,9 +78,8 @@ class CollectionBaseModelTest {
             assertEquals("Valid location", model.getLocation());
             assertEquals(today, model.getCollectionDate());
             assertTrue(model.getVisible());
-            assertEquals(1, model.getPriority());
             assertNotNull(model.getCoverImage());
-            assertEquals("https://example.com/cover.jpg", model.getCoverImage().getImageUrlWeb());
+            assertEquals("https://example.com/cover.jpg", model.getCoverImage().getImageUrl());
             assertFalse(model.getIsPasswordProtected());
             assertTrue(model.getHasAccess());
             assertEquals(now, model.getCreatedAt());
@@ -110,7 +108,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should create model using no-args constructor")
         void shouldCreateModelWithNoArgsConstructor() {
             CollectionModel model = new CollectionModel();
-            
+
             assertNotNull(model);
             assertNull(model.getId());
             assertNull(model.getType());
@@ -154,7 +152,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should reject title that is too long")
         void shouldRejectTitleTooLong() {
             String longTitle = "A".repeat(101); // 101 characters
-            
+
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.BLOG)
                     .title(longTitle)
@@ -184,7 +182,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should accept title at maximum length boundary")
         void shouldAcceptTitleAtMaxBoundary() {
             String maxTitle = "A".repeat(100); // Exactly 100 characters
-            
+
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.BLOG)
                     .title(maxTitle)
@@ -232,7 +230,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should reject slug that is too long")
         void shouldRejectSlugTooLong() {
             String longSlug = "a".repeat(151); // 151 characters
-            
+
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Valid Title")
@@ -307,7 +305,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should reject description that is too long")
         void shouldRejectDescriptionTooLong() {
             String longDescription = "A".repeat(501); // 501 characters
-            
+
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.ART_GALLERY)
                     .title("Valid Title")
@@ -325,7 +323,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should accept description at maximum length")
         void shouldAcceptDescriptionAtMaxLength() {
             String maxDescription = "A".repeat(500); // Exactly 500 characters
-            
+
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.ART_GALLERY)
                     .title("Valid Title")
@@ -374,7 +372,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should reject location that is too long")
         void shouldRejectLocationTooLong() {
             String longLocation = "A".repeat(256); // 256 characters
-            
+
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Valid Title")
@@ -392,7 +390,7 @@ class CollectionBaseModelTest {
         @DisplayName("Should accept location at maximum length")
         void shouldAcceptLocationAtMaxLength() {
             String maxLocation = "A".repeat(255); // Exactly 255 characters
-            
+
             CollectionModel model = CollectionModel.builder()
                     .type(CollectionType.PORTFOLIO)
                     .title("Valid Title")
@@ -417,7 +415,6 @@ class CollectionBaseModelTest {
                         .type(CollectionType.PORTFOLIO)
                         .title("Valid Title")
                         .slug("valid-slug")
-                        .priority(priority)
                         .build();
 
                 Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -425,226 +422,180 @@ class CollectionBaseModelTest {
             }
         }
 
-        @Test
-        @DisplayName("Should accept null priority")
-        void shouldAcceptNullPriority() {
-            CollectionModel model = CollectionModel.builder()
-                    .type(CollectionType.PORTFOLIO)
-                    .title("Valid Title")
-                    .slug("valid-slug")
-                    .priority(null)
-                    .build();
+        @Nested
+        @DisplayName("Collection Type Tests")
+        class CollectionTypeTests {
 
-            Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-            assertTrue(violations.isEmpty());
-        }
+            @Test
+            @DisplayName("Should accept all collection types")
+            void shouldAcceptAllCollectionTypes() {
+                for (CollectionType type : CollectionType.values()) {
+                    CollectionModel model = CollectionModel.builder()
+                            .type(type)
+                            .title("Valid Title")
+                            .slug("valid-slug")
+                            .build();
 
-        @Test
-        @DisplayName("Should reject priority below minimum")
-        void shouldRejectPriorityBelowMin() {
-            CollectionModel model = CollectionModel.builder()
-                    .type(CollectionType.PORTFOLIO)
-                    .title("Valid Title")
-                    .slug("valid-slug")
-                    .priority(0)
-                    .build();
+                    Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
+                    assertTrue(violations.isEmpty(), "Collection type " + type + " should be valid");
+                }
+            }
 
-            Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-            assertFalse(violations.isEmpty());
-            assertTrue(violations.stream()
-                    .anyMatch(v -> v.getMessage().contains("Priority must be between 1 and 4")));
-        }
-
-        @Test
-        @DisplayName("Should reject priority above maximum")
-        void shouldRejectPriorityAboveMax() {
-            CollectionModel model = CollectionModel.builder()
-                    .type(CollectionType.PORTFOLIO)
-                    .title("Valid Title")
-                    .slug("valid-slug")
-                    .priority(5)
-                    .build();
-
-            Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-            assertFalse(violations.isEmpty());
-            assertTrue(violations.stream()
-                    .anyMatch(v -> v.getMessage().contains("Priority must be between 1 and 4")));
-        }
-    }
-
-    @Nested
-    @DisplayName("Collection Type Tests")
-    class CollectionTypeTests {
-
-        @Test
-        @DisplayName("Should accept all collection types")
-        void shouldAcceptAllCollectionTypes() {
-            for (CollectionType type : CollectionType.values()) {
+            @Test
+            @DisplayName("Should accept null collection type")
+            void shouldAcceptNullCollectionType() {
                 CollectionModel model = CollectionModel.builder()
-                        .type(type)
+                        .type(null)
                         .title("Valid Title")
                         .slug("valid-slug")
                         .build();
 
                 Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-                assertTrue(violations.isEmpty(), "Collection type " + type + " should be valid");
+                assertTrue(violations.isEmpty());
             }
         }
 
-        @Test
-        @DisplayName("Should accept null collection type")
-        void shouldAcceptNullCollectionType() {
-            CollectionModel model = CollectionModel.builder()
-                    .type(null)
-                    .title("Valid Title")
-                    .slug("valid-slug")
-                    .build();
+        @Nested
+        @DisplayName("Data Annotation Tests")
+        class DataAnnotationTests {
 
-            Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-            assertTrue(violations.isEmpty());
-        }
-    }
+            @Test
+            @DisplayName("Should have working equals and hashCode")
+            void shouldHaveWorkingEqualsAndHashCode() {
+                LocalDateTime now = LocalDateTime.now();
 
-    @Nested
-    @DisplayName("Data Annotation Tests")
-    class DataAnnotationTests {
+                CollectionModel model1 = CollectionModel.builder()
+                        .id(1L)
+                        .type(CollectionType.BLOG)
+                        .title("Test Title")
+                        .slug("test-slug")
+                        .createdAt(now)
+                        .build();
 
-        @Test
-        @DisplayName("Should have working equals and hashCode")
-        void shouldHaveWorkingEqualsAndHashCode() {
-            LocalDateTime now = LocalDateTime.now();
-            
-            CollectionModel model1 = CollectionModel.builder()
-                    .id(1L)
-                    .type(CollectionType.BLOG)
-                    .title("Test Title")
-                    .slug("test-slug")
-                    .createdAt(now)
-                    .build();
+                CollectionModel model2 = CollectionModel.builder()
+                        .id(1L)
+                        .type(CollectionType.BLOG)
+                        .title("Test Title")
+                        .slug("test-slug")
+                        .createdAt(now)
+                        .build();
 
-            CollectionModel model2 = CollectionModel.builder()
-                    .id(1L)
-                    .type(CollectionType.BLOG)
-                    .title("Test Title")
-                    .slug("test-slug")
-                    .createdAt(now)
-                    .build();
+                CollectionModel model3 = CollectionModel.builder()
+                        .id(2L)
+                        .type(CollectionType.BLOG)
+                        .title("Test Title")
+                        .slug("test-slug")
+                        .createdAt(now)
+                        .build();
 
-            CollectionModel model3 = CollectionModel.builder()
-                    .id(2L)
-                    .type(CollectionType.BLOG)
-                    .title("Test Title")
-                    .slug("test-slug")
-                    .createdAt(now)
-                    .build();
+                // Test equals
+                assertEquals(model1, model2);
+                assertNotEquals(model1, model3);
 
-            // Test equals
-            assertEquals(model1, model2);
-            assertNotEquals(model1, model3);
+                // Test hashCode consistency
+                assertEquals(model1.hashCode(), model2.hashCode());
+            }
 
-            // Test hashCode consistency
-            assertEquals(model1.hashCode(), model2.hashCode());
-        }
+            @Test
+            @DisplayName("Should have working toString method")
+            void shouldHaveWorkingToString() {
+                CollectionModel model = CollectionModel.builder()
+                        .id(1L)
+                        .type(CollectionType.PORTFOLIO)
+                        .title("Test Portfolio")
+                        .slug("test-portfolio")
+                        .build();
 
-        @Test
-        @DisplayName("Should have working toString method")
-        void shouldHaveWorkingToString() {
-            CollectionModel model = CollectionModel.builder()
-                    .id(1L)
-                    .type(CollectionType.PORTFOLIO)
-                    .title("Test Portfolio")
-                    .slug("test-portfolio")
-                    .build();
+                String toString = model.toString();
 
-            String toString = model.toString();
-            
-            assertNotNull(toString);
-            assertTrue(toString.contains("CollectionModel"));
-            assertTrue(toString.contains("id=1"));
-            assertTrue(toString.contains("PORTFOLIO"));
-            assertTrue(toString.contains("Test Portfolio"));
-        }
-    }
-
-    @Nested
-    @DisplayName("Security Field Tests")
-    class SecurityFieldTests {
-
-        @Test
-        @DisplayName("Should handle client gallery security fields")
-        void shouldHandleClientGallerySecurityFields() {
-            CollectionModel model = CollectionModel.builder()
-                    .type(CollectionType.CLIENT_GALLERY)
-                    .title("Client Gallery")
-                    .slug("client-gallery")
-                    .isPasswordProtected(true)
-                    .hasAccess(false)
-                    .build();
-
-            assertNotNull(model);
-            assertTrue(model.getIsPasswordProtected());
-            assertFalse(model.getHasAccess());
+                assertNotNull(toString);
+                assertTrue(toString.contains("CollectionModel"));
+                assertTrue(toString.contains("id=1"));
+                assertTrue(toString.contains("PORTFOLIO"));
+                assertTrue(toString.contains("Test Portfolio"));
+            }
         }
 
-        @Test
-        @DisplayName("Should handle null security fields")
-        void shouldHandleNullSecurityFields() {
-            CollectionModel model = CollectionModel.builder()
-                    .type(CollectionType.BLOG)
-                    .title("Blog Post")
-                    .slug("blog-post")
-                    .isPasswordProtected(null)
-                    .hasAccess(null)
-                    .build();
+        @Nested
+        @DisplayName("Security Field Tests")
+        class SecurityFieldTests {
 
-            assertNotNull(model);
-            assertNull(model.getIsPasswordProtected());
-            assertNull(model.getHasAccess());
-        }
-    }
+            @Test
+            @DisplayName("Should handle client gallery security fields")
+            void shouldHandleClientGallerySecurityFields() {
+                CollectionModel model = CollectionModel.builder()
+                        .type(CollectionType.CLIENT_GALLERY)
+                        .title("Client Gallery")
+                        .slug("client-gallery")
+                        .isPasswordProtected(true)
+                        .hasAccess(false)
+                        .build();
 
-    @Nested
-    @DisplayName("Timestamp Tests")
-    class TimestampTests {
+                assertNotNull(model);
+                assertTrue(model.getIsPasswordProtected());
+                assertFalse(model.getHasAccess());
+            }
 
-        @Test
-        @DisplayName("Should handle timestamp fields correctly")
-        void shouldHandleTimestampFields() {
-            LocalDateTime created = LocalDateTime.now().minusDays(1);
-            LocalDateTime updated = LocalDateTime.now();
-            LocalDate collectionDate = LocalDate.now().minusMonths(1);
+            @Test
+            @DisplayName("Should handle null security fields")
+            void shouldHandleNullSecurityFields() {
+                CollectionModel model = CollectionModel.builder()
+                        .type(CollectionType.BLOG)
+                        .title("Blog Post")
+                        .slug("blog-post")
+                        .isPasswordProtected(null)
+                        .hasAccess(null)
+                        .build();
 
-            CollectionModel model = CollectionModel.builder()
-                    .type(CollectionType.PORTFOLIO)
-                    .title("Portfolio")
-                    .slug("portfolio")
-                    .collectionDate(collectionDate)
-                    .createdAt(created)
-                    .updatedAt(updated)
-                    .build();
-
-            assertNotNull(model);
-            assertEquals(collectionDate, model.getCollectionDate());
-            assertEquals(created, model.getCreatedAt());
-            assertEquals(updated, model.getUpdatedAt());
+                assertNotNull(model);
+                assertNull(model.getIsPasswordProtected());
+                assertNull(model.getHasAccess());
+            }
         }
 
-        @Test
-        @DisplayName("Should handle null timestamp fields")
-        void shouldHandleNullTimestampFields() {
-            CollectionModel model = CollectionModel.builder()
-                    .type(CollectionType.BLOG)
-                    .title("Blog")
-                    .slug("blog")
-                    .collectionDate(null)
-                    .createdAt(null)
-                    .updatedAt(null)
-                    .build();
+        @Nested
+        @DisplayName("Timestamp Tests")
+        class TimestampTests {
 
-            assertNotNull(model);
-            assertNull(model.getCollectionDate());
-            assertNull(model.getCreatedAt());
-            assertNull(model.getUpdatedAt());
+            @Test
+            @DisplayName("Should handle timestamp fields correctly")
+            void shouldHandleTimestampFields() {
+                LocalDateTime created = LocalDateTime.now().minusDays(1);
+                LocalDateTime updated = LocalDateTime.now();
+                LocalDate collectionDate = LocalDate.now().minusMonths(1);
+
+                CollectionModel model = CollectionModel.builder()
+                        .type(CollectionType.PORTFOLIO)
+                        .title("Portfolio")
+                        .slug("portfolio")
+                        .collectionDate(collectionDate)
+                        .createdAt(created)
+                        .updatedAt(updated)
+                        .build();
+
+                assertNotNull(model);
+                assertEquals(collectionDate, model.getCollectionDate());
+                assertEquals(created, model.getCreatedAt());
+                assertEquals(updated, model.getUpdatedAt());
+            }
+
+            @Test
+            @DisplayName("Should handle null timestamp fields")
+            void shouldHandleNullTimestampFields() {
+                CollectionModel model = CollectionModel.builder()
+                        .type(CollectionType.BLOG)
+                        .title("Blog")
+                        .slug("blog")
+                        .collectionDate(null)
+                        .createdAt(null)
+                        .updatedAt(null)
+                        .build();
+
+                assertNotNull(model);
+                assertNull(model.getCollectionDate());
+                assertNull(model.getCreatedAt());
+                assertNull(model.getUpdatedAt());
+            }
         }
     }
 }

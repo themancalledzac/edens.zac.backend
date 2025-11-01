@@ -43,7 +43,7 @@ class ContentImageModelTest {
     void nullImageUrlWeb_shouldFailValidation() {
         // Arrange
         setupValidContentImage();
-        contentImage.setImageUrlWeb(null); // Invalid
+        contentImage.setImageUrl(null);
 
         // Act
         Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -220,7 +220,7 @@ class ContentImageModelTest {
     void multipleValidationErrors_areCaptured() {
         // Arrange
         setupValidContentImage();
-        contentImage.setImageUrlWeb(null); // Error 1
+        contentImage.setImageUrl(null); // Error 1
         contentImage.setTitle("A".repeat(251)); // Error 2
         contentImage.setAuthor("A".repeat(101)); // Error 3
         contentImage.setLocation("A".repeat(251)); // Error 4
@@ -237,7 +237,6 @@ class ContentImageModelTest {
     void inheritedValidations_workCorrectly() {
         // Arrange
         setupValidContentImage();
-        contentImage.setCollectionId(null); // Invalid from parent
         contentImage.setOrderIndex(-1); // Invalid from parent
         contentImage.setContentType(null); // Invalid from parent
 
@@ -328,12 +327,11 @@ class ContentImageModelTest {
 
     private void setupValidContentImage(ContentImageModel image) {
         // Set required fields from parent ContentModel
-        image.setCollectionId(1L);
         image.setOrderIndex(0);
         image.setContentType(ContentType.IMAGE);
         
         // Set required fields specific to ContentImageModel
-        image.setImageUrlWeb("https://s3.amazonaws.com/portfolio/web/test-image.jpg");
+        image.setImageUrl("https://s3.amazonaws.com/portfolio/web/test-image.jpg");
         
         // Set optional fields with valid values
         image.setTitle("Test Image");

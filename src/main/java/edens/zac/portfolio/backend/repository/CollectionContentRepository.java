@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
-import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.types.ContentType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -73,11 +72,14 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
      *
      * @param id         The ID of the CollectionContentEntity
      * @param orderIndex The new orderIndex value
-     * @return The number of affected rows (should be 1)
      */
     @Modifying
     @Query("UPDATE CollectionContentEntity cc SET cc.orderIndex = :orderIndex WHERE cc.id = :id")
-    int updateOrderIndex(@Param("id") Long id, @Param("orderIndex") Integer orderIndex);
+    void updateOrderIndex(@Param("id") Long id, @Param("orderIndex") Integer orderIndex);
+
+    @Modifying
+    @Query("UPDATE CollectionContentEntity cc SET cc.visible = :visible WHERE cc.id = :id")
+    void updateVisible(@Param("id") Long id, @Param("visible") Boolean visible);
 
     /**
      * Shift orderIndex values for a range of content in a collection.

@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.CollectionEntity;
-import edens.zac.portfolio.backend.entity.TextContentEntity;
+import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import jakarta.persistence.EntityManager;
@@ -38,7 +38,6 @@ class CollectionRepositoryTest {
         blogCollection.setTitle("Test Blog");
         blogCollection.setSlug("test-blog");
         blogCollection.setVisible(true);
-        blogCollection.setPriority(1);
         blogCollection.setCollectionDate(LocalDate.now().minusDays(1));
 
         portfolioCollection = new CollectionEntity();
@@ -46,14 +45,12 @@ class CollectionRepositoryTest {
         portfolioCollection.setTitle("Test Portfolio");
         portfolioCollection.setSlug("test-portfolio");
         portfolioCollection.setVisible(true);
-        portfolioCollection.setPriority(2);
 
         CollectionEntity hiddenCollection = new CollectionEntity();
         hiddenCollection.setType(CollectionType.BLOG);
         hiddenCollection.setTitle("Hidden Blog");
         hiddenCollection.setSlug("hidden-blog");
         hiddenCollection.setVisible(false);
-        hiddenCollection.setPriority(1);
         hiddenCollection.setCollectionDate(LocalDate.now());
 
         entityManager.persist(blogCollection);
@@ -101,8 +98,6 @@ class CollectionRepositoryTest {
 
     @Test
     void findBySlugAndPasswordHash_ShouldReturnCollectionWhenPasswordMatches() {
-        portfolioCollection.setPasswordHash("hashed-password");
-        portfolioCollection.setPasswordProtected(true);
         entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
 
         Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "hashed-password");
@@ -113,7 +108,6 @@ class CollectionRepositoryTest {
 
     @Test
     void findBySlugAndPasswordHash_ShouldReturnEmptyWhenPasswordDoesNotMatch() {
-        portfolioCollection.setPasswordHash("hashed-password");
         entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
 
         Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "wrong-password");
@@ -133,18 +127,14 @@ class CollectionRepositoryTest {
     @Test
     void findBySlugWithContent_ShouldReturnCollectionWith() {
         // Add content
-        TextContentEntity content1 = TextContentEntity.builder()
-                .collectionId(blogCollection.getId())
-                .orderIndex(0)
+        ContentTextEntity content1 = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("First content")
+                .textContent("First content")
                 .build();
 
-        TextContentEntity content2 = TextContentEntity.builder()
-                .collectionId(blogCollection.getId())
-                .orderIndex(1)
+        ContentTextEntity content2 = ContentTextEntity.builder()
                 .contentType(ContentType.TEXT)
-                .content("Second content")
+                .textContent("Second content")
                 .build();
 
         entityManager.persist(content1);
@@ -158,8 +148,6 @@ class CollectionRepositoryTest {
 
         assertThat(result).isPresent();
         assertThat(result.get().getContent()).hasSize(2);
-        assertThat(result.get().getContent().get(0).getOrderIndex()).isEqualTo(0);
-        assertThat(result.get().getContent().get(1).getOrderIndex()).isEqualTo(1);
     }
 
     @Test
