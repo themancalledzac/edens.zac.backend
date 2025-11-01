@@ -15,19 +15,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 /**
  * Controller for Collection write operations (dev environment only).
  * Provides endpoints for creating, updating, and managing collections.
- * TODO: Probably update 'write' to `/api/admin/collections` as we will add an admin 'read' or two
  */
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/write/collections")
+@RequestMapping("/api/admin/collections")
 @Configuration
 @Profile("dev")
 public class CollectionControllerDev {
@@ -86,84 +84,6 @@ public class CollectionControllerDev {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to update collection: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Add media content(images/gifs) to a collection.
-     * This endpoint only handles file uploads; no metadata updates are performed.
-     *
-     * @param id Collection ID
-     * @param files Files to upload and append as content
-     * @return ResponseEntity with updated collection
-     */
-    @PostMapping(value = "/{id}/content", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-    public ResponseEntity<?> addContent(
-            @PathVariable Long id,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
-        try {
-            if (files == null || files.isEmpty()) {
-                return ResponseEntity
-                        .status(HttpStatus.BAD_REQUEST)
-                        .body("No files provided. Use 'files' part with one or more images.");
-            }
-
-            CollectionModel updatedCollection = collectionService.addContent(id, files);
-
-            log.info("Successfully added {} file(s) to collection: {}", files.size(), id);
-
-            return ResponseEntity.ok(updatedCollection);
-        } catch (EntityNotFoundException e) {
-            log.warn("Collection not found: {}", id);
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body("Collection with ID: " + id + " not found");
-        } catch (Exception e) {
-            log.error("Error adding content to collection {}: {}", id, e.getMessage(), e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to add content: " + e.getMessage());
-        }
-    }
-
-    // TODO: Add a 'addTextContent endpoint
-    //  - takes only a string value ( can be rather large )
-    //  - Updates the Collection specifically with that ContentText
-    //  - Returns... maybe the whole collection? maybe JUST a 'success'?
-    //  - - MAYBE, it returns just the contentText object:
-    //  - - - {id, collectionId, orderIndex(last), contentType, content, formType, title}
-    //  - Can we reuse the same `@PostMapping(value = "/{id}/content"`, but only with a 'text' body instead of a MediaType.MULTIPART_FORM_DATA_VALUE?
-
-    /**
-     * Remove a content from a collection
-     *
-     * @param id Collection ID
-     * @param contentId Content ID
-     * @return ResponseEntity with updated collection
-     */
-    @DeleteMapping("/{id}/content/{contentId}")
-    public ResponseEntity<?> removeContent(
-            @PathVariable Long id,
-            @PathVariable Long contentId) {
-        try {
-            // Create update DTO with content removal information
-            CollectionUpdateDTO updateDTO = new CollectionUpdateDTO();
-            updateDTO.setContentIdsToRemove(List.of(contentId));
-
-            CollectionModel updatedCollection = collectionService.updateContent(id, updateDTO);
-            log.info("Successfully removed content {} from collection: {}", contentId, id);
-
-            return ResponseEntity.ok(updatedCollection);
-        } catch (EntityNotFoundException e) {
-            log.warn("Collection or content not found: collection={}, content={}", id, contentId);
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body("Collection or content not found");
-        } catch (Exception e) {
-            log.error("Error removing content {} from collection {}: {}", contentId, id, e.getMessage(), e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to remove content: " + e.getMessage());
         }
     }
 

@@ -72,7 +72,6 @@ class CollectionControllerDevTest {
         testCollection.setContentCount(5);
         testCollection.setTotalPages(1);
         testCollection.setCurrentPage(0);
-        testCollection.setContent(new ArrayList<>());
         testCollection.setCreatedAt(LocalDateTime.now());
         testCollection.setUpdatedAt(LocalDateTime.now());
 
@@ -111,7 +110,7 @@ class CollectionControllerDevTest {
                 .thenReturn(testCollectionUpdateResponse);
 
         // Act & Assert
-        mockMvc.perform(post("/api/write/collections/createCollection")
+        mockMvc.perform(post("/api/admin/collections/createCollection")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testCreateRequest)))
                 .andExpect(status().isOk())
@@ -130,7 +129,7 @@ class CollectionControllerDevTest {
                 .thenThrow(new RuntimeException("Test error"));
 
         // Act & Assert
-        mockMvc.perform(post("/api/write/collections/createCollection")
+        mockMvc.perform(post("/api/admin/collections/createCollection")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testCreateRequest)))
                 .andExpect(status().isInternalServerError())
@@ -147,7 +146,7 @@ class CollectionControllerDevTest {
                 .thenReturn(testCollection);
 
         // Act & Assert
-        mockMvc.perform(put("/api/write/collections/1")
+        mockMvc.perform(put("/api/admin/collections/1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testUpdateDTO)))
                 .andExpect(status().isOk())
@@ -165,79 +164,13 @@ class CollectionControllerDevTest {
                 .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
 
         // Act & Assert
-        mockMvc.perform(put("/api/write/collections/999")
+        mockMvc.perform(put("/api/admin/collections/999")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testUpdateDTO)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$", containsString("not found")));
 
         verify(collectionService).updateContent(eq(999L), any(CollectionUpdateDTO.class));
-    }
-
-
-    @Test
-    @DisplayName("POST /collections/{id}/content should add content blocks (files only)")
-    void addContents_shouldAddContent() throws Exception {
-        // Arrange
-        when(collectionService.addContent(eq(1L), anyList()))
-                .thenReturn(testCollection);
-
-        // Create a mock image file
-        MockMultipartFile imageFile = new MockMultipartFile(
-                "files",
-                "test-image.jpg",
-                "image/jpeg",
-                "test image content".getBytes()
-        );
-
-        // Act & Assert
-        mockMvc.perform(multipart("/api/write/collections/1/content")
-                .file(imageFile))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(1)))
-                .andExpect(jsonPath("$.title", is("Test Blog")));
-
-        verify(collectionService).addContent(eq(1L), anyList());
-    }
-
-    @Test
-    @DisplayName("POST /collections/{id}/content should handle not found error")
-    void addContent_shouldHandleNotFoundError() throws Exception {
-        // Arrange
-        when(collectionService.addContent(eq(999L), anyList()))
-                .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
-
-        // Create a mock image file
-        MockMultipartFile imageFile = new MockMultipartFile(
-                "files",
-                "test-image.jpg",
-                "image/jpeg",
-                "test image content".getBytes()
-        );
-
-        // Act & Assert
-        mockMvc.perform(multipart("/api/write/collections/999/content")
-                .file(imageFile))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$", containsString("not found")));
-
-        verify(collectionService).addContent(eq(999L), anyList());
-    }
-
-    @Test
-    @DisplayName("DELETE /collections/{id}/content/{blockId} should remove content block")
-    void removeContent_shouldRemoveContent() throws Exception {
-        // Arrange
-        when(collectionService.updateContent(eq(1L), any(CollectionUpdateDTO.class)))
-                .thenReturn(testCollection);
-
-        // Act & Assert
-        mockMvc.perform(delete("/api/write/collections/1/content/2"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(1)))
-                .andExpect(jsonPath("$.title", is("Test Blog")));
-
-        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateDTO.class));
     }
 
     @Test
@@ -247,7 +180,7 @@ class CollectionControllerDevTest {
         doNothing().when(collectionService).deleteCollection(1L);
 
         // Act & Assert
-        mockMvc.perform(delete("/api/write/collections/1"))
+        mockMvc.perform(delete("/api/admin/collections/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", is("Collection deleted successfully")));
 
@@ -262,7 +195,7 @@ class CollectionControllerDevTest {
                 .when(collectionService).deleteCollection(999L);
 
         // Act & Assert
-        mockMvc.perform(delete("/api/write/collections/999"))
+        mockMvc.perform(delete("/api/admin/collections/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$", containsString("not found")));
 
