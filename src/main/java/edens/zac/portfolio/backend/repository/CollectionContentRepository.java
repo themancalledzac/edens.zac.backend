@@ -127,4 +127,16 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
     @Query("DELETE FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.id IN :contentIds")
     void removeContentFromCollection(@Param("collectionId") Long collectionId,
                                       @Param("contentIds") List<Long> contentIds);
+
+    /**
+     * Find a join table entry by collection ID and content ID.
+     * This is useful for updating collection-specific metadata for a particular content item.
+     *
+     * @param collectionId The ID of the collection
+     * @param contentId    The ID of the content
+     * @return The CollectionContentEntity, or null if not found
+     */
+    @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.id = :contentId")
+    CollectionContentEntity findByCollectionIdAndContentId(@Param("collectionId") Long collectionId,
+                                                             @Param("contentId") Long contentId);
 }

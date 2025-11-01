@@ -3,9 +3,11 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.CollectionRepository;
 import edens.zac.portfolio.backend.repository.ContentRepository;
+import edens.zac.portfolio.backend.repository.CollectionContentRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ public class CollectionProcessingUtil {
 
     private final CollectionRepository collectionRepository;
     private final ContentRepository contentRepository;
+    private final CollectionContentRepository collectionContentRepository;
     private final ContentProcessingUtil contentProcessingUtil;
 //    private final edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
@@ -89,8 +92,9 @@ public class CollectionProcessingUtil {
         // Populate coverImage using helper method
         populateCoverImage(model, entity);
 
-        model.setIsPasswordProtected(entity.isPasswordProtected());
-        model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
+        // TODO: Re-implement password protection after migration
+//        model.setIsPasswordProtected(entity.isPasswordProtected());
+//        model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
         model.setCreatedAt(entity.getCreatedAt());
         model.setUpdatedAt(entity.getUpdatedAt());
         // Basic display mode: BLOG default chronological, others default ordered
@@ -122,12 +126,12 @@ public class CollectionProcessingUtil {
 
         CollectionModel model = convertToBasicModel(entity);
 
-        // Fetch content explicitly to avoid LAZY polymorphic initializer issues
-        List<ContentModel> contents = contentRepository
+        // Fetch join table entries explicitly to get content with collection-specific metadata
+        List<ContentModel> contents = collectionContentRepository
                 .findByCollectionIdOrderByOrderIndex(entity.getId())
                 .stream()
                 .filter(Objects::nonNull)
-                .map(contentProcessingUtil::convertToModel)
+                .map(cc -> contentProcessingUtil.convertToModel(cc.getContent(), cc))
                 .collect(Collectors.toList());
 
         model.setContent(contents);
@@ -135,32 +139,32 @@ public class CollectionProcessingUtil {
     }
 
     /**
-     * Convert a CollectionEntity and a Page of ContentEntity to a CollectionModel.
+     * Convert a CollectionEntity and a Page of CollectionContentEntity to a CollectionModel.
      *
-     * @param entity      The entity to convert
-     * @param contentPage The page of content
+     * @param entity                The entity to convert
+     * @param collectionContentPage The page of join table entries (collection-content associations)
      * @return The converted model
      */
-    public CollectionModel convertToModel(CollectionEntity entity, Page<ContentEntity> contentPage) {
+    public CollectionModel convertToModel(CollectionEntity entity, Page<CollectionContentEntity> collectionContentPage) {
         if (entity == null) {
             return null;
         }
 
         CollectionModel model = convertToBasicModel(entity);
 
-        // Convert content
-        List<ContentModel> contents = contentPage.getContent().stream()
+        // Convert join table entries to content models with collection-specific metadata
+        List<ContentModel> contents = collectionContentPage.getContent().stream()
                 .filter(Objects::nonNull)
-                .map(contentProcessingUtil::convertToModel)
+                .map(cc -> contentProcessingUtil.convertToModel(cc.getContent(), cc))
                 .collect(Collectors.toList());
 
         model.setContent(contents);
 
         // Set pagination metadata
-        model.setCurrentPage(contentPage.getNumber());
-        model.setTotalPages(contentPage.getTotalPages());
-        model.setContentCount((int) contentPage.getTotalElements());
-        model.setContentPerPage(contentPage.getSize());
+        model.setCurrentPage(collectionContentPage.getNumber());
+        model.setTotalPages(collectionContentPage.getTotalPages());
+        model.setContentCount((int) collectionContentPage.getTotalElements());
+        model.setContentPerPage(collectionContentPage.getSize());
         return model;
     }
 
@@ -188,8 +192,9 @@ public class CollectionProcessingUtil {
         entity.setVisible(false);
         entity.setContentPerPage(defaultPageSize);
         entity.setTotalContent(0);
-        entity.setPasswordProtected(false);
-        entity.setPasswordHash(null);
+        // TODO: Re-implement password protection after migration
+//        entity.setPasswordProtected(false);
+//        entity.setPasswordHash(null);
         // Apply type-specific defaults (may adjust visibility etc.)
         return applyTypeSpecificDefaults(entity);
     }
@@ -251,18 +256,18 @@ public class CollectionProcessingUtil {
             }
         }
 
+        // TODO: Re-implement password protection after migration
         // Handle password updates for client galleries
-        // TODO: Need to determine what the 'updateDTO' logic is doing, and if we can simplify it with existing logic
-        if (entity.getType() == CollectionType.CLIENT_GALLERY) {
+//        if (entity.getType() == CollectionType.CLIENT_GALLERY) {
 //            if (updateDTO.getHasAccess() != null && updateDTO.getHasAccess()) {
 //                entity.setPasswordProtected(false);
 //                entity.setPasswordHash(null);
 //            }
-            if (hasPasswordUpdate(updateDTO)) {
-                entity.setPasswordProtected(true);
-                entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
-            }
-        }
+//            if (hasPasswordUpdate(updateDTO)) {
+//                entity.setPasswordProtected(true);
+//                entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
+//            }
+//        }
     }
 
     /**
@@ -292,8 +297,8 @@ public class CollectionProcessingUtil {
         if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
             return createdIds;
         }
-        // Always append to the end
-        Integer maxOrderIndex = contentRepository.getMaxOrderIndexForCollection(collectionId);
+        // Always append to the end - use join table to get max order index
+        Integer maxOrderIndex = collectionContentRepository.getMaxOrderIndexForCollection(collectionId);
         int currentIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
         for (String text : updateDTO.getNewTextContent()) {
             ContentEntity created = contentProcessingUtil.processTextContent(text, collectionId, currentIndex, null);
@@ -317,7 +322,12 @@ public class CollectionProcessingUtil {
         List<Long> inferredNewTextIds = new ArrayList<>();
         if (updateDTO.getNewTextContent() != null && !updateDTO.getNewTextContent().isEmpty()) {
             int n = updateDTO.getNewTextContent().size();
-            List<ContentEntity> allBlocks = contentRepository.findByCollectionIdOrderByOrderIndex(collectionId);
+            // Get all join table entries and extract content entities
+            List<ContentEntity> allBlocks = collectionContentRepository
+                    .findByCollectionIdOrderByOrderIndex(collectionId)
+                    .stream()
+                    .map(CollectionContentEntity::getContent)
+                    .toList();
             int total = allBlocks.size();
             for (int i = Math.max(0, total - n); i < total; i++) {
                 inferredNewTextIds.add(allBlocks.get(i).getId());
@@ -355,13 +365,20 @@ public class CollectionProcessingUtil {
                 if (oldIdx == null) {
                     throw new IllegalArgumentException("Reorder operation must include either contentId or oldOrderIndex");
                 }
-                ContentEntity byIndex = contentRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
+                // Find join table entry by collection and old orderIndex
+                CollectionContentEntity byIndex = collectionContentRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
                 if (byIndex == null) {
                     throw new IllegalArgumentException("No content found at oldOrderIndex=" + oldIdx);
                 }
-                targetId = byIndex.getId();
+                targetId = byIndex.getContent().getId();
             }
-            contentRepository.updateOrderIndex(targetId, op.getNewOrderIndex());
+
+            // Find the join table entry for this content in this collection and update its orderIndex
+            CollectionContentEntity ccToUpdate = collectionContentRepository.findByCollectionIdAndContentId(collectionId, targetId);
+            if (ccToUpdate == null) {
+                throw new IllegalArgumentException("Content with ID " + targetId + " is not associated with collection " + collectionId);
+            }
+            collectionContentRepository.updateOrderIndex(ccToUpdate.getId(), op.getNewOrderIndex());
         }
     }
 

@@ -71,6 +71,8 @@ public class ContentProcessingUtil {
 
     /**
      * Convert a ContentEntity to its corresponding ContentModel based on type.
+     * This version does not have collection-specific metadata (orderIndex, caption, visible).
+     * Use the overloaded version that accepts CollectionContentEntity for full metadata.
      *
      * @param entity The content entity to convert
      * @return The corresponding content model
@@ -95,19 +97,52 @@ public class ContentProcessingUtil {
     }
 
     /**
+     * Convert a ContentEntity to its corresponding ContentModel with join table metadata.
+     * This version populates collection-specific fields (orderIndex, caption, visible) from the join table.
+     *
+     * @param entity              The content entity to convert
+     * @param collectionContent   The join table entry containing collection-specific metadata
+     * @return The corresponding content model with join table metadata populated
+     */
+    public ContentModel convertToModel(ContentEntity entity, CollectionContentEntity collectionContent) {
+        if (entity == null) {
+            return null;
+        }
+
+        // First convert to basic model
+        ContentModel model = convertToModel(entity);
+
+        // Then populate join table metadata if available
+        if (collectionContent != null) {
+            model.setOrderIndex(collectionContent.getOrderIndex());
+            model.setVisible(collectionContent.getVisible());
+
+            // Set description from join table caption (collection-specific override)
+            // OR from the referenced collection's description (for COLLECTION content type)
+            if (collectionContent.getCaption() != null && !collectionContent.getCaption().isEmpty()) {
+                model.setDescription(collectionContent.getCaption());
+            }
+        }
+
+        return model;
+    }
+
+    /**
      * Copy base properties from a ContentEntity to a ContentModel.
+     * Note: This does NOT populate join table fields (orderIndex, description/caption, visible).
+     * Those must be set separately using the overloaded convertToModel method with CollectionContentEntity.
      *
      * @param entity The source entity
      * @param model  The target model
      */
     private void copyBaseProperties(ContentEntity entity, ContentModel model) {
         model.setId(entity.getId());
-        model.setCollectionId(entity.getCollectionId());
-        model.setOrderIndex(entity.getOrderIndex());
         model.setContentType(entity.getContentType());
-        model.setCaption(entity.getCaption());
         model.setCreatedAt(entity.getCreatedAt());
         model.setUpdatedAt(entity.getUpdatedAt());
+
+        // Join table fields (orderIndex, visible, description/caption) are NOT on ContentEntity
+        // They must be populated from CollectionContentEntity in the overloaded convertToModel method
     }
 
     public static ContentCameraModel cameraEntityToCameraModel(ContentCameraEntity entity) {
