@@ -62,24 +62,6 @@ class CollectionRepositoryTest {
     }
 
     @Test
-    void findByTypeAndVisibleTrueOrderByPriorityAsc_ShouldReturnVisibleCollectionsOrderedByPriority() {
-        List<CollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType.BLOG);
-
-        assertThat(results).hasSize(1);
-        assertThat(results.getFirst().getSlug()).isEqualTo("test-blog");
-        assertThat(results.getFirst().getVisible()).isTrue();
-    }
-
-    @Test
-    void findByTypeOrderByPriorityAsc_ShouldReturnAllCollectionsOrderedByPriority() {
-        List<CollectionEntity> results = repository.findTop50ByTypeOrderByPriorityAsc(CollectionType.BLOG);
-
-        assertThat(results).hasSize(2);
-        assertThat(results.get(0).getSlug()).isEqualTo("test-blog");
-        assertThat(results.get(1).getSlug()).isEqualTo("hidden-blog");
-    }
-
-    @Test
     void findByTypeAndVisibleTrueOrderByCollectionDateDesc_ShouldReturnVisibleBlogsOrderedByDate() {
         List<CollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType.BLOG);
 
@@ -96,24 +78,24 @@ class CollectionRepositoryTest {
         assertThat(results.get(1).getSlug()).isEqualTo("test-blog");
     }
 
-    @Test
-    void findBySlugAndPasswordHash_ShouldReturnCollectionWhenPasswordMatches() {
-        entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
+//    @Test
+//    void findBySlugAndPasswordHash_ShouldReturnCollectionWhenPasswordMatches() {
+//        entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
+//
+//        Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "hashed-password");
+//
+//        assertThat(result).isPresent();
+//        assertThat(result.get().getSlug()).isEqualTo("test-portfolio");
+//    }
 
-        Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "hashed-password");
-
-        assertThat(result).isPresent();
-        assertThat(result.get().getSlug()).isEqualTo("test-portfolio");
-    }
-
-    @Test
-    void findBySlugAndPasswordHash_ShouldReturnEmptyWhenPasswordDoesNotMatch() {
-        entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
-
-        Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "wrong-password");
-
-        assertThat(result).isEmpty();
-    }
+//    @Test
+//    void findBySlugAndPasswordHash_ShouldReturnEmptyWhenPasswordDoesNotMatch() {
+//        entityManager.flush(); // Since portfolioCollection is already persisted in setUp()
+//
+//        Optional<CollectionEntity> result = repository.findBySlugAndPasswordHash("test-portfolio", "wrong-password");
+//
+//        assertThat(result).isEmpty();
+//    }
 
     @Test
     void findBySlug_ShouldReturnCollectionMetadata() {

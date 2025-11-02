@@ -113,7 +113,7 @@ public class CollectionEntity {
     @JoinTable(
             name = "collection_tags",
             joinColumns = @JoinColumn(name = "collection_id"),
-            inverseJoinColumns = @JoinColumn(name = "content_tag_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id"),
             indexes = {
                     @Index(name = "idx_collection_tags_collection", columnList = "collection_id"),
                     @Index(name = "idx_collection_tags_tag", columnList = "tag_id")

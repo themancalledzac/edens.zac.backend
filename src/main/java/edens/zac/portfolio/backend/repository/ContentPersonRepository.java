@@ -69,7 +69,7 @@ public interface ContentPersonRepository extends JpaRepository<ContentPersonEnti
      * @return List of people ordered by image count descending
      */
     @Query("SELECT p FROM ContentPersonEntity p " +
-            "LEFT JOIN p.ContentImage icb " +
+            "LEFT JOIN p.contentImages icb " +
             "GROUP BY p.id " +
             "ORDER BY COUNT(icb.id) DESC")
     List<ContentPersonEntity> findAllOrderByImageCountDesc();

@@ -23,7 +23,7 @@ public class ContentTextEntity extends ContentEntity {
 
     @NotNull
     @Lob
-    @Column(name = "content", columnDefinition = "TEXT")
+    @Column(name = "text_content", columnDefinition = "TEXT")
     private String textContent;
     
     @Column(name = "format_type")

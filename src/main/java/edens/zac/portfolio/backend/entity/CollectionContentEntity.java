@@ -6,18 +6,28 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 /**
- * Join table entity linking Collections to Content with collection-specific metadata.
- * This allows the same content to appear in multiple collections with different:
+ * Universal join table entity linking Collections to ANY type of Content with collection-specific metadata.
+ *
+ * This is the ONLY join table used for ALL content types (TEXT, IMAGE, GIF, CODE, COLLECTION, etc.).
+ * It allows the same content to appear in multiple collections with different:
  * - ordering (orderIndex)
  * - captions (caption)
  * - visibility (visible)
  *
- * Example: The same image can appear in:
- * - Blog post with caption "My vacation photo" at position 1
- * - Portfolio with caption "Professional landscape work" at position 5
- * - Client gallery with no caption at position 10
+ * Examples:
+ * - Same TEXT content in "Blog Post A" at position 1 and "Blog Post B" at position 3
+ * - Same IMAGE in "Portfolio" with caption "Landscape work" and "Gallery" with caption "Best shots"
+ * - Same COLLECTION reference (ContentCollectionEntity) in "Home Page" and "Archive Page" at different positions
+ *
+ * Important: ContentCollectionEntity is just another content type that happens to reference a collection.
+ * When a collection contains another collection, it still uses THIS join table with content_id pointing
+ * to a ContentCollectionEntity record.
  */
 @Entity
 @Table(
@@ -69,4 +79,13 @@ public class CollectionContentEntity {
     @Column(name = "visible", nullable = false)
     @Builder.Default
     private Boolean visible = true;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
 }

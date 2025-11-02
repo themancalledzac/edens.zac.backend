@@ -17,28 +17,12 @@ import java.util.Optional;
 @Repository
 public interface CollectionRepository extends JpaRepository<CollectionEntity, Long> {
 
-    /**
-     * Find a collection of Content Collections for ART_GALLERY/PORTFOLIO
-     *
-     * @param type Collection type such as ART_GALLERY/PORTFOLIO
-     * @return List of ART_GALLERY/PORTFOLIO that are visible (public) and ordered by Priority (max 50)
-     */
-    List<CollectionEntity> findTop50ByTypeAndVisibleTrueOrderByPriorityAsc(CollectionType type);
-
-    /**
-     * Find a collection of Content Collections for ART_GALLERY/PORTFOLIO
-     *
-     * @param type Collection type such as ART_GALLERY/PORTFOLIO
-     * @return List of ART_GALLERY/PORTFOLIO that are ordered by Priority
-     */
-    List<CollectionEntity> findTop50ByTypeOrderByPriorityAsc(CollectionType type);
-
     // Blog - ordered by date descending, visible only
 
     /**
      * Find a collection of Content Collections for BLOG
      *
-     * @param type Collection type BLOG
+     * @param type Collection type such as: BLOG/CLIENT_GALLERY/PORTFOLIO/MISC
      * @return List of BLOG that are ordered by Date Desc and Visible
      */
     List<CollectionEntity> findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type);
@@ -52,14 +36,15 @@ public interface CollectionRepository extends JpaRepository<CollectionEntity, Lo
      */
     List<CollectionEntity> findTop50ByTypeOrderByCollectionDateDesc(CollectionType type);
 
-    /**
-     * Find a collection by slug and verify it with a password hash for client galleries.
-     *
-     * @param slug The unique slug of the collection
-     * @param passwordHash The hashed password for verification
-     * @return Optional containing the collection if found and password matches
-     */
-    Optional<CollectionEntity> findBySlugAndPasswordHash(String slug, String passwordHash);
+//    /**
+//     * Find a collection by slug and verify it with a password hash for client galleries.
+//     * TODO: Not used until we implement 'password' logic
+//     *
+//     * @param slug The unique slug of the collection
+//     * @param passwordHash The hashed password for verification
+//     * @return Optional containing the collection if found and password matches
+//     */
+//    Optional<CollectionEntity> findBySlugAndPasswordHash(String slug, String passwordHash);
 
     /**
      * Find a Collection's metadata. Used in conjunction with paginated endpoints in ContentRepository
@@ -76,9 +61,9 @@ public interface CollectionRepository extends JpaRepository<CollectionEntity, Lo
      * @param slug The unique slug of the collection
      * @return Optional containing the collection with up to 50 content if found
      */
-    @Query("SELECT c FROM CollectionEntity c LEFT JOIN FETCH c.content b " +
+    @Query("SELECT c FROM CollectionEntity c LEFT JOIN FETCH c.collectionContent cc " +
             "WHERE c.slug = :slug " +
-            "ORDER BY b.orderIndex ASC")
+            "ORDER BY cc.orderIndex ASC")
     Optional<CollectionEntity> findBySlugWithContent(@Param("slug") String slug);
     
     /**

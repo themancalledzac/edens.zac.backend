@@ -19,9 +19,9 @@ import lombok.experimental.SuperBuilder;
  */
 @Entity
 @Table(
-    name = "content_collection",
+    name = "content_collection_ref",
     indexes = {
-        @Index(name = "idx_content_collection_ref", columnList = "referenced_collection_id")
+        @Index(name = "idx_content_collection_ref_col", columnList = "referenced_collection_id")
     }
 )
 @PrimaryKeyJoinColumn(name = "content_id")
