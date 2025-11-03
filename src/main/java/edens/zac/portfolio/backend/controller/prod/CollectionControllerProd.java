@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
@@ -105,7 +104,7 @@ public class CollectionControllerProd {
      * Get visible collections by type ordered by collection date (newest first)
      *
      * @param type Collection type
-     * @return ResponseEntity with list of visible collections of the specified type as HomeCardModel objects
+     * @return ResponseEntity with list of visible collections of the specified type as CollectionModel objects
      */
     @GetMapping("/type/{type}")
     public ResponseEntity<?> getCollectionsByType(@PathVariable String type) {
@@ -121,7 +120,7 @@ public class CollectionControllerProd {
             }
 
             // Get visible collections ordered by date (newest first)
-            List<HomeCardModel> collections = collectionService.findVisibleByTypeOrderByDate(collectionType);
+            List<CollectionModel> collections = collectionService.findVisibleByTypeOrderByDate(collectionType);
 
             return ResponseEntity.ok(collections);
         } catch (Exception e) {

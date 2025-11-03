@@ -4,7 +4,6 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
-import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,12 +47,12 @@ public interface CollectionService {
 
     /**
      * Find visible collections by type ordered by collection date (newest first).
-     * Returns all visible collections of the specified type as HomeCardModel objects.
+     * Returns all visible collections of the specified type as CollectionModel objects.
      *
      * @param type The collection type
      * @return List of visible collections ordered by collection date DESC
      */
-    List<HomeCardModel> findVisibleByTypeOrderByDate(CollectionType type);
+    List<CollectionModel> findVisibleByTypeOrderByDate(CollectionType type);
 
     /**
      * Find a collection by slug.

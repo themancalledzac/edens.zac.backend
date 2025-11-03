@@ -23,7 +23,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -133,17 +132,16 @@ class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<HomeCardModel> findVisibleByTypeOrderByDate(CollectionType type) {
+    public List<CollectionModel> findVisibleByTypeOrderByDate(CollectionType type) {
         log.debug("Finding visible collections by type ordered by date: {}", type);
 
         // Get visible collections by type, ordered by collection date descending (newest first)
         List<CollectionEntity> collections = collectionRepository
                 .findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
 
-
-        // Convert to HomeCardModel objects
+        // Convert to basic CollectionModel objects (no content blocks)
         return collections.stream()
-                .map(this::convertToHomeCardModel)
+                .map(collectionProcessingUtil::convertToBasicModel)
                 .collect(Collectors.toList());
     }
 
@@ -311,40 +309,6 @@ class CollectionServiceImpl implements CollectionService {
     }
 
 
-    /**
-     * Convert a ContentCollectionEntity to a HomeCardModel.
-     *
-     * @param entity The entity to convert
-     * @return The converted HomeCardModel
-     */
-    private HomeCardModel convertToHomeCardModel(CollectionEntity entity) {
-        return HomeCardModel.builder()
-                .id(entity.getId())
-                .title(entity.getTitle())
-                .cardType(entity.getType() != null ? entity.getType().name() : null)
-                .location(entity.getLocation())
-                .date(entity.getCollectionDate() != null
-                        ? entity.getCollectionDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                        : null)
-                .coverImageUrl(getCoverImageUrl(entity))
-                .slug(entity.getSlug())
-                .text(null) // Collections don't have text field
-                .build();
-    }
-
-    /**
-     * Helper method to get cover image URL from collection's coverImageBlockId
-     */
-    private String getCoverImageUrl(CollectionEntity collection) {
-        if (collection.getCoverImageId() == null) {
-            return null;
-        }
-
-        return contentRepository.findById(collection.getCoverImageId())
-                .filter(block -> block instanceof ContentImageEntity)
-                .map(block -> ((ContentImageEntity) block).getImageUrlWeb())
-                .orElse(null);
-    }
 
     @Override
     @Transactional(readOnly = true)

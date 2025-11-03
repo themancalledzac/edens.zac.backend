@@ -219,17 +219,18 @@ class CollectionControllerProdTest {
     @DisplayName("GET /collections/type/{type} should return collections of specified type")
     void getCollectionsByType_shouldReturnCollectionsOfSpecifiedType() throws Exception {
         // Arrange
-        List<edens.zac.portfolio.backend.model.HomeCardModel> homeCards = List.of(
-                edens.zac.portfolio.backend.model.HomeCardModel.builder()
-                        .id(1L)
-                        .title("Test Blog")
-                        .cardType("BLOG")
-                        .slug("test-blog")
-                        .build()
-        );
+        CollectionModel blogCollection = CollectionModel.builder()
+                .id(1L)
+                .title("Test Blog")
+                .type(CollectionType.BLOG)
+                .slug("test-blog")
+                .visible(true)
+                .build();
+
+        List<CollectionModel> collections = List.of(blogCollection);
 
         when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.BLOG)))
-                .thenReturn(homeCards);
+                .thenReturn(collections);
 
         // Act & Assert
         mockMvc.perform(get("/api/read/collections/type/BLOG")
@@ -237,7 +238,7 @@ class CollectionControllerProdTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].title", is("Test Blog")))
-                .andExpect(jsonPath("$[0].cardType", is("BLOG")));
+                .andExpect(jsonPath("$[0].type", is("BLOG")));
     }
 
     @Test
