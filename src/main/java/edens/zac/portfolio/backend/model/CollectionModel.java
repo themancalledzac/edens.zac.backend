@@ -42,6 +42,9 @@ public class CollectionModel extends CollectionBaseModel {
     @Valid
     private ContentImageModel coverImage;
 
+    // Tags associated with this collection
+    private List<String> tags;
+
     // Content (paginated)
     @Valid
     private List<ContentModel> content;

@@ -52,8 +52,6 @@ class CollectionModelTest {
                     .location("Test location")
                     .collectionDate(today)
                     .visible(true)
-                    .isPasswordProtected(false)
-                    .hasAccess(true)
                     .createdAt(now)
                     .updatedAt(now)
                     .contentPerPage(30)
@@ -73,8 +71,6 @@ class CollectionModelTest {
             assertEquals(today, model.getCollectionDate());
             assertTrue(model.getVisible());
             assertNull(model.getCoverImage());
-            assertFalse(model.getIsPasswordProtected());
-            assertTrue(model.getHasAccess());
             assertEquals(now, model.getCreatedAt());
             assertEquals(now, model.getUpdatedAt());
             assertEquals(30, model.getContentPerPage());
@@ -469,8 +465,6 @@ class CollectionModelTest {
                     .type(CollectionType.CLIENT_GALLERY)
                     .title("Client Wedding Gallery")
                     .slug("client-wedding-gallery")
-                    .isPasswordProtected(true)
-                    .hasAccess(false)
                     .contentPerPage(30)
                     .contentCount(200)
                     .currentPage(1)
@@ -480,8 +474,6 @@ class CollectionModelTest {
             Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
             assertTrue(violations.isEmpty());
             assertEquals(CollectionType.CLIENT_GALLERY, model.getType());
-            assertTrue(model.getIsPasswordProtected());
-            assertFalse(model.getHasAccess());
             assertEquals(30, model.getContentPerPage());
             assertEquals(200, model.getContentCount());
         }

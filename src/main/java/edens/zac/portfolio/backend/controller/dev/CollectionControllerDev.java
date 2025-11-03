@@ -2,7 +2,7 @@ package edens.zac.portfolio.backend.controller.dev;
 
 import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.CollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
@@ -68,7 +68,7 @@ public class CollectionControllerDev {
     @PutMapping("/{id}")
     public ResponseEntity<?> updateCollection(
             @PathVariable Long id,
-            @RequestBody CollectionUpdateDTO updateDTO) {
+            @RequestBody CollectionUpdateRequest updateDTO) {
         try {
             CollectionModel updatedCollection = collectionService.updateContent(id, updateDTO);
             log.info("Successfully updated collection: {}", updatedCollection.getId());

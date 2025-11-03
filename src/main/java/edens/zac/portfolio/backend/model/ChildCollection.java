@@ -6,15 +6,19 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * DTO representing the relationship between an image and a collection.
- * Used in both ContentImageModel (for reading) and ImageUpdateRequest (for updating).
- * Represents one entry in the content join table for a specific image/collection relationship.
+ * DTO representing the relationship between a child entity (content or collection) and a parent collection.
+ * Used in update requests to manage collection associations using the prev/new/remove pattern.
+ * Represents the relationship metadata: collectionId, visibility, and order index.
+ *
+ * Can be used for:
+ * - Content (images, text, etc.) belonging to collections
+ * - Collections belonging to parent collections
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ImageCollection {
+public class ChildCollection {
 
     /**
      * The ID of the collection
@@ -34,14 +38,14 @@ public class ImageCollection {
     private String coverImageUrl;
 
     /**
-     * Whether the image is visible in this collection
+     * Whether the child entity is visible in this collection
      * Defaults to true if not specified
      */
     private Boolean visible;
 
     /**
-     * The order index of this image within this specific collection
-     * Each image/collection relationship has its own order_index
+     * The order index of this child entity within this specific collection
+     * Each child/collection relationship has its own order_index
      */
     private Integer orderIndex;
 }

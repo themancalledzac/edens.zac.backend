@@ -42,5 +42,5 @@ public class ContentImageModel extends ContentModel {
     private String createDate;
     private List<ContentTagModel> tags;
     private List<ContentPersonModel> people;
-    private List<ImageCollection> collections;
+    private List<ChildCollection> collections;
 }

@@ -6,32 +6,23 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.CollectionPageDTO;
 import edens.zac.portfolio.backend.repository.CollectionRepository;
-import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -222,23 +213,6 @@ class CollectionProcessingUtilTest {
         // Config JSON removed; ensure other defaults still apply
         assertEquals(50, result.getContentPerPage());
         assertFalse(result.getVisible()); // Client galleries are private by default
-    }
-
-
-    @Test
-    void getContentSummary_shouldFormatSummaryCorrectly() {
-        // Arrange
-        CollectionPageDTO dto = new CollectionPageDTO();
-        dto.setImageBlockCount(5);
-        dto.setTextBlockCount(3);
-        dto.setCodeBlockCount(2);
-        dto.setGifBlockCount(1);
-
-        // Act
-        String summary = CollectionProcessingUtil.getContentSummary(dto);
-
-        // Assert
-        assertEquals("5 images, 3 text blocks, 2 code blocks, 1 gifs", summary);
     }
 
     // ======================================

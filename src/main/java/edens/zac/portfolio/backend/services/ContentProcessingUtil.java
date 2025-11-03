@@ -1317,31 +1317,41 @@ public class ContentProcessingUtil {
      * you would need to add a repository method to find content by fileIdentifier.
      * For now, this handles visibility and orderIndex for the current image/collection relationship.
      *
-     * TODO: take a look at 'reorderContent', and see if there is any wisdom to how we update order there.
-     *  - This is currently looping through every image in 'updateImages', and one by time updating their orders.
-     *  - Would it make more sense to do reorder on a 'each image' basis? every time we move an image, make the 'updateImages' call? could be the move
+     * Typically used for single-image updates where we're adjusting the orderIndex (drag-and-drop reordering)
+     * or toggling visibility within a specific collection. The API call is very lightweight:
+     * ContentImageUpdateRequest with a single CollectionUpdate.prev(ChildCollection) containing orderIndex/visible.
      *
      * @param image             The image entity being updated
      * @param collectionUpdates List of collection updates containing visibility and orderIndex information
      */
-    public void handleContentImageCollectionUpdates(ContentImageEntity image, List<ImageCollection> collectionUpdates) {
+    public void handleContentChildCollectionUpdates(ContentImageEntity image, List<ChildCollection> collectionUpdates) {
         if (collectionUpdates == null || collectionUpdates.isEmpty()) {
             return;
         }
 
         // Update visibility and orderIndex for the current image if its collection is in the updates
-        for (ImageCollection collectionUpdate : collectionUpdates) {
+        for (ChildCollection collectionUpdate : collectionUpdates) {
             if (collectionUpdate.getCollectionId() != null) {
                 Long collectionId = collectionUpdate.getCollectionId();
                 Integer orderIndex = collectionUpdate.getOrderIndex();
                 Boolean visible = collectionUpdate.getVisible();
+
+                // Find the join table entry for this image in this collection
+                CollectionContentEntity joinEntry = collectionContentRepository
+                        .findByCollectionIdAndContentId(collectionId, image.getId());
+
+                if (joinEntry == null) {
+                    log.warn("No join table entry found for content {} in collection {}. Skipping update.",
+                            image.getId(), collectionId);
+                    continue;
+                }
 
                 boolean updated = false;
 
                 // Update Order Index if provided
                 if (orderIndex != null) {
                     collectionContentRepository.updateOrderIndex(
-                            collectionId,
+                            joinEntry.getId(),  // Use join table entry ID, not collection ID
                             orderIndex
                     );
                     log.info("Updated orderIndex for image {} in collection {} to {}",
@@ -1352,7 +1362,7 @@ public class ContentProcessingUtil {
                 // Update visibility if provided
                 if (visible != null) {
                     collectionContentRepository.updateVisible(
-                            collectionId,
+                            joinEntry.getId(),  // Use join table entry ID, not collection ID
                             visible
                     );
                     log.info("Updated visibility for image {} in collection {} to {}",

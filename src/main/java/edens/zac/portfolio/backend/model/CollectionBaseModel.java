@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * Base model containing common fields shared across all Collection DTOs.
  * This eliminates duplication between CollectionModel, CollectionPageDTO,
- * and CollectionUpdateDTO.
+ * and CollectionUpdateRequest.
  */
 @NoArgsConstructor
 @AllArgsConstructor
@@ -44,17 +44,10 @@ public abstract class CollectionBaseModel {
 
     private Boolean visible;
 
-    // Client gallery security fields
-    private Boolean isPasswordProtected;
-    private Boolean hasAccess;
-
     // Display mode for ordering content in the collection
     // chronological: by time; ordered: by explicit orderIndex
     public enum DisplayMode { CHRONOLOGICAL, ORDERED }
     private DisplayMode displayMode;
-
-    // Tags associated with this collection
-    private List<String> tags;
 
     // Timestamps
     private LocalDateTime createdAt;

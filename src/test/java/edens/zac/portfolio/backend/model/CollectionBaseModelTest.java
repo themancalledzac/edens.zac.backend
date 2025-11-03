@@ -63,8 +63,6 @@ class CollectionBaseModelTest {
                     .collectionDate(today)
                     .visible(true)
                     .coverImage(createTestContentImage("https://example.com/cover.jpg"))
-                    .isPasswordProtected(false)
-                    .hasAccess(true)
                     .createdAt(now)
                     .updatedAt(now)
                     .build();
@@ -80,8 +78,6 @@ class CollectionBaseModelTest {
             assertTrue(model.getVisible());
             assertNotNull(model.getCoverImage());
             assertEquals("https://example.com/cover.jpg", model.getCoverImage().getImageUrl());
-            assertFalse(model.getIsPasswordProtected());
-            assertTrue(model.getHasAccess());
             assertEquals(now, model.getCreatedAt());
             assertEquals(now, model.getUpdatedAt());
         }
@@ -516,42 +512,6 @@ class CollectionBaseModelTest {
             }
         }
 
-        @Nested
-        @DisplayName("Security Field Tests")
-        class SecurityFieldTests {
-
-            @Test
-            @DisplayName("Should handle client gallery security fields")
-            void shouldHandleClientGallerySecurityFields() {
-                CollectionModel model = CollectionModel.builder()
-                        .type(CollectionType.CLIENT_GALLERY)
-                        .title("Client Gallery")
-                        .slug("client-gallery")
-                        .isPasswordProtected(true)
-                        .hasAccess(false)
-                        .build();
-
-                assertNotNull(model);
-                assertTrue(model.getIsPasswordProtected());
-                assertFalse(model.getHasAccess());
-            }
-
-            @Test
-            @DisplayName("Should handle null security fields")
-            void shouldHandleNullSecurityFields() {
-                CollectionModel model = CollectionModel.builder()
-                        .type(CollectionType.BLOG)
-                        .title("Blog Post")
-                        .slug("blog-post")
-                        .isPasswordProtected(null)
-                        .hasAccess(null)
-                        .build();
-
-                assertNotNull(model);
-                assertNull(model.getIsPasswordProtected());
-                assertNull(model.getHasAccess());
-            }
-        }
 
         @Nested
         @DisplayName("Timestamp Tests")

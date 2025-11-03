@@ -2,7 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionCreateRequest;
-import edens.zac.portfolio.backend.model.CollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.HomeCardModel;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -88,7 +88,7 @@ public interface CollectionService {
      * @param updateDTO The DTO containing update data
      * @return The updated collection
      */
-    CollectionModel updateContent(Long id, CollectionUpdateDTO updateDTO);
+    CollectionModel updateContent(Long id, CollectionUpdateRequest updateDTO);
 
     /**
      * Delete a collection by ID.

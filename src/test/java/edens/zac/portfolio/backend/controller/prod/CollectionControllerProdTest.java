@@ -112,7 +112,6 @@ class CollectionControllerProdTest {
         clientGallery.setContent(new ArrayList<>());
         clientGallery.setCreatedAt(LocalDateTime.now());
         clientGallery.setUpdatedAt(LocalDateTime.now());
-        clientGallery.setIsPasswordProtected(true);
 
         testCollections.add(blog);
         testCollections.add(artGallery);

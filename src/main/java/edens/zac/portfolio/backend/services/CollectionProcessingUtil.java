@@ -213,7 +213,7 @@ public class CollectionProcessingUtil {
      * - client gallery password updates via provided password hasher
      */
     public void applyBasicUpdates(CollectionEntity entity,
-                                  CollectionUpdateDTO updateDTO) {
+                                  CollectionUpdateRequest updateDTO) {
         if (updateDTO.getTitle() != null) {
             entity.setTitle(updateDTO.getTitle());
         }
@@ -274,7 +274,7 @@ public class CollectionProcessingUtil {
 //     * Handle adding new text blocks, either appending to the end or inserting at a specific index.
 //     * Behavior matches the original service implementation.
 //     */
-//    public void handleNewTextBlocks(Long collectionId, CollectionUpdateDTO updateDTO) {
+//    public void handleNewTextBlocks(Long collectionId, CollectionUpdateRequest updateDTO) {
 //        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
 //            return;
 //        }
@@ -292,7 +292,7 @@ public class CollectionProcessingUtil {
 //     * in the same order as provided in updateDTO.getNewTextBlocks(). This enables
 //     * deterministic placeholder mapping during subsequent reordering.
 //     */
-//    public List<Long> handleNewTextContentReturnIds(Long collectionId, CollectionUpdateDTO updateDTO) {
+//    public List<Long> handleNewTextContentReturnIds(Long collectionId, CollectionUpdateRequest updateDTO) {
 //        List<Long> createdIds = new ArrayList<>();
 //        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
 //            return createdIds;
@@ -311,7 +311,7 @@ public class CollectionProcessingUtil {
 //     * Handle content block reordering operations. Supports reference by ID, placeholder for newly
 //     * added text blocks (negative IDs: -1 for first new text, etc.), or by old order index.
 //     */
-//    public void handleContentReordering(Long collectionId, CollectionUpdateDTO updateDTO) {
+//    public void handleContentReordering(Long collectionId, CollectionUpdateRequest updateDTO) {
 //        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
 //            return;
 //        }
@@ -336,48 +336,50 @@ public class CollectionProcessingUtil {
     /**
      * Overloaded reordering that accepts explicit newTextIds mapping. This ensures
      * correct placeholder resolution regardless of insert position.
+     *
+     * TODO: This method is deprecated as reordering is now handled via individual content update endpoints
      */
-    public void handleContentReordering(Long collectionId, CollectionUpdateDTO updateDTO, List<Long> newTextIds) {
-        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
-            return;
-        }
-        List<Long> mapping = (newTextIds != null) ? newTextIds : new ArrayList<>();
-        for (CollectionUpdateDTO.ContentReorderOperation op : updateDTO.getReorderOperations()) {
-            Long targetId = null;
-            Long providedId = op.getContentId();
-            if (providedId != null) {
-                if (providedId > 0) {
-                    targetId = providedId;
-                } else if (providedId < 0) {
-                    int idx = (int) (-providedId) - 1; // -1 -> 0, -2 -> 1, ...
-                    if (idx >= 0 && idx < mapping.size()) {
-                        targetId = mapping.get(idx);
-                    } else {
-                        throw new IllegalArgumentException("Reorder operation references a new text block placeholder that does not exist: " + providedId);
-                    }
-                }
-            }
-            if (targetId == null) {
-                Integer oldIdx = op.getOldOrderIndex();
-                if (oldIdx == null) {
-                    throw new IllegalArgumentException("Reorder operation must include either contentId or oldOrderIndex");
-                }
-                // Find join table entry by collection and old orderIndex
-                CollectionContentEntity byIndex = collectionContentRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
-                if (byIndex == null) {
-                    throw new IllegalArgumentException("No content found at oldOrderIndex=" + oldIdx);
-                }
-                targetId = byIndex.getContent().getId();
-            }
-
-            // Find the join table entry for this content in this collection and update its orderIndex
-            CollectionContentEntity ccToUpdate = collectionContentRepository.findByCollectionIdAndContentId(collectionId, targetId);
-            if (ccToUpdate == null) {
-                throw new IllegalArgumentException("Content with ID " + targetId + " is not associated with collection " + collectionId);
-            }
-            collectionContentRepository.updateOrderIndex(ccToUpdate.getId(), op.getNewOrderIndex());
-        }
-    }
+//    public void handleContentReordering(Long collectionId, CollectionUpdateRequest updateDTO, List<Long> newTextIds) {
+//        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
+//            return;
+//        }
+//        List<Long> mapping = (newTextIds != null) ? newTextIds : new ArrayList<>();
+//        for (CollectionUpdateRequest.ContentReorderOperation op : updateDTO.getReorderOperations()) {
+//            Long targetId = null;
+//            Long providedId = op.getContentId();
+//            if (providedId != null) {
+//                if (providedId > 0) {
+//                    targetId = providedId;
+//                } else if (providedId < 0) {
+//                    int idx = (int) (-providedId) - 1; // -1 -> 0, -2 -> 1, ...
+//                    if (idx >= 0 && idx < mapping.size()) {
+//                        targetId = mapping.get(idx);
+//                    } else {
+//                        throw new IllegalArgumentException("Reorder operation references a new text block placeholder that does not exist: " + providedId);
+//                    }
+//                }
+//            }
+//            if (targetId == null) {
+//                Integer oldIdx = op.getOldOrderIndex();
+//                if (oldIdx == null) {
+//                    throw new IllegalArgumentException("Reorder operation must include either contentId or oldOrderIndex");
+//                }
+//                // Find join table entry by collection and old orderIndex
+//                CollectionContentEntity byIndex = collectionContentRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
+//                if (byIndex == null) {
+//                    throw new IllegalArgumentException("No content found at oldOrderIndex=" + oldIdx);
+//                }
+//                targetId = byIndex.getContent().getId();
+//            }
+//
+//            // Find the join table entry for this content in this collection and update its orderIndex
+//            CollectionContentEntity ccToUpdate = collectionContentRepository.findByCollectionIdAndContentId(collectionId, targetId);
+//            if (ccToUpdate == null) {
+//                throw new IllegalArgumentException("Content with ID " + targetId + " is not associated with collection " + collectionId);
+//            }
+//            collectionContentRepository.updateOrderIndex(ccToUpdate.getId(), op.getNewOrderIndex());
+//        }
+//    }
 
     // =============================================================================
     // SLUG GENERATION AND VALIDATION
@@ -478,18 +480,19 @@ public class CollectionProcessingUtil {
     // PASSWORD PROTECTION HELPERS
     // =============================================================================
 
-    /**
-     * Check if a collection (any type) is password-protected.
-     */
-    public static boolean isPasswordProtected(CollectionBaseModel model) {
-        return model.getIsPasswordProtected() != null && model.getIsPasswordProtected();
-    }
+    // TODO: Re-implement password protection after migration
+//    /**
+//     * Check if a collection (any type) is password-protected.
+//     */
+//    public static boolean isPasswordProtected(CollectionBaseModel model) {
+//        return model.getIsPasswordProtected() != null && model.getIsPasswordProtected();
+//    }
 
 
     /**
      * Check if an UpdateDTO includes password changes.
      */
-    public static boolean hasPasswordUpdate(CollectionUpdateDTO dto) {
+    public static boolean hasPasswordUpdate(CollectionUpdateRequest dto) {
         return dto.getPassword() != null && !dto.getPassword().trim().isEmpty();
     }
 
@@ -537,113 +540,9 @@ public class CollectionProcessingUtil {
     // =============================================================================
 
     /**
-     * Check if a collection model supports pagination.
-     */
-    public static boolean isPaginated(CollectionModel model) {
-        return model.getTotalPages() != null && model.getTotalPages() > 1;
-    }
-
-    /**
      * Check if a collection model is empty.
      */
     public static boolean isEmpty(CollectionModel model) {
         return model.getContentCount() == null || model.getContentCount() == 0;
-    }
-
-    /**
-     * Check if a page DTO is empty.
-     */
-    public static boolean isEmpty(CollectionPageDTO dto) {
-        return dto.getTotalElements() == null || dto.getTotalElements() == 0;
-    }
-
-    /**
-     * Check if a page DTO supports pagination.
-     */
-    public static boolean isPaginated(CollectionPageDTO dto) {
-        return dto.getTotalPages() != null && dto.getTotalPages() > 1;
-    }
-
-    /**
-     * Get the range of items being displayed for a page DTO.
-     * Example: "Showing 1-30 of 150 items"
-     *
-     * @return array with [startItem, endItem] or null if empty
-     */
-    public static int[] getDisplayRange(CollectionPageDTO dto) {
-        if (isEmpty(dto)) {
-            return null;
-        }
-
-        int startItem = ((dto.getCurrentPage() - 1) * dto.getPageSize()) + 1;
-        int endItem = Math.min(dto.getCurrentPage() * dto.getPageSize(), dto.getTotalElements());
-
-        return new int[]{startItem, endItem};
-    }
-
-    /**
-     * Get display range as formatted string.
-     */
-    public static String getDisplayRangeText(CollectionPageDTO dto) {
-        int[] range = getDisplayRange(dto);
-        if (range == null) {
-            return "No items";
-        }
-        return String.format("Showing %d-%d of %d items", range[0], range[1], dto.getTotalElements());
-    }
-
-    // =============================================================================
-    // CONTENT OPERATION HELPERS
-    // =============================================================================
-
-//    /**
-//     * Check if an update DTO includes content operations.
-//     */
-//    public static boolean hasContentOperations(CollectionUpdateDTO dto) {
-//        return (dto.getReorderOperations() != null && !dto.getReorderOperations().isEmpty()) ||
-//                (dto.getContentIdsToRemove() != null && !dto.getContentIdsToRemove().isEmpty()) ||
-//                (dto.getNewTextContent() != null && !dto.getNewTextContent().isEmpty()) ||
-//                (dto.getNewCodeContent() != null && !dto.getNewCodeContent().isEmpty());
-//    }
-
-    // =============================================================================
-    // CONTENT SUMMARY HELPERS
-    // =============================================================================
-
-//    /**
-//     * Get total contents from page DTO content summary.
-//     */
-//    public static int getTotalContents(CollectionPageDTO dto) {
-//        int total = 0;
-//        if (dto.getImageBlockCount() != null) total += dto.getImageBlockCount();
-//        if (dto.getTextBlockCount() != null) total += dto.getTextBlockCount();
-//        if (dto.getCodeBlockCount() != null) total += dto.getCodeBlockCount();
-//        if (dto.getGifBlockCount() != null) total += dto.getGifBlockCount();
-//        return total;
-//    }
-
-    /**
-     * Get content summary as formatted string.
-     */
-    public static String getContentSummary(CollectionPageDTO dto) {
-        StringBuilder summary = new StringBuilder();
-
-        if (dto.getImageBlockCount() != null && dto.getImageBlockCount() > 0) {
-            summary.append(dto.getImageBlockCount()).append(" images");
-        }
-        if (dto.getTextBlockCount() != null && dto.getTextBlockCount() > 0) {
-            if (!summary.isEmpty()) summary.append(", ");
-            summary.append(dto.getTextBlockCount()).append(" text blocks");
-        }
-        if (dto.getCodeBlockCount() != null && dto.getCodeBlockCount() > 0) {
-            if (!summary.isEmpty()) summary.append(", ");
-            summary.append(dto.getCodeBlockCount()).append(" code blocks");
-        }
-        if (dto.getGifBlockCount() != null && dto.getGifBlockCount() > 0) {
-            if (!summary.isEmpty()) summary.append(", ");
-            summary.append(dto.getGifBlockCount()).append(" gifs");
-        }
-
-        return !summary.isEmpty() ? summary.toString() : "No content";
     }
 }

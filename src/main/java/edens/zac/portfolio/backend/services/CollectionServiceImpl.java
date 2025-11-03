@@ -4,6 +4,9 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentTagEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.repository.CollectionRepository;
@@ -21,8 +24,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page;
@@ -185,7 +191,7 @@ class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional
-    public CollectionModel updateContent(Long id, CollectionUpdateDTO updateDTO) {
+    public CollectionModel updateContent(Long id, CollectionUpdateRequest updateDTO) {
         log.debug("Updating collection with ID: {}", id);
 
         // Get existing entity
@@ -195,26 +201,20 @@ class CollectionServiceImpl implements CollectionService {
         // Update basic properties via utility helper
         collectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
 
-        // Handle content block removals - dissociate blocks from this collection instead of deleting
-        if (updateDTO.getContentIdsToRemove() != null && !updateDTO.getContentIdsToRemove().isEmpty()) {
-            // Use join table repository to remove content associations
-            collectionContentRepository.removeContentFromCollection(id, updateDTO.getContentIdsToRemove());
-            if (entity.getCoverImageId() != null && updateDTO.getContentIdsToRemove().contains(entity.getCoverImageId())) {
-                // Removed the current cover image; choose the next available image as new cover if any
-                entity.setCoverImageId(null);
-                // Get remaining content via join table and extract entities
-                List<ContentEntity> remaining = collectionContentRepository
-                        .findByCollectionIdOrderByOrderIndex(id)
-                        .stream()
-                        .map(CollectionContentEntity::getContent)
-                        .toList();
-                for (ContentEntity b : remaining) {
-                    if (b instanceof ContentImageEntity img) {
-                        entity.setCoverImageId(img.getId());
-                        break;
-                    }
-                }
-            }
+        // Handle tag updates using prev/new/remove pattern
+        if (updateDTO.getTags() != null) {
+            updateCollectionTags(entity, updateDTO.getTags());
+        }
+
+        // Handle people updates using prev/new/remove pattern
+        if (updateDTO.getPeople() != null) {
+            updateCollectionPeople(entity, updateDTO.getPeople());
+        }
+
+        // Handle collection updates using prev/new/remove pattern
+        // This manages which parent collections this collection belongs to
+        if (updateDTO.getCollections() != null) {
+            handleCollectionToCollectionUpdates(entity, updateDTO.getCollections());
         }
 
 //        // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
@@ -410,5 +410,199 @@ class CollectionServiceImpl implements CollectionService {
                 .name(filmFormat.name())
                 .displayName(filmFormat.getDisplayName())
                 .build();
+    }
+
+    /**
+     * Update collection tags using prev/new/remove pattern.
+     * Mirrors the logic from ContentServiceImpl.updateImageTags().
+     *
+     * @param collection The collection to update
+     * @param tagUpdate The tag update containing remove/prev/newValue operations
+     */
+    private void updateCollectionTags(CollectionEntity collection, TagUpdate tagUpdate) {
+        Set<ContentTagEntity> tags = new HashSet<>(collection.getTags());
+
+        // Remove tags if specified
+        if (tagUpdate.getRemove() != null && !tagUpdate.getRemove().isEmpty()) {
+            tags.removeIf(tag -> tagUpdate.getRemove().contains(tag.getId()));
+            log.info("Removed {} tags from collection {}", tagUpdate.getRemove().size(), collection.getId());
+        }
+
+        // Add existing tags by ID (prev)
+        if (tagUpdate.getPrev() != null && !tagUpdate.getPrev().isEmpty()) {
+            Set<ContentTagEntity> existingTags = tagUpdate.getPrev().stream()
+                    .map(tagId -> contentService.getAllTags().stream()
+                            .filter(t -> t.getId().equals(tagId))
+                            .findFirst()
+                            .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + tagId)))
+                    .map(tagModel -> {
+                        ContentTagEntity entity = new ContentTagEntity();
+                        entity.setId(tagModel.getId());
+                        entity.setTagName(tagModel.getName());
+                        return entity;
+                    })
+                    .collect(Collectors.toSet());
+            tags.addAll(existingTags);
+            log.info("Added {} existing tags to collection {}", existingTags.size(), collection.getId());
+        }
+
+        // Create and add new tags by name (newValue)
+        if (tagUpdate.getNewValue() != null && !tagUpdate.getNewValue().isEmpty()) {
+            for (String tagName : tagUpdate.getNewValue()) {
+                if (tagName != null && !tagName.trim().isEmpty()) {
+                    String trimmedName = tagName.trim();
+                    // Use the service to create the tag (handles duplicates)
+                    Map<String, Object> result = contentService.createTag(trimmedName);
+                    Long tagId = (Long) result.get("id");
+
+                    // Add to collection's tags
+                    ContentTagEntity newTag = new ContentTagEntity();
+                    newTag.setId(tagId);
+                    newTag.setTagName(trimmedName);
+                    tags.add(newTag);
+                    log.info("Created and added new tag '{}' to collection {}", trimmedName, collection.getId());
+                }
+            }
+        }
+
+        collection.setTags(tags);
+    }
+
+    /**
+     * Update collection people using prev/new/remove pattern.
+     * Mirrors the logic from ContentServiceImpl.updateImagePeople().
+     *
+     * @param collection The collection to update
+     * @param personUpdate The person update containing remove/prev/newValue operations
+     */
+    private void updateCollectionPeople(CollectionEntity collection, PersonUpdate personUpdate) {
+        Set<ContentPersonEntity> people = new HashSet<>(collection.getPeople());
+
+        // Remove people if specified
+        if (personUpdate.getRemove() != null && !personUpdate.getRemove().isEmpty()) {
+            people.removeIf(person -> personUpdate.getRemove().contains(person.getId()));
+            log.info("Removed {} people from collection {}", personUpdate.getRemove().size(), collection.getId());
+        }
+
+        // Add existing people by ID (prev)
+        if (personUpdate.getPrev() != null && !personUpdate.getPrev().isEmpty()) {
+            Set<ContentPersonEntity> existingPeople = personUpdate.getPrev().stream()
+                    .map(personId -> contentService.getAllPeople().stream()
+                            .filter(p -> p.getId().equals(personId))
+                            .findFirst()
+                            .orElseThrow(() -> new EntityNotFoundException("Person not found: " + personId)))
+                    .map(personModel -> {
+                        ContentPersonEntity entity = new ContentPersonEntity();
+                        entity.setId(personModel.getId());
+                        entity.setPersonName(personModel.getName());
+                        return entity;
+                    })
+                    .collect(Collectors.toSet());
+            people.addAll(existingPeople);
+            log.info("Added {} existing people to collection {}", existingPeople.size(), collection.getId());
+        }
+
+        // Create and add new people by name (newValue)
+        if (personUpdate.getNewValue() != null && !personUpdate.getNewValue().isEmpty()) {
+            for (String personName : personUpdate.getNewValue()) {
+                if (personName != null && !personName.trim().isEmpty()) {
+                    String trimmedName = personName.trim();
+                    // Use the service to create the person (handles duplicates)
+                    Map<String, Object> result = contentService.createPerson(trimmedName);
+                    Long personId = (Long) result.get("id");
+
+                    // Add to collection's people
+                    ContentPersonEntity newPerson = new ContentPersonEntity();
+                    newPerson.setId(personId);
+                    newPerson.setPersonName(trimmedName);
+                    people.add(newPerson);
+                    log.info("Created and added new person '{}' to collection {}", trimmedName, collection.getId());
+                }
+            }
+        }
+
+        collection.setPeople(people);
+    }
+
+    /**
+     * Handle collection-to-collection relationship updates.
+     * This manages which parent collections this collection belongs to.
+     *
+     * @param childCollection The collection being updated (main collection)
+     * @param collectionUpdate The collection update containing remove/prev/newValue operations
+     */
+    private void handleCollectionToCollectionUpdates(CollectionEntity childCollection, CollectionUpdate collectionUpdate) {
+        ContentCollectionEntity contentColEntity = findContentCollectionEntity(childCollection);
+        if (contentColEntity == null) {
+            log.warn("No ContentCollectionEntity found for collection {}. Cannot update collection relationships.",
+                    childCollection.getId());
+            return;
+        }
+
+        // Step 1: Remove - unassociate from parent collections
+        if (collectionUpdate.getRemove() != null) {
+            for (Long parentId : collectionUpdate.getRemove()) {
+                collectionContentRepository.removeContentFromCollection(parentId, List.of(contentColEntity.getId()));
+            }
+        }
+
+        // Step 2: New Value - add to new parent collections
+        if (collectionUpdate.getNewValue() != null) {
+            for (ChildCollection newParent : collectionUpdate.getNewValue()) {
+                CollectionEntity parent = collectionRepository.findById(newParent.getCollectionId())
+                        .orElseThrow(() -> new EntityNotFoundException("Parent collection not found: " + newParent.getCollectionId()));
+
+                Integer orderIndex = newParent.getOrderIndex() != null ? newParent.getOrderIndex() :
+                        collectionContentRepository.getMaxOrderIndexForCollection(parent.getId()) + 1;
+
+                collectionContentRepository.save(CollectionContentEntity.builder()
+                        .collection(parent)
+                        .content(contentColEntity)
+                        .orderIndex(orderIndex)
+                        .visible(newParent.getVisible() != null ? newParent.getVisible() : false)
+                        .build());
+            }
+        }
+
+        // Step 3: Prev - update existing associations
+        if (collectionUpdate.getPrev() != null) {
+            for (ChildCollection prev : collectionUpdate.getPrev()) {
+                CollectionContentEntity joinEntry = collectionContentRepository
+                        .findByCollectionIdAndContentId(prev.getCollectionId(), contentColEntity.getId());
+
+                if (joinEntry != null) {
+                    if (prev.getOrderIndex() != null) {
+                        collectionContentRepository.updateOrderIndex(joinEntry.getId(), prev.getOrderIndex());
+                    }
+                    if (prev.getVisible() != null) {
+                        collectionContentRepository.updateVisible(joinEntry.getId(), prev.getVisible());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Find a ContentCollectionEntity that references the given collection.
+     *
+     * @param referencedCollection The collection to reference
+     * @return The ContentCollectionEntity if found, null otherwise
+     */
+    private ContentCollectionEntity findContentCollectionEntity(CollectionEntity referencedCollection) {
+        // Search for existing ContentCollectionEntity that references this collection
+        List<ContentEntity> allContent = contentRepository.findAll();
+        for (ContentEntity content : allContent) {
+            if (content instanceof ContentCollectionEntity contentColEntity) {
+                if (contentColEntity.getReferencedCollection().getId().equals(referencedCollection.getId())) {
+                    log.info("Found existing ContentCollectionEntity {} for collection {}",
+                            contentColEntity.getId(), referencedCollection.getId());
+                    return contentColEntity;
+                }
+            }
+        }
+
+        // Not found - return null instead of creating
+        log.info("No existing ContentCollectionEntity found for collection {}", referencedCollection.getId());
+        return null;
     }
 }

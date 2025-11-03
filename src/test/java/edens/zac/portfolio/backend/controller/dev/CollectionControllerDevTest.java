@@ -3,7 +3,7 @@ package edens.zac.portfolio.backend.controller.dev;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.CollectionUpdateDTO;
+import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
@@ -17,7 +17,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -26,7 +25,6 @@ import java.util.*;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -49,7 +47,7 @@ class CollectionControllerDevTest {
     private CollectionModel testCollection;
     private CollectionUpdateResponseDTO testCollectionUpdateResponse;
     private CollectionCreateRequest testCreateRequest;
-    private CollectionUpdateDTO testUpdateDTO;
+    private CollectionUpdateRequest testUpdateDTO;
 
     @BeforeEach
     void setUp() {
@@ -97,7 +95,7 @@ class CollectionControllerDevTest {
         testCreateRequest.setTitle("New Test Blog");
 
         // Create test update DTO
-        testUpdateDTO = new CollectionUpdateDTO();
+        testUpdateDTO = new CollectionUpdateRequest();
         testUpdateDTO.setTitle("Updated Test Blog");
         testUpdateDTO.setDescription("An updated test blog collection");
     }
@@ -142,7 +140,7 @@ class CollectionControllerDevTest {
     @DisplayName("PUT /collections/{id} should update collection metadata")
     void updateCollection_shouldUpdateCollectionMetadata() throws Exception {
         // Arrange
-        when(collectionService.updateContent(eq(1L), any(CollectionUpdateDTO.class)))
+        when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
                 .thenReturn(testCollection);
 
         // Act & Assert
@@ -153,14 +151,14 @@ class CollectionControllerDevTest {
                 .andExpect(jsonPath("$.id", is(1)))
                 .andExpect(jsonPath("$.title", is("Test Blog")));
 
-        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateDTO.class));
+        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
     }
 
     @Test
     @DisplayName("PUT /collections/{id} should handle not found error")
     void updateCollection_shouldHandleNotFoundError() throws Exception {
         // Arrange
-        when(collectionService.updateContent(eq(999L), any(CollectionUpdateDTO.class)))
+        when(collectionService.updateContent(eq(999L), any(CollectionUpdateRequest.class)))
                 .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
 
         // Act & Assert
@@ -170,7 +168,7 @@ class CollectionControllerDevTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$", containsString("not found")));
 
-        verify(collectionService).updateContent(eq(999L), any(CollectionUpdateDTO.class));
+        verify(collectionService).updateContent(eq(999L), any(CollectionUpdateRequest.class));
     }
 
     @Test

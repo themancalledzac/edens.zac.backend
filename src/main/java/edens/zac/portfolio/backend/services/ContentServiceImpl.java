@@ -161,9 +161,27 @@ class ContentServiceImpl implements ContentService {
 
                 // Handle collection updates using prev/new/remove pattern
                 if (update.getCollections() != null) {
-                    ContentImageUpdateRequest.CollectionUpdate collectionUpdate = update.getCollections();
+                    CollectionUpdate collectionUpdate = update.getCollections();
+
+                    // Remove from collections if specified
+                    if (collectionUpdate.getRemove() != null && !collectionUpdate.getRemove().isEmpty()) {
+                        for (Long collectionIdToRemove : collectionUpdate.getRemove()) {
+                            collectionContentRepository.removeContentFromCollection(
+                                collectionIdToRemove,
+                                List.of(image.getId())
+                            );
+                            log.info("Removed image {} from collection {}", image.getId(), collectionIdToRemove);
+                        }
+                    }
+
+                    // Update existing collection relationships (visibility, orderIndex)
                     if (collectionUpdate.getPrev() != null && !collectionUpdate.getPrev().isEmpty()) {
-                        contentProcessingUtil.handleContentImageCollectionUpdates(image, collectionUpdate.getPrev());
+                        contentProcessingUtil.handleContentChildCollectionUpdates(image, collectionUpdate.getPrev());
+                    }
+
+                    // Add to new collections if specified
+                    if (collectionUpdate.getNewValue() != null && !collectionUpdate.getNewValue().isEmpty()) {
+                        handleAddToCollections(image, collectionUpdate.getNewValue());
                     }
                 }
 
@@ -313,7 +331,7 @@ class ContentServiceImpl implements ContentService {
     /**
      * Update image tags and track newly created ones.
      */
-    private void updateImageTags(ContentImageEntity image, ContentImageUpdateRequest.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
+    private void updateImageTags(ContentImageEntity image, TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
         Set<ContentTagEntity> tags = new HashSet<>(image.getTags());
 
         // Remove tags if specified
@@ -353,9 +371,61 @@ class ContentServiceImpl implements ContentService {
     }
 
     /**
+     * Add content (image) to new collections with specified visibility and orderIndex.
+     * Creates join table entries for the content in the specified collections.
+     *
+     * @param image The image to add to collections
+     * @param collections List of ChildCollection objects containing collectionId, visible, and orderIndex
+     */
+    private void handleAddToCollections(ContentImageEntity image, List<ChildCollection> collections) {
+        for (ChildCollection childCollection : collections) {
+            if (childCollection.getCollectionId() == null) {
+                log.warn("Skipping collection addition: collectionId is null");
+                continue;
+            }
+
+            // Verify collection exists
+            CollectionEntity collection = collectionRepository.findById(childCollection.getCollectionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Collection not found: " + childCollection.getCollectionId()));
+
+            // Check if this content is already in the collection
+            CollectionContentEntity existing = collectionContentRepository
+                    .findByCollectionIdAndContentId(childCollection.getCollectionId(), image.getId());
+
+            if (existing != null) {
+                log.warn("Image {} is already in collection {}. Skipping duplicate add.",
+                        image.getId(), childCollection.getCollectionId());
+                continue;
+            }
+
+            // Determine orderIndex: use provided value or append to end
+            Integer orderIndex = childCollection.getOrderIndex();
+            if (orderIndex == null) {
+                Integer maxOrderIndex = collectionContentRepository
+                        .getMaxOrderIndexForCollection(childCollection.getCollectionId());
+                orderIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
+            }
+
+            // Create join table entry
+            CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+                    .collection(collection)
+                    .content(image)
+                    .orderIndex(orderIndex)
+                    .visible(childCollection.getVisible() != null ? childCollection.getVisible() : true)
+                    .caption(null)  // Caption can be set separately if needed
+                    .build();
+
+            collectionContentRepository.save(joinEntry);
+            log.info("Added image {} to collection {} at orderIndex {} with visible={}",
+                    image.getId(), childCollection.getCollectionId(), orderIndex, joinEntry.getVisible());
+        }
+    }
+
+    /**
      * Update image people and track newly created ones.
      */
-    private void updateImagePeople(ContentImageEntity image, ContentImageUpdateRequest.PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
+    private void updateImagePeople(ContentImageEntity image, PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
         Set<ContentPersonEntity> people = new HashSet<>(image.getPeople());
 
         // Remove people if specified
