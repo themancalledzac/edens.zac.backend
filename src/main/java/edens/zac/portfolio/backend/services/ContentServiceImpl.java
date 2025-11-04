@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -132,6 +133,25 @@ class ContentServiceImpl implements ContentService {
         Set<ContentFilmTypeEntity> newlyCreatedFilmTypes = new HashSet<>();
         List<String> errors = new ArrayList<>();
 
+        // Extract all image IDs and batch fetch them for efficiency
+        List<Long> imageIds = updates.stream()
+                .map(ContentImageUpdateRequest::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        if (imageIds.isEmpty()) {
+            throw new IllegalArgumentException("No valid image IDs found in update requests");
+        }
+
+        // Bulk fetch all images upfront to avoid N+1 queries
+        Map<Long, ContentImageEntity> imageMap = contentRepository.findAllByIds(imageIds).stream()
+                .filter(ContentImageEntity.class::isInstance)
+                .map(ContentImageEntity.class::cast)
+                .collect(Collectors.toMap(ContentImageEntity::getId, img -> img));
+
+        // Track successfully updated images for batch save
+        List<ContentImageEntity> imagesToSave = new ArrayList<>();
+
         for (ContentImageUpdateRequest update : updates) {
             try {
                 Long imageId = update.getId();
@@ -140,9 +160,10 @@ class ContentServiceImpl implements ContentService {
                     continue;
                 }
 
-                ContentImageEntity image = (ContentImageEntity) contentRepository
-                        .findById(imageId)
-                        .orElseThrow(() -> new EntityNotFoundException("Image not found: " + imageId));
+                ContentImageEntity image = imageMap.get(imageId);
+                if (image == null) {
+                    throw new EntityNotFoundException("Image not found: " + imageId);
+                }
 
                 // Apply basic image metadata updates using the processing util
                 // Note: This handles camera, lens, and filmType updates via the util
@@ -185,11 +206,11 @@ class ContentServiceImpl implements ContentService {
                     }
                 }
 
-                // Save the updated image
-                ContentImageEntity savedImage = contentRepository.save(image);
+                // Add to batch save list
+                imagesToSave.add(image);
 
                 // Convert to model and add to results
-                ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(savedImage);
+                ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(image);
                 updatedImages.add(imageModel);
 
             } catch (EntityNotFoundException e) {
@@ -202,6 +223,12 @@ class ContentServiceImpl implements ContentService {
                 errors.add("Error updating image " + update.getId() + ": " + e.getMessage());
                 log.error("Error updating image {}: {}", update.getId(), e.getMessage(), e);
             }
+        }
+
+        // Batch save all successfully updated images for efficiency
+        if (!imagesToSave.isEmpty()) {
+            contentRepository.saveAll(imagesToSave);
+            log.debug("Batch saved {} updated images", imagesToSave.size());
         }
 
         // Build the response with updated images and new metadata
@@ -637,18 +664,6 @@ class ContentServiceImpl implements ContentService {
         return createdImages;
     }
 
-//    @Override
-//    @Transactional
-//    public ContentModel createContent(CreateTextContentRequest request) {
-//        log.debug("Creating content for collection ID: {}", request.getCollectionId());
-//
-//        if (request.getCollectionId() == null || request.getCollectionId() <= 0) {
-//            throw new IllegalArgumentException("Collection ID is required");
-//        }
-//
-//        if (request.)
-//    }
-
     @Override
     @Transactional
     public ContentTextModel createTextContent(CreateTextContentRequest request) {
@@ -698,48 +713,4 @@ class ContentServiceImpl implements ContentService {
         }
     }
 
-//    @Override
-//    @Transactional
-//    public ContentCodeModel createCodeContent(CreateCodeContentRequest request) {
-//        log.debug("Creating code content for collection ID: {}", request.getCollectionId());
-//
-//        if (request.getCode() == null || request.getCode().trim().isEmpty()) {
-//            throw new IllegalArgumentException("Code content is required");
-//        }
-//
-//        // Verify collection exists
-//        CollectionEntity collection = collectionRepository.findById(request.getCollectionId())
-//                .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + request.getCollectionId()));
-//
-//        // Get the current highest order index for this collection from the join table
-//        Integer orderIndex = collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
-//        orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
-//
-//        // Create code content entity
-//        ContentCodeEntity codeEntity = ContentCodeEntity.builder()
-//                .code(request.getCode().trim())
-//                .language(request.getLanguage() != null ? request.getLanguage() : "plaintext")
-//                .title(request.getTitle())
-//                .build();
-//
-//        // Save the code content
-//        codeEntity = (ContentCodeEntity) contentRepository.save(codeEntity);
-//
-//        // Create join table entry linking content to collection
-//        CollectionContentEntity joinEntry = CollectionContentEntity.builder()
-//                .collection(collection)
-//                .content(codeEntity)
-//                .orderIndex(orderIndex)
-//                .caption(request.getDescription())
-//                .visible(true)
-//                .build();
-//
-//        collectionContentRepository.save(joinEntry);
-//
-//        log.info("Created code content {} in collection {} at orderIndex {}",
-//                codeEntity.getId(), request.getCollectionId(), orderIndex);
-//
-//        // Convert to model and return
-//        return (ContentCodeModel) contentProcessingUtil.convertToModel(codeEntity, joinEntry);
-//    }
 }

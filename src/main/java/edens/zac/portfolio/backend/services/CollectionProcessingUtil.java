@@ -33,7 +33,6 @@ public class CollectionProcessingUtil {
     private final ContentRepository contentRepository;
     private final CollectionContentRepository collectionContentRepository;
     private final ContentProcessingUtil contentProcessingUtil;
-//    private final edens.zac.portfolio.backend.repository.ContentCollectionHomeCardRepository homeCardRepository;
 
     // =============================================================================
     // ERROR HANDLING
@@ -51,21 +50,71 @@ public class CollectionProcessingUtil {
      */
     private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
         if (entity.getCoverImageId() != null) {
-            ContentEntity content = contentRepository.findById(entity.getCoverImageId())
-                    .orElse(null);
-            if (content instanceof ContentImageEntity) {
-                ContentModel contentModel = contentProcessingUtil.convertRegularContentEntityToModel(content);
+            ContentImageModel coverImage = getCoverImageModel(entity.getCoverImageId());
+            if (coverImage != null) {
+                model.setCoverImage(coverImage);
+            }
+        }
+    }
+
+    /**
+     * Get cover image URL from a cover image ID.
+     * This is a lightweight method that only fetches the URL, not the full model.
+     *
+     * @param coverImageId The ID of the cover image
+     * @return The cover image URL, or null if not found or not an image
+     */
+    public String getCoverImageUrl(Long coverImageId) {
+        if (coverImageId == null) {
+            return null;
+        }
+
+        try {
+            ContentEntity content = contentRepository.findById(coverImageId).orElse(null);
+            if (content instanceof ContentImageEntity imageEntity) {
+                return imageEntity.getImageUrlWeb();
+            } else if (content != null) {
+                log.warn("Cover image ID {} is not a ContentImageEntity: {}",
+                        coverImageId, content.getClass().getSimpleName());
+            }
+        } catch (Exception e) {
+            log.error("Error fetching cover image URL for ID {}: {}", coverImageId, e.getMessage(), e);
+        }
+
+        return null;
+    }
+
+    /**
+     * Get full cover image model from a cover image ID.
+     * This loads the complete ContentImageModel with all metadata.
+     *
+     * @param coverImageId The ID of the cover image
+     * @return The ContentImageModel, or null if not found or not an image
+     */
+    private ContentImageModel getCoverImageModel(Long coverImageId) {
+        if (coverImageId == null) {
+            return null;
+        }
+
+        try {
+            ContentEntity content = contentRepository.findById(coverImageId).orElse(null);
+            if (content instanceof ContentImageEntity imageEntity) {
+                ContentModel contentModel = contentProcessingUtil.convertRegularContentEntityToModel(imageEntity);
                 if (contentModel instanceof ContentImageModel imageModel) {
-                    model.setCoverImage(imageModel);
+                    return imageModel;
                 } else {
                     log.warn("Cover image {} converted to non-ContentImageModel: {}",
-                            entity.getCoverImageId(), contentModel.getClass().getSimpleName());
+                            coverImageId, contentModel != null ? contentModel.getClass().getSimpleName() : "null");
                 }
             } else if (content != null) {
                 log.warn("Cover image {} is not a ContentImageEntity: {}",
-                        entity.getCoverImageId(), content.getClass().getSimpleName());
+                        coverImageId, content.getClass().getSimpleName());
             }
+        } catch (Exception e) {
+            log.error("Error fetching cover image model for ID {}: {}", coverImageId, e.getMessage(), e);
         }
+
+        return null;
     }
 
     /**
@@ -382,116 +431,6 @@ public class CollectionProcessingUtil {
 //        }
     }
 
-//    /**
-//     * Handle adding new text blocks, either appending to the end or inserting at a specific index.
-//     * Behavior matches the original service implementation.
-//     */
-//    public void handleNewTextBlocks(Long collectionId, CollectionUpdateRequest updateDTO) {
-//        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
-//            return;
-//        }
-//        // Always append new text blocks to the end
-//        Integer startOrderIndex = collectionContentRepository.getMaxOrderIndexForCollection(collectionId);
-//        int currentIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
-//        for (String text : updateDTO.getNewTextContent()) {
-//            contentProcessingUtil.processTextContent(text, collectionId);
-//            currentIndex++;
-//        }
-//    }
-
-//    /**
-//     * Variant of handleNewTextBlocks that returns the IDs of newly created text blocks
-//     * in the same order as provided in updateDTO.getNewTextBlocks(). This enables
-//     * deterministic placeholder mapping during subsequent reordering.
-//     */
-//    public List<Long> handleNewTextContentReturnIds(Long collectionId, CollectionUpdateRequest updateDTO) {
-//        List<Long> createdIds = new ArrayList<>();
-//        if (updateDTO.getNewTextContent() == null || updateDTO.getNewTextContent().isEmpty()) {
-//            return createdIds;
-//        }
-//        for (String text : updateDTO.getNewTextContent()) {
-//            ContentEntity created = contentProcessingUtil.processTextContent(text, collectionId);
-//            if (created != null && created.getId() != null) {
-//                createdIds.add(created.getId());
-//            }
-//            currentIndex++;
-//        }
-//        return createdIds;
-//    }
-
-//    /**
-//     * Handle content block reordering operations. Supports reference by ID, placeholder for newly
-//     * added text blocks (negative IDs: -1 for first new text, etc.), or by old order index.
-//     */
-//    public void handleContentReordering(Long collectionId, CollectionUpdateRequest updateDTO) {
-//        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
-//            return;
-//        }
-//        // Backward-compatible behavior: try to infer newTextIds by taking the last N blocks
-//        List<Long> inferredNewTextIds = new ArrayList<>();
-//        if (updateDTO.getNewTextContent() != null && !updateDTO.getNewTextContent().isEmpty()) {
-//            int n = updateDTO.getNewTextContent().size();
-//            // Get all join table entries and extract content entities
-//            List<ContentEntity> allBlocks = collectionContentRepository
-//                    .findByCollectionIdOrderByOrderIndex(collectionId)
-//                    .stream()
-//                    .map(CollectionContentEntity::getContent)
-//                    .toList();
-//            int total = allBlocks.size();
-//            for (int i = Math.max(0, total - n); i < total; i++) {
-//                inferredNewTextIds.add(allBlocks.get(i).getId());
-//            }
-//        }
-//        handleContentReordering(collectionId, updateDTO, inferredNewTextIds);
-//    }
-
-    /**
-     * Overloaded reordering that accepts explicit newTextIds mapping. This ensures
-     * correct placeholder resolution regardless of insert position.
-     *
-     * TODO: This method is deprecated as reordering is now handled via individual content update endpoints
-     */
-//    public void handleContentReordering(Long collectionId, CollectionUpdateRequest updateDTO, List<Long> newTextIds) {
-//        if (updateDTO.getReorderOperations() == null || updateDTO.getReorderOperations().isEmpty()) {
-//            return;
-//        }
-//        List<Long> mapping = (newTextIds != null) ? newTextIds : new ArrayList<>();
-//        for (CollectionUpdateRequest.ContentReorderOperation op : updateDTO.getReorderOperations()) {
-//            Long targetId = null;
-//            Long providedId = op.getContentId();
-//            if (providedId != null) {
-//                if (providedId > 0) {
-//                    targetId = providedId;
-//                } else if (providedId < 0) {
-//                    int idx = (int) (-providedId) - 1; // -1 -> 0, -2 -> 1, ...
-//                    if (idx >= 0 && idx < mapping.size()) {
-//                        targetId = mapping.get(idx);
-//                    } else {
-//                        throw new IllegalArgumentException("Reorder operation references a new text block placeholder that does not exist: " + providedId);
-//                    }
-//                }
-//            }
-//            if (targetId == null) {
-//                Integer oldIdx = op.getOldOrderIndex();
-//                if (oldIdx == null) {
-//                    throw new IllegalArgumentException("Reorder operation must include either contentId or oldOrderIndex");
-//                }
-//                // Find join table entry by collection and old orderIndex
-//                CollectionContentEntity byIndex = collectionContentRepository.findByCollectionIdAndOrderIndex(collectionId, oldIdx);
-//                if (byIndex == null) {
-//                    throw new IllegalArgumentException("No content found at oldOrderIndex=" + oldIdx);
-//                }
-//                targetId = byIndex.getContent().getId();
-//            }
-//
-//            // Find the join table entry for this content in this collection and update its orderIndex
-//            CollectionContentEntity ccToUpdate = collectionContentRepository.findByCollectionIdAndContentId(collectionId, targetId);
-//            if (ccToUpdate == null) {
-//                throw new IllegalArgumentException("Content with ID " + targetId + " is not associated with collection " + collectionId);
-//            }
-//            collectionContentRepository.updateOrderIndex(ccToUpdate.getId(), op.getNewOrderIndex());
-//        }
-//    }
 
     // =============================================================================
     // SLUG GENERATION AND VALIDATION

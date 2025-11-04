@@ -4,7 +4,6 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
-import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentTagEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.model.*;
@@ -79,9 +78,11 @@ class CollectionServiceImpl implements CollectionService {
         // TODO: Re-implement password protection after migration
         // Password protection temporarily disabled during refactoring
 
-        // Get collection metadata
-        CollectionEntity collection = collectionRepository.findBySlug(slug)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
+        // Verify collection exists (using existsBySlug for efficiency when we don't need the entity)
+        if (!collectionRepository.existsBySlug(slug)) {
+            throw new EntityNotFoundException("Collection not found with slug: " + slug);
+        }
+
 
         // For now, all galleries are accessible
         return true;
@@ -107,15 +108,8 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding collections by type: {}", type);
 
         // Get collections by type with pagination
-        Page<CollectionEntity> collectionsPage;
-
-        if (type == CollectionType.BLOG) {
-            // Blogs are ordered by date descending
-            collectionsPage = collectionRepository.findAll(pageable);
-        } else {
-            // Other types are ordered by priority
-            collectionsPage = collectionRepository.findAll(pageable);
-        }
+        // Note: Currently all types use the same query - type filtering can be added if needed
+        Page<CollectionEntity> collectionsPage = collectionRepository.findAll(pageable);
 
         // Convert to models
         List<CollectionModel> models = collectionsPage.getContent().stream()
@@ -210,12 +204,6 @@ class CollectionServiceImpl implements CollectionService {
             handleCollectionToCollectionUpdates(entity, updateDTO.getCollections());
         }
 
-//        // Handle adding new text blocks via utility helper, capturing created IDs for deterministic mapping
-//        // TODO: don't handle creating new text blocks from 'updateContent', but rather it's own 'createContent' endpoint
-//        List<Long> newTextIds = collectionProcessingUtil.handleNewTextContentReturnIds(id, updateDTO);
-
-//        // Handle content block reordering via utility helper with explicit mapping for new text placeholders
-//        collectionProcessingUtil.handleContentReordering(id, updateDTO, newTextIds);
 
         // Update total blocks count from join table before saving
         long totalBlocks = collectionContentRepository.countByCollectionId(entity.getId());
@@ -449,7 +437,7 @@ class CollectionServiceImpl implements CollectionService {
                         .findByCollectionIdAndContentId(parentCollection.getId(), existingContentCollection.getId());
 
                 // Fetch cover image URL from the referenced collection
-                String coverImageUrl = getCoverImageUrl(childCollectionEntity);
+                String coverImageUrl = collectionProcessingUtil.getCoverImageUrl(childCollectionEntity.getCoverImageId());
 
                 if (existingJoinEntry == null) {
                     // Create new join table entry
@@ -584,32 +572,4 @@ class CollectionServiceImpl implements CollectionService {
                 .orElse(null);
     }
 
-    /**
-     * Get the cover image URL from a collection's cover_image_id.
-     * Looks up the ContentImageEntity and returns its imageUrlWeb.
-     *
-     * @param collection The collection entity
-     * @return The cover image URL, or null if no cover image is set or not found
-     */
-    private String getCoverImageUrl(CollectionEntity collection) {
-        if (collection.getCoverImageId() == null) {
-            return null;
-        }
-
-        try {
-            ContentEntity content = contentRepository.findById(collection.getCoverImageId())
-                    .orElse(null);
-            
-            if (content instanceof ContentImageEntity imageEntity) {
-                return imageEntity.getImageUrlWeb();
-            } else if (content != null) {
-                log.warn("Collection {} has cover_image_id {} but it's not a ContentImageEntity: {}", 
-                        collection.getId(), collection.getCoverImageId(), content.getClass().getSimpleName());
-            }
-        } catch (Exception e) {
-            log.error("Error fetching cover image for collection {}: {}", collection.getId(), e.getMessage(), e);
-        }
-
-        return null;
-    }
 }

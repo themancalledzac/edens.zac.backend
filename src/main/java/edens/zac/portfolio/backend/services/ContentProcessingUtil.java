@@ -70,12 +70,6 @@ public class ContentProcessingUtil {
         public static final String AUTHOR = "Zechariah Edens";
     }
 
-    // Supported programming languages for code content
-    private static final Set<String> SUPPORTED_LANGUAGES = Set.of(
-            "java", "javascript", "typescript", "python", "html", "css",
-            "sql", "bash", "shell", "json", "xml", "yaml", "markdown",
-            "plaintext", "c", "cpp", "csharp", "go", "rust", "kotlin", "swift"
-    );
 
     /**
      * Convert a ContentEntity to its corresponding ContentModel based on type.
@@ -107,6 +101,8 @@ public class ContentProcessingUtil {
      * Resolve a Hibernate proxy to its actual entity type.
      * This is necessary when dealing with JOINED inheritance strategy where proxies
      * may not be properly initialized to the correct subclass type.
+     * 
+     * Optimized to skip processing if entity is already properly initialized (not a proxy).
      *
      * @param entity The entity (may be a proxy)
      * @return The actual entity instance (not a proxy)
@@ -114,6 +110,12 @@ public class ContentProcessingUtil {
     private ContentEntity unproxyContentEntity(ContentEntity entity) {
         if (entity == null) {
             return null;
+        }
+        
+        // Optimize: Skip if already properly initialized (not a proxy)
+        // This avoids unnecessary work when entities are bulk-loaded
+        if (!(entity instanceof HibernateProxy)) {
+            return entity;
         }
         
         // Use Hibernate.unproxy() to get the actual implementation
@@ -295,32 +297,6 @@ public class ContentProcessingUtil {
         return model;
     }
 
-//    /**
-//     * Convert a CodeContentEntity to a CodeContentModel.
-//     *
-//     * @param entity The code content entity to convert
-//     * @return The corresponding code content model
-//     */
-//    private ContentCodeModel convertCodeToModel(ContentCodeEntity entity) {
-//        if (entity == null) {
-//            return null;
-//        }
-//
-//        ContentCodeModel model = new ContentCodeModel();
-//
-//        // Copy base properties
-//        copyBaseProperties(entity, model);
-//
-//        // Copy code-specific properties
-//        model.setCode(entity.getCode());
-//        model.setLanguage(entity.getLanguage());
-//        model.setTitle(entity.getTitle());
-//
-//        // Set default values for additional properties
-//        model.setShowLineNumbers(true);
-//
-//        return model;
-//    }
 
     /**
      * Convert a GifContentEntity to a GifContentModel.
@@ -378,7 +354,6 @@ public class ContentProcessingUtil {
         String slug;
         CollectionType collectionType;
         String description;
-        Long coverImageId;
         
         try {
             collectionId = referencedCollection.getId();
@@ -386,7 +361,6 @@ public class ContentProcessingUtil {
             slug = referencedCollection.getSlug();
             collectionType = referencedCollection.getType();
             description = referencedCollection.getDescription();
-            coverImageId = referencedCollection.getCoverImageId();
         } catch (Exception e) {
             log.error("Error accessing referencedCollection fields for ContentCollectionEntity {}: {}", 
                     contentEntity.getId(), e.getMessage(), e);
@@ -418,85 +392,6 @@ public class ContentProcessingUtil {
         return model;
     }
 
-// TODO: Is any of this still needed? should we reuse this in favor of our new 'createCodeContent/createTextContent'?
-//    /**
-//     * Process and save a content based on its type.
-//     *
-//     * @param file         The file to process (for media content)
-//     * @param type         The type of content
-//     * @param collectionId The ID of the collection this collection belongs to
-//     * @param orderIndex   The order index of this content within the collection
-//     * @return The saved content entity
-//     */
-//    public ContentEntity processContent(
-//            MultipartFile file,
-//            ContentType type,
-//            Long collectionId,
-//            Integer orderIndex,
-//            String content,
-//            String language,
-//            String title,
-//            String caption
-//    ) {
-//        log.info("Processing content of type {} for collection {}", type, collectionId);
-//
-//        if (type == null) {
-//            log.error("Unknown content type: null");
-//            throw new IllegalArgumentException("Unknown content type: null");
-//        }
-//
-//        return switch (type) {
-//            case IMAGE -> processImageContent(file, title);
-//            case TEXT -> processTextContent(content, collectionId, orderIndex, caption);
-//            case CODE -> processCodeContent(content, language, collectionId, orderIndex, title, caption);
-//            case GIF -> processGifContent(file, collectionId, orderIndex, title, caption);
-//            case COLLECTION -> null;
-//        };
-//    }
-
-//
-
-//    /**
-//     * Process and save a code content.
-//     *
-//     * @param code         The code content
-//     * @param language     The programming language
-//     * @param collectionId The ID of the collection this content belongs to
-//     * @param orderIndex   The order index of this content within the collection
-//     * @param title        The title of the code content
-//     * @param caption      The caption for the code content
-//     * @return The saved code content entity
-//     */
-//    public ContentCodeEntity processCodeContent(
-//            String code,
-//            String language,
-//            Long collectionId,
-//            Integer orderIndex,
-//            String title,
-//            String caption
-//    ) {
-//        log.info("Processing code content for collection {}", collectionId);
-//
-//        try {
-//            // Validate the code content and language
-//            String validatedCode = validateCodeContent(code, language);
-//            String validatedLanguage = validateCodeLanguage(language);
-//
-//            // Create and return the code content entity
-//            ContentCodeEntity entity = new ContentCodeEntity();
-//            entity.setContentType(ContentType.CODE);
-//            entity.setCode(validatedCode);
-//            entity.setLanguage(validatedLanguage);
-//            entity.setTitle(title);
-//
-//            // Save the entity using the repository
-//            return contentRepository.save(entity);
-//
-//        } catch (Exception e) {
-//            log.error("Error processing code content: {}", e.getMessage(), e);
-//            throw new RuntimeException("Failed to process code content", e);
-//        }
-//    }
 
     /**
      * Process and save a gif content.
@@ -553,198 +448,6 @@ public class ContentProcessingUtil {
         }
     }
 
-//    /**
-//     * Reorder content within a collection.
-//     *
-//     * @param collectionId The ID of the collection
-//     * @param contentIds   The ordered list of content IDs
-//     * @return The updated list of content entities
-//     */
-//    public List<ContentEntity> reorderContent(Long collectionId, List<Long> contentIds) {
-//        log.info("Reordering content for collection {}", collectionId);
-//
-//        if (contentIds == null || contentIds.isEmpty()) {
-//            throw new IllegalArgumentException("Content IDs list cannot be empty");
-//        }
-//
-//        try {
-//            // Get all Content for this collection
-//            List<ContentEntity> contents = contentRepository.findByCollectionIdOrderByOrderIndex(collectionId);
-//
-//            // Create a map of content ID to entity for quick lookup
-//            Map<Long, ContentEntity> contentMap = new HashMap<>();
-//            for (ContentEntity contentSingle : contents) {
-//                contentMap.put(contentSingle.getId(), contentSingle);
-//            }
-//
-//            // Validate that all content IDs belong to this collection
-//            for (Long contentId : contentIds) {
-//                ContentEntity content = contentMap.get(contentId);
-//                if (content == null) {
-//                    throw new IllegalArgumentException("Content ID " + contentId + " does not belong to collection " + collectionId);
-//                }
-//            }
-//
-//            // Update order index for each content based on its position in the list
-//            List<ContentEntity> updatedContent = new ArrayList<>();
-//            for (int i = 0; i < contentIds.size(); i++) {
-//                Long contentId = contentIds.get(i);
-//                ContentEntity content = contentMap.get(contentId);
-//                content.setOrderIndex(i);
-//                updatedContent.add(content);
-//            }
-//
-//            // Save all updated content
-//            return contentRepository.saveAll(updatedContent);
-//
-//        } catch (Exception e) {
-//            log.error("Error reordering content: {}", e.getMessage(), e);
-//            throw new RuntimeException("Failed to reorder content", e);
-//        }
-//    }
-
-    /**
-     * Validate and sanitize text content.
-     *
-     * @param textContent The text content to validate and sanitize
-     * @return The validated and sanitized text content
-     */
-    private String validateAndSanitizeTextContent(String textContent) {
-        if (textContent == null || textContent.trim().isEmpty()) {
-            throw new IllegalArgumentException("Text content cannot be empty");
-        }
-
-        // Check for maximum length
-        if (textContent.length() > 10000) {
-            log.warn("Text content exceeds maximum length, truncating");
-            textContent = textContent.substring(0, 10000);
-        }
-
-        // Sanitize content to prevent XSS attacks
-        // Since we don't have Apache Commons Text with StringEscapeUtils,
-        // we'll use a simple approach to escape HTML special characters
-        textContent = sanitizeHtml(textContent);
-
-        return textContent;
-    }
-
-    /**
-     * Sanitize HTML content to prevent XSS attacks.
-     *
-     * @param html The HTML content to sanitize
-     * @return The sanitized HTML content
-     */
-    private String sanitizeHtml(String html) {
-        if (html == null) {
-            return null;
-        }
-
-        // Replace HTML special characters with their escaped versions
-        return html.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#x27;")
-                .replace("/", "&#x2F;");
-    }
-
-//    /**
-//     * Validate and process code content.
-//     *
-//     * @param content  The code content to validate
-//     * @param language The programming language
-//     * @return The validated code content
-//     */
-//    private String validateCodeContent(String content, String language) {
-//        if (content == null || content.trim().isEmpty()) {
-//            throw new IllegalArgumentException("Code content cannot be empty");
-//        }
-//
-//        // Check for maximum length
-//        if (content.length() > 50000) {
-//            log.warn("Code content exceeds maximum length, truncating");
-//            content = content.substring(0, 50000);
-//        }
-//
-//        // Sanitize code content to prevent XSS attacks
-//        // For code content, we need to escape HTML but preserve formatting
-//        content = sanitizeHtml(content);
-//
-//        // Format code based on language
-//        // This is a simplified implementation - in a real-world scenario,
-//        // you might use a code formatting library specific to each language
-//        String validatedLanguage = validateCodeLanguage(language);
-//
-//        // For certain languages, we might want to add specific formatting
-//        // This is just a placeholder for language-specific formatting
-//        switch (validatedLanguage) {
-//            case "html":
-//                // For HTML, we might want to ensure proper indentation
-//                content = formatHtmlCode(content);
-//                break;
-//            case "java":
-//            case "javascript":
-//            case "typescript":
-//                // For these languages, we might want to ensure proper braces
-//                content = ensureProperBraces(content);
-//                break;
-//            default:
-//                // No special formatting for other languages
-//                break;
-//        }
-//
-//        return content;
-//    }
-
-//    /**
-//     * Validate and normalize programming language.
-//     *
-//     * @param language The programming language to validate
-//     * @return The validated and normalized language
-//     */
-//    private String validateCodeLanguage(String language) {
-//        if (language == null || language.trim().isEmpty()) {
-//            // Default to plain text if no language is specified
-//            return "plaintext";
-//        }
-//
-//        // Normalize language name (lowercase, trim)
-//        String normalizedLanguage = language.toLowerCase().trim();
-//
-//        // Validate against the list of supported languages
-//        if (!SUPPORTED_LANGUAGES.contains(normalizedLanguage)) {
-//            log.warn("Unsupported language: {}. Defaulting to plaintext.", normalizedLanguage);
-//            return "plaintext";
-//        }
-//
-//        return normalizedLanguage;
-//    }
-
-//    /**
-//     * Format HTML code for better readability.
-//     * This is a simplified implementation.
-//     *
-//     * @param htmlCode The HTML code to format
-//     * @return The formatted HTML code
-//     */
-//    private String formatHtmlCode(String htmlCode) {
-//        // This is a placeholder for HTML formatting logic
-//        // In a real implementation, you might use a library like jsoup
-//        return htmlCode;
-//    }
-
-//    /**
-//     * Ensure proper braces in code.
-//     * This is a simplified implementation.
-//     *
-//     * @param code The code to format
-//     * @return The formatted code
-//     */
-//    private String ensureProperBraces(String code) {
-//        // This is a placeholder for brace formatting logic
-//        // In a real implementation, you might use a language-specific formatter
-//        return code;
-//    }
 
     /**
      * Upload a GIF to S3.

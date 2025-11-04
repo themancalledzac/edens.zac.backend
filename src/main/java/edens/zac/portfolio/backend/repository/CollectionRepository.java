@@ -54,6 +54,14 @@ public interface CollectionRepository extends JpaRepository<CollectionEntity, Lo
     Optional<CollectionEntity> findBySlug(String slug);
 
     /**
+     * Check if a collection with the given slug exists.
+     *
+     * @param slug The slug to check
+     * @return True if collection exists
+     */
+    boolean existsBySlug(String slug);
+
+    /**
      * Find a collection by slug with first 50 content, ordered by their order_index.
      * This is the main "basic" endpoint that auto-limits to 50 content for performance.
      * If more than 50 exist, frontend should use pagination endpoints.

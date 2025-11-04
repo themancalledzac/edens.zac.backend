@@ -43,10 +43,17 @@ public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
     /**
      * Find all ContentImageEntity instances ordered by createDate descending.
      * This returns all images across all collections, sorted by most recent first.
+     * Uses JOIN FETCH to eagerly load relationships and avoid N+1 queries.
      *
      * @return List of all image content ordered by createDate descending
      */
-    @Query("SELECT i FROM ContentImageEntity i ORDER BY i.createDate DESC")
+    @Query("SELECT DISTINCT i FROM ContentImageEntity i " +
+           "LEFT JOIN FETCH i.tags " +
+           "LEFT JOIN FETCH i.people " +
+           "LEFT JOIN FETCH i.camera " +
+           "LEFT JOIN FETCH i.lens " +
+           "LEFT JOIN FETCH i.filmType " +
+           "ORDER BY i.createDate DESC")
     List<ContentImageEntity> findAllImagesOrderByCreateDateDesc();
 
     /**
