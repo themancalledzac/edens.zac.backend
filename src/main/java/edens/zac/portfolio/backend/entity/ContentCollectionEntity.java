@@ -19,12 +19,12 @@ import lombok.experimental.SuperBuilder;
  */
 @Entity
 @Table(
-    name = "content_collection_ref",
+    name = "content_collection",
     indexes = {
-        @Index(name = "idx_content_collection_ref_col", columnList = "referenced_collection_id")
+        @Index(name = "idx_content_collection_col", columnList = "referenced_collection_id")
     }
 )
-@PrimaryKeyJoinColumn(name = "content_id")
+@PrimaryKeyJoinColumn(name = "id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor

@@ -3,12 +3,12 @@ package edens.zac.portfolio.backend.controller.prod;
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.CollectionService;
+import edens.zac.portfolio.backend.services.PaginationUtil;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,15 +39,7 @@ public class CollectionControllerProd {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         try {
-            // Normalize pagination parameters: 0-based pages; negative coerced to 0.
-            if (page < 0) {
-                page = 0;
-            }
-            if (size <= 0) {
-                size = DefaultValues.default_collection_per_page;
-            }
-
-            Pageable pageable = PageRequest.of(page, size);
+            Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
             Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
 
             return ResponseEntity.ok(collections);
@@ -77,15 +69,11 @@ public class CollectionControllerProd {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
         try {
-            // Normalize pagination parameters: pages are 0-based; coerce negatives to 0 (first page)
-            if (page < 0) {
-                page = 0;
-            }
-            if (size <= 0) {
-                size = DefaultValues.default_content_per_page;
-            }
+            // Normalize pagination parameters
+            int normalizedPage = PaginationUtil.normalizePage(page);
+            int normalizedSize = PaginationUtil.normalizeSize(size, DefaultValues.default_content_per_page);
 
-            CollectionModel collection = collectionService.getCollectionWithPagination(slug, page, size);
+            CollectionModel collection = collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
             return ResponseEntity.ok(collection);
         } catch (EntityNotFoundException e) {
             log.warn("Collection not found: {}", slug);

@@ -189,7 +189,7 @@ class ContentServiceImpl implements ContentService {
                 ContentImageEntity savedImage = contentRepository.save(image);
 
                 // Convert to model and add to results
-                ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertToModel(savedImage);
+                ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(savedImage);
                 updatedImages.add(imageModel);
 
             } catch (EntityNotFoundException e) {
@@ -330,44 +330,15 @@ class ContentServiceImpl implements ContentService {
 
     /**
      * Update image tags and track newly created ones.
+     * Uses shared utility method from ContentProcessingUtil.
      */
     private void updateImageTags(ContentImageEntity image, TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
-        Set<ContentTagEntity> tags = new HashSet<>(image.getTags());
-
-        // Remove tags if specified
-        if (tagUpdate.getRemove() != null && !tagUpdate.getRemove().isEmpty()) {
-            tags.removeIf(tag -> tagUpdate.getRemove().contains(tag.getId()));
-        }
-
-        // Add existing tags by ID (prev)
-        if (tagUpdate.getPrev() != null && !tagUpdate.getPrev().isEmpty()) {
-            Set<ContentTagEntity> existingTags = tagUpdate.getPrev().stream()
-                    .map(tagId -> contentTagRepository.findById(tagId)
-                            .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + tagId)))
-                    .collect(Collectors.toSet());
-            tags.addAll(existingTags);
-        }
-
-        // Create and add new tags by name (newValue) with tracking
-        if (tagUpdate.getNewValue() != null && !tagUpdate.getNewValue().isEmpty()) {
-            for (String tagName : tagUpdate.getNewValue()) {
-                if (tagName != null && !tagName.trim().isEmpty()) {
-                    String trimmedName = tagName.trim();
-                    var existing = contentTagRepository.findByTagNameIgnoreCase(trimmedName);
-                    if (existing.isPresent()) {
-                        tags.add(existing.get());
-                    } else {
-                        ContentTagEntity newTag = new ContentTagEntity(trimmedName);
-                        newTag = contentTagRepository.save(newTag);
-                        tags.add(newTag);
-                        newTags.add(newTag);
-                        log.info("Created new tag: {}", trimmedName);
-                    }
-                }
-            }
-        }
-
-        image.setTags(tags);
+        Set<ContentTagEntity> updatedTags = contentProcessingUtil.updateTags(
+                image.getTags(),
+                tagUpdate,
+                newTags // Track newly created tags for response
+        );
+        image.setTags(updatedTags);
     }
 
     /**
@@ -402,9 +373,8 @@ class ContentServiceImpl implements ContentService {
             // Determine orderIndex: use provided value or append to end
             Integer orderIndex = childCollection.getOrderIndex();
             if (orderIndex == null) {
-                Integer maxOrderIndex = collectionContentRepository
-                        .getMaxOrderIndexForCollection(childCollection.getCollectionId());
-                orderIndex = (maxOrderIndex != null) ? maxOrderIndex + 1 : 0;
+                orderIndex = collectionContentRepository
+                        .getNextOrderIndexForCollection(childCollection.getCollectionId());
             }
 
             // Create join table entry
@@ -413,7 +383,7 @@ class ContentServiceImpl implements ContentService {
                     .content(image)
                     .orderIndex(orderIndex)
                     .visible(childCollection.getVisible() != null ? childCollection.getVisible() : true)
-                    .caption(null)  // Caption can be set separately if needed
+                    .imageUrl(null)  // Image URL not applicable for image content (image has its own URL)
                     .build();
 
             collectionContentRepository.save(joinEntry);
@@ -424,44 +394,15 @@ class ContentServiceImpl implements ContentService {
 
     /**
      * Update image people and track newly created ones.
+     * Uses shared utility method from ContentProcessingUtil.
      */
     private void updateImagePeople(ContentImageEntity image, PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
-        Set<ContentPersonEntity> people = new HashSet<>(image.getPeople());
-
-        // Remove people if specified
-        if (personUpdate.getRemove() != null && !personUpdate.getRemove().isEmpty()) {
-            people.removeIf(person -> personUpdate.getRemove().contains(person.getId()));
-        }
-
-        // Add existing people by ID (prev)
-        if (personUpdate.getPrev() != null && !personUpdate.getPrev().isEmpty()) {
-            Set<ContentPersonEntity> existingPeople = personUpdate.getPrev().stream()
-                    .map(personId -> contentPersonRepository.findById(personId)
-                            .orElseThrow(() -> new EntityNotFoundException("Person not found: " + personId)))
-                    .collect(Collectors.toSet());
-            people.addAll(existingPeople);
-        }
-
-        // Create and add new people by name (newValue) with tracking
-        if (personUpdate.getNewValue() != null && !personUpdate.getNewValue().isEmpty()) {
-            for (String personName : personUpdate.getNewValue()) {
-                if (personName != null && !personName.trim().isEmpty()) {
-                    String trimmedName = personName.trim();
-                    var existing = contentPersonRepository.findByPersonNameIgnoreCase(trimmedName);
-                    if (existing.isPresent()) {
-                        people.add(existing.get());
-                    } else {
-                        ContentPersonEntity newPerson = new ContentPersonEntity(trimmedName);
-                        newPerson = contentPersonRepository.save(newPerson);
-                        people.add(newPerson);
-                        newPeople.add(newPerson);
-                        log.info("Created new person: {}", trimmedName);
-                    }
-                }
-            }
-        }
-
-        image.setPeople(people);
+        Set<ContentPersonEntity> updatedPeople = contentProcessingUtil.updatePeople(
+                image.getPeople(),
+                personUpdate,
+                newPeople // Track newly created people for response
+        );
+        image.setPeople(updatedPeople);
     }
 
     @Override
@@ -611,7 +552,7 @@ class ContentServiceImpl implements ContentService {
     public List<ContentImageModel> getAllImages() {
         return contentRepository.findAllImagesOrderByCreateDateDesc().stream()
                 .map(entity -> (ContentImageModel)
-                        contentProcessingUtil.convertToModel(entity))
+                        contentProcessingUtil.convertRegularContentEntityToModel(entity))
                 .collect(Collectors.toList());
     }
 
@@ -630,10 +571,8 @@ class ContentServiceImpl implements ContentService {
 
         List<ContentImageModel> createdImages = new ArrayList<>();
 
-        // Get the current highest order index for this collection from the join table
-        Integer startOrderIndex = collectionContentRepository.getMaxOrderIndexForCollection(collectionId);
-        // TODO: Will the orderIndex EVER be null? or do we default to 0? having a test to make sure it always starts at 0 would be great, and then we could simplify this line.
-        Integer orderIndex = (startOrderIndex != null) ? startOrderIndex + 1 : 0;
+        // Get the next order index for this collection
+        Integer orderIndex = collectionContentRepository.getNextOrderIndexForCollection(collectionId);
 
         for (MultipartFile file : files) {
             try {
@@ -668,7 +607,7 @@ class ContentServiceImpl implements ContentService {
                                     .collection(collection)
                                     .content(img)
                                     .orderIndex(orderIndex)
-                                    .caption(null)  // No caption by default
+                                    .imageUrl(null)  // Image URL not applicable for image content
                                     .visible(true)   // Visible by default
                                     .build();
 
@@ -678,8 +617,12 @@ class ContentServiceImpl implements ContentService {
                                     img.getId(), collectionId, orderIndex);
 
                             // STEP 3: Convert to model with join table metadata and add to results
-                            ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertToModel(img, joinEntry);
-                            createdImages.add(imageModel);
+                            ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+                            if (contentModel instanceof ContentImageModel imageModel) {
+                                createdImages.add(imageModel);
+                            } else {
+                                log.error("Expected ContentImageModel but got {}", contentModel != null ? contentModel.getClass() : "null");
+                            }
 
                             // Increment order index for next image
                             orderIndex++;
@@ -719,9 +662,8 @@ class ContentServiceImpl implements ContentService {
         CollectionEntity collection = collectionRepository.findById(request.getCollectionId())
                 .orElseThrow(() -> new EntityNotFoundException("Collection not found: " + request.getCollectionId()));
 
-        // Get the current highest order index for this collection from the join table
-        Integer orderIndex = collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
-        orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
+        // Get the next order index for this collection
+        Integer orderIndex = collectionContentRepository.getNextOrderIndexForCollection(request.getCollectionId());
 
         // Create text content entity
         ContentTextEntity textEntity = ContentTextEntity.builder()
@@ -737,7 +679,7 @@ class ContentServiceImpl implements ContentService {
                 .collection(collection)
                 .content(textEntity)
                 .orderIndex(orderIndex)
-                .caption(request.getTitle())
+                .imageUrl(null)  // Image URL not applicable for text content
                 .visible(true)
                 .build();
 
@@ -747,7 +689,13 @@ class ContentServiceImpl implements ContentService {
                 textEntity.getId(), request.getCollectionId(), orderIndex);
 
         // Convert to model and return
-        return (ContentTextModel) contentProcessingUtil.convertToModel(textEntity, joinEntry);
+        ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+        if (contentModel instanceof ContentTextModel textModel) {
+            return textModel;
+        } else {
+            throw new IllegalStateException("Expected ContentTextModel but got " + 
+                    (contentModel != null ? contentModel.getClass() : "null"));
+        }
     }
 
 //    @Override

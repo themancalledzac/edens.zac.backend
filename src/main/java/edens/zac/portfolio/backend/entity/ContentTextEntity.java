@@ -14,7 +14,7 @@ import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "content_text")
-@PrimaryKeyJoinColumn(name = "content_id")
+@PrimaryKeyJoinColumn(name = "id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor

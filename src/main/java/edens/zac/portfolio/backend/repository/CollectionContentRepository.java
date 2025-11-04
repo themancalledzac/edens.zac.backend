@@ -21,6 +21,7 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
 
     /**
      * Find all join table entries for a collection, ordered by orderIndex.
+     * Note: Content entities are loaded separately via bulk fetch for better performance and proper typing.
      *
      * @param collectionId The ID of the collection
      * @return List of CollectionContentEntity ordered by orderIndex
@@ -30,12 +31,13 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
 
     /**
      * Find join table entries for a collection with pagination.
+     * Note: Content entities are loaded separately via bulk fetch for better performance and proper typing.
      *
      * @param collectionId The ID of the collection
      * @param pageable     Pagination information
      * @return Page of CollectionContentEntity
      */
-    @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId")
+    @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId ORDER BY cc.orderIndex ASC")
     Page<CollectionContentEntity> findByCollectionId(@Param("collectionId") Long collectionId, Pageable pageable);
 
     /**
@@ -66,6 +68,18 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
      */
     @Query("SELECT MAX(cc.orderIndex) FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId")
     Integer getMaxOrderIndexForCollection(@Param("collectionId") Long collectionId);
+
+    /**
+     * Get the next orderIndex value for a collection's content.
+     * This is a convenience method that returns the next available orderIndex (max + 1, or 0 if no content exists).
+     *
+     * @param collectionId The ID of the collection
+     * @return The next orderIndex value (0 if collection is empty, max + 1 otherwise)
+     */
+    default Integer getNextOrderIndexForCollection(Long collectionId) {
+        Integer maxOrderIndex = getMaxOrderIndexForCollection(collectionId);
+        return maxOrderIndex != null ? maxOrderIndex + 1 : 0;
+    }
 
     /**
      * Update the orderIndex of a specific join table entry.
@@ -141,4 +155,27 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
     @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.id = :contentId")
     CollectionContentEntity findByCollectionIdAndContentId(@Param("collectionId") Long collectionId,
                                                              @Param("contentId") Long contentId);
+
+    /**
+     * Update the imageUrl of a specific join table entry.
+     *
+     * @param id       The ID of the CollectionContentEntity
+     * @param imageUrl The new imageUrl value
+     */
+    @Modifying
+    @Query("UPDATE CollectionContentEntity cc SET cc.imageUrl = :imageUrl WHERE cc.id = :id")
+    void updateImageUrl(@Param("id") Long id, @Param("imageUrl") String imageUrl);
+
+    /**
+     * Find all CollectionContentEntity entries where the content is a ContentCollectionEntity
+     * that references a specific collection ID.
+     * This is used to update imageUrl when a collection's cover_image_id changes.
+     *
+     * @param referencedCollectionId The ID of the collection being referenced
+     * @return List of CollectionContentEntity entries that reference this collection
+     */
+    @Query("SELECT cc FROM CollectionContentEntity cc " +
+           "JOIN ContentCollectionEntity cce ON cc.content.id = cce.id " +
+           "WHERE cce.referencedCollection.id = :referencedCollectionId")
+    List<CollectionContentEntity> findByReferencedCollectionId(@Param("referencedCollectionId") Long referencedCollectionId);
 }

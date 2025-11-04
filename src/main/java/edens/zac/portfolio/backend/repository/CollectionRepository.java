@@ -90,4 +90,13 @@ public interface CollectionRepository extends JpaRepository<CollectionEntity, Lo
      * @return List of all collections ordered by collection date DESC
      */
     List<CollectionEntity> findAllByOrderByCollectionDateDesc();
+
+    /**
+     * Find collection ID and title only for metadata purposes.
+     * This is more efficient than loading full entities when only ID and title are needed.
+     *
+     * @return List of Object arrays where [0] is id (Long) and [1] is title (String)
+     */
+    @Query("SELECT c.id, c.title FROM CollectionEntity c ORDER BY c.title ASC")
+    List<Object[]> findIdAndTitleOnly();
 }

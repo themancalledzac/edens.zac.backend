@@ -75,7 +75,7 @@ class CollectionProcessingUtilTest {
                 .collection(testEntity)
                 .content(block1)
                 .orderIndex(0)
-                .caption(null)
+                .imageUrl(null)
                 .visible(true)
                 .build();
 
@@ -83,7 +83,7 @@ class CollectionProcessingUtilTest {
                 .collection(testEntity)
                 .content(block2)
                 .orderIndex(1)
-                .caption(null)
+                .imageUrl(null)
                 .visible(true)
                 .build();
 
@@ -118,7 +118,7 @@ class CollectionProcessingUtilTest {
     void convertToFullModel_shouldConvertEntityWithContentBlocks() {
         // Arrange
 //        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
-        when(contentProcessingUtil.convertToModel(any(ContentEntity.class)))
+        when(contentProcessingUtil.convertRegularContentEntityToModel(any(ContentEntity.class)))
                 .thenAnswer(invocation -> {
                     ContentEntity entity = invocation.getArgument(0);
                     ContentModel model = new ContentModel();

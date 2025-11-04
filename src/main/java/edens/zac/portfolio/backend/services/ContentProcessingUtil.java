@@ -11,9 +11,17 @@ import com.drew.metadata.xmp.XmpDirectory;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.*;
+import edens.zac.portfolio.backend.repository.ContentTagRepository;
+import edens.zac.portfolio.backend.repository.ContentPersonRepository;
 import edens.zac.portfolio.backend.types.ContentType;
+import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.model.TagUpdate;
+import edens.zac.portfolio.backend.model.PersonUpdate;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.Hibernate;
+import org.hibernate.proxy.HibernateProxy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,6 +37,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Utility class for processing content.
@@ -46,6 +55,8 @@ public class ContentProcessingUtil {
     private final ContentCameraRepository contentCameraRepository;
     private final ContentLensRepository contentLensRepository;
     private final ContentFilmTypeRepository contentFilmTypeRepository;
+    private final ContentTagRepository contentTagRepository;
+    private final ContentPersonRepository contentPersonRepository;
     private final CollectionContentRepository collectionContentRepository;
 
     @Value("${aws.portfolio.s3.bucket}")
@@ -74,7 +85,7 @@ public class ContentProcessingUtil {
      * @param entity The content entity to convert
      * @return The corresponding content model
      */
-    public ContentModel convertToModel(ContentEntity entity) {
+    public ContentModel convertRegularContentEntityToModel(ContentEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -87,46 +98,99 @@ public class ContentProcessingUtil {
         return switch (entity.getContentType()) {
             case IMAGE -> convertImageToModel((ContentImageEntity) entity);
             case TEXT -> convertTextToModel((ContentTextEntity) entity);
-//            case CODE -> convertCodeToModel((ContentCodeEntity) entity);
             case GIF -> convertGifToModel((ContentGifEntity) entity);
             case COLLECTION -> null;
         };
     }
 
     /**
-     * Convert a ContentEntity to its corresponding ContentModel with join table metadata.
-     * This version populates collection-specific fields (orderIndex, caption, visible) from the join table.
+     * Resolve a Hibernate proxy to its actual entity type.
+     * This is necessary when dealing with JOINED inheritance strategy where proxies
+     * may not be properly initialized to the correct subclass type.
      *
-     * @param entity            The content entity to convert
-     * @param collectionContent The join table entry containing collection-specific metadata
+     * @param entity The entity (may be a proxy)
+     * @return The actual entity instance (not a proxy)
+     */
+    private ContentEntity unproxyContentEntity(ContentEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        // Use Hibernate.unproxy() to get the actual implementation
+        // This works with JOINED inheritance strategy to get the correct subclass
+        ContentEntity unproxied = (ContentEntity) Hibernate.unproxy(entity);
+        
+        // If still a proxy or not the right type, reload from repository
+        if (unproxied instanceof HibernateProxy) {
+            log.debug("Entity {} is still a proxy after unproxy, reloading from repository", entity.getId());
+            ContentEntity reloaded = contentRepository.findById(entity.getId())
+                    .orElse(null);
+            
+            if (reloaded != null) {
+                return reloaded;
+            }
+            
+            log.warn("Could not reload entity {} from repository", entity.getId());
+            return unproxied; // Return unproxied version even if still a proxy
+        }
+        
+        return unproxied;
+    }
+
+    /**
+     * Convert a ContentEntity to its corresponding ContentModel with join table metadata.
+     * This version populates collection-specific fields (orderIndex, imageUrl, visible) from the join table.
+     *
+     * @param entity            The join table entry (CollectionContentEntity) containing the content and metadata
      * @return The corresponding content model with join table metadata populated
      */
-    public ContentModel convertToModel(ContentEntity entity, CollectionContentEntity collectionContent) {
+    public ContentModel convertEntityToModel(CollectionContentEntity entity) {
         if (entity == null) {
             return null;
         }
 
-        // First convert to basic model
-        ContentModel model = convertToModel(entity);
+        // Extract the actual content entity from the join table entry
+        ContentEntity content = entity.getContent();
+        if (content == null) {
+            log.error("CollectionContentEntity {} has null content", entity.getId());
+            return null;
+        }
 
-        // Then populate join table metadata if available
-        if (collectionContent != null) {
-            model.setOrderIndex(collectionContent.getOrderIndex());
-            model.setVisible(collectionContent.getVisible());
+        // Resolve Hibernate proxy to actual entity type if needed
+        // This is critical for JOINED inheritance strategy where proxies may not be properly typed
+        content = unproxyContentEntity(content);
 
-            // Set description from join table caption (collection-specific override)
-            // OR from the referenced collection's description (for COLLECTION content type)
-            if (collectionContent.getCaption() != null && !collectionContent.getCaption().isEmpty()) {
-                model.setDescription(collectionContent.getCaption());
+        // First convert to basic model (will handle IMAGE, TEXT, GIF, but COLLECTION returns null)
+        ContentModel model = convertRegularContentEntityToModel(content);
+
+        // Handle COLLECTION type separately (convertRegularContentEntityToModel returns null for COLLECTION)
+        if (content.getContentType() == ContentType.COLLECTION) {
+            if (content instanceof ContentCollectionEntity contentCollectionEntity) {
+                model = convertCollectionToModel(contentCollectionEntity, entity);
+            } else {
+                log.error("Content type is COLLECTION but entity is not ContentCollectionEntity: {}", content.getClass());
+                return null;
             }
         }
+
+        if (model == null) {
+            log.error("Failed to convert content entity {} to model", content.getId());
+            return null;
+        }
+
+        // Populate join table metadata from the join table entry
+        model.setOrderIndex(entity.getOrderIndex());
+        model.setVisible(entity.getVisible());
+
+        // Note: imageUrl is now stored in collection_content.image_url for COLLECTION content type
+        // and is set in the ContentCollectionModel directly
 
         return model;
     }
 
     /**
      * Copy base properties from a ContentEntity to a ContentModel.
-     * Note: This does NOT populate join table fields (orderIndex, description/caption, visible).
+     * Note: This does NOT populate join table fields (orderIndex, imageUrl, visible).
      * Those must be set separately using the overloaded convertToModel method with CollectionContentEntity.
      *
      * @param entity The source entity
@@ -195,28 +259,10 @@ public class ContentProcessingUtil {
         model.setCreateDate(entity.getCreateDate());
 
         // Map tags - convert entities to simplified tag objects (id and name only)
-        if (entity.getTags() != null && !entity.getTags().isEmpty()) {
-            List<ContentTagModel> tagModels = entity.getTags().stream()
-                    .map(tag -> ContentTagModel.builder()
-                            .id(tag.getId())
-                            .name(tag.getTagName())
-                            .build())
-                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
-                    .toList();
-            model.setTags(tagModels);
-        }
+        model.setTags(convertTagsToModels(entity.getTags()));
 
         // Map people - convert entities to simplified person objects (id and name only)
-        if (entity.getPeople() != null && !entity.getPeople().isEmpty()) {
-            List<ContentPersonModel> personModels = entity.getPeople().stream()
-                    .map(person -> ContentPersonModel.builder()
-                            .id(person.getId())
-                            .name(person.getPersonName())
-                            .build())
-                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
-                    .toList();
-            model.setPeople(personModels);
-        }
+        model.setPeople(convertPeopleToModels(entity.getPeople()));
 
         // TODO: Populate collections array using join table
         // This requires querying CollectionContentRepository to find all collections containing this content
@@ -302,16 +348,72 @@ public class ContentProcessingUtil {
         model.setCreateDate(entity.getCreateDate());
 
         // Map tags - convert entities to simplified tag objects (id and name only)
-        if (entity.getTags() != null && !entity.getTags().isEmpty()) {
-            List<ContentTagModel> tagModels = entity.getTags().stream()
-                    .map(tag -> ContentTagModel.builder()
-                            .id(tag.getId())
-                            .name(tag.getTagName())
-                            .build())
-                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
-                    .toList();
-            model.setTags(tagModels);
+        model.setTags(convertTagsToModels(entity.getTags()));
+
+        return model;
+    }
+
+    /**
+     * Convert a ContentCollectionEntity to a ContentCollectionModel.
+     * This handles the COLLECTION content type by extracting data from the referenced collection.
+     *
+     * @param contentEntity The ContentCollectionEntity containing the reference to another collection
+     * @param joinEntry     The join table entry containing collection-specific metadata (orderIndex, visible, imageUrl)
+     * @return The converted ContentCollectionModel
+     */
+    private ContentCollectionModel convertCollectionToModel(ContentCollectionEntity contentEntity, CollectionContentEntity joinEntry) {
+        if (contentEntity == null) {
+            return null;
         }
+
+        CollectionEntity referencedCollection = contentEntity.getReferencedCollection();
+        if (referencedCollection == null) {
+            log.error("ContentCollectionEntity {} has null referencedCollection", contentEntity.getId());
+            return null;
+        }
+
+        // Extract all needed fields early to avoid lazy loading issues
+        Long collectionId;
+        String title;
+        String slug;
+        CollectionType collectionType;
+        String description;
+        Long coverImageId;
+        
+        try {
+            collectionId = referencedCollection.getId();
+            title = referencedCollection.getTitle();
+            slug = referencedCollection.getSlug();
+            collectionType = referencedCollection.getType();
+            description = referencedCollection.getDescription();
+            coverImageId = referencedCollection.getCoverImageId();
+        } catch (Exception e) {
+            log.error("Error accessing referencedCollection fields for ContentCollectionEntity {}: {}", 
+                    contentEntity.getId(), e.getMessage(), e);
+            return null;
+        }
+
+        ContentCollectionModel model = new ContentCollectionModel();
+
+        // Copy base properties from ContentEntity
+        copyBaseProperties(contentEntity, model);
+
+        // Set collection-specific fields from the referenced collection
+        model.setId(collectionId);
+        model.setTitle(title);
+        model.setSlug(slug);
+        model.setCollectionType(collectionType);
+
+        // Set description from referenced collection's description
+        model.setDescription(description);
+
+        // Set imageUrl from join table (this is the cover image URL for COLLECTION content type)
+        if (joinEntry != null && joinEntry.getImageUrl() != null) {
+            model.setImageUrl(joinEntry.getImageUrl());
+        }
+
+        // Join table metadata (orderIndex, visible) are set in the calling method
+        // Timestamps from ContentEntity are already set via copyBaseProperties
 
         return model;
     }
@@ -1378,5 +1480,167 @@ public class ContentProcessingUtil {
                 }
             }
         }
+    }
+
+    // =============================================================================
+    // TAG AND PEOPLE UPDATE HELPERS (Shared utility methods)
+    // =============================================================================
+
+    /**
+     * Update tags on an entity using the prev/new/remove pattern.
+     * This is a shared utility method used by both Collection and Content update operations.
+     *
+     * @param currentTags Current set of tags on the entity
+     * @param tagUpdate   The tag update containing remove/prev/newValue operations
+     * @param newTags     Optional set to track newly created tags (for response metadata)
+     * @return Updated set of tags
+     */
+    public Set<ContentTagEntity> updateTags(
+            Set<ContentTagEntity> currentTags,
+            TagUpdate tagUpdate,
+            Set<ContentTagEntity> newTags) {
+        if (tagUpdate == null) {
+            return currentTags;
+        }
+
+        Set<ContentTagEntity> tags = new HashSet<>(currentTags);
+
+        // Remove tags if specified
+        if (tagUpdate.getRemove() != null && !tagUpdate.getRemove().isEmpty()) {
+            tags.removeIf(tag -> tagUpdate.getRemove().contains(tag.getId()));
+        }
+
+        // Add existing tags by ID (prev)
+        if (tagUpdate.getPrev() != null && !tagUpdate.getPrev().isEmpty()) {
+            Set<ContentTagEntity> existingTags = tagUpdate.getPrev().stream()
+                    .map(tagId -> contentTagRepository.findById(tagId)
+                            .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + tagId)))
+                    .collect(Collectors.toSet());
+            tags.addAll(existingTags);
+        }
+
+        // Create and add new tags by name (newValue) with optional tracking
+        if (tagUpdate.getNewValue() != null && !tagUpdate.getNewValue().isEmpty()) {
+            for (String tagName : tagUpdate.getNewValue()) {
+                if (tagName != null && !tagName.trim().isEmpty()) {
+                    String trimmedName = tagName.trim();
+                    var existing = contentTagRepository.findByTagNameIgnoreCase(trimmedName);
+                    if (existing.isPresent()) {
+                        tags.add(existing.get());
+                    } else {
+                        ContentTagEntity newTag = new ContentTagEntity(trimmedName);
+                        newTag = contentTagRepository.save(newTag);
+                        tags.add(newTag);
+                        if (newTags != null) {
+                            newTags.add(newTag);
+                        }
+                        log.info("Created new tag: {}", trimmedName);
+                    }
+                }
+            }
+        }
+
+        return tags;
+    }
+
+    /**
+     * Update people on an entity using the prev/new/remove pattern.
+     * This is a shared utility method used by both Collection and Content update operations.
+     *
+     * @param currentPeople Current set of people on the entity
+     * @param personUpdate  The person update containing remove/prev/newValue operations
+     * @param newPeople     Optional set to track newly created people (for response metadata)
+     * @return Updated set of people
+     */
+    public Set<ContentPersonEntity> updatePeople(
+            Set<ContentPersonEntity> currentPeople,
+            PersonUpdate personUpdate,
+            Set<ContentPersonEntity> newPeople) {
+        if (personUpdate == null) {
+            return currentPeople;
+        }
+
+        Set<ContentPersonEntity> people = new HashSet<>(currentPeople);
+
+        // Remove people if specified
+        if (personUpdate.getRemove() != null && !personUpdate.getRemove().isEmpty()) {
+            people.removeIf(person -> personUpdate.getRemove().contains(person.getId()));
+        }
+
+        // Add existing people by ID (prev)
+        if (personUpdate.getPrev() != null && !personUpdate.getPrev().isEmpty()) {
+            Set<ContentPersonEntity> existingPeople = personUpdate.getPrev().stream()
+                    .map(personId -> contentPersonRepository.findById(personId)
+                            .orElseThrow(() -> new EntityNotFoundException("Person not found: " + personId)))
+                    .collect(Collectors.toSet());
+            people.addAll(existingPeople);
+        }
+
+        // Create and add new people by name (newValue) with optional tracking
+        if (personUpdate.getNewValue() != null && !personUpdate.getNewValue().isEmpty()) {
+            for (String personName : personUpdate.getNewValue()) {
+                if (personName != null && !personName.trim().isEmpty()) {
+                    String trimmedName = personName.trim();
+                    var existing = contentPersonRepository.findByPersonNameIgnoreCase(trimmedName);
+                    if (existing.isPresent()) {
+                        people.add(existing.get());
+                    } else {
+                        ContentPersonEntity newPerson = new ContentPersonEntity(trimmedName);
+                        newPerson = contentPersonRepository.save(newPerson);
+                        people.add(newPerson);
+                        if (newPeople != null) {
+                            newPeople.add(newPerson);
+                        }
+                        log.info("Created new person: {}", trimmedName);
+                    }
+                }
+            }
+        }
+
+        return people;
+    }
+
+    // =============================================================================
+    // TAG AND PEOPLE MODEL CONVERSION HELPERS
+    // =============================================================================
+
+    /**
+     * Convert a set of ContentTagEntity to a sorted list of ContentTagModel.
+     * Returns empty list if tags is null or empty.
+     *
+     * @param tags Set of tag entities to convert
+     * @return Sorted list of tag models (alphabetically by name)
+     */
+    public List<ContentTagModel> convertTagsToModels(Set<ContentTagEntity> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return tags.stream()
+                .map(tag -> ContentTagModel.builder()
+                        .id(tag.getId())
+                        .name(tag.getTagName())
+                        .build())
+                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert a set of ContentPersonEntity to a sorted list of ContentPersonModel.
+     * Returns empty list if people is null or empty.
+     *
+     * @param people Set of person entities to convert
+     * @return Sorted list of person models (alphabetically by name)
+     */
+    public List<ContentPersonModel> convertPeopleToModels(Set<ContentPersonEntity> people) {
+        if (people == null || people.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return people.stream()
+                .map(person -> ContentPersonModel.builder()
+                        .id(person.getId())
+                        .name(person.getPersonName())
+                        .build())
+                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                .collect(Collectors.toList());
     }
 }

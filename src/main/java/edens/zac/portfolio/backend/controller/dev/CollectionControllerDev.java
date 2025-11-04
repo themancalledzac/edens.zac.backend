@@ -70,6 +70,7 @@ public class CollectionControllerDev {
             @PathVariable Long id,
             @RequestBody CollectionUpdateRequest updateDTO) {
         try {
+            log.debug("Updating collection {} with request: {}", id, updateDTO);
             CollectionModel updatedCollection = collectionService.updateContent(id, updateDTO);
             log.info("Successfully updated collection: {}", updatedCollection.getId());
 

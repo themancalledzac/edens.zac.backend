@@ -15,7 +15,7 @@ import java.util.Set;
 
 @Entity
 @Table(name = "content_image")
-@PrimaryKeyJoinColumn(name = "content_id")
+@PrimaryKeyJoinColumn(name = "id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor

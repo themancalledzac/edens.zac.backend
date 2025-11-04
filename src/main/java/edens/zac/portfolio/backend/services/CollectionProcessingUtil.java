@@ -18,8 +18,9 @@ import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -53,7 +54,7 @@ public class CollectionProcessingUtil {
             ContentEntity content = contentRepository.findById(entity.getCoverImageId())
                     .orElse(null);
             if (content instanceof ContentImageEntity) {
-                ContentModel contentModel = contentProcessingUtil.convertToModel(content);
+                ContentModel contentModel = contentProcessingUtil.convertRegularContentEntityToModel(content);
                 if (contentModel instanceof ContentImageModel imageModel) {
                     model.setCoverImage(imageModel);
                 } else {
@@ -115,6 +116,7 @@ public class CollectionProcessingUtil {
 
     /**
      * Convert a CollectionEntity to a CollectionModel with all content.
+     * Uses bulk loading of ContentEntity instances to avoid proxy issues and improve performance.
      *
      * @param entity The entity to convert
      * @return The converted model
@@ -127,11 +129,51 @@ public class CollectionProcessingUtil {
         CollectionModel model = convertToBasicModel(entity);
 
         // Fetch join table entries explicitly to get content with collection-specific metadata
-        List<ContentModel> contents = collectionContentRepository
-                .findByCollectionIdOrderByOrderIndex(entity.getId())
-                .stream()
+        List<CollectionContentEntity> joinEntries = collectionContentRepository
+                .findByCollectionIdOrderByOrderIndex(entity.getId());
+
+        // Extract content IDs from join table entries
+        List<Long> contentIds = joinEntries.stream()
+                .map(cc -> cc.getContent().getId())
                 .filter(Objects::nonNull)
-                .map(cc -> contentProcessingUtil.convertToModel(cc.getContent(), cc))
+                .toList();
+
+        // Bulk fetch all ContentEntity instances in one query (properly loads all subclasses)
+        final Map<Long, ContentEntity> contentMap;
+        if (!contentIds.isEmpty()) {
+            List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
+            contentMap = contentEntities.stream()
+                    .collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
+        } else {
+            contentMap = new HashMap<>();
+        }
+
+        // Convert join table entries to content models with collection-specific metadata
+        // Use the bulk-loaded content entities instead of lazy-loaded ones
+        List<ContentModel> contents = joinEntries.stream()
+                .filter(Objects::nonNull)
+                .map(cc -> {
+                    ContentEntity content = contentMap.get(cc.getContent().getId());
+                    if (content == null) {
+                        log.warn("Content entity {} not found in bulk load for collection {}", 
+                                cc.getContent().getId(), entity.getId());
+                        return null;
+                    }
+                    // Create a temporary CollectionContentEntity with the bulk-loaded content
+                    // to avoid proxy issues
+                    CollectionContentEntity tempCc = CollectionContentEntity.builder()
+                            .id(cc.getId())
+                            .collection(cc.getCollection())
+                            .content(content)  // Use bulk-loaded, properly typed entity
+                            .orderIndex(cc.getOrderIndex())
+                            .imageUrl(cc.getImageUrl())
+                            .visible(cc.getVisible())
+                            .createdAt(cc.getCreatedAt())
+                            .updatedAt(cc.getUpdatedAt())
+                            .build();
+                    return contentProcessingUtil.convertEntityToModel(tempCc);
+                })
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         model.setContent(contents);
@@ -140,6 +182,7 @@ public class CollectionProcessingUtil {
 
     /**
      * Convert a CollectionEntity and a Page of CollectionContentEntity to a CollectionModel.
+     * Uses bulk loading of ContentEntity instances to avoid proxy issues and improve performance.
      *
      * @param entity                The entity to convert
      * @param collectionContentPage The page of join table entries (collection-content associations)
@@ -152,10 +195,48 @@ public class CollectionProcessingUtil {
 
         CollectionModel model = convertToBasicModel(entity);
 
+        // Extract content IDs from join table entries
+        List<Long> contentIds = collectionContentPage.getContent().stream()
+                .map(cc -> cc.getContent().getId())
+                .filter(Objects::nonNull)
+                .toList();
+
+        // Bulk fetch all ContentEntity instances in one query (properly loads all subclasses)
+        final Map<Long, ContentEntity> contentMap;
+        if (!contentIds.isEmpty()) {
+            List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
+            contentMap = contentEntities.stream()
+                    .collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
+        } else {
+            contentMap = new HashMap<>();
+        }
+
         // Convert join table entries to content models with collection-specific metadata
+        // Use the bulk-loaded content entities instead of lazy-loaded ones
         List<ContentModel> contents = collectionContentPage.getContent().stream()
                 .filter(Objects::nonNull)
-                .map(cc -> contentProcessingUtil.convertToModel(cc.getContent(), cc))
+                .map(cc -> {
+                    ContentEntity content = contentMap.get(cc.getContent().getId());
+                    if (content == null) {
+                        log.warn("Content entity {} not found in bulk load for collection {}", 
+                                cc.getContent().getId(), entity.getId());
+                        return null;
+                    }
+                    // Create a temporary CollectionContentEntity with the bulk-loaded content
+                    // to avoid proxy issues
+                    CollectionContentEntity tempCc = CollectionContentEntity.builder()
+                            .id(cc.getId())
+                            .collection(cc.getCollection())
+                            .content(content)  // Use bulk-loaded, properly typed entity
+                            .orderIndex(cc.getOrderIndex())
+                            .imageUrl(cc.getImageUrl())
+                            .visible(cc.getVisible())
+                            .createdAt(cc.getCreatedAt())
+                            .updatedAt(cc.getUpdatedAt())
+                            .build();
+                    return contentProcessingUtil.convertEntityToModel(tempCc);
+                })
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         model.setContent(contents);
@@ -197,6 +278,29 @@ public class CollectionProcessingUtil {
 //        entity.setPasswordHash(null);
         // Apply type-specific defaults (may adjust visibility etc.)
         return applyTypeSpecificDefaults(entity);
+    }
+
+    /**
+     * Update imageUrl in all collection_content entries where the given collection
+     * is referenced as a child collection (via ContentCollectionEntity).
+     * This is called when a collection's cover_image_id is updated.
+     *
+     * @param collectionId The ID of the collection whose cover image changed
+     * @param newImageUrl  The new cover image URL
+     */
+    private void updateChildCollectionImageUrls(Long collectionId, String newImageUrl) {
+        List<CollectionContentEntity> childEntries = collectionContentRepository
+                .findByReferencedCollectionId(collectionId);
+
+        for (CollectionContentEntity entry : childEntries) {
+            collectionContentRepository.updateImageUrl(entry.getId(), newImageUrl);
+            log.debug("Updated imageUrl for collection_content entry {} to {}", entry.getId(), newImageUrl);
+        }
+
+        if (!childEntries.isEmpty()) {
+            log.info("Updated imageUrl for {} collection_content entries referencing collection {}", 
+                    childEntries.size(), collectionId);
+        }
     }
 
     // =============================================================================
@@ -245,8 +349,16 @@ public class CollectionProcessingUtil {
             // Validate that the cover image ID references an actual image block
             ContentEntity coverBlock = contentRepository.findById(updateDTO.getCoverImageId())
                     .orElse(null);
-            if (coverBlock instanceof ContentImageEntity) {
+            if (coverBlock instanceof ContentImageEntity imageEntity) {
+                Long oldCoverImageId = entity.getCoverImageId();
                 entity.setCoverImageId(updateDTO.getCoverImageId());
+                
+                // If cover image changed, update imageUrl in all collection_content entries
+                // where this collection is referenced as a child collection
+                if (!updateDTO.getCoverImageId().equals(oldCoverImageId)) {
+                    String newImageUrl = imageEntity.getImageUrlWeb();
+                    updateChildCollectionImageUrls(entity.getId(), newImageUrl);
+                }
             } else if (coverBlock != null) {
                 throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
                         + " does not reference an image block (found: " + coverBlock.getClass().getSimpleName() + ")");

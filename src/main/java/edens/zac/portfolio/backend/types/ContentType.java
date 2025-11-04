@@ -8,11 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public enum ContentType {
-    IMAGE("Image"),
-    TEXT("Text"),
-    GIF("Gif"),
+    IMAGE("IMAGE"),
+    TEXT("TEXT"),
+    GIF("GIF"),
 //    CODE("Code"),
-    COLLECTION("Collection");
+    COLLECTION("COLLECTION");
 
     @NotNull
     @Getter

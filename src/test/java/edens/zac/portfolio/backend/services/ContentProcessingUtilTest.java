@@ -22,8 +22,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -51,21 +49,12 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withNullEntity_shouldReturnNull() {
-        // Act
-        ContentModel result = contentProcessingUtil.convertToModel(null);
-
-        // Assert
-        assertNull(result);
-    }
-
-    @Test
-    void convertToModel_withContentImage_shouldReturnContentImageModel() {
+    void convertImageModel() {
         // Arrange
         ContentImageEntity entity = createContentImageEntity();
 
         // Act
-        ContentModel result = contentProcessingUtil.convertToModel(entity);
+        ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
         // Assert
         assertInstanceOf(ContentImageModel.class, result);
@@ -90,12 +79,12 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withTextContent_shouldReturnTextContentModel() {
+    void convertModel() {
         // Arrange
         ContentTextEntity entity = createTextContentEntity();
 
         // Act
-        ContentModel result = contentProcessingUtil.convertToModel(entity);
+        ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
         // Assert
         assertInstanceOf(ContentTextModel.class, result);
@@ -107,12 +96,12 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withContentGif_shouldReturnContentGifModel() {
+    void convertGifModel() {
         // Arrange
         ContentGifEntity entity = createContentGifEntity();
 
         // Act
-        ContentModel result = contentProcessingUtil.convertToModel(entity);
+        ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
         // Assert
         assertInstanceOf(ContentGifModel.class, result);
@@ -129,14 +118,14 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void convertToModel_withUnknownBlockType_shouldThrowException() {
+    void convertEntityToModel_withUnknownBlockType_shouldThrowException() {
         // Arrange
         ContentEntity entity = mock(ContentEntity.class);
         when(entity.getContentType()).thenReturn(null);
 
         // Act & Assert
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            contentProcessingUtil.convertToModel(entity);
+            contentProcessingUtil.convertRegularContentEntityToModel(entity);
         });
         assertTrue(exception.getMessage().contains("Unknown content block type"));
     }

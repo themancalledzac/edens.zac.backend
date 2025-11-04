@@ -14,7 +14,7 @@ import java.util.Set;
 
 @Entity
 @Table(name = "content_gif")
-@PrimaryKeyJoinColumn(name = "content_id")
+@PrimaryKeyJoinColumn(name = "id")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor

@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.repository;
 
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -47,4 +48,36 @@ public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
      */
     @Query("SELECT i FROM ContentImageEntity i ORDER BY i.createDate DESC")
     List<ContentImageEntity> findAllImagesOrderByCreateDateDesc();
+
+    /**
+     * Find all ContentEntity instances with the given contentType.
+     * Uses native query to avoid issues with JOINED inheritance strategy.
+     *
+     * @param contentType The content type to filter by
+     * @return List of all content IDs with this content type
+     */
+    @Query(value = "SELECT id FROM content WHERE content_type = :contentType", nativeQuery = true)
+    List<Long> findIdsByContentType(@Param("contentType") String contentType);
+
+    /**
+     * Find all ContentEntity instances by their IDs.
+     * This properly loads all subclasses (ContentImageEntity, ContentTextEntity, ContentGifEntity, ContentCollectionEntity)
+     * due to JOINED inheritance strategy. This is more efficient than loading them one by one.
+     *
+     * @param ids List of content IDs to fetch
+     * @return List of ContentEntity instances (properly typed subclasses)
+     */
+    @Query("SELECT c FROM ContentEntity c WHERE c.id IN :ids")
+    List<ContentEntity> findAllByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * Find a ContentCollectionEntity by its referenced collection ID.
+     * This efficiently finds the ContentCollectionEntity that references a specific collection
+     * without loading all COLLECTION content types.
+     *
+     * @param referencedCollectionId The ID of the collection being referenced
+     * @return Optional containing the ContentCollectionEntity if found
+     */
+    @Query("SELECT c FROM ContentCollectionEntity c WHERE c.referencedCollection.id = :referencedCollectionId")
+    java.util.Optional<ContentCollectionEntity> findContentCollectionByReferencedCollectionId(@Param("referencedCollectionId") Long referencedCollectionId);
 }

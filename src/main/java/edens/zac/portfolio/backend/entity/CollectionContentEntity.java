@@ -17,17 +17,18 @@ import java.time.LocalDateTime;
  * This is the ONLY join table used for ALL content types (TEXT, IMAGE, GIF, CODE, COLLECTION, etc.).
  * It allows the same content to appear in multiple collections with different:
  * - ordering (orderIndex)
- * - captions (caption)
+ * - image URLs (imageUrl) - For COLLECTION content type, this stores the cover image URL
  * - visibility (visible)
  *
  * Examples:
  * - Same TEXT content in "Blog Post A" at position 1 and "Blog Post B" at position 3
- * - Same IMAGE in "Portfolio" with caption "Landscape work" and "Gallery" with caption "Best shots"
+ * - Same IMAGE in "Portfolio" and "Gallery" at different positions
  * - Same COLLECTION reference (ContentCollectionEntity) in "Home Page" and "Archive Page" at different positions
+ *   with the collection's cover image URL stored in imageUrl
  *
  * Important: ContentCollectionEntity is just another content type that happens to reference a collection.
  * When a collection contains another collection, it still uses THIS join table with content_id pointing
- * to a ContentCollectionEntity record.
+ * to a ContentCollectionEntity record. The imageUrl field stores the referenced collection's cover image.
  */
 @Entity
 @Table(
@@ -65,11 +66,12 @@ public class CollectionContentEntity {
     private Integer orderIndex;
 
     /**
-     * Caption for this content in this specific collection.
-     * The same content can have different captions in different collections.
+     * Image URL for this content in this specific collection.
+     * For COLLECTION content type, this stores the referenced collection's cover image URL.
+     * For other content types, this is typically null.
      */
-    @Column(name = "caption", length = 500)
-    private String caption;
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 
     /**
      * Whether this content is visible in this specific collection.

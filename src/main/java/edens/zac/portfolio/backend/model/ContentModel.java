@@ -49,7 +49,7 @@ public class ContentModel {
      * Description text for this content.
      * Populated from:
      * - For COLLECTION content: The referenced collection's description field
-     * - For all other content: The collection_content.caption field (per-collection override)
+     * - For all other content: The content entity's own description/title field
      */
     @Size(max = 500)
     private String description;

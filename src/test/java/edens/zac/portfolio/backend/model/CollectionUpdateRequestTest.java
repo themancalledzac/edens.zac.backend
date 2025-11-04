@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Nested;
 
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -642,7 +643,7 @@ class CollectionUpdateRequestTest {
 
             CollectionUpdate collectionUpdate = CollectionUpdate.builder()
                     .prev(Arrays.asList(prevCollection))
-                    .newValue(Arrays.asList(newCollection))
+                    .newValue(Collections.singletonList(newCollection))
                     .remove(Arrays.asList(3L, 4L))
                     .build();
 
