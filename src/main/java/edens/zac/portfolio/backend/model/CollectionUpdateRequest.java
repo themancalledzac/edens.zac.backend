@@ -90,7 +90,9 @@ public class CollectionUpdateRequest {
     private Integer contentPerPage;
 
     /**
-     * Cover image ID for the collection
+     * Cover image ID (FK to content.id) for the collection
+     * Must reference a valid ContentImageEntity
+     * Set to 0 or null to clear the cover image
      */
     private Long coverImageId;
 

@@ -13,6 +13,8 @@ import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.*;
 import edens.zac.portfolio.backend.repository.ContentTagRepository;
 import edens.zac.portfolio.backend.repository.ContentPersonRepository;
+import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
+import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.model.TagUpdate;
@@ -58,6 +60,8 @@ public class ContentProcessingUtil {
     private final ContentTagRepository contentTagRepository;
     private final ContentPersonRepository contentPersonRepository;
     private final CollectionContentRepository collectionContentRepository;
+    private final ContentImageUpdateValidator contentImageUpdateValidator;
+    private final ContentValidator contentValidator;
 
     @Value("${aws.portfolio.s3.bucket}")
     private String bucketName;
@@ -89,6 +93,9 @@ public class ContentProcessingUtil {
             throw new IllegalArgumentException("Unknown content type: null");
         }
 
+        // Un-proxy the entity first to avoid ClassCastException with HibernateProxy
+        entity = unproxyContentEntity(entity);
+
         return switch (entity.getContentType()) {
             case IMAGE -> convertImageToModel((ContentImageEntity) entity);
             case TEXT -> convertTextToModel((ContentTextEntity) entity);
@@ -107,7 +114,7 @@ public class ContentProcessingUtil {
      * @param entity The entity (may be a proxy)
      * @return The actual entity instance (not a proxy)
      */
-    private ContentEntity unproxyContentEntity(ContentEntity entity) {
+    public ContentEntity unproxyContentEntity(ContentEntity entity) {
         if (entity == null) {
             return null;
         }
@@ -141,7 +148,7 @@ public class ContentProcessingUtil {
 
     /**
      * Convert a ContentEntity to its corresponding ContentModel with join table metadata.
-     * This version populates collection-specific fields (orderIndex, imageUrl, visible) from the join table.
+     * This version populates collection-specific fields (orderIndex, visible) from the join table.
      *
      * @param entity            The join table entry (CollectionContentEntity) containing the content and metadata
      * @return The corresponding content model with join table metadata populated
@@ -162,18 +169,49 @@ public class ContentProcessingUtil {
         // This is critical for JOINED inheritance strategy where proxies may not be properly typed
         content = unproxyContentEntity(content);
 
-        // First convert to basic model (will handle IMAGE, TEXT, GIF, but COLLECTION returns null)
-        ContentModel model = convertRegularContentEntityToModel(content);
+        // Use the bulk-loaded conversion method for efficiency
+        return convertBulkLoadedContentToModel(content, entity);
+    }
 
-        // Handle COLLECTION type separately (convertRegularContentEntityToModel returns null for COLLECTION)
+    /**
+     * Convert a bulk-loaded ContentEntity to its corresponding ContentModel with join table metadata.
+     * This method is optimized for bulk-loaded entities that are already properly initialized (not proxies).
+     * However, it defensively resolves proxies if needed, especially for COLLECTION types which may still be proxies.
+     *
+     * @param content   The bulk-loaded content entity (should be properly typed, but may still be a proxy)
+     * @param joinEntry The join table entry containing collection-specific metadata (orderIndex, visible)
+     * @return The corresponding content model with join table metadata populated
+     */
+    public ContentModel convertBulkLoadedContentToModel(ContentEntity content, CollectionContentEntity joinEntry) {
+        if (content == null) {
+            return null;
+        }
+
+        if (joinEntry == null) {
+            log.warn("Join entry is null for content {}, converting without join table metadata", content.getId());
+            return convertRegularContentEntityToModel(content);
+        }
+
+        // For COLLECTION type, we need to ensure the entity is properly resolved (not a proxy)
+        // before doing instanceof check, as COLLECTION entities may still be proxies even after bulk loading
         if (content.getContentType() == ContentType.COLLECTION) {
+            // Resolve proxy if needed before instanceof check
+            content = unproxyContentEntity(content);
             if (content instanceof ContentCollectionEntity contentCollectionEntity) {
-                model = convertCollectionToModel(contentCollectionEntity, entity);
+                ContentModel model = convertCollectionToModel(contentCollectionEntity, joinEntry);
+                if (model != null) {
+                    model.setOrderIndex(joinEntry.getOrderIndex());
+                    model.setVisible(joinEntry.getVisible());
+                }
+                return model;
             } else {
-                log.error("Content type is COLLECTION but entity is not ContentCollectionEntity: {}", content.getClass());
+                log.error("Content type is COLLECTION but entity is not ContentCollectionEntity after unproxy: {}", content.getClass());
                 return null;
             }
         }
+
+        // First convert to basic model (will handle IMAGE, TEXT, GIF)
+        ContentModel model = convertRegularContentEntityToModel(content);
 
         if (model == null) {
             log.error("Failed to convert content entity {} to model", content.getId());
@@ -181,18 +219,15 @@ public class ContentProcessingUtil {
         }
 
         // Populate join table metadata from the join table entry
-        model.setOrderIndex(entity.getOrderIndex());
-        model.setVisible(entity.getVisible());
-
-        // Note: imageUrl is now stored in collection_content.image_url for COLLECTION content type
-        // and is set in the ContentCollectionModel directly
+        model.setOrderIndex(joinEntry.getOrderIndex());
+        model.setVisible(joinEntry.getVisible());
 
         return model;
     }
 
     /**
      * Copy base properties from a ContentEntity to a ContentModel.
-     * Note: This does NOT populate join table fields (orderIndex, imageUrl, visible).
+     * Note: This does NOT populate join table fields (orderIndex, visible).
      * Those must be set separately using the overloaded convertToModel method with CollectionContentEntity.
      *
      * @param entity The source entity
@@ -220,6 +255,17 @@ public class ContentProcessingUtil {
                 .id(entity.getId())
                 .name(entity.getLensName())
                 .build();
+    }
+
+    /**
+     * Convert a ContentImageEntity to a ContentImageModel.
+     * Public method for use by other utilities (e.g., CollectionProcessingUtil).
+     *
+     * @param entity The image content entity to convert
+     * @return The corresponding image content model
+     */
+    public ContentImageModel convertImageEntityToModel(ContentImageEntity entity) {
+        return convertImageToModel(entity);
     }
 
     /**
@@ -334,7 +380,7 @@ public class ContentProcessingUtil {
      * This handles the COLLECTION content type by extracting data from the referenced collection.
      *
      * @param contentEntity The ContentCollectionEntity containing the reference to another collection
-     * @param joinEntry     The join table entry containing collection-specific metadata (orderIndex, visible, imageUrl)
+     * @param joinEntry     The join table entry containing collection-specific metadata (orderIndex, visible)
      * @return The converted ContentCollectionModel
      */
     private ContentCollectionModel convertCollectionToModel(ContentCollectionEntity contentEntity, CollectionContentEntity joinEntry) {
@@ -354,6 +400,7 @@ public class ContentProcessingUtil {
         String slug;
         CollectionType collectionType;
         String description;
+        ContentImageEntity coverImageEntity;
         
         try {
             collectionId = referencedCollection.getId();
@@ -361,6 +408,8 @@ public class ContentProcessingUtil {
             slug = referencedCollection.getSlug();
             collectionType = referencedCollection.getType();
             description = referencedCollection.getDescription();
+            // Get cover image entity from ContentImageEntity relationship
+            coverImageEntity = referencedCollection.getCoverImage();
         } catch (Exception e) {
             log.error("Error accessing referencedCollection fields for ContentCollectionEntity {}: {}", 
                     contentEntity.getId(), e.getMessage(), e);
@@ -377,13 +426,12 @@ public class ContentProcessingUtil {
         model.setTitle(title);
         model.setSlug(slug);
         model.setCollectionType(collectionType);
-
-        // Set description from referenced collection's description
         model.setDescription(description);
-
-        // Set imageUrl from join table (this is the cover image URL for COLLECTION content type)
-        if (joinEntry != null && joinEntry.getImageUrl() != null) {
-            model.setImageUrl(joinEntry.getImageUrl());
+        
+        // Set full cover image model with dimensions and metadata
+        if (coverImageEntity != null) {
+            ContentImageModel coverImageModel = convertImageEntityToModel(coverImageEntity);
+            model.setCoverImage(coverImageModel);
         }
 
         // Join table metadata (orderIndex, visible) are set in the calling method
@@ -414,9 +462,7 @@ public class ContentProcessingUtil {
 
         try {
             // Validate input
-            if (file == null || file.isEmpty()) {
-                throw new IllegalArgumentException("GIF file cannot be empty");
-            }
+            contentValidator.validateGifFile(file);
 
             // Upload GIF to S3 and get URLs
             Map<String, String> urls = uploadGifToS3(file);
@@ -998,10 +1044,11 @@ public class ContentProcessingUtil {
         // Validate: if isFilm is being set to true in the update request,
         // filmFormat must also be provided in the update request (or already exist on the entity)
         if (updateRequest.getIsFilm() != null && updateRequest.getIsFilm()) {
-            // Check if filmFormat will be set after this update
-            if (entity.getFilmFormat() == null && updateRequest.getFilmFormat() == null) {
-                throw new IllegalArgumentException("filmFormat is required when isFilm is true");
-            }
+            contentImageUpdateValidator.validateFilmFormatRequired(
+                    updateRequest.getIsFilm(),
+                    updateRequest.getFilmFormat(),
+                    entity.getFilmFormat()
+            );
         }
 
         if (updateRequest.getBlackAndWhite() != null) {

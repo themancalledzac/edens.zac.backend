@@ -157,7 +157,7 @@ class CollectionEntityTest {
         Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(zeroBlocksPerPage);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
-                .anyMatch(v -> v.getPropertyPath().toString().equals("blocksPerPage")));
+                .anyMatch(v -> v.getPropertyPath().toString().equals("contentPerPage")));
     }
 
 //    @Test
@@ -251,7 +251,16 @@ class CollectionEntityTest {
         collection.setCollectionDate(today);
         collection.setContentPerPage(20);
         collection.setTotalContent(100);
-        collection.setCoverImageId(123L);
+        
+        // Create a mock ContentImageEntity for cover image
+        ContentImageEntity coverImage = ContentImageEntity.builder()
+                .contentType(edens.zac.portfolio.backend.types.ContentType.IMAGE)
+                .imageUrlWeb("https://example.com/cover-image.jpg")
+                .imageWidth(1920)
+                .imageHeight(1080)
+                .build();
+        coverImage.setId(123L);
+        collection.setCoverImage(coverImage);
 
         // Verify all fields were set correctly
         assertEquals(CollectionType.PORTFOLIO, collection.getType());
@@ -263,7 +272,8 @@ class CollectionEntityTest {
         assertTrue(collection.getVisible());
         assertEquals(20, collection.getContentPerPage());
         assertEquals(100, collection.getTotalContent());
-        assertEquals(123L, collection.getCoverImageId());
+        assertNotNull(collection.getCoverImage());
+        assertEquals("https://example.com/cover-image.jpg", collection.getCoverImage().getImageUrlWeb());
     }
 
     @Test

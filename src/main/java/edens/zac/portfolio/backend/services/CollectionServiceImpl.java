@@ -11,6 +11,8 @@ import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.repository.CollectionRepository;
 import edens.zac.portfolio.backend.repository.CollectionContentRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.persistence.EntityNotFoundException;
@@ -146,6 +148,7 @@ class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true)
     public CollectionUpdateResponseDTO createCollection(CollectionCreateRequest createRequest) {
         log.debug("Creating new collection: {}", createRequest.getTitle());
 
@@ -178,6 +181,8 @@ class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true, 
+            condition = "#updateDTO != null && (#updateDTO.title != null || #updateDTO.slug != null)")
     public CollectionModel updateContent(Long id, CollectionUpdateRequest updateDTO) {
         log.debug("Updating collection with ID: {}", id);
 
@@ -217,6 +222,7 @@ class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true)
     public void deleteCollection(Long id) {
         log.debug("Deleting collection with ID: {}", id);
 
@@ -312,8 +318,9 @@ class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "generalMetadata", unless = "#result == null")
     public GeneralMetadataDTO getGeneralMetadata() {
-        log.debug("Getting general metadata");
+        log.debug("Getting general metadata (cache miss)");
 
         // Get all tags, people, cameras, lenses, and film types from ContentBlockService
         List<ContentTagModel> tags = contentService.getAllTags();
@@ -436,9 +443,6 @@ class CollectionServiceImpl implements CollectionService {
                 CollectionContentEntity existingJoinEntry = collectionContentRepository
                         .findByCollectionIdAndContentId(parentCollection.getId(), existingContentCollection.getId());
 
-                // Fetch cover image URL from the referenced collection
-                String coverImageUrl = collectionProcessingUtil.getCoverImageUrl(childCollectionEntity.getCoverImageId());
-
                 if (existingJoinEntry == null) {
                     // Create new join table entry
                     CollectionContentEntity newEntry = CollectionContentEntity.builder()
@@ -446,13 +450,12 @@ class CollectionServiceImpl implements CollectionService {
                             .content(existingContentCollection)
                             .orderIndex(orderIndex)
                             .visible(childCollection.getVisible() != null ? childCollection.getVisible() : false)
-                            .imageUrl(coverImageUrl)
                             .createdAt(LocalDateTime.now())
                             .updatedAt(LocalDateTime.now())
                             .build();
 
                     collectionContentRepository.save(newEntry);
-                    log.info("Added collection {} to parent collection {} at index {} with cover image URL", 
+                    log.info("Added collection {} to parent collection {} at index {}", 
                             childCollectionEntity.getId(), parentCollection.getId(), orderIndex);
                 } else {
                     // Update existing entry
@@ -461,10 +464,6 @@ class CollectionServiceImpl implements CollectionService {
                     }
                     if (childCollection.getVisible() != null) {
                         collectionContentRepository.updateVisible(existingJoinEntry.getId(), childCollection.getVisible());
-                    }
-                    // Update image URL if cover image has changed
-                    if (coverImageUrl != null && !coverImageUrl.equals(existingJoinEntry.getImageUrl())) {
-                        collectionContentRepository.updateImageUrl(existingJoinEntry.getId(), coverImageUrl);
                     }
                     log.info("Updated existing collection reference in parent collection {}", parentCollection.getId());
                 }
@@ -517,16 +516,25 @@ class CollectionServiceImpl implements CollectionService {
 
         for (CollectionContentEntity joinEntry : joinEntries) {
             ContentEntity content = joinEntry.getContent();
+            // Unproxy to ensure we have the actual entity, not a lazy proxy
+            content = contentProcessingUtil.unproxyContentEntity(content);
+            
             if (content instanceof ContentCollectionEntity contentCollectionEntity) {
                 CollectionEntity referencedCollection = contentCollectionEntity.getReferencedCollection();
                 if (referencedCollection != null && collectionIdsToRemove.contains(referencedCollection.getId())) {
                     matchingContentCollections.add(contentCollectionEntity);
+                    log.debug("Found matching ContentCollectionEntity {} referencing collection {} for removal", 
+                            contentCollectionEntity.getId(), referencedCollection.getId());
                 }
             }
         }
 
         if (matchingContentCollections.isEmpty()) {
-            log.debug("No matching ContentCollectionEntity entries found for removal in collection {}", parentCollection.getId());
+            log.debug("No matching ContentCollectionEntity entries found for removal in collection {} (searched for IDs: {})", 
+                    parentCollection.getId(), collectionIdsToRemove);
+        } else {
+            log.debug("Found {} matching ContentCollectionEntity entries for removal in collection {}", 
+                    matchingContentCollections.size(), parentCollection.getId());
         }
 
         return matchingContentCollections;

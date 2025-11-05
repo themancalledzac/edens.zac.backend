@@ -139,7 +139,7 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
      * @param collectionId The ID of the collection
      * @param contentIds   The IDs of the content to remove
      */
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("DELETE FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.id IN :contentIds")
     void removeContentFromCollection(@Param("collectionId") Long collectionId,
                                       @Param("contentIds") List<Long> contentIds);
@@ -155,27 +155,4 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
     @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.id = :contentId")
     CollectionContentEntity findByCollectionIdAndContentId(@Param("collectionId") Long collectionId,
                                                              @Param("contentId") Long contentId);
-
-    /**
-     * Update the imageUrl of a specific join table entry.
-     *
-     * @param id       The ID of the CollectionContentEntity
-     * @param imageUrl The new imageUrl value
-     */
-    @Modifying
-    @Query("UPDATE CollectionContentEntity cc SET cc.imageUrl = :imageUrl WHERE cc.id = :id")
-    void updateImageUrl(@Param("id") Long id, @Param("imageUrl") String imageUrl);
-
-    /**
-     * Find all CollectionContentEntity entries where the content is a ContentCollectionEntity
-     * that references a specific collection ID.
-     * This is used to update imageUrl when a collection's cover_image_id changes.
-     *
-     * @param referencedCollectionId The ID of the collection being referenced
-     * @return List of CollectionContentEntity entries that reference this collection
-     */
-    @Query("SELECT cc FROM CollectionContentEntity cc " +
-           "JOIN ContentCollectionEntity cce ON cc.content.id = cce.id " +
-           "WHERE cce.referencedCollection.id = :referencedCollectionId")
-    List<CollectionContentEntity> findByReferencedCollectionId(@Param("referencedCollectionId") Long referencedCollectionId);
 }

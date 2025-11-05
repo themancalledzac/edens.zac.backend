@@ -87,4 +87,14 @@ public interface ContentRepository extends JpaRepository<ContentEntity, Long> {
      */
     @Query("SELECT c FROM ContentCollectionEntity c WHERE c.referencedCollection.id = :referencedCollectionId")
     java.util.Optional<ContentCollectionEntity> findContentCollectionByReferencedCollectionId(@Param("referencedCollectionId") Long referencedCollectionId);
+
+    /**
+     * Find a ContentImageEntity by ID.
+     * This directly queries ContentImageEntity to avoid Hibernate proxy issues with JOINED inheritance.
+     *
+     * @param id The ID of the image entity
+     * @return Optional containing the ContentImageEntity if found
+     */
+    @Query("SELECT i FROM ContentImageEntity i WHERE i.id = :id")
+    java.util.Optional<ContentImageEntity> findImageById(@Param("id") Long id);
 }

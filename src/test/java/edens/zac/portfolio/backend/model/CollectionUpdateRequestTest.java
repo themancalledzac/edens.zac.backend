@@ -332,25 +332,26 @@ class CollectionUpdateRequestTest {
     }
 
     @Nested
-    @DisplayName("Cover Image ID Tests")
-    class CoverImageIdTests {
+    @DisplayName("Cover Image Tests")
+    class CoverImageTests {
 
         @Test
         @DisplayName("Should accept valid cover image ID")
         void shouldAcceptValidCoverImageId() {
+            Long imageId = 123L;
             CollectionUpdateRequest dto = CollectionUpdateRequest.builder()
                     .id(1L)
-                    .coverImageId(42L)
+                    .coverImageId(imageId)
                     .build();
 
             Set<ConstraintViolation<CollectionUpdateRequest>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
-            assertEquals(42L, dto.getCoverImageId());
+            assertEquals(imageId, dto.getCoverImageId());
         }
 
         @Test
-        @DisplayName("Should accept null cover image ID for partial updates")
-        void shouldAcceptNullCoverImageId() {
+        @DisplayName("Should accept null cover image for partial updates")
+        void shouldAcceptNullCoverImage() {
             CollectionUpdateRequest dto = CollectionUpdateRequest.builder()
                     .id(1L)
                     .coverImageId(null)
@@ -359,6 +360,32 @@ class CollectionUpdateRequestTest {
             Set<ConstraintViolation<CollectionUpdateRequest>> violations = validator.validate(dto);
             assertTrue(violations.isEmpty());
             assertNull(dto.getCoverImageId());
+        }
+
+        @Test
+        @DisplayName("Should accept cover image ID of zero to clear cover image")
+        void shouldAcceptCoverImageIdZero() {
+            CollectionUpdateRequest dto = CollectionUpdateRequest.builder()
+                    .id(1L)
+                    .coverImageId(0L)
+                    .build();
+
+            Set<ConstraintViolation<CollectionUpdateRequest>> violations = validator.validate(dto);
+            assertTrue(violations.isEmpty());
+            assertEquals(0L, dto.getCoverImageId());
+        }
+
+        @Test
+        @DisplayName("Should accept valid cover image ID values")
+        void shouldAcceptValidCoverImageIdValues() {
+            CollectionUpdateRequest dto = CollectionUpdateRequest.builder()
+                    .id(1L)
+                    .coverImageId(456L)
+                    .build();
+
+            Set<ConstraintViolation<CollectionUpdateRequest>> violations = validator.validate(dto);
+            assertTrue(violations.isEmpty());
+            assertEquals(456L, dto.getCoverImageId());
         }
     }
 

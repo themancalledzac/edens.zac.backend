@@ -75,7 +75,6 @@ class CollectionProcessingUtilTest {
                 .collection(testEntity)
                 .content(block1)
                 .orderIndex(0)
-                .imageUrl(null)
                 .visible(true)
                 .build();
 
@@ -83,7 +82,6 @@ class CollectionProcessingUtilTest {
                 .collection(testEntity)
                 .content(block2)
                 .orderIndex(1)
-                .imageUrl(null)
                 .visible(true)
                 .build();
 

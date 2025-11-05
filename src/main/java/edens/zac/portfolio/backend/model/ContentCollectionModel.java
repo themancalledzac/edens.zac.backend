@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -38,11 +39,17 @@ public class ContentCollectionModel extends ContentModel {
      */
     private CollectionType collectionType;
 
+    /**
+     * Full cover image model for the collection (includes dimensions, URLs, etc.).
+     * Matches CollectionModel.coverImage structure.
+     */
+    @Valid
+    private ContentImageModel coverImage;
+
     // NOTE: All other fields are inherited from ContentModel:
     // - id (the collection's ID)
     // - title (the collection's title)
     // - description (the collection's description)
-    // - imageUrl (the collection's cover image URL)
     // - orderIndex (position in parent collection)
     // - visible (visibility in parent collection)
     // - createdAt, updatedAt (timestamps)
@@ -50,4 +57,7 @@ public class ContentCollectionModel extends ContentModel {
     // We intentionally DO NOT include the full nested collection content here
     // to prevent deep nesting and circular reference issues.
     // Frontend should fetch the full collection separately if needed.
+    //
+    // Note: imageUrl from ContentModel is not populated for COLLECTION content.
+    // Use coverImage.imageUrl instead for the cover image URL.
 }

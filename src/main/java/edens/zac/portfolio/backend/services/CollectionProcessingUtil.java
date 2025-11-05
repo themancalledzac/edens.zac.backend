@@ -1,9 +1,9 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.entity.ContentEntity;
-import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.repository.CollectionRepository;
 import edens.zac.portfolio.backend.repository.ContentRepository;
@@ -45,76 +45,15 @@ public class CollectionProcessingUtil {
 
     /**
      * Helper method to populate coverImage on a model from an entity.
-     * Loads the full ContentImageModel if coverImageId is set.
-     * Only accepts images as cover images.
+     * Converts the ContentImageEntity relationship to ContentImageModel
+     * with all metadata including imageWidth and imageHeight.
      */
     private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
-        if (entity.getCoverImageId() != null) {
-            ContentImageModel coverImage = getCoverImageModel(entity.getCoverImageId());
-            if (coverImage != null) {
-                model.setCoverImage(coverImage);
-            }
+        if (entity.getCoverImage() != null) {
+            // Convert the ContentImageEntity to ContentImageModel with full metadata
+            ContentImageModel coverImageModel = contentProcessingUtil.convertImageEntityToModel(entity.getCoverImage());
+            model.setCoverImage(coverImageModel);
         }
-    }
-
-    /**
-     * Get cover image URL from a cover image ID.
-     * This is a lightweight method that only fetches the URL, not the full model.
-     *
-     * @param coverImageId The ID of the cover image
-     * @return The cover image URL, or null if not found or not an image
-     */
-    public String getCoverImageUrl(Long coverImageId) {
-        if (coverImageId == null) {
-            return null;
-        }
-
-        try {
-            ContentEntity content = contentRepository.findById(coverImageId).orElse(null);
-            if (content instanceof ContentImageEntity imageEntity) {
-                return imageEntity.getImageUrlWeb();
-            } else if (content != null) {
-                log.warn("Cover image ID {} is not a ContentImageEntity: {}",
-                        coverImageId, content.getClass().getSimpleName());
-            }
-        } catch (Exception e) {
-            log.error("Error fetching cover image URL for ID {}: {}", coverImageId, e.getMessage(), e);
-        }
-
-        return null;
-    }
-
-    /**
-     * Get full cover image model from a cover image ID.
-     * This loads the complete ContentImageModel with all metadata.
-     *
-     * @param coverImageId The ID of the cover image
-     * @return The ContentImageModel, or null if not found or not an image
-     */
-    private ContentImageModel getCoverImageModel(Long coverImageId) {
-        if (coverImageId == null) {
-            return null;
-        }
-
-        try {
-            ContentEntity content = contentRepository.findById(coverImageId).orElse(null);
-            if (content instanceof ContentImageEntity imageEntity) {
-                ContentModel contentModel = contentProcessingUtil.convertRegularContentEntityToModel(imageEntity);
-                if (contentModel instanceof ContentImageModel imageModel) {
-                    return imageModel;
-                } else {
-                    log.warn("Cover image {} converted to non-ContentImageModel: {}",
-                            coverImageId, contentModel != null ? contentModel.getClass().getSimpleName() : "null");
-                }
-            } else if (content != null) {
-                log.warn("Cover image {} is not a ContentImageEntity: {}",
-                        coverImageId, content.getClass().getSimpleName());
-            }
-        } catch (Exception e) {
-            log.error("Error fetching cover image model for ID {}: {}", coverImageId, e.getMessage(), e);
-        }
-
-        return null;
     }
 
     /**
@@ -208,19 +147,8 @@ public class CollectionProcessingUtil {
                                 cc.getContent().getId(), entity.getId());
                         return null;
                     }
-                    // Create a temporary CollectionContentEntity with the bulk-loaded content
-                    // to avoid proxy issues
-                    CollectionContentEntity tempCc = CollectionContentEntity.builder()
-                            .id(cc.getId())
-                            .collection(cc.getCollection())
-                            .content(content)  // Use bulk-loaded, properly typed entity
-                            .orderIndex(cc.getOrderIndex())
-                            .imageUrl(cc.getImageUrl())
-                            .visible(cc.getVisible())
-                            .createdAt(cc.getCreatedAt())
-                            .updatedAt(cc.getUpdatedAt())
-                            .build();
-                    return contentProcessingUtil.convertEntityToModel(tempCc);
+                    // Use bulk-loaded conversion method directly (no temporary object needed)
+                    return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -271,19 +199,8 @@ public class CollectionProcessingUtil {
                                 cc.getContent().getId(), entity.getId());
                         return null;
                     }
-                    // Create a temporary CollectionContentEntity with the bulk-loaded content
-                    // to avoid proxy issues
-                    CollectionContentEntity tempCc = CollectionContentEntity.builder()
-                            .id(cc.getId())
-                            .collection(cc.getCollection())
-                            .content(content)  // Use bulk-loaded, properly typed entity
-                            .orderIndex(cc.getOrderIndex())
-                            .imageUrl(cc.getImageUrl())
-                            .visible(cc.getVisible())
-                            .createdAt(cc.getCreatedAt())
-                            .updatedAt(cc.getUpdatedAt())
-                            .build();
-                    return contentProcessingUtil.convertEntityToModel(tempCc);
+                    // Use bulk-loaded conversion method directly (no temporary object needed)
+                    return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -329,28 +246,6 @@ public class CollectionProcessingUtil {
         return applyTypeSpecificDefaults(entity);
     }
 
-    /**
-     * Update imageUrl in all collection_content entries where the given collection
-     * is referenced as a child collection (via ContentCollectionEntity).
-     * This is called when a collection's cover_image_id is updated.
-     *
-     * @param collectionId The ID of the collection whose cover image changed
-     * @param newImageUrl  The new cover image URL
-     */
-    private void updateChildCollectionImageUrls(Long collectionId, String newImageUrl) {
-        List<CollectionContentEntity> childEntries = collectionContentRepository
-                .findByReferencedCollectionId(collectionId);
-
-        for (CollectionContentEntity entry : childEntries) {
-            collectionContentRepository.updateImageUrl(entry.getId(), newImageUrl);
-            log.debug("Updated imageUrl for collection_content entry {} to {}", entry.getId(), newImageUrl);
-        }
-
-        if (!childEntries.isEmpty()) {
-            log.info("Updated imageUrl for {} collection_content entries referencing collection {}", 
-                    childEntries.size(), collectionId);
-        }
-    }
 
     // =============================================================================
     // UPDATE HELPERS FOR SERVICE LAYER (split from updateContent)
@@ -393,27 +288,17 @@ public class CollectionProcessingUtil {
             entity.setContentPerPage(updateDTO.getContentPerPage());
         }
 
-        // Handle coverImage updates
+        // Handle coverImageId updates - load ContentImageEntity by ID
         if (updateDTO.getCoverImageId() != null) {
-            // Validate that the cover image ID references an actual image block
-            ContentEntity coverBlock = contentRepository.findById(updateDTO.getCoverImageId())
-                    .orElse(null);
-            if (coverBlock instanceof ContentImageEntity imageEntity) {
-                Long oldCoverImageId = entity.getCoverImageId();
-                entity.setCoverImageId(updateDTO.getCoverImageId());
-                
-                // If cover image changed, update imageUrl in all collection_content entries
-                // where this collection is referenced as a child collection
-                if (!updateDTO.getCoverImageId().equals(oldCoverImageId)) {
-                    String newImageUrl = imageEntity.getImageUrlWeb();
-                    updateChildCollectionImageUrls(entity.getId(), newImageUrl);
-                }
-            } else if (coverBlock != null) {
-                throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
-                        + " does not reference an image block (found: " + coverBlock.getClass().getSimpleName() + ")");
+            if (updateDTO.getCoverImageId() == 0) {
+                // Explicitly clear cover image if ID is 0
+                entity.setCoverImage(null);
             } else {
-                throw new IllegalArgumentException("Cover image ID " + updateDTO.getCoverImageId()
-                        + " does not exist");
+                // Load and set the cover image entity
+                ContentImageEntity coverImage = contentRepository.findImageById(updateDTO.getCoverImageId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Cover image not found with ID: " + updateDTO.getCoverImageId()));
+                entity.setCoverImage(coverImage);
             }
         }
 

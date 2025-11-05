@@ -10,9 +10,13 @@ import edens.zac.portfolio.backend.repository.ContentFilmTypeRepository;
 import edens.zac.portfolio.backend.repository.ContentLensRepository;
 import edens.zac.portfolio.backend.repository.ContentPersonRepository;
 import edens.zac.portfolio.backend.repository.ContentTagRepository;
+import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
+import edens.zac.portfolio.backend.services.validator.ContentValidator;
+import edens.zac.portfolio.backend.services.validator.MetadataValidator;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,14 +48,15 @@ class ContentServiceImpl implements ContentService {
     private final CollectionContentRepository collectionContentRepository;
     private final CollectionRepository collectionRepository;
     private final ContentProcessingUtil contentProcessingUtil;
+    private final ContentImageUpdateValidator contentImageUpdateValidator;
+    private final MetadataValidator metadataValidator;
+    private final ContentValidator contentValidator;
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true)
     public Map<String, Object> createTag(String tagName) {
-        if (tagName == null || tagName.trim().isEmpty()) {
-            throw new IllegalArgumentException("tagName is required");
-        }
-
+        metadataValidator.validateTagName(tagName);
         tagName = tagName.trim();
 
         // Check if tag already exists (case-insensitive)
@@ -71,11 +76,9 @@ class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true)
     public Map<String, Object> createPerson(String personName) {
-        if (personName == null || personName.trim().isEmpty()) {
-            throw new IllegalArgumentException("personName is required");
-        }
-
+        metadataValidator.validatePersonName(personName);
         personName = personName.trim();
 
         // Check if person already exists (case-insensitive)
@@ -95,11 +98,9 @@ class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true)
     public Map<String, Object> createCamera(String cameraName) {
-        if (cameraName == null || cameraName.trim().isEmpty()) {
-            throw new IllegalArgumentException("cameraName is required");
-        }
-
+        metadataValidator.validateCameraName(cameraName);
         cameraName = cameraName.trim();
 
         // Check if camera already exists (case-insensitive)
@@ -119,10 +120,9 @@ class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true, condition = "#updates != null && !#updates.isEmpty()")
     public Map<String, Object> updateImages(List<ContentImageUpdateRequest> updates) {
-        if (updates == null || updates.isEmpty()) {
-            throw new IllegalArgumentException("At least one image update is required");
-        }
+        contentValidator.validateImageUpdates(updates);
 
         // Track updated images and newly created metadata
         List<ContentImageModel> updatedImages = new ArrayList<>();
@@ -141,6 +141,11 @@ class ContentServiceImpl implements ContentService {
 
         if (imageIds.isEmpty()) {
             throw new IllegalArgumentException("No valid image IDs found in update requests");
+        }
+
+        // Validate all update requests
+        for (ContentImageUpdateRequest update : updates) {
+            contentImageUpdateValidator.validate(update);
         }
 
         // Bulk fetch all images upfront to avoid N+1 queries
@@ -410,7 +415,6 @@ class ContentServiceImpl implements ContentService {
                     .content(image)
                     .orderIndex(orderIndex)
                     .visible(childCollection.getVisible() != null ? childCollection.getVisible() : true)
-                    .imageUrl(null)  // Image URL not applicable for image content (image has its own URL)
                     .build();
 
             collectionContentRepository.save(joinEntry);
@@ -435,9 +439,7 @@ class ContentServiceImpl implements ContentService {
     @Override
     @Transactional
     public Map<String, Object> deleteImages(List<Long> imageIds) {
-        if (imageIds == null || imageIds.isEmpty()) {
-            throw new IllegalArgumentException("At least one image ID is required");
-        }
+        contentValidator.validateImageIds(imageIds);
 
         List<Long> deletedIds = new ArrayList<>();
         List<String> errors = new ArrayList<>();
@@ -507,17 +509,9 @@ class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "generalMetadata", allEntries = true)
     public Map<String, Object> createFilmType(String filmTypeName, String displayName, Integer defaultIso) {
-        if (filmTypeName == null || filmTypeName.trim().isEmpty()) {
-            throw new IllegalArgumentException("filmTypeName is required");
-        }
-        if (displayName == null || displayName.trim().isEmpty()) {
-            throw new IllegalArgumentException("displayName is required");
-        }
-        if (defaultIso == null || defaultIso <= 0) {
-            throw new IllegalArgumentException("defaultIso must be a positive integer");
-        }
-
+        metadataValidator.validateFilmType(filmTypeName, displayName, defaultIso);
         filmTypeName = filmTypeName.trim();
         displayName = displayName.trim();
 
@@ -588,9 +582,7 @@ class ContentServiceImpl implements ContentService {
     public List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files) {
         log.debug("Creating images for collection ID: {}", collectionId);
 
-        if (files == null || files.isEmpty()) {
-            throw new IllegalArgumentException("At least one file is required");
-        }
+        contentValidator.validateFiles(files);
 
         // Verify collection exists
         CollectionEntity collection = collectionRepository.findById(collectionId)
@@ -634,7 +626,6 @@ class ContentServiceImpl implements ContentService {
                                     .collection(collection)
                                     .content(img)
                                     .orderIndex(orderIndex)
-                                    .imageUrl(null)  // Image URL not applicable for image content
                                     .visible(true)   // Visible by default
                                     .build();
 
@@ -669,9 +660,7 @@ class ContentServiceImpl implements ContentService {
     public ContentTextModel createTextContent(CreateTextContentRequest request) {
         log.debug("Creating text content for collection ID: {}", request.getCollectionId());
 
-        if (request.getTextContent() == null || request.getTextContent().trim().isEmpty()) {
-            throw new IllegalArgumentException("Text content is required");
-        }
+        contentValidator.validateTextContent(request.getTextContent());
 
         // Verify collection exists
         CollectionEntity collection = collectionRepository.findById(request.getCollectionId())
@@ -694,7 +683,6 @@ class ContentServiceImpl implements ContentService {
                 .collection(collection)
                 .content(textEntity)
                 .orderIndex(orderIndex)
-                .imageUrl(null)  // Image URL not applicable for text content
                 .visible(true)
                 .build();
 

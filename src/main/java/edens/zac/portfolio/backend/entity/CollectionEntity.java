@@ -26,8 +26,7 @@ import java.util.Set;
         indexes = {
                 @Index(name = "idx_collection_slug", columnList = "slug", unique = true),
                 @Index(name = "idx_collection_type", columnList = "type"),
-                @Index(name = "idx_collection_created_at", columnList = "created_at"),
-                @Index(name = "idx_collection_cover_image", columnList = "cover_image_id")
+                @Index(name = "idx_collection_created_at", columnList = "created_at")
         }
 )
 @Data
@@ -68,11 +67,10 @@ public class CollectionEntity {
     @Column(name = "visible", nullable = false)
     private Boolean visible;
 
-    // Foreign key reference to the image content used as cover (nullable)
-    // TODO: Why should this be the 'id'? rather than the src itself? what's the benefit? who cares if it disassociates?
-    //  - would it be faster IF we didn't have to do a 'getCoverImageByImage' logic?
-    @Column(name = "cover_image_id")
-    private Long coverImageId;
+    // Foreign key reference to ContentEntity (cover image)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cover_image_id", foreignKey = @ForeignKey(name = "fk_collection_cover_image"))
+    private ContentImageEntity coverImage;
 
 //    // Client gallery security
 //    @Column(name = "password_hash")
