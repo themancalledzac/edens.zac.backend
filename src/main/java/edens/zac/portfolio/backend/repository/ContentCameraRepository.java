@@ -70,7 +70,7 @@ public interface ContentCameraRepository extends JpaRepository<ContentCameraEnti
      * @return List of cameras ordered by usage count descending
      */
     @Query("SELECT c FROM ContentCameraEntity c " +
-            "LEFT JOIN c.imageContentBlocks icb " +
+            "LEFT JOIN c.contentImages icb " +
             "GROUP BY c.id " +
             "ORDER BY COUNT(DISTINCT icb.id) DESC")
     List<ContentCameraEntity> findAllOrderByUsageCountDesc();

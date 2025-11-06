@@ -15,7 +15,7 @@ import java.util.Set;
 
 /**
  * Entity representing a camera lens model.
- * Lenses can be associated with ImageContentBlocks.
+ * Lenses can be associated with ContentImages.
  * New lenses are automatically created when an image is updated with a new lens name.
  */
 @Entity
@@ -56,10 +56,10 @@ public class ContentLensEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // One-to-many relationship with ImageContentBlocks (mappedBy side)
+    // One-to-many relationship with ContentImages (mappedBy side)
     @OneToMany(mappedBy = "lens", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentBlockEntity> imageContentBlocks = new HashSet<>();
+    private Set<ContentImageEntity> contentImages = new HashSet<>();
 
     /**
      * Constructor for creating a lens with just a name.
@@ -69,7 +69,7 @@ public class ContentLensEntity {
      */
     public ContentLensEntity(String lensName) {
         this.lensName = lensName;
-        this.imageContentBlocks = new HashSet<>();
+        this.contentImages = new HashSet<>();
     }
 
     /**
@@ -78,6 +78,6 @@ public class ContentLensEntity {
      * @return The number of images associated with this lens
      */
     public int getImageCount() {
-        return imageContentBlocks.size();
+        return contentImages.size();
     }
 }

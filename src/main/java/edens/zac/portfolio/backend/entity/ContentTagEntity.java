@@ -15,11 +15,11 @@ import java.util.Set;
 
 /**
  * Entity representing a reusable content tag.
- * Tags can be associated with ContentCollections, ImageContentBlocks, and GifContentBlocks.
+ * Tags can be associated with Collections, ContentImages, and ContentGifs.
  */
 @Entity
 @Table(
-        name = "content_tags",
+        name = "content_tag",
         indexes = {
                 @Index(name = "idx_content_tag_name", columnList = "tag_name", unique = true)
         }
@@ -58,15 +58,15 @@ public class ContentTagEntity {
     // Many-to-many relationships (mappedBy side - non-owning)
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ContentCollectionEntity> contentCollections = new HashSet<>();
+    private Set<CollectionEntity> collections = new HashSet<>();
 
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<ImageContentBlockEntity> imageContentBlocks = new HashSet<>();
+    private Set<ContentImageEntity> ContentImages = new HashSet<>();
 
     @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<GifContentBlockEntity> gifContentBlocks = new HashSet<>();
+    private Set<ContentGifEntity> contentGifs = new HashSet<>();
 
     /**
      * Constructor for creating a tag with just a name.
@@ -76,9 +76,9 @@ public class ContentTagEntity {
      */
     public ContentTagEntity(String tagName) {
         this.tagName = tagName;
-        this.contentCollections = new HashSet<>();
-        this.imageContentBlocks = new HashSet<>();
-        this.gifContentBlocks = new HashSet<>();
+        this.collections = new HashSet<>();
+        this.ContentImages = new HashSet<>();
+        this.contentGifs = new HashSet<>();
     }
 
     /**
@@ -87,6 +87,6 @@ public class ContentTagEntity {
      * @return The total number of times this tag is used
      */
     public int getTotalUsageCount() {
-        return contentCollections.size() + imageContentBlocks.size() + gifContentBlocks.size();
+        return collections.size() + ContentImages.size() + contentGifs.size();
     }
 }

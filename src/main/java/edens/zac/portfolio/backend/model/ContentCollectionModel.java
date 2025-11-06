@@ -1,52 +1,63 @@
 package edens.zac.portfolio.backend.model;
 
-import edens.zac.portfolio.backend.config.DefaultValues;
+import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
-import lombok.experimental.SuperBuilder;
-
-import java.util.List;
 
 /**
- * ContentCollection Model - extends base with pagination and content blocks.
- * Object returned to the frontend for content collections.
- * Includes pagination metadata and content blocks.
+ * Model for content that represents a collection within another collection.
+ * This enables hierarchical collections - collections containing other collections.
+ *
+ * Use cases:
+ * - Home page collection containing links to blog/portfolio/gallery collections
+ * - Portfolio collection containing links to individual project collections
+ * - Gallery collection containing links to sub-galleries
+ *
+ * Inherits from ContentModel which provides:
+ * - id: The referenced collection's ID
+ * - title: The collection's title
+ * - description: The collection's description
+ * - imageUrl: The collection's cover image URL
+ * - orderIndex, visible: Position and visibility in the parent collection
  */
-@EqualsAndHashCode(callSuper = true)
-@ToString(callSuper = true)  // Add this line
-@NoArgsConstructor
-@AllArgsConstructor
 @Data
-@SuperBuilder
-public class ContentCollectionModel extends ContentCollectionBaseModel {
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+public class ContentCollectionModel extends ContentModel {
 
-    // Pagination metadata (specific to this model)
-    @Min(value = DefaultValues.default_blocks_per_page, message = "Blocks per page must be 30 or greater")
-    private Integer blocksPerPage;
+    /**
+     * URL slug for routing to this collection.
+     * Used for generating frontend URLs (e.g., /collections/seattle-2021)
+     */
+    private String slug;
 
-    @Min(value = 0, message = "Total blocks must be 0 or greater")
-    private Integer totalBlocks;
+    /**
+     * Type of this collection (BLOG, PORTFOLIO, ART_GALLERY, etc.).
+     * Used for styling/icons on frontend.
+     */
+    private CollectionType collectionType;
 
-    @Min(value = 1, message = "Current page must be 1 or greater")
-    private Integer currentPage;
-
-    @Min(value = 0, message = "Total pages must be 0 or greater")
-    private Integer totalPages;
-
-    // Cover image for the collection (full ImageContentBlockModel when set)
+    /**
+     * Full cover image model for the collection (includes dimensions, URLs, etc.).
+     * Matches CollectionModel.coverImage structure.
+     */
     @Valid
-    private ImageContentBlockModel coverImage;
+    private ContentImageModel coverImage;
 
-    // Home page card settings
-    private Boolean homeCardEnabled;
-    private String homeCardText;
-
-    // Content blocks (paginated)
-    @Valid
-    private List<ContentBlockModel> contentBlocks;
+    // NOTE: All other fields are inherited from ContentModel:
+    // - id (the collection's ID)
+    // - title (the collection's title)
+    // - description (the collection's description)
+    // - orderIndex (position in parent collection)
+    // - visible (visibility in parent collection)
+    // - createdAt, updatedAt (timestamps)
+    //
+    // We intentionally DO NOT include the full nested collection content here
+    // to prevent deep nesting and circular reference issues.
+    // Frontend should fetch the full collection separately if needed.
+    //
+    // Note: imageUrl from ContentModel is not populated for COLLECTION content.
+    // Use coverImage.imageUrl instead for the cover image URL.
 }

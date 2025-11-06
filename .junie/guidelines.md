@@ -4,8 +4,8 @@
 This project is a Java Spring Boot backend application for a portfolio system, currently undergoing a refactoring from a simple Catalog/Image system to a more flexible ContentCollection system.
 
 ### Key Technologies
-- Java 17
-- Spring Boot 3.4.1
+- Java 23
+- Spring Boot 3.4.1 (update)
 - Spring Data JPA
 - MySQL (Production) / H2 (Development)
 - AWS S3 for media storage
@@ -15,8 +15,9 @@ This project is a Java Spring Boot backend application for a portfolio system, c
 
 ## Architecture Overview
 
-### Current Refactoring: ContentCollection System
-The project is transitioning from a simple Catalog/Image system to a flexible ContentCollection system with four distinct types:
+### Current Refactoring: Collection System
+- TODO: Update this to reflect our abstract 'collection' system, which is just a 'folder' system, where collections can store collections, as well as any other content.
+The project is transitioning from a simple Collection/Image system to a flexible Collection system with four distinct types:
 1. **BLOG** - Daily moments, casual content, mixed text/images, chronological
 2. **ART_GALLERY** - Curated artistic collections
 3. **CLIENT_GALLERY** - Private client deliveries with simple password protection
@@ -30,35 +31,42 @@ The project is transitioning from a simple Catalog/Image system to a flexible Co
 
 ## Java & Spring Boot Guidelines
 
-### 1. Dependency Injection
+### 1. Import Statements
+- **ALWAYS place all imports at the top of the file** after the package declaration
+- **NEVER use fully qualified class names inline** (e.g., `org.springframework.web.multipart.MultipartFile`)
+- Add proper import statements instead of using fully qualified names in code
+- Example of WRONG usage: `List<org.springframework.web.multipart.MultipartFile> files`
+- Example of CORRECT usage: Add `import org.springframework.web.multipart.MultipartFile;` at top, then use `List<MultipartFile> files`
+
+### 2. Dependency Injection
 - **ALWAYS use constructor injection** for mandatory dependencies
 - Declare dependencies as `final` fields
 - No `@Autowired` needed for single constructor (Spring auto-detects)
 - **NEVER use field injection** in production code
 - **NEVER use setter injection** unless specifically needed for optional dependencies
 
-### 2. Visibility & Access Control
+### 3. Visibility & Access Control
 - **Prefer package-private over public** for Spring components
 - Controllers, `@Configuration` classes, and `@Bean` methods should be package-private when possible
 - Only make classes/methods public when they need to be accessed from other packages
 
-### 3. Transaction Management
+### 4. Transaction Management
 - **Every Service method is a transactional unit**
 - `@Transactional(readOnly = true)` for query-only methods
 - `@Transactional` for data-modifying methods
 - **Keep transaction scope minimal** - only what needs to be transactional
 
-### 4. JPA Configuration
+### 5. JPA Configuration
 - **ALWAYS disable Open Session in View**: `spring.jpa.open-in-view=false`
 - Use explicit fetch strategies instead of lazy loading in views
 
-### 5. API Layer Separation
+### 6. API Layer Separation
 - **NEVER expose entities directly** in REST responses
 - **ALWAYS use explicit DTOs/Records** for request/response
 - Apply Jakarta Validation annotations on request DTOs
 - Use record classes for immutable DTOs when possible
 
-### 6. REST API Design
+### 7. REST API Design
 - **Versioned URLs**: `/api/v1/resource` pattern
 - **Consistent resource naming**: plural nouns for collections
 - **Use ResponseEntity<T>** for explicit HTTP status codes
@@ -66,7 +74,7 @@ The project is transitioning from a simple Catalog/Image system to a flexible Co
 - **JSON responses must be objects** (not arrays) at top level for future extensibility
 - **Consistent naming**: use camelCase for JSON properties
 
-### 7. Exception Handling
+### 8. Exception Handling
 - **Centralized exception handling** with `@ControllerAdvice`
 - Return consistent error responses using ProblemDetails (RFC 9457)
 - **NEVER expose stack traces** to clients in production
@@ -194,6 +202,33 @@ The project is transitioning from a simple Catalog/Image system to a flexible Co
 - **DO NOT run tests via Claude Code** - Tests will be run manually by the user
 - **Integration tests need docker** for TestContainers and database access (user handles this)
 
+## File Writing Guidelines
+
+### 1. Character Encoding & Special Characters
+- **ALWAYS use plain ASCII characters** in all files (code, documentation, markdown)
+- **NEVER use emojis** unless explicitly requested by the user
+- **NEVER use Unicode symbols** (arrows, checkmarks, etc.) - use ASCII alternatives:
+  - Use `->` instead of `→`
+  - Use `<->` instead of `↔`
+  - Use `*` or `-` for bullets, not `•`
+  - Use `[x]` and `[ ]` for checkboxes, not `☑` and `☐`
+- **Examples of WRONG characters to avoid**:
+  - Emojis: ♻️ 🗑️ ✅ ❌ 🔴 🟠 🟡
+  - Arrows: → ← ↔ ⇒ ⇐
+  - Symbols: • ✓ ✗ ★ ☆
+- **Use standard ASCII alternatives**:
+  - `->` for arrows
+  - `*` for bullets
+  - `[x]` for checked items
+  - `[ ]` for unchecked items
+- **Reason**: Special characters can cause encoding issues, IDE warnings, and compatibility problems
+
+### 2. Markdown & Documentation
+- Use standard markdown syntax only
+- Avoid fancy formatting that requires special characters
+- Keep documentation simple and ASCII-compatible
+- Test that files open without encoding errors
+
 ## Summary
 
 These guidelines prioritize:
@@ -203,5 +238,6 @@ These guidelines prioritize:
 4. **Modern practices** - latest Java features, proper patterns
 5. **Real testing** - TestContainers over mocks, comprehensive coverage
 6. **Docker-first development** - all builds and tests run in containers
+7. **Plain ASCII encoding** - no emojis or special Unicode characters
 
-When in doubt, choose the approach that makes the code more **secure**, **performant**, **testable**, and **maintainable**.
+When in doubt, choose the approach that makes the code more **secure**, **performant**, **testable**, **maintainable**, and **compatible**.

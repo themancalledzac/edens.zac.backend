@@ -96,7 +96,7 @@ public interface ContentFilmTypeRepository extends JpaRepository<ContentFilmType
      * @return List of film types ordered by usage count descending
      */
     @Query("SELECT f FROM ContentFilmTypeEntity f " +
-            "LEFT JOIN f.imageContentBlocks icb " +
+            "LEFT JOIN f.contentImages icb " +
             "GROUP BY f.id " +
             "ORDER BY COUNT(DISTINCT icb.id) DESC")
     List<ContentFilmTypeEntity> findAllOrderByUsageCountDesc();
