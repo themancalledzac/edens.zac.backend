@@ -274,6 +274,7 @@ class CollectionServiceImpl implements CollectionService {
 
     /**
      * Convert a CollectionEntity to a CollectionModel with all content.
+     * Efficiently batch-loads collections for all content items to avoid N+1 queries.
      *
      * @param entity The entity to convert
      * @return The converted model
@@ -286,14 +287,72 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // Fetch join table entries explicitly to get content with collection-specific metadata
-        List<ContentModel> contents = collectionContentRepository
-                .findByCollectionIdOrderByOrderIndex(entity.getId())
-                .stream()
-                .map(contentProcessingUtil::convertEntityToModel)
+        List<CollectionContentEntity> joinEntries = collectionContentRepository
+                .findByCollectionIdOrderByOrderIndex(entity.getId());
+
+        if (joinEntries.isEmpty()) {
+            model.setContent(Collections.emptyList());
+            return model;
+        }
+
+        // Extract all content IDs for batch loading
+        List<Long> contentIds = joinEntries.stream()
+                .map(cc -> cc.getContent().getId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        // Batch-load all collections for all content items in one query
+        Map<Long, List<CollectionContentEntity>> collectionsByContentId;
+        if (!contentIds.isEmpty()) {
+            List<CollectionContentEntity> allCollections = collectionContentRepository.findByContentIdsIn(contentIds);
+            collectionsByContentId = allCollections.stream()
+                    .collect(Collectors.groupingBy(cc -> cc.getContent().getId()));
+        } else {
+            collectionsByContentId = new HashMap<>();
+        }
+
+        // Convert join table entries to content models with collections populated
+        List<ContentModel> contents = joinEntries.stream()
+                .map(joinEntry -> {
+                    ContentModel content = contentProcessingUtil.convertEntityToModel(joinEntry);
+                    if (content != null && content instanceof ContentImageModel imageModel) {
+                        // Populate collections for image content
+                        Long contentId = joinEntry.getContent().getId();
+                        List<CollectionContentEntity> contentCollections = collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
+                        List<ChildCollection> childCollections = contentCollections.stream()
+                                .map(this::convertToChildCollection)
+                                .collect(Collectors.toList());
+                        imageModel.setCollections(childCollections);
+                    }
+                    return content;
+                })
                 .collect(Collectors.toList());
 
         model.setContent(contents);
         return model;
+    }
+
+    /**
+     * Convert a CollectionContentEntity to a ChildCollection model.
+     * Used for populating the collections field in ContentImageModel.
+     *
+     * @param joinEntry The join table entry
+     * @return The ChildCollection model
+     */
+    private ChildCollection convertToChildCollection(CollectionContentEntity joinEntry) {
+        if (joinEntry == null || joinEntry.getCollection() == null) {
+            return null;
+        }
+
+        CollectionEntity collection = joinEntry.getCollection();
+        return ChildCollection.builder()
+                .collectionId(collection.getId())
+                .name(collection.getTitle())
+                .coverImageUrl(collection.getCoverImage() != null ? collection.getCoverImage().getImageUrlWeb() : null)
+                .visible(joinEntry.getVisible())
+                .orderIndex(joinEntry.getOrderIndex())
+                .build();
     }
 
 

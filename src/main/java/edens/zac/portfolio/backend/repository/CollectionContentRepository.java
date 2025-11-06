@@ -155,4 +155,19 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
     @Query("SELECT cc FROM CollectionContentEntity cc WHERE cc.collection.id = :collectionId AND cc.content.id = :contentId")
     CollectionContentEntity findByCollectionIdAndContentId(@Param("collectionId") Long collectionId,
                                                              @Param("contentId") Long contentId);
+
+    /**
+     * Find all join table entries for multiple content IDs.
+     * Used for batch-loading collections for multiple content items efficiently.
+     * Returns all collections that contain any of the specified content items.
+     * Eagerly fetches collection and cover image to avoid lazy loading issues.
+     *
+     * @param contentIds The IDs of the content items
+     * @return List of CollectionContentEntity entries for the specified content items
+     */
+    @Query("SELECT DISTINCT cc FROM CollectionContentEntity cc " +
+           "LEFT JOIN FETCH cc.collection c " +
+           "LEFT JOIN FETCH c.coverImage " +
+           "WHERE cc.content.id IN :contentIds")
+    List<CollectionContentEntity> findByContentIdsIn(@Param("contentIds") List<Long> contentIds);
 }

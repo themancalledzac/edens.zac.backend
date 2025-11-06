@@ -22,7 +22,7 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/write/content")
+@RequestMapping("/api/admin/content")
 public class ContentControllerDev {
 
     private final ContentService contentService;
@@ -30,7 +30,7 @@ public class ContentControllerDev {
 
     /**
      * Create and upload images to a collection
-     * POST /api/write/content/images/{collectionId}
+     * POST /api/admin/content/images/{collectionId}
      *
      * @param collectionId ID of the collection to add images to
      * @param files        List of image files to upload
@@ -67,7 +67,7 @@ public class ContentControllerDev {
 
     /**
      * Create text or code content
-     * POST /api/write/content/content
+     * POST /api/admin/content/content
      *
      * @param request CreateTextContentRequest or CreateCodeContentRequest
      * @return ResponseEntity with created content
@@ -100,7 +100,7 @@ public class ContentControllerDev {
 
     /**
      * Update one or more images
-     * PATCH /api/dev/content/images
+     * PATCH /api/admin/content/images
      *
      * @param updates List of image updates
      * @return ResponseEntity with updated images and newly created metadata
@@ -135,7 +135,7 @@ public class ContentControllerDev {
 
     /**
      * Get all images ordered by date descending
-     * GET /api/write/content/images
+     * GET /api/admin/content/images
      *
      * @return ResponseEntity with list of all images
      */
@@ -154,7 +154,7 @@ public class ContentControllerDev {
 
     /**
      * Delete one or more images
-     * DELETE /api/dev/content/images
+     * DELETE /api/admin/content/images
      *
      * @param request Map containing "imageIds" list
      * @return ResponseEntity with deleted image IDs
@@ -190,7 +190,7 @@ public class ContentControllerDev {
 
     /**
      * Create a new tag
-     * POST /api/dev/content/tags
+     * POST /api/admin/content/tags
      *
      * @param request CreateTagRequest containing tag name
      * @return ResponseEntity with created tag
@@ -221,7 +221,7 @@ public class ContentControllerDev {
 
     /**
      * Create a new person
-     * POST /api/dev/content/people
+     * POST /api/admin/content/people
      *
      * @param request CreatePersonRequest containing person name
      * @return ResponseEntity with created person
