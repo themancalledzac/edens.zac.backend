@@ -620,31 +620,29 @@ class ContentServiceImpl implements ContentService {
                         // STEP 1: Process and save the image content (NO collection reference)
                         ContentImageEntity img = contentProcessingUtil.processImageContent(file, null);
 
-                        if (img != null && img.getId() != null) {
-                            // STEP 2: Create join table entry linking content to collection
-                            CollectionContentEntity joinEntry = CollectionContentEntity.builder()
-                                    .collection(collection)
-                                    .content(img)
-                                    .orderIndex(orderIndex)
-                                    .visible(true)   // Visible by default
-                                    .build();
+                        // STEP 2: Create join table entry linking content to collection
+                        CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+                                .collection(collection)
+                                .content(img)
+                                .orderIndex(orderIndex)
+                                .visible(true)   // Visible by default
+                                .build();
 
-                            collectionContentRepository.save(joinEntry);
+                        collectionContentRepository.save(joinEntry);
 
-                            log.debug("Created join table entry for image {} in collection {} at orderIndex {}",
-                                    img.getId(), collectionId, orderIndex);
+                        log.debug("Created join table entry for image {} in collection {} at orderIndex {}",
+                                img.getId(), collectionId, orderIndex);
 
-                            // STEP 3: Convert to model with join table metadata and add to results
-                            ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
-                            if (contentModel instanceof ContentImageModel imageModel) {
-                                createdImages.add(imageModel);
-                            } else {
-                                log.error("Expected ContentImageModel but got {}", contentModel != null ? contentModel.getClass() : "null");
-                            }
-
-                            // Increment order index for next image
-                            orderIndex++;
+                        // STEP 3: Convert to model with join table metadata and add to results
+                        ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+                        if (contentModel instanceof ContentImageModel imageModel) {
+                            createdImages.add(imageModel);
+                        } else {
+                            log.error("Expected ContentImageModel but got {}", contentModel != null ? contentModel.getClass() : "null");
                         }
+
+                        // Increment order index for next image
+                        orderIndex++;
                     }
                 }
             } catch (Exception e) {

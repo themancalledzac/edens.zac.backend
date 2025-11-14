@@ -90,8 +90,9 @@ public class CollectionControllerProd {
 
     /**
      * Get visible collections by type ordered by collection date (newest first)
+     * Currently only accepts BLOG type.
      *
-     * @param type Collection type
+     * @param type Collection type (currently only BLOG is supported)
      * @return ResponseEntity with list of visible collections of the specified type as CollectionModel objects
      */
     @GetMapping("/type/{type}")
@@ -105,6 +106,13 @@ public class CollectionControllerProd {
                 return ResponseEntity
                         .status(HttpStatus.BAD_REQUEST)
                         .body("Invalid collection type: " + type);
+            }
+
+            // Currently only BLOG type is supported
+            if (collectionType != CollectionType.BLOG) {
+                return ResponseEntity
+                        .status(HttpStatus.BAD_REQUEST)
+                        .body("Only BLOG collection type is currently supported. Received: " + type);
             }
 
             // Get visible collections ordered by date (newest first)

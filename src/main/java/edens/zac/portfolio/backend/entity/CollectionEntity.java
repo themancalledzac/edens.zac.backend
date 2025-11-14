@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import edens.zac.portfolio.backend.model.CollectionBaseModel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -66,6 +67,10 @@ public class CollectionEntity {
     @NotNull
     @Column(name = "visible", nullable = false)
     private Boolean visible;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "display_mode")
+    private CollectionBaseModel.DisplayMode displayMode;
 
     // Foreign key reference to ContentEntity (cover image)
     @ManyToOne(fetch = FetchType.LAZY)

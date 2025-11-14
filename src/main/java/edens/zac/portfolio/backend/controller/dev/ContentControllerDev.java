@@ -134,10 +134,10 @@ public class ContentControllerDev {
     }
 
     /**
-     * Get all images ordered by date descending
+     * Get all images ordered by date descending (newest first)
      * GET /api/admin/content/images
      *
-     * @return ResponseEntity with list of all images
+     * @return ResponseEntity with list of all images sorted by createDate descending
      */
     @GetMapping("/images")
     public ResponseEntity<List<ContentImageModel>> getAllImages() {
