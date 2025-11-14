@@ -42,23 +42,6 @@ class ContentModelTest {
     }
 
     @Test
-    @DisplayName("Null collectionId should fail validation")
-    void nullCollectionId_shouldFailValidation() {
-        // Arrange
-        content.setOrderIndex(0);
-        content.setContentType(ContentType.IMAGE);
-
-        // Act
-        Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
-
-        // Assert
-        assertEquals(1, violations.size());
-        ConstraintViolation<ContentModel> violation = violations.iterator().next();
-        assertEquals("collectionId", violation.getPropertyPath().toString());
-        assertTrue(violation.getMessage().contains("must not be null"));
-    }
-
-    @Test
     @DisplayName("Negative orderIndex should fail validation")
     void negativeOrderIndex_shouldFailValidation() {
         // Arrange
@@ -93,12 +76,13 @@ class ContentModelTest {
     }
 
     @Test
-    @DisplayName("Caption over 500 characters should fail validation")
-    void longCaption_shouldFailValidation() {
+    @DisplayName("Description over 500 characters should fail validation")
+    void longDescription_shouldFailValidation() {
         // Arrange
-        String longCaption = "A".repeat(501); // 501 characters
+        String longDescription = "A".repeat(501); // 501 characters
         content.setOrderIndex(0);
         content.setContentType(ContentType.IMAGE);
+        content.setDescription(longDescription);
 
         // Act
         Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
@@ -106,17 +90,18 @@ class ContentModelTest {
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentModel> violation = violations.iterator().next();
-        assertEquals("caption", violation.getPropertyPath().toString());
+        assertEquals("description", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 500"));
     }
 
     @Test
-    @DisplayName("Valid caption at max length should pass validation")
-    void maxLengthCaption_shouldPassValidation() {
+    @DisplayName("Valid description at max length should pass validation")
+    void maxLengthDescription_shouldPassValidation() {
         // Arrange
-        String maxCaption = "A".repeat(500); // Exactly 500 characters
+        String maxDescription = "A".repeat(500); // Exactly 500 characters
         content.setOrderIndex(0);
         content.setContentType(ContentType.IMAGE);
+        content.setDescription(maxDescription);
 
         // Act
         Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);
@@ -157,7 +142,7 @@ class ContentModelTest {
         // Act & Assert
         assertEquals(content1, content2);
         assertEquals(content1.hashCode(), content2.hashCode());
-        assertTrue(content1.toString().contains("ContentBlockModel"));
+        assertTrue(content1.toString().contains("ContentModel"));
     }
 
     @Test
@@ -180,9 +165,12 @@ class ContentModelTest {
     @DisplayName("Multiple validation errors are captured")
     void multipleValidationErrors_areCaptured() {
         // Arrange
-        String longCaption = "A".repeat(501);
-        content.setOrderIndex(-1); // Error 2
-        content.setContentType(null); // Error 3
+        String longTitle = "A".repeat(251); // Error 1: title too long
+        String longDescription = "A".repeat(501); // Error 2: description too long
+        content.setTitle(longTitle);
+        content.setDescription(longDescription);
+        content.setOrderIndex(-1); // Error 3: negative orderIndex
+        content.setContentType(null); // Error 4: null contentType
 
         // Act
         Set<ConstraintViolation<ContentModel>> violations = validator.validate(content);

@@ -48,7 +48,7 @@ class ContentTextEntityTest {
         Set<ConstraintViolation<ContentTextEntity>> violations = validator.validate(textBlock);
         assertFalse(violations.isEmpty());
         assertTrue(violations.stream()
-                .anyMatch(v -> v.getPropertyPath().toString().equals("content")));
+                .anyMatch(v -> v.getPropertyPath().toString().equals("textContent")));
     }
 
     @Test

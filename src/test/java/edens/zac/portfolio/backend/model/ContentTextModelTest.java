@@ -57,7 +57,7 @@ class ContentTextModelTest {
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
-        assertEquals("content", violation.getPropertyPath().toString());
+        assertEquals("textContent", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be blank"));
     }
 
@@ -76,7 +76,7 @@ class ContentTextModelTest {
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
-        assertEquals("content", violation.getPropertyPath().toString());
+        assertEquals("textContent", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be blank"));
     }
 
@@ -96,7 +96,7 @@ class ContentTextModelTest {
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
-        assertEquals("content", violation.getPropertyPath().toString());
+        assertEquals("textContent", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("size must be between 0 and 10000"));
     }
 
@@ -273,7 +273,7 @@ class ContentTextModelTest {
         // Act & Assert
         assertEquals(block1, block2);
         assertEquals(block1.hashCode(), block2.hashCode());
-        assertTrue(block1.toString().contains("TextContentModel"));
+        assertTrue(block1.toString().contains("ContentTextModel"));
     }
 
     @Test
@@ -320,21 +320,21 @@ class ContentTextModelTest {
     @DisplayName("Multiple validation errors are captured")
     void multipleValidationErrors_areCaptured() {
         // Arrange
-        String longContent = "A".repeat(10001);
-        String longFormatType = "A".repeat(21);
-        String longTitle = "A".repeat(251);
+        String longContent = "A".repeat(10001); // Too long
+        String longFormatType = "A".repeat(21); // Too long
+        String longTitle = "A".repeat(251); // Too long
         
-        textContent.setOrderIndex(-1); // Error 2 - inherited
-        textContent.setContentType(null); // Error 3 - inherited
-        textContent.setTextContent(""); // Error 4 - blank content
-        textContent.setFormatType(longFormatType); // Error 5 - long format type
-        textContent.setTitle(longTitle); // Error 6 - long title
+        textContent.setOrderIndex(-1); // Error 1 - inherited (negative)
+        textContent.setContentType(null); // Error 2 - inherited (null)
+        textContent.setTextContent(longContent); // Error 3 - too long
+        textContent.setFormatType(longFormatType); // Error 4 - too long
+        textContent.setTitle(longTitle); // Error 5 - too long
 
         // Act
         Set<ConstraintViolation<ContentTextModel>> violations = validator.validate(textContent);
 
         // Assert
-        assertEquals(6, violations.size());
+        assertEquals(5, violations.size());
     }
 
     @Test
@@ -342,7 +342,7 @@ class ContentTextModelTest {
     void inheritsValidation_fromContentModel() {
         // Arrange - Test that inherited validation still works
         textContent.setOrderIndex(0);
-        textContent.setContentType(ContentType.TEXT);
+        // contentType is null (not set) - should fail validation
         textContent.setTextContent("Test content");
         textContent.setFormatType("markdown");
 
@@ -352,7 +352,7 @@ class ContentTextModelTest {
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentTextModel> violation = violations.iterator().next();
-        assertEquals("collectionId", violation.getPropertyPath().toString());
+        assertEquals("contentType", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
 }

@@ -39,11 +39,11 @@ class ContentImageModelTest {
     }
 
     @Test
-    @DisplayName("Null imageUrlWeb should fail validation")
-    void nullImageUrlWeb_shouldFailValidation() {
+    @DisplayName("Null orderIndex should fail validation")
+    void nullOrderIndex_shouldFailValidation() {
         // Arrange
         setupValidContentImage();
-        contentImage.setImageUrl(null);
+        contentImage.setOrderIndex(null);
 
         // Act
         Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -51,7 +51,7 @@ class ContentImageModelTest {
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
-        assertEquals("imageUrlWeb", violation.getPropertyPath().toString());
+        assertEquals("orderIndex", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
 
@@ -220,10 +220,10 @@ class ContentImageModelTest {
     void multipleValidationErrors_areCaptured() {
         // Arrange
         setupValidContentImage();
-        contentImage.setImageUrl(null); // Error 1
-        contentImage.setTitle("A".repeat(251)); // Error 2
-        contentImage.setAuthor("A".repeat(101)); // Error 3
-        contentImage.setLocation("A".repeat(251)); // Error 4
+        contentImage.setTitle("A".repeat(251)); // Error 1: title too long
+        contentImage.setAuthor("A".repeat(101)); // Error 2: author too long
+        contentImage.setLocation("A".repeat(251)); // Error 3: location too long
+        contentImage.setOrderIndex(-1); // Error 4: negative orderIndex
 
         // Act
         Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -239,6 +239,7 @@ class ContentImageModelTest {
         setupValidContentImage();
         contentImage.setOrderIndex(-1); // Invalid from parent
         contentImage.setContentType(null); // Invalid from parent
+        contentImage.setTitle("A".repeat(251)); // Invalid from parent
 
         // Act
         Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -247,16 +248,16 @@ class ContentImageModelTest {
         assertEquals(3, violations.size());
         
         // Check that we have violations for inherited fields
-        boolean hasCollectionIdViolation = violations.stream()
-                .anyMatch(v -> "collectionId".equals(v.getPropertyPath().toString()));
         boolean hasOrderIndexViolation = violations.stream()
                 .anyMatch(v -> "orderIndex".equals(v.getPropertyPath().toString()));
-        boolean hasBlockTypeViolation = violations.stream()
-                .anyMatch(v -> "blockType".equals(v.getPropertyPath().toString()));
+        boolean hasContentTypeViolation = violations.stream()
+                .anyMatch(v -> "contentType".equals(v.getPropertyPath().toString()));
+        boolean hasTitleViolation = violations.stream()
+                .anyMatch(v -> "title".equals(v.getPropertyPath().toString()));
 
-        assertTrue(hasCollectionIdViolation);
         assertTrue(hasOrderIndexViolation);
-        assertTrue(hasBlockTypeViolation);
+        assertTrue(hasContentTypeViolation);
+        assertTrue(hasTitleViolation);
     }
 
     @Test

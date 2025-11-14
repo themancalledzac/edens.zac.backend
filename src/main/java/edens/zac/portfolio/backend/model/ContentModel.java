@@ -43,6 +43,7 @@ public class ContentModel {
      * - For COLLECTION: Collection title
      * - For TEXT/CODE/GIF: Content title
      */
+    @Size(max = 250)
     private String title;
 
     /**

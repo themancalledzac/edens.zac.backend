@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.stream.Stream;
@@ -17,11 +16,13 @@ class CollectionTypeTest {
     void enum_ShouldHaveCorrectValues() {
         // Test the existence and order of enum values
         CollectionType[] values = CollectionType.values();
-        assertEquals(4, values.length);
+        assertEquals(6, values.length);
         assertEquals(CollectionType.BLOG, values[0]);
-        assertEquals(CollectionType.ART_GALLERY, values[1]);
-        assertEquals(CollectionType.CLIENT_GALLERY, values[2]);
-        assertEquals(CollectionType.PORTFOLIO, values[3]);
+        assertEquals(CollectionType.PORTFOLIO, values[1]);
+        assertEquals(CollectionType.ART_GALLERY, values[2]);
+        assertEquals(CollectionType.CLIENT_GALLERY, values[3]);
+        assertEquals(CollectionType.HOME, values[4]);
+        assertEquals(CollectionType.MISC, values[5]);
     }
 
     @ParameterizedTest
