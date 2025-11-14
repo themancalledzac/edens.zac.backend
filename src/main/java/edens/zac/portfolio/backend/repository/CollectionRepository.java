@@ -27,6 +27,15 @@ public interface CollectionRepository extends JpaRepository<CollectionEntity, Lo
      */
     List<CollectionEntity> findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type);
 
+    /**
+     * Find all visible collections by type ordered by collection date descending.
+     * Returns all visible collections of the specified type (not limited to 50).
+     *
+     * @param type Collection type
+     * @return List of all visible collections of the specified type ordered by collection date DESC
+     */
+    List<CollectionEntity> findByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type);
+
     // Blog - ordered by date descending, visibility irrelevant (admin)
     /**
      * Find a collection of Content Collections for BLOG

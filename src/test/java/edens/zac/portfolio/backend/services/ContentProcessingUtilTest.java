@@ -157,22 +157,18 @@ public class ContentProcessingUtilTest {
     }
 
     @Test
-    void processContentImage_whenImageProcessingFails_shouldReturnNull() throws IOException {
+    void processContentImage_whenImageProcessingFails_shouldThrowException() throws IOException {
         // Arrange
         MultipartFile file = createMockImageFile();
-        Long collectionId = 1L;
-        Integer orderIndex = 0;
         String title = "Test Image";
-        String caption = "Test Caption";
 
         // Mock S3 to throw an exception (simulating upload failure)
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenThrow(new RuntimeException("S3 upload failed"));
 
-        // Act
-        ContentEntity result = contentProcessingUtil.processImageContent(file, title);
-
-        // Assert
-        assertNull(result); // Should return null when processing fails
+        // Act & Assert
+        assertThrows(RuntimeException.class, () -> {
+            contentProcessingUtil.processImageContent(file, title);
+        });
     }
 
 //    @Test

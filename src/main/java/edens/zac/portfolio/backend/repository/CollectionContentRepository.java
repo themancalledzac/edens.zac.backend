@@ -160,7 +160,7 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
      * Find all join table entries for multiple content IDs.
      * Used for batch-loading collections for multiple content items efficiently.
      * Returns all collections that contain any of the specified content items.
-     * Eagerly fetches collection and cover image to avoid lazy loading issues.
+     * Eagerly fetches collection, cover image, and content to avoid lazy loading issues.
      *
      * @param contentIds The IDs of the content items
      * @return List of CollectionContentEntity entries for the specified content items
@@ -168,6 +168,24 @@ public interface CollectionContentRepository extends JpaRepository<CollectionCon
     @Query("SELECT DISTINCT cc FROM CollectionContentEntity cc " +
            "LEFT JOIN FETCH cc.collection c " +
            "LEFT JOIN FETCH c.coverImage " +
+           "LEFT JOIN FETCH cc.content " +
            "WHERE cc.content.id IN :contentIds")
     List<CollectionContentEntity> findByContentIdsIn(@Param("contentIds") List<Long> contentIds);
+
+    /**
+     * Update order index for a content item in a collection.
+     * Only updates if the content belongs to the specified collection.
+     * Returns the number of rows updated (0 if content doesn't belong to collection, 1 if successful).
+     *
+     * @param collectionId The ID of the collection
+     * @param contentId    The ID of the content
+     * @param orderIndex   The new order index
+     * @return The number of rows updated (0 or 1)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE CollectionContentEntity cc SET cc.orderIndex = :orderIndex " +
+            "WHERE cc.collection.id = :collectionId AND cc.content.id = :contentId")
+    int updateOrderIndexForContent(@Param("collectionId") Long collectionId,
+                                    @Param("contentId") Long contentId,
+                                    @Param("orderIndex") Integer orderIndex);
 }

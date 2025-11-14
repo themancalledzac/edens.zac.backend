@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.controller.dev;
 
 import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionReorderRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
@@ -181,6 +182,43 @@ public class CollectionControllerDev {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to retrieve general metadata: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Reorder images within a collection.
+     * Updates the orderIndex for specified images and recomputes sequential indices for all content.
+     * This is an atomic operation that ensures all order indices are sequential (0, 1, 2, ...).
+     *
+     * @param collectionId Collection ID
+     * @param request Reorder request containing image IDs and their new order indices
+     * @return ResponseEntity with updated collection
+     */
+    @PostMapping("/{collectionId}/reorder")
+    public ResponseEntity<?> reorderCollectionContent(
+            @PathVariable Long collectionId,
+            @RequestBody CollectionReorderRequest request) {
+        try {
+            log.debug("Reordering content in collection {} with {} reorder operations", 
+                    collectionId, request.getReorders().size());
+            CollectionModel updatedCollection = collectionService.reorderContent(collectionId, request);
+            log.info("Successfully reordered content in collection: {}", collectionId);
+            return ResponseEntity.ok(updatedCollection);
+        } catch (EntityNotFoundException e) {
+            log.warn("Collection not found: {}", collectionId);
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body("Collection with ID: " + collectionId + " not found");
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid reorder request for collection {}: {}", collectionId, e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body("Invalid reorder request: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Error reordering content in collection {}: {}", collectionId, e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to reorder content: " + e.getMessage());
         }
     }
 }

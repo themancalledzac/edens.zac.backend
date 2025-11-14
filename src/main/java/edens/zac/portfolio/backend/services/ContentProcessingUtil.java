@@ -621,107 +621,102 @@ public class ContentProcessingUtil {
     public ContentImageEntity processImageContent(
             MultipartFile file,
             String title
-    ) {
+    ) throws IOException {
         log.info("Processing image content");
 
-        try {
-            // STEP 1: Extract metadata from original file (before any conversion)
-            log.info("Step 1: Extracting metadata from original file");
-            Map<String, String> metadata = extractImageMetadata(file);
+        // STEP 1: Extract metadata from original file (before any conversion)
+        log.info("Step 1: Extracting metadata from original file");
+        Map<String, String> metadata = extractImageMetadata(file);
 
-            // STEP 2: Upload original full-size image to S3
-            // TODO: May re-implement full-size image storage later
+        // STEP 2: Upload original full-size image to S3
+        // TODO: May re-implement full-size image storage later
 //            log.info("Step 2: Uploading original full-size image to S3");
-            String originalFilename = file.getOriginalFilename();
+        String originalFilename = file.getOriginalFilename();
 //            String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
 //            String imageUrlFullSize = uploadImageToS3(file.getBytes(), originalFilename, contentType, "full");
 
-            // STEP 3: Resize FIRST if needed (max 2500px on longest side)
-            // We resize BEFORE converting to WebP to avoid having to decode WebP back to BufferedImage
-            log.info("Step 3: Resizing original image if needed");
-            BufferedImage originalImage = ImageIO.read(file.getInputStream());
-            if (originalImage == null) {
-                throw new IOException("Failed to read image: " + originalFilename);
-            }
-
-            BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
-
-            // STEP 4: Convert to WebP (includes compression)
-            log.info("Step 4: Converting to WebP and compressing");
-            byte[] processedImageBytes;
-            String finalFilename;
-
-            if (isJpgFile(file) || isWebPFile(file)) {
-                processedImageBytes = convertJpgToWebP(resizedImage);
-                assert originalFilename != null;
-                finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
-            } else {
-                throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
-            }
-
-            // STEP 5: Upload web-optimized image to S3
-            log.info("Step 5: Uploading web-optimized image to S3");
-            String imageUrlWeb = uploadImageToS3(processedImageBytes, finalFilename, "image/webp", "webP");
-
-            // STEP 6: Create and save ImageContentEntity with metadata
-            log.info("Step 6: Saving to database");
-
-            // Generate file identifier for duplicate detection (format: "YYYY-MM-DD/filename.jpg")
-            String date = LocalDate.now().toString();
-            String fileIdentifier = date + "/" + originalFilename;
-
-            ContentImageEntity entity = ContentImageEntity.builder()
-                    .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
-                    .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
-                    .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
-                    .iso(parseIntegerOrDefault(metadata.get("iso"), null))
-                    .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
-                    .rating(parseIntegerOrDefault(metadata.get("rating"), null))
-                    .fStop(metadata.get("fStop"))
-                    .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
-                    .isFilm(metadata.get("fStop") == null)
-                    .shutterSpeed(metadata.get("shutterSpeed"))
-//                    .imageUrlFullSize(imageUrlFullSize)
-                    .focalLength(metadata.get("focalLength"))
-                    .location(metadata.get("location"))
-                    .imageUrlWeb(imageUrlWeb)
-                    .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
-                    .fileIdentifier(fileIdentifier)
-                    .build();
-
-            // Handle camera - find existing or create new from metadata
-            String cameraName = metadata.get("camera");
-            if (cameraName != null && !cameraName.trim().isEmpty()) {
-                ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName.trim())
-                        .orElseGet(() -> {
-                            log.info("Creating new camera from metadata: {}", cameraName);
-                            ContentCameraEntity newCamera = new ContentCameraEntity(cameraName.trim());
-                            return contentCameraRepository.save(newCamera);
-                        });
-                entity.setCamera(camera);
-            }
-
-            // Handle lens - find existing or create new from metadata
-            String lensName = metadata.get("lens");
-            if (lensName != null && !lensName.trim().isEmpty()) {
-                ContentLensEntity lens = contentLensRepository.findByLensNameIgnoreCase(lensName.trim())
-                        .orElseGet(() -> {
-                            log.info("Creating new lens from metadata: {}", lensName);
-                            ContentLensEntity newLens = new ContentLensEntity(lensName.trim());
-                            return contentLensRepository.save(newLens);
-                        });
-                entity.setLens(lens);
-            }
-
-            // STEP 7: Save and return
-            ContentImageEntity savedEntity = contentRepository.save(entity);
-            log.info("Successfully processed image content with ID: {}", savedEntity.getId());
-            return savedEntity;
-
-        } catch (Exception e) {
-            log.error("Error processing image content: {}", e.getMessage(), e);
-            return null;
+        // STEP 3: Resize FIRST if needed (max 2500px on longest side)
+        // We resize BEFORE converting to WebP to avoid having to decode WebP back to BufferedImage
+        log.info("Step 3: Resizing original image if needed");
+        BufferedImage originalImage = ImageIO.read(file.getInputStream());
+        if (originalImage == null) {
+            throw new IOException("Failed to read image: " + originalFilename);
         }
+
+        BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+
+        // STEP 4: Convert to WebP (includes compression)
+        log.info("Step 4: Converting to WebP and compressing");
+        byte[] processedImageBytes;
+        String finalFilename;
+
+        if (isJpgFile(file) || isWebPFile(file)) {
+            processedImageBytes = convertJpgToWebP(resizedImage);
+            assert originalFilename != null;
+            finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+        } else {
+            throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
+        }
+
+        // STEP 5: Upload web-optimized image to S3
+        log.info("Step 5: Uploading web-optimized image to S3");
+        String imageUrlWeb = uploadImageToS3(processedImageBytes, finalFilename, "image/webp", "webP");
+
+        // STEP 6: Create and save ImageContentEntity with metadata
+        log.info("Step 6: Saving to database");
+
+        // Generate file identifier for duplicate detection (format: "YYYY-MM-DD/filename.jpg")
+        String date = LocalDate.now().toString();
+        String fileIdentifier = date + "/" + originalFilename;
+
+        ContentImageEntity entity = ContentImageEntity.builder()
+                .contentType(ContentType.IMAGE)
+                .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
+                .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
+                .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
+                .iso(parseIntegerOrDefault(metadata.get("iso"), null))
+                .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
+                .rating(parseIntegerOrDefault(metadata.get("rating"), null))
+                .fStop(metadata.get("fStop"))
+                .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
+                .isFilm(metadata.get("fStop") == null)
+                .shutterSpeed(metadata.get("shutterSpeed"))
+//                    .imageUrlFullSize(imageUrlFullSize)
+                .focalLength(metadata.get("focalLength"))
+                .location(metadata.get("location"))
+                .imageUrlWeb(imageUrlWeb)
+                .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
+                .fileIdentifier(fileIdentifier)
+                .build();
+
+        // Handle camera - find existing or create new from metadata
+        String cameraName = metadata.get("camera");
+        if (cameraName != null && !cameraName.trim().isEmpty()) {
+            ContentCameraEntity camera = contentCameraRepository.findByCameraNameIgnoreCase(cameraName.trim())
+                    .orElseGet(() -> {
+                        log.info("Creating new camera from metadata: {}", cameraName);
+                        ContentCameraEntity newCamera = new ContentCameraEntity(cameraName.trim());
+                        return contentCameraRepository.save(newCamera);
+                    });
+            entity.setCamera(camera);
+        }
+
+        // Handle lens - find existing or create new from metadata
+        String lensName = metadata.get("lens");
+        if (lensName != null && !lensName.trim().isEmpty()) {
+            ContentLensEntity lens = contentLensRepository.findByLensNameIgnoreCase(lensName.trim())
+                    .orElseGet(() -> {
+                        log.info("Creating new lens from metadata: {}", lensName);
+                        ContentLensEntity newLens = new ContentLensEntity(lensName.trim());
+                        return contentLensRepository.save(newLens);
+                    });
+            entity.setLens(lens);
+        }
+
+        // STEP 7: Save and return
+        ContentImageEntity savedEntity = contentRepository.save(entity);
+        log.info("Successfully processed image content with ID: {}", savedEntity.getId());
+        return savedEntity;
     }
 
     /**

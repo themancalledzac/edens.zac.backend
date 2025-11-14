@@ -69,7 +69,12 @@ class CollectionServiceImpl implements CollectionService {
                 .findByCollectionId(collection.getId(), pageable);
 
         // Convert to model (now using join table data)
-        return collectionProcessingUtil.convertToModel(collection, collectionContentPage);
+        CollectionModel model = collectionProcessingUtil.convertToModel(collection, collectionContentPage);
+
+        // Populate collections on content items
+        populateCollectionsOnContent(model);
+
+        return model;
     }
 
     @Override
@@ -128,7 +133,7 @@ class CollectionServiceImpl implements CollectionService {
 
         // Get visible collections by type, ordered by collection date descending (newest first)
         List<CollectionEntity> collections = collectionRepository
-                .findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
+                .findByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
 
         // Convert to basic CollectionModel objects (no content blocks)
         return collections.stream()
@@ -295,30 +300,53 @@ class CollectionServiceImpl implements CollectionService {
             return model;
         }
 
+        // Convert join table entries to content models
+        List<ContentModel> contents = joinEntries.stream()
+                .map(joinEntry -> contentProcessingUtil.convertEntityToModel(joinEntry))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        model.setContent(contents);
+
+        // Populate collections on content items
+        populateCollectionsOnContent(model);
+
+        return model;
+    }
+
+    /**
+     * Populate collections on content items in a CollectionModel.
+     * Batch-loads all collections for all content items and populates the collections field
+     * on ContentImageModel instances. This avoids N+1 queries.
+     *
+     * @param model The CollectionModel with content items to populate
+     */
+    private void populateCollectionsOnContent(CollectionModel model) {
+        if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
+            return;
+        }
+
         // Extract all content IDs for batch loading
-        List<Long> contentIds = joinEntries.stream()
-                .map(cc -> cc.getContent().getId())
+        List<Long> contentIds = model.getContent().stream()
+                .map(ContentModel::getId)
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
 
-        // Batch-load all collections for all content items in one query
-        Map<Long, List<CollectionContentEntity>> collectionsByContentId;
-        if (!contentIds.isEmpty()) {
-            List<CollectionContentEntity> allCollections = collectionContentRepository.findByContentIdsIn(contentIds);
-            collectionsByContentId = allCollections.stream()
-                    .collect(Collectors.groupingBy(cc -> cc.getContent().getId()));
-        } else {
-            collectionsByContentId = new HashMap<>();
+        if (contentIds.isEmpty()) {
+            return;
         }
 
-        // Convert join table entries to content models with collections populated
-        List<ContentModel> contents = joinEntries.stream()
-                .map(joinEntry -> {
-                    ContentModel content = contentProcessingUtil.convertEntityToModel(joinEntry);
-                    if (content != null && content instanceof ContentImageModel imageModel) {
-                        // Populate collections for image content
-                        Long contentId = joinEntry.getContent().getId();
+        // Batch-load all collections for all content items in one query
+        List<CollectionContentEntity> allCollections = collectionContentRepository.findByContentIdsIn(contentIds);
+        Map<Long, List<CollectionContentEntity>> collectionsByContentId = allCollections.stream()
+                .collect(Collectors.groupingBy(cc -> cc.getContent().getId()));
+
+        // Populate collections for image content
+        List<ContentModel> contents = model.getContent().stream()
+                .map(content -> {
+                    if (content instanceof ContentImageModel imageModel) {
+                        Long contentId = content.getId();
                         List<CollectionContentEntity> contentCollections = collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
                         List<ChildCollection> childCollections = contentCollections.stream()
                                 .map(this::convertToChildCollection)
@@ -330,7 +358,6 @@ class CollectionServiceImpl implements CollectionService {
                 .collect(Collectors.toList());
 
         model.setContent(contents);
-        return model;
     }
 
     /**
@@ -637,6 +664,43 @@ class CollectionServiceImpl implements CollectionService {
     private ContentCollectionEntity findContentCollectionEntityByReferencedCollectionId(Long referencedCollectionId) {
         return contentRepository.findContentCollectionByReferencedCollectionId(referencedCollectionId)
                 .orElse(null);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "collections", allEntries = true)
+    public CollectionModel reorderContent(Long collectionId, CollectionReorderRequest request) {
+        log.debug("Reordering content in collection {} with {} reorder operations", collectionId, request.getReorders().size());
+
+        // 1. Verify collection exists
+        if (!collectionRepository.existsById(collectionId)) {
+            throw new EntityNotFoundException("Collection not found with ID: " + collectionId);
+        }
+
+        // 2 & 3. Update all order indices in a single transaction
+        // If any image doesn't belong to the collection, the update returns 0 and we throw an error
+        int totalUpdated = 0;
+        for (CollectionReorderRequest.ReorderItem item : request.getReorders()) {
+            int updated = collectionContentRepository.updateOrderIndexForContent(
+                    collectionId, item.getImageId(), item.getNewOrderIndex());
+            if (updated == 0) {
+                throw new IllegalArgumentException(
+                        "Image with ID " + item.getImageId() + " does not belong to collection " + collectionId);
+            }
+            totalUpdated += updated;
+        }
+
+        log.info("Successfully reordered {} items in collection {}", totalUpdated, collectionId);
+
+        // Return updated collection model
+        CollectionEntity collection = collectionRepository.findById(collectionId)
+                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + collectionId));
+        List<CollectionContentEntity> updatedContent = collectionContentRepository
+                .findByCollectionIdOrderByOrderIndex(collectionId);
+        Page<CollectionContentEntity> contentPage = new PageImpl<>(updatedContent);
+        CollectionModel model = collectionProcessingUtil.convertToModel(collection, contentPage);
+        populateCollectionsOnContent(model);
+        return model;
     }
 
 }

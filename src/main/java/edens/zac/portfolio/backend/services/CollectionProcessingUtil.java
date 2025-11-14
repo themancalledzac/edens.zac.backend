@@ -86,11 +86,14 @@ public class CollectionProcessingUtil {
 //        model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected collections
         model.setCreatedAt(entity.getCreatedAt());
         model.setUpdatedAt(entity.getUpdatedAt());
-        // Basic display mode: BLOG default chronological, others default ordered
-        CollectionBaseModel.DisplayMode mode =
-                entity.getType() == CollectionType.BLOG
-                        ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
-                        : CollectionBaseModel.DisplayMode.ORDERED;
+        // Use stored displayMode if available, otherwise compute default based on type
+        CollectionBaseModel.DisplayMode mode = entity.getDisplayMode();
+        if (mode == null) {
+            // Fallback to computed default for existing records without displayMode
+            mode = entity.getType() == CollectionType.BLOG
+                    ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
+                    : CollectionBaseModel.DisplayMode.ORDERED;
+        }
         model.setDisplayMode(mode);
 
         // Set pagination metadata
@@ -239,6 +242,10 @@ public class CollectionProcessingUtil {
         entity.setVisible(false);
         entity.setContentPerPage(defaultPageSize);
         entity.setTotalContent(0);
+        // Set default displayMode based on type
+        entity.setDisplayMode(request.getType() == CollectionType.BLOG
+                ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
+                : CollectionBaseModel.DisplayMode.ORDERED);
         // TODO: Re-implement password protection after migration
 //        entity.setPasswordProtected(false);
 //        entity.setPasswordHash(null);
@@ -286,6 +293,9 @@ public class CollectionProcessingUtil {
         }
         if (updateDTO.getContentPerPage() != null && updateDTO.getContentPerPage() >= 1) {
             entity.setContentPerPage(updateDTO.getContentPerPage());
+        }
+        if (updateDTO.getDisplayMode() != null) {
+            entity.setDisplayMode(updateDTO.getDisplayMode());
         }
 
         // Handle coverImageId updates - load ContentImageEntity by ID

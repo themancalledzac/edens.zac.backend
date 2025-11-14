@@ -134,4 +134,17 @@ public interface CollectionService {
      * @return General metadata including tags, people, cameras, lenses, film types, film formats, and collections
      */
     edens.zac.portfolio.backend.model.GeneralMetadataDTO getGeneralMetadata();
+
+    /**
+     * Reorder images within a collection.
+     * Updates the orderIndex for specified images and recomputes sequential indices for all content.
+     * This is an atomic operation that ensures all order indices are sequential (0, 1, 2, ...).
+     *
+     * @param collectionId The ID of the collection
+     * @param request The reorder request containing image IDs and their new order indices
+     * @return The updated collection model
+     * @throws jakarta.persistence.EntityNotFoundException if collection not found
+     * @throws IllegalArgumentException if any image ID doesn't belong to the collection
+     */
+    CollectionModel reorderContent(Long collectionId, edens.zac.portfolio.backend.model.CollectionReorderRequest request);
 }
