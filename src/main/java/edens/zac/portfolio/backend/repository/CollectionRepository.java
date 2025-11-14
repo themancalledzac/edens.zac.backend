@@ -78,7 +78,9 @@ public interface CollectionRepository extends JpaRepository<CollectionEntity, Lo
      * @param slug The unique slug of the collection
      * @return Optional containing the collection with up to 50 content if found
      */
-    @Query("SELECT c FROM CollectionEntity c LEFT JOIN FETCH c.collectionContent cc " +
+    @Query("SELECT DISTINCT c FROM CollectionEntity c " +
+            "LEFT JOIN FETCH c.collectionContent cc " +
+            "LEFT JOIN FETCH cc.content " +
             "WHERE c.slug = :slug " +
             "ORDER BY cc.orderIndex ASC")
     Optional<CollectionEntity> findBySlugWithContent(@Param("slug") String slug);

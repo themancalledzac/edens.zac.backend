@@ -7,6 +7,8 @@ import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.repository.CollectionRepository;
+import edens.zac.portfolio.backend.repository.CollectionContentRepository;
+import edens.zac.portfolio.backend.repository.ContentRepository;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,12 @@ class CollectionProcessingUtilTest {
 
     @Mock
     private CollectionRepository collectionRepository;
+
+    @Mock
+    private CollectionContentRepository collectionContentRepository;
+
+    @Mock
+    private ContentRepository contentRepository;
 
     @Mock
     private ContentProcessingUtil contentProcessingUtil;
@@ -115,8 +123,27 @@ class CollectionProcessingUtilTest {
     @Test
     void convertToFullModel_shouldConvertEntityWithContentBlocks() {
         // Arrange
-//        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
-        when(contentProcessingUtil.convertRegularContentEntityToModel(any(ContentEntity.class)))
+        List<CollectionContentEntity> joinEntries = new ArrayList<>();
+        CollectionContentEntity join1 = CollectionContentEntity.builder()
+                .collection(testEntity)
+                .content(testBlocks.get(0))
+                .orderIndex(0)
+                .visible(true)
+                .build();
+        CollectionContentEntity join2 = CollectionContentEntity.builder()
+                .collection(testEntity)
+                .content(testBlocks.get(1))
+                .orderIndex(1)
+                .visible(true)
+                .build();
+        joinEntries.add(join1);
+        joinEntries.add(join2);
+        
+        when(collectionContentRepository.findByCollectionIdOrderByOrderIndex(testEntity.getId()))
+                .thenReturn(joinEntries);
+        when(contentRepository.findAllByIds(anyList()))
+                .thenReturn(testBlocks);
+        when(contentProcessingUtil.convertBulkLoadedContentToModel(any(ContentEntity.class), any(CollectionContentEntity.class)))
                 .thenAnswer(invocation -> {
                     ContentEntity entity = invocation.getArgument(0);
                     ContentModel model = new ContentModel();

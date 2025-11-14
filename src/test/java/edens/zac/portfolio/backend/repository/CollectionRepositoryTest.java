@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.repository;
 
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -28,7 +29,6 @@ class CollectionRepositoryTest {
     private CollectionRepository repository;
 
     private CollectionEntity blogCollection;
-    private CollectionEntity portfolioCollection;
 
     @BeforeEach
     void setUp() {
@@ -40,7 +40,7 @@ class CollectionRepositoryTest {
         blogCollection.setVisible(true);
         blogCollection.setCollectionDate(LocalDate.now().minusDays(1));
 
-        portfolioCollection = new CollectionEntity();
+        CollectionEntity portfolioCollection = new CollectionEntity();
         portfolioCollection.setType(CollectionType.PORTFOLIO);
         portfolioCollection.setTitle("Test Portfolio");
         portfolioCollection.setSlug("test-portfolio");
@@ -66,7 +66,7 @@ class CollectionRepositoryTest {
         List<CollectionEntity> results = repository.findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType.BLOG);
 
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).getSlug()).isEqualTo("test-blog");
+        assertThat(results.getFirst().getSlug()).isEqualTo("test-blog");
     }
 
     @Test
@@ -121,6 +121,25 @@ class CollectionRepositoryTest {
 
         entityManager.persist(content1);
         entityManager.persist(content2);
+        entityManager.flush();
+        
+        // Link content to collection via join table
+        CollectionContentEntity join1 = CollectionContentEntity.builder()
+                .collection(blogCollection)
+                .content(content1)
+                .orderIndex(0)
+                .visible(true)
+                .build();
+        
+        CollectionContentEntity join2 = CollectionContentEntity.builder()
+                .collection(blogCollection)
+                .content(content2)
+                .orderIndex(1)
+                .visible(true)
+                .build();
+        
+        entityManager.persist(join1);
+        entityManager.persist(join2);
         entityManager.flush();
         
         // Clear the persistence context to force a fresh query

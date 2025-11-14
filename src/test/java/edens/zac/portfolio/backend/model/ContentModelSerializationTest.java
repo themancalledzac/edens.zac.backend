@@ -34,6 +34,7 @@ class ContentModelSerializationTest {
         model.setId(1L);
         model.setOrderIndex(3);
         model.setContentType(ContentType.IMAGE);
+        model.setTitle("Test caption");
         model.setCreatedAt(now);
         model.setUpdatedAt(now);
 
@@ -42,10 +43,9 @@ class ContentModelSerializationTest {
 
         // Assert
         assertTrue(json.contains("\"id\":1"));
-        assertTrue(json.contains("\"collectionId\":2"));
         assertTrue(json.contains("\"orderIndex\":3"));
         assertTrue(json.contains("\"contentType\":\"IMAGE\""));
-        assertTrue(json.contains("\"caption\":\"Test caption\""));
+        assertTrue(json.contains("\"title\":\"Test caption\""));
 
         // Check for date format as array [year,month,day,hour,minute]
         assertTrue(json.contains("\"createdAt\":[2023,1,1,12,0]"));
@@ -60,9 +60,8 @@ class ContentModelSerializationTest {
             {
                 "contentType": "IMAGE",
                 "id": 1,
-                "collectionId": 2,
                 "orderIndex": 3,
-                "caption": "Test caption",
+                "title": "Test caption",
                 "createdAt": "2023-01-01T12:00:00",
                 "updatedAt": "2023-01-01T12:00:00"
             }
@@ -95,14 +94,13 @@ class ContentModelSerializationTest {
         String json = objectMapper.writeValueAsString(model);
 
         // Assert
-        assertTrue(json.contains("\"collectionId\":1"));
         assertTrue(json.contains("\"orderIndex\":0"));
         assertTrue(json.contains("\"contentType\":\"TEXT\""));
 
         // Check that null fields are either not present or explicitly null
         // Different Jackson configurations might handle this differently
         assertTrue(json.contains("\"id\":null") || !json.contains("\"id\""));
-        assertTrue(json.contains("\"caption\":null") || !json.contains("\"caption\""));
+        assertTrue(json.contains("\"title\":null") || !json.contains("\"title\""));
         assertTrue(json.contains("\"createdAt\":null") || !json.contains("\"createdAt\""));
         assertTrue(json.contains("\"updatedAt\":null") || !json.contains("\"updatedAt\""));
     }

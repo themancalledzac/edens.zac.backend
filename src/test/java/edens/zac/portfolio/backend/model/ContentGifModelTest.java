@@ -81,14 +81,14 @@ class ContentGifModelTest {
         assertEquals(1, violations.size());
         ConstraintViolation<ContentGifModel> violation = violations.iterator().next();
         assertEquals("title", violation.getPropertyPath().toString());
-        assertTrue(violation.getMessage().contains("size must be between 0 and 255"));
+        assertTrue(violation.getMessage().contains("size must be between 0 and 250"));
     }
 
     @Test
     @DisplayName("Title at max length should pass validation")
     void maxLengthTitle_shouldPassValidation() {
         // Arrange
-        String maxTitle = "A".repeat(255); // Exactly 255 characters
+        String maxTitle = "A".repeat(250); // Exactly 250 characters (max for title)
         contentGif.setOrderIndex(0);
         contentGif.setContentType(ContentType.GIF);
         contentGif.setGifUrl("https://example.com/gif.gif");
@@ -310,22 +310,22 @@ class ContentGifModelTest {
     @DisplayName("Multiple validation errors are captured")
     void multipleValidationErrors_areCaptured() {
         // Arrange
-        String longTitle = "A".repeat(256);
-        String longThumbnailUrl = "A".repeat(256);
-        String longAuthor = "A".repeat(101);
+        String longTitle = "A".repeat(251); // Too long (max 250)
+        String longThumbnailUrl = "A".repeat(256); // Too long (max 255)
+        String longAuthor = "A".repeat(101); // Too long (max 100)
         
-        contentGif.setOrderIndex(-1); // Error 2 - inherited
-        contentGif.setContentType(null); // Error 3 - inherited
-        contentGif.setGifUrl(null); // Error 4 - null gif URL
-        contentGif.setTitle(longTitle); // Error 5 - long title
-        contentGif.setThumbnailUrl(longThumbnailUrl); // Error 6 - long thumbnail URL
-        contentGif.setAuthor(longAuthor); // Error 7 - long author
+        contentGif.setOrderIndex(-1); // Error 1 - inherited (negative)
+        contentGif.setContentType(null); // Error 2 - inherited (null)
+        contentGif.setGifUrl(null); // Error 3 - null gif URL
+        contentGif.setTitle(longTitle); // Error 4 - long title
+        contentGif.setThumbnailUrl(longThumbnailUrl); // Error 5 - long thumbnail URL
+        contentGif.setAuthor(longAuthor); // Error 6 - long author
 
         // Act
         Set<ConstraintViolation<ContentGifModel>> violations = validator.validate(contentGif);
 
         // Assert
-        assertEquals(7, violations.size());
+        assertEquals(6, violations.size());
     }
 
     @Test
@@ -333,7 +333,7 @@ class ContentGifModelTest {
     void inheritsValidation_fromContentModel() {
         // Arrange - Test that inherited validation still works
         contentGif.setOrderIndex(0);
-        contentGif.setContentType(ContentType.GIF);
+        // contentType is null (not set) - should fail validation
         contentGif.setGifUrl("https://example.com/gif.gif");
 
         // Act
@@ -342,7 +342,7 @@ class ContentGifModelTest {
         // Assert
         assertEquals(1, violations.size());
         ConstraintViolation<ContentGifModel> violation = violations.iterator().next();
-        assertEquals("collectionId", violation.getPropertyPath().toString());
+        assertEquals("contentType", violation.getPropertyPath().toString());
         assertTrue(violation.getMessage().contains("must not be null"));
     }
 

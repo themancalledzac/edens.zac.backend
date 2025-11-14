@@ -177,7 +177,7 @@ class CollectionControllerProdTest {
                 .andExpect(jsonPath("$.title", is("Test Blog")))
                 .andExpect(jsonPath("$.slug", is("test-blog")))
                 .andExpect(jsonPath("$.type", is("BLOG")))
-                .andExpect(jsonPath("$.totalBlocks", is(5)))
+                .andExpect(jsonPath("$.contentCount", is(5)))
                 .andExpect(jsonPath("$.totalPages", is(1)))
                 .andExpect(jsonPath("$.currentPage", is(0)));
     }

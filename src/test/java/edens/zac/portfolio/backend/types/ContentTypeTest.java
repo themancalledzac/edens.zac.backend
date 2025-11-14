@@ -21,6 +21,7 @@ class ContentTypeTest {
         assertEquals(ContentType.IMAGE, values[0]);
         assertEquals(ContentType.TEXT, values[1]);
         assertEquals(ContentType.GIF, values[2]);
+        assertEquals(ContentType.COLLECTION, values[3]);
     }
 
     @ParameterizedTest
@@ -51,9 +52,9 @@ class ContentTypeTest {
     // Test data providers
     static Stream<Arguments> provideEnumAndContentName() {
         return Stream.of(
-                Arguments.of(ContentType.IMAGE, "Image"),
-                Arguments.of(ContentType.TEXT, "Text"),
-                Arguments.of(ContentType.GIF, "Gif")
+                Arguments.of(ContentType.IMAGE, "IMAGE"),
+                Arguments.of(ContentType.TEXT, "TEXT"),
+                Arguments.of(ContentType.GIF, "GIF")
         );
     }
 

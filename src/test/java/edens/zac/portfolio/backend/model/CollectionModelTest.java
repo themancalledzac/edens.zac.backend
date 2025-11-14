@@ -431,7 +431,7 @@ class CollectionModelTest {
             assertTrue(toString.contains("PORTFOLIO"));
             assertTrue(toString.contains("Test Portfolio"));
             assertTrue(toString.contains("contentPerPage=30"));
-            assertTrue(toString.contains("totalContent=150"));
+            assertTrue(toString.contains("contentCount=150"));
         }
     }
 
