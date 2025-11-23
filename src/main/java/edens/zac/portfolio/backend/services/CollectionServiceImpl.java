@@ -302,7 +302,7 @@ class CollectionServiceImpl implements CollectionService {
 
         // Convert join table entries to content models
         List<ContentModel> contents = joinEntries.stream()
-                .map(joinEntry -> contentProcessingUtil.convertEntityToModel(joinEntry))
+                .map(contentProcessingUtil::convertEntityToModel)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
@@ -344,7 +344,7 @@ class CollectionServiceImpl implements CollectionService {
 
         // Populate collections for image content
         List<ContentModel> contents = model.getContent().stream()
-                .map(content -> {
+                .peek(content -> {
                     if (content instanceof ContentImageModel imageModel) {
                         Long contentId = content.getId();
                         List<CollectionContentEntity> contentCollections = collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
@@ -353,7 +353,6 @@ class CollectionServiceImpl implements CollectionService {
                                 .collect(Collectors.toList());
                         imageModel.setCollections(childCollections);
                     }
-                    return content;
                 })
                 .collect(Collectors.toList());
 
@@ -376,6 +375,7 @@ class CollectionServiceImpl implements CollectionService {
         return ChildCollection.builder()
                 .collectionId(collection.getId())
                 .name(collection.getTitle())
+                .slug(collection.getSlug())
                 .coverImageUrl(collection.getCoverImage() != null ? collection.getCoverImage().getImageUrlWeb() : null)
                 .visible(joinEntry.getVisible())
                 .orderIndex(joinEntry.getOrderIndex())
@@ -499,7 +499,7 @@ class CollectionServiceImpl implements CollectionService {
             List<ContentCollectionEntity> contentColEntities = findCurrentContentCollections(parentCollection, collectionUpdates.getRemove());
             
             // Continue even if no matching content collections are found
-            if (contentColEntities != null && !contentColEntities.isEmpty()) {
+            if (!contentColEntities.isEmpty()) {
                 List<Long> contentIdsToRemove = contentColEntities.stream()
                         .map(ContentCollectionEntity::getId)
                         .toList();
