@@ -31,6 +31,11 @@ public class ChildCollection {
     private String name;
 
     /**
+     * The slug of the collection (unique identifier for URL routing)
+     */
+    private String slug;
+
+    /**
      * The cover image URL of the collection.
      * Useful for displaying collection thumbnails when showing
      * "This image appears in these collections".
