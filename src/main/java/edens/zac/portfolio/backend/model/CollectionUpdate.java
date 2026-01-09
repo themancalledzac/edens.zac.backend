@@ -20,9 +20,11 @@ import java.util.List;
  * - Adding collections to parent collections
  *
  * Examples:
- * - {prev: [{collectionId: 1, visible: true, orderIndex: 0}]} = Update visibility/order
- * - {newValue: [{collectionId: 2, visible: true, orderIndex: 5}]} = Add to new collection
+ * - {prev: [{collectionId: 1, visible: true}]} = Update visibility
+ * - {newValue: [{collectionId: 2, visible: true, orderIndex: 5}]} = Add to new collection at position 5
  * - {remove: [3]} = Remove from collection ID 3
+ *
+ * Note: For reordering content within a collection, use the dedicated reorder endpoint instead.
  */
 @Data
 @Builder

@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "contentType")
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "contentType")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = ContentImageModel.class, name = "IMAGE"),
         @JsonSubTypes.Type(value = ContentTextModel.class, name = "TEXT"),
@@ -23,10 +23,11 @@ import java.time.LocalDateTime;
 })
 public class ContentModel {
     /**
-     * ID of the actual entity (not the content table ID).
-     * - For IMAGE: ContentImageEntity.id
-     * - For COLLECTION: The referenced CollectionEntity.id
-     * - For TEXT/CODE/GIF: Their respective entity IDs
+     * The content table ID. Consistent across all content types.
+     * Use this ID for reordering content within collections.
+     * - For IMAGE: ContentImageEntity.id (same as content.id due to JOINED inheritance)
+     * - For COLLECTION: ContentCollectionEntity.id (use referencedCollectionId to navigate to the actual collection)
+     * - For TEXT/GIF: Their respective entity IDs
      */
     private Long id;
 

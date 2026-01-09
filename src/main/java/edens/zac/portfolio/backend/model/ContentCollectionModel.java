@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
  * - Gallery collection containing links to sub-galleries
  *
  * Inherits from ContentModel which provides:
- * - id: The referenced collection's ID
+ * - id: The content table ID (ContentCollectionEntity.id) - used for reordering
  * - title: The collection's title
  * - description: The collection's description
  * - imageUrl: The collection's cover image URL
@@ -26,6 +26,13 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 public class ContentCollectionModel extends ContentModel {
+
+    /**
+     * The ID of the referenced collection in the collection table.
+     * Use this to navigate to/fetch the full collection.
+     * Note: This is different from the inherited 'id' field which is the content table ID.
+     */
+    private Long referencedCollectionId;
 
     /**
      * URL slug for routing to this collection.
@@ -47,7 +54,8 @@ public class ContentCollectionModel extends ContentModel {
     private ContentImageModel coverImage;
 
     // NOTE: All other fields are inherited from ContentModel:
-    // - id (the collection's ID)
+    // - id (the content table ID - consistent with IMAGE, TEXT, GIF types)
+    // - referencedCollectionId (the collection this content points to)
     // - title (the collection's title)
     // - description (the collection's description)
     // - orderIndex (position in parent collection)

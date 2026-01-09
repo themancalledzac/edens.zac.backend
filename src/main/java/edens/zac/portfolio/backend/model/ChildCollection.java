@@ -49,8 +49,10 @@ public class ChildCollection {
     private Boolean visible;
 
     /**
-     * The order index of this child entity within this specific collection
-     * Each child/collection relationship has its own order_index
+     * The order index of this child entity within this specific collection.
+     * INPUT ONLY: Used when adding content to a collection at a specific position.
+     * NOT populated in API responses - use content[].orderIndex instead for the current collection's order.
+     * If null when adding, content will be appended to the end of the collection.
      */
     private Integer orderIndex;
 }
