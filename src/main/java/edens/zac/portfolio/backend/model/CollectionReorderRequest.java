@@ -10,8 +10,9 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * Request for reordering images within a collection.
- * Allows multiple images to be reordered in a single atomic operation.
+ * Request for reordering content within a collection.
+ * Allows multiple content items to be reordered in a single atomic operation.
+ * Works with any content type: IMAGE, TEXT, GIF, COLLECTION.
  */
 @NoArgsConstructor
 @AllArgsConstructor
@@ -23,15 +24,19 @@ public class CollectionReorderRequest {
     private List<ReorderItem> reorders;
 
     /**
-     * Represents a single image reorder operation.
+     * Represents a single content reorder operation.
      */
     @NoArgsConstructor
     @AllArgsConstructor
     @Data
     public static class ReorderItem {
 
-        @NotNull(message = "Image ID is required")
-        private Long imageId;
+        /**
+         * The content ID (from content[].id in the collection response).
+         * This is the content table ID, consistent across all content types.
+         */
+        @NotNull(message = "Content ID is required")
+        private Long contentId;
 
         @NotNull(message = "New order index is required")
         private Integer newOrderIndex;

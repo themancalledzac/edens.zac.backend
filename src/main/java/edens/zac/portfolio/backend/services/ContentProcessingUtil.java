@@ -418,11 +418,13 @@ public class ContentProcessingUtil {
 
         ContentCollectionModel model = new ContentCollectionModel();
 
-        // Copy base properties from ContentEntity
+        // Copy base properties from ContentEntity (sets id to content table ID)
         copyBaseProperties(contentEntity, model);
 
         // Set collection-specific fields from the referenced collection
-        model.setId(collectionId);
+        // Note: id is already set by copyBaseProperties to contentEntity.getId() (content table ID)
+        // We set referencedCollectionId separately for navigation to the actual collection
+        model.setReferencedCollectionId(collectionId);
         model.setTitle(title);
         model.setSlug(slug);
         model.setCollectionType(collectionType);

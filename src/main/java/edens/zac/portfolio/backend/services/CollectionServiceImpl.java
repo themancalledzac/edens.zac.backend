@@ -378,7 +378,6 @@ class CollectionServiceImpl implements CollectionService {
                 .slug(collection.getSlug())
                 .coverImageUrl(collection.getCoverImage() != null ? collection.getCoverImage().getImageUrlWeb() : null)
                 .visible(joinEntry.getVisible())
-                .orderIndex(joinEntry.getOrderIndex())
                 .build();
     }
 
@@ -678,14 +677,14 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // 2 & 3. Update all order indices in a single transaction
-        // If any image doesn't belong to the collection, the update returns 0 and we throw an error
+        // If any content doesn't belong to the collection, the update returns 0 and we throw an error
         int totalUpdated = 0;
         for (CollectionReorderRequest.ReorderItem item : request.getReorders()) {
             int updated = collectionContentRepository.updateOrderIndexForContent(
-                    collectionId, item.getImageId(), item.getNewOrderIndex());
+                    collectionId, item.getContentId(), item.getNewOrderIndex());
             if (updated == 0) {
                 throw new IllegalArgumentException(
-                        "Image with ID " + item.getImageId() + " does not belong to collection " + collectionId);
+                        "Content with ID " + item.getContentId() + " does not belong to collection " + collectionId);
             }
             totalUpdated += updated;
         }
