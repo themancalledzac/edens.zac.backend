@@ -7,23 +7,23 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTagEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentRepository;
-import edens.zac.portfolio.backend.repository.CollectionRepository;
-import edens.zac.portfolio.backend.repository.CollectionContentRepository;
+import edens.zac.portfolio.backend.dao.CollectionDao;
+import edens.zac.portfolio.backend.dao.CollectionContentDao;
+import edens.zac.portfolio.backend.dao.ContentDao;
+import edens.zac.portfolio.backend.dao.ContentCollectionDao;
 import edens.zac.portfolio.backend.types.CollectionType;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -40,9 +40,10 @@ import static edens.zac.portfolio.backend.config.DefaultValues.default_content_p
 @RequiredArgsConstructor
 class CollectionServiceImpl implements CollectionService {
 
-    private final CollectionRepository collectionRepository;
-    private final ContentRepository contentRepository;
-    private final CollectionContentRepository collectionContentRepository;
+    private final CollectionDao collectionDao;
+    private final CollectionContentDao collectionContentDao;
+    private final ContentDao contentDao;
+    private final ContentCollectionDao contentCollectionDao;
     private final ContentProcessingUtil contentProcessingUtil;
     private final CollectionProcessingUtil collectionProcessingUtil;
     private final ContentService contentService;
@@ -56,20 +57,24 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting collection with slug: {} (page: {}, size: {})", slug, page, size);
 
         // Get collection metadata
-        CollectionEntity collection = collectionRepository.findBySlug(slug)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
+        CollectionEntity collection = collectionDao.findBySlug(slug)
+                .orElseThrow(() -> new IllegalArgumentException("Collection not found with slug: " + slug));
 
         // Normalize pagination parameters
         int normalizedPage = Math.max(0, page);
         int normalizedSize = size <= 0 ? DEFAULT_PAGE_SIZE : size;
-        Pageable pageable = PageRequest.of(normalizedPage, normalizedSize);
+        int offset = normalizedPage * normalizedSize;
+
+        // Get total count for pagination
+        long totalElements = collectionContentDao.countByCollectionId(collection.getId());
 
         // Get paginated join table entries (collection-content associations)
-        Page<CollectionContentEntity> collectionContentPage = collectionContentRepository
-                .findByCollectionId(collection.getId(), pageable);
+        List<CollectionContentEntity> collectionContentList = collectionContentDao
+                .findByCollectionId(collection.getId(), normalizedSize, offset);
 
         // Convert to model (now using join table data)
-        CollectionModel model = collectionProcessingUtil.convertToModel(collection, collectionContentPage);
+        CollectionModel model = collectionProcessingUtil.convertToModel(collection, collectionContentList,
+                normalizedPage, normalizedSize, totalElements);
 
         // Populate collections on content items
         populateCollectionsOnContent(model);
@@ -86,8 +91,8 @@ class CollectionServiceImpl implements CollectionService {
         // Password protection temporarily disabled during refactoring
 
         // Verify collection exists (using existsBySlug for efficiency when we don't need the entity)
-        if (!collectionRepository.existsBySlug(slug)) {
-            throw new EntityNotFoundException("Collection not found with slug: " + slug);
+        if (!collectionDao.existsBySlug(slug)) {
+            throw new IllegalArgumentException("Collection not found with slug: " + slug);
         }
 
 
@@ -114,16 +119,28 @@ class CollectionServiceImpl implements CollectionService {
     public Page<CollectionModel> findByType(CollectionType type, Pageable pageable) {
         log.debug("Finding collections by type: {}", type);
 
-        // Get collections by type with pagination
-        // Note: Currently all types use the same query - type filtering can be added if needed
-        Page<CollectionEntity> collectionsPage = collectionRepository.findAll(pageable);
+        // Get total count
+        long totalElements = collectionDao.countByType(type);
+
+        // Get all collections of this type (no pagination in DAO yet, so we'll paginate in memory)
+        List<CollectionEntity> allCollections = collectionDao.findTop50ByTypeOrderByCollectionDateDesc(type);
+        
+        // Apply pagination manually
+        int page = pageable.getPageNumber();
+        int size = pageable.getPageSize();
+        int start = page * size;
+        int end = Math.min(start + size, allCollections.size());
+        
+        List<CollectionEntity> paginatedCollections = start < allCollections.size() 
+            ? allCollections.subList(start, end)
+            : Collections.emptyList();
 
         // Convert to models
-        List<CollectionModel> models = collectionsPage.getContent().stream()
+        List<CollectionModel> models = paginatedCollections.stream()
                 .map(collectionProcessingUtil::convertToBasicModel)
                 .collect(Collectors.toList());
 
-        return new PageImpl<>(models, pageable, collectionsPage.getTotalElements());
+        return new PageImpl<>(models, pageable, totalElements);
     }
 
     @Override
@@ -132,7 +149,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding visible collections by type ordered by date: {}", type);
 
         // Get visible collections by type, ordered by collection date descending (newest first)
-        List<CollectionEntity> collections = collectionRepository
+        List<CollectionEntity> collections = collectionDao
                 .findByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
 
         // Convert to basic CollectionModel objects (no content blocks)
@@ -147,7 +164,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding collection by slug: {}", slug);
 
         // Get collection metadata only - content is fetched via join table in convertToFullModel
-        return collectionRepository.findBySlug(slug)
+        return collectionDao.findBySlug(slug)
                 .map(this::convertToFullModel);
     }
 
@@ -164,7 +181,7 @@ class CollectionServiceImpl implements CollectionService {
         );
 
         // Save entity
-        CollectionEntity savedEntity = collectionRepository.save(entity);
+        CollectionEntity savedEntity = collectionDao.save(entity);
 
         // Return full update response with all metadata (tags, people, cameras, etc.)
         return getUpdateCollectionData(savedEntity.getSlug());
@@ -176,8 +193,8 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Finding collection by ID: {}", id);
 
         // Get collection entity with content blocks
-        CollectionEntity entity = collectionRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
+        CollectionEntity entity = collectionDao.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Collection not found with ID: " + id));
 
         // Convert to full model (includes content blocks)
         return convertToFullModel(entity);
@@ -192,8 +209,8 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Updating collection with ID: {}", id);
 
         // Get existing entity
-        CollectionEntity entity = collectionRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + id));
+        CollectionEntity entity = collectionDao.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Collection not found with ID: " + id));
 
         // Update basic properties via utility helper
         collectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
@@ -216,11 +233,11 @@ class CollectionServiceImpl implements CollectionService {
 
 
         // Update total blocks count from join table before saving
-        long totalBlocks = collectionContentRepository.countByCollectionId(entity.getId());
+        long totalBlocks = collectionContentDao.countByCollectionId(entity.getId());
         entity.setTotalContent((int) totalBlocks);
 
         // Save updated entity
-        CollectionEntity savedEntity = collectionRepository.save(entity);
+        CollectionEntity savedEntity = collectionDao.save(entity);
 
         return convertToFullModel(savedEntity);
     }
@@ -232,17 +249,17 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Deleting collection with ID: {}", id);
 
         // Check if collection exists
-        if (!collectionRepository.existsById(id)) {
-            throw new EntityNotFoundException("Collection not found with ID: " + id);
+        if (!collectionDao.findById(id).isPresent()) {
+            throw new IllegalArgumentException("Collection not found with ID: " + id);
         }
 
         // Delete all join table entries (dissociate content from collection)
         // This does NOT delete the content itself - content is reusable!
-        collectionContentRepository.deleteByCollectionId(id);
+        collectionContentDao.deleteByCollectionId(id);
         log.debug("Deleted all join table entries for collection ID: {}", id);
 
         // Delete collection
-        collectionRepository.deleteById(id);
+        collectionDao.deleteById(id);
         log.info("Successfully deleted collection with ID: {}", id);
     }
 
@@ -251,15 +268,26 @@ class CollectionServiceImpl implements CollectionService {
     public Page<CollectionModel> getAllCollections(Pageable pageable) {
         log.debug("Getting all collections with pagination");
 
-        // Get all collections with pagination
-        Page<CollectionEntity> collectionsPage = collectionRepository.findAll(pageable);
+        // Get all collections (no pagination in DAO yet, so we'll paginate in memory)
+        List<CollectionEntity> allCollections = collectionDao.findAllByOrderByCollectionDateDesc();
+        long totalElements = allCollections.size();
+        
+        // Apply pagination manually
+        int page = pageable.getPageNumber();
+        int size = pageable.getPageSize();
+        int start = page * size;
+        int end = Math.min(start + size, allCollections.size());
+        
+        List<CollectionEntity> paginatedCollections = start < allCollections.size() 
+            ? allCollections.subList(start, end)
+            : Collections.emptyList();
 
         // Convert to models
-        List<CollectionModel> models = collectionsPage.getContent().stream()
+        List<CollectionModel> models = paginatedCollections.stream()
                 .map(collectionProcessingUtil::convertToBasicModel)
                 .collect(Collectors.toList());
 
-        return new PageImpl<>(models, pageable, collectionsPage.getTotalElements());
+        return new PageImpl<>(models, pageable, totalElements);
     }
 
     @Override
@@ -268,7 +296,7 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Getting all collections ordered by collection date");
 
         // Get all collections ordered by collection date descending
-        List<CollectionEntity> collections = collectionRepository.findAllByOrderByCollectionDateDesc();
+        List<CollectionEntity> collections = collectionDao.findAllByOrderByCollectionDateDesc();
 
         // Convert to basic models (no content blocks)
         return collections.stream()
@@ -292,7 +320,7 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // Fetch join table entries explicitly to get content with collection-specific metadata
-        List<CollectionContentEntity> joinEntries = collectionContentRepository
+        List<CollectionContentEntity> joinEntries = collectionContentDao
                 .findByCollectionIdOrderByOrderIndex(entity.getId());
 
         if (joinEntries.isEmpty()) {
@@ -300,9 +328,34 @@ class CollectionServiceImpl implements CollectionService {
             return model;
         }
 
-        // Convert join table entries to content models
+        // Extract content IDs and bulk load content entities
+        List<Long> contentIds = joinEntries.stream()
+                .map(CollectionContentEntity::getContentId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        // Bulk load all content entities
+        final Map<Long, ContentEntity> contentMap;
+        if (!contentIds.isEmpty()) {
+            List<ContentEntity> contentEntities = contentDao.findAllByIds(contentIds);
+            contentMap = contentEntities.stream()
+                    .collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
+        } else {
+            contentMap = new HashMap<>();
+        }
+
+        // Convert join table entries to content models using bulk-loaded entities
         List<ContentModel> contents = joinEntries.stream()
-                .map(contentProcessingUtil::convertEntityToModel)
+                .map(joinEntry -> {
+                    ContentEntity content = contentMap.get(joinEntry.getContentId());
+                    if (content == null) {
+                        log.warn("Content entity {} not found for collection {}", 
+                                joinEntry.getContentId(), entity.getId());
+                        return null;
+                    }
+                    return contentProcessingUtil.convertBulkLoadedContentToModel(content, joinEntry);
+                })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
@@ -338,9 +391,9 @@ class CollectionServiceImpl implements CollectionService {
         }
 
         // Batch-load all collections for all content items in one query
-        List<CollectionContentEntity> allCollections = collectionContentRepository.findByContentIdsIn(contentIds);
+        List<CollectionContentEntity> allCollections = collectionContentDao.findByContentIdsIn(contentIds);
         Map<Long, List<CollectionContentEntity>> collectionsByContentId = allCollections.stream()
-                .collect(Collectors.groupingBy(cc -> cc.getContent().getId()));
+                .collect(Collectors.groupingBy(CollectionContentEntity::getContentId));
 
         // Populate collections for image content
         List<ContentModel> contents = model.getContent().stream()
@@ -367,16 +420,27 @@ class CollectionServiceImpl implements CollectionService {
      * @return The ChildCollection model
      */
     private ChildCollection convertToChildCollection(CollectionContentEntity joinEntry) {
-        if (joinEntry == null || joinEntry.getCollection() == null) {
+        if (joinEntry == null || joinEntry.getCollectionId() == null) {
             return null;
         }
 
-        CollectionEntity collection = joinEntry.getCollection();
+        CollectionEntity collection = collectionDao.findById(joinEntry.getCollectionId())
+                .orElse(null);
+        if (collection == null) {
+            return null;
+        }
+
+        final String coverImageUrl = collection.getCoverImageId() != null
+                ? contentDao.findImageById(collection.getCoverImageId())
+                        .map(image -> image.getImageUrlWeb())
+                        .orElse(null)
+                : null;
+
         return ChildCollection.builder()
                 .collectionId(collection.getId())
                 .name(collection.getTitle())
                 .slug(collection.getSlug())
-                .coverImageUrl(collection.getCoverImage() != null ? collection.getCoverImage().getImageUrlWeb() : null)
+                .coverImageUrl(coverImageUrl)
                 .visible(joinEntry.getVisible())
                 .build();
     }
@@ -389,7 +453,7 @@ class CollectionServiceImpl implements CollectionService {
 
         // Get the collection
         CollectionModel collection = findBySlug(slug)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with slug: " + slug));
+                .orElseThrow(() -> new IllegalArgumentException("Collection not found with slug: " + slug));
 
         // Get all general metadata using helper method
         GeneralMetadataDTO metadata = getGeneralMetadata();
@@ -415,10 +479,10 @@ class CollectionServiceImpl implements CollectionService {
         List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
 
         // Get all collections as CollectionListModel (using projection for efficiency)
-        List<CollectionListModel> collections = collectionRepository.findIdAndTitleOnly().stream()
-                .map(result -> CollectionListModel.builder()
-                        .id((Long) result[0])
-                        .name((String) result[1])
+        List<CollectionListModel> collections = collectionDao.findIdAndTitleOnly().stream()
+                .map(summary -> CollectionListModel.builder()
+                        .id(summary.id())
+                        .name(summary.title())
                         .build())
                 .collect(Collectors.toList());
 
@@ -457,12 +521,29 @@ class CollectionServiceImpl implements CollectionService {
      * @param tagUpdate  The tag update containing remove/prev/newValue operations
      */
     private void updateCollectionTags(CollectionEntity collection, TagUpdate tagUpdate) {
+        // Load current tags
+        List<Long> tagIds = collectionDao.findCollectionTagIds(collection.getId());
+        Set<ContentTagEntity> currentTags = tagIds.stream()
+                .map(tagId -> {
+                    // Create minimal tag entity with just ID - full loading not needed for update
+                    ContentTagEntity tag = new ContentTagEntity();
+                    tag.setId(tagId);
+                    return tag;
+                })
+                .collect(Collectors.toSet());
+
         Set<ContentTagEntity> updatedTags = contentProcessingUtil.updateTags(
-                collection.getTags(),
+                currentTags,
                 tagUpdate,
                 null // No tracking needed for collection updates
         );
-        collection.setTags(updatedTags);
+        
+        // Save updated tags
+        List<Long> updatedTagIds = updatedTags.stream()
+                .map(ContentTagEntity::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        collectionDao.saveCollectionTags(collection.getId(), updatedTagIds);
         log.info("Updated tags for collection {}", collection.getId());
     }
 
@@ -474,12 +555,29 @@ class CollectionServiceImpl implements CollectionService {
      * @param personUpdate The person update containing remove/prev/newValue operations
      */
     private void updateCollectionPeople(CollectionEntity collection, PersonUpdate personUpdate) {
+        // Load current people
+        List<Long> personIds = collectionDao.findCollectionPersonIds(collection.getId());
+        Set<ContentPersonEntity> currentPeople = personIds.stream()
+                .map(personId -> {
+                    // Create minimal person entity with just ID - full loading not needed for update
+                    ContentPersonEntity person = new ContentPersonEntity();
+                    person.setId(personId);
+                    return person;
+                })
+                .collect(Collectors.toSet());
+
         Set<ContentPersonEntity> updatedPeople = contentProcessingUtil.updatePeople(
-                collection.getPeople(),
+                currentPeople,
                 personUpdate,
                 null // No tracking needed for collection updates
         );
-        collection.setPeople(updatedPeople);
+        
+        // Save updated people
+        List<Long> updatedPersonIds = updatedPeople.stream()
+                .map(ContentPersonEntity::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        collectionDao.saveCollectionPeople(collection.getId(), updatedPersonIds);
         log.info("Updated people for collection {}", collection.getId());
     }
 
@@ -503,7 +601,7 @@ class CollectionServiceImpl implements CollectionService {
                         .map(ContentCollectionEntity::getId)
                         .toList();
                 
-                collectionContentRepository.removeContentFromCollection(parentCollection.getId(), contentIdsToRemove);
+                collectionContentDao.removeContentFromCollection(parentCollection.getId(), contentIdsToRemove);
                 log.info("Removed {} collection references from parent collection {}", contentIdsToRemove.size(), parentCollection.getId());
             } else {
                 log.debug("No matching content collections found to remove from collection {}", parentCollection.getId());
@@ -514,41 +612,44 @@ class CollectionServiceImpl implements CollectionService {
         if (collectionUpdates.getNewValue() != null && !collectionUpdates.getNewValue().isEmpty()) {
             for (ChildCollection childCollection : collectionUpdates.getNewValue()) {
                 // Find the child collection entity
-                CollectionEntity childCollectionEntity = collectionRepository.findById(childCollection.getCollectionId())
-                        .orElseThrow(() -> new EntityNotFoundException("Child collection not found: " + childCollection.getCollectionId()));
+                CollectionEntity childCollectionEntity = collectionDao.findById(childCollection.getCollectionId())
+                        .orElseThrow(() -> new IllegalArgumentException("Child collection not found: " + childCollection.getCollectionId()));
 
                 // Check if ContentCollectionEntity already exists for this referenced collection
                 ContentCollectionEntity existingContentCollection = findOrCreateContentCollectionEntity(childCollectionEntity);
 
                 Integer orderIndex = childCollection.getOrderIndex() != null
                         ? childCollection.getOrderIndex()
-                        : collectionContentRepository.getNextOrderIndexForCollection(parentCollection.getId());
+                        : (collectionContentDao.getMaxOrderIndexForCollection(parentCollection.getId()) != null 
+                            ? collectionContentDao.getMaxOrderIndexForCollection(parentCollection.getId()) + 1 
+                            : 0);
 
                 // Check if this content is already in the parent collection
-                CollectionContentEntity existingJoinEntry = collectionContentRepository
-                        .findByCollectionIdAndContentId(parentCollection.getId(), existingContentCollection.getId());
+                CollectionContentEntity existingJoinEntry = collectionContentDao
+                        .findByCollectionIdAndContentId(parentCollection.getId(), existingContentCollection.getId())
+                        .orElse(null);
 
                 if (existingJoinEntry == null) {
                     // Create new join table entry
                     CollectionContentEntity newEntry = CollectionContentEntity.builder()
-                            .collection(parentCollection)
-                            .content(existingContentCollection)
+                            .collectionId(parentCollection.getId())
+                            .contentId(existingContentCollection.getId())
                             .orderIndex(orderIndex)
                             .visible(childCollection.getVisible() != null ? childCollection.getVisible() : false)
                             .createdAt(LocalDateTime.now())
                             .updatedAt(LocalDateTime.now())
                             .build();
 
-                    collectionContentRepository.save(newEntry);
+                    collectionContentDao.save(newEntry);
                     log.info("Added collection {} to parent collection {} at index {}", 
                             childCollectionEntity.getId(), parentCollection.getId(), orderIndex);
                 } else {
                     // Update existing entry
                     if (childCollection.getOrderIndex() != null) {
-                        collectionContentRepository.updateOrderIndex(existingJoinEntry.getId(), childCollection.getOrderIndex());
+                        collectionContentDao.updateOrderIndex(existingJoinEntry.getId(), childCollection.getOrderIndex());
                     }
                     if (childCollection.getVisible() != null) {
-                        collectionContentRepository.updateVisible(existingJoinEntry.getId(), childCollection.getVisible());
+                        collectionContentDao.updateVisible(existingJoinEntry.getId(), childCollection.getVisible());
                     }
                     log.info("Updated existing collection reference in parent collection {}", parentCollection.getId());
                 }
@@ -562,15 +663,16 @@ class CollectionServiceImpl implements CollectionService {
                 ContentCollectionEntity contentCollectionEntity = findContentCollectionEntityByReferencedCollectionId(prev.getCollectionId());
                 
                 if (contentCollectionEntity != null) {
-                    CollectionContentEntity joinEntry = collectionContentRepository
+                    Optional<CollectionContentEntity> joinEntryOpt = collectionContentDao
                             .findByCollectionIdAndContentId(parentCollection.getId(), contentCollectionEntity.getId());
 
-                    if (joinEntry != null) {
+                    if (joinEntryOpt.isPresent()) {
+                        CollectionContentEntity joinEntry = joinEntryOpt.get();
                         if (prev.getOrderIndex() != null) {
-                            collectionContentRepository.updateOrderIndex(joinEntry.getId(), prev.getOrderIndex());
+                            collectionContentDao.updateOrderIndex(joinEntry.getId(), prev.getOrderIndex());
                         }
                         if (prev.getVisible() != null) {
-                            collectionContentRepository.updateVisible(joinEntry.getId(), prev.getVisible());
+                            collectionContentDao.updateVisible(joinEntry.getId(), prev.getVisible());
                         }
                         log.debug("Updated existing collection reference {} in parent collection {}", 
                                 contentCollectionEntity.getId(), parentCollection.getId());
@@ -596,15 +698,18 @@ class CollectionServiceImpl implements CollectionService {
         List<ContentCollectionEntity> matchingContentCollections = new ArrayList<>();
         
         // Get all join table entries for this parent collection
-        List<CollectionContentEntity> joinEntries = collectionContentRepository
+        List<CollectionContentEntity> joinEntries = collectionContentDao
                 .findByCollectionIdOrderByOrderIndex(parentCollection.getId());
 
         for (CollectionContentEntity joinEntry : joinEntries) {
-            ContentEntity content = joinEntry.getContent();
-            // Unproxy to ensure we have the actual entity, not a lazy proxy
-            content = contentProcessingUtil.unproxyContentEntity(content);
+            Long contentId = joinEntry.getContentId();
+            if (contentId == null) {
+                continue;
+            }
             
-            if (content instanceof ContentCollectionEntity contentCollectionEntity) {
+            // Load the content entity to check if it's a ContentCollectionEntity
+            ContentCollectionEntity contentCollectionEntity = contentCollectionDao.findById(contentId).orElse(null);
+            if (contentCollectionEntity != null) {
                 CollectionEntity referencedCollection = contentCollectionEntity.getReferencedCollection();
                 if (referencedCollection != null && collectionIdsToRemove.contains(referencedCollection.getId())) {
                     matchingContentCollections.add(contentCollectionEntity);
@@ -648,7 +753,7 @@ class CollectionServiceImpl implements CollectionService {
                 .referencedCollection(referencedCollection)
                 .build();
 
-        ContentCollectionEntity saved = contentRepository.save(newContentCollection);
+        ContentCollectionEntity saved = contentCollectionDao.save(newContentCollection);
         log.info("Created new ContentCollectionEntity {} for collection {}", 
                 saved.getId(), referencedCollection.getId());
         return saved;
@@ -661,7 +766,7 @@ class CollectionServiceImpl implements CollectionService {
      * @return The ContentCollectionEntity if found, null otherwise
      */
     private ContentCollectionEntity findContentCollectionEntityByReferencedCollectionId(Long referencedCollectionId) {
-        return contentRepository.findContentCollectionByReferencedCollectionId(referencedCollectionId)
+        return contentCollectionDao.findByReferencedCollectionId(referencedCollectionId)
                 .orElse(null);
     }
 
@@ -672,15 +777,15 @@ class CollectionServiceImpl implements CollectionService {
         log.debug("Reordering content in collection {} with {} reorder operations", collectionId, request.getReorders().size());
 
         // 1. Verify collection exists
-        if (!collectionRepository.existsById(collectionId)) {
-            throw new EntityNotFoundException("Collection not found with ID: " + collectionId);
+        if (!collectionDao.findById(collectionId).isPresent()) {
+            throw new IllegalArgumentException("Collection not found with ID: " + collectionId);
         }
 
         // 2 & 3. Update all order indices in a single transaction
         // If any content doesn't belong to the collection, the update returns 0 and we throw an error
         int totalUpdated = 0;
         for (CollectionReorderRequest.ReorderItem item : request.getReorders()) {
-            int updated = collectionContentRepository.updateOrderIndexForContent(
+            int updated = collectionContentDao.updateOrderIndexForContent(
                     collectionId, item.getContentId(), item.getNewOrderIndex());
             if (updated == 0) {
                 throw new IllegalArgumentException(
@@ -692,12 +797,14 @@ class CollectionServiceImpl implements CollectionService {
         log.info("Successfully reordered {} items in collection {}", totalUpdated, collectionId);
 
         // Return updated collection model
-        CollectionEntity collection = collectionRepository.findById(collectionId)
-                .orElseThrow(() -> new EntityNotFoundException("Collection not found with ID: " + collectionId));
-        List<CollectionContentEntity> updatedContent = collectionContentRepository
+        CollectionEntity collection = collectionDao.findById(collectionId)
+                .orElseThrow(() -> new IllegalArgumentException("Collection not found with ID: " + collectionId));
+        List<CollectionContentEntity> updatedContent = collectionContentDao
                 .findByCollectionIdOrderByOrderIndex(collectionId);
-        Page<CollectionContentEntity> contentPage = new PageImpl<>(updatedContent);
-        CollectionModel model = collectionProcessingUtil.convertToModel(collection, contentPage);
+        long totalElements = updatedContent.size();
+        int pageSize = totalElements > 0 ? (int) totalElements : DEFAULT_PAGE_SIZE;
+        CollectionModel model = collectionProcessingUtil.convertToModel(collection, updatedContent,
+                0, pageSize, totalElements);
         populateCollectionsOnContent(model);
         return model;
     }

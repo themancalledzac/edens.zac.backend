@@ -252,15 +252,8 @@ class CollectionEntityTest {
         collection.setContentPerPage(20);
         collection.setTotalContent(100);
         
-        // Create a mock ContentImageEntity for cover image
-        ContentImageEntity coverImage = ContentImageEntity.builder()
-                .contentType(edens.zac.portfolio.backend.types.ContentType.IMAGE)
-                .imageUrlWeb("https://example.com/cover-image.jpg")
-                .imageWidth(1920)
-                .imageHeight(1080)
-                .build();
-        coverImage.setId(123L);
-        collection.setCoverImage(coverImage);
+        // Set cover image ID (entity now uses ID reference instead of entity reference)
+        collection.setCoverImageId(123L);
 
         // Verify all fields were set correctly
         assertEquals(CollectionType.PORTFOLIO, collection.getType());
@@ -272,8 +265,8 @@ class CollectionEntityTest {
         assertTrue(collection.getVisible());
         assertEquals(20, collection.getContentPerPage());
         assertEquals(100, collection.getTotalContent());
-        assertNotNull(collection.getCoverImage());
-        assertEquals("https://example.com/cover-image.jpg", collection.getCoverImage().getImageUrlWeb());
+        assertNotNull(collection.getCoverImageId());
+        assertEquals(123L, collection.getCoverImageId());
     }
 
     @Test

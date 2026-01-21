@@ -8,7 +8,6 @@ import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -159,7 +158,7 @@ class CollectionControllerDevTest {
     void updateCollection_shouldHandleNotFoundError() throws Exception {
         // Arrange
         when(collectionService.updateContent(eq(999L), any(CollectionUpdateRequest.class)))
-                .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
+                .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
 
         // Act & Assert
         mockMvc.perform(put("/api/admin/collections/999")
@@ -189,7 +188,7 @@ class CollectionControllerDevTest {
     @DisplayName("DELETE /collections/{id} should handle not found error")
     void deleteCollection_shouldHandleNotFoundError() throws Exception {
         // Arrange
-        doThrow(new EntityNotFoundException("Collection with ID: 999 not found"))
+        doThrow(new IllegalArgumentException("Collection not found with ID: 999"))
                 .when(collectionService).deleteCollection(999L);
 
         // Act & Assert

@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentType;
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Data;
@@ -12,49 +11,49 @@ import lombok.experimental.SuperBuilder;
 import java.util.HashSet;
 import java.util.Set;
 
-@Entity
-@Table(name = "content_gif")
-@PrimaryKeyJoinColumn(name = "id")
+/**
+ * Entity representing GIF content.
+ * Extends ContentEntity (JOINED inheritance - base table: content, child table: content_gif).
+ * 
+ * Database table: content_gif
+ * Primary key: id (inherited from content table, FK to content.id)
+ * 
+ * Join tables:
+ *   - content_gif_tags (gif_id, tag_id) - many-to-many with tags
+ * 
+ * Indexes on join table:
+ *   - idx_gif_tags_gif (gif_id)
+ *   - idx_gif_tags_tag (tag_id)
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @SuperBuilder
 public class ContentGifEntity extends ContentEntity {
 
+    /** Column: title (VARCHAR) */
     private String title;
     
-    // S3 URL fields
+    /** Column: gif_url (VARCHAR, NOT NULL) - S3 URL for GIF */
     @NotNull
-    @Column(name = "gif_url")
     private String gifUrl;
     
-    @Column(name = "thumbnail_url")
+    /** Column: thumbnail_url (VARCHAR) - S3 URL for thumbnail */
     private String thumbnailUrl;
     
-    // Optional metadata
-    @Column(name = "width")
+    /** Column: width (INTEGER) */
     private Integer width;
     
-    @Column(name = "height")
+    /** Column: height (INTEGER) */
     private Integer height;
     
-    @Column(name = "author")
+    /** Column: author (VARCHAR) */
     private String author;
     
-    @Column(name = "create_date")
+    /** Column: create_date (VARCHAR) */
     private String createDate;
 
-    // Many-to-many relationship with ContentTagEntity
-    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
-    @JoinTable(
-            name = "content_gif_tags",
-            joinColumns = @JoinColumn(name = "gif_id"),
-            inverseJoinColumns = @JoinColumn(name = "tag_id"),
-            indexes = {
-                    @Index(name = "idx_gif_tags_gif", columnList = "gif_id"),
-                    @Index(name = "idx_gif_tags_tag", columnList = "tag_id")
-            }
-    )
+    /** Relationship: Many-to-many with ContentTagEntity (via content_gif_tags table) */
     @Builder.Default
     private Set<ContentTagEntity> tags = new HashSet<>();
 

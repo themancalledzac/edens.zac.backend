@@ -1,13 +1,10 @@
 package edens.zac.portfolio.backend.entity;
 
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -23,57 +20,53 @@ import java.time.LocalDateTime;
  * - Same TEXT content in "Blog Post A" at position 1 and "Blog Post B" at position 3
  * - Same IMAGE in "Portfolio" and "Gallery" at different positions
  * - Same COLLECTION reference (ContentCollectionEntity) in "Home Page" and "Archive Page" at different positions
+ * 
+ * Database table: collection_content
+ * Indexes:
+ *   - idx_collection_content_collection (collection_id)
+ *   - idx_collection_content_content (content_id)
+ *   - idx_collection_content_order (collection_id, order_index)
+ * 
+ * Foreign keys:
+ *   - collection_id -> collection.id (NOT NULL)
+ *   - content_id -> content.id (NOT NULL)
  */
-@Entity
-@Table(
-        name = "collection_content",
-        indexes = {
-                @Index(name = "idx_collection_content_collection", columnList = "collection_id"),
-                @Index(name = "idx_collection_content_content", columnList = "content_id"),
-                @Index(name = "idx_collection_content_order", columnList = "collection_id, order_index")
-        }
-)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class CollectionContentEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** Column: id (BIGINT, PRIMARY KEY, auto-generated) */
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "collection_id", nullable = false)
-    private CollectionEntity collection;
+    /** Column: collection_id (BIGINT, NOT NULL, FK to collection.id) */
+    private Long collectionId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "content_id", nullable = false)
-    private ContentEntity content;
+    /** Column: content_id (BIGINT, NOT NULL, FK to content.id) */
+    private Long contentId;
 
     /**
+     * Column: order_index (INTEGER, NOT NULL)
      * Position of this content within the collection.
      * Lower values appear first. Collection-specific.
      */
     @NotNull
-    @Column(name = "order_index", nullable = false)
     private Integer orderIndex;
 
     /**
+     * Column: visible (BOOLEAN, NOT NULL, default: true)
      * Whether this content is visible in this specific collection.
      * The same content can be visible in one collection but hidden in another.
      */
     @NotNull
-    @Column(name = "visible", nullable = false)
     @Builder.Default
     private Boolean visible = true;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    /** Column: created_at (TIMESTAMP, NOT NULL) */
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
+    /** Column: updated_at (TIMESTAMP, NOT NULL) */
     private LocalDateTime updatedAt;
 
 }

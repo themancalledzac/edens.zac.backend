@@ -5,13 +5,12 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.CollectionRepository;
-import edens.zac.portfolio.backend.repository.ContentRepository;
-import edens.zac.portfolio.backend.repository.CollectionContentRepository;
+import edens.zac.portfolio.backend.dao.CollectionDao;
+import edens.zac.portfolio.backend.dao.ContentDao;
+import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.types.CollectionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -29,9 +28,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CollectionProcessingUtil {
 
-    private final CollectionRepository collectionRepository;
-    private final ContentRepository contentRepository;
-    private final CollectionContentRepository collectionContentRepository;
+    private final CollectionDao collectionDao;
+    private final ContentDao contentDao;
+    private final CollectionContentDao collectionContentDao;
     private final ContentProcessingUtil contentProcessingUtil;
 
     // =============================================================================
@@ -45,14 +44,18 @@ public class CollectionProcessingUtil {
 
     /**
      * Helper method to populate coverImage on a model from an entity.
-     * Converts the ContentImageEntity relationship to ContentImageModel
+     * Fetches the cover image by ID and converts to ContentImageModel
      * with all metadata including imageWidth and imageHeight.
      */
     private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
-        if (entity.getCoverImage() != null) {
-            // Convert the ContentImageEntity to ContentImageModel with full metadata
-            ContentImageModel coverImageModel = contentProcessingUtil.convertImageEntityToModel(entity.getCoverImage());
-            model.setCoverImage(coverImageModel);
+        if (entity.getCoverImageId() != null) {
+            // Fetch the ContentImageEntity by ID and convert to ContentImageModel with full metadata
+            ContentImageEntity coverImage = contentDao.findImageById(entity.getCoverImageId())
+                    .orElse(null);
+            if (coverImage != null) {
+                ContentImageModel coverImageModel = contentProcessingUtil.convertImageEntityToModel(coverImage);
+                model.setCoverImage(coverImageModel);
+            }
         }
     }
 
@@ -120,19 +123,19 @@ public class CollectionProcessingUtil {
         CollectionModel model = convertToBasicModel(entity);
 
         // Fetch join table entries explicitly to get content with collection-specific metadata
-        List<CollectionContentEntity> joinEntries = collectionContentRepository
+        List<CollectionContentEntity> joinEntries = collectionContentDao
                 .findByCollectionIdOrderByOrderIndex(entity.getId());
 
         // Extract content IDs from join table entries
         List<Long> contentIds = joinEntries.stream()
-                .map(cc -> cc.getContent().getId())
+                .map(CollectionContentEntity::getContentId)
                 .filter(Objects::nonNull)
                 .toList();
 
         // Bulk fetch all ContentEntity instances in one query (properly loads all subclasses)
         final Map<Long, ContentEntity> contentMap;
         if (!contentIds.isEmpty()) {
-            List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
+            List<ContentEntity> contentEntities = contentDao.findAllByIds(contentIds);
             contentMap = contentEntities.stream()
                     .collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
         } else {
@@ -144,10 +147,10 @@ public class CollectionProcessingUtil {
         List<ContentModel> contents = joinEntries.stream()
                 .filter(Objects::nonNull)
                 .map(cc -> {
-                    ContentEntity content = contentMap.get(cc.getContent().getId());
+                    ContentEntity content = contentMap.get(cc.getContentId());
                     if (content == null) {
                         log.warn("Content entity {} not found in bulk load for collection {}", 
-                                cc.getContent().getId(), entity.getId());
+                                cc.getContentId(), entity.getId());
                         return null;
                     }
                     // Use bulk-loaded conversion method directly (no temporary object needed)
@@ -161,14 +164,18 @@ public class CollectionProcessingUtil {
     }
 
     /**
-     * Convert a CollectionEntity and a Page of CollectionContentEntity to a CollectionModel.
+     * Convert a CollectionEntity and a List of CollectionContentEntity to a CollectionModel.
      * Uses bulk loading of ContentEntity instances to avoid proxy issues and improve performance.
      *
      * @param entity                The entity to convert
-     * @param collectionContentPage The page of join table entries (collection-content associations)
+     * @param collectionContentList The list of join table entries (collection-content associations)
+     * @param currentPage           The current page number (0-based)
+     * @param pageSize              The page size
+     * @param totalElements         The total number of elements
      * @return The converted model
      */
-    public CollectionModel convertToModel(CollectionEntity entity, Page<CollectionContentEntity> collectionContentPage) {
+    public CollectionModel convertToModel(CollectionEntity entity, List<CollectionContentEntity> collectionContentList,
+                                         int currentPage, int pageSize, long totalElements) {
         if (entity == null) {
             return null;
         }
@@ -176,15 +183,15 @@ public class CollectionProcessingUtil {
         CollectionModel model = convertToBasicModel(entity);
 
         // Extract content IDs from join table entries
-        List<Long> contentIds = collectionContentPage.getContent().stream()
-                .map(cc -> cc.getContent().getId())
+        List<Long> contentIds = collectionContentList.stream()
+                .map(cc -> cc.getContentId())
                 .filter(Objects::nonNull)
                 .toList();
 
         // Bulk fetch all ContentEntity instances in one query (properly loads all subclasses)
         final Map<Long, ContentEntity> contentMap;
         if (!contentIds.isEmpty()) {
-            List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
+            List<ContentEntity> contentEntities = contentDao.findAllByIds(contentIds);
             contentMap = contentEntities.stream()
                     .collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
         } else {
@@ -193,13 +200,13 @@ public class CollectionProcessingUtil {
 
         // Convert join table entries to content models with collection-specific metadata
         // Use the bulk-loaded content entities instead of lazy-loaded ones
-        List<ContentModel> contents = collectionContentPage.getContent().stream()
+        List<ContentModel> contents = collectionContentList.stream()
                 .filter(Objects::nonNull)
                 .map(cc -> {
-                    ContentEntity content = contentMap.get(cc.getContent().getId());
+                    ContentEntity content = contentMap.get(cc.getContentId());
                     if (content == null) {
                         log.warn("Content entity {} not found in bulk load for collection {}", 
-                                cc.getContent().getId(), entity.getId());
+                                cc.getContentId(), entity.getId());
                         return null;
                     }
                     // Use bulk-loaded conversion method directly (no temporary object needed)
@@ -211,10 +218,11 @@ public class CollectionProcessingUtil {
         model.setContent(contents);
 
         // Set pagination metadata
-        model.setCurrentPage(collectionContentPage.getNumber());
-        model.setTotalPages(collectionContentPage.getTotalPages());
-        model.setContentCount((int) collectionContentPage.getTotalElements());
-        model.setContentPerPage(collectionContentPage.getSize());
+        int totalPages = pageSize > 0 ? (int) Math.ceil((double) totalElements / pageSize) : 0;
+        model.setCurrentPage(currentPage);
+        model.setTotalPages(totalPages);
+        model.setContentCount((int) totalElements);
+        model.setContentPerPage(pageSize);
         return model;
     }
 
@@ -302,13 +310,13 @@ public class CollectionProcessingUtil {
         if (updateDTO.getCoverImageId() != null) {
             if (updateDTO.getCoverImageId() == 0) {
                 // Explicitly clear cover image if ID is 0
-                entity.setCoverImage(null);
+                entity.setCoverImageId(null);
             } else {
-                // Load and set the cover image entity
-                ContentImageEntity coverImage = contentRepository.findImageById(updateDTO.getCoverImageId())
+                // Verify cover image exists
+                contentDao.findImageById(updateDTO.getCoverImageId())
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Cover image not found with ID: " + updateDTO.getCoverImageId()));
-                entity.setCoverImage(coverImage);
+                entity.setCoverImageId(updateDTO.getCoverImageId());
             }
         }
 
@@ -363,7 +371,7 @@ public class CollectionProcessingUtil {
         }
 
         // Check if slug already exists
-        boolean exists = collectionRepository.findBySlug(slug)
+        boolean exists = collectionDao.findBySlug(slug)
                 .map(entity -> !entity.getId().equals(existingId))
                 .orElse(false);
 
@@ -376,7 +384,7 @@ public class CollectionProcessingUtil {
         String newSlug;
         do {
             newSlug = slug + "-" + counter++;
-            exists = collectionRepository.findBySlug(newSlug).isPresent();
+            exists = collectionDao.findBySlug(newSlug).isPresent();
         } while (exists && counter < 100); // Limit to prevent infinite loop
 
         if (exists) {

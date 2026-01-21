@@ -1,33 +1,31 @@
 package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
-import jakarta.persistence.Table;
-import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-@Entity
-@Table(name = "content_text")
-@PrimaryKeyJoinColumn(name = "id")
+/**
+ * Entity representing text content.
+ * Extends ContentEntity (JOINED inheritance - base table: content, child table: content_text).
+ * 
+ * Database table: content_text
+ * Primary key: id (inherited from content table, FK to content.id)
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @SuperBuilder
 public class ContentTextEntity extends ContentEntity {
 
+    /** Column: text_content (TEXT, NOT NULL) */
     @NotNull
-    @Lob
-    @Column(name = "text_content", columnDefinition = "TEXT")
     private String textContent;
     
-    @Column(name = "format_type")
-    private String formatType; // Options: "markdown", "html", "plain", "js", "py", "sql", "java", "ts", "tf", "yml"
+    /** Column: format_type (VARCHAR) - Options: "markdown", "html", "plain", "js", "py", "sql", "java", "ts", "tf", "yml" */
+    private String formatType;
     
     @Override
     public ContentType getContentType() {
