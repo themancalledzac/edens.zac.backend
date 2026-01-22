@@ -26,11 +26,11 @@ public class CollectionDao extends BaseDao {
     }
 
     private static final String SELECT_COLLECTION = """
-        SELECT id, type, title, slug, description, location, collection_date,
-               visible, display_mode, cover_image_id, content_per_page, total_content,
-               created_at, updated_at
-        FROM collection
-        """;
+            SELECT id, type, title, slug, description, location, location_id, collection_date,
+                   visible, display_mode, cover_image_id, content_per_page, total_content,
+                   created_at, updated_at
+            FROM collection
+            """;
 
     /**
      * RowMapper for CollectionEntity.
@@ -44,33 +44,36 @@ public class CollectionDao extends BaseDao {
         entity.setSlug(rs.getString("slug"));
         entity.setDescription(rs.getString("description"));
         entity.setLocation(rs.getString("location"));
-        
+        entity.setLocationId(getLong(rs, "location_id"));
+
         entity.setCollectionDate(getLocalDate(rs, "collection_date"));
-        
+
         entity.setVisible(rs.getBoolean("visible"));
-        
+
         String displayMode = rs.getString("display_mode");
         if (displayMode != null) {
             try {
-                entity.setDisplayMode(edens.zac.portfolio.backend.model.CollectionBaseModel.DisplayMode.valueOf(displayMode));
+                entity.setDisplayMode(
+                        edens.zac.portfolio.backend.model.CollectionBaseModel.DisplayMode.valueOf(displayMode));
             } catch (IllegalArgumentException e) {
                 log.warn("Invalid display_mode value: {}", displayMode);
             }
         }
-        
+
         Long coverImageId = getLong(rs, "cover_image_id");
         if (coverImageId != null) {
-            // Store the ID reference directly (entity uses coverImageId, not coverImage entity)
+            // Store the ID reference directly (entity uses coverImageId, not coverImage
+            // entity)
             entity.setCoverImageId(coverImageId);
         }
-        
+
         entity.setContentPerPage(getInteger(rs, "content_per_page"));
-        
+
         entity.setTotalContent(getInteger(rs, "total_content"));
 
         entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
         entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
-        
+
         return entity;
     };
 
@@ -96,14 +99,15 @@ public class CollectionDao extends BaseDao {
     }
 
     /**
-     * Find top 50 collections by type and visible=true, ordered by collection_date DESC.
+     * Find top 50 collections by type and visible=true, ordered by collection_date
+     * DESC.
      */
     @Transactional(readOnly = true)
     public List<CollectionEntity> findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type) {
-        String sql = SELECT_COLLECTION + 
-            " WHERE type = :type AND visible = true " +
-            "ORDER BY collection_date DESC NULLS LAST " +
-            "LIMIT 50";
+        String sql = SELECT_COLLECTION +
+                " WHERE type = :type AND visible = true " +
+                "ORDER BY collection_date DESC NULLS LAST " +
+                "LIMIT 50";
         MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
         return query(sql, COLLECTION_ROW_MAPPER, params);
     }
@@ -113,22 +117,23 @@ public class CollectionDao extends BaseDao {
      */
     @Transactional(readOnly = true)
     public List<CollectionEntity> findByTypeAndVisibleTrueOrderByCollectionDateDesc(CollectionType type) {
-        String sql = SELECT_COLLECTION + 
-            " WHERE type = :type AND visible = true " +
-            "ORDER BY collection_date DESC NULLS LAST";
+        String sql = SELECT_COLLECTION +
+                " WHERE type = :type AND visible = true " +
+                "ORDER BY collection_date DESC NULLS LAST";
         MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
         return query(sql, COLLECTION_ROW_MAPPER, params);
     }
 
     /**
-     * Find top 50 collections by type (visibility irrelevant), ordered by collection_date DESC.
+     * Find top 50 collections by type (visibility irrelevant), ordered by
+     * collection_date DESC.
      */
     @Transactional(readOnly = true)
     public List<CollectionEntity> findTop50ByTypeOrderByCollectionDateDesc(CollectionType type) {
-        String sql = SELECT_COLLECTION + 
-            " WHERE type = :type " +
-            "ORDER BY collection_date DESC NULLS LAST " +
-            "LIMIT 50";
+        String sql = SELECT_COLLECTION +
+                " WHERE type = :type " +
+                "ORDER BY collection_date DESC NULLS LAST " +
+                "LIMIT 50";
         MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
         return query(sql, COLLECTION_ROW_MAPPER, params);
     }
@@ -170,9 +175,7 @@ public class CollectionDao extends BaseDao {
     @Transactional(readOnly = true)
     public List<CollectionSummary> findIdAndTitleOnly() {
         String sql = "SELECT id, title FROM collection ORDER BY title ASC";
-        return jdbcTemplate.query(sql, (rs, rowNum) -> 
-            new CollectionSummary(rs.getLong("id"), rs.getString("title"))
-        );
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new CollectionSummary(rs.getLong("id"), rs.getString("title")));
     }
 
     /**
@@ -184,58 +187,61 @@ public class CollectionDao extends BaseDao {
         if (entity.getId() == null) {
             // Insert
             String sql = """
-                INSERT INTO collection (type, title, slug, description, location, collection_date,
-                                       visible, display_mode, cover_image_id, content_per_page, total_content,
-                                       created_at, updated_at)
-                VALUES (:type, :title, :slug, :description, :location, :collectionDate,
-                        :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
-                        :createdAt, :updatedAt)
-                """;
-            
+                    INSERT INTO collection (type, title, slug, description, location, location_id, collection_date,
+                                           visible, display_mode, cover_image_id, content_per_page, total_content,
+                                           created_at, updated_at)
+                    VALUES (:type, :title, :slug, :description, :location, :locationId, :collectionDate,
+                            :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
+                            :createdAt, :updatedAt)
+                    """;
+
             MapSqlParameterSource params = createParameterSource()
-                .addValue("type", entity.getType().name())
-                .addValue("title", entity.getTitle())
-                .addValue("slug", entity.getSlug())
-                .addValue("description", entity.getDescription())
-                .addValue("location", entity.getLocation())
-                .addValue("collectionDate", entity.getCollectionDate())
-                .addValue("visible", entity.getVisible())
-                .addValue("displayMode", entity.getDisplayMode() != null ? entity.getDisplayMode().name() : null)
-                .addValue("coverImageId", entity.getCoverImageId())
-                .addValue("contentPerPage", entity.getContentPerPage())
-                .addValue("totalContent", entity.getTotalContent())
-                .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now())
-                .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : LocalDateTime.now());
-            
+                    .addValue("type", entity.getType().name())
+                    .addValue("title", entity.getTitle())
+                    .addValue("slug", entity.getSlug())
+                    .addValue("description", entity.getDescription())
+                    .addValue("location", entity.getLocation())
+                    .addValue("locationId", entity.getLocationId())
+                    .addValue("collectionDate", entity.getCollectionDate())
+                    .addValue("visible", entity.getVisible())
+                    .addValue("displayMode", entity.getDisplayMode() != null ? entity.getDisplayMode().name() : null)
+                    .addValue("coverImageId", entity.getCoverImageId())
+                    .addValue("contentPerPage", entity.getContentPerPage())
+                    .addValue("totalContent", entity.getTotalContent())
+                    .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now())
+                    .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : LocalDateTime.now());
+
             Long id = insertAndReturnId(sql, "id", params);
             entity.setId(id);
             return entity;
         } else {
             // Update
             String sql = """
-                UPDATE collection
-                SET type = :type, title = :title, slug = :slug, description = :description, location = :location,
-                    collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
-                    cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-                    updated_at = :updatedAt
-                WHERE id = :id
-                """;
-            
+                    UPDATE collection
+                    SET type = :type, title = :title, slug = :slug, description = :description,
+                        location = :location, location_id = :locationId,
+                        collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
+                        cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
+                        updated_at = :updatedAt
+                    WHERE id = :id
+                    """;
+
             MapSqlParameterSource params = createParameterSource()
-                .addValue("id", entity.getId())
-                .addValue("type", entity.getType().name())
-                .addValue("title", entity.getTitle())
-                .addValue("slug", entity.getSlug())
-                .addValue("description", entity.getDescription())
-                .addValue("location", entity.getLocation())
-                .addValue("collectionDate", entity.getCollectionDate())
-                .addValue("visible", entity.getVisible())
-                .addValue("displayMode", entity.getDisplayMode() != null ? entity.getDisplayMode().name() : null)
-                .addValue("coverImageId", entity.getCoverImageId())
-                .addValue("contentPerPage", entity.getContentPerPage())
-                .addValue("totalContent", entity.getTotalContent())
-                .addValue("updatedAt", LocalDateTime.now());
-            
+                    .addValue("id", entity.getId())
+                    .addValue("type", entity.getType().name())
+                    .addValue("title", entity.getTitle())
+                    .addValue("slug", entity.getSlug())
+                    .addValue("description", entity.getDescription())
+                    .addValue("location", entity.getLocation())
+                    .addValue("locationId", entity.getLocationId())
+                    .addValue("collectionDate", entity.getCollectionDate())
+                    .addValue("visible", entity.getVisible())
+                    .addValue("displayMode", entity.getDisplayMode() != null ? entity.getDisplayMode().name() : null)
+                    .addValue("coverImageId", entity.getCoverImageId())
+                    .addValue("contentPerPage", entity.getContentPerPage())
+                    .addValue("totalContent", entity.getTotalContent())
+                    .addValue("updatedAt", LocalDateTime.now());
+
             update(sql, params);
             return entity;
         }
@@ -262,29 +268,6 @@ public class CollectionDao extends BaseDao {
     }
 
     /**
-     * Save collection tags (many-to-many relationship).
-     * Deletes existing tags and inserts new ones.
-     */
-    @Transactional
-    public void saveCollectionTags(Long collectionId, List<Long> tagIds) {
-        // Delete existing tags
-        String deleteSql = "DELETE FROM collection_tags WHERE collection_id = :collectionId";
-        MapSqlParameterSource deleteParams = createParameterSource().addValue("collectionId", collectionId);
-        update(deleteSql, deleteParams);
-        
-        // Insert new tags
-        if (tagIds != null && !tagIds.isEmpty()) {
-            String insertSql = "INSERT INTO collection_tags (collection_id, tag_id) VALUES (:collectionId, :tagId)";
-            MapSqlParameterSource[] batchParams = tagIds.stream()
-                .map(tagId -> createParameterSource()
-                    .addValue("collectionId", collectionId)
-                    .addValue("tagId", tagId))
-                .toArray(MapSqlParameterSource[]::new);
-            batchUpdate(insertSql, batchParams);
-        }
-    }
-
-    /**
      * Save collection people (many-to-many relationship).
      * Deletes existing people and inserts new ones.
      */
@@ -294,27 +277,17 @@ public class CollectionDao extends BaseDao {
         String deleteSql = "DELETE FROM collection_people WHERE collection_id = :collectionId";
         MapSqlParameterSource deleteParams = createParameterSource().addValue("collectionId", collectionId);
         update(deleteSql, deleteParams);
-        
+
         // Insert new people
         if (personIds != null && !personIds.isEmpty()) {
             String insertSql = "INSERT INTO collection_people (collection_id, person_id) VALUES (:collectionId, :personId)";
             MapSqlParameterSource[] batchParams = personIds.stream()
-                .map(personId -> createParameterSource()
-                    .addValue("collectionId", collectionId)
-                    .addValue("personId", personId))
-                .toArray(MapSqlParameterSource[]::new);
+                    .map(personId -> createParameterSource()
+                            .addValue("collectionId", collectionId)
+                            .addValue("personId", personId))
+                    .toArray(MapSqlParameterSource[]::new);
             batchUpdate(insertSql, batchParams);
         }
-    }
-
-    /**
-     * Load tags for a collection.
-     */
-    @Transactional(readOnly = true)
-    public List<Long> findCollectionTagIds(Long collectionId) {
-        String sql = "SELECT tag_id FROM collection_tags WHERE collection_id = :collectionId";
-        MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
-        return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
     }
 
     /**

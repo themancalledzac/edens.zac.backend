@@ -11,6 +11,8 @@ import edens.zac.portfolio.backend.dao.ContentLensDao;
 import edens.zac.portfolio.backend.dao.ContentPersonDao;
 import edens.zac.portfolio.backend.dao.ContentTagDao;
 import edens.zac.portfolio.backend.dao.ContentTextDao;
+import edens.zac.portfolio.backend.dao.LocationDao;
+import edens.zac.portfolio.backend.dao.TagDao;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.services.validator.MetadataValidator;
@@ -42,10 +44,12 @@ import java.util.stream.Collectors;
 class ContentServiceImpl implements ContentService {
 
     private final ContentTagDao contentTagDao;
+    private final TagDao tagDao;
     private final ContentPersonDao contentPersonDao;
     private final ContentCameraDao contentCameraDao;
     private final ContentLensDao contentLensDao;
     private final ContentFilmTypeDao contentFilmTypeDao;
+    private final LocationDao locationDao;
     private final ContentDao contentDao;
     private final CollectionContentDao collectionContentDao;
     private final CollectionDao collectionDao;
@@ -73,8 +77,7 @@ class ContentServiceImpl implements ContentService {
         return Map.of(
                 "id", savedTag.getId(),
                 "tagName", savedTag.getTagName(),
-                "createdAt", savedTag.getCreatedAt()
-        );
+                "createdAt", savedTag.getCreatedAt());
     }
 
     @Override
@@ -95,8 +98,7 @@ class ContentServiceImpl implements ContentService {
         return Map.of(
                 "id", savedPerson.getId(),
                 "personName", savedPerson.getPersonName(),
-                "createdAt", savedPerson.getCreatedAt()
-        );
+                "createdAt", savedPerson.getCreatedAt());
     }
 
     @Override
@@ -117,8 +119,7 @@ class ContentServiceImpl implements ContentService {
         return Map.of(
                 "id", savedCamera.getId(),
                 "cameraName", savedCamera.getCameraName(),
-                "createdAt", savedCamera.getCreatedAt()
-        );
+                "createdAt", savedCamera.getCreatedAt());
     }
 
     @Override
@@ -152,7 +153,8 @@ class ContentServiceImpl implements ContentService {
         }
 
         // Bulk fetch all images upfront to avoid N+1 queries
-        // Note: ContentDao.findAllByIds returns base ContentEntity, need to fetch images specifically
+        // Note: ContentDao.findAllByIds returns base ContentEntity, need to fetch
+        // images specifically
         Map<Long, ContentImageEntity> imageMap = new HashMap<>();
         for (Long imageId : imageIds) {
             contentDao.findImageById(imageId).ifPresent(img -> imageMap.put(img.getId(), img));
@@ -177,7 +179,8 @@ class ContentServiceImpl implements ContentService {
                 // Apply basic image metadata updates using the processing util
                 // Note: This handles camera, lens, and filmType updates via the util
                 // We'll need to track which ones were created
-                applyImageUpdatesWithTracking(image, update, newlyCreatedCameras, newlyCreatedLenses, newlyCreatedFilmTypes);
+                applyImageUpdatesWithTracking(image, update, newlyCreatedCameras, newlyCreatedLenses,
+                        newlyCreatedFilmTypes);
 
                 // Update tags using prev/new/remove pattern (with tracking)
                 if (update.getTags() != null) {
@@ -197,9 +200,8 @@ class ContentServiceImpl implements ContentService {
                     if (collectionUpdate.getRemove() != null && !collectionUpdate.getRemove().isEmpty()) {
                         for (Long collectionIdToRemove : collectionUpdate.getRemove()) {
                             collectionContentDao.removeContentFromCollection(
-                                collectionIdToRemove,
-                                List.of(image.getId())
-                            );
+                                    collectionIdToRemove,
+                                    List.of(image.getId()));
                             log.info("Removed image {} from collection {}", image.getId(), collectionIdToRemove);
                         }
                     }
@@ -219,7 +221,8 @@ class ContentServiceImpl implements ContentService {
                 imagesToSave.add(image);
 
                 // Convert to model and add to results
-                ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(image);
+                ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil
+                        .convertRegularContentEntityToModel(image);
                 updatedImages.add(imageModel);
 
             } catch (IllegalArgumentException e) {
@@ -244,11 +247,18 @@ class ContentServiceImpl implements ContentService {
 
         // Build the response with updated images and new metadata
         ContentImageUpdateResponse.NewMetadata newMetadata = ContentImageUpdateResponse.NewMetadata.builder()
-                .tags(newlyCreatedTags.isEmpty() ? null : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
-                .people(newlyCreatedPeople.isEmpty() ? null : newlyCreatedPeople.stream().map(this::toPersonModel).collect(Collectors.toList()))
-                .cameras(newlyCreatedCameras.isEmpty() ? null : newlyCreatedCameras.stream().map(ContentProcessingUtil::cameraEntityToCameraModel).collect(Collectors.toList()))
-                .lenses(newlyCreatedLenses.isEmpty() ? null : newlyCreatedLenses.stream().map(ContentProcessingUtil::lensEntityToLensModel).collect(Collectors.toList()))
-                .filmTypes(newlyCreatedFilmTypes.isEmpty() ? null : newlyCreatedFilmTypes.stream().map(this::toFilmTypeModel).collect(Collectors.toList()))
+                .tags(newlyCreatedTags.isEmpty() ? null
+                        : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
+                .people(newlyCreatedPeople.isEmpty() ? null
+                        : newlyCreatedPeople.stream().map(this::toPersonModel).collect(Collectors.toList()))
+                .cameras(newlyCreatedCameras.isEmpty() ? null
+                        : newlyCreatedCameras.stream().map(ContentProcessingUtil::cameraEntityToCameraModel)
+                                .collect(Collectors.toList()))
+                .lenses(newlyCreatedLenses.isEmpty() ? null
+                        : newlyCreatedLenses.stream().map(ContentProcessingUtil::lensEntityToLensModel)
+                                .collect(Collectors.toList()))
+                .filmTypes(newlyCreatedFilmTypes.isEmpty() ? null
+                        : newlyCreatedFilmTypes.stream().map(this::toFilmTypeModel).collect(Collectors.toList()))
                 .build();
 
         ContentImageUpdateResponse response = ContentImageUpdateResponse.builder()
@@ -261,12 +271,12 @@ class ContentServiceImpl implements ContentService {
         return Map.of(
                 "updatedImages", response.getUpdatedImages(),
                 "newMetadata", response.getNewMetadata(),
-                "errors", response.getErrors() != null ? response.getErrors() : List.of()
-        );
+                "errors", response.getErrors() != null ? response.getErrors() : List.of());
     }
 
     /**
-     * Apply image metadata updates and track newly created entities (cameras, lenses, film types).
+     * Apply image metadata updates and track newly created entities (cameras,
+     * lenses, film types).
      */
     private void applyImageUpdatesWithTracking(
             ContentImageEntity image,
@@ -276,18 +286,30 @@ class ContentServiceImpl implements ContentService {
             Set<ContentFilmTypeEntity> newFilmTypes) {
 
         // Update basic metadata fields
-        if (updateRequest.getTitle() != null) image.setTitle(updateRequest.getTitle());
-        if (updateRequest.getRating() != null) image.setRating(updateRequest.getRating());
-        if (updateRequest.getLocation() != null) image.setLocation(updateRequest.getLocation());
-        if (updateRequest.getAuthor() != null) image.setAuthor(updateRequest.getAuthor());
-        if (updateRequest.getIsFilm() != null) image.setIsFilm(updateRequest.getIsFilm());
-        if (updateRequest.getFilmFormat() != null) image.setFilmFormat(updateRequest.getFilmFormat());
-        if (updateRequest.getBlackAndWhite() != null) image.setBlackAndWhite(updateRequest.getBlackAndWhite());
-        if (updateRequest.getFocalLength() != null) image.setFocalLength(updateRequest.getFocalLength());
-        if (updateRequest.getFStop() != null) image.setFStop(updateRequest.getFStop());
-        if (updateRequest.getShutterSpeed() != null) image.setShutterSpeed(updateRequest.getShutterSpeed());
-        if (updateRequest.getIso() != null) image.setIso(updateRequest.getIso());
-        if (updateRequest.getCreateDate() != null) image.setCreateDate(updateRequest.getCreateDate());
+        if (updateRequest.getTitle() != null)
+            image.setTitle(updateRequest.getTitle());
+        if (updateRequest.getRating() != null)
+            image.setRating(updateRequest.getRating());
+        if (updateRequest.getLocation() != null)
+            image.setLocation(updateRequest.getLocation());
+        if (updateRequest.getAuthor() != null)
+            image.setAuthor(updateRequest.getAuthor());
+        if (updateRequest.getIsFilm() != null)
+            image.setIsFilm(updateRequest.getIsFilm());
+        if (updateRequest.getFilmFormat() != null)
+            image.setFilmFormat(updateRequest.getFilmFormat());
+        if (updateRequest.getBlackAndWhite() != null)
+            image.setBlackAndWhite(updateRequest.getBlackAndWhite());
+        if (updateRequest.getFocalLength() != null)
+            image.setFocalLength(updateRequest.getFocalLength());
+        if (updateRequest.getFStop() != null)
+            image.setFStop(updateRequest.getFStop());
+        if (updateRequest.getShutterSpeed() != null)
+            image.setShutterSpeed(updateRequest.getShutterSpeed());
+        if (updateRequest.getIso() != null)
+            image.setIso(updateRequest.getIso());
+        if (updateRequest.getCreateDate() != null)
+            image.setCreateDate(updateRequest.getCreateDate());
 
         // Handle camera update with tracking
         if (updateRequest.getCamera() != null) {
@@ -360,7 +382,8 @@ class ContentServiceImpl implements ContentService {
                 }
             } else if (filmTypeUpdate.getPrev() != null) {
                 ContentFilmTypeEntity filmType = contentFilmTypeDao.findById(filmTypeUpdate.getPrev())
-                        .orElseThrow(() -> new IllegalArgumentException("Film type not found: " + filmTypeUpdate.getPrev()));
+                        .orElseThrow(
+                                () -> new IllegalArgumentException("Film type not found: " + filmTypeUpdate.getPrev()));
                 image.setFilmType(filmType);
             }
         }
@@ -371,20 +394,39 @@ class ContentServiceImpl implements ContentService {
      * Uses shared utility method from ContentProcessingUtil.
      */
     private void updateImageTags(ContentImageEntity image, TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
+        // Load current tags from database
+        List<Long> currentTagIds = tagDao.findContentTagIds(image.getId());
+        Set<ContentTagEntity> currentTags = currentTagIds.stream()
+                .map(tagId -> {
+                    ContentTagEntity tag = new ContentTagEntity();
+                    tag.setId(tagId);
+                    return tag;
+                })
+                .collect(Collectors.toSet());
+
         Set<ContentTagEntity> updatedTags = contentProcessingUtil.updateTags(
-                image.getTags(),
+                currentTags,
                 tagUpdate,
                 newTags // Track newly created tags for response
         );
         image.setTags(updatedTags);
+
+        // Save updated tags to database
+        List<Long> updatedTagIds = updatedTags.stream()
+                .map(ContentTagEntity::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        tagDao.saveContentTags(image.getId(), updatedTagIds);
     }
 
     /**
-     * Add content (image) to new collections with specified visibility and orderIndex.
+     * Add content (image) to new collections with specified visibility and
+     * orderIndex.
      * Creates join table entries for the content in the specified collections.
      *
-     * @param image The image to add to collections
-     * @param collections List of ChildCollection objects containing collectionId, visible, and orderIndex
+     * @param image       The image to add to collections
+     * @param collections List of ChildCollection objects containing collectionId,
+     *                    visible, and orderIndex
      */
     private void handleAddToCollections(ContentImageEntity image, List<ChildCollection> collections) {
         for (ChildCollection childCollection : collections) {
@@ -411,7 +453,8 @@ class ContentServiceImpl implements ContentService {
             // Determine orderIndex: use provided value or append to end
             Integer orderIndex = childCollection.getOrderIndex();
             if (orderIndex == null) {
-                Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(childCollection.getCollectionId());
+                Integer maxOrder = collectionContentDao
+                        .getMaxOrderIndexForCollection(childCollection.getCollectionId());
                 orderIndex = maxOrder != null ? maxOrder + 1 : 0;
             }
 
@@ -433,7 +476,8 @@ class ContentServiceImpl implements ContentService {
      * Update image people and track newly created ones.
      * Uses shared utility method from ContentProcessingUtil.
      */
-    private void updateImagePeople(ContentImageEntity image, PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
+    private void updateImagePeople(ContentImageEntity image, PersonUpdate personUpdate,
+            Set<ContentPersonEntity> newPeople) {
         Set<ContentPersonEntity> updatedPeople = contentProcessingUtil.updatePeople(
                 image.getPeople(),
                 personUpdate,
@@ -469,8 +513,7 @@ class ContentServiceImpl implements ContentService {
         return Map.of(
                 "deletedIds", deletedIds,
                 "deletedCount", deletedIds.size(),
-                "errors", errors
-        );
+                "errors", errors);
     }
 
     @Override
@@ -514,6 +557,14 @@ class ContentServiceImpl implements ContentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<LocationModel> getAllLocations() {
+        return locationDao.findAllByOrderByLocationNameAsc().stream()
+                .map(this::toLocationModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     @CacheEvict(value = "generalMetadata", allEntries = true)
     public Map<String, Object> createFilmType(String filmTypeName, String displayName, Integer defaultIso) {
@@ -535,8 +586,7 @@ class ContentServiceImpl implements ContentService {
         return Map.of(
                 "success", true,
                 "message", "Film type created successfully",
-                "filmType", toFilmTypeModel(filmType)
-        );
+                "filmType", toFilmTypeModel(filmType));
     }
 
     // ========== Helper Methods: Entity to Model Conversion ==========
@@ -561,6 +611,15 @@ class ContentServiceImpl implements ContentService {
                 .build();
     }
 
+    /**
+     * Convert LocationEntity to LocationModel
+     */
+    private LocationModel toLocationModel(LocationEntity entity) {
+        return LocationModel.builder()
+                .id(entity.getId())
+                .name(entity.getLocationName())
+                .build();
+    }
 
     /**
      * Convert ContentFilmTypeEntity to ContentFilmTypeModel
@@ -578,8 +637,7 @@ class ContentServiceImpl implements ContentService {
     @Transactional(readOnly = true)
     public List<ContentImageModel> getAllImages() {
         return contentDao.findAllImagesOrderByCreateDateDesc().stream()
-                .map(entity -> (ContentImageModel)
-                        contentProcessingUtil.convertRegularContentEntityToModel(entity))
+                .map(entity -> (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(entity))
                 .collect(Collectors.toList());
     }
 
@@ -602,8 +660,10 @@ class ContentServiceImpl implements ContentService {
 
         for (MultipartFile file : files) {
             try {
-                // First, check if this image already exists in the database (duplicate detection)
-                if (file.getContentType() != null && file.getContentType().startsWith("image/") && !file.getContentType().equals("image/gif")) {
+                // First, check if this image already exists in the database (duplicate
+                // detection)
+                if (file.getContentType() != null && file.getContentType().startsWith("image/")
+                        && !file.getContentType().equals("image/gif")) {
                     // Generate file identifier to check for duplicates
                     String originalFilename = file.getOriginalFilename();
                     if (originalFilename != null) {
@@ -632,7 +692,7 @@ class ContentServiceImpl implements ContentService {
                                 .collectionId(collectionId)
                                 .contentId(img.getId())
                                 .orderIndex(orderIndex)
-                                .visible(true)   // Visible by default
+                                .visible(true) // Visible by default
                                 .build();
 
                         collectionContentDao.save(joinEntry);
@@ -645,7 +705,8 @@ class ContentServiceImpl implements ContentService {
                         if (contentModel instanceof ContentImageModel imageModel) {
                             createdImages.add(imageModel);
                         } else {
-                            log.error("Expected ContentImageModel but got {}", contentModel != null ? contentModel.getClass() : "null");
+                            log.error("Expected ContentImageModel but got {}",
+                                    contentModel != null ? contentModel.getClass() : "null");
                         }
 
                         // Increment order index for next image
@@ -702,7 +763,7 @@ class ContentServiceImpl implements ContentService {
         if (contentModel instanceof ContentTextModel textModel) {
             return textModel;
         } else {
-            throw new IllegalStateException("Expected ContentTextModel but got " + 
+            throw new IllegalStateException("Expected ContentTextModel but got " +
                     (contentModel != null ? contentModel.getClass() : "null"));
         }
     }

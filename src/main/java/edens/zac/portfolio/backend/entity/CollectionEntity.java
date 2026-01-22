@@ -11,10 +11,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 @Data
 @Builder
@@ -22,56 +18,89 @@ import java.util.Set;
 @AllArgsConstructor
 public class CollectionEntity {
 
-    /** Column: id (BIGINT, PRIMARY KEY, auto-generated) */
+    /**
+     * Column: id (BIGINT, PRIMARY KEY, auto-generated)
+     */
     private Long id;
 
-    /** Column: type (VARCHAR, NOT NULL) - enum: BLOG, CLIENT_GALLERY, PORTFOLIO, MISC */
+    /**
+     * Column: type (VARCHAR, NOT NULL) - enum: BLOG, CLIENT_GALLERY, PORTFOLIO, MISC
+     */
     @NotNull
     private CollectionType type;
 
-    /** Column: title (VARCHAR(100), NOT NULL) */
+    /**
+     * Column: title (VARCHAR(100), NOT NULL)
+     */
     @NotBlank
     @Size(min = 3, max = 100)
     private String title;
 
-    /** Column: slug (VARCHAR(150), NOT NULL, UNIQUE) */
+    /**
+     * Column: slug (VARCHAR(150), NOT NULL, UNIQUE)
+     */
     @NotBlank
     @Size(min = 3, max = 150)
     private String slug;
 
-    /** Column: description (VARCHAR(500)) */
+    /**
+     * Column: description (VARCHAR(500))
+     */
     @Size(max = 500)
     private String description;
 
-    /** Column: location (VARCHAR(255)) */
+    /**
+     * Column: location (VARCHAR(255)) - Legacy field, use locationId instead
+     */
     @Size(max = 255)
     private String location;
 
-    /** Column: collection_date (DATE) */
+    /**
+     * Column: location_id (BIGINT, FK to location.id)
+     */
+    private Long locationId;
+
+    /**
+     * Column: collection_date (DATE)
+     */
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate collectionDate;
 
-    /** Column: visible (BOOLEAN, NOT NULL, default: true) */
+    /**
+     * Column: visible (BOOLEAN, NOT NULL, default: true)
+     */
     @NotNull
     private Boolean visible;
 
-    /** Column: display_mode (VARCHAR) - enum: GRID, LIST, etc. */
+    /**
+     * Column: display_mode (VARCHAR) - enum: GRID, LIST, etc.
+     */
     private CollectionBaseModel.DisplayMode displayMode;
 
-    /** Column: cover_image_id (BIGINT, FK to content_image.id) */
+    /**
+     * Column: cover_image_id (BIGINT, FK to content_image.id)
+     */
     private Long coverImageId;
 
-    /** Column: content_per_page (INTEGER) */
+    /**
+     * Column: content_per_page (INTEGER)
+     */
     @Min(1)
     private Integer contentPerPage;
 
-    /** Column: total_content (INTEGER) */
+    /**
+     * Column: total_content (INTEGER)
+     */
     private Integer totalContent;
 
-    /** Column: created_at (TIMESTAMP, NOT NULL) */
+    /**
+     * Column: created_at (TIMESTAMP, NOT NULL)
+     */
     private LocalDateTime createdAt;
 
-    /** Column: updated_at (TIMESTAMP, NOT NULL) */
+    /**
+     * Column: updated_at (TIMESTAMP, NOT NULL)
+     */
     private LocalDateTime updatedAt;
 
     /**

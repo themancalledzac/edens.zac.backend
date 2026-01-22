@@ -26,28 +26,28 @@ public class ContentGifDao extends BaseDao {
     }
 
     private static final String SELECT_CONTENT_GIF = """
-        SELECT c.id, c.content_type, c.created_at, c.updated_at,
-               cg.title, cg.gif_url, cg.thumbnail_url, cg.width, cg.height,
-               cg.author, cg.create_date
-        FROM content c
-        JOIN content_gif cg ON c.id = cg.id
-        """;
+            SELECT c.id, c.content_type, c.created_at, c.updated_at,
+                   cg.title, cg.gif_url, cg.thumbnail_url, cg.width, cg.height,
+                   cg.author, cg.create_date
+            FROM content c
+            JOIN content_gif cg ON c.id = cg.id
+            """;
 
     private static final RowMapper<ContentGifEntity> CONTENT_GIF_ROW_MAPPER = (rs, rowNum) -> {
         return ContentGifEntity.builder()
-            .id(rs.getLong("id"))
-            .contentType(ContentType.GIF)
-            .title(getString(rs, "title"))
-            .gifUrl(rs.getString("gif_url"))
-            .thumbnailUrl(getString(rs, "thumbnail_url"))
-            .width(getInteger(rs, "width"))
-            .height(getInteger(rs, "height"))
-            .author(getString(rs, "author"))
-            .createDate(getString(rs, "create_date"))
-            .createdAt(getLocalDateTime(rs, "created_at"))
-            .updatedAt(getLocalDateTime(rs, "updated_at"))
-            .tags(new HashSet<>())
-            .build();
+                .id(rs.getLong("id"))
+                .contentType(ContentType.GIF)
+                .title(getString(rs, "title"))
+                .gifUrl(rs.getString("gif_url"))
+                .thumbnailUrl(getString(rs, "thumbnail_url"))
+                .width(getInteger(rs, "width"))
+                .height(getInteger(rs, "height"))
+                .author(getString(rs, "author"))
+                .createDate(getString(rs, "create_date"))
+                .createdAt(getLocalDateTime(rs, "created_at"))
+                .updatedAt(getLocalDateTime(rs, "updated_at"))
+                .tags(new HashSet<>())
+                .build();
     };
 
     /**
@@ -66,7 +66,7 @@ public class ContentGifDao extends BaseDao {
     @Transactional(readOnly = true)
     public List<ContentGifEntity> findAllOrderByCreateDateDesc() {
         String sql = SELECT_CONTENT_GIF +
-            " ORDER BY cg.create_date DESC NULLS LAST, c.created_at DESC";
+                " ORDER BY cg.create_date DESC NULLS LAST, c.created_at DESC";
         return query(sql, CONTENT_GIF_ROW_MAPPER);
     }
 
@@ -81,32 +81,32 @@ public class ContentGifDao extends BaseDao {
         if (entity.getId() == null) {
             // Step 1: Insert into content table
             String contentSql = """
-                INSERT INTO content (content_type, created_at, updated_at)
-                VALUES (:contentType, :createdAt, :updatedAt)
-                """;
+                    INSERT INTO content (content_type, created_at, updated_at)
+                    VALUES (:contentType, :createdAt, :updatedAt)
+                    """;
 
             MapSqlParameterSource contentParams = createParameterSource()
-                .addValue("contentType", ContentType.GIF.name())
-                .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : now)
-                .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : now);
+                    .addValue("contentType", ContentType.GIF.name())
+                    .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : now)
+                    .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : now);
 
             Long contentId = insertAndReturnId(contentSql, "id", contentParams);
 
             // Step 2: Insert into content_gif
             String gifSql = """
-                INSERT INTO content_gif (id, title, gif_url, thumbnail_url, width, height, author, create_date)
-                VALUES (:id, :title, :gifUrl, :thumbnailUrl, :width, :height, :author, :createDate)
-                """;
+                    INSERT INTO content_gif (id, title, gif_url, thumbnail_url, width, height, author, create_date)
+                    VALUES (:id, :title, :gifUrl, :thumbnailUrl, :width, :height, :author, :createDate)
+                    """;
 
             MapSqlParameterSource gifParams = createParameterSource()
-                .addValue("id", contentId)
-                .addValue("title", entity.getTitle())
-                .addValue("gifUrl", entity.getGifUrl())
-                .addValue("thumbnailUrl", entity.getThumbnailUrl())
-                .addValue("width", entity.getWidth())
-                .addValue("height", entity.getHeight())
-                .addValue("author", entity.getAuthor())
-                .addValue("createDate", entity.getCreateDate());
+                    .addValue("id", contentId)
+                    .addValue("title", entity.getTitle())
+                    .addValue("gifUrl", entity.getGifUrl())
+                    .addValue("thumbnailUrl", entity.getThumbnailUrl())
+                    .addValue("width", entity.getWidth())
+                    .addValue("height", entity.getHeight())
+                    .addValue("author", entity.getAuthor())
+                    .addValue("createDate", entity.getCreateDate());
 
             update(gifSql, gifParams);
 
@@ -122,31 +122,31 @@ public class ContentGifDao extends BaseDao {
         } else {
             // Update existing
             String contentSql = """
-                UPDATE content
-                SET updated_at = :updatedAt
-                WHERE id = :id
-                """;
+                    UPDATE content
+                    SET updated_at = :updatedAt
+                    WHERE id = :id
+                    """;
             MapSqlParameterSource contentParams = createParameterSource()
-                .addValue("updatedAt", now)
-                .addValue("id", entity.getId());
+                    .addValue("updatedAt", now)
+                    .addValue("id", entity.getId());
             update(contentSql, contentParams);
 
             String gifSql = """
-                UPDATE content_gif
-                SET title = :title, gif_url = :gifUrl, thumbnail_url = :thumbnailUrl,
-                    width = :width, height = :height, author = :author, create_date = :createDate
-                WHERE id = :id
-                """;
+                    UPDATE content_gif
+                    SET title = :title, gif_url = :gifUrl, thumbnail_url = :thumbnailUrl,
+                        width = :width, height = :height, author = :author, create_date = :createDate
+                    WHERE id = :id
+                    """;
 
             MapSqlParameterSource gifParams = createParameterSource()
-                .addValue("id", entity.getId())
-                .addValue("title", entity.getTitle())
-                .addValue("gifUrl", entity.getGifUrl())
-                .addValue("thumbnailUrl", entity.getThumbnailUrl())
-                .addValue("width", entity.getWidth())
-                .addValue("height", entity.getHeight())
-                .addValue("author", entity.getAuthor())
-                .addValue("createDate", entity.getCreateDate());
+                    .addValue("id", entity.getId())
+                    .addValue("title", entity.getTitle())
+                    .addValue("gifUrl", entity.getGifUrl())
+                    .addValue("thumbnailUrl", entity.getThumbnailUrl())
+                    .addValue("width", entity.getWidth())
+                    .addValue("height", entity.getHeight())
+                    .addValue("author", entity.getAuthor())
+                    .addValue("createDate", entity.getCreateDate());
 
             update(gifSql, gifParams);
 
@@ -156,45 +156,21 @@ public class ContentGifDao extends BaseDao {
     }
 
     /**
-     * Save gif tags (many-to-many relationship).
-     */
-    @Transactional
-    public void saveGifTags(Long gifId, List<Long> tagIds) {
-        // Delete existing tags
-        String deleteSql = "DELETE FROM content_gif_tags WHERE gif_id = :gifId";
-        MapSqlParameterSource deleteParams = createParameterSource().addValue("gifId", gifId);
-        update(deleteSql, deleteParams);
-
-        // Insert new tags
-        if (tagIds != null && !tagIds.isEmpty()) {
-            String insertSql = "INSERT INTO content_gif_tags (gif_id, tag_id) VALUES (:gifId, :tagId)";
-            MapSqlParameterSource[] batchParams = tagIds.stream()
-                .map(tagId -> createParameterSource()
-                    .addValue("gifId", gifId)
-                    .addValue("tagId", tagId))
-                .toArray(MapSqlParameterSource[]::new);
-            batchUpdate(insertSql, batchParams);
-        }
-    }
-
-    /**
-     * Load tags for a gif.
-     */
-    @Transactional(readOnly = true)
-    public List<Long> findGifTagIds(Long gifId) {
-        String sql = "SELECT tag_id FROM content_gif_tags WHERE gif_id = :gifId";
-        MapSqlParameterSource params = createParameterSource().addValue("gifId", gifId);
-        return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
-    }
-
-    /**
      * Delete gif by ID.
+     * Deletes from content_gif first (child table), then content (parent table).
+     * Note: Tags are deleted via content_tags table (handled by TagDao or cascade).
      */
     @Transactional
     public void deleteById(Long id) {
-        // Delete from content_gif first (child table)
-        String gifSql = "DELETE FROM content_gif WHERE id = :id";
         MapSqlParameterSource params = createParameterSource().addValue("id", id);
+
+        // Delete from many-to-many join tables first
+        // Tags are deleted via content_tags (content.id = gif.id for GIFs)
+        String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";
+        update(deleteTagsSql, params);
+
+        // Delete from content_gif (child table)
+        String gifSql = "DELETE FROM content_gif WHERE id = :id";
         update(gifSql, params);
 
         // Delete from content (parent table)

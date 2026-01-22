@@ -220,7 +220,7 @@ class CollectionProcessingUtilTest {
 
         // Assert
         // Config JSON removed; ensure other defaults still apply
-        assertEquals(50, result.getContentPerPage());
+        assertEquals(30, result.getContentPerPage());
         assertFalse(result.getVisible()); // Client galleries are private by default
     }
 

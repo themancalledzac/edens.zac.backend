@@ -14,25 +14,26 @@ import java.util.Set;
 
 /**
  * Entity representing image content.
- * Extends ContentEntity (JOINED inheritance - base table: content, child table: content_image).
+ * Extends ContentEntity (JOINED inheritance - base table: content, child table:
+ * content_image).
  * 
  * Database table: content_image
  * Primary key: id (inherited from content table, FK to content.id)
  * 
  * Foreign keys:
- *   - lens_id -> content_lenses.id
- *   - film_type_id -> content_film_types.id
- *   - camera_id -> content_cameras.id
+ * - lens_id -> content_lenses.id
+ * - film_type_id -> content_film_types.id
+ * - camera_id -> content_cameras.id
  * 
  * Join tables:
- *   - content_image_tags (image_id, tag_id) - many-to-many with tags
- *   - content_image_people (image_id, person_id) - many-to-many with people
+ * - content_image_tags (image_id, tag_id) - many-to-many with tags
+ * - content_image_people (image_id, person_id) - many-to-many with people
  * 
  * Indexes on join tables:
- *   - idx_image_tags_image (image_id)
- *   - idx_image_tags_tag (tag_id)
- *   - idx_image_people_image (image_id)
- *   - idx_image_people_person (person_id)
+ * - idx_image_tags_image (image_id)
+ * - idx_image_tags_tag (tag_id)
+ * - idx_image_people_image (image_id)
+ * - idx_image_people_person (person_id)
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -85,27 +86,39 @@ public class ContentImageEntity extends ContentEntity {
     /** Column: focal_length (VARCHAR) */
     private String focalLength;
 
-    /** Column: location (VARCHAR) */
+    /** Column: location (VARCHAR) - Legacy field, use locationId instead */
     private String location;
 
-    /** Column: image_url_web (VARCHAR, NOT NULL) - S3 URL for web-optimized image */
+    /** Column: location_id (BIGINT, FK to location.id) */
+    private Long locationId;
+
+    /**
+     * Column: image_url_web (VARCHAR, NOT NULL) - S3 URL for web-optimized image
+     */
     @NotNull
     private String imageUrlWeb;
 
-    /** Column: image_url_original (VARCHAR) - S3 URL for original full-size image */
+    /**
+     * Column: image_url_original (VARCHAR) - S3 URL for original full-size image
+     */
     private String imageUrlOriginal;
 
     /** Column: create_date (VARCHAR) - EXIF date string */
     private String createDate;
 
-    /** Column: file_identifier (VARCHAR, UNIQUE) - Format: "YYYY-MM-DD/filename.jpg" */
+    /**
+     * Column: file_identifier (VARCHAR, UNIQUE) - Format: "YYYY-MM-DD/filename.jpg"
+     */
     private String fileIdentifier;
 
-    /** Relationship: Many-to-many with ContentTagEntity (via content_image_tags table) */
+    /** Relationship: Many-to-many with ContentTagEntity (via content_tags table) */
     @Builder.Default
     private Set<ContentTagEntity> tags = new HashSet<>();
 
-    /** Relationship: Many-to-many with ContentPersonEntity (via content_image_people table) */
+    /**
+     * Relationship: Many-to-many with ContentPersonEntity (via content_image_people
+     * table)
+     */
     @Builder.Default
     private Set<ContentPersonEntity> people = new HashSet<>();
 

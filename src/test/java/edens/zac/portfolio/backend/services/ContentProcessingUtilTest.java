@@ -11,6 +11,7 @@ import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
 import edens.zac.portfolio.backend.dao.ContentTagDao;
 import edens.zac.portfolio.backend.dao.ContentPersonDao;
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
+import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentTextDao;
 import edens.zac.portfolio.backend.dao.ContentCollectionDao;
 import edens.zac.portfolio.backend.dao.ContentGifDao;
@@ -58,6 +59,8 @@ public class ContentProcessingUtilTest {
     private ContentPersonDao contentPersonDao;
     @Mock
     private CollectionContentDao collectionContentDao;
+    @Mock
+    private CollectionDao collectionDao;
     @Mock
     private ContentTextDao contentTextDao;
     @Mock

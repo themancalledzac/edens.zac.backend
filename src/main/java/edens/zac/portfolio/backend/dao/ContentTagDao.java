@@ -28,34 +28,34 @@ public class ContentTagDao extends BaseDao {
 
     @Transactional(readOnly = true)
     public Optional<ContentTagEntity> findByTagName(String tagName) {
-        String sql = "SELECT id, tag_name, created_at FROM content_tag WHERE tag_name = :tagName";
+        String sql = "SELECT id, tag_name, created_at FROM tag WHERE tag_name = :tagName";
         MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
         return queryForObject(sql, TAG_ROW_MAPPER, params);
     }
 
     @Transactional(readOnly = true)
     public Optional<ContentTagEntity> findByTagNameIgnoreCase(String tagName) {
-        String sql = "SELECT id, tag_name, created_at FROM content_tag WHERE LOWER(tag_name) = LOWER(:tagName)";
+        String sql = "SELECT id, tag_name, created_at FROM tag WHERE LOWER(tag_name) = LOWER(:tagName)";
         MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
         return queryForObject(sql, TAG_ROW_MAPPER, params);
     }
 
     @Transactional(readOnly = true)
     public List<ContentTagEntity> findByTagNameContainingIgnoreCase(String searchTerm) {
-        String sql = "SELECT id, tag_name, created_at FROM content_tag WHERE LOWER(tag_name) LIKE LOWER(:searchTerm) ORDER BY tag_name ASC";
+        String sql = "SELECT id, tag_name, created_at FROM tag WHERE LOWER(tag_name) LIKE LOWER(:searchTerm) ORDER BY tag_name ASC";
         MapSqlParameterSource params = createParameterSource().addValue("searchTerm", "%" + searchTerm + "%");
         return query(sql, TAG_ROW_MAPPER, params);
     }
 
     @Transactional(readOnly = true)
     public List<ContentTagEntity> findAllByOrderByTagNameAsc() {
-        String sql = "SELECT id, tag_name, created_at FROM content_tag ORDER BY tag_name ASC";
+        String sql = "SELECT id, tag_name, created_at FROM tag ORDER BY tag_name ASC";
         return query(sql, TAG_ROW_MAPPER);
     }
 
     @Transactional(readOnly = true)
     public boolean existsByTagName(String tagName) {
-        String sql = "SELECT COUNT(*) > 0 FROM content_tag WHERE tag_name = :tagName";
+        String sql = "SELECT COUNT(*) > 0 FROM tag WHERE tag_name = :tagName";
         MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
         Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
         return result != null && result;
@@ -63,7 +63,7 @@ public class ContentTagDao extends BaseDao {
 
     @Transactional(readOnly = true)
     public boolean existsByTagNameIgnoreCase(String tagName) {
-        String sql = "SELECT COUNT(*) > 0 FROM content_tag WHERE LOWER(tag_name) = LOWER(:tagName)";
+        String sql = "SELECT COUNT(*) > 0 FROM tag WHERE LOWER(tag_name) = LOWER(:tagName)";
         MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
         Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
         return result != null && result;
@@ -72,7 +72,7 @@ public class ContentTagDao extends BaseDao {
     @Transactional
     public ContentTagEntity save(ContentTagEntity entity) {
         if (entity.getId() == null) {
-            String sql = "INSERT INTO content_tag (tag_name, created_at) VALUES (:tagName, :createdAt)";
+            String sql = "INSERT INTO tag (tag_name, created_at) VALUES (:tagName, :createdAt)";
             MapSqlParameterSource params = createParameterSource()
                 .addValue("tagName", entity.getTagName())
                 .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : java.time.LocalDateTime.now());
@@ -80,7 +80,7 @@ public class ContentTagDao extends BaseDao {
             entity.setId(id);
             return entity;
         } else {
-            String sql = "UPDATE content_tag SET tag_name = :tagName WHERE id = :id";
+            String sql = "UPDATE tag SET tag_name = :tagName WHERE id = :id";
             MapSqlParameterSource params = createParameterSource()
                 .addValue("tagName", entity.getTagName())
                 .addValue("id", entity.getId());
@@ -91,7 +91,7 @@ public class ContentTagDao extends BaseDao {
 
     @Transactional(readOnly = true)
     public Optional<ContentTagEntity> findById(Long id) {
-        String sql = "SELECT id, tag_name, created_at FROM content_tag WHERE id = :id";
+        String sql = "SELECT id, tag_name, created_at FROM tag WHERE id = :id";
         MapSqlParameterSource params = createParameterSource().addValue("id", id);
         return queryForObject(sql, TAG_ROW_MAPPER, params);
     }

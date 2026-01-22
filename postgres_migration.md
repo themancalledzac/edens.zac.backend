@@ -879,3 +879,154 @@ Local Dev Machine                    EC2 Instance
 - No automatic schema management
 - More SQL to write and maintain
 - Need to handle SQL injection (use PreparedStatement)
+
+---
+
+## 🟡 Phase 12: Remaining Tasks & API Verification (TODO)
+
+### Database Schema Status ✅
+
+The PostgreSQL database already has the correct schema:
+
+| Table/Column | Status | Notes |
+|--------------|--------|-------|
+| `tag` | ✅ Exists | Base tag table (id, tag_name, created_at) |
+| `collection_tags` | ✅ Exists | Many-to-many: collection_id ↔ tag_id |
+| `content_tags` | ✅ Exists | Many-to-many: content_id ↔ tag_id |
+| `location` | ✅ Exists | Location table (id, location_name, created_at) |
+| `content_image.location_id` | ✅ Exists | FK to location table |
+| `content_image.image_url_original` | ✅ Exists | Original image URL column |
+
+**Note**: The `postgres-init.sql` script has been deleted as the database is already configured correctly.
+
+---
+
+### Code Architecture Notes
+
+#### TagDao vs ContentTagDao - Intentional Separation
+- **Severity**: 🟢 INFO - By design, not a bug
+- **Current Separation**:
+  - `ContentTagDao` - Tag entity CRUD (create tag, get all tags, find by name)
+  - `TagDao` - Tag association operations (content_tags, collection_tags join tables)
+- **Entities**:
+  - `ContentTagEntity` - Used by ContentTagDao, has relationship Sets for ORM compatibility
+  - `TagEntity` - Used by TagDao, cleaner POJO without relationship Sets
+- **Both query the same `tag` table** - this is intentional for separation of concerns
+
+---
+
+### API Endpoints Reference
+
+Each API endpoint must be tested end-to-end: **Client → API → DAO → DB → DAO → API → Client**
+
+---
+
+#### Collection API Endpoints
+
+| Endpoint | Method | Service Method | DAOs Used | Test Priority |
+|----------|--------|----------------|-----------|---------------|
+| `/api/admin/collections/createCollection` | POST | `createCollection()` | CollectionDao | 🟡 Medium |
+| `/api/admin/collections/{id}` | PUT | `updateContent()` | CollectionDao, TagDao, ContentPersonDao, CollectionContentDao | 🔴 High |
+| `/api/admin/collections/{id}` | DELETE | `deleteCollection()` | CollectionDao, CollectionContentDao | 🟡 Medium |
+| `/api/admin/collections/all` | GET | `getAllCollectionsOrderedByDate()` | CollectionDao | 🟢 Low |
+| `/api/admin/collections/{slug}/update` | GET | `getUpdateCollectionData()` | CollectionDao, ContentService (all metadata) | 🔴 High |
+| `/api/admin/collections/metadata` | GET | `getGeneralMetadata()` | All metadata DAOs | 🔴 High |
+| `/api/admin/collections/{collectionId}/reorder` | POST | `reorderContent()` | CollectionDao, CollectionContentDao | 🟡 Medium |
+
+**Critical Paths to Test**:
+- `PUT /{id}` with tags update → TagDao.saveCollectionTags() → `collection_tags` table
+- `GET /{slug}/update` → All metadata DAOs → Full metadata response
+- `GET /metadata` → ContentService.getAllTags/People/Locations/etc.
+
+---
+
+#### Content API Endpoints
+
+| Endpoint | Method | Service Method | DAOs Used | Test Priority |
+|----------|--------|----------------|-----------|---------------|
+| `/api/admin/content/images/{collectionId}` | POST | `createImages()` | ContentDao, CollectionContentDao, ContentCameraDao, ContentLensDao | 🟡 Medium |
+| `/api/admin/content/content` | POST | `createTextContent()` | ContentTextDao, CollectionContentDao | 🟢 Low |
+| `/api/admin/content/images` | PATCH | `updateImages()` | ContentDao, TagDao, ContentPersonDao, all metadata DAOs | 🔴 High |
+| `/api/admin/content/images` | GET | `getAllImages()` | ContentDao | 🟡 Medium |
+| `/api/admin/content/images` | DELETE | `deleteImages()` | ContentDao | 🟡 Medium |
+| `/api/admin/content/tags` | POST | `createTag()` | ContentTagDao | 🟡 Medium |
+| `/api/admin/content/people` | POST | `createPerson()` | ContentPersonDao | 🟢 Low |
+
+**Critical Paths to Test**:
+- `PATCH /images` with tags → TagDao.saveContentTags() → `content_tags` table
+- `PATCH /images` with camera/lens → Find-or-create pattern in ContentCameraDao/ContentLensDao
+- `POST /tags` → ContentTagDao.save() → `tag` table
+
+---
+
+### Frontend Changes Required
+
+**Summary for Frontend Team:**
+
+The PostgreSQL migration introduces **no breaking API changes** at the contract level. All endpoints, request/response shapes remain identical. However, the frontend should verify:
+
+1. **No Changes Required**:
+   - All existing API endpoints remain the same
+   - Request/response DTOs unchanged
+   - Error response format unchanged
+
+2. **Verify After Backend Deployment**:
+   - Tag CRUD operations work (create, read, update, delete)
+   - Location dropdown populated correctly
+   - Image metadata (camera, lens, filmType) loads correctly
+   - Collection tag/people updates persist
+   - Image tag/people updates persist
+
+3. **Potential Behavioral Changes** (if any):
+   - Faster API response times (no ORM overhead)
+   - More consistent error messages (direct SQL errors vs Hibernate exceptions)
+
+4. **Testing Checklist for Frontend**:
+   - [ ] Create new collection with tags
+   - [ ] Update collection tags (add, remove)
+   - [ ] Upload images to collection
+   - [ ] Update image metadata (tags, people, camera, lens)
+   - [ ] View collection with images (verify tags load)
+   - [ ] View single image detail (verify all metadata)
+   - [ ] Delete image from collection
+   - [ ] Reorder images in collection
+
+---
+
+### Task Priority Order
+
+#### 1. **HIGH** (Before production) - API Verification
+
+Test each endpoint end-to-end: **Client → API → DAO → DB → DAO → API → Client**
+
+**Collection APIs**:
+- [ ] `GET /api/admin/collections/metadata` - Verify all metadata loads (tags, people, locations, cameras, lenses, filmTypes)
+- [ ] `GET /api/admin/collections/{slug}/update` - Verify collection + metadata loads
+- [ ] `PUT /api/admin/collections/{id}` with tags - Verify TagDao.saveCollectionTags() works
+- [ ] `PUT /api/admin/collections/{id}` with people - Verify people updates persist
+- [ ] `POST /api/admin/collections/createCollection` - Verify new collection creates
+- [ ] `DELETE /api/admin/collections/{id}` - Verify cascade deletes work
+- [ ] `POST /api/admin/collections/{collectionId}/reorder` - Verify reorder persists
+
+**Content APIs**:
+- [ ] `PATCH /api/admin/content/images` with tags - Verify TagDao.saveContentTags() works
+- [ ] `PATCH /api/admin/content/images` with people - Verify people updates persist
+- [ ] `PATCH /api/admin/content/images` with camera/lens/filmType - Verify metadata updates
+- [ ] `POST /api/admin/content/tags` - Verify new tag creates in `tag` table
+- [ ] `POST /api/admin/content/people` - Verify new person creates
+- [ ] `POST /api/admin/content/images/{collectionId}` - Verify image upload + metadata extraction
+- [ ] `GET /api/admin/content/images` - Verify all images load with tags
+- [ ] `DELETE /api/admin/content/images` - Verify image + associations deleted
+
+#### 2. **MEDIUM** (Production readiness)
+
+- [ ] Run existing unit tests - Verify all pass with DAO mocks
+- [ ] Add integration tests for critical DAO operations
+- [ ] Frontend verification testing (see checklist above)
+- [ ] Load testing with realistic data volumes
+
+#### 3. **LOW** (Post-production)
+
+- [ ] Performance benchmarking vs old Hibernate implementation
+- [ ] Documentation cleanup
+- [ ] Consider consolidating TagEntity/ContentTagEntity if causing confusion
