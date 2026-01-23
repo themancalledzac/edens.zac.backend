@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
@@ -76,7 +75,7 @@ public class CollectionControllerDev {
             log.info("Successfully updated collection: {}", updatedCollection.getId());
 
             return ResponseEntity.ok(updatedCollection);
-        } catch (EntityNotFoundException e) {
+        } catch (IllegalArgumentException e) {
             log.warn("Collection not found: {}", id);
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
@@ -102,7 +101,7 @@ public class CollectionControllerDev {
             log.info("Successfully deleted collection: {}", id);
 
             return ResponseEntity.ok("Collection deleted successfully");
-        } catch (EntityNotFoundException e) {
+        } catch (IllegalArgumentException e) {
             log.warn("Collection not found: {}", id);
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
@@ -151,7 +150,7 @@ public class CollectionControllerDev {
             CollectionUpdateResponseDTO response = collectionService.getUpdateCollectionData(slug);
             log.info("Successfully retrieved update data for collection: {}", slug);
             return ResponseEntity.ok(response);
-        } catch (EntityNotFoundException e) {
+        } catch (IllegalArgumentException e) {
             log.warn("Collection not found: {}", slug);
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
@@ -204,16 +203,20 @@ public class CollectionControllerDev {
             CollectionModel updatedCollection = collectionService.reorderContent(collectionId, request);
             log.info("Successfully reordered content in collection: {}", collectionId);
             return ResponseEntity.ok(updatedCollection);
-        } catch (EntityNotFoundException e) {
-            log.warn("Collection not found: {}", collectionId);
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body("Collection with ID: " + collectionId + " not found");
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid reorder request for collection {}: {}", collectionId, e.getMessage());
-            return ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
-                    .body("Invalid reorder request: " + e.getMessage());
+            // Check error message to determine if it's a "not found" or "invalid request" error
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && errorMessage.contains("not found")) {
+                log.warn("Collection not found: {}", collectionId);
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body("Collection with ID: " + collectionId + " not found");
+            } else {
+                log.warn("Invalid reorder request for collection {}: {}", collectionId, errorMessage);
+                return ResponseEntity
+                        .status(HttpStatus.BAD_REQUEST)
+                        .body("Invalid reorder request: " + errorMessage);
+            }
         } catch (Exception e) {
             log.error("Error reordering content in collection {}: {}", collectionId, e.getMessage(), e);
             return ResponseEntity

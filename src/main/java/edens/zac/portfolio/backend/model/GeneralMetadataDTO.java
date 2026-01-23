@@ -29,6 +29,11 @@ public class GeneralMetadataDTO {
     private List<ContentPersonModel> people;
 
     /**
+     * All available locations that can be assigned to content blocks and collections
+     */
+    private List<LocationModel> locations;
+
+    /**
      * All available collections in the system
      */
     private List<CollectionListModel> collections;

@@ -5,7 +5,6 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
 import edens.zac.portfolio.backend.types.CollectionType;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -75,7 +74,7 @@ public class CollectionControllerProd {
 
             CollectionModel collection = collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
             return ResponseEntity.ok(collection);
-        } catch (EntityNotFoundException e) {
+        } catch (IllegalArgumentException e) {
             log.warn("Collection not found: {}", slug);
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
@@ -153,7 +152,7 @@ public class CollectionControllerProd {
             response.put("hasAccess", hasAccess);
 
             return ResponseEntity.ok(response);
-        } catch (EntityNotFoundException e) {
+        } catch (IllegalArgumentException e) {
             log.warn("Collection not found: {}", slug);
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)

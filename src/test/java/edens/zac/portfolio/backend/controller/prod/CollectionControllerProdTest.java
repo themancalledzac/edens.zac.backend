@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -187,7 +186,7 @@ class CollectionControllerProdTest {
     void getCollectionBySlug_withNonExistentSlug_shouldReturnNotFound() throws Exception {
         // Arrange
         when(collectionService.getCollectionWithPagination(eq("non-existent"), anyInt(), anyInt()))
-                .thenThrow(new EntityNotFoundException("Collection with slug: non-existent not found"));
+                .thenThrow(new IllegalArgumentException("Collection not found with slug: non-existent"));
 
         // Act & Assert
         mockMvc.perform(get("/api/read/collections/non-existent")
@@ -311,7 +310,7 @@ class CollectionControllerProdTest {
         passwordRequest.put("password", "any-password");
 
         when(collectionService.validateClientGalleryAccess(eq("non-existent"), anyString()))
-                .thenThrow(new EntityNotFoundException("Collection with slug: non-existent not found"));
+                .thenThrow(new IllegalArgumentException("Collection not found with slug: non-existent"));
 
         // Act & Assert
         mockMvc.perform(post("/api/read/collections/non-existent/access")

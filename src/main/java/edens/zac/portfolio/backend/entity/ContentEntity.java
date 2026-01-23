@@ -2,40 +2,34 @@ package edens.zac.portfolio.backend.entity;
 
 import jakarta.validation.constraints.NotNull;
 import edens.zac.portfolio.backend.types.ContentType;
-import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(
-        name = "content"
-)
-@Inheritance(strategy = InheritanceType.JOINED)
+/**
+ * Base entity for all content types (IMAGE, TEXT, GIF, COLLECTION).
+ * Uses JOINED inheritance strategy - base table: content, child tables: content_image, content_text, etc.
+ * 
+ * Database table: content
+ */
 @Data
 @NoArgsConstructor
 @SuperBuilder
 public abstract class ContentEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** Column: id (BIGINT, PRIMARY KEY, auto-generated) */
     private Long id;
 
+    /** Column: content_type (VARCHAR, NOT NULL) - enum: IMAGE, TEXT, GIF, COLLECTION */
     @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "content_type")
     private ContentType contentType;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    /** Column: created_at (TIMESTAMP, NOT NULL) */
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
+    /** Column: updated_at (TIMESTAMP, NOT NULL) */
     private LocalDateTime updatedAt;
 
     // Method to get the specific content type
@@ -45,7 +39,6 @@ public abstract class ContentEntity {
      * Automatically set contentType field before persisting to database.
      * This ensures the field is always set based on the concrete class's getContentType() method.
      */
-    @PrePersist
     protected void setContentTypeFromSubclass() {
         if (this.contentType == null) {
             this.contentType = getContentType();

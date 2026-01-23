@@ -4,7 +4,19 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.repository.ContentRepository;
+import edens.zac.portfolio.backend.dao.ContentDao;
+import edens.zac.portfolio.backend.dao.ContentCameraDao;
+import edens.zac.portfolio.backend.dao.ContentLensDao;
+import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
+import edens.zac.portfolio.backend.dao.ContentTagDao;
+import edens.zac.portfolio.backend.dao.ContentPersonDao;
+import edens.zac.portfolio.backend.dao.CollectionContentDao;
+import edens.zac.portfolio.backend.dao.CollectionDao;
+import edens.zac.portfolio.backend.dao.ContentTextDao;
+import edens.zac.portfolio.backend.dao.ContentCollectionDao;
+import edens.zac.portfolio.backend.dao.ContentGifDao;
+import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
+import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -34,7 +46,31 @@ public class ContentProcessingUtilTest {
     private AmazonS3 amazonS3;
 
     @Mock
-    private ContentRepository contentRepository;
+    private ContentDao contentDao;
+    @Mock
+    private ContentCameraDao contentCameraDao;
+    @Mock
+    private ContentLensDao contentLensDao;
+    @Mock
+    private ContentFilmTypeDao contentFilmTypeDao;
+    @Mock
+    private ContentTagDao contentTagDao;
+    @Mock
+    private ContentPersonDao contentPersonDao;
+    @Mock
+    private CollectionContentDao collectionContentDao;
+    @Mock
+    private CollectionDao collectionDao;
+    @Mock
+    private ContentTextDao contentTextDao;
+    @Mock
+    private ContentCollectionDao contentCollectionDao;
+    @Mock
+    private ContentGifDao contentGifDao;
+    @Mock
+    private ContentImageUpdateValidator contentImageUpdateValidator;
+    @Mock
+    private ContentValidator contentValidator;
 
     @InjectMocks
     private ContentProcessingUtil contentProcessingUtil;
@@ -144,7 +180,7 @@ public class ContentProcessingUtilTest {
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ContentImageEntity savedEntity = createContentImageEntity();
-        when(contentRepository.save(any(ContentImageEntity.class))).thenReturn(savedEntity);
+        when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
 
         // Act
         ContentEntity result = contentProcessingUtil.processImageContent(file, title);
@@ -153,7 +189,7 @@ public class ContentProcessingUtilTest {
         assertNotNull(result);
         assertInstanceOf(ContentImageEntity.class, result);
         verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
-        verify(contentRepository).save(any(ContentImageEntity.class));
+        verify(contentDao).saveImage(any(ContentImageEntity.class));
     }
 
     @Test
@@ -210,7 +246,7 @@ public class ContentProcessingUtilTest {
 //        assertTrue(exception.getMessage().contains("Failed to process text content block"));
 //    }
 
-    @Disabled("Requires native image processing libraries that may not be available in test environment")
+    @Disabled("GIF saving not yet implemented in DAO layer - throws UnsupportedOperationException")
     @Test
     void processContentGif_withValidGif_shouldReturnGifContentEntity() throws IOException {
         // Arrange
@@ -223,17 +259,14 @@ public class ContentProcessingUtilTest {
         // Mock S3 upload
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
-        ContentGifEntity savedEntity = createContentGifEntity();
-        when(contentRepository.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
+        // Note: GIF saving not yet implemented in DAO layer
+        // ContentGifEntity savedEntity = createContentGifEntity();
+        // when(contentGifDao.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
 
-        // Act
-        ContentEntity result = contentProcessingUtil.processGifContent(file, collectionId, orderIndex, title, caption);
-
-        // Assert
-        assertNotNull(result);
-        assertInstanceOf(ContentGifEntity.class, result);
-        verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class));
-        verify(contentRepository).save(any(ContentGifEntity.class));
+        // Act & Assert - Will throw UnsupportedOperationException until GIF DAO save is implemented
+        assertThrows(UnsupportedOperationException.class, () -> {
+            contentProcessingUtil.processGifContent(file, collectionId, orderIndex, title, caption);
+        });
     }
 
     @Test
@@ -349,7 +382,7 @@ public class ContentProcessingUtilTest {
         when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
 
         ContentImageEntity imageEntity = createContentImageEntity();
-        when(contentRepository.save(any(ContentImageEntity.class))).thenReturn(imageEntity);
+        when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(imageEntity);
 
         // Act
         ContentEntity result = contentProcessingUtil.processImageContent(file, title);
@@ -358,6 +391,7 @@ public class ContentProcessingUtilTest {
         assertNotNull(result);
         assertInstanceOf(ContentImageEntity.class, result);
         verify(amazonS3, times(2)).putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
+        verify(contentDao).saveImage(any(ContentImageEntity.class));
     }
 
 //    @Test

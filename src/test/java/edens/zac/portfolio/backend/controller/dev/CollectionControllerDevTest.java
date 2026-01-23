@@ -3,12 +3,14 @@ package edens.zac.portfolio.backend.controller.dev;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionReorderRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
+import edens.zac.portfolio.backend.model.TagUpdate;
+import edens.zac.portfolio.backend.model.PersonUpdate;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -159,7 +161,7 @@ class CollectionControllerDevTest {
     void updateCollection_shouldHandleNotFoundError() throws Exception {
         // Arrange
         when(collectionService.updateContent(eq(999L), any(CollectionUpdateRequest.class)))
-                .thenThrow(new EntityNotFoundException("Collection with ID: 999 not found"));
+                .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
 
         // Act & Assert
         mockMvc.perform(put("/api/admin/collections/999")
@@ -189,7 +191,7 @@ class CollectionControllerDevTest {
     @DisplayName("DELETE /collections/{id} should handle not found error")
     void deleteCollection_shouldHandleNotFoundError() throws Exception {
         // Arrange
-        doThrow(new EntityNotFoundException("Collection with ID: 999 not found"))
+        doThrow(new IllegalArgumentException("Collection not found with ID: 999"))
                 .when(collectionService).deleteCollection(999L);
 
         // Act & Assert
@@ -198,5 +200,315 @@ class CollectionControllerDevTest {
                 .andExpect(jsonPath("$", containsString("not found")));
 
         verify(collectionService).deleteCollection(999L);
+    }
+
+    @Test
+    @DisplayName("GET /collections/metadata should return all metadata")
+    void getMetadata_shouldReturnAllMetadata() throws Exception {
+        // Arrange
+        GeneralMetadataDTO metadata = GeneralMetadataDTO.builder()
+                .tags(new ArrayList<>())
+                .people(new ArrayList<>())
+                .locations(new ArrayList<>())
+                .collections(new ArrayList<>())
+                .cameras(new ArrayList<>())
+                .lenses(new ArrayList<>())
+                .filmTypes(new ArrayList<>())
+                .filmFormats(new ArrayList<>())
+                .build();
+
+        when(collectionService.getGeneralMetadata()).thenReturn(metadata);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/admin/collections/metadata"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tags", notNullValue()))
+                .andExpect(jsonPath("$.people", notNullValue()))
+                .andExpect(jsonPath("$.locations", notNullValue()))
+                .andExpect(jsonPath("$.collections", notNullValue()))
+                .andExpect(jsonPath("$.cameras", notNullValue()))
+                .andExpect(jsonPath("$.lenses", notNullValue()))
+                .andExpect(jsonPath("$.filmTypes", notNullValue()))
+                .andExpect(jsonPath("$.filmFormats", notNullValue()));
+
+        verify(collectionService).getGeneralMetadata();
+    }
+
+    @Test
+    @DisplayName("GET /collections/metadata should handle errors")
+    void getMetadata_shouldHandleErrors() throws Exception {
+        // Arrange
+        when(collectionService.getGeneralMetadata())
+                .thenThrow(new RuntimeException("Database error"));
+
+        // Act & Assert
+        mockMvc.perform(get("/api/admin/collections/metadata"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$", containsString("Failed to retrieve general metadata")));
+
+        verify(collectionService).getGeneralMetadata();
+    }
+
+    @Test
+    @DisplayName("GET /collections/{slug}/update should return collection with metadata")
+    void getUpdateCollection_shouldReturnCollectionWithMetadata() throws Exception {
+        // Arrange
+        when(collectionService.getUpdateCollectionData("test-blog"))
+                .thenReturn(testCollectionUpdateResponse);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/admin/collections/test-blog/update"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.collection", notNullValue()))
+                .andExpect(jsonPath("$.collection.id", is(1)))
+                .andExpect(jsonPath("$.collection.slug", is("test-blog")))
+                .andExpect(jsonPath("$.metadata", notNullValue()))
+                .andExpect(jsonPath("$.metadata.tags", notNullValue()))
+                .andExpect(jsonPath("$.metadata.people", notNullValue()))
+                .andExpect(jsonPath("$.metadata.cameras", notNullValue()))
+                .andExpect(jsonPath("$.metadata.lenses", notNullValue()))
+                .andExpect(jsonPath("$.metadata.filmTypes", notNullValue()));
+
+        verify(collectionService).getUpdateCollectionData("test-blog");
+    }
+
+    @Test
+    @DisplayName("GET /collections/{slug}/update should handle not found error")
+    void getUpdateCollection_shouldHandleNotFoundError() throws Exception {
+        // Arrange
+        when(collectionService.getUpdateCollectionData("non-existent-slug"))
+                .thenThrow(new IllegalArgumentException("Collection not found with slug: non-existent-slug"));
+
+        // Act & Assert
+        mockMvc.perform(get("/api/admin/collections/non-existent-slug/update"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$", containsString("not found")));
+
+        verify(collectionService).getUpdateCollectionData("non-existent-slug");
+    }
+
+    @Test
+    @DisplayName("GET /collections/{slug}/update should handle errors")
+    void getUpdateCollection_shouldHandleErrors() throws Exception {
+        // Arrange
+        when(collectionService.getUpdateCollectionData("test-blog"))
+                .thenThrow(new RuntimeException("Database error"));
+
+        // Act & Assert
+        mockMvc.perform(get("/api/admin/collections/test-blog/update"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$", containsString("Failed to retrieve update data")));
+
+        verify(collectionService).getUpdateCollectionData("test-blog");
+    }
+
+    @Test
+    @DisplayName("PUT /collections/{id} should update collection with tags using prev/new/remove pattern")
+    void updateCollection_shouldUpdateCollectionWithTags() throws Exception {
+        // Arrange
+        TagUpdate tagUpdate = TagUpdate.builder()
+                .prev(List.of(1L, 2L))          // Add existing tags 1 and 2
+                .newValue(List.of("landscape", "nature"))  // Create and add new tags
+                .remove(List.of(3L))             // Remove tag 3
+                .build();
+
+        CollectionUpdateRequest updateRequest = CollectionUpdateRequest.builder()
+                .id(1L)
+                .title("Updated Blog with Tags")
+                .tags(tagUpdate)
+                .build();
+
+        when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
+                .thenReturn(testCollection);
+
+        // Act & Assert
+        mockMvc.perform(put("/api/admin/collections/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(1)))
+                .andExpect(jsonPath("$.title", is("Test Blog")));
+
+        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("PUT /collections/{id} should update collection with people using prev/new/remove pattern")
+    void updateCollection_shouldUpdateCollectionWithPeople() throws Exception {
+        // Arrange
+        PersonUpdate personUpdate = PersonUpdate.builder()
+                .prev(List.of(5L, 6L))          // Add existing people 5 and 6
+                .newValue(List.of("John Doe", "Jane Smith"))  // Create and add new people
+                .remove(List.of(7L))             // Remove person 7
+                .build();
+
+        CollectionUpdateRequest updateRequest = CollectionUpdateRequest.builder()
+                .id(1L)
+                .title("Updated Blog with People")
+                .people(personUpdate)
+                .build();
+
+        when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
+                .thenReturn(testCollection);
+
+        // Act & Assert
+        mockMvc.perform(put("/api/admin/collections/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(1)))
+                .andExpect(jsonPath("$.title", is("Test Blog")));
+
+        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("PUT /collections/{id} should update collection with both tags and people")
+    void updateCollection_shouldUpdateCollectionWithTagsAndPeople() throws Exception {
+        // Arrange
+        TagUpdate tagUpdate = TagUpdate.builder()
+                .prev(List.of(1L))
+                .newValue(List.of("travel"))
+                .build();
+
+        PersonUpdate personUpdate = PersonUpdate.builder()
+                .prev(List.of(5L))
+                .newValue(List.of("Alice"))
+                .build();
+
+        CollectionUpdateRequest updateRequest = CollectionUpdateRequest.builder()
+                .id(1L)
+                .title("Updated Blog with Tags and People")
+                .tags(tagUpdate)
+                .people(personUpdate)
+                .build();
+
+        when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
+                .thenReturn(testCollection);
+
+        // Act & Assert
+        mockMvc.perform(put("/api/admin/collections/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(1)))
+                .andExpect(jsonPath("$.title", is("Test Blog")));
+
+        verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("GET /collections/all should return all collections ordered by date")
+    void getAllCollectionsOrderedByDate_shouldReturnAllCollections() throws Exception {
+        // Arrange
+        List<CollectionModel> collections = List.of(testCollection);
+        when(collectionService.getAllCollectionsOrderedByDate()).thenReturn(collections);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/admin/collections/all"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id", is(1)))
+                .andExpect(jsonPath("$[0].title", is("Test Blog")))
+                .andExpect(jsonPath("$[0].slug", is("test-blog")));
+
+        verify(collectionService).getAllCollectionsOrderedByDate();
+    }
+
+    @Test
+    @DisplayName("GET /collections/all should handle errors")
+    void getAllCollectionsOrderedByDate_shouldHandleErrors() throws Exception {
+        // Arrange
+        when(collectionService.getAllCollectionsOrderedByDate())
+                .thenThrow(new RuntimeException("Database error"));
+
+        // Act & Assert
+        mockMvc.perform(get("/api/admin/collections/all"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$", containsString("Failed to retrieve collections")));
+
+        verify(collectionService).getAllCollectionsOrderedByDate();
+    }
+
+    @Test
+    @DisplayName("POST /collections/{collectionId}/reorder should reorder content successfully")
+    void reorderCollectionContent_shouldReorderContentSuccessfully() throws Exception {
+        // Arrange
+        CollectionReorderRequest.ReorderItem reorder1 = new CollectionReorderRequest.ReorderItem(10L, 0);
+        CollectionReorderRequest.ReorderItem reorder2 = new CollectionReorderRequest.ReorderItem(11L, 1);
+        CollectionReorderRequest reorderRequest = new CollectionReorderRequest(List.of(reorder1, reorder2));
+
+        when(collectionService.reorderContent(eq(1L), any(CollectionReorderRequest.class)))
+                .thenReturn(testCollection);
+
+        // Act & Assert
+        mockMvc.perform(post("/api/admin/collections/1/reorder")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reorderRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(1)))
+                .andExpect(jsonPath("$.title", is("Test Blog")));
+
+        verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
+    }
+
+    @Test
+    @DisplayName("POST /collections/{collectionId}/reorder should handle not found error")
+    void reorderCollectionContent_shouldHandleNotFoundError() throws Exception {
+        // Arrange
+        CollectionReorderRequest.ReorderItem reorder1 = new CollectionReorderRequest.ReorderItem(10L, 0);
+        CollectionReorderRequest reorderRequest = new CollectionReorderRequest(List.of(reorder1));
+
+        when(collectionService.reorderContent(eq(999L), any(CollectionReorderRequest.class)))
+                .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
+
+        // Act & Assert
+        mockMvc.perform(post("/api/admin/collections/999/reorder")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reorderRequest)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$", containsString("not found")));
+
+        verify(collectionService).reorderContent(eq(999L), any(CollectionReorderRequest.class));
+    }
+
+    @Test
+    @DisplayName("POST /collections/{collectionId}/reorder should handle invalid request error")
+    void reorderCollectionContent_shouldHandleInvalidRequestError() throws Exception {
+        // Arrange
+        CollectionReorderRequest.ReorderItem reorder1 = new CollectionReorderRequest.ReorderItem(10L, -1);
+        CollectionReorderRequest reorderRequest = new CollectionReorderRequest(List.of(reorder1));
+
+        when(collectionService.reorderContent(eq(1L), any(CollectionReorderRequest.class)))
+                .thenThrow(new IllegalArgumentException("Invalid order index: -1"));
+
+        // Act & Assert
+        mockMvc.perform(post("/api/admin/collections/1/reorder")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reorderRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$", containsString("Invalid reorder request")));
+
+        verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
+    }
+
+    @Test
+    @DisplayName("POST /collections/{collectionId}/reorder should handle general errors")
+    void reorderCollectionContent_shouldHandleGeneralErrors() throws Exception {
+        // Arrange
+        CollectionReorderRequest.ReorderItem reorder1 = new CollectionReorderRequest.ReorderItem(10L, 0);
+        CollectionReorderRequest reorderRequest = new CollectionReorderRequest(List.of(reorder1));
+
+        when(collectionService.reorderContent(eq(1L), any(CollectionReorderRequest.class)))
+                .thenThrow(new RuntimeException("Database connection error"));
+
+        // Act & Assert
+        mockMvc.perform(post("/api/admin/collections/1/reorder")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reorderRequest)))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$", containsString("Failed to reorder content")));
+
+        verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
     }
 }

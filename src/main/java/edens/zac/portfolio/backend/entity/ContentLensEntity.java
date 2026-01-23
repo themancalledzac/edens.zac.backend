@@ -1,13 +1,11 @@
 package edens.zac.portfolio.backend.entity;
 
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -18,13 +16,6 @@ import java.util.Set;
  * Lenses can be associated with ContentImages.
  * New lenses are automatically created when an image is updated with a new lens name.
  */
-@Entity
-@Table(
-        name = "content_lenses",
-        indexes = {
-                @Index(name = "idx_content_lens_name", columnList = "lens_name", unique = true)
-        }
-)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -43,21 +34,15 @@ public class ContentLensEntity {
         return lensName != null ? lensName.hashCode() : 0;
     }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank
     @Size(min = 1, max = 100)
-    @Column(name = "lens_name", unique = true, nullable = false, length = 100)
     private String lensName;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     // One-to-many relationship with ContentImages (mappedBy side)
-    @OneToMany(mappedBy = "lens", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<ContentImageEntity> contentImages = new HashSet<>();
 

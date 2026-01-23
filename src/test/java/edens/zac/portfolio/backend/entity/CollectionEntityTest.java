@@ -30,6 +30,7 @@ class CollectionEntityTest {
         collection.setType(CollectionType.BLOG);
         collection.setTitle("Test Collection");
         collection.setSlug("test-collection");
+        collection.setVisible(true);
 
         Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(collection);
         assertTrue(violations.isEmpty());
@@ -42,7 +43,7 @@ class CollectionEntityTest {
 
         Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(collection);
         assertFalse(violations.isEmpty());
-        assertEquals(3, violations.size()); // type, title, and slug are required
+        assertEquals(4, violations.size()); // type, title, slug, and visible are required
 
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("type")));
@@ -50,6 +51,8 @@ class CollectionEntityTest {
                 .anyMatch(v -> v.getPropertyPath().toString().equals("title")));
         assertTrue(violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("slug")));
+        assertTrue(violations.stream()
+                .anyMatch(v -> v.getPropertyPath().toString().equals("visible")));
     }
 
     @Test
@@ -252,15 +255,9 @@ class CollectionEntityTest {
         collection.setContentPerPage(20);
         collection.setTotalContent(100);
         
-        // Create a mock ContentImageEntity for cover image
-        ContentImageEntity coverImage = ContentImageEntity.builder()
-                .contentType(edens.zac.portfolio.backend.types.ContentType.IMAGE)
-                .imageUrlWeb("https://example.com/cover-image.jpg")
-                .imageWidth(1920)
-                .imageHeight(1080)
-                .build();
-        coverImage.setId(123L);
-        collection.setCoverImage(coverImage);
+        // Set cover image ID (entity now uses ID reference instead of entity reference)
+        collection.setCoverImageId(123L);
+        collection.setVisible(true);
 
         // Verify all fields were set correctly
         assertEquals(CollectionType.PORTFOLIO, collection.getType());
@@ -272,8 +269,8 @@ class CollectionEntityTest {
         assertTrue(collection.getVisible());
         assertEquals(20, collection.getContentPerPage());
         assertEquals(100, collection.getTotalContent());
-        assertNotNull(collection.getCoverImage());
-        assertEquals("https://example.com/cover-image.jpg", collection.getCoverImage().getImageUrlWeb());
+        assertNotNull(collection.getCoverImageId());
+        assertEquals(123L, collection.getCoverImageId());
     }
 
     @Test
@@ -306,21 +303,25 @@ class CollectionEntityTest {
         blogCollection.setType(CollectionType.BLOG);
         blogCollection.setTitle("Blog Collection");
         blogCollection.setSlug("blog-collection");
+        blogCollection.setVisible(true);
 
         CollectionEntity artGalleryCollection = new CollectionEntity();
         artGalleryCollection.setType(CollectionType.ART_GALLERY);
         artGalleryCollection.setTitle("Art Gallery Collection");
         artGalleryCollection.setSlug("art-gallery-collection");
+        artGalleryCollection.setVisible(true);
 
         CollectionEntity clientGalleryCollection = new CollectionEntity();
         clientGalleryCollection.setType(CollectionType.CLIENT_GALLERY);
         clientGalleryCollection.setTitle("Client Gallery Collection");
         clientGalleryCollection.setSlug("client-gallery-collection");
+        clientGalleryCollection.setVisible(true);
 
         CollectionEntity portfolioCollection = new CollectionEntity();
         portfolioCollection.setType(CollectionType.PORTFOLIO);
         portfolioCollection.setTitle("Portfolio Collection");
         portfolioCollection.setSlug("portfolio-collection");
+        portfolioCollection.setVisible(true);
 
         // Verify types were set correctly
         assertEquals(CollectionType.BLOG, blogCollection.getType());

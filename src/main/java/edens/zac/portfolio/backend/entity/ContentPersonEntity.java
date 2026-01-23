@@ -1,13 +1,11 @@
 package edens.zac.portfolio.backend.entity;
 
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -17,13 +15,6 @@ import java.util.Set;
  * Entity representing a person who can be tagged in image content.
  * This allows tracking which people appear in photographs.
  */
-@Entity
-@Table(
-        name = "content_people",
-        indexes = {
-                @Index(name = "idx_content_person_name", columnList = "person_name", unique = true)
-        }
-)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -42,26 +33,19 @@ public class ContentPersonEntity {
         return personName != null ? personName.hashCode() : 0;
     }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank
     @Size(min = 1, max = 100)
-    @Column(name = "person_name", unique = true, nullable = false, length = 100)
     private String personName;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     // Many-to-many relationship with ContentImageEntity (mappedBy side - non-owning)
-    @ManyToMany(mappedBy = "people", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<ContentImageEntity> contentImages = new HashSet<>();
 
     // Many-to-many relationship with CollectionEntity (mappedBy side - non-owning)
-    @ManyToMany(mappedBy = "people", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<CollectionEntity> collections = new HashSet<>();
 

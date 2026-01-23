@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.entity;
 
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -9,7 +8,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -17,16 +15,13 @@ import java.util.Set;
 
 /**
  * Entity representing a film stock type.
- * Film types can be associated with ContentImages via many-to-many relationship.
+ * Film types can be associated with ContentImages via foreign key relationship.
  * This replaces the static FilmType enum to allow dynamic film type management.
+ * 
+ * Database table: content_film_types
+ * Indexes:
+ *   - idx_content_film_type_name (film_type_name, unique)
  */
-@Entity
-@Table(
-        name = "content_film_types",
-        indexes = {
-                @Index(name = "idx_content_film_type_name", columnList = "film_type_name", unique = true)
-        }
-)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -45,31 +40,28 @@ public class ContentFilmTypeEntity {
         return filmTypeName != null ? filmTypeName.hashCode() : 0;
     }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** Column: id (BIGINT, PRIMARY KEY, auto-generated) */
     private Long id;
 
+    /** Column: film_type_name (VARCHAR(100), NOT NULL, UNIQUE) */
     @NotBlank
     @Size(min = 1, max = 100)
-    @Column(name = "film_type_name", unique = true, nullable = false, length = 100)
     private String filmTypeName;
 
+    /** Column: display_name (VARCHAR(100), NOT NULL) */
     @NotBlank
     @Size(min = 1, max = 100)
-    @Column(name = "display_name", nullable = false, length = 100)
     private String displayName;
 
+    /** Column: default_iso (INTEGER, NOT NULL) */
     @NotNull
     @Positive
-    @Column(name = "default_iso", nullable = false)
     private Integer defaultIso;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    /** Column: created_at (TIMESTAMP, NOT NULL) */
     private LocalDateTime createdAt;
 
-    // One-to-many relationship with ContentImages (mappedBy side)
-    @OneToMany(mappedBy = "filmType", fetch = FetchType.LAZY)
+    /** Relationship: One-to-many with ContentImageEntity (via content_image.film_type_id) */
     @Builder.Default
     private Set<ContentImageEntity> contentImages = new HashSet<>();
 

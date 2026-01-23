@@ -1,4 +1,23 @@
 services:
+  # Local PostgreSQL service removed - using EC2 PostgreSQL instead
+  # database:
+  #   image: postgres:16-alpine
+  #   container_name: portfolio-postgres
+  #   environment:
+  #     POSTGRES_DB: ${POSTGRES_DB:-edens_zac}
+  #     POSTGRES_USER: ${POSTGRES_USER:-zedens}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+  #   ports:
+  #     - "${POSTGRES_PORT:-5432}:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zedens}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
   backend:
     image: edens.zac.backend:latest
     build:
@@ -7,10 +26,12 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Database Config
-      SPRING_DATASOURCE_URL: jdbc:mysql://${RDS_ENDPOINT}:3306/${RDS_TABLE_NAME}?useSSL=true&serverTimezone=${RDS_TIMEZONE}
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: ${RDS_PASSWORD}
+      # Database Config - EC2 PostgreSQL
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-edens_zac}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-zedens}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      # Ensure profile does not default to mysql
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
 
       # AWS Config
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -18,7 +39,7 @@ services:
       AWS_REGION: us-west-2
       AWS_PORTFOLIO_S3_BUCKET: ${AWS_PORTFOLIO_S3_BUCKET}
       AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+      # SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
 
     restart: unless-stopped
     healthcheck:
@@ -27,3 +48,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+# Volumes removed - using EC2 PostgreSQL instead
+# volumes:
+#   postgres_data:

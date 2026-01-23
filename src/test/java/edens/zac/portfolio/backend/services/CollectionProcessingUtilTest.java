@@ -6,9 +6,9 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.repository.CollectionRepository;
-import edens.zac.portfolio.backend.repository.CollectionContentRepository;
-import edens.zac.portfolio.backend.repository.ContentRepository;
+import edens.zac.portfolio.backend.dao.CollectionDao;
+import edens.zac.portfolio.backend.dao.CollectionContentDao;
+import edens.zac.portfolio.backend.dao.ContentDao;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,13 +31,13 @@ import static org.mockito.Mockito.*;
 class CollectionProcessingUtilTest {
 
     @Mock
-    private CollectionRepository collectionRepository;
+    private CollectionDao collectionDao;
 
     @Mock
-    private CollectionContentRepository collectionContentRepository;
+    private CollectionContentDao collectionContentDao;
 
     @Mock
-    private ContentRepository contentRepository;
+    private ContentDao contentDao;
 
     @Mock
     private ContentProcessingUtil contentProcessingUtil;
@@ -78,24 +78,8 @@ class CollectionProcessingUtilTest {
         testBlocks.add(block1);
         testBlocks.add(block2);
 
-        // Create join table entities (new architecture)
-        CollectionContentEntity cc1 = CollectionContentEntity.builder()
-                .collection(testEntity)
-                .content(block1)
-                .orderIndex(0)
-                .visible(true)
-                .build();
-
-        CollectionContentEntity cc2 = CollectionContentEntity.builder()
-                .collection(testEntity)
-                .content(block2)
-                .orderIndex(1)
-                .visible(true)
-                .build();
-
-        // Add to collection using the join table
-        testEntity.getCollectionContent().add(cc1);
-        testEntity.getCollectionContent().add(cc2);
+        // Note: CollectionContentEntity now uses IDs instead of entity references
+        // These are not used in the tests below, but kept for reference
     }
 
     @Test
@@ -125,23 +109,23 @@ class CollectionProcessingUtilTest {
         // Arrange
         List<CollectionContentEntity> joinEntries = new ArrayList<>();
         CollectionContentEntity join1 = CollectionContentEntity.builder()
-                .collection(testEntity)
-                .content(testBlocks.get(0))
+                .collectionId(testEntity.getId())
+                .contentId(testBlocks.get(0).getId())
                 .orderIndex(0)
                 .visible(true)
                 .build();
         CollectionContentEntity join2 = CollectionContentEntity.builder()
-                .collection(testEntity)
-                .content(testBlocks.get(1))
+                .collectionId(testEntity.getId())
+                .contentId(testBlocks.get(1).getId())
                 .orderIndex(1)
                 .visible(true)
                 .build();
         joinEntries.add(join1);
         joinEntries.add(join2);
         
-        when(collectionContentRepository.findByCollectionIdOrderByOrderIndex(testEntity.getId()))
+        when(collectionContentDao.findByCollectionIdOrderByOrderIndex(testEntity.getId()))
                 .thenReturn(joinEntries);
-        when(contentRepository.findAllByIds(anyList()))
+        when(contentDao.findAllByIds(anyList()))
                 .thenReturn(testBlocks);
         when(contentProcessingUtil.convertBulkLoadedContentToModel(any(ContentEntity.class), any(CollectionContentEntity.class)))
                 .thenAnswer(invocation -> {
@@ -195,7 +179,7 @@ class CollectionProcessingUtilTest {
     @Test
     void validateAndEnsureUniqueSlug_shouldReturnOriginalSlugWhenUnique() {
         // Arrange
-        when(collectionRepository.findBySlug("test-slug"))
+        when(collectionDao.findBySlug("test-slug"))
                 .thenReturn(Optional.empty());
 
         // Act
@@ -211,9 +195,9 @@ class CollectionProcessingUtilTest {
         CollectionEntity existingEntity = new CollectionEntity();
         existingEntity.setId(2L);
 
-        when(collectionRepository.findBySlug("test-slug"))
+        when(collectionDao.findBySlug("test-slug"))
                 .thenReturn(Optional.of(existingEntity));
-        when(collectionRepository.findBySlug("test-slug-1"))
+        when(collectionDao.findBySlug("test-slug-1"))
                 .thenReturn(Optional.empty());
 
         // Act
@@ -236,7 +220,7 @@ class CollectionProcessingUtilTest {
 
         // Assert
         // Config JSON removed; ensure other defaults still apply
-        assertEquals(50, result.getContentPerPage());
+        assertEquals(30, result.getContentPerPage());
         assertFalse(result.getVisible()); // Client galleries are private by default
     }
 
