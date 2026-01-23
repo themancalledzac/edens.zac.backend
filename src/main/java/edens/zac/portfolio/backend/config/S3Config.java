@@ -15,37 +15,37 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class S3Config {
 
-    @Value("${aws.access.key.id}")
-    private String accessKeyId;
+  @Value("${aws.access.key.id}")
+  private String accessKeyId;
 
-    @Value("${aws.secret.access.key}")
-    private String secretAccessKey;
+  @Value("${aws.secret.access.key}")
+  private String secretAccessKey;
 
-    @Value("${aws.s3.region}")
-    private String region;
+  @Value("${aws.s3.region}")
+  private String region;
 
-    @PostConstruct  // Add this method
-    public void logConfig() {
-        log.info("S3Config initialized");
-        log.info("Region: {}", region);
-        log.info("Access key length: {}", accessKeyId != null ? accessKeyId.length() : "null");
-        log.info("Secret key length: {}", secretAccessKey != null ? secretAccessKey.length() : "null");
+  @PostConstruct // Add this method
+  public void logConfig() {
+    log.info("S3Config initialized");
+    log.info("Region: {}", region);
+    log.info("Access key length: {}", accessKeyId != null ? accessKeyId.length() : "null");
+    log.info("Secret key length: {}", secretAccessKey != null ? secretAccessKey.length() : "null");
+  }
+
+  @Bean
+  public AmazonS3 amazonS3Client() {
+    log.info("Creating AmazonS3 client");
+    try {
+
+      AWSCredentials credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
+
+      return AmazonS3ClientBuilder.standard()
+          .withCredentials(new AWSStaticCredentialsProvider(credentials))
+          .withRegion(region)
+          .build();
+    } catch (Exception e) {
+      log.error("Failed to create AmazonS3 client", e);
+      throw e;
     }
-
-    @Bean
-    public AmazonS3 amazonS3Client() {
-        log.info("Creating AmazonS3 client");
-        try {
-
-            AWSCredentials credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
-
-            return AmazonS3ClientBuilder.standard()
-                    .withCredentials(new AWSStaticCredentialsProvider(credentials))
-                    .withRegion(region)
-                    .build();
-        } catch (Exception e) {
-            log.error("Failed to create AmazonS3 client", e);
-            throw e;
-        }
-    }
+  }
 }

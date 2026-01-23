@@ -452,22 +452,108 @@ portfolio-bucket/
 
 ---
 
-### 🔴 HIGH PRIORITY - Core CI/CD Infrastructure
+### 🔴 HIGH PRIORITY - GitHub Actions CI/CD Pipeline Implementation
 
-#### GitHub Actions Pipeline Implementation
-- [ ] **Create `.github/workflows/ci.yml`** - Continuous Integration
-  - Automated testing on pull requests
-  - Code quality checks (linting, formatting)
-  - Security scanning (dependency vulnerabilities)
-  - Build validation for all branches
+#### Step 1: Maven Linting Configuration
+- [ ] **Add Checkstyle Plugin to pom.xml**
+  - Version: 3.3.1 with Checkstyle 10.12.7
+  - Config: `google_checks.xml` (Google Java Style Guide)
+  - Failure settings: `failsOnError=true`, `violationSeverity=warning`
+  - Phase: `validate` (runs early in build)
+  - Exclude: Test source directory
 
-- [ ] **Create `.github/workflows/cd.yml`** - Continuous Deployment
-  - Automated deployment to staging on main branch merge
-  - Production deployment via manual trigger or tags
-  - Environment-specific configuration management
-  - Automated rollback capabilities
+- [ ] **Add SpotBugs Plugin to pom.xml**
+  - Version: 4.8.3.0 with FindSecBugs for security checks
+  - Effort: Max, Threshold: Low
+  - Exclusion file: `spotbugs-exclude.xml`
+  - Phase: `verify` (runs after compile)
+  - Failure: `failOnError=true`
 
-- [ ] **Environment Configuration Management**
+- [ ] **Add Maven Surefire Plugin to pom.xml**
+  - Version: 3.2.5
+  - Includes: `**/*Test.java`
+  - Generates JUnit XML reports for GitHub Actions
+
+#### Step 2: Create Configuration Files
+- [ ] **Create `spotbugs-exclude.xml`** (root directory)
+  - Exclude Lombok-generated inner classes
+  - Exclude Lombok equals/hashCode warnings in entities
+  - Exclude Spring dependency injection warnings
+
+- [ ] **Create `dependency-check-suppressions.xml`** (root directory)
+  - OWASP dependency check suppression template
+  - For known false positives or accepted vulnerabilities
+
+#### Step 3: GitHub Actions Workflow
+- [ ] **Create `.github/workflows/ci-cd.yml`**
+  - **Stage 1: Lint** (BLOCKING) - `mvn checkstyle:check && mvn spotbugs:check`
+  - **Stage 2: Test** (depends on lint) - PostgreSQL 16 container, `mvn test -B`
+  - **Stage 3: Build** (depends on test) - `mvn clean package -DskipTests -B`, Docker build
+  - **Stage 4: Security Scan** (depends on lint) - OWASP Dependency Check, CVSS threshold 7
+  - **Stage 5: Deploy** (depends on build) - SSH to EC2, execute `deploy.sh`, health check
+  - Maven dependency caching with `actions/cache@v4`
+  - All artifacts retained for 7-14 days
+
+#### Step 4: GitHub Configuration
+- [ ] **Configure GitHub Secrets** (Settings → Secrets and variables → Actions)
+  - `EC2_SSH_PRIVATE_KEY` - Private SSH key (.pem file content)
+  - `EC2_HOST` - EC2 public IP or hostname
+  - `EC2_USER` - SSH username (e.g., `ubuntu`, `ec2-user`)
+  - `POSTGRES_PASSWORD` - PostgreSQL password for production
+  - `AWS_ACCESS_KEY_ID` - AWS credentials for S3
+  - `AWS_SECRET_ACCESS_KEY` - AWS secret key
+  - Optional: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`
+
+- [ ] **Set Up Branch Protection Rules** (Settings → Branches)
+  - Branch: `main`
+  - ✅ Require pull request before merging
+  - ✅ Require status checks: `lint`, `test`, `build`, `security-scan`
+  - ✅ Require branches to be up to date before merging
+  - ✅ Require conversation resolution before merging
+
+#### Step 5: Testing & Validation
+- [ ] **Fix Existing Linting Violations**
+  - Run locally: `mvn checkstyle:check`
+  - Run locally: `mvn spotbugs:check`
+  - Fix fully-qualified exception names, lambda formatting, unused imports, magic numbers
+
+- [ ] **Local Testing Before Commit**
+  - Test build: `mvn clean package`
+  - Test Docker build: `docker build -t edens.zac.backend:test .`
+  - Verify all checks pass
+
+- [ ] **Create Feature Branch & Test Pipeline**
+  - Branch: `feature/github-actions-cicd`
+  - Push changes and verify workflow runs
+  - Check all 5 stages complete successfully
+  - Review uploaded artifacts
+
+- [ ] **Test Branch Protection**
+  - Create PR to `main`
+  - Verify required checks appear
+  - Cannot merge until all checks pass
+
+- [ ] **Test Automatic Deployment**
+  - Merge PR to main
+  - Verify deploy job triggers automatically
+  - SSH connection succeeds, `deploy.sh` executes
+  - Health check passes: `curl http://localhost:8080/actuator/health`
+
+#### Step 6: Documentation
+- [ ] **Add CI/CD Status Badge to README.md**
+  - Badge: `[![CI/CD Pipeline](https://github.com/themancalledzac/edens.zac.backend/actions/workflows/ci-cd.yml/badge.svg)](...)`
+
+- [ ] **Document Rollback Procedure**
+  - SSH to EC2
+  - Find previous Docker image SHA
+  - Tag previous image as latest
+  - Restart containers with previous version
+
+---
+
+### 🟠 MEDIUM PRIORITY - Future Terraform & Advanced CI/CD
+
+#### Environment Configuration Management
   - Secure secrets management via GitHub Actions secrets
   - Environment-specific variables (staging vs production)
   - Database connection string management

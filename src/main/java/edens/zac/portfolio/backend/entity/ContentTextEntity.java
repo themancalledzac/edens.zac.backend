@@ -8,11 +8,10 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Entity representing text content.
- * Extends ContentEntity (JOINED inheritance - base table: content, child table: content_text).
- * 
- * Database table: content_text
- * Primary key: id (inherited from content table, FK to content.id)
+ * Entity representing text content. Extends ContentEntity (JOINED inheritance - base table:
+ * content, child table: content_text).
+ *
+ * <p>Database table: content_text Primary key: id (inherited from content table, FK to content.id)
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -20,15 +19,17 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 public class ContentTextEntity extends ContentEntity {
 
-    /** Column: text_content (TEXT, NOT NULL) */
-    @NotNull
-    private String textContent;
-    
-    /** Column: format_type (VARCHAR) - Options: "markdown", "html", "plain", "js", "py", "sql", "java", "ts", "tf", "yml" */
-    private String formatType;
-    
-    @Override
-    public ContentType getContentType() {
-        return ContentType.TEXT;
-    }
+  /** Column: text_content (TEXT, NOT NULL) */
+  @NotNull private String textContent;
+
+  /**
+   * Column: format_type (VARCHAR) - Options: "markdown", "html", "plain", "js", "py", "sql",
+   * "java", "ts", "tf", "yml"
+   */
+  private String formatType;
+
+  @Override
+  public ContentType getContentType() {
+    return ContentType.TEXT;
+  }
 }
