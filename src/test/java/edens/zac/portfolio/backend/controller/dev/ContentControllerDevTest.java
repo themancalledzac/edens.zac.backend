@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.types.ContentType;
-
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +34,7 @@ class ContentControllerDevTest {
 
   private ObjectMapper objectMapper;
 
-    private List<ContentImageModel> testImages;
+  private List<ContentImageModel> testImages;
 
   @BeforeEach
   void setUp() {
@@ -47,7 +46,7 @@ class ContentControllerDevTest {
     mockMvc = MockMvcBuilders.standaloneSetup(contentController).build();
 
     // Create test image model
-      ContentImageModel testImage = new ContentImageModel();
+    ContentImageModel testImage = new ContentImageModel();
     testImage.setId(1L);
     testImage.setContentType(ContentType.IMAGE);
     testImage.setTitle("Test Image");
