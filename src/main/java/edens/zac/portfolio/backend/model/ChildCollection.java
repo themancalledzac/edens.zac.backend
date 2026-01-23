@@ -6,13 +6,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * DTO representing the relationship between a child entity (content or collection) and a parent collection.
- * Used in update requests to manage collection associations using the prev/new/remove pattern.
- * Represents the relationship metadata: collectionId, visibility, and order index.
+ * DTO representing the relationship between a child entity (content or collection) and a parent
+ * collection. Used in update requests to manage collection associations using the prev/new/remove
+ * pattern. Represents the relationship metadata: collectionId, visibility, and order index.
  *
- * Can be used for:
- * - Content (images, text, etc.) belonging to collections
- * - Collections belonging to parent collections
+ * <p>Can be used for: - Content (images, text, etc.) belonging to collections - Collections
+ * belonging to parent collections
  */
 @Data
 @Builder
@@ -20,39 +19,29 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ChildCollection {
 
-    /**
-     * The ID of the collection
-     */
-    private Long collectionId;
+  /** The ID of the collection */
+  private Long collectionId;
 
-    /**
-     * The name of the collection (for reference/validation)
-     */
-    private String name;
+  /** The name of the collection (for reference/validation) */
+  private String name;
 
-    /**
-     * The slug of the collection (unique identifier for URL routing)
-     */
-    private String slug;
+  /** The slug of the collection (unique identifier for URL routing) */
+  private String slug;
 
-    /**
-     * The cover image URL of the collection.
-     * Useful for displaying collection thumbnails when showing
-     * "This image appears in these collections".
-     */
-    private String coverImageUrl;
+  /**
+   * The cover image URL of the collection. Useful for displaying collection thumbnails when showing
+   * "This image appears in these collections".
+   */
+  private String coverImageUrl;
 
-    /**
-     * Whether the child entity is visible in this collection
-     * Defaults to true if not specified
-     */
-    private Boolean visible;
+  /** Whether the child entity is visible in this collection Defaults to true if not specified */
+  private Boolean visible;
 
-    /**
-     * The order index of this child entity within this specific collection.
-     * INPUT ONLY: Used when adding content to a collection at a specific position.
-     * NOT populated in API responses - use content[].orderIndex instead for the current collection's order.
-     * If null when adding, content will be appended to the end of the collection.
-     */
-    private Integer orderIndex;
+  /**
+   * The order index of this child entity within this specific collection. INPUT ONLY: Used when
+   * adding content to a collection at a specific position. NOT populated in API responses - use
+   * content[].orderIndex instead for the current collection's order. If null when adding, content
+   * will be appended to the end of the collection.
+   */
+  private Integer orderIndex;
 }

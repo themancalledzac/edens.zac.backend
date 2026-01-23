@@ -1,18 +1,18 @@
-//package edens.zac.portfolio.backend.services;
+// package edens.zac.portfolio.backend.services;
 //
-//import lombok.extern.slf4j.Slf4j;
-//import net.coobird.thumbnailator.Thumbnails;
-//import org.springframework.stereotype.Service;
-//import org.springframework.web.multipart.MultipartFile;
+// import lombok.extern.slf4j.Slf4j;
+// import net.coobird.thumbnailator.Thumbnails;
+// import org.springframework.stereotype.Service;
+// import org.springframework.web.multipart.MultipartFile;
 //
-//import javax.imageio.ImageIO;
-//import java.awt.image.BufferedImage;
-//import java.io.ByteArrayOutputStream;
-//import java.io.IOException;
+// import javax.imageio.ImageIO;
+// import java.awt.image.BufferedImage;
+// import java.io.ByteArrayOutputStream;
+// import java.io.IOException;
 //
-//@Service
-//@Slf4j
-//public class ImageProcessingService {
+// @Service
+// @Slf4j
+// public class ImageProcessingService {
 //
 //    private static final int THUMBNAIL_MAX_SIZE = 500;
 //
@@ -40,4 +40,4 @@
 //            return outputStream.toByteArray();
 //        }
 //    }
-//}
+// }

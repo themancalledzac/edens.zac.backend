@@ -5,16 +5,13 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * Model representing a location for API responses.
- * Contains the location's ID and name.
- */
+/** Model representing a location for API responses. Contains the location's ID and name. */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class LocationModel {
 
-    private Long id;
-    private String name;
+  private Long id;
+  private String name;
 }

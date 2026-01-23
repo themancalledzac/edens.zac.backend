@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+  <!-- Suppress Javadoc warnings for internal utility classes -->
+  <suppress checks="MissingJavadocType" files=".*ProcessingUtil\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*ProcessingUtil\.java"/>
+
+  <!-- Suppress Javadoc warnings for model/DTO classes (self-documenting via Lombok) -->
+  <suppress checks="MissingJavadocType" files=".*[/\\]model[/\\].*\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*[/\\]model[/\\].*\.java"/>
+  <suppress checks="InvalidJavadocPosition" files=".*[/\\]model[/\\].*\.java"/>
+
+  <!-- Suppress Javadoc warnings for controller classes (REST endpoints are self-documenting) -->
+  <suppress checks="MissingJavadocType" files=".*Controller.*\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*Controller.*\.java"/>
+
+  <!-- Suppress Javadoc warnings for entity classes (JPA entities are self-documenting) -->
+  <suppress checks="MissingJavadocType" files=".*[/\\]entity[/\\].*\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*[/\\]entity[/\\].*\.java"/>
+
+  <!-- Suppress Javadoc warnings for DAO/Repository classes (method names are self-documenting) -->
+  <suppress checks="MissingJavadocType" files=".*[/\\]dao[/\\].*\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*[/\\]dao[/\\].*\.java"/>
+
+  <!-- Suppress Javadoc warnings for configuration classes (Spring @Configuration are self-documenting) -->
+  <suppress checks="MissingJavadocType" files=".*[/\\]config[/\\].*\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*[/\\]config[/\\].*\.java"/>
+
+  <!-- Suppress Javadoc warnings for enum types (enums are self-documenting) -->
+  <suppress checks="MissingJavadocType" files=".*[/\\]types[/\\].*\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*[/\\]types[/\\].*\.java"/>
+
+  <!-- Suppress Javadoc for Application main class -->
+  <suppress checks="MissingJavadocType" files=".*Application\.java"/>
+
+  <!-- Allow DTO/DAO abbreviations in method and variable names (common Java convention) -->
+  <suppress checks="AbbreviationAsWordInName" files=".*"/>
+
+  <!-- Allow star imports for model packages (cleaner when using many DTOs) -->
+  <suppress checks="AvoidStarImport" files=".*ProcessingUtil\.java"/>
+  <suppress checks="AvoidStarImport" files=".*ServiceImpl\.java"/>
+  <suppress checks="AvoidStarImport" files=".*Controller.*\.java"/>
+  <suppress checks="AvoidStarImport" files=".*[/\\]entity[/\\].*\.java"/>
+  <suppress checks="AvoidStarImport" files=".*[/\\]model[/\\].*\.java"/>
+  <suppress checks="AvoidStarImport" files=".*Service\.java"/>
+
+  <!-- Allow slightly longer lines for builder patterns and method chains -->
+  <suppress checks="LineLength" files=".*ServiceImpl\.java"/>
+  <suppress checks="LineLength" files=".*Controller.*\.java"/>
+  <suppress checks="LineLength" files=".*[/\\]types[/\\].*\.java"/>
+  <suppress checks="LineLength" files=".*[/\\]dao[/\\].*\.java"/>
+  <suppress checks="LineLength" files=".*ProcessingUtil\.java"/>
+
+  <!-- Allow missing braces for simple guard clauses and null checks -->
+  <suppress checks="NeedBraces" files=".*ProcessingUtil\.java"/>
+  <suppress checks="NeedBraces" files=".*ServiceImpl\.java"/>
+  <suppress checks="NeedBraces" files=".*[/\\]entity[/\\].*\.java"/>
+
+  <!-- Allow domain-specific naming patterns (fStop, ContentImages, etc.) in entities -->
+  <suppress checks="MemberName" files=".*[/\\]entity[/\\].*\.java"/>
+  <suppress checks="MemberName" files=".*[/\\]model[/\\].*\.java"/>
+
+  <!-- Allow slightly longer lines in model/DTO classes for field declarations -->
+  <suppress checks="LineLength" files=".*[/\\]model[/\\].*\.java"/>
+
+  <!-- Suppress variable declaration distance warnings (common pattern in processing utils) -->
+  <suppress checks="VariableDeclarationUsageDistance" files=".*ProcessingUtil\.java"/>
+
+  <!-- Allow missing default clause in switch statements (exhaustive enum switches) -->
+  <suppress checks="MissingSwitchDefault" files=".*ProcessingUtil\.java"/>
+
+  <!-- Allow multiple variable declarations on one line (for related variables) -->
+  <suppress checks="MultipleVariableDeclarations" files=".*ProcessingUtil\.java"/>
+
+  <!-- Suppress Javadoc formatting warnings (summary sentences) -->
+  <suppress checks="SummaryJavadoc" files=".*"/>
+
+  <!-- Suppress Javadoc for test classes -->
+  <suppress checks="MissingJavadocType" files=".*Test\.java"/>
+  <suppress checks="MissingJavadocMethod" files=".*Test\.java"/>
+
+  <!-- Allow magic numbers in test classes -->
+  <suppress checks="MagicNumber" files=".*Test\.java"/>
+</suppressions>

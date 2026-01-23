@@ -5,16 +5,13 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * Model representing a person for API responses.
- * Contains the person's ID and name.
- */
+/** Model representing a person for API responses. Contains the person's ID and name. */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class ContentPersonModel {
 
-    private Long id;
-    private String name;
+  private Long id;
+  private String name;
 }

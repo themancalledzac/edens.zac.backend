@@ -6,8 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * DTO representing film format information for API responses.
- * Contains the enum name and display name.
+ * DTO representing film format information for API responses. Contains the enum name and display
+ * name.
  */
 @Data
 @NoArgsConstructor
@@ -15,13 +15,9 @@ import lombok.NoArgsConstructor;
 @Builder
 public class FilmFormatDTO {
 
-    /**
-     * The enum constant name (e.g., "MM_35")
-     */
-    private String name;
+  /** The enum constant name (e.g., "MM_35") */
+  private String name;
 
-    /**
-     * Human-readable display name (e.g., "35mm")
-     */
-    private String displayName;
+  /** Human-readable display name (e.g., "35mm") */
+  private String displayName;
 }
