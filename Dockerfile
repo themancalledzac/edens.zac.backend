@@ -8,8 +8,10 @@ WORKDIR /app
 COPY pom.xml ./
 RUN mvn dependency:go-offline
 
-# Copy checkstyle configuration files needed for the build
+# Copy configuration files needed for the build
 COPY checkstyle-suppressions.xml ./
+COPY spotbugs-exclude.xml ./
+COPY dependency-check-suppressions.xml ./
 
 # Copy the entire project and build it
 COPY src ./src
