@@ -1214,3 +1214,46 @@ Before removing ANY legacy code, verify:
 6. **Performance testing with realistic data** (Required before production use)
 
 This refactor provides significant architectural improvements but requires careful implementation to maintain existing functionality while gaining the benefits of the new flexible design.
+
+
+
+## THOUGHTS:
+
+- NEED to verify ALL todos to fully deploy the postgreSQL db will work.
+  - Already exists, so don't need to create
+  - Deploy of backend only effects the backend part of the EC2 instance
+  - What part of our 'docker' deploy needs to be our DB? do we need it at all? why do we even have it as part of our deployment strategy if not?
+- NEED to add a 'docker builder prune -f' or something on a successful deploy, so as to keep our EC2 instance light
+- Want to look at the idea of having 'generated' collections, such as: 
+  - all images from this city
+  - A parent collection for a certain Tag or Location, (i.e. America), that adds child collections based on if the collection fits, or maybe if a certain percentage of images also have that same tag/locagion
+  - a 'tag' collection
+  - a 'person' collection
+- Want to work on 'image locations' and 'collection' locations as the same database ( if not yet )
+- Want to update frontend location to a dropdown
+- Want to update 'textContent' to match our new frontend, which includes things like:
+  - (side note, the 'header text box' is using data from the collection)
+  - 'title', 'description', 'date'(inherited?), 'paragraph2?', thoughts?
+- Need to make sure we add 'locations' to our metadata list ( for the 'Manage/Update' api call)
+  - This makes it like 'filmType', 'people', 'tags', etc
+- FRONTEND:
+  - Need the 'edit multiple images' to have a 'select all'
+  - Need the 'edit image' box to have the 'save' on the bottom ALWAYS visible
+  - Need to condense 'manage' top header to be far more concise
+  - Need any text box to be more dynamic with layout
+  - Need to work on 'line algorithm'
+    - This should work similarly to our 'ImageMetadata' ENUM:
+    - a concise way of describing each 'line organization'/grouping/shape
+    - a concise way of describing the required images for that grouping/shape
+    - a better name for our 'line algorithm' - box organizer or some shit
+  - Need to add 'people' and 'tags' from all images in a collection, to the collection header textBox
+    - Do we need to think about how we 'organize' these 'people/tags'? do we want the backend to have these as items IN the collection, so the frontend doesn't need to do logic to pull them out of each image that is in the API response body?
+    - Backend would need to update the 'getCollection' endpoint to simply, for each associated image, add any people/tag/location to the collection itself
+  - Need
+- UPDATE 'collection type' to include a 'parent' collection type ( naming can change )
+  - This is specifically for collections that are solely for the purpose of organizing other collections. maybe lacks a 'date', or other normal collection data
+- Need to be able to upload images at the same time as creating collection, if wanted
+  - Reason being, sometimes idk what collection/name i'll use until i get the images
+- Future goal - ai model to help 'suggest' tags, based on image inputs. Will require MORE of my images to be uploaded
+- NEED way of being able to change the 'siteSlug' when the title of the collection changes
+- 
