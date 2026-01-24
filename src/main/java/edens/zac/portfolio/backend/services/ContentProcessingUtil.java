@@ -782,7 +782,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Extract metadata from an image file using Drew Noakes metadata-extractor.
+   * Extract metadata from an image file using Drew Noakes metadata-extractor. Uses the
+   * ImageMetadata enum system for consistent, maintainable field extraction.
    *
    * @param file The image file to extract metadata from
    * @return Map of metadata key-value pairs
@@ -794,98 +795,118 @@ public class ContentProcessingUtil {
     try (InputStream inputStream = file.getInputStream()) {
       Metadata imageMetadata = ImageMetadataReader.readMetadata(inputStream);
 
-      // Extract all metadata tags
+      // Extract EXIF metadata for all defined fields
       for (Directory directory : imageMetadata.getDirectories()) {
         for (Tag tag : directory.getTags()) {
-          String tagName = tag.getTagName();
-          String description = tag.getDescription();
-
-          if (description != null && !description.isEmpty()) {
-            // Map common EXIF tags to our metadata keys
-            switch (tagName) {
-              case "Image Width" ->
-                  metadata.put("imageWidth", description.replaceAll("[^0-9]", ""));
-              case "Image Height" ->
-                  metadata.put("imageHeight", description.replaceAll("[^0-9]", ""));
-              case "ISO Speed Ratings" -> metadata.put("iso", description);
-              case "Artist" -> metadata.put("author", description);
-              case "F-Number" -> metadata.put("fStop", description);
-              case "Lens Model", "Lens" -> metadata.put("lens", description);
-              case "Exposure Time" -> metadata.put("shutterSpeed", description);
-              case "Model" -> metadata.put("camera", description);
-              case "Focal Length" -> metadata.put("focalLength", description);
-              case "GPS Latitude", "GPS Longitude" -> {
-                String existingLocation = metadata.getOrDefault("location", "");
-                metadata.put("location", existingLocation + " " + description);
-              }
-              case "Date/Time Original", "Date/Time" -> metadata.put("createDate", description);
-            }
-          }
+          extractFromExifTag(tag, metadata);
         }
       }
 
-      // Check for XMP data for additional metadata
-      for (Directory directory : imageMetadata.getDirectories()) {
-        if (directory instanceof XmpDirectory xmpDirectory) {
-
-          // Get XMP XML for parsing (rating is stored in XMP, not EXIF)
-          String xmpXml = xmpDirectory.getXMPMeta().dumpObject();
-
-          // Extract rating from XMP XML
-          // Rating is stored in XMP metadata as: xmp:Rating = "4" or xmp:Rating="4"
-          java.util.regex.Pattern ratingPattern =
-              java.util.regex.Pattern.compile(
-                  "xmp:Rating\\s*=\\s*\"(\\d+)\"", java.util.regex.Pattern.CASE_INSENSITIVE);
-          java.util.regex.Matcher matcher = ratingPattern.matcher(xmpXml);
-
-          if (matcher.find()) {
-            String ratingValue = matcher.group(1);
-            metadata.put("rating", ratingValue);
-            log.info("Extracted rating from XMP XML: {}", ratingValue);
-          } else {
-            log.debug("No xmp:Rating pattern found in XMP XML");
-          }
-
-          // Check for film simulation indicators
-          if (xmpXml.contains("Film") || xmpXml.contains("film")) {
-            metadata.put("isFilm", "true");
-          }
-
-          // Check for black and white
-          if (xmpXml.contains("Monochrome") || xmpXml.contains("BlackAndWhite")) {
-            metadata.put("blackAndWhite", "true");
-          }
-        }
+      // Extract XMP metadata for all defined fields
+      for (XmpDirectory xmpDirectory : imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
+        extractFromXmpDirectory(xmpDirectory, metadata);
       }
 
-      // If we couldn't get dimensions from metadata, read from BufferedImage
-      if (!metadata.containsKey("imageWidth") || !metadata.containsKey("imageHeight")) {
-        try (InputStream is2 = file.getInputStream()) {
-          BufferedImage img = ImageIO.read(is2);
-          if (img != null) {
-            metadata.put("imageWidth", String.valueOf(img.getWidth()));
-            metadata.put("imageHeight", String.valueOf(img.getHeight()));
-          }
-        }
-      }
+      // Fallback: Get dimensions from BufferedImage if not found
+      ensureDimensions(file, metadata);
 
       log.info("Extracted metadata: {} tags", metadata.size());
       log.info("Final rating value: {}", metadata.getOrDefault("rating", "NULL"));
 
     } catch (Exception e) {
       log.warn("Failed to extract full metadata: {}", e.getMessage());
+      ensureDimensions(file, metadata);
+    }
 
-      // Fallback: At minimum, get dimensions from BufferedImage
+    return metadata;
+  }
+
+  /**
+   * Extract metadata from a single EXIF tag using the ImageMetadata enum configuration.
+   *
+   * @param tag The EXIF tag to process
+   * @param metadata The metadata map to populate
+   */
+  private void extractFromExifTag(Tag tag, Map<String, String> metadata) {
+    String tagName = tag.getTagName();
+    String description = tag.getDescription();
+
+    if (description == null || description.isEmpty()) {
+      return;
+    }
+
+    // Try each metadata field
+    for (ImageMetadata.MetadataField field : ImageMetadata.MetadataField.values()) {
+      if (field.getExifTags().matches(tagName)) {
+        // Only set if not already extracted
+        if (!metadata.containsKey(field.getFieldName())) {
+          String extractedValue = field.getExtractor().extract(description);
+          if (extractedValue != null) {
+            metadata.put(field.getFieldName(), extractedValue);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Extract metadata from XMP directory using the ImageMetadata enum configuration.
+   *
+   * @param xmpDirectory The XMP directory to process
+   * @param metadata The metadata map to populate
+   */
+  private void extractFromXmpDirectory(XmpDirectory xmpDirectory, Map<String, String> metadata) {
+    com.adobe.internal.xmp.XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
+
+    // Try each metadata field
+    for (ImageMetadata.MetadataField field : ImageMetadata.MetadataField.values()) {
+      ImageMetadata.XmpProperty xmpProperty = field.getXmpProperty();
+
+      if (!xmpProperty.hasProperties()) {
+        continue;
+      }
+
+      // Try each property name in the namespace
+      for (String propertyName : xmpProperty.getPropertyNames()) {
+        try {
+          com.adobe.internal.xmp.properties.XMPProperty prop =
+              xmpMeta.getProperty(xmpProperty.getNamespace(), propertyName);
+
+          if (prop != null && prop.getValue() != null) {
+            // Only set if not already extracted from EXIF
+            if (!metadata.containsKey(field.getFieldName())) {
+              String extractedValue = field.getExtractor().extract(prop.getValue());
+              if (extractedValue != null) {
+                metadata.put(field.getFieldName(), extractedValue);
+                break; // Found value, stop trying other property names
+              }
+            }
+          }
+        } catch (com.adobe.internal.xmp.XMPException e) {
+          // Property not found, continue to next
+        }
+      }
+    }
+  }
+
+  /**
+   * Ensure dimensions are present in metadata, reading from BufferedImage if needed.
+   *
+   * @param file The image file
+   * @param metadata The metadata map to populate
+   */
+  private void ensureDimensions(MultipartFile file, Map<String, String> metadata) {
+    if (!metadata.containsKey("imageWidth") || !metadata.containsKey("imageHeight")) {
       try (InputStream is = file.getInputStream()) {
         BufferedImage img = ImageIO.read(is);
         if (img != null) {
           metadata.put("imageWidth", String.valueOf(img.getWidth()));
           metadata.put("imageHeight", String.valueOf(img.getHeight()));
         }
+      } catch (IOException e) {
+        log.warn("Failed to read image dimensions from BufferedImage: {}", e.getMessage());
       }
     }
-
-    return metadata;
   }
 
   /**
