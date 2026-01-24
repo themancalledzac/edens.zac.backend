@@ -192,14 +192,17 @@ jobs:
       - name: Cache OWASP Dependency Check database
         uses: actions/cache@v4
         with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: ${{ runner.os }}-owasp-${{ hashFiles('**/pom.xml') }}
+          path: ~/.owasp/dependency-check-data
+          key: ${{ runner.os }}-owasp-data-${{ github.run_number }}
           restore-keys: |
-            ${{ runner.os }}-owasp-
+            ${{ runner.os }}-owasp-data-
 
       - name: Run OWASP Dependency Check
         run: |
           mvn org.owasp:dependency-check-maven:check \
+            -DdataDirectory=$HOME/.owasp/dependency-check-data \
+            -DautoUpdate=true \
+            -DcveValidForHours=24 \
             -DfailBuildOnCVSS=7 \
             -DsuppressionFile=dependency-check-suppressions.xml \
             -Dformats=HTML,JSON
