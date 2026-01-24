@@ -809,7 +809,6 @@ public class ContentProcessingUtil {
                   metadata.put("imageHeight", description.replaceAll("[^0-9]", ""));
               case "ISO Speed Ratings" -> metadata.put("iso", description);
               case "Artist" -> metadata.put("author", description);
-              case "Rating", "XMP Rating" -> metadata.put("rating", description);
               case "F-Number" -> metadata.put("fStop", description);
               case "Lens Model", "Lens" -> metadata.put("lens", description);
               case "Exposure Time" -> metadata.put("shutterSpeed", description);
@@ -829,21 +828,23 @@ public class ContentProcessingUtil {
       for (Directory directory : imageMetadata.getDirectories()) {
         if (directory instanceof XmpDirectory xmpDirectory) {
 
-          // Check XMP tags for rating
-          for (Tag tag : xmpDirectory.getTags()) {
-            String tagName = tag.getTagName();
-            String description = tag.getDescription();
-            if (description != null
-                && !description.isEmpty()
-                && (tagName.contains("Rating") || tagName.contains("rating"))) {
-              // Only set if not already set from EXIF
-              if (!metadata.containsKey("rating")) {
-                metadata.put("rating", description);
-              }
-            }
-          }
-
+          // Get XMP XML for parsing (rating is stored in XMP, not EXIF)
           String xmpXml = xmpDirectory.getXMPMeta().dumpObject();
+
+          // Extract rating from XMP XML
+          // Rating is stored in XMP metadata as: xmp:Rating = "4" or xmp:Rating="4"
+          java.util.regex.Pattern ratingPattern =
+              java.util.regex.Pattern.compile(
+                  "xmp:Rating\\s*=\\s*\"(\\d+)\"", java.util.regex.Pattern.CASE_INSENSITIVE);
+          java.util.regex.Matcher matcher = ratingPattern.matcher(xmpXml);
+
+          if (matcher.find()) {
+            String ratingValue = matcher.group(1);
+            metadata.put("rating", ratingValue);
+            log.info("Extracted rating from XMP XML: {}", ratingValue);
+          } else {
+            log.debug("No xmp:Rating pattern found in XMP XML");
+          }
 
           // Check for film simulation indicators
           if (xmpXml.contains("Film") || xmpXml.contains("film")) {
@@ -869,6 +870,7 @@ public class ContentProcessingUtil {
       }
 
       log.info("Extracted metadata: {} tags", metadata.size());
+      log.info("Final rating value: {}", metadata.getOrDefault("rating", "NULL"));
 
     } catch (Exception e) {
       log.warn("Failed to extract full metadata: {}", e.getMessage());
