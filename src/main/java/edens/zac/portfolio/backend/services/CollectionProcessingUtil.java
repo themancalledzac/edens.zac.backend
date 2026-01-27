@@ -3,11 +3,14 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentDao;
+import edens.zac.portfolio.backend.dao.LocationDao;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.model.LocationUpdate;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -31,6 +34,7 @@ public class CollectionProcessingUtil {
   private final ContentDao contentDao;
   private final CollectionContentDao collectionContentDao;
   private final ContentProcessingUtil contentProcessingUtil;
+  private final LocationDao locationDao;
 
   // =============================================================================
   // ERROR HANDLING
@@ -41,24 +45,26 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Helper method to populate coverImage on a model from an entity. Fetches the cover image by ID
-   * and converts to ContentImageModel with all metadata including imageWidth and imageHeight.
+   * Helper method to populate coverImage on a model from an entity. Fetches the
+   * cover image by ID
+   * and converts to ContentImageModel with all metadata including imageWidth and
+   * imageHeight.
    */
   private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
     if (entity.getCoverImageId() != null) {
-      // Fetch the ContentImageEntity by ID and convert to ContentImageModel with full metadata
-      ContentImageEntity coverImage =
-          contentDao.findImageById(entity.getCoverImageId()).orElse(null);
+      // Fetch the ContentImageEntity by ID and convert to ContentImageModel with full
+      // metadata
+      ContentImageEntity coverImage = contentDao.findImageById(entity.getCoverImageId()).orElse(null);
       if (coverImage != null) {
-        ContentImageModel coverImageModel =
-            contentProcessingUtil.convertImageEntityToModel(coverImage);
+        ContentImageModel coverImageModel = contentProcessingUtil.convertImageEntityToModel(coverImage);
         model.setCoverImage(coverImageModel);
       }
     }
   }
 
   /**
-   * Convert a CollectionEntity to a CollectionModel with basic information. This does not include
+   * Convert a CollectionEntity to a CollectionModel with basic information. This
+   * does not include
    * content.
    *
    * @param entity The entity to convert
@@ -75,7 +81,17 @@ public class CollectionProcessingUtil {
     model.setTitle(entity.getTitle());
     model.setSlug(entity.getSlug());
     model.setDescription(entity.getDescription());
-    model.setLocation(entity.getLocation());
+    // Convert locationId to LocationModel
+    if (entity.getLocationId() != null) {
+      LocationEntity locationEntity = locationDao.findById(entity.getLocationId()).orElse(null);
+      if (locationEntity != null) {
+        model.setLocation(
+            LocationModel.builder()
+                .id(locationEntity.getId())
+                .name(locationEntity.getLocationName())
+                .build());
+      }
+    }
     model.setCollectionDate(entity.getCollectionDate());
     model.setVisible(entity.getVisible());
 
@@ -83,8 +99,9 @@ public class CollectionProcessingUtil {
     populateCoverImage(model, entity);
 
     // TODO: Re-implement password protection after migration
-    //        model.setIsPasswordProtected(entity.isPasswordProtected());
-    //        model.setHasAccess(!entity.isPasswordProtected()); // Default access for non-protected
+    // model.setIsPasswordProtected(entity.isPasswordProtected());
+    // model.setHasAccess(!entity.isPasswordProtected()); // Default access for
+    // non-protected
     // collections
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
@@ -92,10 +109,9 @@ public class CollectionProcessingUtil {
     CollectionBaseModel.DisplayMode mode = entity.getDisplayMode();
     if (mode == null) {
       // Fallback to computed default for existing records without displayMode
-      mode =
-          entity.getType() == CollectionType.BLOG
-              ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
-              : CollectionBaseModel.DisplayMode.ORDERED;
+      mode = entity.getType() == CollectionType.BLOG
+          ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
+          : CollectionBaseModel.DisplayMode.ORDERED;
     }
     model.setDisplayMode(mode);
 
@@ -109,7 +125,8 @@ public class CollectionProcessingUtil {
   }
 
   /**
-   * Convert a CollectionEntity to a CollectionModel with all content. Uses bulk loading of
+   * Convert a CollectionEntity to a CollectionModel with all content. Uses bulk
+   * loading of
    * ContentEntity instances to avoid proxy issues and improve performance.
    *
    * @param entity The entity to convert
@@ -122,61 +139,64 @@ public class CollectionProcessingUtil {
 
     CollectionModel model = convertToBasicModel(entity);
 
-    // Fetch join table entries explicitly to get content with collection-specific metadata
-    List<CollectionContentEntity> joinEntries =
-        collectionContentDao.findByCollectionIdOrderByOrderIndex(entity.getId());
+    // Fetch join table entries explicitly to get content with collection-specific
+    // metadata
+    List<CollectionContentEntity> joinEntries = collectionContentDao
+        .findByCollectionIdOrderByOrderIndex(entity.getId());
 
     // Extract content IDs from join table entries
-    List<Long> contentIds =
-        joinEntries.stream()
-            .map(CollectionContentEntity::getContentId)
-            .filter(Objects::nonNull)
-            .toList();
+    List<Long> contentIds = joinEntries.stream()
+        .map(CollectionContentEntity::getContentId)
+        .filter(Objects::nonNull)
+        .toList();
 
-    // Bulk fetch all ContentEntity instances in one query (properly loads all subclasses)
+    // Bulk fetch all ContentEntity instances in one query (properly loads all
+    // subclasses)
     final Map<Long, ContentEntity> contentMap;
     if (!contentIds.isEmpty()) {
       List<ContentEntity> contentEntities = contentDao.findAllByIds(contentIds);
-      contentMap =
-          contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
+      contentMap = contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
     } else {
       contentMap = new HashMap<>();
     }
 
-    // Convert join table entries to content models with collection-specific metadata
+    // Convert join table entries to content models with collection-specific
+    // metadata
     // Use the bulk-loaded content entities instead of lazy-loaded ones
-    List<ContentModel> contents =
-        joinEntries.stream()
-            .filter(Objects::nonNull)
-            .map(
-                cc -> {
-                  ContentEntity content = contentMap.get(cc.getContentId());
-                  if (content == null) {
-                    log.warn(
-                        "Content entity {} not found in bulk load for collection {}",
-                        cc.getContentId(),
-                        entity.getId());
-                    return null;
-                  }
-                  // Use bulk-loaded conversion method directly (no temporary object needed)
-                  return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
-                })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+    List<ContentModel> contents = joinEntries.stream()
+        .filter(Objects::nonNull)
+        .map(
+            cc -> {
+              ContentEntity content = contentMap.get(cc.getContentId());
+              if (content == null) {
+                log.warn(
+                    "Content entity {} not found in bulk load for collection {}",
+                    cc.getContentId(),
+                    entity.getId());
+                return null;
+              }
+              // Use bulk-loaded conversion method directly (no temporary object needed)
+              return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
+            })
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
 
     model.setContent(contents);
     return model;
   }
 
   /**
-   * Convert a CollectionEntity and a List of CollectionContentEntity to a CollectionModel. Uses
-   * bulk loading of ContentEntity instances to avoid proxy issues and improve performance.
+   * Convert a CollectionEntity and a List of CollectionContentEntity to a
+   * CollectionModel. Uses
+   * bulk loading of ContentEntity instances to avoid proxy issues and improve
+   * performance.
    *
-   * @param entity The entity to convert
-   * @param collectionContentList The list of join table entries (collection-content associations)
-   * @param currentPage The current page number (0-based)
-   * @param pageSize The page size
-   * @param totalElements The total number of elements
+   * @param entity                The entity to convert
+   * @param collectionContentList The list of join table entries
+   *                              (collection-content associations)
+   * @param currentPage           The current page number (0-based)
+   * @param pageSize              The page size
+   * @param totalElements         The total number of elements
    * @return The converted model
    */
   public CollectionModel convertToModel(
@@ -192,42 +212,41 @@ public class CollectionProcessingUtil {
     CollectionModel model = convertToBasicModel(entity);
 
     // Extract content IDs from join table entries
-    List<Long> contentIds =
-        collectionContentList.stream()
-            .map(CollectionContentEntity::getContentId)
-            .filter(Objects::nonNull)
-            .toList();
+    List<Long> contentIds = collectionContentList.stream()
+        .map(CollectionContentEntity::getContentId)
+        .filter(Objects::nonNull)
+        .toList();
 
-    // Bulk fetch all ContentEntity instances in one query (properly loads all subclasses)
+    // Bulk fetch all ContentEntity instances in one query (properly loads all
+    // subclasses)
     final Map<Long, ContentEntity> contentMap;
     if (!contentIds.isEmpty()) {
       List<ContentEntity> contentEntities = contentDao.findAllByIds(contentIds);
-      contentMap =
-          contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
+      contentMap = contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
     } else {
       contentMap = new HashMap<>();
     }
 
-    // Convert join table entries to content models with collection-specific metadata
+    // Convert join table entries to content models with collection-specific
+    // metadata
     // Use the bulk-loaded content entities instead of lazy-loaded ones
-    List<ContentModel> contents =
-        collectionContentList.stream()
-            .filter(Objects::nonNull)
-            .map(
-                cc -> {
-                  ContentEntity content = contentMap.get(cc.getContentId());
-                  if (content == null) {
-                    log.warn(
-                        "Content entity {} not found in bulk load for collection {}",
-                        cc.getContentId(),
-                        entity.getId());
-                    return null;
-                  }
-                  // Use bulk-loaded conversion method directly (no temporary object needed)
-                  return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
-                })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+    List<ContentModel> contents = collectionContentList.stream()
+        .filter(Objects::nonNull)
+        .map(
+            cc -> {
+              ContentEntity content = contentMap.get(cc.getContentId());
+              if (content == null) {
+                log.warn(
+                    "Content entity {} not found in bulk load for collection {}",
+                    cc.getContentId(),
+                    entity.getId());
+                return null;
+              }
+              // Use bulk-loaded conversion method directly (no temporary object needed)
+              return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
+            })
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
 
     model.setContent(contents);
 
@@ -245,7 +264,8 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Minimal create: from CollectionCreateRequest (type, title only), apply defaults for the rest.
+   * Minimal create: from CollectionCreateRequest (type, title only), apply
+   * defaults for the rest.
    */
   public CollectionEntity toEntity(CollectionCreateRequest request, int defaultPageSize) {
     if (request == null) {
@@ -258,7 +278,7 @@ public class CollectionProcessingUtil {
     String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
     entity.setSlug(uniqueSlug);
     entity.setDescription("");
-    entity.setLocation("");
+    entity.setLocationId(null);
     entity.setCollectionDate(LocalDate.now());
     entity.setVisible(false);
     entity.setContentPerPage(defaultPageSize);
@@ -269,8 +289,8 @@ public class CollectionProcessingUtil {
             ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
             : CollectionBaseModel.DisplayMode.ORDERED);
     // TODO: Re-implement password protection after migration
-    //        entity.setPasswordProtected(false);
-    //        entity.setPasswordHash(null);
+    // entity.setPasswordProtected(false);
+    // entity.setPasswordHash(null);
     // Apply type-specific defaults (may adjust visibility etc.)
     return applyTypeSpecificDefaults(entity);
   }
@@ -280,10 +300,14 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Apply basic property updates from updateDTO to the given entity. This mirrors the simple field
-   * updates and slug/password logic from the service. - title, description, location,
-   * collectionDate, visible, priority, coverImageUrl - slug uniqueness handling (keeps same entity
-   * allowed) - configJson - blocksPerPage (>=1) - client gallery password updates via provided
+   * Apply basic property updates from updateDTO to the given entity. This mirrors
+   * the simple field
+   * updates and slug/password logic from the service. - title, description,
+   * location,
+   * collectionDate, visible, priority, coverImageUrl - slug uniqueness handling
+   * (keeps same entity
+   * allowed) - configJson - blocksPerPage (>=1) - client gallery password updates
+   * via provided
    * password hasher
    */
   public void applyBasicUpdates(CollectionEntity entity, CollectionUpdateRequest updateDTO) {
@@ -296,8 +320,30 @@ public class CollectionProcessingUtil {
     if (updateDTO.getType() != null) {
       entity.setType(updateDTO.getType());
     }
+    // Handle location update using prev/new/remove pattern
     if (updateDTO.getLocation() != null) {
-      entity.setLocation(updateDTO.getLocation());
+      LocationUpdate locationUpdate = updateDTO.getLocation();
+
+      if (Boolean.TRUE.equals(locationUpdate.getRemove())) {
+        // Remove location association
+        entity.setLocationId(null);
+        log.info("Removed location association from collection {}", entity.getId());
+      } else if (locationUpdate.getNewValue() != null
+          && !locationUpdate.getNewValue().trim().isEmpty()) {
+        // Create new location by name
+        String locationName = locationUpdate.getNewValue().trim();
+        LocationEntity location = locationDao.findOrCreate(locationName);
+        entity.setLocationId(location.getId());
+        log.info("Set location to: {} (ID: {})", locationName, location.getId());
+      } else if (locationUpdate.getPrev() != null) {
+        // Use existing location by ID
+        LocationEntity location = locationDao
+            .findById(locationUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException(
+                    "Location not found with ID: " + locationUpdate.getPrev()));
+        entity.setLocationId(location.getId());
+      }
     }
     if (updateDTO.getCollectionDate() != null) {
       entity.setCollectionDate(updateDTO.getCollectionDate());
@@ -326,25 +372,24 @@ public class CollectionProcessingUtil {
         contentDao
             .findImageById(updateDTO.getCoverImageId())
             .orElseThrow(
-                () ->
-                    new IllegalArgumentException(
-                        "Cover image not found with ID: " + updateDTO.getCoverImageId()));
+                () -> new IllegalArgumentException(
+                    "Cover image not found with ID: " + updateDTO.getCoverImageId()));
         entity.setCoverImageId(updateDTO.getCoverImageId());
       }
     }
 
     // TODO: Re-implement password protection after migration
     // Handle password updates for client galleries
-    //        if (entity.getType() == CollectionType.CLIENT_GALLERY) {
-    //            if (updateDTO.getHasAccess() != null && updateDTO.getHasAccess()) {
-    //                entity.setPasswordProtected(false);
-    //                entity.setPasswordHash(null);
-    //            }
-    //            if (hasPasswordUpdate(updateDTO)) {
-    //                entity.setPasswordProtected(true);
-    //                entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
-    //            }
-    //        }
+    // if (entity.getType() == CollectionType.CLIENT_GALLERY) {
+    // if (updateDTO.getHasAccess() != null && updateDTO.getHasAccess()) {
+    // entity.setPasswordProtected(false);
+    // entity.setPasswordHash(null);
+    // }
+    // if (hasPasswordUpdate(updateDTO)) {
+    // entity.setPasswordProtected(true);
+    // entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
+    // }
+    // }
   }
 
   // =============================================================================
@@ -371,10 +416,11 @@ public class CollectionProcessingUtil {
   }
 
   /**
-   * Validate and ensure a slug is unique. If the slug already exists, append a number to make it
+   * Validate and ensure a slug is unique. If the slug already exists, append a
+   * number to make it
    * unique.
    *
-   * @param slug The slug to validate
+   * @param slug       The slug to validate
    * @param existingId The ID of the existing entity (null for new entities)
    * @return A unique slug
    */
@@ -384,11 +430,10 @@ public class CollectionProcessingUtil {
     }
 
     // Check if slug already exists
-    boolean exists =
-        collectionDao
-            .findBySlug(slug)
-            .map(entity -> !entity.getId().equals(existingId))
-            .orElse(false);
+    boolean exists = collectionDao
+        .findBySlug(slug)
+        .map(entity -> !entity.getId().equals(existingId))
+        .orElse(false);
 
     if (!exists) {
       return slug; // Slug is unique
@@ -427,8 +472,7 @@ public class CollectionProcessingUtil {
     // Set default blocks per page if not set
     if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
       entity.setContentPerPage(
-          edens.zac.portfolio.backend.config.DefaultValues
-              .default_content_per_page); // Default page size
+          edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page); // Default page size
     }
 
     // Set type-specific visibility defaults
@@ -449,12 +493,13 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   // TODO: Re-implement password protection after migration
-  //    /**
-  //     * Check if a collection (any type) is password-protected.
-  //     */
-  //    public static boolean isPasswordProtected(CollectionBaseModel model) {
-  //        return model.getIsPasswordProtected() != null && model.getIsPasswordProtected();
-  //    }
+  // /**
+  // * Check if a collection (any type) is password-protected.
+  // */
+  // public static boolean isPasswordProtected(CollectionBaseModel model) {
+  // return model.getIsPasswordProtected() != null &&
+  // model.getIsPasswordProtected();
+  // }
 
   /** Check if an UpdateDTO includes password changes. */
   public static boolean hasPasswordUpdate(CollectionUpdateRequest dto) {
@@ -462,7 +507,8 @@ public class CollectionProcessingUtil {
   }
 
   /**
-   * Hash a password using SHA-256. Note: For production client gallery secrets, prefer BCrypt or
+   * Hash a password using SHA-256. Note: For production client gallery secrets,
+   * prefer BCrypt or
    * Argon2.
    */
   public static String hashPassword(String password) {
@@ -472,7 +518,8 @@ public class CollectionProcessingUtil {
       StringBuilder hexString = new StringBuilder();
       for (byte b : hash) {
         String hex = Integer.toHexString(0xff & b);
-        if (hex.length() == 1) hexString.append('0');
+        if (hex.length() == 1)
+          hexString.append('0');
         hexString.append(hex);
       }
       return hexString.toString();

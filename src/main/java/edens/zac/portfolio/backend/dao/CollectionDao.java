@@ -23,7 +23,7 @@ public class CollectionDao extends BaseDao {
 
   private static final String SELECT_COLLECTION =
       """
-            SELECT id, type, title, slug, description, location, location_id, collection_date,
+            SELECT id, type, title, slug, description, location_id, collection_date,
                    visible, display_mode, cover_image_id, content_per_page, total_content,
                    created_at, updated_at
             FROM collection
@@ -41,7 +41,6 @@ public class CollectionDao extends BaseDao {
         entity.setTitle(rs.getString("title"));
         entity.setSlug(rs.getString("slug"));
         entity.setDescription(rs.getString("description"));
-        entity.setLocation(rs.getString("location"));
         entity.setLocationId(getLong(rs, "location_id"));
 
         entity.setCollectionDate(getLocalDate(rs, "collection_date"));
@@ -170,10 +169,10 @@ public class CollectionDao extends BaseDao {
       // Insert
       String sql =
           """
-                    INSERT INTO collection (type, title, slug, description, location, location_id, collection_date,
+                    INSERT INTO collection (type, title, slug, description, location_id, collection_date,
                                            visible, display_mode, cover_image_id, content_per_page, total_content,
                                            created_at, updated_at)
-                    VALUES (:type, :title, :slug, :description, :location, :locationId, :collectionDate,
+                    VALUES (:type, :title, :slug, :description, :locationId, :collectionDate,
                             :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
                             :createdAt, :updatedAt)
                     """;
@@ -184,7 +183,6 @@ public class CollectionDao extends BaseDao {
               .addValue("title", entity.getTitle())
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
-              .addValue("location", entity.getLocation())
               .addValue("locationId", entity.getLocationId())
               .addValue("collectionDate", entity.getCollectionDate())
               .addValue("visible", entity.getVisible())
@@ -210,7 +208,7 @@ public class CollectionDao extends BaseDao {
           """
                     UPDATE collection
                     SET type = :type, title = :title, slug = :slug, description = :description,
-                        location = :location, location_id = :locationId,
+                        location_id = :locationId,
                         collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
                         cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
                         updated_at = :updatedAt
@@ -224,7 +222,6 @@ public class CollectionDao extends BaseDao {
               .addValue("title", entity.getTitle())
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
-              .addValue("location", entity.getLocation())
               .addValue("locationId", entity.getLocationId())
               .addValue("collectionDate", entity.getCollectionDate())
               .addValue("visible", entity.getVisible())

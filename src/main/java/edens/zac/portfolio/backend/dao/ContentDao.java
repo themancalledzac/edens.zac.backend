@@ -51,12 +51,12 @@ public class ContentDao extends BaseDao {
                         : null)
                 .shutterSpeed(getString(rs, "shutter_speed"))
                 .focalLength(getString(rs, "focal_length"))
-                .location(getString(rs, "location"))
                 .locationId(getLong(rs, "location_id"))
                 .imageUrlWeb(rs.getString("image_url_web"))
                 .imageUrlOriginal(getString(rs, "image_url_original"))
                 .createDate(getString(rs, "create_date"))
                 .fileIdentifier(getString(rs, "file_identifier"))
+                .offsetTime(getString(rs, "offset_time"))
                 .createdAt(getLocalDateTime(rs, "created_at"))
                 .updatedAt(getLocalDateTime(rs, "updated_at"))
                 .tags(new HashSet<>())
@@ -146,8 +146,9 @@ public class ContentDao extends BaseDao {
                    ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
                    ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
                    ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
-                   ci.location, ci.location_id,
+                   ci.location_id,
                    ci.image_url_web, ci.image_url_original, ci.create_date, ci.file_identifier,
+                   ci.offset_time,
                    cam.camera_name,
                    lens.lens_name,
                    ft.film_type_name, ft.display_name as film_type_display_name, ft.default_iso
@@ -355,13 +356,15 @@ public class ContentDao extends BaseDao {
                     INSERT INTO content_image (id, title, image_width, image_height, iso, author, rating,
                                               f_stop, lens_id, black_and_white, is_film, film_type_id,
                                               film_format, shutter_speed, camera_id, focal_length,
-                                              location, location_id,
-                                              image_url_web, image_url_original, create_date, file_identifier)
+                                              location_id,
+                                              image_url_web, image_url_original, create_date, file_identifier,
+                                              offset_time)
                     VALUES (:id, :title, :imageWidth, :imageHeight, :iso, :author, :rating,
                             :fStop, :lensId, :blackAndWhite, :isFilm, :filmTypeId,
                             :filmFormat, :shutterSpeed, :cameraId, :focalLength,
-                            :location, :locationId,
-                            :imageUrlWeb, :imageUrlOriginal, :createDate, :fileIdentifier)
+                            :locationId,
+                            :imageUrlWeb, :imageUrlOriginal, :createDate, :fileIdentifier,
+                            :offsetTime)
                     """;
 
       MapSqlParameterSource imageParams =
@@ -385,7 +388,6 @@ public class ContentDao extends BaseDao {
               .addValue("shutterSpeed", entity.getShutterSpeed())
               .addValue("cameraId", entity.getCamera() != null ? entity.getCamera().getId() : null)
               .addValue("focalLength", entity.getFocalLength())
-              .addValue("location", entity.getLocation())
               .addValue("locationId", entity.getLocationId())
               .addValue("imageUrlWeb", entity.getImageUrlWeb())
               .addValue("imageUrlOriginal", entity.getImageUrlOriginal())
@@ -422,9 +424,10 @@ public class ContentDao extends BaseDao {
                         author = :author, rating = :rating, f_stop = :fStop, lens_id = :lensId,
                         black_and_white = :blackAndWhite, is_film = :isFilm, film_type_id = :filmTypeId,
                         film_format = :filmFormat, shutter_speed = :shutterSpeed, camera_id = :cameraId,
-                        focal_length = :focalLength, location = :location, location_id = :locationId,
+                        focal_length = :focalLength, location_id = :locationId,
                         image_url_web = :imageUrlWeb, image_url_original = :imageUrlOriginal,
-                        create_date = :createDate, file_identifier = :fileIdentifier
+                        create_date = :createDate, file_identifier = :fileIdentifier,
+                        offset_time = :offsetTime
                     WHERE id = :id
                     """;
 
@@ -449,12 +452,12 @@ public class ContentDao extends BaseDao {
               .addValue("shutterSpeed", entity.getShutterSpeed())
               .addValue("cameraId", entity.getCamera() != null ? entity.getCamera().getId() : null)
               .addValue("focalLength", entity.getFocalLength())
-              .addValue("location", entity.getLocation())
               .addValue("locationId", entity.getLocationId())
               .addValue("imageUrlWeb", entity.getImageUrlWeb())
               .addValue("imageUrlOriginal", entity.getImageUrlOriginal())
               .addValue("createDate", entity.getCreateDate())
-              .addValue("fileIdentifier", entity.getFileIdentifier());
+              .addValue("fileIdentifier", entity.getFileIdentifier())
+              .addValue("offsetTime", entity.getOffsetTime());
 
       update(imageSql, imageParams);
 

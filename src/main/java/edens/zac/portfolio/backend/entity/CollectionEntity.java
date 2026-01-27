@@ -37,10 +37,6 @@ public class CollectionEntity {
   @Size(max = 500)
   private String description;
 
-  /** Column: location (VARCHAR(255)) - Legacy field, use locationId instead */
-  @Size(max = 255)
-  private String location;
-
   /** Column: location_id (BIGINT, FK to location.id) */
   private Long locationId;
 

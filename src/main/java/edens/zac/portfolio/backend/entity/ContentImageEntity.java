@@ -77,9 +77,6 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: focal_length (VARCHAR) */
   private String focalLength;
 
-  /** Column: location (VARCHAR) - Legacy field, use locationId instead */
-  private String location;
-
   /** Column: location_id (BIGINT, FK to location.id) */
   private Long locationId;
 
@@ -94,6 +91,9 @@ public class ContentImageEntity extends ContentEntity {
 
   /** Column: file_identifier (VARCHAR, UNIQUE) - Format: "YYYY-MM-DD/filename.jpg" */
   private String fileIdentifier;
+
+  /** Column: offset_time (VARCHAR) - Timezone offset from EXIF */
+  private String offsetTime;
 
   /** Relationship: Many-to-many with ContentTagEntity (via content_tags table) */
   @Builder.Default private Set<ContentTagEntity> tags = new HashSet<>();
