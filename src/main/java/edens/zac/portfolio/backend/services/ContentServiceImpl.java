@@ -34,7 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Implementation of ContentService that provides methods for managing content, tags, and people.
+ * Implementation of ContentService that provides methods for managing content,
+ * tags, and people.
  */
 @Service
 @Slf4j
@@ -122,10 +123,7 @@ class ContentServiceImpl implements ContentService {
 
   @Override
   @Transactional
-  @CacheEvict(
-      value = "generalMetadata",
-      allEntries = true,
-      condition = "#updates != null && !#updates.isEmpty()")
+  @CacheEvict(value = "generalMetadata", allEntries = true, condition = "#updates != null && !#updates.isEmpty()")
   public Map<String, Object> updateImages(List<ContentImageUpdateRequest> updates) {
     contentValidator.validateImageUpdates(updates);
 
@@ -139,11 +137,10 @@ class ContentServiceImpl implements ContentService {
     List<String> errors = new ArrayList<>();
 
     // Extract all image IDs and batch fetch them for efficiency
-    List<Long> imageIds =
-        updates.stream()
-            .map(ContentImageUpdateRequest::getId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+    List<Long> imageIds = updates.stream()
+        .map(ContentImageUpdateRequest::getId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
 
     if (imageIds.isEmpty()) {
       throw new IllegalArgumentException("No valid image IDs found in update requests");
@@ -223,8 +220,8 @@ class ContentServiceImpl implements ContentService {
         imagesToSave.add(image);
 
         // Convert to model and add to results
-        ContentImageModel imageModel =
-            (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(image);
+        ContentImageModel imageModel = (ContentImageModel) contentProcessingUtil
+            .convertRegularContentEntityToModel(image);
         updatedImages.add(imageModel);
 
       } catch (IllegalArgumentException e) {
@@ -248,44 +245,42 @@ class ContentServiceImpl implements ContentService {
     }
 
     // Build the response with updated images and new metadata
-    ContentImageUpdateResponse.NewMetadata newMetadata =
-        ContentImageUpdateResponse.NewMetadata.builder()
-            .tags(
-                newlyCreatedTags.isEmpty()
-                    ? null
-                    : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
-            .people(
-                newlyCreatedPeople.isEmpty()
-                    ? null
-                    : newlyCreatedPeople.stream()
-                        .map(this::toPersonModel)
-                        .collect(Collectors.toList()))
-            .cameras(
-                newlyCreatedCameras.isEmpty()
-                    ? null
-                    : newlyCreatedCameras.stream()
-                        .map(ContentProcessingUtil::cameraEntityToCameraModel)
-                        .collect(Collectors.toList()))
-            .lenses(
-                newlyCreatedLenses.isEmpty()
-                    ? null
-                    : newlyCreatedLenses.stream()
-                        .map(ContentProcessingUtil::lensEntityToLensModel)
-                        .collect(Collectors.toList()))
-            .filmTypes(
-                newlyCreatedFilmTypes.isEmpty()
-                    ? null
-                    : newlyCreatedFilmTypes.stream()
-                        .map(this::toFilmTypeModel)
-                        .collect(Collectors.toList()))
-            .build();
+    ContentImageUpdateResponse.NewMetadata newMetadata = ContentImageUpdateResponse.NewMetadata.builder()
+        .tags(
+            newlyCreatedTags.isEmpty()
+                ? null
+                : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
+        .people(
+            newlyCreatedPeople.isEmpty()
+                ? null
+                : newlyCreatedPeople.stream()
+                    .map(this::toPersonModel)
+                    .collect(Collectors.toList()))
+        .cameras(
+            newlyCreatedCameras.isEmpty()
+                ? null
+                : newlyCreatedCameras.stream()
+                    .map(ContentProcessingUtil::cameraEntityToCameraModel)
+                    .collect(Collectors.toList()))
+        .lenses(
+            newlyCreatedLenses.isEmpty()
+                ? null
+                : newlyCreatedLenses.stream()
+                    .map(ContentProcessingUtil::lensEntityToLensModel)
+                    .collect(Collectors.toList()))
+        .filmTypes(
+            newlyCreatedFilmTypes.isEmpty()
+                ? null
+                : newlyCreatedFilmTypes.stream()
+                    .map(this::toFilmTypeModel)
+                    .collect(Collectors.toList()))
+        .build();
 
-    ContentImageUpdateResponse response =
-        ContentImageUpdateResponse.builder()
-            .updatedImages(updatedImages)
-            .newMetadata(newMetadata)
-            .errors(errors.isEmpty() ? null : errors)
-            .build();
+    ContentImageUpdateResponse response = ContentImageUpdateResponse.builder()
+        .updatedImages(updatedImages)
+        .newMetadata(newMetadata)
+        .errors(errors.isEmpty() ? null : errors)
+        .build();
 
     // Return as Map for backward compatibility with interface
     return Map.of(
@@ -295,7 +290,8 @@ class ContentServiceImpl implements ContentService {
   }
 
   /**
-   * Apply image metadata updates and track newly created entities (cameras, lenses, film types).
+   * Apply image metadata updates and track newly created entities (cameras,
+   * lenses, film types).
    */
   private void applyImageUpdatesWithTracking(
       ContentImageEntity image,
@@ -305,21 +301,28 @@ class ContentServiceImpl implements ContentService {
       Set<ContentFilmTypeEntity> newFilmTypes) {
 
     // Update basic metadata fields
-    if (updateRequest.getTitle() != null) image.setTitle(updateRequest.getTitle());
-    if (updateRequest.getRating() != null) image.setRating(updateRequest.getRating());
-    if (updateRequest.getLocation() != null) image.setLocation(updateRequest.getLocation());
-    if (updateRequest.getAuthor() != null) image.setAuthor(updateRequest.getAuthor());
-    if (updateRequest.getIsFilm() != null) image.setIsFilm(updateRequest.getIsFilm());
-    if (updateRequest.getFilmFormat() != null) image.setFilmFormat(updateRequest.getFilmFormat());
+    if (updateRequest.getTitle() != null)
+      image.setTitle(updateRequest.getTitle());
+    if (updateRequest.getRating() != null)
+      image.setRating(updateRequest.getRating());
+    if (updateRequest.getAuthor() != null)
+      image.setAuthor(updateRequest.getAuthor());
+    if (updateRequest.getIsFilm() != null)
+      image.setIsFilm(updateRequest.getIsFilm());
+    if (updateRequest.getFilmFormat() != null)
+      image.setFilmFormat(updateRequest.getFilmFormat());
     if (updateRequest.getBlackAndWhite() != null)
       image.setBlackAndWhite(updateRequest.getBlackAndWhite());
     if (updateRequest.getFocalLength() != null)
       image.setFocalLength(updateRequest.getFocalLength());
-    if (updateRequest.getFStop() != null) image.setFStop(updateRequest.getFStop());
+    if (updateRequest.getFStop() != null)
+      image.setFStop(updateRequest.getFStop());
     if (updateRequest.getShutterSpeed() != null)
       image.setShutterSpeed(updateRequest.getShutterSpeed());
-    if (updateRequest.getIso() != null) image.setIso(updateRequest.getIso());
-    if (updateRequest.getCreateDate() != null) image.setCreateDate(updateRequest.getCreateDate());
+    if (updateRequest.getIso() != null)
+      image.setIso(updateRequest.getIso());
+    if (updateRequest.getCreateDate() != null)
+      image.setCreateDate(updateRequest.getCreateDate());
 
     // Handle camera update with tracking
     if (updateRequest.getCamera() != null) {
@@ -340,13 +343,11 @@ class ContentServiceImpl implements ContentService {
           log.info("Created new camera: {}", cameraName);
         }
       } else if (cameraUpdate.getPrev() != null) {
-        ContentCameraEntity camera =
-            contentCameraDao
-                .findById(cameraUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Camera not found: " + cameraUpdate.getPrev()));
+        ContentCameraEntity camera = contentCameraDao
+            .findById(cameraUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException(
+                    "Camera not found: " + cameraUpdate.getPrev()));
         image.setCamera(camera);
       }
     }
@@ -369,11 +370,10 @@ class ContentServiceImpl implements ContentService {
           log.info("Created new lens: {}", lensName);
         }
       } else if (lensUpdate.getPrev() != null) {
-        ContentLensEntity lens =
-            contentLensDao
-                .findById(lensUpdate.getPrev())
-                .orElseThrow(
-                    () -> new IllegalArgumentException("Lens not found: " + lensUpdate.getPrev()));
+        ContentLensEntity lens = contentLensDao
+            .findById(lensUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException("Lens not found: " + lensUpdate.getPrev()));
         image.setLens(lens);
       }
     }
@@ -392,67 +392,64 @@ class ContentServiceImpl implements ContentService {
         if (existing.isPresent()) {
           image.setFilmType(existing.get());
         } else {
-          ContentFilmTypeEntity newFilmType =
-              new ContentFilmTypeEntity(
-                  technicalName, displayName, newFilmTypeRequest.getDefaultIso());
+          ContentFilmTypeEntity newFilmType = new ContentFilmTypeEntity(
+              technicalName, displayName, newFilmTypeRequest.getDefaultIso());
           newFilmType = contentFilmTypeDao.save(newFilmType);
           image.setFilmType(newFilmType);
           newFilmTypes.add(newFilmType);
           log.info("Created new film type: {}", displayName);
         }
       } else if (filmTypeUpdate.getPrev() != null) {
-        ContentFilmTypeEntity filmType =
-            contentFilmTypeDao
-                .findById(filmTypeUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Film type not found: " + filmTypeUpdate.getPrev()));
+        ContentFilmTypeEntity filmType = contentFilmTypeDao
+            .findById(filmTypeUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException(
+                    "Film type not found: " + filmTypeUpdate.getPrev()));
         image.setFilmType(filmType);
       }
     }
   }
 
   /**
-   * Update image tags and track newly created ones. Uses shared utility method from
+   * Update image tags and track newly created ones. Uses shared utility method
+   * from
    * ContentProcessingUtil.
    */
   private void updateImageTags(
       ContentImageEntity image, TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
     // Load current tags from database
     List<Long> currentTagIds = tagDao.findContentTagIds(image.getId());
-    Set<ContentTagEntity> currentTags =
-        currentTagIds.stream()
-            .map(
-                tagId -> {
-                  ContentTagEntity tag = new ContentTagEntity();
-                  tag.setId(tagId);
-                  return tag;
-                })
-            .collect(Collectors.toSet());
+    Set<ContentTagEntity> currentTags = currentTagIds.stream()
+        .map(
+            tagId -> {
+              ContentTagEntity tag = new ContentTagEntity();
+              tag.setId(tagId);
+              return tag;
+            })
+        .collect(Collectors.toSet());
 
-    Set<ContentTagEntity> updatedTags =
-        contentProcessingUtil.updateTags(
-            currentTags, tagUpdate, newTags // Track newly created tags for response
-            );
+    Set<ContentTagEntity> updatedTags = contentProcessingUtil.updateTags(
+        currentTags, tagUpdate, newTags // Track newly created tags for response
+    );
     image.setTags(updatedTags);
 
     // Save updated tags to database
-    List<Long> updatedTagIds =
-        updatedTags.stream()
-            .map(ContentTagEntity::getId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+    List<Long> updatedTagIds = updatedTags.stream()
+        .map(ContentTagEntity::getId)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
     tagDao.saveContentTags(image.getId(), updatedTagIds);
   }
 
   /**
-   * Add content (image) to new collections with specified visibility and orderIndex. Creates join
+   * Add content (image) to new collections with specified visibility and
+   * orderIndex. Creates join
    * table entries for the content in the specified collections.
    *
-   * @param image The image to add to collections
-   * @param collections List of ChildCollection objects containing collectionId, visible, and
-   *     orderIndex
+   * @param image       The image to add to collections
+   * @param collections List of ChildCollection objects containing collectionId,
+   *                    visible, and
+   *                    orderIndex
    */
   private void handleAddToCollections(ContentImageEntity image, List<ChildCollection> collections) {
     for (ChildCollection childCollection : collections) {
@@ -465,14 +462,12 @@ class ContentServiceImpl implements ContentService {
       collectionDao
           .findById(childCollection.getCollectionId())
           .orElseThrow(
-              () ->
-                  new IllegalArgumentException(
-                      "Collection not found: " + childCollection.getCollectionId()));
+              () -> new IllegalArgumentException(
+                  "Collection not found: " + childCollection.getCollectionId()));
 
       // Check if this content is already in the collection
-      Optional<CollectionContentEntity> existingOpt =
-          collectionContentDao.findByCollectionIdAndContentId(
-              childCollection.getCollectionId(), image.getId());
+      Optional<CollectionContentEntity> existingOpt = collectionContentDao.findByCollectionIdAndContentId(
+          childCollection.getCollectionId(), image.getId());
 
       if (existingOpt.isPresent()) {
         log.warn(
@@ -485,19 +480,17 @@ class ContentServiceImpl implements ContentService {
       // Determine orderIndex: use provided value or append to end
       Integer orderIndex = childCollection.getOrderIndex();
       if (orderIndex == null) {
-        Integer maxOrder =
-            collectionContentDao.getMaxOrderIndexForCollection(childCollection.getCollectionId());
+        Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(childCollection.getCollectionId());
         orderIndex = maxOrder != null ? maxOrder + 1 : 0;
       }
 
       // Create join table entry
-      CollectionContentEntity joinEntry =
-          CollectionContentEntity.builder()
-              .collectionId(childCollection.getCollectionId())
-              .contentId(image.getId())
-              .orderIndex(orderIndex)
-              .visible(childCollection.getVisible() != null ? childCollection.getVisible() : true)
-              .build();
+      CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+          .collectionId(childCollection.getCollectionId())
+          .contentId(image.getId())
+          .orderIndex(orderIndex)
+          .visible(childCollection.getVisible() != null ? childCollection.getVisible() : true)
+          .build();
 
       collectionContentDao.save(joinEntry);
       log.info(
@@ -510,15 +503,15 @@ class ContentServiceImpl implements ContentService {
   }
 
   /**
-   * Update image people and track newly created ones. Uses shared utility method from
+   * Update image people and track newly created ones. Uses shared utility method
+   * from
    * ContentProcessingUtil.
    */
   private void updateImagePeople(
       ContentImageEntity image, PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
-    Set<ContentPersonEntity> updatedPeople =
-        contentProcessingUtil.updatePeople(
-            image.getPeople(), personUpdate, newPeople // Track newly created people for response
-            );
+    Set<ContentPersonEntity> updatedPeople = contentProcessingUtil.updatePeople(
+        image.getPeople(), personUpdate, newPeople // Track newly created people for response
+    );
     image.setPeople(updatedPeople);
   }
 
@@ -615,8 +608,7 @@ class ContentServiceImpl implements ContentService {
     }
 
     // Create and save
-    ContentFilmTypeEntity filmType =
-        new ContentFilmTypeEntity(filmTypeName, displayName, defaultIso);
+    ContentFilmTypeEntity filmType = new ContentFilmTypeEntity(filmTypeName, displayName, defaultIso);
     filmType = contentFilmTypeDao.save(filmType);
     log.info("Created film type: {} (ID: {})", filmType.getDisplayName(), filmType.getId());
 
@@ -662,9 +654,7 @@ class ContentServiceImpl implements ContentService {
   public List<ContentImageModel> getAllImages() {
     return contentDao.findAllImagesOrderByCreateDateDesc().stream()
         .map(
-            entity ->
-                (ContentImageModel)
-                    contentProcessingUtil.convertRegularContentEntityToModel(entity))
+            entity -> (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(entity))
         .collect(Collectors.toList());
   }
 
@@ -717,13 +707,12 @@ class ContentServiceImpl implements ContentService {
             ContentImageEntity img = contentProcessingUtil.processImageContent(file, null);
 
             // STEP 2: Create join table entry linking content to collection
-            CollectionContentEntity joinEntry =
-                CollectionContentEntity.builder()
-                    .collectionId(collectionId)
-                    .contentId(img.getId())
-                    .orderIndex(orderIndex)
-                    .visible(true) // Visible by default
-                    .build();
+            CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+                .collectionId(collectionId)
+                .contentId(img.getId())
+                .orderIndex(orderIndex)
+                .visible(true) // Visible by default
+                .build();
 
             collectionContentDao.save(joinEntry);
 
@@ -766,32 +755,28 @@ class ContentServiceImpl implements ContentService {
     collectionDao
         .findById(request.getCollectionId())
         .orElseThrow(
-            () ->
-                new IllegalArgumentException("Collection not found: " + request.getCollectionId()));
+            () -> new IllegalArgumentException("Collection not found: " + request.getCollectionId()));
 
     // Get the next order index for this collection
-    Integer maxOrder =
-        collectionContentDao.getMaxOrderIndexForCollection(request.getCollectionId());
+    Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(request.getCollectionId());
     Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
 
     // Create text content entity
-    ContentTextEntity textEntity =
-        ContentTextEntity.builder()
-            .textContent(request.getTextContent().trim())
-            .formatType(request.getFormType() != null ? request.getFormType().name() : "PLAIN")
-            .build();
+    ContentTextEntity textEntity = ContentTextEntity.builder()
+        .textContent(request.getTextContent().trim())
+        .formatType(request.getFormType() != null ? request.getFormType().name() : "PLAIN")
+        .build();
 
     // Save the text content
     textEntity = contentTextDao.save(textEntity);
 
     // Create join table entry linking content to collection
-    CollectionContentEntity joinEntry =
-        CollectionContentEntity.builder()
-            .collectionId(request.getCollectionId())
-            .contentId(textEntity.getId())
-            .orderIndex(orderIndex)
-            .visible(true)
-            .build();
+    CollectionContentEntity joinEntry = CollectionContentEntity.builder()
+        .collectionId(request.getCollectionId())
+        .contentId(textEntity.getId())
+        .orderIndex(orderIndex)
+        .visible(true)
+        .build();
 
     collectionContentDao.save(joinEntry);
 

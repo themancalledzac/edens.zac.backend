@@ -148,12 +148,12 @@ class ContentImageModelTest {
   }
 
   @Test
-  @DisplayName("Location over 250 characters should fail validation")
+  @DisplayName("Location over 255 characters should fail validation")
   void longLocation_shouldFailValidation() {
     // Arrange
     setupValidContentImage();
-    String longLocation = "A".repeat(251); // 251 characters
-    contentImage.setLocation(longLocation); // Invalid
+    String longLocation = "A".repeat(256); // 256 characters
+    contentImage.setLocation(LocationModel.builder().id(1L).name(longLocation).build()); // Invalid
 
     // Act
     Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -161,8 +161,8 @@ class ContentImageModelTest {
     // Assert
     assertEquals(1, violations.size());
     ConstraintViolation<ContentImageModel> violation = violations.iterator().next();
-    assertEquals("location", violation.getPropertyPath().toString());
-    assertTrue(violation.getMessage().contains("size must be between 0 and 250"));
+    assertEquals("location.name", violation.getPropertyPath().toString());
+    assertTrue(violation.getMessage().contains("Location cannot exceed 255 characters"));
   }
 
   @Test
@@ -176,7 +176,7 @@ class ContentImageModelTest {
     // Note: lens is now a ContentLensModel object, not a validated String
     contentImage.setShutterSpeed("A".repeat(20));
     contentImage.setFocalLength("A".repeat(20));
-    contentImage.setLocation("A".repeat(250));
+    contentImage.setLocation(LocationModel.builder().id(1L).name("A".repeat(255)).build());
 
     // Act
     Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -221,7 +221,7 @@ class ContentImageModelTest {
     setupValidContentImage();
     contentImage.setTitle("A".repeat(251)); // Error 1: title too long
     contentImage.setAuthor("A".repeat(101)); // Error 2: author too long
-    contentImage.setLocation("A".repeat(251)); // Error 3: location too long
+    contentImage.setLocation(LocationModel.builder().id(1L).name("A".repeat(256)).build()); // Error 3: location too long
     contentImage.setOrderIndex(-1); // Error 4: negative orderIndex
 
     // Act
@@ -308,7 +308,7 @@ class ContentImageModelTest {
     contentImage.setShutterSpeed("1/125");
     contentImage.setCamera(new ContentCameraModel());
     contentImage.setFocalLength("35mm");
-    contentImage.setLocation("Arches National Park, Utah");
+    contentImage.setLocation(LocationModel.builder().id(1L).name("Arches National Park, Utah").build());
     contentImage.setCreateDate("2024-03-15");
 
     // Act
@@ -333,6 +333,6 @@ class ContentImageModelTest {
     // Set optional fields with valid values
     image.setTitle("Test Image");
     image.setAuthor("Test Author");
-    image.setLocation("Test Location");
+    image.setLocation(LocationModel.builder().id(1L).name("Test Location").build());
   }
 }

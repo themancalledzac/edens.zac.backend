@@ -24,6 +24,7 @@ import edens.zac.portfolio.backend.dao.TagDao;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.model.LocationUpdate;
 import edens.zac.portfolio.backend.model.PersonUpdate;
 import edens.zac.portfolio.backend.model.TagUpdate;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
@@ -35,6 +36,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import javax.imageio.IIOImage;
@@ -49,7 +51,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Utility class for processing content. Handles conversion between entities and models, content
+ * Utility class for processing content. Handles conversion between entities and
+ * models, content
  * validation, and specialized processing for different content types.
  */
 @Component
@@ -94,8 +97,10 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a ContentEntity to its corresponding ContentModel based on type. This version does not
-   * have collection-specific metadata (orderIndex, caption, visible). Use the overloaded version
+   * Convert a ContentEntity to its corresponding ContentModel based on type. This
+   * version does not
+   * have collection-specific metadata (orderIndex, caption, visible). Use the
+   * overloaded version
    * that accepts CollectionContentEntity for full metadata.
    *
    * @param entity The content entity to convert
@@ -122,7 +127,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * No-op method for backward compatibility. With raw SQL/DAOs, entities are never proxies, so this
+   * No-op method for backward compatibility. With raw SQL/DAOs, entities are
+   * never proxies, so this
    * just returns the entity as-is.
    *
    * @param entity The entity (never a proxy with DAOs)
@@ -135,11 +141,14 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a ContentEntity to its corresponding ContentModel with join table metadata. This
-   * version populates collection-specific fields (orderIndex, visible) from the join table.
+   * Convert a ContentEntity to its corresponding ContentModel with join table
+   * metadata. This
+   * version populates collection-specific fields (orderIndex, visible) from the
+   * join table.
    *
-   * @param entity The join table entry (CollectionContentEntity) containing the content and
-   *     metadata
+   * @param entity The join table entry (CollectionContentEntity) containing the
+   *               content and
+   *               metadata
    * @return The corresponding content model with join table metadata populated
    */
   public ContentModel convertEntityToModel(CollectionContentEntity entity) {
@@ -156,8 +165,7 @@ public class ContentProcessingUtil {
 
     // Load content entity - try loading as different types based on contentType
     // First, get the base content to determine type
-    Optional<ContentEntity> baseContentOpt =
-        contentDao.findAllByIds(List.of(contentId)).stream().findFirst();
+    Optional<ContentEntity> baseContentOpt = contentDao.findAllByIds(List.of(contentId)).stream().findFirst();
     if (baseContentOpt.isEmpty()) {
       log.error(
           "Content entity {} not found for CollectionContentEntity {}", contentId, entity.getId());
@@ -205,15 +213,20 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a bulk-loaded ContentEntity to its corresponding ContentModel with join table metadata.
-   * This method is optimized for bulk-loaded entities that are already properly initialized (not
-   * proxies). However, it defensively resolves proxies if needed, especially for COLLECTION types
+   * Convert a bulk-loaded ContentEntity to its corresponding ContentModel with
+   * join table metadata.
+   * This method is optimized for bulk-loaded entities that are already properly
+   * initialized (not
+   * proxies). However, it defensively resolves proxies if needed, especially for
+   * COLLECTION types
    * which may still be proxies.
    *
-   * @param content The bulk-loaded content entity (should be properly typed, but may still be a
-   *     proxy)
-   * @param joinEntry The join table entry containing collection-specific metadata (orderIndex,
-   *     visible)
+   * @param content   The bulk-loaded content entity (should be properly typed,
+   *                  but may still be a
+   *                  proxy)
+   * @param joinEntry The join table entry containing collection-specific metadata
+   *                  (orderIndex,
+   *                  visible)
    * @return The corresponding content model with join table metadata populated
    */
   public ContentModel convertBulkLoadedContentToModel(
@@ -267,12 +280,14 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Copy base properties from a ContentEntity to a ContentModel. Note: This does NOT populate join
-   * table fields (orderIndex, visible). Those must be set separately using the overloaded
+   * Copy base properties from a ContentEntity to a ContentModel. Note: This does
+   * NOT populate join
+   * table fields (orderIndex, visible). Those must be set separately using the
+   * overloaded
    * convertToModel method with CollectionContentEntity.
    *
    * @param entity The source entity
-   * @param model The target model
+   * @param model  The target model
    */
   private void copyBaseProperties(ContentEntity entity, ContentModel model) {
     model.setId(entity.getId());
@@ -295,7 +310,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a ContentImageEntity to a ContentImageModel. Public method for use by other utilities
+   * Convert a ContentImageEntity to a ContentImageModel. Public method for use by
+   * other utilities
    * (e.g., CollectionProcessingUtil).
    *
    * @param entity The image content entity to convert
@@ -346,7 +362,17 @@ public class ContentProcessingUtil {
     model.setCamera(
         entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null);
     model.setFocalLength(entity.getFocalLength());
-    model.setLocation(entity.getLocation());
+    // Convert locationId to LocationModel
+    if (entity.getLocationId() != null) {
+      LocationEntity locationEntity = locationDao.findById(entity.getLocationId()).orElse(null);
+      if (locationEntity != null) {
+        model.setLocation(
+            LocationModel.builder()
+                .id(locationEntity.getId())
+                .name(locationEntity.getLocationName())
+                .build());
+      }
+    }
     model.setCreateDate(entity.getCreateDate());
 
     // Map tags - convert entities to simplified tag objects (id and name only)
@@ -424,12 +450,15 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a ContentCollectionEntity to a ContentCollectionModel. This handles the COLLECTION
+   * Convert a ContentCollectionEntity to a ContentCollectionModel. This handles
+   * the COLLECTION
    * content type by extracting data from the referenced collection.
    *
-   * @param contentEntity The ContentCollectionEntity containing the reference to another collection
-   * @param joinEntry The join table entry containing collection-specific metadata (orderIndex,
-   *     visible)
+   * @param contentEntity The ContentCollectionEntity containing the reference to
+   *                      another collection
+   * @param joinEntry     The join table entry containing collection-specific
+   *                      metadata (orderIndex,
+   *                      visible)
    * @return The converted ContentCollectionModel
    */
   private ContentCollectionModel convertCollectionToModel(
@@ -451,10 +480,9 @@ public class ContentProcessingUtil {
     if (referencedCollectionId != null && referencedCollection.getTitle() == null) {
       log.debug(
           "Loading full collection data for referencedCollectionId: {}", referencedCollectionId);
-      referencedCollection =
-          collectionDao
-              .findById(referencedCollectionId)
-              .orElse(referencedCollection); // Fall back to partial data if not found
+      referencedCollection = collectionDao
+          .findById(referencedCollectionId)
+          .orElse(referencedCollection); // Fall back to partial data if not found
     }
 
     // Extract all needed fields (now from fully-loaded collection)
@@ -467,8 +495,7 @@ public class ContentProcessingUtil {
     // Load cover image entity using coverImageId
     ContentImageEntity coverImageEntity = null;
     if (referencedCollection.getCoverImageId() != null) {
-      coverImageEntity =
-          contentDao.findImageById(referencedCollection.getCoverImageId()).orElse(null);
+      coverImageEntity = contentDao.findImageById(referencedCollection.getCoverImageId()).orElse(null);
     }
 
     ContentCollectionModel model = new ContentCollectionModel();
@@ -502,11 +529,11 @@ public class ContentProcessingUtil {
   /**
    * Process and save a gif content.
    *
-   * @param file The gif file to process
+   * @param file         The gif file to process
    * @param collectionId The ID of the collection this content belongs to
-   * @param orderIndex The order index of this content within the collection
-   * @param title The title of the gif
-   * @param caption The caption for the gif
+   * @param orderIndex   The order index of this content within the collection
+   * @param title        The title of the gif
+   * @param caption      The caption for the gif
    * @return The saved gif content entity
    */
   public ContentGifEntity processGifContent(
@@ -575,13 +602,12 @@ public class ContentProcessingUtil {
     int month = now.getMonthValue();
     String filename = file.getOriginalFilename();
     String gifS3Key = String.format("%s/%d/%02d/%s", PATH_GIF_FULL, year, month, filename);
-    String thumbnailS3Key =
-        String.format(
-            "%s/%d/%02d/%s",
-            PATH_GIF_FULL,
-            year,
-            month,
-            Objects.requireNonNull(filename).replace(".gif", "-thumbnail.jpg"));
+    String thumbnailS3Key = String.format(
+        "%s/%d/%02d/%s",
+        PATH_GIF_FULL,
+        year,
+        month,
+        Objects.requireNonNull(filename).replace(".gif", "-thumbnail.jpg"));
 
     // Upload GIF to S3
     ByteArrayInputStream gifStream = new ByteArrayInputStream(fileBytes);
@@ -589,8 +615,7 @@ public class ContentProcessingUtil {
     gifMetadata.setContentType(contentType);
     gifMetadata.setContentLength(fileBytes.length);
 
-    PutObjectRequest putGifRequest =
-        new PutObjectRequest(bucketName, gifS3Key, gifStream, gifMetadata);
+    PutObjectRequest putGifRequest = new PutObjectRequest(bucketName, gifS3Key, gifStream, gifMetadata);
 
     amazonS3.putObject(putGifRequest);
 
@@ -606,8 +631,8 @@ public class ContentProcessingUtil {
     thumbnailMetadata.setContentType("image/jpeg");
     thumbnailMetadata.setContentLength(thumbnailBytes.length);
 
-    PutObjectRequest putThumbnailRequest =
-        new PutObjectRequest(bucketName, thumbnailS3Key, thumbnailStream, thumbnailMetadata);
+    PutObjectRequest putThumbnailRequest = new PutObjectRequest(bucketName, thumbnailS3Key, thumbnailStream,
+        thumbnailMetadata);
 
     amazonS3.putObject(putThumbnailRequest);
 
@@ -636,7 +661,7 @@ public class ContentProcessingUtil {
     String filename = file.getOriginalFilename();
 
     return (contentType != null
-            && (contentType.equals("image/jpeg") || contentType.equals("image/jpg")))
+        && (contentType.equals("image/jpeg") || contentType.equals("image/jpg")))
         || (filename != null
             && (filename.toLowerCase().endsWith(".jpg")
                 || filename.toLowerCase().endsWith(".jpeg")));
@@ -649,14 +674,19 @@ public class ContentProcessingUtil {
   /**
    * STREAMLINED: Process and save an image content.
    *
-   * <p>NOTE: This method only creates the ContentImageEntity. The caller is responsible for
+   * <p>
+   * NOTE: This method only creates the ContentImageEntity. The caller is
+   * responsible for
    * creating the CollectionContentEntity to link this image to a collection.
    *
-   * <p>Flow: 1. Extract metadata from original file 2. Upload original full-size image to S3 3.
-   * Convert JPG -> WebP (with compression) 4. Resize if needed 5. Upload web-optimized image to S3
+   * <p>
+   * Flow: 1. Extract metadata from original file 2. Upload original full-size
+   * image to S3 3.
+   * Convert JPG -> WebP (with compression) 4. Resize if needed 5. Upload
+   * web-optimized image to S3
    * 6. Save metadata with both URLs to database 7. Return ImageContentEntity
    *
-   * @param file The image file to process
+   * @param file  The image file to process
    * @param title The title of the image (optional, will use filename if null)
    * @return The saved image content entity
    */
@@ -678,9 +708,8 @@ public class ContentProcessingUtil {
     log.info("Step 2: Uploading original full-size image to S3");
     String originalFilename = file.getOriginalFilename();
     String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
-    String imageUrlOriginal =
-        uploadImageToS3(
-            file.getBytes(), originalFilename, contentType, PATH_IMAGE_FULL, imageYear, imageMonth);
+    String imageUrlOriginal = uploadImageToS3(
+        file.getBytes(), originalFilename, contentType, PATH_IMAGE_FULL, imageYear, imageMonth);
 
     // STEP 3: Resize FIRST if needed (max 2500px on longest side)
     // We resize BEFORE converting to WebP to avoid having to decode WebP back to
@@ -708,14 +737,13 @@ public class ContentProcessingUtil {
 
     // STEP 5: Upload web-optimized image to S3
     log.info("Step 5: Uploading web-optimized image to S3");
-    String imageUrlWeb =
-        uploadImageToS3(
-            processedImageBytes,
-            finalFilename,
-            "image/webp",
-            PATH_IMAGE_WEB,
-            imageYear,
-            imageMonth);
+    String imageUrlWeb = uploadImageToS3(
+        processedImageBytes,
+        finalFilename,
+        "image/webp",
+        PATH_IMAGE_WEB,
+        imageYear,
+        imageMonth);
 
     // STEP 6: Create and save ImageContentEntity with metadata
     log.info("Step 6: Saving to database");
@@ -724,54 +752,80 @@ public class ContentProcessingUtil {
     // "YYYY-MM/filename.jpg")
     String fileIdentifier = String.format("%d-%02d/%s", imageYear, imageMonth, originalFilename);
 
-    ContentImageEntity entity =
-        ContentImageEntity.builder()
-            .contentType(ContentType.IMAGE)
-            .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
-            .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
-            .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
-            .iso(parseIntegerOrDefault(metadata.get("iso"), null))
-            .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
-            .rating(parseIntegerOrDefault(metadata.get("rating"), null))
-            .fStop(metadata.get("fStop"))
-            .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
-            .isFilm(metadata.get("fStop") == null)
-            .shutterSpeed(metadata.get("shutterSpeed"))
-            .imageUrlOriginal(imageUrlOriginal)
-            .focalLength(metadata.get("focalLength"))
-            .location(metadata.get("location"))
-            .imageUrlWeb(imageUrlWeb)
-            .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
-            .fileIdentifier(fileIdentifier)
-            .build();
+    ContentImageEntity entity = ContentImageEntity.builder()
+        .contentType(ContentType.IMAGE)
+        .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
+        .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
+        .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
+        .iso(parseIntegerOrDefault(metadata.get("iso"), null))
+        .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
+        .rating(parseIntegerOrDefault(metadata.get("rating"), null))
+        .fStop(metadata.get("fStop"))
+        .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
+        .isFilm(metadata.get("fStop") == null)
+        .shutterSpeed(metadata.get("shutterSpeed"))
+        .imageUrlOriginal(imageUrlOriginal)
+        .focalLength(metadata.get("focalLength"))
+        .locationId(
+            metadata.get("location") != null
+                ? locationDao.findOrCreate(metadata.get("location")).getId()
+                : null)
+        .imageUrlWeb(imageUrlWeb)
+        .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
+        .createdAt(parseExifDateToLocalDateTime(metadata.get("createDate")))
+        .fileIdentifier(fileIdentifier)
+        .offsetTime(metadata.get("offsetTime"))
+        .build();
 
     // Handle camera - find existing or create new from metadata
     String cameraName = metadata.get("camera");
+    String bodySerialNumber = metadata.get("bodySerialNumber");
     if (cameraName != null && !cameraName.trim().isEmpty()) {
-      ContentCameraEntity camera =
-          contentCameraDao
-              .findByCameraNameIgnoreCase(cameraName.trim())
-              .orElseGet(
-                  () -> {
-                    log.info("Creating new camera from metadata: {}", cameraName);
-                    ContentCameraEntity newCamera = new ContentCameraEntity(cameraName.trim());
-                    return contentCameraDao.save(newCamera);
-                  });
+      ContentCameraEntity camera = contentCameraDao
+          .findByCameraNameIgnoreCase(cameraName.trim())
+          .map(existing -> {
+            // Update serial number if missing
+            if (existing.getBodySerialNumber() == null && bodySerialNumber != null) {
+              existing.setBodySerialNumber(bodySerialNumber);
+              return contentCameraDao.save(existing);
+            }
+            return existing;
+          })
+          .orElseGet(
+              () -> {
+                log.info("Creating new camera from metadata: {}", cameraName);
+                ContentCameraEntity newCamera = ContentCameraEntity.builder()
+                    .cameraName(cameraName.trim())
+                    .bodySerialNumber(bodySerialNumber)
+                    .build();
+                return contentCameraDao.save(newCamera);
+              });
       entity.setCamera(camera);
     }
 
     // Handle lens - find existing or create new from metadata
     String lensName = metadata.get("lens");
+    String lensSerialNumber = metadata.get("lensSerialNumber");
     if (lensName != null && !lensName.trim().isEmpty()) {
-      ContentLensEntity lens =
-          contentLensDao
-              .findByLensNameIgnoreCase(lensName.trim())
-              .orElseGet(
-                  () -> {
-                    log.info("Creating new lens from metadata: {}", lensName);
-                    ContentLensEntity newLens = new ContentLensEntity(lensName.trim());
-                    return contentLensDao.save(newLens);
-                  });
+      ContentLensEntity lens = contentLensDao
+          .findByLensNameIgnoreCase(lensName.trim())
+          .map(existing -> {
+            // Update serial number if missing
+            if (existing.getLensSerialNumber() == null && lensSerialNumber != null) {
+              existing.setLensSerialNumber(lensSerialNumber);
+              return contentLensDao.save(existing);
+            }
+            return existing;
+          })
+          .orElseGet(
+              () -> {
+                log.info("Creating new lens from metadata: {}", lensName);
+                ContentLensEntity newLens = ContentLensEntity.builder()
+                    .lensName(lensName.trim())
+                    .lensSerialNumber(lensSerialNumber)
+                    .build();
+                return contentLensDao.save(newLens);
+              });
       entity.setLens(lens);
     }
 
@@ -783,6 +837,8 @@ public class ContentProcessingUtil {
 
   /**
    * Extract metadata from an image file using Drew Noakes metadata-extractor.
+   * Uses the
+   * ImageMetadata enum system for consistent, maintainable field extraction.
    *
    * @param file The image file to extract metadata from
    * @return Map of metadata key-value pairs
@@ -794,102 +850,126 @@ public class ContentProcessingUtil {
     try (InputStream inputStream = file.getInputStream()) {
       Metadata imageMetadata = ImageMetadataReader.readMetadata(inputStream);
 
-      // Extract all metadata tags
+      // Extract EXIF metadata for all defined fields
       for (Directory directory : imageMetadata.getDirectories()) {
         for (Tag tag : directory.getTags()) {
-          String tagName = tag.getTagName();
-          String description = tag.getDescription();
-
-          if (description != null && !description.isEmpty()) {
-            // Map common EXIF tags to our metadata keys
-            switch (tagName) {
-              case "Image Width" ->
-                  metadata.put("imageWidth", description.replaceAll("[^0-9]", ""));
-              case "Image Height" ->
-                  metadata.put("imageHeight", description.replaceAll("[^0-9]", ""));
-              case "ISO Speed Ratings" -> metadata.put("iso", description);
-              case "Artist" -> metadata.put("author", description);
-              case "F-Number" -> metadata.put("fStop", description);
-              case "Lens Model", "Lens" -> metadata.put("lens", description);
-              case "Exposure Time" -> metadata.put("shutterSpeed", description);
-              case "Model" -> metadata.put("camera", description);
-              case "Focal Length" -> metadata.put("focalLength", description);
-              case "GPS Latitude", "GPS Longitude" -> {
-                String existingLocation = metadata.getOrDefault("location", "");
-                metadata.put("location", existingLocation + " " + description);
-              }
-              case "Date/Time Original", "Date/Time" -> metadata.put("createDate", description);
-            }
-          }
+          extractFromExifTag(tag, metadata);
         }
       }
 
-      // Check for XMP data for additional metadata
-      for (Directory directory : imageMetadata.getDirectories()) {
-        if (directory instanceof XmpDirectory xmpDirectory) {
-
-          // Get XMP XML for parsing (rating is stored in XMP, not EXIF)
-          String xmpXml = xmpDirectory.getXMPMeta().dumpObject();
-
-          // Extract rating from XMP XML
-          // Rating is stored in XMP metadata as: xmp:Rating = "4" or xmp:Rating="4"
-          java.util.regex.Pattern ratingPattern =
-              java.util.regex.Pattern.compile(
-                  "xmp:Rating\\s*=\\s*\"(\\d+)\"", java.util.regex.Pattern.CASE_INSENSITIVE);
-          java.util.regex.Matcher matcher = ratingPattern.matcher(xmpXml);
-
-          if (matcher.find()) {
-            String ratingValue = matcher.group(1);
-            metadata.put("rating", ratingValue);
-            log.info("Extracted rating from XMP XML: {}", ratingValue);
-          } else {
-            log.debug("No xmp:Rating pattern found in XMP XML");
-          }
-
-          // Check for film simulation indicators
-          if (xmpXml.contains("Film") || xmpXml.contains("film")) {
-            metadata.put("isFilm", "true");
-          }
-
-          // Check for black and white
-          if (xmpXml.contains("Monochrome") || xmpXml.contains("BlackAndWhite")) {
-            metadata.put("blackAndWhite", "true");
-          }
-        }
+      // Extract XMP metadata for all defined fields
+      for (XmpDirectory xmpDirectory : imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
+        extractFromXmpDirectory(xmpDirectory, metadata);
       }
 
-      // If we couldn't get dimensions from metadata, read from BufferedImage
-      if (!metadata.containsKey("imageWidth") || !metadata.containsKey("imageHeight")) {
-        try (InputStream is2 = file.getInputStream()) {
-          BufferedImage img = ImageIO.read(is2);
-          if (img != null) {
-            metadata.put("imageWidth", String.valueOf(img.getWidth()));
-            metadata.put("imageHeight", String.valueOf(img.getHeight()));
-          }
-        }
-      }
+      // Fallback: Get dimensions from BufferedImage if not found
+      ensureDimensions(file, metadata);
 
       log.info("Extracted metadata: {} tags", metadata.size());
       log.info("Final rating value: {}", metadata.getOrDefault("rating", "NULL"));
 
     } catch (Exception e) {
       log.warn("Failed to extract full metadata: {}", e.getMessage());
-
-      // Fallback: At minimum, get dimensions from BufferedImage
-      try (InputStream is = file.getInputStream()) {
-        BufferedImage img = ImageIO.read(is);
-        if (img != null) {
-          metadata.put("imageWidth", String.valueOf(img.getWidth()));
-          metadata.put("imageHeight", String.valueOf(img.getHeight()));
-        }
-      }
+      ensureDimensions(file, metadata);
     }
 
     return metadata;
   }
 
   /**
-   * Parse year and month from EXIF date string. EXIF date format is typically "2024:05:15
+   * Extract metadata from a single EXIF tag using the ImageMetadata enum
+   * configuration.
+   *
+   * @param tag      The EXIF tag to process
+   * @param metadata The metadata map to populate
+   */
+  private void extractFromExifTag(Tag tag, Map<String, String> metadata) {
+    String tagName = tag.getTagName();
+    String description = tag.getDescription();
+
+    if (description == null || description.isEmpty()) {
+      return;
+    }
+
+    // Try each metadata field
+    for (ImageMetadata.MetadataField field : ImageMetadata.MetadataField.values()) {
+      if (field.getExifTags().matches(tagName)) {
+        // Only set if not already extracted
+        if (!metadata.containsKey(field.getFieldName())) {
+          String extractedValue = field.getExtractor().extract(description);
+          if (extractedValue != null) {
+            metadata.put(field.getFieldName(), extractedValue);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Extract metadata from XMP directory using the ImageMetadata enum
+   * configuration.
+   *
+   * @param xmpDirectory The XMP directory to process
+   * @param metadata     The metadata map to populate
+   */
+  private void extractFromXmpDirectory(XmpDirectory xmpDirectory, Map<String, String> metadata) {
+    com.adobe.internal.xmp.XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
+
+    // Try each metadata field
+    for (ImageMetadata.MetadataField field : ImageMetadata.MetadataField.values()) {
+      ImageMetadata.XmpProperty xmpProperty = field.getXmpProperty();
+
+      if (!xmpProperty.hasProperties()) {
+        continue;
+      }
+
+      // Try each property name in the namespace
+      for (String propertyName : xmpProperty.getPropertyNames()) {
+        try {
+          com.adobe.internal.xmp.properties.XMPProperty prop = xmpMeta.getProperty(xmpProperty.getNamespace(),
+              propertyName);
+
+          if (prop != null && prop.getValue() != null) {
+            // Only set if not already extracted from EXIF
+            if (!metadata.containsKey(field.getFieldName())) {
+              String extractedValue = field.getExtractor().extract(prop.getValue());
+              if (extractedValue != null) {
+                metadata.put(field.getFieldName(), extractedValue);
+                break; // Found value, stop trying other property names
+              }
+            }
+          }
+        } catch (com.adobe.internal.xmp.XMPException e) {
+          // Property not found, continue to next
+        }
+      }
+    }
+  }
+
+  /**
+   * Ensure dimensions are present in metadata, reading from BufferedImage if
+   * needed.
+   *
+   * @param file     The image file
+   * @param metadata The metadata map to populate
+   */
+  private void ensureDimensions(MultipartFile file, Map<String, String> metadata) {
+    if (!metadata.containsKey("imageWidth") || !metadata.containsKey("imageHeight")) {
+      try (InputStream is = file.getInputStream()) {
+        BufferedImage img = ImageIO.read(is);
+        if (img != null) {
+          metadata.put("imageWidth", String.valueOf(img.getWidth()));
+          metadata.put("imageHeight", String.valueOf(img.getHeight()));
+        }
+      } catch (IOException e) {
+        log.warn("Failed to read image dimensions from BufferedImage: {}", e.getMessage());
+      }
+    }
+  }
+
+  /**
+   * Parse year and month from EXIF date string. EXIF date format is typically
+   * "2024:05:15
    * 14:30:00".
    *
    * @param createDate The date string from EXIF metadata
@@ -898,18 +978,41 @@ public class ContentProcessingUtil {
   private int[] parseImageDate(String createDate) {
     if (createDate == null || createDate.isEmpty()) {
       LocalDate now = LocalDate.now();
-      return new int[] {now.getYear(), now.getMonthValue()};
+      return new int[] { now.getYear(), now.getMonthValue() };
     }
     try {
       // EXIF format: "2024:05:15 14:30:00"
       String[] parts = createDate.split("[: ]");
       int year = Integer.parseInt(parts[0]);
       int month = Integer.parseInt(parts[1]);
-      return new int[] {year, month};
+      return new int[] { year, month };
     } catch (Exception e) {
       log.warn("Failed to parse EXIF date '{}', using current date", createDate);
       LocalDate now = LocalDate.now();
-      return new int[] {now.getYear(), now.getMonthValue()};
+      return new int[] { now.getYear(), now.getMonthValue() };
+    }
+  }
+
+  /**
+   * Parse EXIF date string to LocalDateTime. EXIF date format is "2026:01:26
+   * 17:48:38"
+   * (YYYY:MM:DD HH:MM:SS).
+   *
+   * @param createDate The date string from EXIF metadata
+   * @return LocalDateTime parsed from EXIF date, or null if parsing fails
+   */
+  private LocalDateTime parseExifDateToLocalDateTime(String createDate) {
+    if (createDate == null || createDate.trim().isEmpty()) {
+      return null;
+    }
+    try {
+      // EXIF format: "2026:01:26 17:48:38" -> convert to "2026-01-26T17:48:38"
+      // Replace first two colons (in date part) with dashes, then space with T
+      String normalized = createDate.replaceFirst(":", "-").replaceFirst(":", "-").replace(" ", "T");
+      return LocalDateTime.parse(normalized);
+    } catch (Exception e) {
+      log.warn("Failed to parse EXIF date '{}' to LocalDateTime, will use upload time", createDate);
+      return null;
     }
   }
 
@@ -930,14 +1033,18 @@ public class ContentProcessingUtil {
   /**
    * Upload an image to S3 and return the CloudFront URL.
    *
-   * <p>Path structure: {basePath}/{year}/{month}/{filename} Example: Image/Full/2025/08/photo.jpg
+   * <p>
+   * Path structure: {basePath}/{year}/{month}/{filename} Example:
+   * Image/Full/2025/08/photo.jpg
    *
-   * @param imageBytes The image bytes to upload
-   * @param filename The filename
-   * @param contentType The content type of the image (e.g., "image/jpeg", "image/webp")
-   * @param basePath The base path for S3 (e.g., PATH_IMAGE_FULL, PATH_IMAGE_WEB)
-   * @param year The year from image capture date
-   * @param month The month from image capture date (1-12)
+   * @param imageBytes  The image bytes to upload
+   * @param filename    The filename
+   * @param contentType The content type of the image (e.g., "image/jpeg",
+   *                    "image/webp")
+   * @param basePath    The base path for S3 (e.g., PATH_IMAGE_FULL,
+   *                    PATH_IMAGE_WEB)
+   * @param year        The year from image capture date
+   * @param month       The month from image capture date (1-12)
    * @return The CloudFront URL of the uploaded image
    */
   private String uploadImageToS3(
@@ -967,14 +1074,18 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Resize a BufferedImage to fit within the maximum dimension. This method resizes the ORIGINAL
-   * image format (JPG/PNG) before WebP conversion, avoiding the need to decode WebP back to
-   * BufferedImage which causes native library crashes. If the image is already within the size
+   * Resize a BufferedImage to fit within the maximum dimension. This method
+   * resizes the ORIGINAL
+   * image format (JPG/PNG) before WebP conversion, avoiding the need to decode
+   * WebP back to
+   * BufferedImage which causes native library crashes. If the image is already
+   * within the size
    * limits, it returns the original unchanged.
    *
    * @param originalImage The original BufferedImage to resize
-   * @param metadata The image metadata containing dimensions (will be updated)
-   * @param maxDimension The maximum allowed dimension (width or height)
+   * @param metadata      The image metadata containing dimensions (will be
+   *                      updated)
+   * @param maxDimension  The maximum allowed dimension (width or height)
    * @return Resized BufferedImage, or original if no resize needed
    */
   private BufferedImage resizeImage(
@@ -1033,7 +1144,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a BufferedImage to WebP format with compression. This method accepts an already-resized
+   * Convert a BufferedImage to WebP format with compression. This method accepts
+   * an already-resized
    * BufferedImage, avoiding the need to decode WebP.
    *
    * @param bufferedImage The BufferedImage to convert
@@ -1089,7 +1201,7 @@ public class ContentProcessingUtil {
   /**
    * Parse a string to an Integer, returning a default value if parsing fails.
    *
-   * @param value The string value to parse
+   * @param value        The string value to parse
    * @param defaultValue The default value to return if parsing fails
    * @return The parsed integer or default value
    */
@@ -1109,7 +1221,7 @@ public class ContentProcessingUtil {
   /**
    * Parse a string to a Boolean, returning a default value if parsing fails.
    *
-   * @param value The string value to parse
+   * @param value        The string value to parse
    * @param defaultValue The default value to return if parsing fails
    * @return The parsed boolean or default value
    */
@@ -1125,11 +1237,13 @@ public class ContentProcessingUtil {
   // =============================================================================
 
   /**
-   * Apply partial updates from ImageUpdateRequest to an ImageContentEntity. Only fields provided in
-   * the update request will be updated. This uses the new prev/new/remove pattern for entity
+   * Apply partial updates from ImageUpdateRequest to an ImageContentEntity. Only
+   * fields provided in
+   * the update request will be updated. This uses the new prev/new/remove pattern
+   * for entity
    * relationships.
    *
-   * @param entity The image entity to update
+   * @param entity        The image entity to update
    * @param updateRequest The update request containing the fields to update
    */
   public void applyImageUpdates(
@@ -1140,9 +1254,6 @@ public class ContentProcessingUtil {
     }
     if (updateRequest.getRating() != null) {
       entity.setRating(updateRequest.getRating());
-    }
-    if (updateRequest.getLocation() != null) {
-      entity.setLocation(updateRequest.getLocation());
     }
     if (updateRequest.getAuthor() != null) {
       entity.setAuthor(updateRequest.getAuthor());
@@ -1178,25 +1289,22 @@ public class ContentProcessingUtil {
           && !cameraUpdate.getNewValue().trim().isEmpty()) {
         // Create new camera by name
         String cameraName = cameraUpdate.getNewValue().trim();
-        ContentCameraEntity camera =
-            contentCameraDao
-                .findByCameraNameIgnoreCase(cameraName)
-                .orElseGet(
-                    () -> {
-                      log.info("Creating new camera: {}", cameraName);
-                      ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
-                      return contentCameraDao.save(newCamera);
-                    });
+        ContentCameraEntity camera = contentCameraDao
+            .findByCameraNameIgnoreCase(cameraName)
+            .orElseGet(
+                () -> {
+                  log.info("Creating new camera: {}", cameraName);
+                  ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
+                  return contentCameraDao.save(newCamera);
+                });
         entity.setCamera(camera);
       } else if (cameraUpdate.getPrev() != null) {
         // Use existing camera by ID
-        ContentCameraEntity camera =
-            contentCameraDao
-                .findById(cameraUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Camera not found with ID: " + cameraUpdate.getPrev()));
+        ContentCameraEntity camera = contentCameraDao
+            .findById(cameraUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException(
+                    "Camera not found with ID: " + cameraUpdate.getPrev()));
         entity.setCamera(camera);
       }
     }
@@ -1212,25 +1320,22 @@ public class ContentProcessingUtil {
       } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
         // Create new lens by name
         String lensName = lensUpdate.getNewValue().trim();
-        ContentLensEntity lens =
-            contentLensDao
-                .findByLensNameIgnoreCase(lensName)
-                .orElseGet(
-                    () -> {
-                      log.info("Creating new lens: {}", lensName);
-                      ContentLensEntity newLens = new ContentLensEntity(lensName);
-                      return contentLensDao.save(newLens);
-                    });
+        ContentLensEntity lens = contentLensDao
+            .findByLensNameIgnoreCase(lensName)
+            .orElseGet(
+                () -> {
+                  log.info("Creating new lens: {}", lensName);
+                  ContentLensEntity newLens = new ContentLensEntity(lensName);
+                  return contentLensDao.save(newLens);
+                });
         entity.setLens(lens);
       } else if (lensUpdate.getPrev() != null) {
         // Use existing lens by ID
-        ContentLensEntity lens =
-            contentLensDao
-                .findById(lensUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Lens not found with ID: " + lensUpdate.getPrev()));
+        ContentLensEntity lens = contentLensDao
+            .findById(lensUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException(
+                    "Lens not found with ID: " + lensUpdate.getPrev()));
         entity.setLens(lens);
       }
     }
@@ -1251,31 +1356,53 @@ public class ContentProcessingUtil {
         // "KODAK_PORTRA_400"
         String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
 
-        ContentFilmTypeEntity filmType =
-            contentFilmTypeDao
-                .findByFilmTypeNameIgnoreCase(technicalName)
-                .orElseGet(
-                    () -> {
-                      log.info(
-                          "Creating new film type: {} (technical name: {})",
-                          displayName,
-                          technicalName);
-                      ContentFilmTypeEntity newFilmType =
-                          new ContentFilmTypeEntity(
-                              technicalName, displayName, newFilmTypeRequest.getDefaultIso());
-                      return contentFilmTypeDao.save(newFilmType);
-                    });
+        ContentFilmTypeEntity filmType = contentFilmTypeDao
+            .findByFilmTypeNameIgnoreCase(technicalName)
+            .orElseGet(
+                () -> {
+                  log.info(
+                      "Creating new film type: {} (technical name: {})",
+                      displayName,
+                      technicalName);
+                  ContentFilmTypeEntity newFilmType = new ContentFilmTypeEntity(
+                      technicalName, displayName, newFilmTypeRequest.getDefaultIso());
+                  return contentFilmTypeDao.save(newFilmType);
+                });
         entity.setFilmType(filmType);
       } else if (filmTypeUpdate.getPrev() != null) {
         // Use existing film type by ID
-        ContentFilmTypeEntity filmType =
-            contentFilmTypeDao
-                .findById(filmTypeUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Film type not found with ID: " + filmTypeUpdate.getPrev()));
+        ContentFilmTypeEntity filmType = contentFilmTypeDao
+            .findById(filmTypeUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException(
+                    "Film type not found with ID: " + filmTypeUpdate.getPrev()));
         entity.setFilmType(filmType);
+      }
+    }
+
+    // Handle location update using prev/new/remove pattern
+    if (updateRequest.getLocation() != null) {
+      LocationUpdate locationUpdate = updateRequest.getLocation();
+
+      if (Boolean.TRUE.equals(locationUpdate.getRemove())) {
+        // Remove location association
+        entity.setLocationId(null);
+        log.info("Removed location association from image {}", entity.getId());
+      } else if (locationUpdate.getNewValue() != null
+          && !locationUpdate.getNewValue().trim().isEmpty()) {
+        // Create new location by name
+        String locationName = locationUpdate.getNewValue().trim();
+        LocationEntity location = locationDao.findOrCreate(locationName);
+        entity.setLocationId(location.getId());
+        log.info("Set location to: {} (ID: {})", locationName, location.getId());
+      } else if (locationUpdate.getPrev() != null) {
+        // Use existing location by ID
+        LocationEntity location = locationDao
+            .findById(locationUpdate.getPrev())
+            .orElseThrow(
+                () -> new IllegalArgumentException(
+                    "Location not found with ID: " + locationUpdate.getPrev()));
+        entity.setLocationId(location.getId());
       }
     }
 
@@ -1302,20 +1429,29 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Handle collection visibility and orderIndex updates for an image. This method updates the
-   * 'visible' flag and 'orderIndex' for the content entry in the current collection. Note: For
-   * cross-collection updates (updating the same image in multiple collections), you would need to
-   * add a repository method to find content by fileIdentifier. For now, this handles visibility and
+   * Handle collection visibility and orderIndex updates for an image. This method
+   * updates the
+   * 'visible' flag and 'orderIndex' for the content entry in the current
+   * collection. Note: For
+   * cross-collection updates (updating the same image in multiple collections),
+   * you would need to
+   * add a repository method to find content by fileIdentifier. For now, this
+   * handles visibility and
    * orderIndex for the current image/collection relationship.
    *
-   * <p>Typically used for single-image updates where we're adjusting the orderIndex (drag-and-drop
-   * reordering) or toggling visibility within a specific collection. The API call is very
-   * lightweight: ContentImageUpdateRequest with a single CollectionUpdate.prev(ChildCollection)
+   * <p>
+   * Typically used for single-image updates where we're adjusting the orderIndex
+   * (drag-and-drop
+   * reordering) or toggling visibility within a specific collection. The API call
+   * is very
+   * lightweight: ContentImageUpdateRequest with a single
+   * CollectionUpdate.prev(ChildCollection)
    * containing orderIndex/visible.
    *
-   * @param image The image entity being updated
-   * @param collectionUpdates List of collection updates containing visibility and orderIndex
-   *     information
+   * @param image             The image entity being updated
+   * @param collectionUpdates List of collection updates containing visibility and
+   *                          orderIndex
+   *                          information
    */
   public void handleContentChildCollectionUpdates(
       ContentImageEntity image, List<ChildCollection> collectionUpdates) {
@@ -1332,8 +1468,8 @@ public class ContentProcessingUtil {
         Boolean visible = collectionUpdate.getVisible();
 
         // Find the join table entry for this image in this collection
-        Optional<CollectionContentEntity> joinEntryOpt =
-            collectionContentDao.findByCollectionIdAndContentId(collectionId, image.getId());
+        Optional<CollectionContentEntity> joinEntryOpt = collectionContentDao
+            .findByCollectionIdAndContentId(collectionId, image.getId());
 
         if (joinEntryOpt.isEmpty()) {
           log.warn(
@@ -1384,12 +1520,14 @@ public class ContentProcessingUtil {
   // =============================================================================
 
   /**
-   * Update tags on an entity using the prev/new/remove pattern. This is a shared utility method
+   * Update tags on an entity using the prev/new/remove pattern. This is a shared
+   * utility method
    * used by both Collection and Content update operations.
    *
    * @param currentTags Current set of tags on the entity
-   * @param tagUpdate The tag update containing remove/prev/newValue operations
-   * @param newTags Optional set to track newly created tags (for response metadata)
+   * @param tagUpdate   The tag update containing remove/prev/newValue operations
+   * @param newTags     Optional set to track newly created tags (for response
+   *                    metadata)
    * @return Updated set of tags
    */
   public Set<ContentTagEntity> updateTags(
@@ -1407,15 +1545,13 @@ public class ContentProcessingUtil {
 
     // Add existing tags by ID (prev)
     if (tagUpdate.getPrev() != null && !tagUpdate.getPrev().isEmpty()) {
-      Set<ContentTagEntity> existingTags =
-          tagUpdate.getPrev().stream()
-              .map(
-                  tagId ->
-                      contentTagDao
-                          .findById(tagId)
-                          .orElseThrow(
-                              () -> new IllegalArgumentException("Tag not found: " + tagId)))
-              .collect(Collectors.toSet());
+      Set<ContentTagEntity> existingTags = tagUpdate.getPrev().stream()
+          .map(
+              tagId -> contentTagDao
+                  .findById(tagId)
+                  .orElseThrow(
+                      () -> new IllegalArgumentException("Tag not found: " + tagId)))
+          .collect(Collectors.toSet());
       tags.addAll(existingTags);
     }
 
@@ -1444,12 +1580,15 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Update people on an entity using the prev/new/remove pattern. This is a shared utility method
+   * Update people on an entity using the prev/new/remove pattern. This is a
+   * shared utility method
    * used by both Collection and Content update operations.
    *
    * @param currentPeople Current set of people on the entity
-   * @param personUpdate The person update containing remove/prev/newValue operations
-   * @param newPeople Optional set to track newly created people (for response metadata)
+   * @param personUpdate  The person update containing remove/prev/newValue
+   *                      operations
+   * @param newPeople     Optional set to track newly created people (for response
+   *                      metadata)
    * @return Updated set of people
    */
   public Set<ContentPersonEntity> updatePeople(
@@ -1469,15 +1608,13 @@ public class ContentProcessingUtil {
 
     // Add existing people by ID (prev)
     if (personUpdate.getPrev() != null && !personUpdate.getPrev().isEmpty()) {
-      Set<ContentPersonEntity> existingPeople =
-          personUpdate.getPrev().stream()
-              .map(
-                  personId ->
-                      contentPersonDao
-                          .findById(personId)
-                          .orElseThrow(
-                              () -> new IllegalArgumentException("Person not found: " + personId)))
-              .collect(Collectors.toSet());
+      Set<ContentPersonEntity> existingPeople = personUpdate.getPrev().stream()
+          .map(
+              personId -> contentPersonDao
+                  .findById(personId)
+                  .orElseThrow(
+                      () -> new IllegalArgumentException("Person not found: " + personId)))
+          .collect(Collectors.toSet());
       people.addAll(existingPeople);
     }
 
@@ -1510,7 +1647,8 @@ public class ContentProcessingUtil {
   // =============================================================================
 
   /**
-   * Load tags for a content entity from the database. Populates the entity's tags set with
+   * Load tags for a content entity from the database. Populates the entity's tags
+   * set with
    * ContentTagEntity objects.
    *
    * @param entity The content entity (ContentImageEntity or ContentGifEntity)
@@ -1524,17 +1662,16 @@ public class ContentProcessingUtil {
     List<TagEntity> tagEntities = tagDao.findContentTags(entity.getId());
 
     // Convert TagEntity to ContentTagEntity and populate the entity's tags set
-    Set<ContentTagEntity> contentTagEntities =
-        tagEntities.stream()
-            .map(
-                tagEntity -> {
-                  ContentTagEntity contentTag = new ContentTagEntity();
-                  contentTag.setId(tagEntity.getId());
-                  contentTag.setTagName(tagEntity.getTagName());
-                  contentTag.setCreatedAt(tagEntity.getCreatedAt());
-                  return contentTag;
-                })
-            .collect(Collectors.toSet());
+    Set<ContentTagEntity> contentTagEntities = tagEntities.stream()
+        .map(
+            tagEntity -> {
+              ContentTagEntity contentTag = new ContentTagEntity();
+              contentTag.setId(tagEntity.getId());
+              contentTag.setTagName(tagEntity.getTagName());
+              contentTag.setCreatedAt(tagEntity.getCreatedAt());
+              return contentTag;
+            })
+        .collect(Collectors.toSet());
 
     // Set tags on the entity based on its type
     if (entity instanceof ContentImageEntity imageEntity) {
@@ -1545,7 +1682,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a set of ContentTagEntity to a sorted list of ContentTagModel. Returns empty list if
+   * Convert a set of ContentTagEntity to a sorted list of ContentTagModel.
+   * Returns empty list if
    * tags is null or empty.
    *
    * @param tags Set of tag entities to convert
@@ -1562,7 +1700,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a set of ContentPersonEntity to a sorted list of ContentPersonModel. Returns empty list
+   * Convert a set of ContentPersonEntity to a sorted list of ContentPersonModel.
+   * Returns empty list
    * if people is null or empty.
    *
    * @param people Set of person entities to convert
@@ -1574,11 +1713,10 @@ public class ContentProcessingUtil {
     }
     return people.stream()
         .map(
-            person ->
-                ContentPersonModel.builder()
-                    .id(person.getId())
-                    .name(person.getPersonName())
-                    .build())
+            person -> ContentPersonModel.builder()
+                .id(person.getId())
+                .name(person.getPersonName())
+                .build())
         .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
         .collect(Collectors.toList());
   }
@@ -1588,7 +1726,8 @@ public class ContentProcessingUtil {
   // =============================================================================
 
   /**
-   * Find or create a location by name. If the location exists (case-insensitive), returns the
+   * Find or create a location by name. If the location exists (case-insensitive),
+   * returns the
    * existing one. Otherwise, creates a new location and returns it.
    *
    * @param locationName The location name to find or create
@@ -1625,7 +1764,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Get a location name by ID. Useful for converting locationId to display string.
+   * Get a location name by ID. Useful for converting locationId to display
+   * string.
    *
    * @param locationId The location ID
    * @return The location name, or null if not found or ID is null

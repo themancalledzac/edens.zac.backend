@@ -38,6 +38,9 @@ public class ContentLensEntity {
   @Size(min = 1, max = 100)
   private String lensName;
 
+  /** Column: lens_serial_number (VARCHAR) - Lens serial number */
+  private String lensSerialNumber;
+
   private LocalDateTime createdAt;
 
   // One-to-many relationship with ContentImages (mappedBy side)

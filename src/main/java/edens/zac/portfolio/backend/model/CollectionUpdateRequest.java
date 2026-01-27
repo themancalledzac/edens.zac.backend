@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.types.CollectionType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import lombok.AllArgsConstructor;
@@ -10,10 +11,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Request DTO for updating collections. All fields except 'id' are optional to support partial
- * updates. Only fields included in the request will be updated. Uses a prev/new/remove pattern for
- * entity relationships: - prev: Reference to existing entity by ID or keep existing relationships -
- * newValue: Create new entity (by name) or add new relationships - remove: Remove the association
+ * Request DTO for updating collections. All fields except 'id' are optional to
+ * support partial
+ * updates. Only fields included in the request will be updated. Uses a
+ * prev/new/remove pattern for
+ * entity relationships: - prev: Reference to existing entity by ID or keep
+ * existing relationships -
+ * newValue: Create new entity (by name) or add new relationships - remove:
+ * Remove the association
  * or remove specific IDs
  */
 @Data
@@ -23,7 +28,8 @@ import lombok.NoArgsConstructor;
 public class CollectionUpdateRequest {
 
   /** The ID of the collection to update (required) */
-  @NotNull(message = "Collection ID is required for updates") private Long id;
+  @NotNull(message = "Collection ID is required for updates")
+  private Long id;
 
   /** Collection type */
   private CollectionType type;
@@ -40,9 +46,9 @@ public class CollectionUpdateRequest {
   @Size(max = 500, message = "Description cannot exceed 500 characters")
   private String description;
 
-  /** Location associated with the collection */
-  @Size(max = 255, message = "Location cannot exceed 255 characters")
-  private String location;
+  /** Location update using prev/new/remove pattern */
+  @Valid
+  private LocationUpdate location;
 
   /** Date associated with the collection */
   @JsonFormat(pattern = "yyyy-MM-dd")
@@ -54,7 +60,9 @@ public class CollectionUpdateRequest {
   /** Display mode for ordering content in the collection */
   private CollectionBaseModel.DisplayMode displayMode;
 
-  /** Password for client galleries (raw password, will be hashed) null = no change */
+  /**
+   * Password for client galleries (raw password, will be hashed) null = no change
+   */
   @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
   private String password;
 
@@ -63,7 +71,8 @@ public class CollectionUpdateRequest {
   private Integer contentPerPage;
 
   /**
-   * Cover image ID (FK to content.id) for the collection Must reference a valid ContentImageEntity
+   * Cover image ID (FK to content.id) for the collection Must reference a valid
+   * ContentImageEntity
    * Set to 0 or null to clear the cover image
    */
   private Long coverImageId;
@@ -75,7 +84,8 @@ public class CollectionUpdateRequest {
   private PersonUpdate people;
 
   /**
-   * Collection updates using prev/new/remove pattern Used to manage which parent collections this
+   * Collection updates using prev/new/remove pattern Used to manage which parent
+   * collections this
    * collection belongs to
    */
   private CollectionUpdate collections;

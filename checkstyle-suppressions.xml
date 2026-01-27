@@ -78,6 +78,9 @@
   <!-- Suppress Javadoc formatting warnings (summary sentences) -->
   <suppress checks="SummaryJavadoc" files=".*"/>
 
+  <!-- Suppress JavadocParagraph to allow Google Java Format style (blank line after <p> tags) -->
+  <suppress checks="JavadocParagraph" files=".*"/>
+
   <!-- Suppress Javadoc for test classes -->
   <suppress checks="MissingJavadocType" files=".*Test\.java"/>
   <suppress checks="MissingJavadocMethod" files=".*Test\.java"/>

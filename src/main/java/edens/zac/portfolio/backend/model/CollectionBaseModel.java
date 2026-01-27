@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.types.CollectionType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -11,8 +12,10 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Base model containing common fields shared across all Collection DTOs. This eliminates
- * duplication between CollectionModel, CollectionPageDTO, and CollectionUpdateRequest.
+ * Base model containing common fields shared across all Collection DTOs. This
+ * eliminates
+ * duplication between CollectionModel, CollectionPageDTO, and
+ * CollectionUpdateRequest.
  */
 @NoArgsConstructor
 @AllArgsConstructor
@@ -33,8 +36,9 @@ public abstract class CollectionBaseModel {
   @Size(max = 500, message = "Description cannot exceed 500 characters")
   private String description;
 
-  @Size(max = 255, message = "Location cannot exceed 255 characters")
-  private String location;
+  /** Location associated with the collection (from location table) */
+  @Valid
+  private LocationModel location;
 
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;

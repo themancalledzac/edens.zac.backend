@@ -18,7 +18,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Controller for Collection write operations (dev environment only). Provides endpoints for
+ * Controller for Collection write operations (dev environment only). Provides
+ * endpoints for
  * creating, updating, and managing collections.
  */
 @Slf4j
@@ -35,14 +36,14 @@ public class CollectionControllerDev {
    * Create a new collection
    *
    * @param createRequest Collection creation data
-   * @return ResponseEntity with the created collection and all metadata for the manage page
+   * @return ResponseEntity with the created collection and all metadata for the
+   *         manage page
    */
-  @PostMapping(
-      value = "/createCollection",
-      consumes = {MediaType.APPLICATION_JSON_VALUE})
+  @PostMapping(value = "/createCollection", consumes = { MediaType.APPLICATION_JSON_VALUE })
   public ResponseEntity<?> createCollection(@RequestBody CollectionCreateRequest createRequest) {
     try {
-      // Create collection and get full update response with all metadata (tags, people, cameras,
+      // Create collection and get full update response with all metadata (tags,
+      // people, cameras,
       // etc.)
       CollectionUpdateResponseDTO response = collectionService.createCollection(createRequest);
       log.info("Successfully created collection: {}", response.getCollection().getId());
@@ -58,7 +59,7 @@ public class CollectionControllerDev {
   /**
    * Update collection metadata. Accepts partial updates
    *
-   * @param id Collection ID
+   * @param id        Collection ID
    * @param updateDTO DTO with update data
    * @return ResponseEntity with updated collection
    */
@@ -107,11 +108,14 @@ public class CollectionControllerDev {
   }
 
   /**
-   * Get all collections ordered by collection date. Returns all collections regardless of
-   * visibility, hidden status, or lacking images. Dev/admin only endpoint for viewing complete
+   * Get all collections ordered by collection date. Returns all collections
+   * regardless of
+   * visibility, hidden status, or lacking images. Dev/admin only endpoint for
+   * viewing complete
    * collection list.
    *
-   * @return ResponseEntity with list of all collections ordered by collection date DESC
+   * @return ResponseEntity with list of all collections ordered by collection
+   *         date DESC
    */
   @GetMapping("/all")
   public ResponseEntity<?> getAllCollectionsOrderedByDate() {
@@ -128,8 +132,10 @@ public class CollectionControllerDev {
   }
 
   /**
-   * Get collection with all metadata for the update/manage page. Returns the collection along with
-   * all available tags, people, cameras, and film metadata. This single endpoint provides
+   * Get collection with all metadata for the update/manage page. Returns the
+   * collection along with
+   * all available tags, people, cameras, and film metadata. This single endpoint
+   * provides
    * everything needed for the image management UI.
    *
    * @param slug Collection slug
@@ -153,8 +159,10 @@ public class CollectionControllerDev {
   }
 
   /**
-   * Get general metadata without a specific collection. Returns all available tags, people,
-   * cameras, lenses, film types, film formats, and collections. This is useful when you already
+   * Get general metadata without a specific collection. Returns all available
+   * tags, people,
+   * cameras, lenses, film types, film formats, and collections. This is useful
+   * when you already
    * have collection data and only need the metadata.
    *
    * @return ResponseEntity with general metadata
@@ -173,12 +181,15 @@ public class CollectionControllerDev {
   }
 
   /**
-   * Reorder images within a collection. Updates the orderIndex for specified images and recomputes
-   * sequential indices for all content. This is an atomic operation that ensures all order indices
+   * Reorder images within a collection. Updates the orderIndex for specified
+   * images and recomputes
+   * sequential indices for all content. This is an atomic operation that ensures
+   * all order indices
    * are sequential (0, 1, 2, ...).
    *
    * @param collectionId Collection ID
-   * @param request Reorder request containing image IDs and their new order indices
+   * @param request      Reorder request containing image IDs and their new order
+   *                     indices
    * @return ResponseEntity with updated collection
    */
   @PostMapping("/{collectionId}/reorder")
@@ -193,7 +204,8 @@ public class CollectionControllerDev {
       log.info("Successfully reordered content in collection: {}", collectionId);
       return ResponseEntity.ok(updatedCollection);
     } catch (IllegalArgumentException e) {
-      // Check error message to determine if it's a "not found" or "invalid request" error
+      // Check error message to determine if it's a "not found" or "invalid request"
+      // error
       String errorMessage = e.getMessage();
       if (errorMessage != null && errorMessage.contains("not found")) {
         log.warn("Collection not found: {}", collectionId);

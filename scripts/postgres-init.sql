@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS content_image (
     location TEXT,
     image_url_web TEXT NOT NULL,
     create_date VARCHAR(50),
-    file_identifier TEXT UNIQUE
+    file_identifier TEXT UNIQUE,
+    offset_time VARCHAR(20)
 );
 
 -- Content Text table
@@ -138,14 +139,16 @@ CREATE TABLE IF NOT EXISTS content_people (
 CREATE TABLE IF NOT EXISTS content_cameras (
     id BIGINT PRIMARY KEY DEFAULT nextval('content_cameras_id_seq'),
     camera_name VARCHAR(100) NOT NULL UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    body_serial_number VARCHAR(50)
 );
 
 -- Content Lenses table
 CREATE TABLE IF NOT EXISTS content_lenses (
     id BIGINT PRIMARY KEY DEFAULT nextval('content_lenses_id_seq'),
     lens_name VARCHAR(100) NOT NULL UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lens_serial_number VARCHAR(50)
 );
 
 -- Content Film Types table

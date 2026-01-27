@@ -42,6 +42,9 @@ public class ContentCameraEntity {
   @Size(min = 1, max = 100)
   private String cameraName;
 
+  /** Column: body_serial_number (VARCHAR) - Camera body serial number */
+  private String bodySerialNumber;
+
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;
 

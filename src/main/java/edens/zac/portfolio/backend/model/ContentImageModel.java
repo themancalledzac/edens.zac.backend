@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.FilmFormat;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.Data;
@@ -38,8 +39,8 @@ public class ContentImageModel extends ContentModel {
   @Size(max = 20)
   private String focalLength;
 
-  @Size(max = 250)
-  private String location;
+  @Valid
+  private LocationModel location;
 
   private String createDate;
   private List<ContentTagModel> tags;
