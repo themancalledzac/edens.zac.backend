@@ -6,7 +6,8 @@ import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Service interface for managing content blocks, tags, and people. Provides methods for CRUD
+ * Service interface for managing content blocks, tags, and people. Provides
+ * methods for CRUD
  * operations on tags, people, and image content blocks.
  */
 public interface ContentService {
@@ -30,10 +31,22 @@ public interface ContentService {
   /**
    * Create a new camera
    *
-   * @param cameraName The name of the camera to create
+   * @param cameraName       The name of the camera to create
+   * @param bodySerialNumber Optional serial number for the camera (used for
+   *                         deduplication)
    * @return Map containing created camera data
    */
-  Map<String, Object> createCamera(String cameraName);
+  Map<String, Object> createCamera(String cameraName, String bodySerialNumber);
+
+  /**
+   * Create a new lens
+   *
+   * @param lensName         The name of the lens to create
+   * @param lensSerialNumber Optional serial number for the lens (used for
+   *                         deduplication)
+   * @return Map containing created lens data
+   */
+  Map<String, Object> createLens(String lensName, String lensSerialNumber);
 
   /**
    * Update one or more images
@@ -96,9 +109,11 @@ public interface ContentService {
   /**
    * Create a new film type
    *
-   * @param filmTypeName The technical name of the film type (e.g., "KODAK_PORTRA_400")
-   * @param displayName The human-readable display name (e.g., "Kodak Portra 400")
-   * @param defaultIso The default ISO value for this film stock
+   * @param filmTypeName The technical name of the film type (e.g.,
+   *                     "KODAK_PORTRA_400")
+   * @param displayName  The human-readable display name (e.g., "Kodak Portra
+   *                     400")
+   * @param defaultIso   The default ISO value for this film stock
    * @return Map containing created film type data
    */
   Map<String, Object> createFilmType(String filmTypeName, String displayName, Integer defaultIso);
@@ -114,26 +129,26 @@ public interface ContentService {
    * Create one or more images and associate them with a collection
    *
    * @param collectionId ID of the collection to associate images with
-   * @param files List of image files to upload
+   * @param files        List of image files to upload
    * @return List of created image models
    */
   List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files);
 
-  //    /**
-  //     * Create text content
-  //     *
-  //     * @param request Text content creation request
-  //     * @return Created text content model
-  //     */
-  ////    ContentTextModel createTextContent(oldCreateTextContentRequest request);
+  // /**
+  // * Create text content
+  // *
+  // * @param request Text content creation request
+  // * @return Created text content model
+  // */
+  //// ContentTextModel createTextContent(oldCreateTextContentRequest request);
   //
-  //    /**
-  //     * Create code content
-  //     *
-  //     * @param request Code content creation request
-  //     * @return Created code content model
-  //     */
-  //    ContentCodeModel createCodeContent(CreateCodeContentRequest request);
+  // /**
+  // * Create code content
+  // *
+  // * @param request Code content creation request
+  // * @return Created code content model
+  // */
+  // ContentCodeModel createCodeContent(CreateCodeContentRequest request);
 
   /**
    * Create code content
