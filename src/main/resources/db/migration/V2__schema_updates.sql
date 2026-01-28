@@ -17,6 +17,8 @@
 -- 5. Add foreign key constraint from content_image.location_id to location.id
 -- 6. Remove legacy location VARCHAR column from collection table
 -- 7. Remove legacy location TEXT column from content_image table
+-- 8. Add body_serial_number column to content_cameras table (if it doesn't exist)
+-- 9. Add lens_serial_number column to content_lenses table (if it doesn't exist)
 
 BEGIN;
 
@@ -103,6 +105,43 @@ BEGIN
         WHERE table_name = 'content_image' AND column_name = 'location'
     ) THEN
         ALTER TABLE content_image DROP COLUMN location;
+    END IF;
+END $$;
+
+-- Step 8: Add body_serial_number column to content_cameras table (if it doesn't exist)
+-- This column is used internally for camera deduplication during image uploads
+-- but is NOT exposed in API responses
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'content_cameras' AND column_name = 'body_serial_number'
+    ) THEN
+        ALTER TABLE content_cameras ADD COLUMN body_serial_number VARCHAR(50);
+    END IF;
+END $$;
+
+-- Step 9: Add lens_serial_number column to content_lenses table (if it doesn't exist)
+-- This column is used internally for lens deduplication during image uploads
+-- but is NOT exposed in API responses
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'content_lenses' AND column_name = 'lens_serial_number'
+    ) THEN
+        ALTER TABLE content_lenses ADD COLUMN lens_serial_number VARCHAR(50);
+    END IF;
+END $$;
+
+-- Step 10: Remove offset_time column from content_image table (if it exists)
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'content_image' AND column_name = 'offset_time'
+    ) THEN
+        ALTER TABLE content_image DROP COLUMN offset_time;
     END IF;
 END $$;
 

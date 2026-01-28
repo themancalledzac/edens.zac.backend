@@ -103,22 +103,69 @@ class ContentServiceImpl implements ContentService {
   @Override
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
-  public Map<String, Object> createCamera(String cameraName) {
-    metadataValidator.validateCameraName(cameraName);
+  public Map<String, Object> createCamera(String cameraName, String bodySerialNumber) {
+    if (cameraName == null || cameraName.trim().isEmpty()) {
+      throw new IllegalArgumentException("cameraName is required");
+    }
     cameraName = cameraName.trim();
 
-    // Check if camera already exists (case-insensitive)
+    // If serial number provided, check by serial number first (for deduplication)
+    if (bodySerialNumber != null && !bodySerialNumber.trim().isEmpty()) {
+      Optional<ContentCameraEntity> existing = contentCameraDao.findByBodySerialNumber(bodySerialNumber);
+      if (existing.isPresent()) {
+        throw new DataIntegrityViolationException("Camera with serial number already exists: " + bodySerialNumber);
+      }
+    }
+
+    // Check if camera already exists by name (case-insensitive)
     if (contentCameraDao.existsByCameraNameIgnoreCase(cameraName)) {
       throw new DataIntegrityViolationException("Camera already exists: " + cameraName);
     }
 
-    ContentCameraEntity camera = new ContentCameraEntity(cameraName);
+    ContentCameraEntity camera = ContentCameraEntity.builder()
+        .cameraName(cameraName)
+        .bodySerialNumber(bodySerialNumber != null ? bodySerialNumber.trim() : null)
+        .build();
     ContentCameraEntity savedCamera = contentCameraDao.save(camera);
 
     return Map.of(
         "id", savedCamera.getId(),
         "cameraName", savedCamera.getCameraName(),
         "createdAt", savedCamera.getCreatedAt());
+  }
+
+  @Override
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
+  public Map<String, Object> createLens(String lensName, String lensSerialNumber) {
+    if (lensName == null || lensName.trim().isEmpty()) {
+      throw new IllegalArgumentException("lensName is required");
+    }
+    lensName = lensName.trim();
+
+    // If serial number provided, check by serial number first (for deduplication)
+    if (lensSerialNumber != null && !lensSerialNumber.trim().isEmpty()) {
+      Optional<ContentLensEntity> existing = contentLensDao.findByLensSerialNumber(lensSerialNumber);
+      if (existing.isPresent()) {
+        throw new DataIntegrityViolationException("Lens with serial number already exists: " + lensSerialNumber);
+      }
+    }
+
+    // Check if lens already exists by name (case-insensitive)
+    if (contentLensDao.existsByLensNameIgnoreCase(lensName)) {
+      throw new DataIntegrityViolationException("Lens already exists: " + lensName);
+    }
+
+    ContentLensEntity lens = ContentLensEntity.builder()
+        .lensName(lensName)
+        .lensSerialNumber(lensSerialNumber != null ? lensSerialNumber.trim() : null)
+        .build();
+    ContentLensEntity savedLens = contentLensDao.save(lens);
+
+    return Map.of(
+        "id", savedLens.getId(),
+        "lensName", savedLens.getLensName(),
+        "createdAt", savedLens.getCreatedAt());
   }
 
   @Override
@@ -332,16 +379,10 @@ class ContentServiceImpl implements ContentService {
       } else if (cameraUpdate.getNewValue() != null
           && !cameraUpdate.getNewValue().trim().isEmpty()) {
         String cameraName = cameraUpdate.getNewValue().trim();
-        var existing = contentCameraDao.findByCameraNameIgnoreCase(cameraName);
-        if (existing.isPresent()) {
-          image.setCamera(existing.get());
-        } else {
-          ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
-          newCamera = contentCameraDao.save(newCamera);
-          image.setCamera(newCamera);
-          newCameras.add(newCamera);
-          log.info("Created new camera: {}", cameraName);
-        }
+        // Use helper method - no serial number provided, will generate UUID
+        // Pass tracking set so newly created cameras are automatically tracked
+        ContentCameraEntity camera = contentProcessingUtil.createCamera(cameraName, null, newCameras);
+        image.setCamera(camera);
       } else if (cameraUpdate.getPrev() != null) {
         ContentCameraEntity camera = contentCameraDao
             .findById(cameraUpdate.getPrev())
@@ -359,16 +400,10 @@ class ContentServiceImpl implements ContentService {
         image.setLens(null);
       } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
         String lensName = lensUpdate.getNewValue().trim();
-        var existing = contentLensDao.findByLensNameIgnoreCase(lensName);
-        if (existing.isPresent()) {
-          image.setLens(existing.get());
-        } else {
-          ContentLensEntity newLens = new ContentLensEntity(lensName);
-          newLens = contentLensDao.save(newLens);
-          image.setLens(newLens);
-          newLenses.add(newLens);
-          log.info("Created new lens: {}", lensName);
-        }
+        // Use helper method - no serial number provided, will generate UUID
+        // Pass tracking set so newly created lenses are automatically tracked
+        ContentLensEntity lens = contentProcessingUtil.createLens(lensName, null, newLenses);
+        image.setLens(lens);
       } else if (lensUpdate.getPrev() != null) {
         ContentLensEntity lens = contentLensDao
             .findById(lensUpdate.getPrev())

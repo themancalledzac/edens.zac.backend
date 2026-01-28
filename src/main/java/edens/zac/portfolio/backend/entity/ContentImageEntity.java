@@ -92,9 +92,6 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: file_identifier (VARCHAR, UNIQUE) - Format: "YYYY-MM-DD/filename.jpg" */
   private String fileIdentifier;
 
-  /** Column: offset_time (VARCHAR) - Timezone offset from EXIF */
-  private String offsetTime;
-
   /** Relationship: Many-to-many with ContentTagEntity (via content_tags table) */
   @Builder.Default private Set<ContentTagEntity> tags = new HashSet<>();
 

@@ -38,6 +38,8 @@ import java.io.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -88,7 +90,7 @@ public class ContentProcessingUtil {
   // {ContentType}/{Quality}/{Year}/{Month}/{filename}
   private static final String PATH_IMAGE_FULL = "Image/Full";
   private static final String PATH_IMAGE_WEB = "Image/Web";
-  private static final String PATH_IMAGE_RAW = "Image/Raw"; // future use
+  // private static final String PATH_IMAGE_RAW = "Image/Raw"; // future use
   private static final String PATH_GIF_FULL = "Gif/Full";
 
   // Default values for image metadata
@@ -774,58 +776,21 @@ public class ContentProcessingUtil {
         .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
         .createdAt(parseExifDateToLocalDateTime(metadata.get("createDate")))
         .fileIdentifier(fileIdentifier)
-        .offsetTime(metadata.get("offsetTime"))
         .build();
 
-    // Handle camera - find existing or create new from metadata
+    // Handle camera - use helper method to create or find existing
     String cameraName = metadata.get("camera");
     String bodySerialNumber = metadata.get("bodySerialNumber");
     if (cameraName != null && !cameraName.trim().isEmpty()) {
-      ContentCameraEntity camera = contentCameraDao
-          .findByCameraNameIgnoreCase(cameraName.trim())
-          .map(existing -> {
-            // Update serial number if missing
-            if (existing.getBodySerialNumber() == null && bodySerialNumber != null) {
-              existing.setBodySerialNumber(bodySerialNumber);
-              return contentCameraDao.save(existing);
-            }
-            return existing;
-          })
-          .orElseGet(
-              () -> {
-                log.info("Creating new camera from metadata: {}", cameraName);
-                ContentCameraEntity newCamera = ContentCameraEntity.builder()
-                    .cameraName(cameraName.trim())
-                    .bodySerialNumber(bodySerialNumber)
-                    .build();
-                return contentCameraDao.save(newCamera);
-              });
+      ContentCameraEntity camera = createCamera(cameraName, bodySerialNumber, null);
       entity.setCamera(camera);
     }
 
-    // Handle lens - find existing or create new from metadata
+    // Handle lens - use helper method to create or find existing
     String lensName = metadata.get("lens");
     String lensSerialNumber = metadata.get("lensSerialNumber");
     if (lensName != null && !lensName.trim().isEmpty()) {
-      ContentLensEntity lens = contentLensDao
-          .findByLensNameIgnoreCase(lensName.trim())
-          .map(existing -> {
-            // Update serial number if missing
-            if (existing.getLensSerialNumber() == null && lensSerialNumber != null) {
-              existing.setLensSerialNumber(lensSerialNumber);
-              return contentLensDao.save(existing);
-            }
-            return existing;
-          })
-          .orElseGet(
-              () -> {
-                log.info("Creating new lens from metadata: {}", lensName);
-                ContentLensEntity newLens = ContentLensEntity.builder()
-                    .lensName(lensName.trim())
-                    .lensSerialNumber(lensSerialNumber)
-                    .build();
-                return contentLensDao.save(newLens);
-              });
+      ContentLensEntity lens = createLens(lensName, lensSerialNumber, null);
       entity.setLens(lens);
     }
 
@@ -1233,6 +1198,117 @@ public class ContentProcessingUtil {
   }
 
   // =============================================================================
+  // CAMERA/LENS CREATION HELPERS
+  // =============================================================================
+
+  /**
+   * Create or find a camera entity. Generates a random UUID serial number if not
+   * provided.
+   * Checks by serial number first (if provided), then by name.
+   *
+   * @param cameraName       The camera name (required)
+   * @param bodySerialNumber Optional serial number from EXIF metadata
+   * @param newCameras       Optional set to track newly created cameras (for
+   *                         response metadata)
+   * @return The camera entity (existing or newly created)
+   */
+  public ContentCameraEntity createCamera(String cameraName, String bodySerialNumber,
+      Set<ContentCameraEntity> newCameras) {
+    if (cameraName == null || cameraName.trim().isEmpty()) {
+      throw new IllegalArgumentException("cameraName is required");
+    }
+    cameraName = cameraName.trim();
+
+    // Generate UUID serial number if not provided
+    String serialNumber = bodySerialNumber;
+    if (serialNumber == null || serialNumber.trim().isEmpty()) {
+      serialNumber = UUID.randomUUID().toString();
+      log.debug("Generated UUID serial number for camera: {}", cameraName);
+    } else {
+      serialNumber = serialNumber.trim();
+    }
+
+    // Check by serial number first (for deduplication)
+    Optional<ContentCameraEntity> existingBySerial = contentCameraDao.findByBodySerialNumber(serialNumber);
+    if (existingBySerial.isPresent()) {
+      log.debug("Found existing camera by serial number: {}", serialNumber);
+      return existingBySerial.get();
+    }
+
+    // Check by name (case-insensitive)
+    Optional<ContentCameraEntity> existingByName = contentCameraDao.findByCameraNameIgnoreCase(cameraName);
+    if (existingByName.isPresent()) {
+      log.debug("Found existing camera by name: {}", cameraName);
+      return existingByName.get();
+    }
+
+    // Create new camera with generated serial number
+    log.info("Creating new camera: {} (serial: {})", cameraName, serialNumber);
+    ContentCameraEntity newCamera = ContentCameraEntity.builder()
+        .cameraName(cameraName)
+        .bodySerialNumber(serialNumber)
+        .build();
+    ContentCameraEntity savedCamera = contentCameraDao.save(newCamera);
+    if (newCameras != null) {
+      newCameras.add(savedCamera);
+    }
+    return savedCamera;
+  }
+
+  /**
+   * Create or find a lens entity. Generates a random UUID serial number if not
+   * provided.
+   * Checks by serial number first (if provided), then by name.
+   *
+   * @param lensName         The lens name (required)
+   * @param lensSerialNumber Optional serial number from EXIF metadata
+   * @param newLenses        Optional set to track newly created lenses (for
+   *                         response metadata)
+   * @return The lens entity (existing or newly created)
+   */
+  public ContentLensEntity createLens(String lensName, String lensSerialNumber, Set<ContentLensEntity> newLenses) {
+    if (lensName == null || lensName.trim().isEmpty()) {
+      throw new IllegalArgumentException("lensName is required");
+    }
+    lensName = lensName.trim();
+
+    // Generate UUID serial number if not provided
+    String serialNumber = lensSerialNumber;
+    if (serialNumber == null || serialNumber.trim().isEmpty()) {
+      serialNumber = UUID.randomUUID().toString();
+      log.debug("Generated UUID serial number for lens: {}", lensName);
+    } else {
+      serialNumber = serialNumber.trim();
+    }
+
+    // Check by serial number first (for deduplication)
+    Optional<ContentLensEntity> existingBySerial = contentLensDao.findByLensSerialNumber(serialNumber);
+    if (existingBySerial.isPresent()) {
+      log.debug("Found existing lens by serial number: {}", serialNumber);
+      return existingBySerial.get();
+    }
+
+    // Check by name (case-insensitive)
+    Optional<ContentLensEntity> existingByName = contentLensDao.findByLensNameIgnoreCase(lensName);
+    if (existingByName.isPresent()) {
+      log.debug("Found existing lens by name: {}", lensName);
+      return existingByName.get();
+    }
+
+    // Create new lens with generated serial number
+    log.info("Creating new lens: {} (serial: {})", lensName, serialNumber);
+    ContentLensEntity newLens = ContentLensEntity.builder()
+        .lensName(lensName)
+        .lensSerialNumber(serialNumber)
+        .build();
+    ContentLensEntity savedLens = contentLensDao.save(newLens);
+    if (newLenses != null) {
+      newLenses.add(savedLens);
+    }
+    return savedLens;
+  }
+
+  // =============================================================================
   // IMAGE UPDATE HELPERS (following the pattern from CollectionProcessingUtil)
   // =============================================================================
 
@@ -1287,16 +1363,9 @@ public class ContentProcessingUtil {
         log.info("Removed camera association from image {}", entity.getId());
       } else if (cameraUpdate.getNewValue() != null
           && !cameraUpdate.getNewValue().trim().isEmpty()) {
-        // Create new camera by name
         String cameraName = cameraUpdate.getNewValue().trim();
-        ContentCameraEntity camera = contentCameraDao
-            .findByCameraNameIgnoreCase(cameraName)
-            .orElseGet(
-                () -> {
-                  log.info("Creating new camera: {}", cameraName);
-                  ContentCameraEntity newCamera = new ContentCameraEntity(cameraName);
-                  return contentCameraDao.save(newCamera);
-                });
+        // Use helper method - no serial number provided, will generate UUID
+        ContentCameraEntity camera = createCamera(cameraName, null, null);
         entity.setCamera(camera);
       } else if (cameraUpdate.getPrev() != null) {
         // Use existing camera by ID
@@ -1318,16 +1387,9 @@ public class ContentProcessingUtil {
         entity.setLens(null);
         log.info("Removed lens association from image {}", entity.getId());
       } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
-        // Create new lens by name
         String lensName = lensUpdate.getNewValue().trim();
-        ContentLensEntity lens = contentLensDao
-            .findByLensNameIgnoreCase(lensName)
-            .orElseGet(
-                () -> {
-                  log.info("Creating new lens: {}", lensName);
-                  ContentLensEntity newLens = new ContentLensEntity(lensName);
-                  return contentLensDao.save(newLens);
-                });
+        // Use helper method - no serial number provided, will generate UUID
+        ContentLensEntity lens = createLens(lensName, null, null);
         entity.setLens(lens);
       } else if (lensUpdate.getPrev() != null) {
         // Use existing lens by ID
