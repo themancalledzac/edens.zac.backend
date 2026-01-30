@@ -286,7 +286,7 @@ public class TagDao extends BaseDao {
     // Insert new tags
     if (tagIds != null && !tagIds.isEmpty()) {
       String insertSql =
-          "INSERT INTO content_tags (content_id, tag_id) VALUES (:contentId, :tagId)";
+          "INSERT INTO content_tags (content_id, tag_id) VALUES (:contentId, :tagId) ON CONFLICT DO NOTHING";
       MapSqlParameterSource[] batchParams =
           tagIds.stream()
               .map(
@@ -310,6 +310,35 @@ public class TagDao extends BaseDao {
     String sql = "SELECT tag_id FROM content_tags WHERE content_id = :contentId";
     MapSqlParameterSource params = createParameterSource().addValue("contentId", contentId);
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
+  }
+
+  /**
+   * Batch fetch tag IDs for multiple content items. Returns a map of contentId -> list of tag IDs.
+   * More efficient than calling findContentTagIds in a loop (avoids N+1).
+   *
+   * @param contentIds List of content IDs
+   * @return Map of content ID to list of tag IDs
+   */
+  @Transactional(readOnly = true)
+  public java.util.Map<Long, java.util.List<Long>> findTagIdsByContentIds(List<Long> contentIds) {
+    if (contentIds == null || contentIds.isEmpty()) {
+      return java.util.Map.of();
+    }
+
+    String sql = "SELECT content_id, tag_id FROM content_tags WHERE content_id IN (:contentIds)";
+    MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
+
+    java.util.Map<Long, java.util.List<Long>> result = new java.util.HashMap<>();
+    namedParameterJdbcTemplate.query(
+        sql,
+        params,
+        rs -> {
+          Long contentId = rs.getLong("content_id");
+          Long tagId = rs.getLong("tag_id");
+          result.computeIfAbsent(contentId, k -> new java.util.ArrayList<>()).add(tagId);
+        });
+
+    return result;
   }
 
   /**

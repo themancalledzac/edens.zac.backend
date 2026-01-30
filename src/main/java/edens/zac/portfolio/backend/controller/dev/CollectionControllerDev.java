@@ -7,11 +7,14 @@ import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
 import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
+import edens.zac.portfolio.backend.services.PaginationUtil;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -108,20 +111,21 @@ public class CollectionControllerDev {
   }
 
   /**
-   * Get all collections ordered by collection date. Returns all collections
-   * regardless of
-   * visibility, hidden status, or lacking images. Dev/admin only endpoint for
-   * viewing complete
+   * Get all collections ordered by collection date (paginated). Returns all collections regardless
+   * of visibility, hidden status, or lacking images. Dev/admin only endpoint for viewing complete
    * collection list.
    *
-   * @return ResponseEntity with list of all collections ordered by collection
-   *         date DESC
+   * @param page Page number (0-based)
+   * @param size Page size (default: 50)
+   * @return ResponseEntity with paginated collections ordered by collection date DESC
    */
   @GetMapping("/all")
-  public ResponseEntity<?> getAllCollectionsOrderedByDate() {
+  public ResponseEntity<?> getAllCollectionsOrderedByDate(
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
     try {
-      List<CollectionModel> collections = collectionService.getAllCollectionsOrderedByDate();
-      log.info("Successfully retrieved {} collections ordered by date", collections.size());
+      Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
+      Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
+      log.info("Successfully retrieved {} collections ordered by date", collections.getSize());
 
       return ResponseEntity.ok(collections);
     } catch (Exception e) {

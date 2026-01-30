@@ -120,4 +120,24 @@ public class ContentPersonDao extends BaseDao {
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, PERSON_ROW_MAPPER, params);
   }
+
+  /**
+   * Find people for content (image).
+   *
+   * @param contentId The content's ID (from content_image table)
+   * @return List of ContentPersonEntity objects
+   */
+  @Transactional(readOnly = true)
+  public List<ContentPersonEntity> findContentPeople(Long contentId) {
+    String sql =
+        """
+            SELECT p.id, p.person_name, p.created_at
+            FROM content_people p
+            JOIN content_image_people cip ON p.id = cip.person_id
+            WHERE cip.image_id = :contentId
+            ORDER BY p.person_name ASC
+            """;
+    MapSqlParameterSource params = createParameterSource().addValue("contentId", contentId);
+    return query(sql, PERSON_ROW_MAPPER, params);
+  }
 }
