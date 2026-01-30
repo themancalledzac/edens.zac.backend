@@ -75,3 +75,12 @@ atlassian-ide-plugin.xml
 
 # VS Code
 .vscode/
+
+# Environment variables (contains secrets)
+.env
+.env.save
+*.env.local
+
+# Backup files
+backup-*.sql
+backup-*.tar.gz
