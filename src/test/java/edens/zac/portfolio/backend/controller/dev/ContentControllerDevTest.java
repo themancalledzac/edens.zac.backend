@@ -438,29 +438,33 @@ class ContentControllerDevTest {
   @DisplayName("GET /content/images should return all images")
   void getAllImages_shouldReturnAllImages() throws Exception {
     // Arrange
-    when(contentService.getAllImages()).thenReturn(testImages);
+    org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 50);
+    org.springframework.data.domain.Page<ContentImageModel> page =
+        new org.springframework.data.domain.PageImpl<>(testImages, pageable, testImages.size());
+    when(contentService.getAllImages(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
 
     // Act & Assert
     mockMvc
         .perform(get("/api/admin/content/images"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(1)))
-        .andExpect(jsonPath("$[0].id", is(1)))
-        .andExpect(jsonPath("$[0].title", is("Test Image")));
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].id", is(1)))
+        .andExpect(jsonPath("$.content[0].title", is("Test Image")));
 
-    verify(contentService).getAllImages();
+    verify(contentService).getAllImages(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test
   @DisplayName("GET /content/images should handle errors")
   void getAllImages_shouldHandleErrors() throws Exception {
     // Arrange
-    when(contentService.getAllImages()).thenThrow(new RuntimeException("Database error"));
+    when(contentService.getAllImages(any(org.springframework.data.domain.Pageable.class)))
+        .thenThrow(new RuntimeException("Database error"));
 
     // Act & Assert
     mockMvc.perform(get("/api/admin/content/images")).andExpect(status().isInternalServerError());
 
-    verify(contentService).getAllImages();
+    verify(contentService).getAllImages(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test

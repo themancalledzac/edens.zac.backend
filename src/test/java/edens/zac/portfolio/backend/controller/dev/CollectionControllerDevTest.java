@@ -423,25 +423,28 @@ class CollectionControllerDevTest {
   void getAllCollectionsOrderedByDate_shouldReturnAllCollections() throws Exception {
     // Arrange
     List<CollectionModel> collections = List.of(testCollection);
-    when(collectionService.getAllCollectionsOrderedByDate()).thenReturn(collections);
+    org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 50);
+    org.springframework.data.domain.Page<CollectionModel> page =
+        new org.springframework.data.domain.PageImpl<>(collections, pageable, collections.size());
+    when(collectionService.getAllCollections(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
 
     // Act & Assert
     mockMvc
         .perform(get("/api/admin/collections/all"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(1)))
-        .andExpect(jsonPath("$[0].id", is(1)))
-        .andExpect(jsonPath("$[0].title", is("Test Blog")))
-        .andExpect(jsonPath("$[0].slug", is("test-blog")));
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].id", is(1)))
+        .andExpect(jsonPath("$.content[0].title", is("Test Blog")))
+        .andExpect(jsonPath("$.content[0].slug", is("test-blog")));
 
-    verify(collectionService).getAllCollectionsOrderedByDate();
+    verify(collectionService).getAllCollections(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test
   @DisplayName("GET /collections/all should handle errors")
   void getAllCollectionsOrderedByDate_shouldHandleErrors() throws Exception {
     // Arrange
-    when(collectionService.getAllCollectionsOrderedByDate())
+    when(collectionService.getAllCollections(any(org.springframework.data.domain.Pageable.class)))
         .thenThrow(new RuntimeException("Database error"));
 
     // Act & Assert
@@ -450,7 +453,7 @@ class CollectionControllerDevTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$", containsString("Failed to retrieve collections")));
 
-    verify(collectionService).getAllCollectionsOrderedByDate();
+    verify(collectionService).getAllCollections(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test
