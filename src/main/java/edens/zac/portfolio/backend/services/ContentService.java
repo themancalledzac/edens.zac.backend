@@ -126,6 +126,15 @@ public interface ContentService {
   List<ContentImageModel> getAllImages();
 
   /**
+   * Get all images with pagination, ordered by createDate descending
+   *
+   * @param pageable Pagination information (page number, size)
+   * @return Page of images
+   */
+  org.springframework.data.domain.Page<ContentImageModel> getAllImages(
+      org.springframework.data.domain.Pageable pageable);
+
+  /**
    * Create one or more images and associate them with a collection
    *
    * @param collectionId ID of the collection to associate images with
@@ -133,6 +142,16 @@ public interface ContentService {
    * @return List of created image models
    */
   List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files);
+
+  /**
+   * Create one or more images and associate them with a collection using parallel processing.
+   * OPTIMIZED version that processes images concurrently for better performance.
+   *
+   * @param collectionId ID of the collection to associate images with
+   * @param files        List of image files to upload
+   * @return List of created image models
+   */
+  List<ContentImageModel> createImagesParallel(Long collectionId, List<MultipartFile> files);
 
   // /**
   // * Create text content

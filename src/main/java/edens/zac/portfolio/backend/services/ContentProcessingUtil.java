@@ -339,6 +339,11 @@ public class ContentProcessingUtil {
       loadContentTags(entity);
     }
 
+    // Load people from database if not already loaded
+    if (entity.getPeople() == null || entity.getPeople().isEmpty()) {
+      loadContentPeople(entity);
+    }
+
     ContentImageModel model = new ContentImageModel();
 
     // Copy base properties
@@ -552,7 +557,10 @@ public class ContentProcessingUtil {
       String thumbnailUrl = urls.get("thumbnailUrl");
 
       // Get dimensions from the first frame
-      BufferedImage firstFrame = ImageIO.read(file.getInputStream());
+      BufferedImage firstFrame;
+      try (InputStream gifStream = file.getInputStream()) {
+        firstFrame = ImageIO.read(gifStream);
+      }
       int width = firstFrame.getWidth();
       int height = firstFrame.getHeight();
 
@@ -717,7 +725,10 @@ public class ContentProcessingUtil {
     // We resize BEFORE converting to WebP to avoid having to decode WebP back to
     // BufferedImage
     log.info("Step 3: Resizing original image if needed");
-    BufferedImage originalImage = ImageIO.read(file.getInputStream());
+    BufferedImage originalImage;
+    try (InputStream imageStream = file.getInputStream()) {
+      originalImage = ImageIO.read(imageStream);
+    }
     if (originalImage == null) {
       throw new IOException("Failed to read image: " + originalFilename);
     }
@@ -1740,6 +1751,30 @@ public class ContentProcessingUtil {
       imageEntity.setTags(contentTagEntities);
     } else if (entity instanceof ContentGifEntity gifEntity) {
       gifEntity.setTags(contentTagEntities);
+    }
+  }
+
+  /**
+   * Load people for a content entity from the database. Populates the entity's people
+   * set with
+   * ContentPersonEntity objects.
+   *
+   * @param entity The content entity (ContentImageEntity)
+   */
+  private void loadContentPeople(ContentEntity entity) {
+    if (entity == null || entity.getId() == null) {
+      return;
+    }
+
+    // Load people from database using ContentPersonDao
+    List<ContentPersonEntity> personEntities = contentPersonDao.findContentPeople(entity.getId());
+
+    // Convert to set and populate the entity's people set
+    Set<ContentPersonEntity> contentPeopleEntities = new HashSet<>(personEntities);
+
+    // Set people on the entity based on its type
+    if (entity instanceof ContentImageEntity imageEntity) {
+      imageEntity.setPeople(contentPeopleEntities);
     }
   }
 

@@ -199,6 +199,20 @@ public class ContentDao extends BaseDao {
   }
 
   /**
+   * Batch fetch multiple images by IDs in a single query.
+   * More efficient than calling findImageById in a loop (avoids N+1).
+   */
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> findImagesByIds(List<Long> ids) {
+    if (ids == null || ids.isEmpty()) {
+      return List.of();
+    }
+    String sql = SELECT_CONTENT_IMAGE + " WHERE c.id IN (:ids)";
+    MapSqlParameterSource params = createParameterSource().addValue("ids", ids);
+    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
+  /**
    * Find all images ordered by createDate DESC. Note: Relationships (tags,
    * people, camera, lens,
    * filmType) loaded separately.
@@ -207,6 +221,30 @@ public class ContentDao extends BaseDao {
   public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc() {
     String sql = SELECT_CONTENT_IMAGE + " ORDER BY ci.create_date DESC NULLS LAST, c.created_at DESC";
     return query(sql, CONTENT_IMAGE_ROW_MAPPER);
+  }
+
+  /**
+   * Find images with pagination, ordered by createDate DESC.
+   * Uses database-level LIMIT and OFFSET for efficient pagination.
+   */
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc(int limit, int offset) {
+    String sql = SELECT_CONTENT_IMAGE
+        + " ORDER BY ci.create_date DESC NULLS LAST, c.created_at DESC LIMIT :limit OFFSET :offset";
+    MapSqlParameterSource params = createParameterSource()
+        .addValue("limit", limit)
+        .addValue("offset", offset);
+    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
+  /**
+   * Count total number of images.
+   */
+  @Transactional(readOnly = true)
+  public int countImages() {
+    String sql = "SELECT COUNT(*) FROM content WHERE content_type = 'IMAGE'";
+    Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+    return count != null ? count : 0;
   }
 
   /** Find all content IDs by contentType. */
@@ -468,6 +506,35 @@ public class ContentDao extends BaseDao {
     String sql = "SELECT person_id FROM content_image_people WHERE image_id = :imageId";
     MapSqlParameterSource params = createParameterSource().addValue("imageId", imageId);
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
+  }
+
+  /**
+   * Batch fetch person IDs for multiple images. Returns a map of imageId -> list of person IDs.
+   * More efficient than calling findImagePersonIds in a loop (avoids N+1).
+   *
+   * @param imageIds List of image IDs
+   * @return Map of image ID to list of person IDs
+   */
+  @Transactional(readOnly = true)
+  public java.util.Map<Long, List<Long>> findPersonIdsByImageIds(List<Long> imageIds) {
+    if (imageIds == null || imageIds.isEmpty()) {
+      return java.util.Map.of();
+    }
+
+    String sql = "SELECT image_id, person_id FROM content_image_people WHERE image_id IN (:imageIds)";
+    MapSqlParameterSource params = createParameterSource().addValue("imageIds", imageIds);
+
+    java.util.Map<Long, List<Long>> result = new java.util.HashMap<>();
+    namedParameterJdbcTemplate.query(
+        sql,
+        params,
+        rs -> {
+          Long imageId = rs.getLong("image_id");
+          Long personId = rs.getLong("person_id");
+          result.computeIfAbsent(imageId, k -> new java.util.ArrayList<>()).add(personId);
+        });
+
+    return result;
   }
 
   /**

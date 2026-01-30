@@ -154,6 +154,24 @@ public class CollectionDao extends BaseDao {
     return query(sql, COLLECTION_ROW_MAPPER);
   }
 
+  /** Find all collections ordered by collection_date DESC with pagination. */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findAllByOrderByCollectionDateDesc(int limit, int offset) {
+    String sql =
+        SELECT_COLLECTION + " ORDER BY collection_date DESC NULLS LAST LIMIT :limit OFFSET :offset";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("limit", limit).addValue("offset", offset);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /** Count all collections. */
+  @Transactional(readOnly = true)
+  public long countAllCollections() {
+    String sql = "SELECT COUNT(*) FROM collection";
+    Long count = jdbcTemplate.queryForObject(sql, Long.class);
+    return count != null ? count : 0L;
+  }
+
   /** Find collection ID and title only (for metadata). */
   @Transactional(readOnly = true)
   public List<CollectionSummary> findIdAndTitleOnly() {
@@ -244,6 +262,20 @@ public class CollectionDao extends BaseDao {
     String sql = SELECT_COLLECTION + " WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
+   * Batch fetch multiple collections by IDs in a single query.
+   * More efficient than calling findById in a loop (avoids N+1).
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findByIds(List<Long> ids) {
+    if (ids == null || ids.isEmpty()) {
+      return List.of();
+    }
+    String sql = SELECT_COLLECTION + " WHERE id IN (:ids)";
+    MapSqlParameterSource params = createParameterSource().addValue("ids", ids);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
   /** Delete collection by ID. */

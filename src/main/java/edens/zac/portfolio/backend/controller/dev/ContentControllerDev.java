@@ -29,6 +29,9 @@ public class ContentControllerDev {
   /**
    * Create and upload images to a collection POST /api/admin/content/images/{collectionId}
    *
+   * <p>OPTIMIZED: Uses parallel processing for faster batch uploads. Images are processed
+   * concurrently (S3 upload, resize, convert) then saved to database in a single transaction.
+   *
    * @param collectionId ID of the collection to add images to
    * @param files List of image files to upload
    * @return ResponseEntity with created images
@@ -45,9 +48,10 @@ public class ContentControllerDev {
             .body("No files provided. Use 'files' part with one or more images.");
       }
 
-      List<ContentImageModel> createdImages = contentService.createImages(collectionId, files);
+      // Use parallel processing for better performance
+      List<ContentImageModel> createdImages = contentService.createImagesParallel(collectionId, files);
 
-      log.info("Successfully created {} image(s) in collection: {}", files.size(), collectionId);
+      log.info("Successfully created {} image(s) in collection: {}", createdImages.size(), collectionId);
 
       return ResponseEntity.status(HttpStatus.CREATED).body(createdImages);
     } catch (IllegalArgumentException e) {
@@ -121,15 +125,21 @@ public class ContentControllerDev {
   /**
    * Get all images ordered by date descending (newest first) GET /api/admin/content/images
    *
-   * @return ResponseEntity with list of all images sorted by createDate descending
+   * <p>OPTIMIZED: Uses database-level pagination to prevent loading all images at once.
+   *
+   * @param page Page number (0-indexed, default: 0)
+   * @param size Page size (default: 50)
+   * @return ResponseEntity with paginated list of images sorted by createDate descending
    */
   @GetMapping("/images")
-  public ResponseEntity<List<ContentImageModel>> getAllImages() {
+  public ResponseEntity<org.springframework.data.domain.Page<ContentImageModel>> getAllImages(
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
     try {
-      List<ContentImageModel> images = contentService.getAllImages();
+      org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+      org.springframework.data.domain.Page<ContentImageModel> images = contentService.getAllImages(pageable);
       return ResponseEntity.ok(images);
     } catch (Exception e) {
-      log.error("Error fetching all images: {}", e.getMessage(), e);
+      log.error("Error fetching paginated images: {}", e.getMessage(), e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
   }

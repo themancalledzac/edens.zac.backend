@@ -204,6 +204,46 @@ public class CollectionContentDao extends BaseDao {
     return update(sql, params);
   }
 
+  /**
+   * Batch update order indexes for multiple content items in a single SQL statement. Uses a CASE
+   * statement to update all items in one query instead of N separate UPDATE statements.
+   *
+   * @param collectionId The collection containing the content
+   * @param contentIdToOrderIndex Map of content ID to new order index
+   * @return Number of rows updated
+   */
+  @Transactional
+  public int batchUpdateOrderIndexes(Long collectionId, java.util.Map<Long, Integer> contentIdToOrderIndex) {
+    if (contentIdToOrderIndex == null || contentIdToOrderIndex.isEmpty()) {
+      return 0;
+    }
+
+    // Build CASE statement for bulk update
+    StringBuilder sql = new StringBuilder("UPDATE collection_content SET order_index = CASE content_id");
+    MapSqlParameterSource params = createParameterSource();
+    params.addValue("collectionId", collectionId);
+
+    List<Long> contentIds = new java.util.ArrayList<>();
+    int index = 0;
+    for (java.util.Map.Entry<Long, Integer> entry : contentIdToOrderIndex.entrySet()) {
+      Long contentId = entry.getKey();
+      Integer orderIndex = entry.getValue();
+      String contentIdParam = "contentId" + index;
+      String orderIndexParam = "orderIndex" + index;
+
+      sql.append(" WHEN :").append(contentIdParam).append(" THEN :").append(orderIndexParam);
+      params.addValue(contentIdParam, contentId);
+      params.addValue(orderIndexParam, orderIndex);
+      contentIds.add(contentId);
+      index++;
+    }
+
+    sql.append(" END WHERE collection_id = :collectionId AND content_id IN (:contentIds)");
+    params.addValue("contentIds", contentIds);
+
+    return update(sql.toString(), params);
+  }
+
   @Transactional
   public CollectionContentEntity save(CollectionContentEntity entity) {
     if (entity.getId() == null) {
