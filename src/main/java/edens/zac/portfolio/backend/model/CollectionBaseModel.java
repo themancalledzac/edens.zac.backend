@@ -54,6 +54,10 @@ public abstract class CollectionBaseModel {
 
   private DisplayMode displayMode;
 
+  /** Number of items per row (chunk size for layout). Null uses default (4). */
+  @Min(1)
+  private Integer rowsWide;
+
   // Timestamps
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;

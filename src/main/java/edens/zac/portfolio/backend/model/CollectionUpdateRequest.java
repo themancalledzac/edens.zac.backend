@@ -70,6 +70,10 @@ public class CollectionUpdateRequest {
   @Min(value = 1, message = "Content per page must be 1 or greater")
   private Integer contentPerPage;
 
+  /** Number of items per row (chunk size for layout). Null uses default (4). */
+  @Min(value = 1, message = "Rows wide must be 1 or greater")
+  private Integer rowsWide;
+
   /**
    * Cover image ID (FK to content.id) for the collection Must reference a valid
    * ContentImageEntity

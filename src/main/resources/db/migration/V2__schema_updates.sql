@@ -19,6 +19,7 @@
 -- 7. Remove legacy location TEXT column from content_image table
 -- 8. Add body_serial_number column to content_cameras table (if it doesn't exist)
 -- 9. Add lens_serial_number column to content_lenses table (if it doesn't exist)
+-- 10. Add rows_wide column to collection table (if it doesn't exist)
 
 BEGIN;
 
@@ -138,10 +139,24 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'content_image' AND column_name = 'offset_time'
     ) THEN
         ALTER TABLE content_image DROP COLUMN offset_time;
+    END IF;
+END $$;
+
+-- Step 11: Add rows_wide column to collection table (if it doesn't exist)
+-- This column controls the number of items per row in the collection layout
+-- NULL value uses the default chunk size (4)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'collection' AND column_name = 'rows_wide'
+    ) THEN
+        ALTER TABLE collection ADD COLUMN rows_wide INT;
+        COMMENT ON COLUMN collection.rows_wide IS 'Number of items per row (chunk size for layout). NULL uses default (4).';
     END IF;
 END $$;
 

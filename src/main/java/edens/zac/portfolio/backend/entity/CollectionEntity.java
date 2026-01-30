@@ -60,6 +60,10 @@ public class CollectionEntity {
   /** Column: total_content (INTEGER) */
   private Integer totalContent;
 
+  /** Column: rows_wide (INTEGER) - Number of items per row (chunk size for layout) */
+  @Min(1)
+  private Integer rowsWide;
+
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;
 

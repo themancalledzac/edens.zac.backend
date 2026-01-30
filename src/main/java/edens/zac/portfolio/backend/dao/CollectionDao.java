@@ -25,7 +25,7 @@ public class CollectionDao extends BaseDao {
       """
             SELECT id, type, title, slug, description, location_id, collection_date,
                    visible, display_mode, cover_image_id, content_per_page, total_content,
-                   created_at, updated_at
+                   rows_wide, created_at, updated_at
             FROM collection
             """;
 
@@ -68,6 +68,8 @@ public class CollectionDao extends BaseDao {
         entity.setContentPerPage(getInteger(rs, "content_per_page"));
 
         entity.setTotalContent(getInteger(rs, "total_content"));
+
+        entity.setRowsWide(getInteger(rs, "rows_wide"));
 
         entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
         entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
@@ -189,10 +191,10 @@ public class CollectionDao extends BaseDao {
           """
                     INSERT INTO collection (type, title, slug, description, location_id, collection_date,
                                            visible, display_mode, cover_image_id, content_per_page, total_content,
-                                           created_at, updated_at)
+                                           rows_wide, created_at, updated_at)
                     VALUES (:type, :title, :slug, :description, :locationId, :collectionDate,
                             :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
-                            :createdAt, :updatedAt)
+                            :rowsWide, :createdAt, :updatedAt)
                     """;
 
       MapSqlParameterSource params =
@@ -210,6 +212,7 @@ public class CollectionDao extends BaseDao {
               .addValue("coverImageId", entity.getCoverImageId())
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
+              .addValue("rowsWide", entity.getRowsWide())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now())
@@ -229,7 +232,7 @@ public class CollectionDao extends BaseDao {
                         location_id = :locationId,
                         collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
                         cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-                        updated_at = :updatedAt
+                        rows_wide = :rowsWide, updated_at = :updatedAt
                     WHERE id = :id
                     """;
 
@@ -249,6 +252,7 @@ public class CollectionDao extends BaseDao {
               .addValue("coverImageId", entity.getCoverImageId())
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
+              .addValue("rowsWide", entity.getRowsWide())
               .addValue("updatedAt", LocalDateTime.now());
 
       update(sql, params);
