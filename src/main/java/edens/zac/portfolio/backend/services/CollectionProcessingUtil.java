@@ -120,6 +120,7 @@ public class CollectionProcessingUtil {
     model.setContentPerPage(entity.getContentPerPage());
     model.setTotalPages(entity.getTotalPages());
     model.setCurrentPage(0);
+    model.setRowsWide(entity.getRowsWide());
 
     return model;
   }
@@ -360,6 +361,9 @@ public class CollectionProcessingUtil {
     }
     if (updateDTO.getDisplayMode() != null) {
       entity.setDisplayMode(updateDTO.getDisplayMode());
+    }
+    if (updateDTO.getRowsWide() != null) {
+      entity.setRowsWide(updateDTO.getRowsWide());
     }
 
     // Handle coverImageId updates - load ContentImageEntity by ID
