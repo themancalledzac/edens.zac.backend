@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentCameraDao;
@@ -41,25 +43,42 @@ import org.springframework.web.multipart.MultipartFile;
 @ExtendWith(MockitoExtension.class)
 public class ContentProcessingUtilTest {
 
-  @Mock private AmazonS3 amazonS3;
+  @Mock
+  private S3Client s3Client;
 
-  @Mock private ContentDao contentDao;
-  @Mock private ContentCameraDao contentCameraDao;
-  @Mock private ContentLensDao contentLensDao;
-  @Mock private ContentFilmTypeDao contentFilmTypeDao;
-  @Mock private ContentTagDao contentTagDao;
-  @Mock private edens.zac.portfolio.backend.dao.TagDao tagDao;
-  @Mock private edens.zac.portfolio.backend.dao.LocationDao locationDao;
-  @Mock private ContentPersonDao contentPersonDao;
-  @Mock private CollectionContentDao collectionContentDao;
-  @Mock private CollectionDao collectionDao;
-  @Mock private ContentTextDao contentTextDao;
-  @Mock private ContentCollectionDao contentCollectionDao;
-  @Mock private ContentGifDao contentGifDao;
-  @Mock private ContentImageUpdateValidator contentImageUpdateValidator;
-  @Mock private ContentValidator contentValidator;
+  @Mock
+  private ContentDao contentDao;
+  @Mock
+  private ContentCameraDao contentCameraDao;
+  @Mock
+  private ContentLensDao contentLensDao;
+  @Mock
+  private ContentFilmTypeDao contentFilmTypeDao;
+  @Mock
+  private ContentTagDao contentTagDao;
+  @Mock
+  private edens.zac.portfolio.backend.dao.TagDao tagDao;
+  @Mock
+  private edens.zac.portfolio.backend.dao.LocationDao locationDao;
+  @Mock
+  private ContentPersonDao contentPersonDao;
+  @Mock
+  private CollectionContentDao collectionContentDao;
+  @Mock
+  private CollectionDao collectionDao;
+  @Mock
+  private ContentTextDao contentTextDao;
+  @Mock
+  private ContentCollectionDao contentCollectionDao;
+  @Mock
+  private ContentGifDao contentGifDao;
+  @Mock
+  private ContentImageUpdateValidator contentImageUpdateValidator;
+  @Mock
+  private ContentValidator contentValidator;
 
-  @InjectMocks private ContentProcessingUtil contentProcessingUtil;
+  @InjectMocks
+  private ContentProcessingUtil contentProcessingUtil;
 
   private static final String BUCKET_NAME = "test-bucket";
   private static final String CLOUDFRONT_DOMAIN = "test.cloudfront.net";
@@ -79,8 +98,7 @@ public class ContentProcessingUtilTest {
     // Arrange
     ContentImageEntity entity = createContentImageEntity();
     // Mock location lookup
-    LocationEntity locationEntity =
-        LocationEntity.builder().id(1L).locationName("Test Location").build();
+    LocationEntity locationEntity = LocationEntity.builder().id(1L).locationName("Test Location").build();
     when(locationDao.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
 
     // Act
@@ -156,12 +174,11 @@ public class ContentProcessingUtilTest {
     when(entity.getContentType()).thenReturn(null);
 
     // Act & Assert
-    Exception exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> {
-              contentProcessingUtil.convertRegularContentEntityToModel(entity);
-            });
+    Exception exception = assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          contentProcessingUtil.convertRegularContentEntityToModel(entity);
+        });
     assertTrue(exception.getMessage().contains("Unknown content type"));
   }
 
@@ -176,7 +193,8 @@ public class ContentProcessingUtilTest {
     String caption = "Test Caption";
 
     // Mock S3 upload (new implementation uploads directly to S3)
-    when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
+    when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+        .thenReturn(PutObjectResponse.builder().build());
 
     ContentImageEntity savedEntity = createContentImageEntity();
     when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
@@ -187,8 +205,9 @@ public class ContentProcessingUtilTest {
     // Assert
     assertNotNull(result);
     assertInstanceOf(ContentImageEntity.class, result);
-    verify(amazonS3, times(2))
-        .putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
+    verify(s3Client, times(2))
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify S3 upload was called twice (full +
+                                                                         // webP)
     verify(contentDao).saveImage(any(ContentImageEntity.class));
   }
 
@@ -206,12 +225,11 @@ public class ContentProcessingUtilTest {
     // code may fail
     // earlier
     // during image processing before reaching S3 upload.
-    Throwable exception =
-        assertThrows(
-            Throwable.class,
-            () -> {
-              contentProcessingUtil.processImageContent(file, title);
-            });
+    Throwable exception = assertThrows(
+        Throwable.class,
+        () -> {
+          contentProcessingUtil.processImageContent(file, title);
+        });
     assertTrue(exception instanceof RuntimeException || exception instanceof UnsatisfiedLinkError);
   }
 
@@ -272,7 +290,8 @@ public class ContentProcessingUtilTest {
     String caption = "Test Caption";
 
     // Mock S3 upload
-    when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
+    when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+        .thenReturn(PutObjectResponse.builder().build());
 
     // Note: GIF saving not yet implemented in DAO layer
     // ContentGifEntity savedEntity = createContentGifEntity();
@@ -298,13 +317,12 @@ public class ContentProcessingUtilTest {
 
     // Act & Assert
     // Note: May throw different exceptions depending on image library availability
-    Throwable exception =
-        assertThrows(
-            Throwable.class,
-            () -> {
-              contentProcessingUtil.processGifContent(
-                  file, collectionId, orderIndex, title, caption);
-            });
+    Throwable exception = assertThrows(
+        Throwable.class,
+        () -> {
+          contentProcessingUtil.processGifContent(
+              file, collectionId, orderIndex, title, caption);
+        });
     // Accept either the expected RuntimeException or other exceptions from image
     // processing
     assertTrue(
@@ -411,7 +429,8 @@ public class ContentProcessingUtilTest {
     String caption = "Test Caption";
 
     // Mock S3 upload (new implementation uploads directly to S3)
-    when(amazonS3.putObject(any(PutObjectRequest.class))).thenReturn(null);
+    when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+        .thenReturn(PutObjectResponse.builder().build());
 
     ContentImageEntity imageEntity = createContentImageEntity();
     when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(imageEntity);
@@ -422,8 +441,9 @@ public class ContentProcessingUtilTest {
     // Assert
     assertNotNull(result);
     assertInstanceOf(ContentImageEntity.class, result);
-    verify(amazonS3, times(2))
-        .putObject(any(PutObjectRequest.class)); // Verify S3 upload was called twice (full + webP)
+    verify(s3Client, times(2))
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify S3 upload was called twice (full +
+                                                                         // webP)
     verify(contentDao).saveImage(any(ContentImageEntity.class));
   }
 

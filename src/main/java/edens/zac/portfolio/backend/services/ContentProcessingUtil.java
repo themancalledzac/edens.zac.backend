@@ -1,8 +1,5 @@
 package edens.zac.portfolio.backend.services;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
@@ -51,6 +48,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Utility class for processing content. Handles conversion between entities and
@@ -63,7 +63,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ContentProcessingUtil {
 
   // Dependencies for S3 upload and DAOs
-  private final AmazonS3 amazonS3;
+  private final S3Client s3Client;
   private final ContentDao contentDao;
   private final CollectionDao collectionDao;
   private final ContentCameraDao contentCameraDao;
@@ -620,14 +620,14 @@ public class ContentProcessingUtil {
         Objects.requireNonNull(filename).replace(".gif", "-thumbnail.jpg"));
 
     // Upload GIF to S3
-    ByteArrayInputStream gifStream = new ByteArrayInputStream(fileBytes);
-    ObjectMetadata gifMetadata = new ObjectMetadata();
-    gifMetadata.setContentType(contentType);
-    gifMetadata.setContentLength(fileBytes.length);
+    PutObjectRequest putGifRequest = PutObjectRequest.builder()
+        .bucket(bucketName)
+        .key(gifS3Key)
+        .contentType(contentType)
+        .contentLength((long) fileBytes.length)
+        .build();
 
-    PutObjectRequest putGifRequest = new PutObjectRequest(bucketName, gifS3Key, gifStream, gifMetadata);
-
-    amazonS3.putObject(putGifRequest);
+    s3Client.putObject(putGifRequest, RequestBody.fromBytes(fileBytes));
 
     // Generate thumbnail from first frame of GIF
     BufferedImage firstFrame = ImageIO.read(new ByteArrayInputStream(fileBytes));
@@ -636,15 +636,14 @@ public class ContentProcessingUtil {
     byte[] thumbnailBytes = thumbnailOutput.toByteArray();
 
     // Upload thumbnail to S3
-    ByteArrayInputStream thumbnailStream = new ByteArrayInputStream(thumbnailBytes);
-    ObjectMetadata thumbnailMetadata = new ObjectMetadata();
-    thumbnailMetadata.setContentType("image/jpeg");
-    thumbnailMetadata.setContentLength(thumbnailBytes.length);
+    PutObjectRequest putThumbnailRequest = PutObjectRequest.builder()
+        .bucket(bucketName)
+        .key(thumbnailS3Key)
+        .contentType("image/jpeg")
+        .contentLength((long) thumbnailBytes.length)
+        .build();
 
-    PutObjectRequest putThumbnailRequest = new PutObjectRequest(bucketName, thumbnailS3Key, thumbnailStream,
-        thumbnailMetadata);
-
-    amazonS3.putObject(putThumbnailRequest);
+    s3Client.putObject(putThumbnailRequest, RequestBody.fromBytes(thumbnailBytes));
 
     // Return CloudFront URLs
     String gifUrl = "https://" + cloudfrontDomain + "/" + gifS3Key;
@@ -1034,14 +1033,14 @@ public class ContentProcessingUtil {
 
     log.info("Uploading to S3: {}", s3Key);
 
-    ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentType(contentType);
-    metadata.setContentLength(imageBytes.length);
+    PutObjectRequest putRequest = PutObjectRequest.builder()
+        .bucket(bucketName)
+        .key(s3Key)
+        .contentType(contentType)
+        .contentLength((long) imageBytes.length)
+        .build();
 
-    PutObjectRequest putRequest = new PutObjectRequest(bucketName, s3Key, inputStream, metadata);
-
-    amazonS3.putObject(putRequest);
+    s3Client.putObject(putRequest, RequestBody.fromBytes(imageBytes));
 
     String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
     log.info("Successfully uploaded: {}", cloudfrontUrl);
