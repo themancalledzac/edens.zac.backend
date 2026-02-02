@@ -26,7 +26,8 @@ public class ContentLensDao extends BaseDao {
         .build();
   };
 
-  // Row mapper for queries that need lens_serial_number (only for existence checks)
+  // Row mapper for queries that need lens_serial_number (only for existence
+  // checks)
   private static final RowMapper<ContentLensEntity> LENS_ROW_MAPPER_WITH_SERIAL = (rs, rowNum) -> {
     return ContentLensEntity.builder()
         .id(rs.getLong("id"))

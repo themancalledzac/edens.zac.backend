@@ -464,8 +464,7 @@ class CollectionServiceImpl implements CollectionService {
     CollectionEntity collection = collectionsById.get(joinEntry.getCollectionId());
     if (collection == null) {
       log.warn(
-          "Collection {} not found in pre-loaded map for join entry",
-          joinEntry.getCollectionId());
+          "Collection {} not found in pre-loaded map for join entry", joinEntry.getCollectionId());
       return null;
     }
 
@@ -750,14 +749,18 @@ class CollectionServiceImpl implements CollectionService {
   }
 
   /**
-   * Find ContentCollectionEntity entries in the parent collection that match the provided IDs.
-   * Accepts both content IDs (ContentCollectionEntity.id) and referenced collection IDs for
+   * Find ContentCollectionEntity entries in the parent collection that match the
+   * provided IDs.
+   * Accepts both content IDs (ContentCollectionEntity.id) and referenced
+   * collection IDs for
    * flexibility.
    *
    * @param parentCollection The parent collection to search in
-   * @param idsToRemove IDs to match - can be either ContentCollectionEntity IDs or referenced
-   *     collection IDs
-   * @return List of ContentCollectionEntity entries that match, empty list if none found
+   * @param idsToRemove      IDs to match - can be either ContentCollectionEntity
+   *                         IDs or referenced
+   *                         collection IDs
+   * @return List of ContentCollectionEntity entries that match, empty list if
+   *         none found
    */
   private List<ContentCollectionEntity> findCurrentContentCollections(
       CollectionEntity parentCollection, List<Long> idsToRemove) {
@@ -768,8 +771,8 @@ class CollectionServiceImpl implements CollectionService {
     List<ContentCollectionEntity> matchingContentCollections = new ArrayList<>();
 
     // Get all join table entries for this parent collection
-    List<CollectionContentEntity> joinEntries =
-        collectionContentDao.findByCollectionIdOrderByOrderIndex(parentCollection.getId());
+    List<CollectionContentEntity> joinEntries = collectionContentDao
+        .findByCollectionIdOrderByOrderIndex(parentCollection.getId());
 
     for (CollectionContentEntity joinEntry : joinEntries) {
       Long contentId = joinEntry.getContentId();
@@ -778,20 +781,19 @@ class CollectionServiceImpl implements CollectionService {
       }
 
       // Load the content entity to check if it's a ContentCollectionEntity
-      ContentCollectionEntity contentCollectionEntity =
-          contentCollectionDao.findById(contentId).orElse(null);
+      ContentCollectionEntity contentCollectionEntity = contentCollectionDao.findById(contentId).orElse(null);
       if (contentCollectionEntity != null) {
         // Check if the ID matches either:
-        // 1. The ContentCollectionEntity ID (content table ID) - matches API response "id" field
-        // 2. The referenced collection ID - matches API response "referencedCollectionId" field
+        // 1. The ContentCollectionEntity ID (content table ID) - matches API response
+        // "id" field
+        // 2. The referenced collection ID - matches API response
+        // "referencedCollectionId" field
         Long contentCollectionId = contentCollectionEntity.getId();
         CollectionEntity referencedCollection = contentCollectionEntity.getReferencedCollection();
-        Long referencedCollectionId =
-            referencedCollection != null ? referencedCollection.getId() : null;
+        Long referencedCollectionId = referencedCollection != null ? referencedCollection.getId() : null;
 
         boolean matchesContentId = idsToRemove.contains(contentCollectionId);
-        boolean matchesReferencedId =
-            referencedCollectionId != null && idsToRemove.contains(referencedCollectionId);
+        boolean matchesReferencedId = referencedCollectionId != null && idsToRemove.contains(referencedCollectionId);
 
         if (matchesContentId || matchesReferencedId) {
           matchingContentCollections.add(contentCollectionEntity);

@@ -423,10 +423,12 @@ class CollectionControllerDevTest {
   void getAllCollectionsOrderedByDate_shouldReturnAllCollections() throws Exception {
     // Arrange
     List<CollectionModel> collections = List.of(testCollection);
-    org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 50);
+    org.springframework.data.domain.Pageable pageable =
+        org.springframework.data.domain.PageRequest.of(0, 50);
     org.springframework.data.domain.Page<CollectionModel> page =
         new org.springframework.data.domain.PageImpl<>(collections, pageable, collections.size());
-    when(collectionService.getAllCollections(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
+    when(collectionService.getAllCollections(any(org.springframework.data.domain.Pageable.class)))
+        .thenReturn(page);
 
     // Act & Assert
     mockMvc
@@ -437,7 +439,8 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.content[0].title", is("Test Blog")))
         .andExpect(jsonPath("$.content[0].slug", is("test-blog")));
 
-    verify(collectionService).getAllCollections(any(org.springframework.data.domain.Pageable.class));
+    verify(collectionService)
+        .getAllCollections(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test
@@ -453,7 +456,8 @@ class CollectionControllerDevTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$", containsString("Failed to retrieve collections")));
 
-    verify(collectionService).getAllCollections(any(org.springframework.data.domain.Pageable.class));
+    verify(collectionService)
+        .getAllCollections(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test

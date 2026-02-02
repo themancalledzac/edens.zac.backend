@@ -4,8 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Validator for metadata creation operations (tags, people, cameras, film
- * types). Centralizes
+ * Validator for metadata creation operations (tags, people, cameras, film types). Centralizes
  * validation logic for metadata operations.
  */
 @Component
@@ -40,8 +39,8 @@ public class MetadataValidator {
    * Validate film type creation parameters.
    *
    * @param filmTypeName The technical film type name (e.g., "KODAK_PORTRA_400")
-   * @param displayName  The display name (e.g., "Kodak Portra 400")
-   * @param defaultIso   The default ISO value
+   * @param displayName The display name (e.g., "Kodak Portra 400")
+   * @param defaultIso The default ISO value
    * @throws IllegalArgumentException if validation fails
    */
   public void validateFilmType(String filmTypeName, String displayName, Integer defaultIso) {

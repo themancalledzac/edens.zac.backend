@@ -7,8 +7,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Response DTO for the general metadata endpoint. Contains all metadata without a specific
- * collection: tags, people, cameras, lenses, film types, film formats, and collections.
+ * Response DTO for the general metadata endpoint. Contains all metadata without
+ * a specific
+ * collection: tags, people, cameras, lenses, film types, film formats, and
+ * collections.
  */
 @Data
 @NoArgsConstructor
@@ -22,7 +24,10 @@ public class GeneralMetadataDTO {
   /** All available people that can be tagged in content blocks */
   private List<ContentPersonModel> people;
 
-  /** All available locations that can be assigned to content blocks and collections */
+  /**
+   * All available locations that can be assigned to content blocks and
+   * collections
+   */
   private List<LocationModel> locations;
 
   /** All available collections in the system */
