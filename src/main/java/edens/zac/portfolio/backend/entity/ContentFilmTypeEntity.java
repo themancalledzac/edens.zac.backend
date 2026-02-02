@@ -42,14 +42,10 @@ public class ContentFilmTypeEntity {
   private Long id;
 
   /** Column: film_type_name (VARCHAR(100), NOT NULL, UNIQUE) */
-  @NotBlank
-  @Size(min = 1, max = 100)
-  private String filmTypeName;
+  @NotBlank @Size(min = 1, max = 100) private String filmTypeName;
 
   /** Column: display_name (VARCHAR(100), NOT NULL) */
-  @NotBlank
-  @Size(min = 1, max = 100)
-  private String displayName;
+  @NotBlank @Size(min = 1, max = 100) private String displayName;
 
   /** Column: default_iso (INTEGER, NOT NULL) */
   @NotNull @Positive private Integer defaultIso;

@@ -38,9 +38,7 @@ public class ContentCameraEntity {
   private Long id;
 
   /** Column: camera_name (VARCHAR(100), NOT NULL, UNIQUE) */
-  @NotBlank
-  @Size(min = 1, max = 100)
-  private String cameraName;
+  @NotBlank @Size(min = 1, max = 100) private String cameraName;
 
   /** Column: body_serial_number (VARCHAR) - Camera body serial number */
   private String bodySerialNumber;

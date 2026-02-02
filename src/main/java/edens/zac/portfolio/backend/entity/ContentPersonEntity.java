@@ -34,9 +34,7 @@ public class ContentPersonEntity {
 
   private Long id;
 
-  @NotBlank
-  @Size(min = 1, max = 100)
-  private String personName;
+  @NotBlank @Size(min = 1, max = 100) private String personName;
 
   private LocalDateTime createdAt;
 

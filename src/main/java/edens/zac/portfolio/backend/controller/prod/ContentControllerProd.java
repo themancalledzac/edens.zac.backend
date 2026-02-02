@@ -15,8 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Production controller for Content read operations. Exception handling is
- * delegated to
+ * Production controller for Content read operations. Exception handling is delegated to
  * GlobalExceptionHandler.
  */
 @Slf4j
@@ -61,14 +60,10 @@ public class ContentControllerProd {
   }
 
   /**
-   * Get film metadata (film types and formats) GET
-   * /api/read/content/film-metadata
+   * Get film metadata (film types and formats) GET /api/read/content/film-metadata
    *
-   * <p>
-   * Returns all available film types with their default ISO values, and all
-   * available film
-   * formats. Used by the frontend to populate dropdowns in the image editing
-   * interface.
+   * <p>Returns all available film types with their default ISO values, and all available film
+   * formats. Used by the frontend to populate dropdowns in the image editing interface.
    *
    * @return ResponseEntity with film types and formats
    */
@@ -76,14 +71,12 @@ public class ContentControllerProd {
   public ResponseEntity<Map<String, Object>> getFilmMetadata() {
     List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
 
-    List<FilmFormatResponse> filmFormats = Arrays.stream(FilmFormat.values())
-        .map(format -> new FilmFormatResponse(format.name(), format.getDisplayName()))
-        .toList();
+    List<FilmFormatResponse> filmFormats =
+        Arrays.stream(FilmFormat.values())
+            .map(format -> new FilmFormatResponse(format.name(), format.getDisplayName()))
+            .toList();
 
-    return ResponseEntity.ok(
-        Map.of(
-            "filmTypes", filmTypes,
-            "filmFormats", filmFormats));
+    return ResponseEntity.ok(Map.of("filmTypes", filmTypes, "filmFormats", filmFormats));
   }
 
   /** Response DTO for film formats. */

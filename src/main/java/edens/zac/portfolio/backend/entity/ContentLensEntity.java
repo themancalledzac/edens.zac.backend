@@ -34,9 +34,7 @@ public class ContentLensEntity {
 
   private Long id;
 
-  @NotBlank
-  @Size(min = 1, max = 100)
-  private String lensName;
+  @NotBlank @Size(min = 1, max = 100) private String lensName;
 
   /** Column: lens_serial_number (VARCHAR) - Lens serial number */
   private String lensSerialNumber;
