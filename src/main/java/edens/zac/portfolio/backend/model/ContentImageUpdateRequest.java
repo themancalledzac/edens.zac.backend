@@ -8,14 +8,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Request DTO for updating image content blocks. All fields except 'id' are
- * optional to support
- * partial updates. Only fields included in the request will be updated. Uses a
- * prev/new/remove
- * pattern for entity relationships: - prev: Reference to existing entity by ID
- * - newValue: Create
- * new entity (by name or request object) - remove: Remove the association (for
- * single entities) or
+ * Request DTO for updating image content blocks. All fields except 'id' are optional to support
+ * partial updates. Only fields included in the request will be updated. Uses a prev/new/remove
+ * pattern for entity relationships: - prev: Reference to existing entity by ID - newValue: Create
+ * new entity (by name or request object) - remove: Remove the association (for single entities) or
  * remove specific IDs (for collections)
  */
 @Data
@@ -25,8 +21,7 @@ import lombok.NoArgsConstructor;
 public class ContentImageUpdateRequest {
 
   /** The ID of the image to update (required) */
-  @NotNull(message = "Image ID is required for updates")
-  private Long id;
+  @NotNull(message = "Image ID is required for updates") private Long id;
 
   /** Image title */
   private String title;
@@ -85,13 +80,10 @@ public class ContentImageUpdateRequest {
   // ========== Nested Update Classes ==========
 
   /**
-   * Camera update wrapper (all fields optional) - prev: ID of existing camera to
-   * use - newValue:
+   * Camera update wrapper (all fields optional) - prev: ID of existing camera to use - newValue:
    * Name of new camera to create - remove: true to remove camera association
    *
-   * <p>
-   * Examples: - {prev: 5} = Use existing camera ID 5 - {newValue: "X100V"} =
-   * Create new camera
+   * <p>Examples: - {prev: 5} = Use existing camera ID 5 - {newValue: "X100V"} = Create new camera
    * "X100V" - {remove: true} = Remove camera association
    */
   @Data
@@ -105,13 +97,10 @@ public class ContentImageUpdateRequest {
   }
 
   /**
-   * Lens update wrapper (all fields optional) - prev: ID of existing lens to use
-   * - newValue: Name
+   * Lens update wrapper (all fields optional) - prev: ID of existing lens to use - newValue: Name
    * of new lens to create - remove: true to remove lens association
    *
-   * <p>
-   * Examples: - {prev: 3} = Use existing lens ID 3 - {newValue: "50mm f/1.8"} =
-   * Create new lens
+   * <p>Examples: - {prev: 3} = Use existing lens ID 3 - {newValue: "50mm f/1.8"} = Create new lens
    * "50mm f/1.8" - {remove: true} = Remove lens association
    */
   @Data
@@ -125,16 +114,11 @@ public class ContentImageUpdateRequest {
   }
 
   /**
-   * Film type update wrapper (all fields optional) - prev: ID of existing film
-   * type to use -
-   * newValue: Film type request to create new type - remove: true to remove film
-   * type association
+   * Film type update wrapper (all fields optional) - prev: ID of existing film type to use -
+   * newValue: Film type request to create new type - remove: true to remove film type association
    *
-   * <p>
-   * Examples: - {prev: 2} = Use existing film type ID 2 - {newValue:
-   * {filmTypeName: "Portra
-   * 400", defaultIso: 400}} = Create new film type - {remove: true} = Remove film
-   * type association
+   * <p>Examples: - {prev: 2} = Use existing film type ID 2 - {newValue: {filmTypeName: "Portra
+   * 400", defaultIso: 400}} = Create new film type - {remove: true} = Remove film type association
    */
   @Data
   @Builder

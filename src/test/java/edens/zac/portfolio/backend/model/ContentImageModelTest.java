@@ -249,11 +249,12 @@ class ContentImageModelTest {
     assertEquals(3, violations.size());
 
     // Check that we have violations for inherited fields
-    boolean hasOrderIndexViolation = violations.stream()
-        .anyMatch(v -> "orderIndex".equals(v.getPropertyPath().toString()));
-    boolean hasContentTypeViolation = violations.stream()
-        .anyMatch(v -> "contentType".equals(v.getPropertyPath().toString()));
-    boolean hasTitleViolation = violations.stream().anyMatch(v -> "title".equals(v.getPropertyPath().toString()));
+    boolean hasOrderIndexViolation =
+        violations.stream().anyMatch(v -> "orderIndex".equals(v.getPropertyPath().toString()));
+    boolean hasContentTypeViolation =
+        violations.stream().anyMatch(v -> "contentType".equals(v.getPropertyPath().toString()));
+    boolean hasTitleViolation =
+        violations.stream().anyMatch(v -> "title".equals(v.getPropertyPath().toString()));
 
     assertTrue(hasOrderIndexViolation);
     assertTrue(hasContentTypeViolation);
@@ -309,8 +310,7 @@ class ContentImageModelTest {
     contentImage.setShutterSpeed("1/125");
     contentImage.setCamera(new Records.Camera(1L, "Canon"));
     contentImage.setFocalLength("35mm");
-    contentImage.setLocation(
-        new Records.Location(1L, "Arches National Park, Utah"));
+    contentImage.setLocation(new Records.Location(1L, "Arches National Park, Utah"));
     contentImage.setCreateDate("2024-03-15");
 
     // Act

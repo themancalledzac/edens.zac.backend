@@ -17,16 +17,18 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for CollectionRequests.Update Tests partial update validation,
- * password handling, and
+ * Unit tests for CollectionRequests.Update Tests partial update validation, password handling, and
  * relationship updates using prev/new/remove pattern
  */
 class CollectionUpdateRequestTest {
 
-
   private Validator validator;
 
-  /** Build Update with only non-null args; order: id, type, title, slug, description, location, collectionDate, visible, displayMode, password, contentPerPage, rowsWide, coverImageId, tags, people, collections */
+  /**
+   * Build Update with only non-null args; order: id, type, title, slug, description, location,
+   * collectionDate, visible, displayMode, password, contentPerPage, rowsWide, coverImageId, tags,
+   * people, collections
+   */
   private static CollectionRequests.Update update(
       Long id,
       CollectionType type,
@@ -45,8 +47,22 @@ class CollectionUpdateRequestTest {
       CollectionRequests.PersonUpdate people,
       CollectionRequests.CollectionUpdate collections) {
     return new CollectionRequests.Update(
-        id, type, title, slug, description, location, collectionDate, visible, displayMode,
-        password, contentPerPage, rowsWide, coverImageId, tags, people, collections);
+        id,
+        type,
+        title,
+        slug,
+        description,
+        location,
+        collectionDate,
+        visible,
+        displayMode,
+        password,
+        contentPerPage,
+        rowsWide,
+        coverImageId,
+        tags,
+        people,
+        collections);
   }
 
   @BeforeEach
@@ -100,7 +116,24 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should create DTO with minimal fields for partial update")
     void shouldCreateDTOWithMinimalFields() {
-      CollectionRequests.Update dto = update(1L, null, "Updated Title", null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              "Updated Title",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       assertNotNull(dto);
       assertEquals(1L, dto.id());
@@ -117,7 +150,10 @@ class CollectionUpdateRequestTest {
       // List<Long> idsToRemove = Arrays.asList(5L, 10L);
       // List<String> newTextContent = Arrays.asList("Just added this text");
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
       assertNotNull(dto);
       assertEquals(1L, dto.id());
@@ -127,7 +163,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should create DTO with all nulls (validation will fail for id)")
     void shouldCreateDTOWithNoArgsConstructor() {
-      CollectionRequests.Update dto = update(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
       assertNotNull(dto);
       assertNull(dto.id());
@@ -146,7 +185,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept valid password")
     void shouldAcceptValidPassword() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.CLIENT_GALLERY, "Client Gallery", "client-gallery", null, null, null, null, null, "validpass123", null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.CLIENT_GALLERY,
+              "Client Gallery",
+              "client-gallery",
+              null,
+              null,
+              null,
+              null,
+              null,
+              "validpass123",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -157,7 +212,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept null password for partial updates")
     void shouldAcceptNullPassword() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.BLOG, "Blog Update", "blog-update", null, null, null, null, null, null, null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.BLOG,
+              "Blog Update",
+              "blog-update",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -168,7 +239,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should reject password that is too short")
     void shouldRejectPasswordTooShort() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.CLIENT_GALLERY, "Client Gallery", "client-gallery", null, null, null, null, null, "short", null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.CLIENT_GALLERY,
+              "Client Gallery",
+              "client-gallery",
+              null,
+              null,
+              null,
+              null,
+              null,
+              "short",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertFalse(violations.isEmpty());
@@ -184,7 +271,23 @@ class CollectionUpdateRequestTest {
       String longPassword = "a".repeat(101); // 101 characters
 
       CollectionRequests.Update dto =
-          update(1L, CollectionType.CLIENT_GALLERY, "Client Gallery", "client-gallery", null, null, null, null, null, longPassword, null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.CLIENT_GALLERY,
+              "Client Gallery",
+              "client-gallery",
+              null,
+              null,
+              null,
+              null,
+              null,
+              longPassword,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertFalse(violations.isEmpty());
@@ -199,17 +302,51 @@ class CollectionUpdateRequestTest {
     void shouldAcceptPasswordAtBoundaryLengths() {
       // Test minimum boundary
       CollectionRequests.Update minDto =
-          update(1L, CollectionType.CLIENT_GALLERY, "Client Gallery", "client-gallery", null, null, null, null, null, "12345678", null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.CLIENT_GALLERY,
+              "Client Gallery",
+              "client-gallery",
+              null,
+              null,
+              null,
+              null,
+              null,
+              "12345678",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
-      Set<ConstraintViolation<CollectionRequests.Update>> minViolations = validator.validate(minDto);
+      Set<ConstraintViolation<CollectionRequests.Update>> minViolations =
+          validator.validate(minDto);
       assertTrue(minViolations.isEmpty());
 
       // Test maximum boundary
       String maxPassword = "a".repeat(100); // Exactly 100 characters
       CollectionRequests.Update maxDto =
-          update(1L, CollectionType.CLIENT_GALLERY, "Client Gallery", "client-gallery", null, null, null, null, null, maxPassword, null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.CLIENT_GALLERY,
+              "Client Gallery",
+              "client-gallery",
+              null,
+              null,
+              null,
+              null,
+              null,
+              maxPassword,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
-      Set<ConstraintViolation<CollectionRequests.Update>> maxViolations = validator.validate(maxDto);
+      Set<ConstraintViolation<CollectionRequests.Update>> maxViolations =
+          validator.validate(maxDto);
       assertTrue(maxViolations.isEmpty());
     }
   }
@@ -222,7 +359,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept valid contentPerPage")
     void shouldAcceptValidContentPerPage() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.PORTFOLIO, "Portfolio", "portfolio", null, null, null, null, null, null, 30, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.PORTFOLIO,
+              "Portfolio",
+              "portfolio",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              30,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -233,7 +386,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept null contentPerPage for partial updates")
     void shouldAcceptNullContentPerPage() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.ART_GALLERY, "Art Gallery", "art-gallery", null, null, null, null, null, null, null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.ART_GALLERY,
+              "Art Gallery",
+              "art-gallery",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -244,7 +413,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should reject contentPerPage below minimum")
     void shouldRejectContentPerPageBelowMin() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.BLOG, "Blog", "blog", null, null, null, null, null, null, 0, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.BLOG,
+              "Blog",
+              "blog",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertFalse(violations.isEmpty());
@@ -257,7 +442,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept contentPerPage at minimum boundary")
     void shouldAcceptContentPerPageAtMinBoundary() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.PORTFOLIO, "Portfolio", "portfolio", null, null, null, null, null, null, 1, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.PORTFOLIO,
+              "Portfolio",
+              "portfolio",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -272,7 +473,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept CHRONOLOGICAL display mode")
     void shouldAcceptChronologicalDisplayMode() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.BLOG, null, null, null, null, null, null, CollectionBaseModel.DisplayMode.CHRONOLOGICAL, null, null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.BLOG,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              CollectionBaseModel.DisplayMode.CHRONOLOGICAL,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -283,7 +500,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept ORDERED display mode")
     void shouldAcceptOrderedDisplayMode() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.PORTFOLIO, null, null, null, null, null, null, CollectionBaseModel.DisplayMode.ORDERED, null, null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.PORTFOLIO,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              CollectionBaseModel.DisplayMode.ORDERED,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -294,7 +527,23 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept null display mode for partial updates")
     void shouldAcceptNullDisplayMode() {
       CollectionRequests.Update dto =
-          update(1L, CollectionType.ART_GALLERY, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+          update(
+              1L,
+              CollectionType.ART_GALLERY,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -310,7 +559,10 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept valid cover image ID")
     void shouldAcceptValidCoverImageId() {
       Long imageId = 123L;
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, imageId, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, imageId, null,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -320,7 +572,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept null cover image for partial updates")
     void shouldAcceptNullCoverImage() {
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -330,7 +585,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept cover image ID of zero to clear cover image")
     void shouldAcceptCoverImageIdZero() {
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, 0L, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, 0L, null, null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -340,7 +598,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept valid cover image ID values")
     void shouldAcceptValidCoverImageIdValues() {
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, 456L, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, 456L, null,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -355,9 +616,13 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept tag updates with prev pattern")
     void shouldAcceptTagUpdatesWithPrev() {
-      CollectionRequests.TagUpdate tagUpdate = new CollectionRequests.TagUpdate(Arrays.asList(1L, 2L, 3L), null, null);
+      CollectionRequests.TagUpdate tagUpdate =
+          new CollectionRequests.TagUpdate(Arrays.asList(1L, 2L, 3L), null, null);
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -369,9 +634,13 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should accept tag updates with newValue pattern")
     void shouldAcceptTagUpdatesWithNewValue() {
       CollectionRequests.TagUpdate tagUpdate =
-          new CollectionRequests.TagUpdate(null, Arrays.asList("landscape", "nature", "photography"), null);
+          new CollectionRequests.TagUpdate(
+              null, Arrays.asList("landscape", "nature", "photography"), null);
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -382,9 +651,13 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept tag updates with remove pattern")
     void shouldAcceptTagUpdatesWithRemove() {
-      CollectionRequests.TagUpdate tagUpdate = new CollectionRequests.TagUpdate(null, null, Arrays.asList(5L, 10L));
+      CollectionRequests.TagUpdate tagUpdate =
+          new CollectionRequests.TagUpdate(null, null, Arrays.asList(5L, 10L));
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -399,7 +672,10 @@ class CollectionUpdateRequestTest {
           new CollectionRequests.TagUpdate(
               Arrays.asList(1L, 2L), Arrays.asList("new-tag-1", "new-tag-2"), Arrays.asList(3L));
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, tagUpdate,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -412,7 +688,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept null tags for partial updates")
     void shouldAcceptNullTags() {
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -430,7 +709,24 @@ class CollectionUpdateRequestTest {
       CollectionRequests.PersonUpdate personUpdate =
           new CollectionRequests.PersonUpdate(Arrays.asList(1L, 2L), null, null);
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, personUpdate, null);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              personUpdate,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -444,7 +740,24 @@ class CollectionUpdateRequestTest {
       CollectionRequests.PersonUpdate personUpdate =
           new CollectionRequests.PersonUpdate(null, Arrays.asList("John Doe", "Jane Smith"), null);
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, personUpdate, null);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              personUpdate,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -458,7 +771,24 @@ class CollectionUpdateRequestTest {
       CollectionRequests.PersonUpdate personUpdate =
           new CollectionRequests.PersonUpdate(null, null, Arrays.asList(3L, 4L));
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, personUpdate, null);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              personUpdate,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -473,7 +803,24 @@ class CollectionUpdateRequestTest {
           new CollectionRequests.PersonUpdate(
               Arrays.asList(1L), Arrays.asList("Alice Johnson"), Arrays.asList(5L, 6L));
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, personUpdate, null);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              personUpdate,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -486,7 +833,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept null people for partial updates")
     void shouldAcceptNullPeople() {
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -507,7 +857,24 @@ class CollectionUpdateRequestTest {
       CollectionRequests.CollectionUpdate collectionUpdate =
           new CollectionRequests.CollectionUpdate(Arrays.asList(childCollection), null, null);
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, collectionUpdate);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              collectionUpdate);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -525,9 +892,27 @@ class CollectionUpdateRequestTest {
           new Records.ChildCollection(21L, null, null, null, false, 10);
 
       CollectionRequests.CollectionUpdate collectionUpdate =
-          new CollectionRequests.CollectionUpdate(null, Arrays.asList(childCollection1, childCollection2), null);
+          new CollectionRequests.CollectionUpdate(
+              null, Arrays.asList(childCollection1, childCollection2), null);
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, collectionUpdate);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              collectionUpdate);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -541,7 +926,24 @@ class CollectionUpdateRequestTest {
       CollectionRequests.CollectionUpdate collectionUpdate =
           new CollectionRequests.CollectionUpdate(null, null, Arrays.asList(3L, 7L, 9L));
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, collectionUpdate);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              collectionUpdate);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -564,7 +966,24 @@ class CollectionUpdateRequestTest {
               Collections.singletonList(newCollection),
               Arrays.asList(3L, 4L));
 
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, collectionUpdate);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              collectionUpdate);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -577,7 +996,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should accept null collections for partial updates")
     void shouldAcceptNullCollections() {
-      CollectionRequests.Update dto = update(1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
@@ -592,7 +1014,10 @@ class CollectionUpdateRequestTest {
     @Test
     @DisplayName("Should require ID field")
     void shouldRequireIdField() {
-      CollectionRequests.Update dto = update(null, null, "Test", null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              null, null, "Test", null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertFalse(violations.isEmpty());
@@ -605,9 +1030,13 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should validate title length constraints")
     void shouldValidateTitleLengthConstraints() {
       // Too short
-      CollectionRequests.Update shortDto = update(1L, null, "AB", null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update shortDto =
+          update(
+              1L, null, "AB", null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
-      Set<ConstraintViolation<CollectionRequests.Update>> shortViolations = validator.validate(shortDto);
+      Set<ConstraintViolation<CollectionRequests.Update>> shortViolations =
+          validator.validate(shortDto);
       assertFalse(shortViolations.isEmpty());
       assertTrue(
           shortViolations.stream()
@@ -616,9 +1045,13 @@ class CollectionUpdateRequestTest {
 
       // Too long
       String longTitle = "A".repeat(101);
-      CollectionRequests.Update longDto = update(1L, null, longTitle, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update longDto =
+          update(
+              1L, null, longTitle, null, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
-      Set<ConstraintViolation<CollectionRequests.Update>> longViolations = validator.validate(longDto);
+      Set<ConstraintViolation<CollectionRequests.Update>> longViolations =
+          validator.validate(longDto);
       assertFalse(longViolations.isEmpty());
       assertTrue(
           longViolations.stream()
@@ -630,9 +1063,13 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should validate slug length constraints")
     void shouldValidateSlugLengthConstraints() {
       // Too short
-      CollectionRequests.Update shortDto = update(1L, null, null, "AB", null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update shortDto =
+          update(
+              1L, null, null, "AB", null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
-      Set<ConstraintViolation<CollectionRequests.Update>> shortViolations = validator.validate(shortDto);
+      Set<ConstraintViolation<CollectionRequests.Update>> shortViolations =
+          validator.validate(shortDto);
       assertFalse(shortViolations.isEmpty());
       assertTrue(
           shortViolations.stream()
@@ -640,9 +1077,13 @@ class CollectionUpdateRequestTest {
 
       // Too long
       String longSlug = "a".repeat(151);
-      CollectionRequests.Update longDto = update(1L, null, null, longSlug, null, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update longDto =
+          update(
+              1L, null, null, longSlug, null, null, null, null, null, null, null, null, null, null,
+              null, null);
 
-      Set<ConstraintViolation<CollectionRequests.Update>> longViolations = validator.validate(longDto);
+      Set<ConstraintViolation<CollectionRequests.Update>> longViolations =
+          validator.validate(longDto);
       assertFalse(longViolations.isEmpty());
       assertTrue(
           longViolations.stream()
@@ -653,7 +1094,24 @@ class CollectionUpdateRequestTest {
     @DisplayName("Should validate description length constraint")
     void shouldValidateDescriptionLengthConstraint() {
       String longDescription = "A".repeat(501);
-      CollectionRequests.Update dto = update(1L, null, null, null, longDescription, null, null, null, null, null, null, null, null, null, null, null);
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              null,
+              null,
+              null,
+              longDescription,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertFalse(violations.isEmpty());

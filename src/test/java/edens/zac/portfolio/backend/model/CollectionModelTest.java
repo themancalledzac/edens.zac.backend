@@ -18,8 +18,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for CollectionModel Tests validation annotations, builder pattern,
- * pagination
+ * Unit tests for CollectionModel Tests validation annotations, builder pattern, pagination
  * metadata, and content
  */
 class CollectionModelTest {
@@ -43,23 +42,24 @@ class CollectionModelTest {
       LocalDate today = LocalDate.now();
       List<ContentModel> content = new ArrayList<>();
 
-      CollectionModel model = CollectionModel.builder()
-          .id(1L)
-          .type(CollectionType.PORTFOLIO)
-          .title("Test Portfolio")
-          .slug("test-portfolio")
-          .description("Test description")
-          .location(new Records.Location(1L, "Test location"))
-          .collectionDate(today)
-          .visible(true)
-          .createdAt(now)
-          .updatedAt(now)
-          .contentPerPage(30)
-          .contentCount(150)
-          .currentPage(1)
-          .totalPages(5)
-          .content(content)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.PORTFOLIO)
+              .title("Test Portfolio")
+              .slug("test-portfolio")
+              .description("Test description")
+              .location(new Records.Location(1L, "Test location"))
+              .collectionDate(today)
+              .visible(true)
+              .createdAt(now)
+              .updatedAt(now)
+              .contentPerPage(30)
+              .contentCount(150)
+              .currentPage(1)
+              .totalPages(5)
+              .content(content)
+              .build();
 
       assertNotNull(model);
       assertEquals(1L, model.getId());
@@ -84,7 +84,8 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should create model with minimal required fields")
     void shouldCreateModelWithMinimalFields() {
-      CollectionModel model = CollectionModel.builder().type(CollectionType.BLOG).title("Min").slug("min").build();
+      CollectionModel model =
+          CollectionModel.builder().type(CollectionType.BLOG).title("Min").slug("min").build();
 
       assertNotNull(model);
       assertEquals(CollectionType.BLOG, model.getType());
@@ -121,15 +122,16 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept valid pagination metadata")
     void shouldAcceptValidPaginationMetadata() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Art Gallery")
-          .slug("art-gallery")
-          .contentPerPage(30)
-          .contentCount(150)
-          .currentPage(1)
-          .totalPages(5)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Art Gallery")
+              .slug("art-gallery")
+              .contentPerPage(30)
+              .contentCount(150)
+              .currentPage(1)
+              .totalPages(5)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -138,12 +140,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should reject contentPerPage below minimum")
     void shouldRejectContentPerPageBelowMin() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("Blog Post")
-          .slug("blog-post")
-          .contentPerPage(0) // Invalid - below minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("Blog Post")
+              .slug("blog-post")
+              .contentPerPage(0) // Invalid - below minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -155,12 +158,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept contentPerPage at minimum boundary")
     void shouldAcceptContentPerPageAtMinBoundary() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("Blog Post")
-          .slug("blog-post")
-          .contentPerPage(30) // Exactly at minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("Blog Post")
+              .slug("blog-post")
+              .contentPerPage(30) // Exactly at minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -169,12 +173,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should reject totalContent below minimum")
     void shouldRejectTotalContentBelowMin() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Portfolio")
-          .slug("portfolio")
-          .contentCount(-1) // Invalid - below minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Portfolio")
+              .slug("portfolio")
+              .contentCount(-1) // Invalid - below minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -186,12 +191,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept totalContent at minimum boundary")
     void shouldAcceptTotalContentAtMinBoundary() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Portfolio")
-          .slug("portfolio")
-          .contentCount(0) // Exactly at minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Portfolio")
+              .slug("portfolio")
+              .contentCount(0) // Exactly at minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -200,12 +206,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should reject currentPage below minimum")
     void shouldRejectCurrentPageBelowMin() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.CLIENT_GALLERY)
-          .title("Client Gallery")
-          .slug("client-gallery")
-          .currentPage(0) // Invalid - below minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Client Gallery")
+              .slug("client-gallery")
+              .currentPage(0) // Invalid - below minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -217,12 +224,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept currentPage at minimum boundary")
     void shouldAcceptCurrentPageAtMinBoundary() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.CLIENT_GALLERY)
-          .title("Client Gallery")
-          .slug("client-gallery")
-          .currentPage(1) // Exactly at minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Client Gallery")
+              .slug("client-gallery")
+              .currentPage(1) // Exactly at minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -231,12 +239,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should reject totalPages below minimum")
     void shouldRejectTotalPagesBelowMin() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Art Gallery")
-          .slug("art-gallery")
-          .totalPages(-1) // Invalid - below minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Art Gallery")
+              .slug("art-gallery")
+              .totalPages(-1) // Invalid - below minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -248,12 +257,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept totalPages at minimum boundary")
     void shouldAcceptTotalPagesAtMinBoundary() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Art Gallery")
-          .slug("art-gallery")
-          .totalPages(0) // Exactly at minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Art Gallery")
+              .slug("art-gallery")
+              .totalPages(0) // Exactly at minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -262,15 +272,16 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept null pagination fields")
     void shouldAcceptNullPaginationFields() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("Blog Post")
-          .slug("blog-post")
-          .contentPerPage(null)
-          .contentCount(null)
-          .currentPage(null)
-          .totalPages(null)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("Blog Post")
+              .slug("blog-post")
+              .contentPerPage(null)
+              .contentCount(null)
+              .currentPage(null)
+              .totalPages(null)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -289,12 +300,13 @@ class CollectionModelTest {
       // validate those
       // separately
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Portfolio")
-          .slug("portfolio")
-          .content(content)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Portfolio")
+              .slug("portfolio")
+              .content(content)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -303,12 +315,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept null content")
     void shouldAcceptNullContent() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("Blog Post")
-          .slug("blog-post")
-          .content(null)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("Blog Post")
+              .slug("blog-post")
+              .content(null)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -317,12 +330,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should accept empty content list")
     void shouldAcceptEmptyContentList() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Art Gallery")
-          .slug("art-gallery")
-          .content(new ArrayList<>())
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Art Gallery")
+              .slug("art-gallery")
+              .content(new ArrayList<>())
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -337,11 +351,12 @@ class CollectionModelTest {
     @DisplayName("Should inherit base model validation rules")
     void shouldInheritBaseModelValidationRules() {
       // Test inherited title validation
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("AB") // Too short - should trigger base model validation
-          .slug("valid-slug")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("AB") // Too short - should trigger base model validation
+              .slug("valid-slug")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -354,12 +369,13 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should combine base and subclass validation rules")
     void shouldCombineBaseAndSubclassValidationRules() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("AB") // Base validation error
-          .slug("valid-slug")
-          .contentPerPage(0) // Subclass validation error
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("AB") // Base validation error
+              .slug("valid-slug")
+              .contentPerPage(0) // Subclass validation error
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertEquals(2, violations.size()); // Should have both base and subclass validation errors
@@ -375,35 +391,38 @@ class CollectionModelTest {
     void shouldHaveWorkingEqualsAndHashCodeWithInheritance() {
       LocalDateTime now = LocalDateTime.now();
 
-      CollectionModel model1 = CollectionModel.builder()
-          .id(1L)
-          .type(CollectionType.BLOG)
-          .title("Test Blog")
-          .slug("test-blog")
-          .createdAt(now)
-          .contentPerPage(30)
-          .contentCount(150)
-          .build();
+      CollectionModel model1 =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.BLOG)
+              .title("Test Blog")
+              .slug("test-blog")
+              .createdAt(now)
+              .contentPerPage(30)
+              .contentCount(150)
+              .build();
 
-      CollectionModel model2 = CollectionModel.builder()
-          .id(1L)
-          .type(CollectionType.BLOG)
-          .title("Test Blog")
-          .slug("test-blog")
-          .createdAt(now)
-          .contentPerPage(30)
-          .contentCount(150)
-          .build();
+      CollectionModel model2 =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.BLOG)
+              .title("Test Blog")
+              .slug("test-blog")
+              .createdAt(now)
+              .contentPerPage(30)
+              .contentCount(150)
+              .build();
 
-      CollectionModel model3 = CollectionModel.builder()
-          .id(1L)
-          .type(CollectionType.BLOG)
-          .title("Test Blog")
-          .slug("test-blog")
-          .createdAt(now)
-          .contentPerPage(20) // Different pagination
-          .contentCount(150)
-          .build();
+      CollectionModel model3 =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.BLOG)
+              .title("Test Blog")
+              .slug("test-blog")
+              .createdAt(now)
+              .contentPerPage(20) // Different pagination
+              .contentCount(150)
+              .build();
 
       // Test equals
       assertEquals(model1, model2);
@@ -416,16 +435,17 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should have working toString method with inheritance")
     void shouldHaveWorkingToStringWithInheritance() {
-      CollectionModel model = CollectionModel.builder()
-          .id(1L)
-          .type(CollectionType.PORTFOLIO)
-          .title("Test Portfolio")
-          .slug("test-portfolio")
-          .contentPerPage(30)
-          .contentCount(150)
-          .currentPage(1)
-          .totalPages(5)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.PORTFOLIO)
+              .title("Test Portfolio")
+              .slug("test-portfolio")
+              .contentPerPage(30)
+              .contentCount(150)
+              .currentPage(1)
+              .totalPages(5)
+              .build();
 
       String toString = model.toString();
 
@@ -448,15 +468,16 @@ class CollectionModelTest {
     @DisplayName("Should work with all collection types")
     void shouldWorkWithAllCollectionTypes() {
       for (CollectionType type : CollectionType.values()) {
-        CollectionModel model = CollectionModel.builder()
-            .type(type)
-            .title("Test " + type.getDisplayName())
-            .slug("test-" + type.name().toLowerCase())
-            .contentPerPage(30)
-            .contentCount(100)
-            .currentPage(1)
-            .totalPages(4)
-            .build();
+        CollectionModel model =
+            CollectionModel.builder()
+                .type(type)
+                .title("Test " + type.getDisplayName())
+                .slug("test-" + type.name().toLowerCase())
+                .contentPerPage(30)
+                .contentCount(100)
+                .currentPage(1)
+                .totalPages(4)
+                .build();
 
         Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
         assertTrue(violations.isEmpty(), "Collection type " + type + " should be valid");
@@ -466,15 +487,16 @@ class CollectionModelTest {
     @Test
     @DisplayName("Should handle client gallery with pagination")
     void shouldHandleClientGalleryWithPagination() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.CLIENT_GALLERY)
-          .title("Client Wedding Gallery")
-          .slug("client-wedding-gallery")
-          .contentPerPage(30)
-          .contentCount(200)
-          .currentPage(1)
-          .totalPages(8)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Client Wedding Gallery")
+              .slug("client-wedding-gallery")
+              .contentPerPage(30)
+              .contentCount(200)
+              .currentPage(1)
+              .totalPages(8)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -494,15 +516,16 @@ class CollectionModelTest {
       String longTitle = "A".repeat(101); // Base class validation error
       String longDescription = "B".repeat(501); // Base class validation error
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title(longTitle) // Error 1: Title too long
-          .slug("AB") // Error 2: Slug too short
-          .description(longDescription) // Error 3: Description too long
-          .contentPerPage(0) // Error 4: ContentPerPage below minimum
-          .currentPage(0) // Error 5: CurrentPage below minimum
-          .contentCount(-1) // Error 6: TotalContent below minimum
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title(longTitle) // Error 1: Title too long
+              .slug("AB") // Error 2: Slug too short
+              .description(longDescription) // Error 3: Description too long
+              .contentPerPage(0) // Error 4: ContentPerPage below minimum
+              .currentPage(0) // Error 5: CurrentPage below minimum
+              .contentCount(-1) // Error 6: TotalContent below minimum
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertEquals(6, violations.size());

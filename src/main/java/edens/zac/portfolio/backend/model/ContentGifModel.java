@@ -16,14 +16,12 @@ public class ContentGifModel extends ContentModel {
 
   @NotNull private String gifUrl;
 
-  @Size(max = 255)
-  private String thumbnailUrl;
+  @Size(max = 255) private String thumbnailUrl;
 
   private Integer width;
   private Integer height;
 
-  @Size(max = 100)
-  private String author;
+  @Size(max = 100) private String author;
 
   private String createDate;
 

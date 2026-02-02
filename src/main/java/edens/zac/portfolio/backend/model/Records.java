@@ -42,8 +42,7 @@ public final class Records {
 
   /** Model representing a location for API responses. Contains the location's ID and name. */
   public record Location(
-      Long id,
-      @Size(max = 255, message = "Location cannot exceed 255 characters") String name) {}
+      Long id, @Size(max = 255, message = "Location cannot exceed 255 characters") String name) {}
 
   // Collection references
 

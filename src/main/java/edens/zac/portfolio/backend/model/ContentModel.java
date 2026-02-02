@@ -39,16 +39,14 @@ public class ContentModel {
    * Title of this content. - For IMAGE: Image title - For COLLECTION: Collection title - For
    * TEXT/CODE/GIF: Content title
    */
-  @Size(max = 250)
-  private String title;
+  @Size(max = 250) private String title;
 
   /**
    * Description text for this content. Populated from: - For COLLECTION content: The referenced
    * collection's description field - For all other content: The content entity's own
    * description/title field
    */
-  @Size(max = 500)
-  private String description;
+  @Size(max = 500) private String description;
 
   /**
    * Preview/cover image URL. - For IMAGE: The image URL itself - For COLLECTION: The collection's
@@ -67,8 +65,7 @@ public class ContentModel {
    * Position of this content within the parent collection. Lower values appear first.
    * Collection-specific. Populated from collection_content.order_index.
    */
-  @NotNull @Min(0)
-  private Integer orderIndex;
+  @NotNull @Min(0) private Integer orderIndex;
 
   /**
    * Whether this content is visible in the parent collection. Same content can be visible in one

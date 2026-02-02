@@ -14,11 +14,8 @@ public class ContentTextModel extends ContentModel {
 
   // Note: title is inherited from ContentModel
 
-  @NotBlank
-  @Size(max = 10000)
-  private String textContent;
+  @NotBlank @Size(max = 10000) private String textContent;
 
-  @NotNull @Size(max = 20)
-  private String
+  @NotNull @Size(max = 20) private String
       formatType; // "markdown", "html", "plain", "js", "py", "sql", "java", "ts", "tf", "yml"
 }

@@ -37,175 +37,173 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CollectionServiceImplTest {
 
-    @Mock
-    private CollectionDao collectionDao;
-    @Mock
-    private CollectionContentDao collectionContentDao;
-    @Mock
-    private ContentDao contentDao;
-    @Mock
-    private ContentCollectionDao contentCollectionDao;
-    @Mock
-    private ContentTextDao contentTextDao;
-    @Mock
-    private CollectionProcessingUtil collectionProcessingUtil;
-    @Mock
-    private ContentProcessingUtil contentProcessingUtil;
-    @Mock
-    private ContentService contentService;
+  @Mock private CollectionDao collectionDao;
+  @Mock private CollectionContentDao collectionContentDao;
+  @Mock private ContentDao contentDao;
+  @Mock private ContentCollectionDao contentCollectionDao;
+  @Mock private ContentTextDao contentTextDao;
+  @Mock private CollectionProcessingUtil collectionProcessingUtil;
+  @Mock private ContentProcessingUtil contentProcessingUtil;
+  @Mock private ContentService contentService;
 
-    @InjectMocks
-    private CollectionServiceImpl service;
+  @InjectMocks private CollectionServiceImpl service;
 
-    @Captor
-    private ArgumentCaptor<Map<Long, Integer>> mapCaptor;
+  @Captor private ArgumentCaptor<Map<Long, Integer>> mapCaptor;
 
-    @Nested
-    class ReorderContent {
+  @Nested
+  class ReorderContent {
 
-        private CollectionEntity collection;
-        private List<CollectionContentEntity> existingContent;
+    private CollectionEntity collection;
+    private List<CollectionContentEntity> existingContent;
 
-        @BeforeEach
-        void setUp() {
-            collection = CollectionEntity.builder()
-                    .id(1L)
-                    .title("Test Collection")
-                    .slug("test-collection")
-                    .type(CollectionType.PORTFOLIO)
-                    .visible(true)
-                    .build();
+    @BeforeEach
+    void setUp() {
+      collection =
+          CollectionEntity.builder()
+              .id(1L)
+              .title("Test Collection")
+              .slug("test-collection")
+              .type(CollectionType.PORTFOLIO)
+              .visible(true)
+              .build();
 
-            existingContent = List.of(
-                    CollectionContentEntity.builder()
-                            .id(10L)
-                            .collectionId(1L)
-                            .contentId(100L)
-                            .orderIndex(0)
-                            .visible(true)
-                            .createdAt(LocalDateTime.now())
-                            .updatedAt(LocalDateTime.now())
-                            .build(),
-                    CollectionContentEntity.builder()
-                            .id(11L)
-                            .collectionId(1L)
-                            .contentId(101L)
-                            .orderIndex(1)
-                            .visible(true)
-                            .createdAt(LocalDateTime.now())
-                            .updatedAt(LocalDateTime.now())
-                            .build(),
-                    CollectionContentEntity.builder()
-                            .id(12L)
-                            .collectionId(1L)
-                            .contentId(102L)
-                            .orderIndex(2)
-                            .visible(true)
-                            .createdAt(LocalDateTime.now())
-                            .updatedAt(LocalDateTime.now())
-                            .build());
-        }
-
-        @Test
-        void reorderContent_success_updatesOrderIndexes() {
-            // Arrange
-            Long collectionId = 1L;
-            CollectionRequests.Reorder request = new CollectionRequests.Reorder(
-                    List.of(
-                            new CollectionRequests.Reorder.ReorderItem(100L, 2),
-                            new CollectionRequests.Reorder.ReorderItem(101L, 0),
-                            new CollectionRequests.Reorder.ReorderItem(102L, 1)));
-
-            when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
-            when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
-                    .thenReturn(existingContent);
-            when(collectionContentDao.batchUpdateOrderIndexes(eq(collectionId), any())).thenReturn(3);
-
-            CollectionModel expectedModel = CollectionModel.builder().id(1L).title("Test Collection").build();
-            when(collectionProcessingUtil.convertToModel(
-                    eq(collection), any(), anyInt(), anyInt(), anyLong()))
-                    .thenReturn(expectedModel);
-
-            // Act
-            CollectionModel result = service.reorderContent(collectionId, request);
-
-            // Assert
-            assertThat(result).isNotNull();
-            assertThat(result.getId()).isEqualTo(1L);
-
-            verify(collectionContentDao).batchUpdateOrderIndexes(eq(collectionId), mapCaptor.capture());
-            Map<Long, Integer> capturedMap = mapCaptor.getValue();
-            assertThat(capturedMap)
-                    .containsEntry(100L, 2)
-                    .containsEntry(101L, 0)
-                    .containsEntry(102L, 1)
-                    .hasSize(3);
-        }
-
-        @Test
-        void reorderContent_collectionNotFound_throwsException() {
-            // Arrange
-            Long collectionId = 999L;
-            CollectionRequests.Reorder request = new CollectionRequests.Reorder(
-                    List.of(new CollectionRequests.Reorder.ReorderItem(100L, 0)));
-
-            when(collectionDao.findById(collectionId)).thenReturn(Optional.empty());
-
-            // Act & Assert
-            assertThatThrownBy(() -> service.reorderContent(collectionId, request))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Collection not found with ID: 999");
-
-            verify(collectionContentDao, never()).batchUpdateOrderIndexes(any(), any());
-        }
-
-        @Test
-        void reorderContent_contentNotInCollection_throwsException() {
-            // Arrange
-            Long collectionId = 1L;
-            CollectionRequests.Reorder request = new CollectionRequests.Reorder(
-                    List.of(
-                            new CollectionRequests.Reorder.ReorderItem(100L, 0),
-                            new CollectionRequests.Reorder.ReorderItem(999L, 1)));
-
-            when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
-            when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
-                    .thenReturn(existingContent);
-
-            // Act & Assert
-            assertThatThrownBy(() -> service.reorderContent(collectionId, request))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Content with ID 999 does not belong to collection 1");
-
-            verify(collectionContentDao, never()).batchUpdateOrderIndexes(any(), any());
-        }
-
-        @Test
-        void reorderContent_partialReorder_updatesOnlySpecifiedItems() {
-            // Arrange
-            Long collectionId = 1L;
-            CollectionRequests.Reorder request = new CollectionRequests.Reorder(
-                    List.of(new CollectionRequests.Reorder.ReorderItem(100L, 5)));
-
-            when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
-            when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
-                    .thenReturn(existingContent);
-            when(collectionContentDao.batchUpdateOrderIndexes(eq(collectionId), any())).thenReturn(1);
-
-            CollectionModel expectedModel = CollectionModel.builder().id(1L).title("Test Collection").build();
-            when(collectionProcessingUtil.convertToModel(
-                    eq(collection), any(), anyInt(), anyInt(), anyLong()))
-                    .thenReturn(expectedModel);
-
-            // Act
-            CollectionModel result = service.reorderContent(collectionId, request);
-
-            // Assert
-            assertThat(result).isNotNull();
-
-            verify(collectionContentDao).batchUpdateOrderIndexes(eq(collectionId), mapCaptor.capture());
-            Map<Long, Integer> capturedMap = mapCaptor.getValue();
-            assertThat(capturedMap).containsEntry(100L, 5).hasSize(1);
-        }
+      existingContent =
+          List.of(
+              CollectionContentEntity.builder()
+                  .id(10L)
+                  .collectionId(1L)
+                  .contentId(100L)
+                  .orderIndex(0)
+                  .visible(true)
+                  .createdAt(LocalDateTime.now())
+                  .updatedAt(LocalDateTime.now())
+                  .build(),
+              CollectionContentEntity.builder()
+                  .id(11L)
+                  .collectionId(1L)
+                  .contentId(101L)
+                  .orderIndex(1)
+                  .visible(true)
+                  .createdAt(LocalDateTime.now())
+                  .updatedAt(LocalDateTime.now())
+                  .build(),
+              CollectionContentEntity.builder()
+                  .id(12L)
+                  .collectionId(1L)
+                  .contentId(102L)
+                  .orderIndex(2)
+                  .visible(true)
+                  .createdAt(LocalDateTime.now())
+                  .updatedAt(LocalDateTime.now())
+                  .build());
     }
+
+    @Test
+    void reorderContent_success_updatesOrderIndexes() {
+      // Arrange
+      Long collectionId = 1L;
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
+              List.of(
+                  new CollectionRequests.Reorder.ReorderItem(100L, 2),
+                  new CollectionRequests.Reorder.ReorderItem(101L, 0),
+                  new CollectionRequests.Reorder.ReorderItem(102L, 1)));
+
+      when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
+      when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
+          .thenReturn(existingContent);
+      when(collectionContentDao.batchUpdateOrderIndexes(eq(collectionId), any())).thenReturn(3);
+
+      CollectionModel expectedModel =
+          CollectionModel.builder().id(1L).title("Test Collection").build();
+      when(collectionProcessingUtil.convertToModel(
+              eq(collection), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(expectedModel);
+
+      // Act
+      CollectionModel result = service.reorderContent(collectionId, request);
+
+      // Assert
+      assertThat(result).isNotNull();
+      assertThat(result.getId()).isEqualTo(1L);
+
+      verify(collectionContentDao).batchUpdateOrderIndexes(eq(collectionId), mapCaptor.capture());
+      Map<Long, Integer> capturedMap = mapCaptor.getValue();
+      assertThat(capturedMap)
+          .containsEntry(100L, 2)
+          .containsEntry(101L, 0)
+          .containsEntry(102L, 1)
+          .hasSize(3);
+    }
+
+    @Test
+    void reorderContent_collectionNotFound_throwsException() {
+      // Arrange
+      Long collectionId = 999L;
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
+              List.of(new CollectionRequests.Reorder.ReorderItem(100L, 0)));
+
+      when(collectionDao.findById(collectionId)).thenReturn(Optional.empty());
+
+      // Act & Assert
+      assertThatThrownBy(() -> service.reorderContent(collectionId, request))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Collection not found with ID: 999");
+
+      verify(collectionContentDao, never()).batchUpdateOrderIndexes(any(), any());
+    }
+
+    @Test
+    void reorderContent_contentNotInCollection_throwsException() {
+      // Arrange
+      Long collectionId = 1L;
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
+              List.of(
+                  new CollectionRequests.Reorder.ReorderItem(100L, 0),
+                  new CollectionRequests.Reorder.ReorderItem(999L, 1)));
+
+      when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
+      when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
+          .thenReturn(existingContent);
+
+      // Act & Assert
+      assertThatThrownBy(() -> service.reorderContent(collectionId, request))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Content with ID 999 does not belong to collection 1");
+
+      verify(collectionContentDao, never()).batchUpdateOrderIndexes(any(), any());
+    }
+
+    @Test
+    void reorderContent_partialReorder_updatesOnlySpecifiedItems() {
+      // Arrange
+      Long collectionId = 1L;
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
+              List.of(new CollectionRequests.Reorder.ReorderItem(100L, 5)));
+
+      when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
+      when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
+          .thenReturn(existingContent);
+      when(collectionContentDao.batchUpdateOrderIndexes(eq(collectionId), any())).thenReturn(1);
+
+      CollectionModel expectedModel =
+          CollectionModel.builder().id(1L).title("Test Collection").build();
+      when(collectionProcessingUtil.convertToModel(
+              eq(collection), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(expectedModel);
+
+      // Act
+      CollectionModel result = service.reorderContent(collectionId, request);
+
+      // Assert
+      assertThat(result).isNotNull();
+
+      verify(collectionContentDao).batchUpdateOrderIndexes(eq(collectionId), mapCaptor.capture());
+      Map<Long, Integer> capturedMap = mapCaptor.getValue();
+      assertThat(capturedMap).containsEntry(100L, 5).hasSize(1);
+    }
+  }
 }
