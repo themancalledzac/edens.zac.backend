@@ -44,8 +44,11 @@ class ContentControllerDevTest {
         objectMapper = new ObjectMapper();
         objectMapper.findAndRegisterModules();
 
-        // Set up MockMvc
-        mockMvc = MockMvcBuilders.standaloneSetup(contentController).build();
+        // Set up MockMvc with GlobalExceptionHandler
+        mockMvc =
+            MockMvcBuilders.standaloneSetup(contentController)
+                .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+                .build();
 
         // Create test image model
         ContentImageModel testImage = new ContentImageModel();
@@ -243,8 +246,8 @@ class ContentControllerDevTest {
                         patch("/api/admin/content/images")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(List.of(updateRequest))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$", containsString("Image not found")));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message", containsString("Image not found")));
 
         verify(contentService).updateImages(any(List.class));
     }
@@ -266,7 +269,7 @@ class ContentControllerDevTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(List.of(updateRequest))))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$", containsString("Failed to update images")));
+                .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
         verify(contentService).updateImages(any(List.class));
     }
@@ -332,7 +335,7 @@ class ContentControllerDevTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$", containsString("Tag already exists")));
+                .andExpect(jsonPath("$.message", containsString("Tag already exists")));
 
         verify(contentService).createTag("landscape");
     }
@@ -353,7 +356,7 @@ class ContentControllerDevTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$", containsString("Failed to create tag")));
+                .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
         verify(contentService).createTag("landscape");
     }
@@ -404,7 +407,7 @@ class ContentControllerDevTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$", containsString("Person already exists")));
+                .andExpect(jsonPath("$.message", containsString("Person already exists")));
 
         verify(contentService).createPerson("John Doe");
     }
@@ -425,7 +428,7 @@ class ContentControllerDevTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$", containsString("Failed to create person")));
+                .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
         verify(contentService).createPerson("John Doe");
     }
@@ -506,8 +509,8 @@ class ContentControllerDevTest {
                         delete("/api/admin/content/images")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$", containsString("Image not found")));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message", containsString("Image not found")));
 
         verify(contentService).deleteImages(any(List.class));
     }
@@ -528,7 +531,7 @@ class ContentControllerDevTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$", containsString("Failed to delete images")));
+                .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
         verify(contentService).deleteImages(any(List.class));
     }

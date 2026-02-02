@@ -55,8 +55,11 @@ class CollectionControllerProdTest {
     objectMapper = new ObjectMapper();
     objectMapper.findAndRegisterModules();
 
-    // Set up MockMvc
-    mockMvc = MockMvcBuilders.standaloneSetup(contentCollectionController).build();
+    // Set up MockMvc with GlobalExceptionHandler
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(contentCollectionController)
+            .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+            .build();
 
     // Create test collections
     testCollections = new ArrayList<>();
@@ -199,7 +202,7 @@ class CollectionControllerProdTest {
                 .param("size", "30")
                 .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$", containsString("not found")));
+        .andExpect(jsonPath("$.message", containsString("not found")));
   }
 
   @Test
@@ -259,7 +262,7 @@ class CollectionControllerProdTest {
                 .param("size", "10")
                 .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$", containsString("Invalid collection type")));
+        .andExpect(jsonPath("$.message", containsString("Invalid collection type")));
   }
 
   @Test
@@ -320,7 +323,7 @@ class CollectionControllerProdTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(emptyRequest)))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$", is("Password is required")));
+        .andExpect(jsonPath("$.message").value("Password is required"));
   }
 
   @Test
@@ -342,6 +345,6 @@ class CollectionControllerProdTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(passwordRequest)))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$", containsString("not found")));
+        .andExpect(jsonPath("$.message", containsString("not found")));
   }
 }
