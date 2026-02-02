@@ -12,7 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zedens}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zedens} -d ${POSTGRES_DB:-edens_zac}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -49,10 +49,14 @@ services:
       AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q --spider http://localhost:8080/api/read/collections || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 volumes:
   postgres_data:

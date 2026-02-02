@@ -222,7 +222,7 @@ class CollectionServiceImpl implements CollectionService {
     }
 
     // Handle collection updates using prev/new/remove pattern
-    // This manages which parent collections this collection belongs to
+    // This manages child collections within this parent collection
     if (updateDTO.getCollections() != null) {
       handleCollectionToCollectionUpdates(entity, updateDTO.getCollections());
     }
@@ -750,28 +750,26 @@ class CollectionServiceImpl implements CollectionService {
   }
 
   /**
-   * Find ContentCollectionEntity entries in the parent collection that reference
-   * collections
-   * matching the IDs in the remove list.
+   * Find ContentCollectionEntity entries in the parent collection that match the provided IDs.
+   * Accepts both content IDs (ContentCollectionEntity.id) and referenced collection IDs for
+   * flexibility.
    *
-   * @param parentCollection      The parent collection to search in
-   * @param collectionIdsToRemove The IDs of collections that should be removed
-   * @return List of ContentCollectionEntity entries that match, empty list if
-   *         none found
+   * @param parentCollection The parent collection to search in
+   * @param idsToRemove IDs to match - can be either ContentCollectionEntity IDs or referenced
+   *     collection IDs
+   * @return List of ContentCollectionEntity entries that match, empty list if none found
    */
   private List<ContentCollectionEntity> findCurrentContentCollections(
-      CollectionEntity parentCollection, List<Long> collectionIdsToRemove) {
-    if (parentCollection == null
-        || collectionIdsToRemove == null
-        || collectionIdsToRemove.isEmpty()) {
+      CollectionEntity parentCollection, List<Long> idsToRemove) {
+    if (parentCollection == null || idsToRemove == null || idsToRemove.isEmpty()) {
       return Collections.emptyList();
     }
 
     List<ContentCollectionEntity> matchingContentCollections = new ArrayList<>();
 
     // Get all join table entries for this parent collection
-    List<CollectionContentEntity> joinEntries = collectionContentDao
-        .findByCollectionIdOrderByOrderIndex(parentCollection.getId());
+    List<CollectionContentEntity> joinEntries =
+        collectionContentDao.findByCollectionIdOrderByOrderIndex(parentCollection.getId());
 
     for (CollectionContentEntity joinEntry : joinEntries) {
       Long contentId = joinEntry.getContentId();
@@ -780,25 +778,39 @@ class CollectionServiceImpl implements CollectionService {
       }
 
       // Load the content entity to check if it's a ContentCollectionEntity
-      ContentCollectionEntity contentCollectionEntity = contentCollectionDao.findById(contentId).orElse(null);
+      ContentCollectionEntity contentCollectionEntity =
+          contentCollectionDao.findById(contentId).orElse(null);
       if (contentCollectionEntity != null) {
+        // Check if the ID matches either:
+        // 1. The ContentCollectionEntity ID (content table ID) - matches API response "id" field
+        // 2. The referenced collection ID - matches API response "referencedCollectionId" field
+        Long contentCollectionId = contentCollectionEntity.getId();
         CollectionEntity referencedCollection = contentCollectionEntity.getReferencedCollection();
-        if (referencedCollection != null
-            && collectionIdsToRemove.contains(referencedCollection.getId())) {
+        Long referencedCollectionId =
+            referencedCollection != null ? referencedCollection.getId() : null;
+
+        boolean matchesContentId = idsToRemove.contains(contentCollectionId);
+        boolean matchesReferencedId =
+            referencedCollectionId != null && idsToRemove.contains(referencedCollectionId);
+
+        if (matchesContentId || matchesReferencedId) {
           matchingContentCollections.add(contentCollectionEntity);
           log.debug(
-              "Found matching ContentCollectionEntity {} referencing collection {} for removal",
-              contentCollectionEntity.getId(),
-              referencedCollection.getId());
+              "Found matching ContentCollectionEntity {} (referencedCollectionId={}) for removal"
+                  + " (matched by {})",
+              contentCollectionId,
+              referencedCollectionId,
+              matchesContentId ? "contentId" : "referencedCollectionId");
         }
       }
     }
 
     if (matchingContentCollections.isEmpty()) {
       log.debug(
-          "No matching ContentCollectionEntity entries found for removal in collection {} (searched for IDs: {})",
+          "No matching ContentCollectionEntity entries found for removal in collection {}"
+              + " (searched for IDs: {})",
           parentCollection.getId(),
-          collectionIdsToRemove);
+          idsToRemove);
     } else {
       log.debug(
           "Found {} matching ContentCollectionEntity entries for removal in collection {}",
