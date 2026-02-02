@@ -84,18 +84,24 @@ public class ImageMetadata {
         new SimpleStringExtractor()),
 
     /**
-     * Image capture date from EXIF/XMP metadata. Uses the original capture date/time
-     * from when the photo was taken, not the file modification date.
-     * 
-     * <p>EXIF tags: "Date/Time Original" is the actual tag name format used by the
+     * Image capture date from EXIF/XMP metadata. Uses the original capture
+     * date/time from when the
+     * photo was taken, not the file modification date.
+     *
+     * <p>
+     * EXIF tags: "Date/Time Original" is the actual tag name format used by the
      * metadata-extractor library (with spaces and slashes). "DateTimeOriginal" is
-     * included as a fallback for other tag name variations.
-     * 
-     * <p>XMP property: Uses "DateTimeOriginal" (not "CreateDate") because:
-     * - "DateTimeOriginal" is the EXIF standard property name in XMP that corresponds
-     *   to the EXIF DateTimeOriginal tag
-     * - "CreateDate" is a different XMP property that may represent file creation time
-     *   rather than image capture time
+     * included as a
+     * fallback for other tag name variations.
+     *
+     * <p>
+     * XMP property: Uses "DateTimeOriginal" (not "CreateDate") because: -
+     * "DateTimeOriginal" is
+     * the EXIF standard property name in XMP that corresponds to the EXIF
+     * DateTimeOriginal tag -
+     * "CreateDate" is a different XMP property that may represent file creation
+     * time rather than
+     * image capture time
      */
     CREATE_DATE(
         "createDate",

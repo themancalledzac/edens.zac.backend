@@ -54,8 +54,11 @@ class CollectionControllerDevTest {
     objectMapper = new ObjectMapper();
     objectMapper.findAndRegisterModules();
 
-    // Set up MockMvc
-    mockMvc = MockMvcBuilders.standaloneSetup(contentCollectionController).build();
+    // Set up MockMvc with GlobalExceptionHandler
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(contentCollectionController)
+            .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+            .build();
 
     // Create test collection model (for updateContent, addContents)
     testCollection = new CollectionModel();
@@ -94,6 +97,7 @@ class CollectionControllerDevTest {
 
     // Create test update DTO
     testUpdateDTO = new CollectionUpdateRequest();
+    testUpdateDTO.setId(1L);
     testUpdateDTO.setTitle("Updated Test Blog");
     testUpdateDTO.setDescription("An updated test blog collection");
   }
@@ -133,7 +137,7 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testCreateRequest)))
         .andExpect(status().isInternalServerError())
-        .andExpect(jsonPath("$", containsString("Failed to create collection")));
+        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
     verify(collectionService).createCollection(any(CollectionCreateRequest.class));
   }
@@ -152,8 +156,8 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testUpdateDTO)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id", is(1)))
-        .andExpect(jsonPath("$.title", is("Test Blog")));
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.title").value("Test Blog"));
 
     verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
   }
@@ -162,6 +166,10 @@ class CollectionControllerDevTest {
   @DisplayName("PUT /collections/{id} should handle not found error")
   void updateCollection_shouldHandleNotFoundError() throws Exception {
     // Arrange
+    CollectionUpdateRequest notFoundUpdateDTO = new CollectionUpdateRequest();
+    notFoundUpdateDTO.setId(999L);
+    notFoundUpdateDTO.setTitle("Updated Test Blog");
+
     when(collectionService.updateContent(eq(999L), any(CollectionUpdateRequest.class)))
         .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
 
@@ -170,9 +178,9 @@ class CollectionControllerDevTest {
         .perform(
             put("/api/admin/collections/999")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(testUpdateDTO)))
+                .content(objectMapper.writeValueAsString(notFoundUpdateDTO)))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$", containsString("not found")));
+        .andExpect(jsonPath("$.message", containsString("not found")));
 
     verify(collectionService).updateContent(eq(999L), any(CollectionUpdateRequest.class));
   }
@@ -186,8 +194,7 @@ class CollectionControllerDevTest {
     // Act & Assert
     mockMvc
         .perform(delete("/api/admin/collections/1"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", is("Collection deleted successfully")));
+        .andExpect(status().isNoContent());
 
     verify(collectionService).deleteCollection(1L);
   }
@@ -204,7 +211,7 @@ class CollectionControllerDevTest {
     mockMvc
         .perform(delete("/api/admin/collections/999"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$", containsString("not found")));
+        .andExpect(jsonPath("$.message", containsString("not found")));
 
     verify(collectionService).deleteCollection(999L);
   }
@@ -253,7 +260,7 @@ class CollectionControllerDevTest {
     mockMvc
         .perform(get("/api/admin/collections/metadata"))
         .andExpect(status().isInternalServerError())
-        .andExpect(jsonPath("$", containsString("Failed to retrieve general metadata")));
+        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
     verify(collectionService).getGeneralMetadata();
   }
@@ -294,7 +301,7 @@ class CollectionControllerDevTest {
     mockMvc
         .perform(get("/api/admin/collections/non-existent-slug/update"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$", containsString("not found")));
+        .andExpect(jsonPath("$.message", containsString("not found")));
 
     verify(collectionService).getUpdateCollectionData("non-existent-slug");
   }
@@ -310,7 +317,7 @@ class CollectionControllerDevTest {
     mockMvc
         .perform(get("/api/admin/collections/test-blog/update"))
         .andExpect(status().isInternalServerError())
-        .andExpect(jsonPath("$", containsString("Failed to retrieve update data")));
+        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
     verify(collectionService).getUpdateCollectionData("test-blog");
   }
@@ -423,10 +430,12 @@ class CollectionControllerDevTest {
   void getAllCollectionsOrderedByDate_shouldReturnAllCollections() throws Exception {
     // Arrange
     List<CollectionModel> collections = List.of(testCollection);
-    org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 50);
+    org.springframework.data.domain.Pageable pageable =
+        org.springframework.data.domain.PageRequest.of(0, 50);
     org.springframework.data.domain.Page<CollectionModel> page =
         new org.springframework.data.domain.PageImpl<>(collections, pageable, collections.size());
-    when(collectionService.getAllCollections(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
+    when(collectionService.getAllCollections(any(org.springframework.data.domain.Pageable.class)))
+        .thenReturn(page);
 
     // Act & Assert
     mockMvc
@@ -437,7 +446,8 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.content[0].title", is("Test Blog")))
         .andExpect(jsonPath("$.content[0].slug", is("test-blog")));
 
-    verify(collectionService).getAllCollections(any(org.springframework.data.domain.Pageable.class));
+    verify(collectionService)
+        .getAllCollections(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test
@@ -451,9 +461,10 @@ class CollectionControllerDevTest {
     mockMvc
         .perform(get("/api/admin/collections/all"))
         .andExpect(status().isInternalServerError())
-        .andExpect(jsonPath("$", containsString("Failed to retrieve collections")));
+        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
-    verify(collectionService).getAllCollections(any(org.springframework.data.domain.Pageable.class));
+    verify(collectionService)
+        .getAllCollections(any(org.springframework.data.domain.Pageable.class));
   }
 
   @Test
@@ -501,7 +512,7 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reorderRequest)))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$", containsString("not found")));
+        .andExpect(jsonPath("$.message", containsString("not found")));
 
     verify(collectionService).reorderContent(eq(999L), any(CollectionReorderRequest.class));
   }
@@ -524,7 +535,7 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reorderRequest)))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$", containsString("Invalid reorder request")));
+        .andExpect(jsonPath("$.message", containsString("Invalid order index")));
 
     verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
   }
@@ -547,7 +558,7 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reorderRequest)))
         .andExpect(status().isInternalServerError())
-        .andExpect(jsonPath("$", containsString("Failed to reorder content")));
+        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
     verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
   }

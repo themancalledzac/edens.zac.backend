@@ -5,18 +5,26 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
 import edens.zac.portfolio.backend.types.CollectionType;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-// TODO: Probably update 'read' endpoints to just '/api/collections'
+/**
+ * Production controller for Collection read operations. Exception handling is
+ * delegated to
+ * GlobalExceptionHandler.
+ */
 @Slf4j
 @RequiredArgsConstructor
 @RestController
@@ -26,33 +34,22 @@ public class CollectionControllerProd {
   private final CollectionService collectionService;
 
   /**
-   * Get all collections with basic info (paginated)
+   * Get all collections with basic info (paginated).
    *
    * @param page Page number (0-based)
    * @param size Page size
    * @return ResponseEntity with paginated collections
    */
   @GetMapping
-  public ResponseEntity<?> getAllCollections(
+  public ResponseEntity<Page<CollectionModel>> getAllCollections(
       @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-    try {
-      Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
-      Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
-
-      return ResponseEntity.ok(collections);
-    } catch (Exception e) {
-      log.error("Error getting all collections: {}", e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to retrieve collections: " + e.getMessage());
-    }
+    Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
+    Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
+    return ResponseEntity.ok(collections);
   }
 
   /**
-   * Get collection by slug with paginated content TODO: Need to work on a 'admin' vs 'regular'
-   * endpoint here, where: - regular would check if 'hasAccess' is true. if true, we would simply
-   * return a response body of 'no access' - admin would simply return all regardless. - Curious if
-   * we can just extend this, or otherwise duplicate it, while keeping 'local' dev development truly
-   * local only - Might be easiest to simply have a CollectionControllerDev endpoint to save time
+   * Get collection by slug with paginated content.
    *
    * @param slug Collection slug
    * @param page Page number (0-based)
@@ -60,99 +57,60 @@ public class CollectionControllerProd {
    * @return ResponseEntity with collection and paginated content
    */
   @GetMapping("/{slug}")
-  public ResponseEntity<?> getCollectionBySlug(
+  public ResponseEntity<CollectionModel> getCollectionBySlug(
       @PathVariable String slug,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "30") int size) {
-    try {
-      // Normalize pagination parameters
-      int normalizedPage = PaginationUtil.normalizePage(page);
-      int normalizedSize =
-          PaginationUtil.normalizeSize(size, DefaultValues.default_content_per_page);
+    int normalizedPage = PaginationUtil.normalizePage(page);
+    int normalizedSize = PaginationUtil.normalizeSize(size, DefaultValues.default_content_per_page);
 
-      CollectionModel collection =
-          collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
-      return ResponseEntity.ok(collection);
-    } catch (IllegalArgumentException e) {
-      log.warn("Collection not found: {}", slug);
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .body("Collection with slug: " + slug + " not found");
-    } catch (Exception e) {
-      log.error("Error getting collection {}: {}", slug, e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to retrieve collection: " + e.getMessage());
-    }
+    CollectionModel collection = collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
+    return ResponseEntity.ok(collection);
   }
 
   /**
-   * Get visible collections by type ordered by collection date (newest first) Currently only
+   * Get visible collections by type ordered by collection date (newest first).
+   * Currently only
    * accepts BLOG type.
    *
    * @param type Collection type (currently only BLOG is supported)
-   * @return ResponseEntity with list of visible collections of the specified type as
-   *     CollectionModel objects
+   * @return ResponseEntity with list of visible collections of the specified type
    */
   @GetMapping("/type/{type}")
-  public ResponseEntity<?> getCollectionsByType(@PathVariable String type) {
+  public ResponseEntity<List<CollectionModel>> getCollectionsByType(@PathVariable String type) {
+    CollectionType collectionType;
     try {
-      // Convert string type to enum
-      CollectionType collectionType;
-      try {
-        collectionType = CollectionType.valueOf(type.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body("Invalid collection type: " + type);
-      }
-
-      // Currently only BLOG type is supported
-      if (collectionType != CollectionType.BLOG) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body("Only BLOG collection type is currently supported. Received: " + type);
-      }
-
-      // Get visible collections ordered by date (newest first)
-      List<CollectionModel> collections =
-          collectionService.findVisibleByTypeOrderByDate(collectionType);
-
-      return ResponseEntity.ok(collections);
-    } catch (Exception e) {
-      log.error("Error getting collections by type {}: {}", type, e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to retrieve collections: " + e.getMessage());
+      collectionType = CollectionType.valueOf(type.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Invalid collection type: " + type);
     }
+
+    if (collectionType != CollectionType.BLOG) {
+      throw new IllegalArgumentException(
+          "Only BLOG collection type is currently supported. Received: " + type);
+    }
+
+    List<CollectionModel> collections = collectionService.findVisibleByTypeOrderByDate(collectionType);
+    return ResponseEntity.ok(collections);
   }
 
   /**
-   * Validate client gallery access with password
+   * Validate client gallery access with password.
    *
-   * @param slug Collection slug
+   * @param slug            Collection slug
    * @param passwordRequest Request body containing password
    * @return ResponseEntity with access status
    */
   @PostMapping("/{slug}/access")
-  public ResponseEntity<?> validateClientGalleryAccess(
+  public ResponseEntity<Map<String, Boolean>> validateClientGalleryAccess(
       @PathVariable String slug, @RequestBody Map<String, String> passwordRequest) {
-    try {
-      String password = passwordRequest.get("password");
+    String password = passwordRequest.get("password");
 
-      if (password == null) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Password is required");
-      }
-
-      boolean hasAccess = collectionService.validateClientGalleryAccess(slug, password);
-
-      Map<String, Object> response = new HashMap<>();
-      response.put("hasAccess", hasAccess);
-
-      return ResponseEntity.ok(response);
-    } catch (IllegalArgumentException e) {
-      log.warn("Collection not found: {}", slug);
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .body("Collection with slug: " + slug + " not found");
-    } catch (Exception e) {
-      log.error("Error validating access for collection {}: {}", slug, e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to validate access: " + e.getMessage());
+    if (password == null) {
+      throw new IllegalArgumentException("Password is required");
     }
+
+    boolean hasAccess = collectionService.validateClientGalleryAccess(slug, password);
+    return ResponseEntity.ok(Map.of("hasAccess", hasAccess));
   }
 }

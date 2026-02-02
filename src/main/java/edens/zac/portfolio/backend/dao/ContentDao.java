@@ -199,8 +199,9 @@ public class ContentDao extends BaseDao {
   }
 
   /**
-   * Batch fetch multiple images by IDs in a single query.
-   * More efficient than calling findImageById in a loop (avoids N+1).
+   * Batch fetch multiple images by IDs in a single query. More efficient than
+   * calling findImageById
+   * in a loop (avoids N+1).
    */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findImagesByIds(List<Long> ids) {
@@ -224,22 +225,19 @@ public class ContentDao extends BaseDao {
   }
 
   /**
-   * Find images with pagination, ordered by createDate DESC.
-   * Uses database-level LIMIT and OFFSET for efficient pagination.
+   * Find images with pagination, ordered by createDate DESC. Uses database-level
+   * LIMIT and OFFSET
+   * for efficient pagination.
    */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc(int limit, int offset) {
     String sql = SELECT_CONTENT_IMAGE
         + " ORDER BY ci.create_date DESC NULLS LAST, c.created_at DESC LIMIT :limit OFFSET :offset";
-    MapSqlParameterSource params = createParameterSource()
-        .addValue("limit", limit)
-        .addValue("offset", offset);
+    MapSqlParameterSource params = createParameterSource().addValue("limit", limit).addValue("offset", offset);
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
-  /**
-   * Count total number of images.
-   */
+  /** Count total number of images. */
   @Transactional(readOnly = true)
   public int countImages() {
     String sql = "SELECT COUNT(*) FROM content WHERE content_type = 'IMAGE'";
@@ -509,7 +507,8 @@ public class ContentDao extends BaseDao {
   }
 
   /**
-   * Batch fetch person IDs for multiple images. Returns a map of imageId -> list of person IDs.
+   * Batch fetch person IDs for multiple images. Returns a map of imageId -> list
+   * of person IDs.
    * More efficient than calling findImagePersonIds in a loop (avoids N+1).
    *
    * @param imageIds List of image IDs

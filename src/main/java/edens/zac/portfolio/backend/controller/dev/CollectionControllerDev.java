@@ -8,22 +8,30 @@ import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
-import java.util.List;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Controller for Collection write operations (dev environment only). Provides
  * endpoints for
- * creating, updating, and managing collections.
+ * creating, updating, and managing collections. Exception handling is delegated
+ * to
+ * GlobalExceptionHandler.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -36,103 +44,68 @@ public class CollectionControllerDev {
   private final CollectionService collectionService;
 
   /**
-   * Create a new collection
+   * Create a new collection.
    *
    * @param createRequest Collection creation data
    * @return ResponseEntity with the created collection and all metadata for the
    *         manage page
    */
-  @PostMapping(value = "/createCollection", consumes = { MediaType.APPLICATION_JSON_VALUE })
-  public ResponseEntity<?> createCollection(@RequestBody CollectionCreateRequest createRequest) {
-    try {
-      // Create collection and get full update response with all metadata (tags,
-      // people, cameras,
-      // etc.)
-      CollectionUpdateResponseDTO response = collectionService.createCollection(createRequest);
-      log.info("Successfully created collection: {}", response.getCollection().getId());
-
-      return ResponseEntity.ok(response);
-    } catch (Exception e) {
-      log.error("Error creating collection: {}", e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to create collection: " + e.getMessage());
-    }
+  @PostMapping(value = "/createCollection", consumes = "application/json")
+  public ResponseEntity<CollectionUpdateResponseDTO> createCollection(
+      @RequestBody @Valid CollectionCreateRequest createRequest) {
+    CollectionUpdateResponseDTO response = collectionService.createCollection(createRequest);
+    log.info("Created collection: {}", response.getCollection().getId());
+    return ResponseEntity.ok(response);
   }
 
   /**
-   * Update collection metadata. Accepts partial updates
+   * Update collection metadata. Accepts partial updates.
    *
    * @param id        Collection ID
    * @param updateDTO DTO with update data
    * @return ResponseEntity with updated collection
    */
   @PutMapping("/{id}")
-  public ResponseEntity<?> updateCollection(
-      @PathVariable Long id, @RequestBody CollectionUpdateRequest updateDTO) {
-    try {
-      log.debug("Updating collection {} with request: {}", id, updateDTO);
-      CollectionModel updatedCollection = collectionService.updateContent(id, updateDTO);
-      log.info("Successfully updated collection: {}", updatedCollection.getId());
-
-      return ResponseEntity.ok(updatedCollection);
-    } catch (IllegalArgumentException e) {
-      log.warn("Collection not found: {}", id);
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .body("Collection with ID: " + id + " not found");
-    } catch (Exception e) {
-      log.error("Error updating collection {}: {}", id, e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to update collection: " + e.getMessage());
-    }
+  public ResponseEntity<CollectionModel> updateCollection(
+      @PathVariable Long id, @RequestBody @Valid CollectionUpdateRequest updateDTO) {
+    log.debug("Updating collection {} with request: {}", id, updateDTO);
+    CollectionModel updatedCollection = collectionService.updateContent(id, updateDTO);
+    log.info("Updated collection: {}", updatedCollection.getId());
+    return ResponseEntity.ok(updatedCollection);
   }
 
   /**
-   * Delete a collection
+   * Delete a collection.
    *
    * @param id Collection ID
-   * @return ResponseEntity with success message
+   * @return ResponseEntity with no content
    */
   @DeleteMapping("/{id}")
-  public ResponseEntity<?> deleteCollection(@PathVariable Long id) {
-    try {
-      collectionService.deleteCollection(id);
-      log.info("Successfully deleted collection: {}", id);
-
-      return ResponseEntity.ok("Collection deleted successfully");
-    } catch (IllegalArgumentException e) {
-      log.warn("Collection not found: {}", id);
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .body("Collection with ID: " + id + " not found");
-    } catch (Exception e) {
-      log.error("Error deleting collection {}: {}", id, e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to delete collection: " + e.getMessage());
-    }
+  public ResponseEntity<Void> deleteCollection(@PathVariable Long id) {
+    collectionService.deleteCollection(id);
+    log.info("Deleted collection: {}", id);
+    return ResponseEntity.noContent().build();
   }
 
   /**
-   * Get all collections ordered by collection date (paginated). Returns all collections regardless
-   * of visibility, hidden status, or lacking images. Dev/admin only endpoint for viewing complete
+   * Get all collections ordered by collection date (paginated). Returns all
+   * collections regardless
+   * of visibility, hidden status, or lacking images. Dev/admin only endpoint for
+   * viewing complete
    * collection list.
    *
    * @param page Page number (0-based)
    * @param size Page size (default: 50)
-   * @return ResponseEntity with paginated collections ordered by collection date DESC
+   * @return ResponseEntity with paginated collections ordered by collection date
+   *         DESC
    */
   @GetMapping("/all")
-  public ResponseEntity<?> getAllCollectionsOrderedByDate(
+  public ResponseEntity<Page<CollectionModel>> getAllCollectionsOrderedByDate(
       @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-    try {
-      Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
-      Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
-      log.info("Successfully retrieved {} collections ordered by date", collections.getSize());
-
-      return ResponseEntity.ok(collections);
-    } catch (Exception e) {
-      log.error("Error retrieving all collections: {}", e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to retrieve collections: " + e.getMessage());
-    }
+    Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
+    Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
+    log.debug("Retrieved {} collections ordered by date", collections.getNumberOfElements());
+    return ResponseEntity.ok(collections);
   }
 
   /**
@@ -146,20 +119,11 @@ public class CollectionControllerDev {
    * @return ResponseEntity with collection and metadata
    */
   @GetMapping("/{slug}/update")
-  public ResponseEntity<?> getUpdateCollection(@PathVariable String slug) {
-    try {
-      CollectionUpdateResponseDTO response = collectionService.getUpdateCollectionData(slug);
-      log.info("Successfully retrieved update data for collection: {}", slug);
-      return ResponseEntity.ok(response);
-    } catch (IllegalArgumentException e) {
-      log.warn("Collection not found: {}", slug);
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .body("Collection with slug: " + slug + " not found");
-    } catch (Exception e) {
-      log.error("Error retrieving update data for collection {}: {}", slug, e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to retrieve update data: " + e.getMessage());
-    }
+  public ResponseEntity<CollectionUpdateResponseDTO> getUpdateCollection(
+      @PathVariable String slug) {
+    CollectionUpdateResponseDTO response = collectionService.getUpdateCollectionData(slug);
+    log.debug("Retrieved update data for collection: {}", slug);
+    return ResponseEntity.ok(response);
   }
 
   /**
@@ -172,16 +136,10 @@ public class CollectionControllerDev {
    * @return ResponseEntity with general metadata
    */
   @GetMapping("/metadata")
-  public ResponseEntity<?> getMetadata() {
-    try {
-      GeneralMetadataDTO response = collectionService.getGeneralMetadata();
-      log.info("Successfully retrieved general metadata");
-      return ResponseEntity.ok(response);
-    } catch (Exception e) {
-      log.error("Error retrieving general metadata: {}", e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to retrieve general metadata: " + e.getMessage());
-    }
+  public ResponseEntity<GeneralMetadataDTO> getMetadata() {
+    GeneralMetadataDTO response = collectionService.getGeneralMetadata();
+    log.debug("Retrieved general metadata");
+    return ResponseEntity.ok(response);
   }
 
   /**
@@ -197,33 +155,14 @@ public class CollectionControllerDev {
    * @return ResponseEntity with updated collection
    */
   @PostMapping("/{collectionId}/reorder")
-  public ResponseEntity<?> reorderCollectionContent(
-      @PathVariable Long collectionId, @RequestBody CollectionReorderRequest request) {
-    try {
-      log.debug(
-          "Reordering content in collection {} with {} reorder operations",
-          collectionId,
-          request.getReorders().size());
-      CollectionModel updatedCollection = collectionService.reorderContent(collectionId, request);
-      log.info("Successfully reordered content in collection: {}", collectionId);
-      return ResponseEntity.ok(updatedCollection);
-    } catch (IllegalArgumentException e) {
-      // Check error message to determine if it's a "not found" or "invalid request"
-      // error
-      String errorMessage = e.getMessage();
-      if (errorMessage != null && errorMessage.contains("not found")) {
-        log.warn("Collection not found: {}", collectionId);
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body("Collection with ID: " + collectionId + " not found");
-      } else {
-        log.warn("Invalid reorder request for collection {}: {}", collectionId, errorMessage);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body("Invalid reorder request: " + errorMessage);
-      }
-    } catch (Exception e) {
-      log.error("Error reordering content in collection {}: {}", collectionId, e.getMessage(), e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Failed to reorder content: " + e.getMessage());
-    }
+  public ResponseEntity<CollectionModel> reorderCollectionContent(
+      @PathVariable Long collectionId, @RequestBody @Valid CollectionReorderRequest request) {
+    log.debug(
+        "Reordering content in collection {} with {} reorder operations",
+        collectionId,
+        request.getReorders().size());
+    CollectionModel updatedCollection = collectionService.reorderContent(collectionId, request);
+    log.info("Reordered content in collection: {}", collectionId);
+    return ResponseEntity.ok(updatedCollection);
   }
 }

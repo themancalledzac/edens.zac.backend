@@ -17,7 +17,6 @@ import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidato
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.services.validator.MetadataValidator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,9 +61,9 @@ class ContentServiceImpl implements ContentService {
   private final ContentValidator contentValidator;
 
   // Virtual thread executor for parallel image processing (Java 21+)
-  // Virtual threads are lightweight and don't consume OS threads while waiting on I/O
-  private final ExecutorService imageProcessingExecutor =
-      Executors.newVirtualThreadPerTaskExecutor();
+  // Virtual threads are lightweight and don't consume OS threads while waiting on
+  // I/O
+  private final ExecutorService imageProcessingExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
   @Override
   @Transactional
@@ -121,7 +120,8 @@ class ContentServiceImpl implements ContentService {
     if (bodySerialNumber != null && !bodySerialNumber.trim().isEmpty()) {
       Optional<ContentCameraEntity> existing = contentCameraDao.findByBodySerialNumber(bodySerialNumber);
       if (existing.isPresent()) {
-        throw new DataIntegrityViolationException("Camera with serial number already exists: " + bodySerialNumber);
+        throw new DataIntegrityViolationException(
+            "Camera with serial number already exists: " + bodySerialNumber);
       }
     }
 
@@ -155,7 +155,8 @@ class ContentServiceImpl implements ContentService {
     if (lensSerialNumber != null && !lensSerialNumber.trim().isEmpty()) {
       Optional<ContentLensEntity> existing = contentLensDao.findByLensSerialNumber(lensSerialNumber);
       if (existing.isPresent()) {
-        throw new DataIntegrityViolationException("Lens with serial number already exists: " + lensSerialNumber);
+        throw new DataIntegrityViolationException(
+            "Lens with serial number already exists: " + lensSerialNumber);
       }
     }
 
@@ -524,8 +525,9 @@ class ContentServiceImpl implements ContentService {
   }
 
   /**
-   * OPTIMIZED: Update image tags with pre-fetched current tag IDs (avoids N+1 query).
-   * Used in batch update operations.
+   * OPTIMIZED: Update image tags with pre-fetched current tag IDs (avoids N+1
+   * query). Used in batch
+   * update operations.
    */
   private void updateImageTagsOptimized(
       ContentImageEntity image,
@@ -648,8 +650,9 @@ class ContentServiceImpl implements ContentService {
   }
 
   /**
-   * OPTIMIZED: Update image people with pre-fetched current person IDs (avoids N+1 query).
-   * Used in batch update operations.
+   * OPTIMIZED: Update image people with pre-fetched current person IDs (avoids
+   * N+1 query). Used in
+   * batch update operations.
    */
   private void updateImagePeopleOptimized(
       ContentImageEntity image,
@@ -835,16 +838,17 @@ class ContentServiceImpl implements ContentService {
 
     // Convert to models
     List<ContentImageModel> imageModels = imageEntities.stream()
-        .map(entity -> (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(entity))
+        .map(
+            entity -> (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(entity))
         .collect(Collectors.toList());
 
     return new org.springframework.data.domain.PageImpl<>(imageModels, pageable, total);
   }
 
   /**
-   * ORIGINAL METHOD: Sequential image processing.
-   * DEPRECATED: Use createImagesParallel() for better performance.
-   * Kept for backward compatibility.
+   * ORIGINAL METHOD: Sequential image processing. DEPRECATED: Use
+   * createImagesParallel() for better
+   * performance. Kept for backward compatibility.
    */
   @Override
   @Transactional
@@ -937,20 +941,28 @@ class ContentServiceImpl implements ContentService {
   /**
    * OPTIMIZED: Create and upload images with parallel processing.
    *
-   * <p>Architecture: 1. PARALLEL: Process images (S3 upload, resize, convert) using virtual
-   * threads 2. SEQUENTIAL: Save to database in a single short transaction
+   * <p>
+   * Architecture: 1. PARALLEL: Process images (S3 upload, resize, convert) using
+   * virtual threads
+   * 2. SEQUENTIAL: Save to database in a single short transaction
    *
-   * <p>Benefits: - No connection leaks (database operations are fast and transactional) -
-   * Parallel S3 uploads (5-10x faster for batch uploads) - Virtual threads don't block OS threads
-   * during I/O - Better error handling per file
+   * <p>
+   * Benefits: - No connection leaks (database operations are fast and
+   * transactional) - Parallel
+   * S3 uploads (5-10x faster for batch uploads) - Virtual threads don't block OS
+   * threads during I/O
+   * - Better error handling per file
    *
    * @param collectionId ID of the collection to add images to
-   * @param files List of image files to upload
+   * @param files        List of image files to upload
    * @return List of successfully created images
    */
   public List<ContentImageModel> createImagesParallel(
       Long collectionId, List<MultipartFile> files) {
-    log.info("Creating {} images for collection {} with parallel processing", files.size(), collectionId);
+    log.info(
+        "Creating {} images for collection {} with parallel processing",
+        files.size(),
+        collectionId);
 
     contentValidator.validateFiles(files);
 
@@ -962,7 +974,9 @@ class ContentServiceImpl implements ContentService {
     // PHASE 1: Process images in PARALLEL (S3 upload, resize, convert)
     // This happens OUTSIDE of any transaction - no database connections held
     List<CompletableFuture<ProcessedImage>> futures = files.stream()
-        .map(file -> CompletableFuture.supplyAsync(() -> processImageAsync(file), imageProcessingExecutor))
+        .map(
+            file -> CompletableFuture.supplyAsync(
+                () -> processImageAsync(file), imageProcessingExecutor))
         .toList();
 
     // Wait for all processing to complete
@@ -981,7 +995,8 @@ class ContentServiceImpl implements ContentService {
   }
 
   /**
-   * Process a single image asynchronously (S3 upload, resize, convert). This method runs in a
+   * Process a single image asynchronously (S3 upload, resize, convert). This
+   * method runs in a
    * virtual thread and does NOT touch the database.
    *
    * @param file The image file to process
@@ -1009,7 +1024,8 @@ class ContentServiceImpl implements ContentService {
       }
 
       // Process image: extract metadata, upload to S3, resize, convert
-      // This is the expensive part (network I/O, CPU) that benefits from parallelization
+      // This is the expensive part (network I/O, CPU) that benefits from
+      // parallelization
       ContentImageEntity entity = contentProcessingUtil.processImageContent(file, null);
 
       return new ProcessedImage(entity, filename);
@@ -1023,7 +1039,7 @@ class ContentServiceImpl implements ContentService {
   /**
    * Save processed images to database in a single transaction.
    *
-   * @param collectionId The collection to add images to
+   * @param collectionId    The collection to add images to
    * @param processedImages List of processed image entities
    * @return List of created image models
    */
@@ -1070,7 +1086,8 @@ class ContentServiceImpl implements ContentService {
   }
 
   /** Record to hold processed image data before database save */
-  private record ProcessedImage(ContentImageEntity entity, String filename) {}
+  private record ProcessedImage(ContentImageEntity entity, String filename) {
+  }
 
   @Override
   @Transactional

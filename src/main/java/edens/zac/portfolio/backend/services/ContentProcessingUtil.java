@@ -971,8 +971,8 @@ public class ContentProcessingUtil {
 
   /**
    * Parse EXIF date string to LocalDateTime. EXIF date format is "2026:01:26
-   * 17:48:38"
-   * (YYYY:MM:DD HH:MM:SS).
+   * 17:48:38" (YYYY:MM:DD
+   * HH:MM:SS).
    *
    * @param createDate The date string from EXIF metadata
    * @return LocalDateTime parsed from EXIF date, or null if parsing fails
@@ -1214,8 +1214,8 @@ public class ContentProcessingUtil {
 
   /**
    * Create or find a camera entity. Generates a random UUID serial number if not
-   * provided.
-   * Checks by serial number first (if provided), then by name.
+   * provided. Checks
+   * by serial number first (if provided), then by name.
    *
    * @param cameraName       The camera name (required)
    * @param bodySerialNumber Optional serial number from EXIF metadata
@@ -1223,8 +1223,8 @@ public class ContentProcessingUtil {
    *                         response metadata)
    * @return The camera entity (existing or newly created)
    */
-  public ContentCameraEntity createCamera(String cameraName, String bodySerialNumber,
-      Set<ContentCameraEntity> newCameras) {
+  public ContentCameraEntity createCamera(
+      String cameraName, String bodySerialNumber, Set<ContentCameraEntity> newCameras) {
     if (cameraName == null || cameraName.trim().isEmpty()) {
       throw new IllegalArgumentException("cameraName is required");
     }
@@ -1255,9 +1255,7 @@ public class ContentProcessingUtil {
 
     // Create new camera with generated serial number
     log.info("Creating new camera: {} (serial: {})", cameraName, serialNumber);
-    ContentCameraEntity newCamera = ContentCameraEntity.builder()
-        .cameraName(cameraName)
-        .bodySerialNumber(serialNumber)
+    ContentCameraEntity newCamera = ContentCameraEntity.builder().cameraName(cameraName).bodySerialNumber(serialNumber)
         .build();
     ContentCameraEntity savedCamera = contentCameraDao.save(newCamera);
     if (newCameras != null) {
@@ -1268,8 +1266,8 @@ public class ContentProcessingUtil {
 
   /**
    * Create or find a lens entity. Generates a random UUID serial number if not
-   * provided.
-   * Checks by serial number first (if provided), then by name.
+   * provided. Checks by
+   * serial number first (if provided), then by name.
    *
    * @param lensName         The lens name (required)
    * @param lensSerialNumber Optional serial number from EXIF metadata
@@ -1277,7 +1275,8 @@ public class ContentProcessingUtil {
    *                         response metadata)
    * @return The lens entity (existing or newly created)
    */
-  public ContentLensEntity createLens(String lensName, String lensSerialNumber, Set<ContentLensEntity> newLenses) {
+  public ContentLensEntity createLens(
+      String lensName, String lensSerialNumber, Set<ContentLensEntity> newLenses) {
     if (lensName == null || lensName.trim().isEmpty()) {
       throw new IllegalArgumentException("lensName is required");
     }
@@ -1308,10 +1307,7 @@ public class ContentProcessingUtil {
 
     // Create new lens with generated serial number
     log.info("Creating new lens: {} (serial: {})", lensName, serialNumber);
-    ContentLensEntity newLens = ContentLensEntity.builder()
-        .lensName(lensName)
-        .lensSerialNumber(serialNumber)
-        .build();
+    ContentLensEntity newLens = ContentLensEntity.builder().lensName(lensName).lensSerialNumber(serialNumber).build();
     ContentLensEntity savedLens = contentLensDao.save(newLens);
     if (newLenses != null) {
       newLenses.add(savedLens);
@@ -1755,8 +1751,8 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Load people for a content entity from the database. Populates the entity's people
-   * set with
+   * Load people for a content entity from the database. Populates the entity's
+   * people set with
    * ContentPersonEntity objects.
    *
    * @param entity The content entity (ContentImageEntity)

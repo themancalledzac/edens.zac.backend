@@ -88,7 +88,8 @@ public class CollectionUpdateRequest {
   private PersonUpdate people;
 
   /**
-   * Collection updates using prev/new/remove pattern. Used to manage child collections within this
+   * Collection updates using prev/new/remove pattern. Used to manage child
+   * collections within this
    * collection (add, remove, update visibility/order of nested collections).
    */
   private CollectionUpdate collections;

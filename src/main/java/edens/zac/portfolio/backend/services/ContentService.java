@@ -144,7 +144,8 @@ public interface ContentService {
   List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files);
 
   /**
-   * Create one or more images and associate them with a collection using parallel processing.
+   * Create one or more images and associate them with a collection using parallel
+   * processing.
    * OPTIMIZED version that processes images concurrently for better performance.
    *
    * @param collectionId ID of the collection to associate images with

@@ -221,7 +221,8 @@ class ContentImageModelTest {
     setupValidContentImage();
     contentImage.setTitle("A".repeat(251)); // Error 1: title too long
     contentImage.setAuthor("A".repeat(101)); // Error 2: author too long
-    contentImage.setLocation(LocationModel.builder().id(1L).name("A".repeat(256)).build()); // Error 3: location too long
+    contentImage.setLocation(
+        LocationModel.builder().id(1L).name("A".repeat(256)).build()); // Error 3: location too long
     contentImage.setOrderIndex(-1); // Error 4: negative orderIndex
 
     // Act
@@ -308,7 +309,8 @@ class ContentImageModelTest {
     contentImage.setShutterSpeed("1/125");
     contentImage.setCamera(new ContentCameraModel());
     contentImage.setFocalLength("35mm");
-    contentImage.setLocation(LocationModel.builder().id(1L).name("Arches National Park, Utah").build());
+    contentImage.setLocation(
+        LocationModel.builder().id(1L).name("Arches National Park, Utah").build());
     contentImage.setCreateDate("2024-03-15");
 
     // Act

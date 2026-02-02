@@ -16,10 +16,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for CollectionBaseModel Tests validation annotations, builder
- * pattern, and common
- * functionality Uses CollectionModel as concrete implementation to test the
- * abstract base class
+ * Unit tests for CollectionBaseModel Tests validation annotations, builder pattern, and common
+ * functionality Uses CollectionModel as concrete implementation to test the abstract base class
  */
 class CollectionBaseModelTest {
 
@@ -51,19 +49,20 @@ class CollectionBaseModelTest {
       LocalDateTime now = LocalDateTime.now();
       LocalDate today = LocalDate.now();
 
-      CollectionModel model = CollectionModel.builder()
-          .id(1L)
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .description("Valid description")
-          .location(LocationModel.builder().id(1L).name("Valid location").build())
-          .collectionDate(today)
-          .visible(true)
-          .coverImage(createTestContentImage("https://example.com/cover.jpg"))
-          .createdAt(now)
-          .updatedAt(now)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .description("Valid description")
+              .location(LocationModel.builder().id(1L).name("Valid location").build())
+              .collectionDate(today)
+              .visible(true)
+              .coverImage(createTestContentImage("https://example.com/cover.jpg"))
+              .createdAt(now)
+              .updatedAt(now)
+              .build();
 
       assertNotNull(model);
       assertEquals(1L, model.getId());
@@ -84,7 +83,8 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should create model with minimal required fields")
     void shouldCreateModelWithMinimalFields() {
-      CollectionModel model = CollectionModel.builder().type(CollectionType.BLOG).title("Min").slug("min").build();
+      CollectionModel model =
+          CollectionModel.builder().type(CollectionType.BLOG).title("Min").slug("min").build();
 
       assertNotNull(model);
       assertEquals(CollectionType.BLOG, model.getType());
@@ -114,11 +114,12 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should accept valid title")
     void shouldAcceptValidTitle() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -127,11 +128,12 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should reject title that is too short")
     void shouldRejectTitleTooShort() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("AB") // Only 2 characters
-          .slug("valid-slug")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("AB") // Only 2 characters
+              .slug("valid-slug")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -146,11 +148,12 @@ class CollectionBaseModelTest {
     void shouldRejectTitleTooLong() {
       String longTitle = "A".repeat(101); // 101 characters
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title(longTitle)
-          .slug("valid-slug")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title(longTitle)
+              .slug("valid-slug")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -163,11 +166,12 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should accept title at minimum length boundary")
     void shouldAcceptTitleAtMinBoundary() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title("ABC") // Exactly 3 characters
-          .slug("valid-slug")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("ABC") // Exactly 3 characters
+              .slug("valid-slug")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -178,11 +182,12 @@ class CollectionBaseModelTest {
     void shouldAcceptTitleAtMaxBoundary() {
       String maxTitle = "A".repeat(100); // Exactly 100 characters
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.BLOG)
-          .title(maxTitle)
-          .slug("valid-slug")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title(maxTitle)
+              .slug("valid-slug")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -196,11 +201,12 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should accept valid slug")
     void shouldAcceptValidSlug() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("valid-slug-123")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("valid-slug-123")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -209,11 +215,12 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should reject slug that is too short")
     void shouldRejectSlugTooShort() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("AB") // Only 2 characters
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("AB") // Only 2 characters
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -227,11 +234,12 @@ class CollectionBaseModelTest {
     void shouldRejectSlugTooLong() {
       String longSlug = "a".repeat(151); // 151 characters
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug(longSlug)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug(longSlug)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -244,22 +252,24 @@ class CollectionBaseModelTest {
     @DisplayName("Should accept slug at boundary lengths")
     void shouldAcceptSlugAtBoundaries() {
       // Test minimum boundary
-      CollectionModel minModel = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("abc") // Exactly 3 characters
-          .build();
+      CollectionModel minModel =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("abc") // Exactly 3 characters
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> minViolations = validator.validate(minModel);
       assertTrue(minViolations.isEmpty());
 
       // Test maximum boundary
       String maxSlug = "a".repeat(150); // Exactly 150 characters
-      CollectionModel maxModel = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug(maxSlug)
-          .build();
+      CollectionModel maxModel =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug(maxSlug)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> maxViolations = validator.validate(maxModel);
       assertTrue(maxViolations.isEmpty());
@@ -273,12 +283,13 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should accept valid description")
     void shouldAcceptValidDescription() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .description("This is a valid description of the collection")
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .description("This is a valid description of the collection")
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -287,12 +298,13 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should accept null description")
     void shouldAcceptNullDescription() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .description(null)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .description(null)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -303,12 +315,13 @@ class CollectionBaseModelTest {
     void shouldRejectDescriptionTooLong() {
       String longDescription = "A".repeat(501); // 501 characters
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .description(longDescription)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .description(longDescription)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -322,12 +335,13 @@ class CollectionBaseModelTest {
     void shouldAcceptDescriptionAtMaxLength() {
       String maxDescription = "A".repeat(500); // Exactly 500 characters
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.ART_GALLERY)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .description(maxDescription)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.ART_GALLERY)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .description(maxDescription)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -341,12 +355,13 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should accept valid location")
     void shouldAcceptValidLocation() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .location(LocationModel.builder().id(1L).name("Arches National Park, Utah").build())
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .location(LocationModel.builder().id(1L).name("Arches National Park, Utah").build())
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -355,12 +370,13 @@ class CollectionBaseModelTest {
     @Test
     @DisplayName("Should accept null location")
     void shouldAcceptNullLocation() {
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .location(null)
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .location(null)
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -371,12 +387,13 @@ class CollectionBaseModelTest {
     void shouldRejectLocationTooLong() {
       String longLocation = "A".repeat(256); // 256 characters
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .location(LocationModel.builder().id(1L).name(longLocation).build())
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .location(LocationModel.builder().id(1L).name(longLocation).build())
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertFalse(violations.isEmpty());
@@ -390,12 +407,13 @@ class CollectionBaseModelTest {
     void shouldAcceptLocationAtMaxLength() {
       String maxLocation = "A".repeat(255); // Exactly 255 characters
 
-      CollectionModel model = CollectionModel.builder()
-          .type(CollectionType.PORTFOLIO)
-          .title("Valid Title")
-          .slug("valid-slug")
-          .location(LocationModel.builder().id(1L).name(maxLocation).build())
-          .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.PORTFOLIO)
+              .title("Valid Title")
+              .slug("valid-slug")
+              .location(LocationModel.builder().id(1L).name(maxLocation).build())
+              .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
       assertTrue(violations.isEmpty());
@@ -410,11 +428,12 @@ class CollectionBaseModelTest {
     @DisplayName("Should accept all valid priority values")
     void shouldAcceptValidPriorityValues() {
       for (int priority = 1; priority <= 4; priority++) {
-        CollectionModel model = CollectionModel.builder()
-            .type(CollectionType.PORTFOLIO)
-            .title("Valid Title")
-            .slug("valid-slug")
-            .build();
+        CollectionModel model =
+            CollectionModel.builder()
+                .type(CollectionType.PORTFOLIO)
+                .title("Valid Title")
+                .slug("valid-slug")
+                .build();
 
         Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
         assertTrue(violations.isEmpty(), "Priority " + priority + " should be valid");
@@ -429,7 +448,8 @@ class CollectionBaseModelTest {
       @DisplayName("Should accept all collection types")
       void shouldAcceptAllCollectionTypes() {
         for (CollectionType type : CollectionType.values()) {
-          CollectionModel model = CollectionModel.builder().type(type).title("Valid Title").slug("valid-slug").build();
+          CollectionModel model =
+              CollectionModel.builder().type(type).title("Valid Title").slug("valid-slug").build();
 
           Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
           assertTrue(violations.isEmpty(), "Collection type " + type + " should be valid");
@@ -439,7 +459,8 @@ class CollectionBaseModelTest {
       @Test
       @DisplayName("Should accept null collection type")
       void shouldAcceptNullCollectionType() {
-        CollectionModel model = CollectionModel.builder().type(null).title("Valid Title").slug("valid-slug").build();
+        CollectionModel model =
+            CollectionModel.builder().type(null).title("Valid Title").slug("valid-slug").build();
 
         Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
         assertTrue(violations.isEmpty());
@@ -455,29 +476,32 @@ class CollectionBaseModelTest {
       void shouldHaveWorkingEqualsAndHashCode() {
         LocalDateTime now = LocalDateTime.now();
 
-        CollectionModel model1 = CollectionModel.builder()
-            .id(1L)
-            .type(CollectionType.BLOG)
-            .title("Test Title")
-            .slug("test-slug")
-            .createdAt(now)
-            .build();
+        CollectionModel model1 =
+            CollectionModel.builder()
+                .id(1L)
+                .type(CollectionType.BLOG)
+                .title("Test Title")
+                .slug("test-slug")
+                .createdAt(now)
+                .build();
 
-        CollectionModel model2 = CollectionModel.builder()
-            .id(1L)
-            .type(CollectionType.BLOG)
-            .title("Test Title")
-            .slug("test-slug")
-            .createdAt(now)
-            .build();
+        CollectionModel model2 =
+            CollectionModel.builder()
+                .id(1L)
+                .type(CollectionType.BLOG)
+                .title("Test Title")
+                .slug("test-slug")
+                .createdAt(now)
+                .build();
 
-        CollectionModel model3 = CollectionModel.builder()
-            .id(2L)
-            .type(CollectionType.BLOG)
-            .title("Test Title")
-            .slug("test-slug")
-            .createdAt(now)
-            .build();
+        CollectionModel model3 =
+            CollectionModel.builder()
+                .id(2L)
+                .type(CollectionType.BLOG)
+                .title("Test Title")
+                .slug("test-slug")
+                .createdAt(now)
+                .build();
 
         // Test equals
         assertEquals(model1, model2);
@@ -490,12 +514,13 @@ class CollectionBaseModelTest {
       @Test
       @DisplayName("Should have working toString method")
       void shouldHaveWorkingToString() {
-        CollectionModel model = CollectionModel.builder()
-            .id(1L)
-            .type(CollectionType.PORTFOLIO)
-            .title("Test Portfolio")
-            .slug("test-portfolio")
-            .build();
+        CollectionModel model =
+            CollectionModel.builder()
+                .id(1L)
+                .type(CollectionType.PORTFOLIO)
+                .title("Test Portfolio")
+                .slug("test-portfolio")
+                .build();
 
         String toString = model.toString();
 
@@ -518,14 +543,15 @@ class CollectionBaseModelTest {
         LocalDateTime updated = LocalDateTime.now();
         LocalDate collectionDate = LocalDate.now().minusMonths(1);
 
-        CollectionModel model = CollectionModel.builder()
-            .type(CollectionType.PORTFOLIO)
-            .title("Portfolio")
-            .slug("portfolio")
-            .collectionDate(collectionDate)
-            .createdAt(created)
-            .updatedAt(updated)
-            .build();
+        CollectionModel model =
+            CollectionModel.builder()
+                .type(CollectionType.PORTFOLIO)
+                .title("Portfolio")
+                .slug("portfolio")
+                .collectionDate(collectionDate)
+                .createdAt(created)
+                .updatedAt(updated)
+                .build();
 
         assertNotNull(model);
         assertEquals(collectionDate, model.getCollectionDate());
@@ -536,14 +562,15 @@ class CollectionBaseModelTest {
       @Test
       @DisplayName("Should handle null timestamp fields")
       void shouldHandleNullTimestampFields() {
-        CollectionModel model = CollectionModel.builder()
-            .type(CollectionType.BLOG)
-            .title("Blog")
-            .slug("blog")
-            .collectionDate(null)
-            .createdAt(null)
-            .updatedAt(null)
-            .build();
+        CollectionModel model =
+            CollectionModel.builder()
+                .type(CollectionType.BLOG)
+                .title("Blog")
+                .slug("blog")
+                .collectionDate(null)
+                .createdAt(null)
+                .updatedAt(null)
+                .build();
 
         assertNotNull(model);
         assertNull(model.getCollectionDate());

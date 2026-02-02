@@ -7,13 +7,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 /**
- * Utility class for pagination normalization and validation. Provides consistent pagination
+ * Utility class for pagination normalization and validation. Provides
+ * consistent pagination
  * handling across controllers and services.
  */
 public class PaginationUtil {
 
   /**
-   * Normalize pagination parameters for collection endpoints. Ensures page is non-negative
+   * Normalize pagination parameters for collection endpoints. Ensures page is
+   * non-negative
    * (0-based) and size is positive.
    *
    * @param page Page number (0-based, can be negative)
@@ -31,7 +33,8 @@ public class PaginationUtil {
   }
 
   /**
-   * Normalize pagination parameters for content endpoints. Ensures page is non-negative (0-based)
+   * Normalize pagination parameters for content endpoints. Ensures page is
+   * non-negative (0-based)
    * and size is positive.
    *
    * @param page Page number (0-based, can be negative)
@@ -61,7 +64,7 @@ public class PaginationUtil {
   /**
    * Normalize size with default value.
    *
-   * @param size Page size
+   * @param size        Page size
    * @param defaultSize Default size to use if size is invalid
    * @return Normalized size (>= 1)
    */

@@ -26,7 +26,8 @@ public class ContentCameraDao extends BaseDao {
         .build();
   };
 
-  // Row mapper for queries that need body_serial_number (only for existence checks)
+  // Row mapper for queries that need body_serial_number (only for existence
+  // checks)
   private static final RowMapper<ContentCameraEntity> CAMERA_ROW_MAPPER_WITH_SERIAL = (rs, rowNum) -> {
     return ContentCameraEntity.builder()
         .id(rs.getLong("id"))
