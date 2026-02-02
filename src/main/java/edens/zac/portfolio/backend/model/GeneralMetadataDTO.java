@@ -19,29 +19,29 @@ import lombok.NoArgsConstructor;
 public class GeneralMetadataDTO {
 
   /** All available tags that can be assigned to content blocks */
-  private List<ContentTagModel> tags;
+  private List<Records.Tag> tags;
 
   /** All available people that can be tagged in content blocks */
-  private List<ContentPersonModel> people;
+  private List<Records.Person> people;
 
   /**
    * All available locations that can be assigned to content blocks and
    * collections
    */
-  private List<LocationModel> locations;
+  private List<Records.Location> locations;
 
   /** All available collections in the system */
-  private List<CollectionListModel> collections;
+  private List<Records.CollectionList> collections;
 
   /** All available cameras for film photography metadata */
-  private List<ContentCameraModel> cameras;
+  private List<Records.Camera> cameras;
 
   /** All available lenses for film photography metadata */
-  private List<ContentLensModel> lenses;
+  private List<Records.Lens> lenses;
 
   /** All available film types with their metadata (display name, default ISO) */
   private List<ContentFilmTypeModel> filmTypes;
 
   /** All available film formats (35mm, 120, etc.) */
-  private List<FilmFormatDTO> filmFormats;
+  private List<Records.FilmFormat> filmFormats;
 }

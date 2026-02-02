@@ -1,9 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
-import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.List;
 import java.util.Optional;
@@ -76,7 +74,7 @@ public interface CollectionService {
    * @param createRequest The request containing collection data
    * @return The created collection with all metadata for the manage page
    */
-  CollectionUpdateResponseDTO createCollection(CollectionCreateRequest createRequest);
+  CollectionRequests.UpdateResponse createCollection(CollectionRequests.Create createRequest);
 
   /**
    * Update a collection's content.
@@ -85,7 +83,7 @@ public interface CollectionService {
    * @param updateDTO The DTO containing update data
    * @return The updated collection
    */
-  CollectionModel updateContent(Long id, CollectionUpdateRequest updateDTO);
+  CollectionModel updateContent(Long id, CollectionRequests.Update updateDTO);
 
   /**
    * Delete a collection by ID. This deletes the collection and all join table entries (content
@@ -120,7 +118,7 @@ public interface CollectionService {
    * @return Complete update data including collection and all metadata
    * @throws jakarta.persistence.EntityNotFoundException if collection not found
    */
-  CollectionUpdateResponseDTO getUpdateCollectionData(String slug);
+  CollectionRequests.UpdateResponse getUpdateCollectionData(String slug);
 
   /**
    * Get all general metadata without a specific collection. Returns all available tags, people,
@@ -143,6 +141,5 @@ public interface CollectionService {
    * @throws jakarta.persistence.EntityNotFoundException if collection not found
    * @throws IllegalArgumentException if any image ID doesn't belong to the collection
    */
-  CollectionModel reorderContent(
-      Long collectionId, edens.zac.portfolio.backend.model.CollectionReorderRequest request);
+  CollectionModel reorderContent(Long collectionId, CollectionRequests.Reorder request);
 }

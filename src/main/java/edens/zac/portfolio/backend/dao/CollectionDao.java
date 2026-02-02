@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.CollectionEntity;
-import edens.zac.portfolio.backend.model.CollectionSummary;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -179,10 +179,10 @@ public class CollectionDao extends BaseDao {
 
   /** Find collection ID and title only (for metadata). */
   @Transactional(readOnly = true)
-  public List<CollectionSummary> findIdAndTitleOnly() {
+  public List<Records.CollectionSummary> findIdAndTitleOnly() {
     String sql = "SELECT id, title FROM collection ORDER BY title ASC";
     return jdbcTemplate.query(
-        sql, (rs, rowNum) -> new CollectionSummary(rs.getLong("id"), rs.getString("title")));
+        sql, (rs, rowNum) -> new Records.CollectionSummary(rs.getLong("id"), rs.getString("title")));
   }
 
   /** Save a new collection. Returns the entity with generated ID. */

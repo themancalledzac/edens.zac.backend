@@ -35,7 +35,7 @@ public class ContentImageUpdateRequest {
   private Integer rating;
 
   /** Location update using prev/new/remove pattern */
-  private LocationUpdate location;
+  private CollectionRequests.LocationUpdate location;
 
   /** Author/photographer name */
   private String author;
@@ -74,13 +74,13 @@ public class ContentImageUpdateRequest {
   private FilmTypeUpdate filmType;
 
   /** Tag updates using prev/new/remove pattern */
-  private TagUpdate tags;
+  private CollectionRequests.TagUpdate tags;
 
   /** Person updates using prev/new/remove pattern */
-  private PersonUpdate people;
+  private CollectionRequests.PersonUpdate people;
 
   /** Collection updates using prev/new/remove pattern */
-  private CollectionUpdate collections;
+  private CollectionRequests.CollectionUpdate collections;
 
   // ========== Nested Update Classes ==========
 

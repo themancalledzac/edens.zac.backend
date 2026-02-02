@@ -25,7 +25,7 @@ public class ContentImageModel extends ContentModel {
   @Size(max = 15)
   private String fStop;
 
-  private ContentLensModel lens;
+  private Records.Lens lens;
   private Boolean blackAndWhite;
   private Boolean isFilm;
   private String filmType;
@@ -34,16 +34,16 @@ public class ContentImageModel extends ContentModel {
   @Size(max = 20)
   private String shutterSpeed;
 
-  private ContentCameraModel camera;
+  private Records.Camera camera;
 
   @Size(max = 20)
   private String focalLength;
 
   @Valid
-  private LocationModel location;
+  private Records.Location location;
 
   private String createDate;
-  private List<ContentTagModel> tags;
-  private List<ContentPersonModel> people;
-  private List<ChildCollection> collections;
+  private List<Records.Tag> tags;
+  private List<Records.Person> people;
+  private List<Records.ChildCollection> collections;
 }

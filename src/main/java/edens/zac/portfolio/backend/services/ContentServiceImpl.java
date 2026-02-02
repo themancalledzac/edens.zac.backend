@@ -261,11 +261,11 @@ class ContentServiceImpl implements ContentService {
 
         // Handle collection updates using prev/new/remove pattern
         if (update.getCollections() != null) {
-          CollectionUpdate collectionUpdate = update.getCollections();
+          CollectionRequests.CollectionUpdate collectionUpdate = update.getCollections();
 
           // Remove from collections if specified
-          if (collectionUpdate.getRemove() != null && !collectionUpdate.getRemove().isEmpty()) {
-            for (Long collectionIdToRemove : collectionUpdate.getRemove()) {
+          if (collectionUpdate.remove() != null && !collectionUpdate.remove().isEmpty()) {
+            for (Long collectionIdToRemove : collectionUpdate.remove()) {
               collectionContentDao.removeContentFromCollection(
                   collectionIdToRemove, List.of(image.getId()));
               log.info("Removed image {} from collection {}", image.getId(), collectionIdToRemove);
@@ -273,14 +273,14 @@ class ContentServiceImpl implements ContentService {
           }
 
           // Update existing collection relationships (visibility, orderIndex)
-          if (collectionUpdate.getPrev() != null && !collectionUpdate.getPrev().isEmpty()) {
+          if (collectionUpdate.prev() != null && !collectionUpdate.prev().isEmpty()) {
             contentProcessingUtil.handleContentChildCollectionUpdates(
-                image, collectionUpdate.getPrev());
+                image, collectionUpdate.prev());
           }
 
           // Add to new collections if specified
-          if (collectionUpdate.getNewValue() != null && !collectionUpdate.getNewValue().isEmpty()) {
-            handleAddToCollections(image, collectionUpdate.getNewValue());
+          if (collectionUpdate.newValue() != null && !collectionUpdate.newValue().isEmpty()) {
+            handleAddToCollections(image, collectionUpdate.newValue());
           }
         }
 
@@ -467,26 +467,26 @@ class ContentServiceImpl implements ContentService {
 
     // Handle location update using prev/new/remove pattern
     if (updateRequest.getLocation() != null) {
-      LocationUpdate locationUpdate = updateRequest.getLocation();
+      CollectionRequests.LocationUpdate locationUpdate = updateRequest.getLocation();
 
-      if (Boolean.TRUE.equals(locationUpdate.getRemove())) {
+      if (Boolean.TRUE.equals(locationUpdate.remove())) {
         // Remove location association
         image.setLocationId(null);
         log.info("Removed location association from image {}", image.getId());
-      } else if (locationUpdate.getNewValue() != null
-          && !locationUpdate.getNewValue().trim().isEmpty()) {
+      } else if (locationUpdate.newValue() != null
+          && !locationUpdate.newValue().trim().isEmpty()) {
         // Create new location by name
-        String locationName = locationUpdate.getNewValue().trim();
+        String locationName = locationUpdate.newValue().trim();
         LocationEntity location = locationDao.findOrCreate(locationName);
         image.setLocationId(location.getId());
         log.info("Set location to: {} (ID: {})", locationName, location.getId());
-      } else if (locationUpdate.getPrev() != null) {
+      } else if (locationUpdate.prev() != null) {
         // Use existing location by ID
         LocationEntity location = locationDao
-            .findById(locationUpdate.getPrev())
+            .findById(locationUpdate.prev())
             .orElseThrow(
                 () -> new IllegalArgumentException(
-                    "Location not found with ID: " + locationUpdate.getPrev()));
+                    "Location not found with ID: " + locationUpdate.prev()));
         image.setLocationId(location.getId());
         log.info("Set location to existing location ID: {}", location.getId());
       }
@@ -499,7 +499,7 @@ class ContentServiceImpl implements ContentService {
    * ContentProcessingUtil.
    */
   private void updateImageTags(
-      ContentImageEntity image, TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
+      ContentImageEntity image, CollectionRequests.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
     // Load current tags from database
     List<Long> currentTagIds = tagDao.findContentTagIds(image.getId());
     Set<ContentTagEntity> currentTags = currentTagIds.stream()
@@ -531,7 +531,7 @@ class ContentServiceImpl implements ContentService {
    */
   private void updateImageTagsOptimized(
       ContentImageEntity image,
-      TagUpdate tagUpdate,
+      CollectionRequests.TagUpdate tagUpdate,
       List<Long> currentTagIds,
       Set<ContentTagEntity> newTags) {
     // Convert pre-fetched IDs to entities
@@ -567,52 +567,52 @@ class ContentServiceImpl implements ContentService {
    *                    visible, and
    *                    orderIndex
    */
-  private void handleAddToCollections(ContentImageEntity image, List<ChildCollection> collections) {
-    for (ChildCollection childCollection : collections) {
-      if (childCollection.getCollectionId() == null) {
+  private void handleAddToCollections(ContentImageEntity image, List<Records.ChildCollection> collections) {
+    for (Records.ChildCollection childCollection : collections) {
+      if (childCollection.collectionId() == null) {
         log.warn("Skipping collection addition: collectionId is null");
         continue;
       }
 
       // Verify collection exists
       collectionDao
-          .findById(childCollection.getCollectionId())
+          .findById(childCollection.collectionId())
           .orElseThrow(
               () -> new IllegalArgumentException(
-                  "Collection not found: " + childCollection.getCollectionId()));
+                  "Collection not found: " + childCollection.collectionId()));
 
       // Check if this content is already in the collection
       Optional<CollectionContentEntity> existingOpt = collectionContentDao.findByCollectionIdAndContentId(
-          childCollection.getCollectionId(), image.getId());
+          childCollection.collectionId(), image.getId());
 
       if (existingOpt.isPresent()) {
         log.warn(
             "Image {} is already in collection {}. Skipping duplicate add.",
             image.getId(),
-            childCollection.getCollectionId());
+            childCollection.collectionId());
         continue;
       }
 
       // Determine orderIndex: use provided value or append to end
-      Integer orderIndex = childCollection.getOrderIndex();
+      Integer orderIndex = childCollection.orderIndex();
       if (orderIndex == null) {
-        Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(childCollection.getCollectionId());
+        Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(childCollection.collectionId());
         orderIndex = maxOrder != null ? maxOrder + 1 : 0;
       }
 
       // Create join table entry
       CollectionContentEntity joinEntry = CollectionContentEntity.builder()
-          .collectionId(childCollection.getCollectionId())
+          .collectionId(childCollection.collectionId())
           .contentId(image.getId())
           .orderIndex(orderIndex)
-          .visible(childCollection.getVisible() != null ? childCollection.getVisible() : true)
+          .visible(childCollection.visible() != null ? childCollection.visible() : true)
           .build();
 
       collectionContentDao.save(joinEntry);
       log.info(
           "Added image {} to collection {} at orderIndex {} with visible={}",
           image.getId(),
-          childCollection.getCollectionId(),
+          childCollection.collectionId(),
           orderIndex,
           joinEntry.getVisible());
     }
@@ -624,7 +624,7 @@ class ContentServiceImpl implements ContentService {
    * ContentProcessingUtil.
    */
   private void updateImagePeople(
-      ContentImageEntity image, PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
+      ContentImageEntity image, CollectionRequests.PersonUpdate personUpdate, Set<ContentPersonEntity> newPeople) {
     // Load current people from database
     List<Long> currentPersonIds = contentDao.findImagePersonIds(image.getId());
     Set<ContentPersonEntity> currentPeople = currentPersonIds.stream()
@@ -656,7 +656,7 @@ class ContentServiceImpl implements ContentService {
    */
   private void updateImagePeopleOptimized(
       ContentImageEntity image,
-      PersonUpdate personUpdate,
+      CollectionRequests.PersonUpdate personUpdate,
       List<Long> currentPersonIds,
       Set<ContentPersonEntity> newPeople) {
     // Convert pre-fetched IDs to entities
@@ -714,7 +714,7 @@ class ContentServiceImpl implements ContentService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<ContentTagModel> getAllTags() {
+  public List<Records.Tag> getAllTags() {
     return contentTagDao.findAllByOrderByTagNameAsc().stream()
         .map(this::toTagModel)
         .collect(Collectors.toList());
@@ -722,7 +722,7 @@ class ContentServiceImpl implements ContentService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<ContentPersonModel> getAllPeople() {
+  public List<Records.Person> getAllPeople() {
     return contentPersonDao.findAllByOrderByPersonNameAsc().stream()
         .map(this::toPersonModel)
         .collect(Collectors.toList());
@@ -730,7 +730,7 @@ class ContentServiceImpl implements ContentService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<ContentCameraModel> getAllCameras() {
+  public List<Records.Camera> getAllCameras() {
     return contentCameraDao.findAllByOrderByCameraNameAsc().stream()
         .map(ContentProcessingUtil::cameraEntityToCameraModel)
         .collect(Collectors.toList());
@@ -746,7 +746,7 @@ class ContentServiceImpl implements ContentService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<ContentLensModel> getAllLenses() {
+  public List<Records.Lens> getAllLenses() {
     return contentLensDao.findAllByOrderByLensNameAsc().stream()
         .map(ContentProcessingUtil::lensEntityToLensModel)
         .collect(Collectors.toList());
@@ -754,7 +754,7 @@ class ContentServiceImpl implements ContentService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<LocationModel> getAllLocations() {
+  public List<Records.Location> getAllLocations() {
     return locationDao.findAllByOrderByLocationNameAsc().stream()
         .map(this::toLocationModel)
         .collect(Collectors.toList());
@@ -791,19 +791,19 @@ class ContentServiceImpl implements ContentService {
 
   // ========== Helper Methods: Entity to Model Conversion ==========
 
-  /** Convert ContentTagEntity to ContentTagModel */
-  private ContentTagModel toTagModel(ContentTagEntity entity) {
-    return ContentTagModel.builder().id(entity.getId()).name(entity.getTagName()).build();
+  /** Convert ContentTagEntity to Records.Tag */
+  private Records.Tag toTagModel(ContentTagEntity entity) {
+    return new Records.Tag(entity.getId(), entity.getTagName());
   }
 
-  /** Convert ContentPersonEntity to ContentPersonModel */
-  private ContentPersonModel toPersonModel(ContentPersonEntity entity) {
-    return ContentPersonModel.builder().id(entity.getId()).name(entity.getPersonName()).build();
+  /** Convert ContentPersonEntity to Records.Person */
+  private Records.Person toPersonModel(ContentPersonEntity entity) {
+    return new Records.Person(entity.getId(), entity.getPersonName());
   }
 
-  /** Convert LocationEntity to LocationModel */
-  private LocationModel toLocationModel(LocationEntity entity) {
-    return LocationModel.builder().id(entity.getId()).name(entity.getLocationName()).build();
+  /** Convert LocationEntity to Records.Location */
+  private Records.Location toLocationModel(LocationEntity entity) {
+    return new Records.Location(entity.getId(), entity.getLocationName());
   }
 
   /** Convert ContentFilmTypeEntity to ContentFilmTypeModel */

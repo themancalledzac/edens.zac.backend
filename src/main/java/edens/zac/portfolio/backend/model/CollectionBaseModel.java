@@ -38,7 +38,7 @@ public abstract class CollectionBaseModel {
 
   /** Location associated with the collection (from location table) */
   @Valid
-  private LocationModel location;
+  private Records.Location location;
 
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;

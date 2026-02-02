@@ -21,9 +21,6 @@ import edens.zac.portfolio.backend.dao.TagDao;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.model.LocationUpdate;
-import edens.zac.portfolio.backend.model.PersonUpdate;
-import edens.zac.portfolio.backend.model.TagUpdate;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -303,12 +300,12 @@ public class ContentProcessingUtil {
     // convertToModel method
   }
 
-  public static ContentCameraModel cameraEntityToCameraModel(ContentCameraEntity entity) {
-    return ContentCameraModel.builder().id(entity.getId()).name(entity.getCameraName()).build();
+  public static Records.Camera cameraEntityToCameraModel(ContentCameraEntity entity) {
+    return new Records.Camera(entity.getId(), entity.getCameraName());
   }
 
-  public static ContentLensModel lensEntityToLensModel(ContentLensEntity entity) {
-    return ContentLensModel.builder().id(entity.getId()).name(entity.getLensName()).build();
+  public static Records.Lens lensEntityToLensModel(ContentLensEntity entity) {
+    return new Records.Lens(entity.getId(), entity.getLensName());
   }
 
   /**
@@ -374,10 +371,7 @@ public class ContentProcessingUtil {
       LocationEntity locationEntity = locationDao.findById(entity.getLocationId()).orElse(null);
       if (locationEntity != null) {
         model.setLocation(
-            LocationModel.builder()
-                .id(locationEntity.getId())
-                .name(locationEntity.getLocationName())
-                .build());
+            new Records.Location(locationEntity.getId(), locationEntity.getLocationName()));
       }
     }
     model.setCreateDate(entity.getCreateDate());
@@ -1450,26 +1444,26 @@ public class ContentProcessingUtil {
 
     // Handle location update using prev/new/remove pattern
     if (updateRequest.getLocation() != null) {
-      LocationUpdate locationUpdate = updateRequest.getLocation();
+      CollectionRequests.LocationUpdate locationUpdate = updateRequest.getLocation();
 
-      if (Boolean.TRUE.equals(locationUpdate.getRemove())) {
+      if (Boolean.TRUE.equals(locationUpdate.remove())) {
         // Remove location association
         entity.setLocationId(null);
         log.info("Removed location association from image {}", entity.getId());
-      } else if (locationUpdate.getNewValue() != null
-          && !locationUpdate.getNewValue().trim().isEmpty()) {
+      } else if (locationUpdate.newValue() != null
+          && !locationUpdate.newValue().trim().isEmpty()) {
         // Create new location by name
-        String locationName = locationUpdate.getNewValue().trim();
+        String locationName = locationUpdate.newValue().trim();
         LocationEntity location = locationDao.findOrCreate(locationName);
         entity.setLocationId(location.getId());
         log.info("Set location to: {} (ID: {})", locationName, location.getId());
-      } else if (locationUpdate.getPrev() != null) {
+      } else if (locationUpdate.prev() != null) {
         // Use existing location by ID
         LocationEntity location = locationDao
-            .findById(locationUpdate.getPrev())
+            .findById(locationUpdate.prev())
             .orElseThrow(
                 () -> new IllegalArgumentException(
-                    "Location not found with ID: " + locationUpdate.getPrev()));
+                    "Location not found with ID: " + locationUpdate.prev()));
         entity.setLocationId(location.getId());
       }
     }
@@ -1513,7 +1507,7 @@ public class ContentProcessingUtil {
    * reordering) or toggling visibility within a specific collection. The API call
    * is very
    * lightweight: ContentImageUpdateRequest with a single
-   * CollectionUpdate.prev(ChildCollection)
+   * CollectionUpdate.prev(Records.ChildCollection)
    * containing orderIndex/visible.
    *
    * @param image             The image entity being updated
@@ -1522,18 +1516,18 @@ public class ContentProcessingUtil {
    *                          information
    */
   public void handleContentChildCollectionUpdates(
-      ContentImageEntity image, List<ChildCollection> collectionUpdates) {
+      ContentImageEntity image, List<Records.ChildCollection> collectionUpdates) {
     if (collectionUpdates == null || collectionUpdates.isEmpty()) {
       return;
     }
 
     // Update visibility and orderIndex for the current image if its collection is
     // in the updates
-    for (ChildCollection collectionUpdate : collectionUpdates) {
-      if (collectionUpdate.getCollectionId() != null) {
-        Long collectionId = collectionUpdate.getCollectionId();
-        Integer orderIndex = collectionUpdate.getOrderIndex();
-        Boolean visible = collectionUpdate.getVisible();
+    for (Records.ChildCollection collectionUpdate : collectionUpdates) {
+      if (collectionUpdate.collectionId() != null) {
+        Long collectionId = collectionUpdate.collectionId();
+        Integer orderIndex = collectionUpdate.orderIndex();
+        Boolean visible = collectionUpdate.visible();
 
         // Find the join table entry for this image in this collection
         Optional<CollectionContentEntity> joinEntryOpt = collectionContentDao
@@ -1599,7 +1593,7 @@ public class ContentProcessingUtil {
    * @return Updated set of tags
    */
   public Set<ContentTagEntity> updateTags(
-      Set<ContentTagEntity> currentTags, TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
+      Set<ContentTagEntity> currentTags, CollectionRequests.TagUpdate tagUpdate, Set<ContentTagEntity> newTags) {
     if (tagUpdate == null) {
       return currentTags;
     }
@@ -1607,13 +1601,13 @@ public class ContentProcessingUtil {
     Set<ContentTagEntity> tags = new HashSet<>(currentTags);
 
     // Remove tags if specified
-    if (tagUpdate.getRemove() != null && !tagUpdate.getRemove().isEmpty()) {
-      tags.removeIf(tag -> tagUpdate.getRemove().contains(tag.getId()));
+    if (tagUpdate.remove() != null && !tagUpdate.remove().isEmpty()) {
+      tags.removeIf(tag -> tagUpdate.remove().contains(tag.getId()));
     }
 
     // Add existing tags by ID (prev)
-    if (tagUpdate.getPrev() != null && !tagUpdate.getPrev().isEmpty()) {
-      Set<ContentTagEntity> existingTags = tagUpdate.getPrev().stream()
+    if (tagUpdate.prev() != null && !tagUpdate.prev().isEmpty()) {
+      Set<ContentTagEntity> existingTags = tagUpdate.prev().stream()
           .map(
               tagId -> contentTagDao
                   .findById(tagId)
@@ -1624,8 +1618,8 @@ public class ContentProcessingUtil {
     }
 
     // Create and add new tags by name (newValue) with optional tracking
-    if (tagUpdate.getNewValue() != null && !tagUpdate.getNewValue().isEmpty()) {
-      for (String tagName : tagUpdate.getNewValue()) {
+    if (tagUpdate.newValue() != null && !tagUpdate.newValue().isEmpty()) {
+      for (String tagName : tagUpdate.newValue()) {
         if (tagName != null && !tagName.trim().isEmpty()) {
           String trimmedName = tagName.trim();
           var existing = contentTagDao.findByTagNameIgnoreCase(trimmedName);
@@ -1661,7 +1655,7 @@ public class ContentProcessingUtil {
    */
   public Set<ContentPersonEntity> updatePeople(
       Set<ContentPersonEntity> currentPeople,
-      PersonUpdate personUpdate,
+      CollectionRequests.PersonUpdate personUpdate,
       Set<ContentPersonEntity> newPeople) {
     if (personUpdate == null) {
       return currentPeople;
@@ -1670,13 +1664,13 @@ public class ContentProcessingUtil {
     Set<ContentPersonEntity> people = new HashSet<>(currentPeople);
 
     // Remove people if specified
-    if (personUpdate.getRemove() != null && !personUpdate.getRemove().isEmpty()) {
-      people.removeIf(person -> personUpdate.getRemove().contains(person.getId()));
+    if (personUpdate.remove() != null && !personUpdate.remove().isEmpty()) {
+      people.removeIf(person -> personUpdate.remove().contains(person.getId()));
     }
 
     // Add existing people by ID (prev)
-    if (personUpdate.getPrev() != null && !personUpdate.getPrev().isEmpty()) {
-      Set<ContentPersonEntity> existingPeople = personUpdate.getPrev().stream()
+    if (personUpdate.prev() != null && !personUpdate.prev().isEmpty()) {
+      Set<ContentPersonEntity> existingPeople = personUpdate.prev().stream()
           .map(
               personId -> contentPersonDao
                   .findById(personId)
@@ -1687,8 +1681,8 @@ public class ContentProcessingUtil {
     }
 
     // Create and add new people by name (newValue) with optional tracking
-    if (personUpdate.getNewValue() != null && !personUpdate.getNewValue().isEmpty()) {
-      for (String personName : personUpdate.getNewValue()) {
+    if (personUpdate.newValue() != null && !personUpdate.newValue().isEmpty()) {
+      for (String personName : personUpdate.newValue()) {
         if (personName != null && !personName.trim().isEmpty()) {
           String trimmedName = personName.trim();
           var existing = contentPersonDao.findByPersonNameIgnoreCase(trimmedName);
@@ -1781,35 +1775,32 @@ public class ContentProcessingUtil {
    * @param tags Set of tag entities to convert
    * @return Sorted list of tag models (alphabetically by name)
    */
-  public List<ContentTagModel> convertTagsToModels(Set<ContentTagEntity> tags) {
+  public List<Records.Tag> convertTagsToModels(Set<ContentTagEntity> tags) {
     if (tags == null || tags.isEmpty()) {
       return new ArrayList<>();
     }
     return tags.stream()
-        .map(tag -> ContentTagModel.builder().id(tag.getId()).name(tag.getTagName()).build())
-        .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+        .map(tag -> new Records.Tag(tag.getId(), tag.getTagName()))
+        .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
         .collect(Collectors.toList());
   }
 
   /**
-   * Convert a set of ContentPersonEntity to a sorted list of ContentPersonModel.
+   * Convert a set of ContentPersonEntity to a sorted list of Records.Person.
    * Returns empty list
    * if people is null or empty.
    *
    * @param people Set of person entities to convert
    * @return Sorted list of person models (alphabetically by name)
    */
-  public List<ContentPersonModel> convertPeopleToModels(Set<ContentPersonEntity> people) {
+  public List<Records.Person> convertPeopleToModels(Set<ContentPersonEntity> people) {
     if (people == null || people.isEmpty()) {
       return new ArrayList<>();
     }
     return people.stream()
         .map(
-            person -> ContentPersonModel.builder()
-                .id(person.getId())
-                .name(person.getPersonName())
-                .build())
-        .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+            person -> new Records.Person(person.getId(), person.getPersonName()))
+        .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
         .collect(Collectors.toList());
   }
 
@@ -1843,16 +1834,16 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a LocationEntity to a LocationModel for API responses.
+   * Convert a LocationEntity to a Records.Location for API responses.
    *
    * @param location The location entity to convert
    * @return The location model, or null if location is null
    */
-  public LocationModel convertLocationToModel(LocationEntity location) {
+  public Records.Location convertLocationToModel(LocationEntity location) {
     if (location == null) {
       return null;
     }
-    return LocationModel.builder().id(location.getId()).name(location.getLocationName()).build();
+    return new Records.Location(location.getId(), location.getLocationName());
   }
 
   /**

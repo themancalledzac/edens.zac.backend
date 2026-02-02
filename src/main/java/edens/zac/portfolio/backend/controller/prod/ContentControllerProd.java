@@ -1,9 +1,7 @@
 package edens.zac.portfolio.backend.controller.prod;
 
-import edens.zac.portfolio.backend.model.ContentCameraModel;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
-import edens.zac.portfolio.backend.model.ContentPersonModel;
-import edens.zac.portfolio.backend.model.ContentTagModel;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.util.Arrays;
@@ -35,8 +33,8 @@ public class ContentControllerProd {
    * @return ResponseEntity with list of all tags
    */
   @GetMapping("/tags")
-  public ResponseEntity<List<ContentTagModel>> getAllTags() {
-    List<ContentTagModel> tags = contentService.getAllTags();
+  public ResponseEntity<List<Records.Tag>> getAllTags() {
+    List<Records.Tag> tags = contentService.getAllTags();
     return ResponseEntity.ok(tags);
   }
 
@@ -46,8 +44,8 @@ public class ContentControllerProd {
    * @return ResponseEntity with list of all people
    */
   @GetMapping("/people")
-  public ResponseEntity<List<ContentPersonModel>> getAllPeople() {
-    List<ContentPersonModel> people = contentService.getAllPeople();
+  public ResponseEntity<List<Records.Person>> getAllPeople() {
+    List<Records.Person> people = contentService.getAllPeople();
     return ResponseEntity.ok(people);
   }
 
@@ -57,8 +55,8 @@ public class ContentControllerProd {
    * @return ResponseEntity with list of all cameras
    */
   @GetMapping("/cameras")
-  public ResponseEntity<List<ContentCameraModel>> getAllCameras() {
-    List<ContentCameraModel> cameras = contentService.getAllCameras();
+  public ResponseEntity<List<Records.Camera>> getAllCameras() {
+    List<Records.Camera> cameras = contentService.getAllCameras();
     return ResponseEntity.ok(cameras);
   }
 

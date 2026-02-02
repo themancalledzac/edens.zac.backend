@@ -56,7 +56,7 @@ class CollectionBaseModelTest {
               .title("Valid Title")
               .slug("valid-slug")
               .description("Valid description")
-              .location(LocationModel.builder().id(1L).name("Valid location").build())
+              .location(new Records.Location(1L, "Valid location"))
               .collectionDate(today)
               .visible(true)
               .coverImage(createTestContentImage("https://example.com/cover.jpg"))
@@ -71,7 +71,7 @@ class CollectionBaseModelTest {
       assertEquals("valid-slug", model.getSlug());
       assertEquals("Valid description", model.getDescription());
       assertNotNull(model.getLocation());
-      assertEquals("Valid location", model.getLocation().getName());
+      assertEquals("Valid location", model.getLocation().name());
       assertEquals(today, model.getCollectionDate());
       assertTrue(model.getVisible());
       assertNotNull(model.getCoverImage());
@@ -360,7 +360,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(LocationModel.builder().id(1L).name("Arches National Park, Utah").build())
+              .location(new Records.Location(1L, "Arches National Park, Utah"))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -392,7 +392,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(LocationModel.builder().id(1L).name(longLocation).build())
+              .location(new Records.Location(1L, longLocation))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -412,7 +412,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(LocationModel.builder().id(1L).name(maxLocation).build())
+              .location(new Records.Location(1L, maxLocation))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);

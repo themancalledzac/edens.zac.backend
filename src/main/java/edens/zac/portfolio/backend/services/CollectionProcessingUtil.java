@@ -10,7 +10,6 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.*;
-import edens.zac.portfolio.backend.model.LocationUpdate;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -86,10 +85,7 @@ public class CollectionProcessingUtil {
       LocationEntity locationEntity = locationDao.findById(entity.getLocationId()).orElse(null);
       if (locationEntity != null) {
         model.setLocation(
-            LocationModel.builder()
-                .id(locationEntity.getId())
-                .name(locationEntity.getLocationName())
-                .build());
+            new Records.Location(locationEntity.getId(), locationEntity.getLocationName()));
       }
     }
     model.setCollectionDate(entity.getCollectionDate());
@@ -265,17 +261,17 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Minimal create: from CollectionCreateRequest (type, title only), apply
+   * Minimal create: from CollectionRequests.Create (type, title only), apply
    * defaults for the rest.
    */
-  public CollectionEntity toEntity(CollectionCreateRequest request, int defaultPageSize) {
+  public CollectionEntity toEntity(CollectionRequests.Create request, int defaultPageSize) {
     if (request == null) {
       throw new IllegalArgumentException("Create request cannot be null");
     }
     CollectionEntity entity = new CollectionEntity();
-    entity.setType(request.getType());
-    entity.setTitle(request.getTitle());
-    String baseSlug = generateSlug(request.getTitle());
+    entity.setType(request.type());
+    entity.setTitle(request.title());
+    String baseSlug = generateSlug(request.title());
     String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
     entity.setSlug(uniqueSlug);
     entity.setDescription("");
@@ -286,7 +282,7 @@ public class CollectionProcessingUtil {
     entity.setTotalContent(0);
     // Set default displayMode based on type
     entity.setDisplayMode(
-        request.getType() == CollectionType.BLOG
+        request.type() == CollectionType.BLOG
             ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
             : CollectionBaseModel.DisplayMode.ORDERED);
     // TODO: Re-implement password protection after migration
@@ -311,87 +307,87 @@ public class CollectionProcessingUtil {
    * via provided
    * password hasher
    */
-  public void applyBasicUpdates(CollectionEntity entity, CollectionUpdateRequest updateDTO) {
-    if (updateDTO.getTitle() != null) {
-      entity.setTitle(updateDTO.getTitle());
+  public void applyBasicUpdates(CollectionEntity entity, CollectionRequests.Update updateDTO) {
+    if (updateDTO.title() != null) {
+      entity.setTitle(updateDTO.title());
     }
-    if (updateDTO.getDescription() != null) {
-      entity.setDescription(updateDTO.getDescription());
+    if (updateDTO.description() != null) {
+      entity.setDescription(updateDTO.description());
     }
-    if (updateDTO.getType() != null) {
-      entity.setType(updateDTO.getType());
+    if (updateDTO.type() != null) {
+      entity.setType(updateDTO.type());
     }
     // Handle location update using prev/new/remove pattern
-    if (updateDTO.getLocation() != null) {
-      LocationUpdate locationUpdate = updateDTO.getLocation();
+    if (updateDTO.location() != null) {
+      CollectionRequests.LocationUpdate locationUpdate = updateDTO.location();
 
-      if (Boolean.TRUE.equals(locationUpdate.getRemove())) {
+      if (Boolean.TRUE.equals(locationUpdate.remove())) {
         // Remove location association
         entity.setLocationId(null);
         log.info("Removed location association from collection {}", entity.getId());
-      } else if (locationUpdate.getNewValue() != null
-          && !locationUpdate.getNewValue().trim().isEmpty()) {
+      } else if (locationUpdate.newValue() != null
+          && !locationUpdate.newValue().trim().isEmpty()) {
         // Create new location by name
-        String locationName = locationUpdate.getNewValue().trim();
+        String locationName = locationUpdate.newValue().trim();
         LocationEntity location = locationDao.findOrCreate(locationName);
         entity.setLocationId(location.getId());
         log.info("Set location to: {} (ID: {})", locationName, location.getId());
-      } else if (locationUpdate.getPrev() != null) {
+      } else if (locationUpdate.prev() != null) {
         // Use existing location by ID
         LocationEntity location = locationDao
-            .findById(locationUpdate.getPrev())
+            .findById(locationUpdate.prev())
             .orElseThrow(
                 () -> new IllegalArgumentException(
-                    "Location not found with ID: " + locationUpdate.getPrev()));
+                    "Location not found with ID: " + locationUpdate.prev()));
         entity.setLocationId(location.getId());
       }
     }
-    if (updateDTO.getCollectionDate() != null) {
-      entity.setCollectionDate(updateDTO.getCollectionDate());
+    if (updateDTO.collectionDate() != null) {
+      entity.setCollectionDate(updateDTO.collectionDate());
     }
-    if (updateDTO.getVisible() != null) {
-      entity.setVisible(updateDTO.getVisible());
+    if (updateDTO.visible() != null) {
+      entity.setVisible(updateDTO.visible());
     }
-    if (updateDTO.getSlug() != null && !updateDTO.getSlug().isBlank()) {
-      String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.getSlug().trim(), entity.getId());
+    if (updateDTO.slug() != null && !updateDTO.slug().isBlank()) {
+      String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());
       entity.setSlug(uniqueSlug);
     }
-    if (updateDTO.getContentPerPage() != null && updateDTO.getContentPerPage() >= 1) {
-      entity.setContentPerPage(updateDTO.getContentPerPage());
+    if (updateDTO.contentPerPage() != null && updateDTO.contentPerPage() >= 1) {
+      entity.setContentPerPage(updateDTO.contentPerPage());
     }
-    if (updateDTO.getDisplayMode() != null) {
-      entity.setDisplayMode(updateDTO.getDisplayMode());
+    if (updateDTO.displayMode() != null) {
+      entity.setDisplayMode(updateDTO.displayMode());
     }
-    if (updateDTO.getRowsWide() != null) {
-      entity.setRowsWide(updateDTO.getRowsWide());
+    if (updateDTO.rowsWide() != null) {
+      entity.setRowsWide(updateDTO.rowsWide());
     }
 
     // Handle coverImageId updates - load ContentImageEntity by ID
-    if (updateDTO.getCoverImageId() != null) {
-      if (updateDTO.getCoverImageId() == 0) {
+    if (updateDTO.coverImageId() != null) {
+      if (updateDTO.coverImageId() == 0) {
         // Explicitly clear cover image if ID is 0
         entity.setCoverImageId(null);
       } else {
         // Verify cover image exists
         contentDao
-            .findImageById(updateDTO.getCoverImageId())
+            .findImageById(updateDTO.coverImageId())
             .orElseThrow(
                 () -> new IllegalArgumentException(
-                    "Cover image not found with ID: " + updateDTO.getCoverImageId()));
-        entity.setCoverImageId(updateDTO.getCoverImageId());
+                    "Cover image not found with ID: " + updateDTO.coverImageId()));
+        entity.setCoverImageId(updateDTO.coverImageId());
       }
     }
 
     // TODO: Re-implement password protection after migration
     // Handle password updates for client galleries
     // if (entity.getType() == CollectionType.CLIENT_GALLERY) {
-    // if (updateDTO.getHasAccess() != null && updateDTO.getHasAccess()) {
+    // if (updateDTO.HasAccess() != null && updateDTO.HasAccess()) {
     // entity.setPasswordProtected(false);
     // entity.setPasswordHash(null);
     // }
     // if (hasPasswordUpdate(updateDTO)) {
     // entity.setPasswordProtected(true);
-    // entity.setPasswordHash(hashPassword(updateDTO.getPassword()));
+    // entity.setPasswordHash(hashPassword(updateDTO.Password()));
     // }
     // }
   }
@@ -506,8 +502,8 @@ public class CollectionProcessingUtil {
   // }
 
   /** Check if an UpdateDTO includes password changes. */
-  public static boolean hasPasswordUpdate(CollectionUpdateRequest dto) {
-    return dto.getPassword() != null && !dto.getPassword().trim().isEmpty();
+  public static boolean hasPasswordUpdate(CollectionRequests.Update dto) {
+    return dto.password() != null && !dto.password().trim().isEmpty();
   }
 
   /**

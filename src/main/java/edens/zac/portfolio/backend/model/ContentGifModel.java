@@ -28,5 +28,5 @@ public class ContentGifModel extends ContentModel {
   private String createDate;
 
   // Tags associated with this gif content
-  private List<ContentTagModel> tags;
+  private List<Records.Tag> tags;
 }

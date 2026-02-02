@@ -116,15 +116,15 @@ public class ContentProcessingUtilTest {
     assertEquals(entity.getAuthor(), imageModel.getAuthor());
     assertEquals(entity.getRating(), imageModel.getRating());
     assertEquals(entity.getFStop(), imageModel.getFStop());
-    assertEquals(entity.getLens().getLensName(), imageModel.getLens().getName());
+    assertEquals(entity.getLens().getLensName(), imageModel.getLens().name());
     assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
     assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
     assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
-    assertEquals(entity.getCamera().getCameraName(), imageModel.getCamera().getName());
+    assertEquals(entity.getCamera().getCameraName(), imageModel.getCamera().name());
     assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
     assertNotNull(imageModel.getLocation());
-    assertEquals("Test Location", imageModel.getLocation().getName());
-    assertEquals(1L, imageModel.getLocation().getId());
+    assertEquals("Test Location", imageModel.getLocation().name());
+    assertEquals(1L, imageModel.getLocation().id());
     assertEquals(entity.getCreateDate(), imageModel.getCreateDate());
   }
 

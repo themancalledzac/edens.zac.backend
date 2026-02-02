@@ -69,21 +69,21 @@ public interface ContentService {
    *
    * @return List of all tags
    */
-  List<ContentTagModel> getAllTags();
+  List<Records.Tag> getAllTags();
 
   /**
    * Get all people ordered alphabetically
    *
    * @return List of all people
    */
-  List<ContentPersonModel> getAllPeople();
+  List<Records.Person> getAllPeople();
 
   /**
    * Get all cameras ordered alphabetically
    *
    * @return List of all cameras
    */
-  List<ContentCameraModel> getAllCameras();
+  List<Records.Camera> getAllCameras();
 
   /**
    * Get all film types ordered alphabetically by display name
@@ -97,14 +97,14 @@ public interface ContentService {
    *
    * @return List of all lenses
    */
-  List<edens.zac.portfolio.backend.model.ContentLensModel> getAllLenses();
+  List<edens.zac.portfolio.backend.model.Records.Lens> getAllLenses();
 
   /**
    * Get all locations ordered alphabetically
    *
    * @return List of all locations
    */
-  List<edens.zac.portfolio.backend.model.LocationModel> getAllLocations();
+  List<Records.Location> getAllLocations();
 
   /**
    * Create a new film type

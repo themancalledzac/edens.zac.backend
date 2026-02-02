@@ -1,10 +1,7 @@
 package edens.zac.portfolio.backend.controller.dev;
 
-import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.CollectionReorderRequest;
-import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
-import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
@@ -51,10 +48,10 @@ public class CollectionControllerDev {
    *         manage page
    */
   @PostMapping(value = "/createCollection", consumes = "application/json")
-  public ResponseEntity<CollectionUpdateResponseDTO> createCollection(
-      @RequestBody @Valid CollectionCreateRequest createRequest) {
-    CollectionUpdateResponseDTO response = collectionService.createCollection(createRequest);
-    log.info("Created collection: {}", response.getCollection().getId());
+  public ResponseEntity<CollectionRequests.UpdateResponse> createCollection(
+      @RequestBody @Valid CollectionRequests.Create createRequest) {
+    CollectionRequests.UpdateResponse response = collectionService.createCollection(createRequest);
+    log.info("Created collection: {}", response.collection().getId());
     return ResponseEntity.ok(response);
   }
 
@@ -67,7 +64,7 @@ public class CollectionControllerDev {
    */
   @PutMapping("/{id}")
   public ResponseEntity<CollectionModel> updateCollection(
-      @PathVariable Long id, @RequestBody @Valid CollectionUpdateRequest updateDTO) {
+      @PathVariable Long id, @RequestBody @Valid CollectionRequests.Update updateDTO) {
     log.debug("Updating collection {} with request: {}", id, updateDTO);
     CollectionModel updatedCollection = collectionService.updateContent(id, updateDTO);
     log.info("Updated collection: {}", updatedCollection.getId());
@@ -119,9 +116,9 @@ public class CollectionControllerDev {
    * @return ResponseEntity with collection and metadata
    */
   @GetMapping("/{slug}/update")
-  public ResponseEntity<CollectionUpdateResponseDTO> getUpdateCollection(
+  public ResponseEntity<CollectionRequests.UpdateResponse> getUpdateCollection(
       @PathVariable String slug) {
-    CollectionUpdateResponseDTO response = collectionService.getUpdateCollectionData(slug);
+    CollectionRequests.UpdateResponse response = collectionService.getUpdateCollectionData(slug);
     log.debug("Retrieved update data for collection: {}", slug);
     return ResponseEntity.ok(response);
   }
@@ -156,11 +153,11 @@ public class CollectionControllerDev {
    */
   @PostMapping("/{collectionId}/reorder")
   public ResponseEntity<CollectionModel> reorderCollectionContent(
-      @PathVariable Long collectionId, @RequestBody @Valid CollectionReorderRequest request) {
+      @PathVariable Long collectionId, @RequestBody @Valid CollectionRequests.Reorder request) {
     log.debug(
         "Reordering content in collection {} with {} reorder operations",
         collectionId,
-        request.getReorders().size());
+        request.reorders().size());
     CollectionModel updatedCollection = collectionService.reorderContent(collectionId, request);
     log.info("Reordered content in collection: {}", collectionId);
     return ResponseEntity.ok(updatedCollection);

@@ -170,8 +170,8 @@ class CollectionServiceImpl implements CollectionService {
   @Override
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
-  public CollectionUpdateResponseDTO createCollection(CollectionCreateRequest createRequest) {
-    log.debug("Creating new collection: {}", createRequest.getTitle());
+  public CollectionRequests.UpdateResponse createCollection(CollectionRequests.Create createRequest) {
+    log.debug("Creating new collection: {}", createRequest.title());
 
     // Create entity using utility converter
     CollectionEntity entity = collectionProcessingUtil.toEntity(createRequest, DEFAULT_PAGE_SIZE);
@@ -200,7 +200,7 @@ class CollectionServiceImpl implements CollectionService {
   @Override
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true, condition = "#updateDTO != null && (#updateDTO.title != null || #updateDTO.slug != null)")
-  public CollectionModel updateContent(Long id, CollectionUpdateRequest updateDTO) {
+  public CollectionModel updateContent(Long id, CollectionRequests.Update updateDTO) {
     log.debug("Updating collection with ID: {}", id);
 
     // Get existing entity
@@ -212,19 +212,19 @@ class CollectionServiceImpl implements CollectionService {
     collectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
 
     // Handle tag updates using prev/new/remove pattern
-    if (updateDTO.getTags() != null) {
-      updateCollectionTags(entity, updateDTO.getTags());
+    if (updateDTO.tags() != null) {
+      updateCollectionTags(entity, updateDTO.tags());
     }
 
     // Handle people updates using prev/new/remove pattern
-    if (updateDTO.getPeople() != null) {
-      updateCollectionPeople(entity, updateDTO.getPeople());
+    if (updateDTO.people() != null) {
+      updateCollectionPeople(entity, updateDTO.people());
     }
 
     // Handle collection updates using prev/new/remove pattern
     // This manages child collections within this parent collection
-    if (updateDTO.getCollections() != null) {
-      handleCollectionToCollectionUpdates(entity, updateDTO.getCollections());
+    if (updateDTO.collections() != null) {
+      handleCollectionToCollectionUpdates(entity, updateDTO.collections());
     }
 
     // Update total blocks count from join table before saving
@@ -426,7 +426,7 @@ class CollectionServiceImpl implements CollectionService {
                 Long contentId = content.getId();
                 List<CollectionContentEntity> contentCollections = collectionsByContentId.getOrDefault(contentId,
                     Collections.emptyList());
-                List<ChildCollection> childCollections = contentCollections.stream()
+                List<Records.ChildCollection> childCollections = contentCollections.stream()
                     .map(
                         joinEntry -> convertToChildCollection(
                             joinEntry, collectionsById, coverImageUrlsById))
@@ -453,7 +453,7 @@ class CollectionServiceImpl implements CollectionService {
    * @param coverImageUrlsById Map of cover image ID to image URL (pre-loaded)
    * @return The ChildCollection model, or null if collection not found
    */
-  private ChildCollection convertToChildCollection(
+  private Records.ChildCollection convertToChildCollection(
       CollectionContentEntity joinEntry,
       Map<Long, CollectionEntity> collectionsById,
       Map<Long, String> coverImageUrlsById) {
@@ -472,18 +472,18 @@ class CollectionServiceImpl implements CollectionService {
         ? coverImageUrlsById.get(collection.getCoverImageId())
         : null;
 
-    return ChildCollection.builder()
-        .collectionId(collection.getId())
-        .name(collection.getTitle())
-        .slug(collection.getSlug())
-        .coverImageUrl(coverImageUrl)
-        .visible(joinEntry.getVisible())
-        .build();
+    return new Records.ChildCollection(
+        collection.getId(),
+        collection.getTitle(),
+        collection.getSlug(),
+        coverImageUrl,
+        joinEntry.getVisible(),
+        null);
   }
 
   @Override
   @Transactional(readOnly = true)
-  public CollectionUpdateResponseDTO getUpdateCollectionData(String slug) {
+  public CollectionRequests.UpdateResponse getUpdateCollectionData(String slug) {
     log.debug("Getting update collection data for slug: {}", slug);
 
     // Get the collection
@@ -495,7 +495,7 @@ class CollectionServiceImpl implements CollectionService {
     GeneralMetadataDTO metadata = getGeneralMetadata();
 
     // Build and return response DTO with collection and metadata
-    return CollectionUpdateResponseDTO.builder().collection(collection).metadata(metadata).build();
+    return new CollectionRequests.UpdateResponse(collection, metadata);
   }
 
   @Override
@@ -506,21 +506,20 @@ class CollectionServiceImpl implements CollectionService {
 
     // Get all tags, people, locations, cameras, lenses, and film types from
     // ContentService
-    List<ContentTagModel> tags = contentService.getAllTags();
-    List<ContentPersonModel> people = contentService.getAllPeople();
-    List<LocationModel> locations = contentService.getAllLocations();
-    List<ContentCameraModel> cameras = contentService.getAllCameras();
-    List<ContentLensModel> lenses = contentService.getAllLenses();
+    List<Records.Tag> tags = contentService.getAllTags();
+    List<Records.Person> people = contentService.getAllPeople();
+    List<Records.Location> locations = contentService.getAllLocations();
+    List<Records.Camera> cameras = contentService.getAllCameras();
+    List<Records.Lens> lenses = contentService.getAllLenses();
     List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
 
-    // Get all collections as CollectionListModel (using projection for efficiency)
-    List<CollectionListModel> collections = collectionDao.findIdAndTitleOnly().stream()
-        .map(
-            summary -> CollectionListModel.builder().id(summary.id()).name(summary.title()).build())
+    // Get all collections as Records.CollectionList (using projection for efficiency)
+    List<Records.CollectionList> collections = collectionDao.findIdAndTitleOnly().stream()
+        .map(summary -> new Records.CollectionList(summary.id(), summary.title()))
         .collect(Collectors.toList());
 
     // Convert FilmFormat enums to DTOs
-    List<FilmFormatDTO> filmFormats = java.util.Arrays.stream(FilmFormat.values())
+    List<Records.FilmFormat> filmFormats = java.util.Arrays.stream(FilmFormat.values())
         .map(this::convertToFilmFormatDTO)
         .collect(Collectors.toList());
 
@@ -537,12 +536,9 @@ class CollectionServiceImpl implements CollectionService {
         .build();
   }
 
-  /** Convert FilmFormat enum to FilmFormatDTO */
-  private FilmFormatDTO convertToFilmFormatDTO(FilmFormat filmFormat) {
-    return FilmFormatDTO.builder()
-        .name(filmFormat.name())
-        .displayName(filmFormat.getDisplayName())
-        .build();
+  /** Convert FilmFormat enum to Records.FilmFormat */
+  private Records.FilmFormat convertToFilmFormatDTO(FilmFormat filmFormat) {
+    return new Records.FilmFormat(filmFormat.name(), filmFormat.getDisplayName());
   }
 
   /**
@@ -553,7 +549,7 @@ class CollectionServiceImpl implements CollectionService {
    * @param collection The collection to update
    * @param tagUpdate  The tag update containing remove/prev/newValue operations
    */
-  private void updateCollectionTags(CollectionEntity collection, TagUpdate tagUpdate) {
+  private void updateCollectionTags(CollectionEntity collection, CollectionRequests.TagUpdate tagUpdate) {
     // Load current tags
     List<Long> tagIds = tagDao.findCollectionTagIds(collection.getId());
     Set<ContentTagEntity> currentTags = tagIds.stream()
@@ -588,7 +584,7 @@ class CollectionServiceImpl implements CollectionService {
    * @param personUpdate The person update containing remove/prev/newValue
    *                     operations
    */
-  private void updateCollectionPeople(CollectionEntity collection, PersonUpdate personUpdate) {
+  private void updateCollectionPeople(CollectionEntity collection, CollectionRequests.PersonUpdate personUpdate) {
     // Load current people
     List<Long> personIds = collectionDao.findCollectionPersonIds(collection.getId());
     Set<ContentPersonEntity> currentPeople = personIds.stream()
@@ -625,14 +621,14 @@ class CollectionServiceImpl implements CollectionService {
    *                          remove/prev/newValue operations
    */
   private void handleCollectionToCollectionUpdates(
-      CollectionEntity parentCollection, CollectionUpdate collectionUpdates) {
+      CollectionEntity parentCollection, CollectionRequests.CollectionUpdate collectionUpdates) {
     log.debug(
         "Handling collection-to-collection updates for collection {}", parentCollection.getId());
 
     // Step 1: Remove - unassociate child collections from parent collection
-    if (collectionUpdates.getRemove() != null && !collectionUpdates.getRemove().isEmpty()) {
+    if (collectionUpdates.remove() != null && !collectionUpdates.remove().isEmpty()) {
       List<ContentCollectionEntity> contentColEntities = findCurrentContentCollections(parentCollection,
-          collectionUpdates.getRemove());
+          collectionUpdates.remove());
 
       // Continue even if no matching content collections are found
       if (!contentColEntities.isEmpty()) {
@@ -652,21 +648,21 @@ class CollectionServiceImpl implements CollectionService {
     }
 
     // Step 2: New Value - add new child collections to parent collection
-    if (collectionUpdates.getNewValue() != null && !collectionUpdates.getNewValue().isEmpty()) {
-      for (ChildCollection childCollection : collectionUpdates.getNewValue()) {
+    if (collectionUpdates.newValue() != null && !collectionUpdates.newValue().isEmpty()) {
+      for (Records.ChildCollection childCollection : collectionUpdates.newValue()) {
         // Find the child collection entity
         CollectionEntity childCollectionEntity = collectionDao
-            .findById(childCollection.getCollectionId())
+            .findById(childCollection.collectionId())
             .orElseThrow(
                 () -> new IllegalArgumentException(
-                    "Child collection not found: " + childCollection.getCollectionId()));
+                    "Child collection not found: " + childCollection.collectionId()));
 
         // Check if ContentCollectionEntity already exists for this referenced
         // collection
         ContentCollectionEntity existingContentCollection = findOrCreateContentCollectionEntity(childCollectionEntity);
 
-        Integer orderIndex = childCollection.getOrderIndex() != null
-            ? childCollection.getOrderIndex()
+        Integer orderIndex = childCollection.orderIndex() != null
+            ? childCollection.orderIndex()
             : (collectionContentDao.getMaxOrderIndexForCollection(parentCollection.getId()) != null
                 ? collectionContentDao.getMaxOrderIndexForCollection(parentCollection.getId())
                     + 1
@@ -685,7 +681,7 @@ class CollectionServiceImpl implements CollectionService {
               .contentId(existingContentCollection.getId())
               .orderIndex(orderIndex)
               .visible(
-                  childCollection.getVisible() != null ? childCollection.getVisible() : false)
+                  childCollection.visible() != null ? childCollection.visible() : false)
               .createdAt(LocalDateTime.now())
               .updatedAt(LocalDateTime.now())
               .build();
@@ -698,13 +694,13 @@ class CollectionServiceImpl implements CollectionService {
               orderIndex);
         } else {
           // Update existing entry
-          if (childCollection.getOrderIndex() != null) {
+          if (childCollection.orderIndex() != null) {
             collectionContentDao.updateOrderIndex(
-                existingJoinEntry.getId(), childCollection.getOrderIndex());
+                existingJoinEntry.getId(), childCollection.orderIndex());
           }
-          if (childCollection.getVisible() != null) {
+          if (childCollection.visible() != null) {
             collectionContentDao.updateVisible(
-                existingJoinEntry.getId(), childCollection.getVisible());
+                existingJoinEntry.getId(), childCollection.visible());
           }
           log.info(
               "Updated existing collection reference in parent collection {}",
@@ -714,16 +710,16 @@ class CollectionServiceImpl implements CollectionService {
     }
 
     // Step 3: Prev - update existing associations (orderIndex, visible)
-    if (collectionUpdates.getPrev() != null && !collectionUpdates.getPrev().isEmpty()) {
-      for (ChildCollection prev : collectionUpdates.getPrev()) {
+    if (collectionUpdates.prev() != null && !collectionUpdates.prev().isEmpty()) {
+      for (Records.ChildCollection prev : collectionUpdates.prev()) {
         // Find ContentCollectionEntity that references this collection
         ContentCollectionEntity contentCollectionEntity = findContentCollectionEntityByReferencedCollectionId(
-            prev.getCollectionId());
+            prev.collectionId());
 
         if (contentCollectionEntity == null) {
           log.warn(
               "No ContentCollectionEntity found for collection ID {} in prev update for parent collection {}",
-              prev.getCollectionId(),
+              prev.collectionId(),
               parentCollection.getId());
           continue;
         }
@@ -733,11 +729,11 @@ class CollectionServiceImpl implements CollectionService {
 
         if (joinEntryOpt.isPresent()) {
           CollectionContentEntity joinEntry = joinEntryOpt.get();
-          if (prev.getOrderIndex() != null) {
-            collectionContentDao.updateOrderIndex(joinEntry.getId(), prev.getOrderIndex());
+          if (prev.orderIndex() != null) {
+            collectionContentDao.updateOrderIndex(joinEntry.getId(), prev.orderIndex());
           }
-          if (prev.getVisible() != null) {
-            collectionContentDao.updateVisible(joinEntry.getId(), prev.getVisible());
+          if (prev.visible() != null) {
+            collectionContentDao.updateVisible(joinEntry.getId(), prev.visible());
           }
           log.debug(
               "Updated existing collection reference {} in parent collection {}",
@@ -874,11 +870,11 @@ class CollectionServiceImpl implements CollectionService {
   @Override
   @Transactional
   @CacheEvict(value = "collections", allEntries = true)
-  public CollectionModel reorderContent(Long collectionId, CollectionReorderRequest request) {
+  public CollectionModel reorderContent(Long collectionId, CollectionRequests.Reorder request) {
     log.debug(
         "Reordering content in collection {} with {} reorder operations",
         collectionId,
-        request.getReorders().size());
+        request.reorders().size());
 
     // 1. Verify collection exists
     CollectionEntity collection = collectionDao
@@ -886,10 +882,10 @@ class CollectionServiceImpl implements CollectionService {
         .orElseThrow(
             () -> new IllegalArgumentException("Collection not found with ID: " + collectionId));
 
-    List<CollectionReorderRequest.ReorderItem> reorders = request.getReorders();
+    List<CollectionRequests.Reorder.ReorderItem> reorders = request.reorders();
 
     // 2. Validate all content IDs belong to this collection before updating
-    List<Long> requestedContentIds = reorders.stream().map(CollectionReorderRequest.ReorderItem::getContentId).toList();
+    List<Long> requestedContentIds = reorders.stream().map(CollectionRequests.Reorder.ReorderItem::contentId).toList();
     List<CollectionContentEntity> existingEntries = collectionContentDao
         .findByCollectionIdOrderByOrderIndex(collectionId);
     Set<Long> validContentIds = existingEntries.stream()
@@ -907,8 +903,8 @@ class CollectionServiceImpl implements CollectionService {
     Map<Long, Integer> contentIdToOrderIndex = reorders.stream()
         .collect(
             Collectors.toMap(
-                CollectionReorderRequest.ReorderItem::getContentId,
-                CollectionReorderRequest.ReorderItem::getNewOrderIndex));
+                CollectionRequests.Reorder.ReorderItem::contentId,
+                CollectionRequests.Reorder.ReorderItem::newOrderIndex));
 
     int totalUpdated = collectionContentDao.batchUpdateOrderIndexes(collectionId, contentIdToOrderIndex);
     log.info("Successfully reordered {} items in collection {}", totalUpdated, collectionId);
