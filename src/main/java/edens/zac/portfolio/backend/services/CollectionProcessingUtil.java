@@ -307,6 +307,12 @@ public class CollectionProcessingUtil {
   public void applyBasicUpdates(CollectionEntity entity, CollectionRequests.Update updateDTO) {
     if (updateDTO.title() != null) {
       entity.setTitle(updateDTO.title());
+      // Auto-regenerate slug from new title unless an explicit slug was also provided
+      if (updateDTO.slug() == null || updateDTO.slug().isBlank()) {
+        String newSlug = generateSlug(updateDTO.title());
+        String uniqueSlug = validateAndEnsureUniqueSlug(newSlug, entity.getId());
+        entity.setSlug(uniqueSlug);
+      }
     }
     if (updateDTO.description() != null) {
       entity.setDescription(updateDTO.description());

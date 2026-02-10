@@ -518,42 +518,6 @@ class ContentServiceImpl implements ContentService {
   }
 
   /**
-   * Update image tags and track newly created ones. Uses shared utility method from
-   * ContentProcessingUtil.
-   */
-  private void updateImageTags(
-      ContentImageEntity image,
-      CollectionRequests.TagUpdate tagUpdate,
-      Set<ContentTagEntity> newTags) {
-    // Load current tags from database
-    List<Long> currentTagIds = tagDao.findContentTagIds(image.getId());
-    Set<ContentTagEntity> currentTags =
-        currentTagIds.stream()
-            .map(
-                tagId -> {
-                  ContentTagEntity tag = new ContentTagEntity();
-                  tag.setId(tagId);
-                  return tag;
-                })
-            .collect(Collectors.toSet());
-
-    Set<ContentTagEntity> updatedTags =
-        contentProcessingUtil.updateTags(
-            currentTags, tagUpdate, newTags // Track newly created tags
-            // for response
-            );
-    image.setTags(updatedTags);
-
-    // Save updated tags to database
-    List<Long> updatedTagIds =
-        updatedTags.stream()
-            .map(ContentTagEntity::getId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-    tagDao.saveContentTags(image.getId(), updatedTagIds);
-  }
-
-  /**
    * OPTIMIZED: Update image tags with pre-fetched current tag IDs (avoids N+1 query). Used in batch
    * update operations.
    */
@@ -651,43 +615,6 @@ class ContentServiceImpl implements ContentService {
           orderIndex,
           joinEntry.getVisible());
     }
-  }
-
-  /**
-   * Update image people and track newly created ones. Uses shared utility method from
-   * ContentProcessingUtil.
-   */
-  private void updateImagePeople(
-      ContentImageEntity image,
-      CollectionRequests.PersonUpdate personUpdate,
-      Set<ContentPersonEntity> newPeople) {
-    // Load current people from database
-    List<Long> currentPersonIds = contentDao.findImagePersonIds(image.getId());
-    Set<ContentPersonEntity> currentPeople =
-        currentPersonIds.stream()
-            .map(
-                personId -> {
-                  ContentPersonEntity person = new ContentPersonEntity();
-                  person.setId(personId);
-                  return person;
-                })
-            .collect(Collectors.toSet());
-
-    Set<ContentPersonEntity> updatedPeople =
-        contentProcessingUtil.updatePeople(
-            currentPeople, personUpdate, newPeople // Track newly
-            // created people
-            // for response
-            );
-    image.setPeople(updatedPeople);
-
-    // Save updated people to database
-    List<Long> updatedPersonIds =
-        updatedPeople.stream()
-            .map(ContentPersonEntity::getId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-    contentDao.saveImagePeople(image.getId(), updatedPersonIds);
   }
 
   /**
