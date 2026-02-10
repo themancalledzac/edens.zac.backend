@@ -108,8 +108,9 @@ class ContentImageModelTest {
     assertTrue(violation.getMessage().contains("size must be between 0 and 15"));
   }
 
-  // Note: Lens validation test removed - lens is now a ContentLensModel object,
-  // not a String field. Validation is handled at the entity level (ContentLensEntity).
+  // Note: Lens validation test removed - lens is now a Records.Lens object,
+  // not a String field. Validation is handled at the entity level
+  // (ContentLensEntity).
 
   @Test
   @DisplayName("ShutterSpeed over 20 characters should fail validation")
@@ -153,7 +154,7 @@ class ContentImageModelTest {
     // Arrange
     setupValidContentImage();
     String longLocation = "A".repeat(256); // 256 characters
-    contentImage.setLocation(LocationModel.builder().id(1L).name(longLocation).build()); // Invalid
+    contentImage.setLocation(new Records.Location(1L, longLocation)); // Invalid
 
     // Act
     Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -173,10 +174,10 @@ class ContentImageModelTest {
     contentImage.setTitle("A".repeat(250));
     contentImage.setAuthor("A".repeat(100));
     contentImage.setFStop("A".repeat(15));
-    // Note: lens is now a ContentLensModel object, not a validated String
+    // Note: lens is now a Records.Lens object, not a validated String
     contentImage.setShutterSpeed("A".repeat(20));
     contentImage.setFocalLength("A".repeat(20));
-    contentImage.setLocation(LocationModel.builder().id(1L).name("A".repeat(255)).build());
+    contentImage.setLocation(new Records.Location(1L, "A".repeat(255)));
 
     // Act
     Set<ConstraintViolation<ContentImageModel>> violations = validator.validate(contentImage);
@@ -222,7 +223,7 @@ class ContentImageModelTest {
     contentImage.setTitle("A".repeat(251)); // Error 1: title too long
     contentImage.setAuthor("A".repeat(101)); // Error 2: author too long
     contentImage.setLocation(
-        LocationModel.builder().id(1L).name("A".repeat(256)).build()); // Error 3: location too long
+        new Records.Location(1L, "A".repeat(256))); // Error 3: location too long
     contentImage.setOrderIndex(-1); // Error 4: negative orderIndex
 
     // Act
@@ -303,14 +304,13 @@ class ContentImageModelTest {
     contentImage.setAuthor("Zac Eden");
     contentImage.setRating(5);
     contentImage.setFStop("f/8.0");
-    contentImage.setLens(ContentLensModel.builder().id(1L).name("Canon 24-70mm f/2.8L").build());
+    contentImage.setLens(new Records.Lens(1L, "Canon 24-70mm f/2.8L"));
     contentImage.setBlackAndWhite(false);
     contentImage.setIsFilm(false);
     contentImage.setShutterSpeed("1/125");
-    contentImage.setCamera(new ContentCameraModel());
+    contentImage.setCamera(new Records.Camera(1L, "Canon"));
     contentImage.setFocalLength("35mm");
-    contentImage.setLocation(
-        LocationModel.builder().id(1L).name("Arches National Park, Utah").build());
+    contentImage.setLocation(new Records.Location(1L, "Arches National Park, Utah"));
     contentImage.setCreateDate("2024-03-15");
 
     // Act
@@ -335,6 +335,6 @@ class ContentImageModelTest {
     // Set optional fields with valid values
     image.setTitle("Test Image");
     image.setAuthor("Test Author");
-    image.setLocation(LocationModel.builder().id(1L).name("Test Location").build());
+    image.setLocation(new Records.Location(1L, "Test Location"));
   }
 }

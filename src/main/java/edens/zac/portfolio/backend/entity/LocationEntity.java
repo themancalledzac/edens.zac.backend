@@ -22,9 +22,7 @@ public class LocationEntity {
 
   private Long id;
 
-  @NotBlank
-  @Size(min = 1, max = 255)
-  private String locationName;
+  @NotBlank @Size(min = 1, max = 255) private String locationName;
 
   private LocalDateTime createdAt;
 

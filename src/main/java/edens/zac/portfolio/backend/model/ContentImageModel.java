@@ -17,33 +17,28 @@ public class ContentImageModel extends ContentModel {
   private Integer imageHeight;
   private Integer iso;
 
-  @Size(max = 100)
-  private String author;
+  @Size(max = 100) private String author;
 
   private Integer rating;
 
-  @Size(max = 15)
-  private String fStop;
+  @Size(max = 15) private String fStop;
 
-  private ContentLensModel lens;
+  private Records.Lens lens;
   private Boolean blackAndWhite;
   private Boolean isFilm;
   private String filmType;
   private FilmFormat filmFormat;
 
-  @Size(max = 20)
-  private String shutterSpeed;
+  @Size(max = 20) private String shutterSpeed;
 
-  private ContentCameraModel camera;
+  private Records.Camera camera;
 
-  @Size(max = 20)
-  private String focalLength;
+  @Size(max = 20) private String focalLength;
 
-  @Valid
-  private LocationModel location;
+  @Valid private Records.Location location;
 
   private String createDate;
-  private List<ContentTagModel> tags;
-  private List<ContentPersonModel> people;
-  private List<ChildCollection> collections;
+  private List<Records.Tag> tags;
+  private List<Records.Person> people;
+  private List<Records.ChildCollection> collections;
 }

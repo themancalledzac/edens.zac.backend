@@ -31,10 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Controller for Content write operations (dev environment only). Provides
- * endpoints for creating,
- * updating, and managing content, tags, and people. Exception handling is
- * delegated to
+ * Controller for Content write operations (dev environment only). Provides endpoints for creating,
+ * updating, and managing content, tags, and people. Exception handling is delegated to
  * GlobalExceptionHandler.
  */
 @Slf4j
@@ -46,20 +44,18 @@ public class ContentControllerDev {
   private final ContentService contentService;
 
   /**
-   * Create and upload images to a collection POST
-   * /api/admin/content/images/{collectionId}
+   * Create and upload images to a collection POST /api/admin/content/images/{collectionId}
    *
-   * <p>
-   * OPTIMIZED: Uses parallel processing for faster batch uploads. Images are
-   * processed
-   * concurrently (S3 upload, resize, convert) then saved to database in a single
-   * transaction.
+   * <p>OPTIMIZED: Uses parallel processing for faster batch uploads. Images are processed
+   * concurrently (S3 upload, resize, convert) then saved to database in a single transaction.
    *
    * @param collectionId ID of the collection to add images to
-   * @param files        List of image files to upload
+   * @param files List of image files to upload
    * @return ResponseEntity with created images
    */
-  @PostMapping(value = "/images/{collectionId}", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
+  @PostMapping(
+      value = "/images/{collectionId}",
+      consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
   public ResponseEntity<List<ContentImageModel>> createImages(
       @PathVariable Long collectionId,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
@@ -68,7 +64,8 @@ public class ContentControllerDev {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    List<ContentImageModel> createdImages = contentService.createImagesParallel(collectionId, files);
+    List<ContentImageModel> createdImages =
+        contentService.createImagesParallel(collectionId, files);
     log.info("Created {} image(s) in collection: {}", createdImages.size(), collectionId);
     return ResponseEntity.status(HttpStatus.CREATED).body(createdImages);
   }
@@ -111,17 +108,13 @@ public class ContentControllerDev {
   }
 
   /**
-   * Get all images ordered by date descending (newest first) GET
-   * /api/admin/content/images
+   * Get all images ordered by date descending (newest first) GET /api/admin/content/images
    *
-   * <p>
-   * OPTIMIZED: Uses database-level pagination to prevent loading all images at
-   * once.
+   * <p>OPTIMIZED: Uses database-level pagination to prevent loading all images at once.
    *
    * @param page Page number (0-indexed, default: 0)
    * @param size Page size (default: 50)
-   * @return ResponseEntity with paginated list of images sorted by createDate
-   *         descending
+   * @return ResponseEntity with paginated list of images sorted by createDate descending
    */
   @GetMapping("/images")
   public ResponseEntity<Page<ContentImageModel>> getAllImages(

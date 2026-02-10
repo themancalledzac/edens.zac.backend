@@ -9,14 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edens.zac.portfolio.backend.model.CollectionCreateRequest;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.CollectionReorderRequest;
-import edens.zac.portfolio.backend.model.CollectionUpdateRequest;
-import edens.zac.portfolio.backend.model.CollectionUpdateResponseDTO;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
-import edens.zac.portfolio.backend.model.PersonUpdate;
-import edens.zac.portfolio.backend.model.TagUpdate;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.time.LocalDateTime;
@@ -44,9 +39,9 @@ class CollectionControllerDevTest {
   private ObjectMapper objectMapper;
 
   private CollectionModel testCollection;
-  private CollectionUpdateResponseDTO testCollectionUpdateResponse;
-  private CollectionCreateRequest testCreateRequest;
-  private CollectionUpdateRequest testUpdateDTO;
+  private CollectionRequests.UpdateResponse testCollectionUpdateResponse;
+  private CollectionRequests.Create testCreateRequest;
+  private CollectionRequests.Update testUpdateDTO;
 
   @BeforeEach
   void setUp() {
@@ -87,26 +82,37 @@ class CollectionControllerDevTest {
             .filmFormats(new ArrayList<>())
             .build();
 
-    testCollectionUpdateResponse =
-        CollectionUpdateResponseDTO.builder().collection(testCollection).metadata(metadata).build();
+    testCollectionUpdateResponse = new CollectionRequests.UpdateResponse(testCollection, metadata);
 
     // Create minimal test create request
-    testCreateRequest = new CollectionCreateRequest();
-    testCreateRequest.setType(CollectionType.BLOG);
-    testCreateRequest.setTitle("New Test Blog");
+    testCreateRequest = new CollectionRequests.Create(CollectionType.BLOG, "New Test Blog");
 
     // Create test update DTO
-    testUpdateDTO = new CollectionUpdateRequest();
-    testUpdateDTO.setId(1L);
-    testUpdateDTO.setTitle("Updated Test Blog");
-    testUpdateDTO.setDescription("An updated test blog collection");
+    testUpdateDTO =
+        new CollectionRequests.Update(
+            1L,
+            null,
+            "Updated Test Blog",
+            null,
+            "An updated test blog collection",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
   }
 
   @Test
   @DisplayName("POST /collections/createCollection should create a new collection")
   void createCollection_shouldCreateNewCollection() throws Exception {
     // Arrange
-    when(collectionService.createCollection(any(CollectionCreateRequest.class)))
+    when(collectionService.createCollection(any(CollectionRequests.Create.class)))
         .thenReturn(testCollectionUpdateResponse);
 
     // Act & Assert
@@ -120,14 +126,14 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.collection.title", is("Test Blog")))
         .andExpect(jsonPath("$.collection.type", is("BLOG")));
 
-    verify(collectionService).createCollection(any(CollectionCreateRequest.class));
+    verify(collectionService).createCollection(any(CollectionRequests.Create.class));
   }
 
   @Test
   @DisplayName("POST /collections/createCollection should handle errors")
   void createCollection_shouldHandleErrors() throws Exception {
     // Arrange
-    when(collectionService.createCollection(any(CollectionCreateRequest.class)))
+    when(collectionService.createCollection(any(CollectionRequests.Create.class)))
         .thenThrow(new RuntimeException("Test error"));
 
     // Act & Assert
@@ -139,14 +145,14 @@ class CollectionControllerDevTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
-    verify(collectionService).createCollection(any(CollectionCreateRequest.class));
+    verify(collectionService).createCollection(any(CollectionRequests.Create.class));
   }
 
   @Test
   @DisplayName("PUT /collections/{id} should update collection metadata")
   void updateCollection_shouldUpdateCollectionMetadata() throws Exception {
     // Arrange
-    when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
+    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
         .thenReturn(testCollection);
 
     // Act & Assert
@@ -159,18 +165,33 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("Test Blog"));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
+    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test
   @DisplayName("PUT /collections/{id} should handle not found error")
   void updateCollection_shouldHandleNotFoundError() throws Exception {
     // Arrange
-    CollectionUpdateRequest notFoundUpdateDTO = new CollectionUpdateRequest();
-    notFoundUpdateDTO.setId(999L);
-    notFoundUpdateDTO.setTitle("Updated Test Blog");
+    CollectionRequests.Update notFoundUpdateDTO =
+        new CollectionRequests.Update(
+            999L,
+            null,
+            "Updated Test Blog",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
-    when(collectionService.updateContent(eq(999L), any(CollectionUpdateRequest.class)))
+    when(collectionService.updateContent(eq(999L), any(CollectionRequests.Update.class)))
         .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
 
     // Act & Assert
@@ -182,7 +203,7 @@ class CollectionControllerDevTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message", containsString("not found")));
 
-    verify(collectionService).updateContent(eq(999L), any(CollectionUpdateRequest.class));
+    verify(collectionService).updateContent(eq(999L), any(CollectionRequests.Update.class));
   }
 
   @Test
@@ -192,9 +213,7 @@ class CollectionControllerDevTest {
     doNothing().when(collectionService).deleteCollection(1L);
 
     // Act & Assert
-    mockMvc
-        .perform(delete("/api/admin/collections/1"))
-        .andExpect(status().isNoContent());
+    mockMvc.perform(delete("/api/admin/collections/1")).andExpect(status().isNoContent());
 
     verify(collectionService).deleteCollection(1L);
   }
@@ -327,21 +346,30 @@ class CollectionControllerDevTest {
       "PUT /collections/{id} should update collection with tags using prev/new/remove pattern")
   void updateCollection_shouldUpdateCollectionWithTags() throws Exception {
     // Arrange
-    TagUpdate tagUpdate =
-        TagUpdate.builder()
-            .prev(List.of(1L, 2L)) // Add existing tags 1 and 2
-            .newValue(List.of("landscape", "nature")) // Create and add new tags
-            .remove(List.of(3L)) // Remove tag 3
-            .build();
+    CollectionRequests.TagUpdate tagUpdate =
+        new CollectionRequests.TagUpdate(
+            List.of(1L, 2L), List.of("landscape", "nature"), List.of(3L));
 
-    CollectionUpdateRequest updateRequest =
-        CollectionUpdateRequest.builder()
-            .id(1L)
-            .title("Updated Blog with Tags")
-            .tags(tagUpdate)
-            .build();
+    CollectionRequests.Update updateRequest =
+        new CollectionRequests.Update(
+            1L,
+            null,
+            "Updated Blog with Tags",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            tagUpdate,
+            null,
+            null);
 
-    when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
+    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
         .thenReturn(testCollection);
 
     // Act & Assert
@@ -354,7 +382,7 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.id", is(1)))
         .andExpect(jsonPath("$.title", is("Test Blog")));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
+    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test
@@ -362,21 +390,30 @@ class CollectionControllerDevTest {
       "PUT /collections/{id} should update collection with people using prev/new/remove pattern")
   void updateCollection_shouldUpdateCollectionWithPeople() throws Exception {
     // Arrange
-    PersonUpdate personUpdate =
-        PersonUpdate.builder()
-            .prev(List.of(5L, 6L)) // Add existing people 5 and 6
-            .newValue(List.of("John Doe", "Jane Smith")) // Create and add new people
-            .remove(List.of(7L)) // Remove person 7
-            .build();
+    CollectionRequests.PersonUpdate personUpdate =
+        new CollectionRequests.PersonUpdate(
+            List.of(5L, 6L), List.of("John Doe", "Jane Smith"), List.of(7L));
 
-    CollectionUpdateRequest updateRequest =
-        CollectionUpdateRequest.builder()
-            .id(1L)
-            .title("Updated Blog with People")
-            .people(personUpdate)
-            .build();
+    CollectionRequests.Update updateRequest =
+        new CollectionRequests.Update(
+            1L,
+            null,
+            "Updated Blog with People",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            personUpdate,
+            null);
 
-    when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
+    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
         .thenReturn(testCollection);
 
     // Act & Assert
@@ -389,27 +426,39 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.id", is(1)))
         .andExpect(jsonPath("$.title", is("Test Blog")));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
+    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test
   @DisplayName("PUT /collections/{id} should update collection with both tags and people")
   void updateCollection_shouldUpdateCollectionWithTagsAndPeople() throws Exception {
     // Arrange
-    TagUpdate tagUpdate = TagUpdate.builder().prev(List.of(1L)).newValue(List.of("travel")).build();
+    CollectionRequests.TagUpdate tagUpdate =
+        new CollectionRequests.TagUpdate(List.of(1L), List.of("travel"), null);
 
-    PersonUpdate personUpdate =
-        PersonUpdate.builder().prev(List.of(5L)).newValue(List.of("Alice")).build();
+    CollectionRequests.PersonUpdate personUpdate =
+        new CollectionRequests.PersonUpdate(List.of(5L), List.of("Alice"), null);
 
-    CollectionUpdateRequest updateRequest =
-        CollectionUpdateRequest.builder()
-            .id(1L)
-            .title("Updated Blog with Tags and People")
-            .tags(tagUpdate)
-            .people(personUpdate)
-            .build();
+    CollectionRequests.Update updateRequest =
+        new CollectionRequests.Update(
+            1L,
+            null,
+            "Updated Blog with Tags and People",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            tagUpdate,
+            personUpdate,
+            null);
 
-    when(collectionService.updateContent(eq(1L), any(CollectionUpdateRequest.class)))
+    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
         .thenReturn(testCollection);
 
     // Act & Assert
@@ -422,7 +471,7 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.id", is(1)))
         .andExpect(jsonPath("$.title", is("Test Blog")));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionUpdateRequest.class));
+    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test
@@ -471,14 +520,14 @@ class CollectionControllerDevTest {
   @DisplayName("POST /collections/{collectionId}/reorder should reorder content successfully")
   void reorderCollectionContent_shouldReorderContentSuccessfully() throws Exception {
     // Arrange
-    CollectionReorderRequest.ReorderItem reorder1 =
-        new CollectionReorderRequest.ReorderItem(10L, 0);
-    CollectionReorderRequest.ReorderItem reorder2 =
-        new CollectionReorderRequest.ReorderItem(11L, 1);
-    CollectionReorderRequest reorderRequest =
-        new CollectionReorderRequest(List.of(reorder1, reorder2));
+    CollectionRequests.Reorder.ReorderItem reorder1 =
+        new CollectionRequests.Reorder.ReorderItem(10L, 0);
+    CollectionRequests.Reorder.ReorderItem reorder2 =
+        new CollectionRequests.Reorder.ReorderItem(11L, 1);
+    CollectionRequests.Reorder reorderRequest =
+        new CollectionRequests.Reorder(List.of(reorder1, reorder2));
 
-    when(collectionService.reorderContent(eq(1L), any(CollectionReorderRequest.class)))
+    when(collectionService.reorderContent(eq(1L), any(CollectionRequests.Reorder.class)))
         .thenReturn(testCollection);
 
     // Act & Assert
@@ -491,18 +540,18 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.id", is(1)))
         .andExpect(jsonPath("$.title", is("Test Blog")));
 
-    verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
+    verify(collectionService).reorderContent(eq(1L), any(CollectionRequests.Reorder.class));
   }
 
   @Test
   @DisplayName("POST /collections/{collectionId}/reorder should handle not found error")
   void reorderCollectionContent_shouldHandleNotFoundError() throws Exception {
     // Arrange
-    CollectionReorderRequest.ReorderItem reorder1 =
-        new CollectionReorderRequest.ReorderItem(10L, 0);
-    CollectionReorderRequest reorderRequest = new CollectionReorderRequest(List.of(reorder1));
+    CollectionRequests.Reorder.ReorderItem reorder1 =
+        new CollectionRequests.Reorder.ReorderItem(10L, 0);
+    CollectionRequests.Reorder reorderRequest = new CollectionRequests.Reorder(List.of(reorder1));
 
-    when(collectionService.reorderContent(eq(999L), any(CollectionReorderRequest.class)))
+    when(collectionService.reorderContent(eq(999L), any(CollectionRequests.Reorder.class)))
         .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
 
     // Act & Assert
@@ -514,18 +563,18 @@ class CollectionControllerDevTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message", containsString("not found")));
 
-    verify(collectionService).reorderContent(eq(999L), any(CollectionReorderRequest.class));
+    verify(collectionService).reorderContent(eq(999L), any(CollectionRequests.Reorder.class));
   }
 
   @Test
   @DisplayName("POST /collections/{collectionId}/reorder should handle invalid request error")
   void reorderCollectionContent_shouldHandleInvalidRequestError() throws Exception {
     // Arrange
-    CollectionReorderRequest.ReorderItem reorder1 =
-        new CollectionReorderRequest.ReorderItem(10L, -1);
-    CollectionReorderRequest reorderRequest = new CollectionReorderRequest(List.of(reorder1));
+    CollectionRequests.Reorder.ReorderItem reorder1 =
+        new CollectionRequests.Reorder.ReorderItem(10L, -1);
+    CollectionRequests.Reorder reorderRequest = new CollectionRequests.Reorder(List.of(reorder1));
 
-    when(collectionService.reorderContent(eq(1L), any(CollectionReorderRequest.class)))
+    when(collectionService.reorderContent(eq(1L), any(CollectionRequests.Reorder.class)))
         .thenThrow(new IllegalArgumentException("Invalid order index: -1"));
 
     // Act & Assert
@@ -537,18 +586,18 @@ class CollectionControllerDevTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message", containsString("Invalid order index")));
 
-    verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
+    verify(collectionService).reorderContent(eq(1L), any(CollectionRequests.Reorder.class));
   }
 
   @Test
   @DisplayName("POST /collections/{collectionId}/reorder should handle general errors")
   void reorderCollectionContent_shouldHandleGeneralErrors() throws Exception {
     // Arrange
-    CollectionReorderRequest.ReorderItem reorder1 =
-        new CollectionReorderRequest.ReorderItem(10L, 0);
-    CollectionReorderRequest reorderRequest = new CollectionReorderRequest(List.of(reorder1));
+    CollectionRequests.Reorder.ReorderItem reorder1 =
+        new CollectionRequests.Reorder.ReorderItem(10L, 0);
+    CollectionRequests.Reorder reorderRequest = new CollectionRequests.Reorder(List.of(reorder1));
 
-    when(collectionService.reorderContent(eq(1L), any(CollectionReorderRequest.class)))
+    when(collectionService.reorderContent(eq(1L), any(CollectionRequests.Reorder.class)))
         .thenThrow(new RuntimeException("Database connection error"));
 
     // Act & Assert
@@ -560,6 +609,6 @@ class CollectionControllerDevTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
-    verify(collectionService).reorderContent(eq(1L), any(CollectionReorderRequest.class));
+    verify(collectionService).reorderContent(eq(1L), any(CollectionRequests.Reorder.class));
   }
 }

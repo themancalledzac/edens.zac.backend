@@ -12,7 +12,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateTagRequest {
 
-  @NotBlank(message = "Tag name is required")
-  @Size(min = 1, max = 50, message = "Tag name must be between 1 and 50 characters")
-  private String tagName;
+  @NotBlank(message = "Tag name is required") @Size(min = 1, max = 50, message = "Tag name must be between 1 and 50 characters") private String tagName;
 }

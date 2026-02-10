@@ -8,17 +8,14 @@ import java.util.function.Predicate;
 import lombok.Getter;
 
 /**
- * Central configuration for image metadata extraction. Defines all metadata
- * fields we extract from
+ * Central configuration for image metadata extraction. Defines all metadata fields we extract from
  * images, along with their sources and extraction strategies.
  */
 public class ImageMetadata {
 
   /**
-   * Enum defining all metadata fields that can be extracted from images. Each
-   * field knows: - Its
-   * field name in our system - Which EXIF tags to check - Which XMP properties to
-   * check - How to
+   * Enum defining all metadata fields that can be extracted from images. Each field knows: - Its
+   * field name in our system - Which EXIF tags to check - Which XMP properties to check - How to
    * extract/transform the value
    */
   @Getter
@@ -84,23 +81,16 @@ public class ImageMetadata {
         new SimpleStringExtractor()),
 
     /**
-     * Image capture date from EXIF/XMP metadata. Uses the original capture
-     * date/time from when the
+     * Image capture date from EXIF/XMP metadata. Uses the original capture date/time from when the
      * photo was taken, not the file modification date.
      *
-     * <p>
-     * EXIF tags: "Date/Time Original" is the actual tag name format used by the
-     * metadata-extractor library (with spaces and slashes). "DateTimeOriginal" is
-     * included as a
+     * <p>EXIF tags: "Date/Time Original" is the actual tag name format used by the
+     * metadata-extractor library (with spaces and slashes). "DateTimeOriginal" is included as a
      * fallback for other tag name variations.
      *
-     * <p>
-     * XMP property: Uses "DateTimeOriginal" (not "CreateDate") because: -
-     * "DateTimeOriginal" is
-     * the EXIF standard property name in XMP that corresponds to the EXIF
-     * DateTimeOriginal tag -
-     * "CreateDate" is a different XMP property that may represent file creation
-     * time rather than
+     * <p>XMP property: Uses "DateTimeOriginal" (not "CreateDate") because: - "DateTimeOriginal" is
+     * the EXIF standard property name in XMP that corresponds to the EXIF DateTimeOriginal tag -
+     * "CreateDate" is a different XMP property that may represent file creation time rather than
      * image capture time
      */
     CREATE_DATE(
@@ -151,8 +141,7 @@ public class ImageMetadata {
   // ==================== Helper Classes ====================
 
   /**
-   * Wrapper for EXIF tag names. Some metadata can be found under multiple EXIF
-   * tag names (e.g.,
+   * Wrapper for EXIF tag names. Some metadata can be found under multiple EXIF tag names (e.g.,
    * "ISO" or "ISO Speed Ratings").
    */
   @Getter
@@ -181,8 +170,7 @@ public class ImageMetadata {
   }
 
   /**
-   * Wrapper for XMP namespace and property names. XMP metadata is organized by
-   * namespace (e.g.,
+   * Wrapper for XMP namespace and property names. XMP metadata is organized by namespace (e.g.,
    * NS_EXIF) and property name (e.g., "ISOSpeedRatings").
    */
   @Getter
@@ -211,8 +199,7 @@ public class ImageMetadata {
   // ==================== Extraction Strategies ====================
 
   /**
-   * Interface for value extraction strategies. Different metadata types require
-   * different
+   * Interface for value extraction strategies. Different metadata types require different
    * extraction/transformation logic.
    */
   public interface ValueExtractor {
@@ -231,8 +218,7 @@ public class ImageMetadata {
   }
 
   /**
-   * Numeric extractor. Strips non-numeric characters (except decimal point) and
-   * returns the numeric
+   * Numeric extractor. Strips non-numeric characters (except decimal point) and returns the numeric
    * value. Useful for fields like "ISO 400" -> "400" or "f/2.8" -> "2.8"
    */
   public static class NumericExtractor implements ValueExtractor {
@@ -254,8 +240,7 @@ public class ImageMetadata {
   }
 
   /**
-   * Boolean extractor with custom predicate. Tests the value against a predicate
-   * and returns "true"
+   * Boolean extractor with custom predicate. Tests the value against a predicate and returns "true"
    * or "false".
    */
   public static class BooleanExtractor implements ValueExtractor {

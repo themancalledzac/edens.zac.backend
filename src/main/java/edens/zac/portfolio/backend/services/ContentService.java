@@ -6,8 +6,7 @@ import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Service interface for managing content blocks, tags, and people. Provides
- * methods for CRUD
+ * Service interface for managing content blocks, tags, and people. Provides methods for CRUD
  * operations on tags, people, and image content blocks.
  */
 public interface ContentService {
@@ -31,9 +30,8 @@ public interface ContentService {
   /**
    * Create a new camera
    *
-   * @param cameraName       The name of the camera to create
-   * @param bodySerialNumber Optional serial number for the camera (used for
-   *                         deduplication)
+   * @param cameraName The name of the camera to create
+   * @param bodySerialNumber Optional serial number for the camera (used for deduplication)
    * @return Map containing created camera data
    */
   Map<String, Object> createCamera(String cameraName, String bodySerialNumber);
@@ -41,9 +39,8 @@ public interface ContentService {
   /**
    * Create a new lens
    *
-   * @param lensName         The name of the lens to create
-   * @param lensSerialNumber Optional serial number for the lens (used for
-   *                         deduplication)
+   * @param lensName The name of the lens to create
+   * @param lensSerialNumber Optional serial number for the lens (used for deduplication)
    * @return Map containing created lens data
    */
   Map<String, Object> createLens(String lensName, String lensSerialNumber);
@@ -69,21 +66,21 @@ public interface ContentService {
    *
    * @return List of all tags
    */
-  List<ContentTagModel> getAllTags();
+  List<Records.Tag> getAllTags();
 
   /**
    * Get all people ordered alphabetically
    *
    * @return List of all people
    */
-  List<ContentPersonModel> getAllPeople();
+  List<Records.Person> getAllPeople();
 
   /**
    * Get all cameras ordered alphabetically
    *
    * @return List of all cameras
    */
-  List<ContentCameraModel> getAllCameras();
+  List<Records.Camera> getAllCameras();
 
   /**
    * Get all film types ordered alphabetically by display name
@@ -97,23 +94,21 @@ public interface ContentService {
    *
    * @return List of all lenses
    */
-  List<edens.zac.portfolio.backend.model.ContentLensModel> getAllLenses();
+  List<edens.zac.portfolio.backend.model.Records.Lens> getAllLenses();
 
   /**
    * Get all locations ordered alphabetically
    *
    * @return List of all locations
    */
-  List<edens.zac.portfolio.backend.model.LocationModel> getAllLocations();
+  List<Records.Location> getAllLocations();
 
   /**
    * Create a new film type
    *
-   * @param filmTypeName The technical name of the film type (e.g.,
-   *                     "KODAK_PORTRA_400")
-   * @param displayName  The human-readable display name (e.g., "Kodak Portra
-   *                     400")
-   * @param defaultIso   The default ISO value for this film stock
+   * @param filmTypeName The technical name of the film type (e.g., "KODAK_PORTRA_400")
+   * @param displayName The human-readable display name (e.g., "Kodak Portra 400")
+   * @param defaultIso The default ISO value for this film stock
    * @return Map containing created film type data
    */
   Map<String, Object> createFilmType(String filmTypeName, String displayName, Integer defaultIso);
@@ -138,18 +133,17 @@ public interface ContentService {
    * Create one or more images and associate them with a collection
    *
    * @param collectionId ID of the collection to associate images with
-   * @param files        List of image files to upload
+   * @param files List of image files to upload
    * @return List of created image models
    */
   List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files);
 
   /**
-   * Create one or more images and associate them with a collection using parallel
-   * processing.
+   * Create one or more images and associate them with a collection using parallel processing.
    * OPTIMIZED version that processes images concurrently for better performance.
    *
    * @param collectionId ID of the collection to associate images with
-   * @param files        List of image files to upload
+   * @param files List of image files to upload
    * @return List of created image models
    */
   List<ContentImageModel> createImagesParallel(Long collectionId, List<MultipartFile> files);

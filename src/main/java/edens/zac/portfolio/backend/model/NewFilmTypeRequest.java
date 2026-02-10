@@ -23,9 +23,7 @@ public class NewFilmTypeRequest {
    * The human-readable display name (e.g., "Kodak Portra 400") The technical name will be
    * auto-generated from this (e.g., "KODAK_PORTRA_400")
    */
-  @NotBlank(message = "Film type name is required")
-  @Size(min = 1, max = 100, message = "Film type name must be between 1 and 100 characters")
-  private String filmTypeName;
+  @NotBlank(message = "Film type name is required") @Size(min = 1, max = 100, message = "Film type name must be between 1 and 100 characters") private String filmTypeName;
 
   /** The default ISO value for this film stock */
   @NotNull(message = "Default ISO is required") @Positive(message = "Default ISO must be a positive integer") private Integer defaultIso;

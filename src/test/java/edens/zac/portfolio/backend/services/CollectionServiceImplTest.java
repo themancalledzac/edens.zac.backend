@@ -18,7 +18,7 @@ import edens.zac.portfolio.backend.dao.ContentTextDao;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.CollectionReorderRequest;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -102,12 +102,12 @@ class CollectionServiceImplTest {
     void reorderContent_success_updatesOrderIndexes() {
       // Arrange
       Long collectionId = 1L;
-      CollectionReorderRequest request =
-          new CollectionReorderRequest(
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
               List.of(
-                  new CollectionReorderRequest.ReorderItem(100L, 2),
-                  new CollectionReorderRequest.ReorderItem(101L, 0),
-                  new CollectionReorderRequest.ReorderItem(102L, 1)));
+                  new CollectionRequests.Reorder.ReorderItem(100L, 2),
+                  new CollectionRequests.Reorder.ReorderItem(101L, 0),
+                  new CollectionRequests.Reorder.ReorderItem(102L, 1)));
 
       when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
       when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
@@ -140,8 +140,9 @@ class CollectionServiceImplTest {
     void reorderContent_collectionNotFound_throwsException() {
       // Arrange
       Long collectionId = 999L;
-      CollectionReorderRequest request =
-          new CollectionReorderRequest(List.of(new CollectionReorderRequest.ReorderItem(100L, 0)));
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
+              List.of(new CollectionRequests.Reorder.ReorderItem(100L, 0)));
 
       when(collectionDao.findById(collectionId)).thenReturn(Optional.empty());
 
@@ -157,11 +158,11 @@ class CollectionServiceImplTest {
     void reorderContent_contentNotInCollection_throwsException() {
       // Arrange
       Long collectionId = 1L;
-      CollectionReorderRequest request =
-          new CollectionReorderRequest(
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
               List.of(
-                  new CollectionReorderRequest.ReorderItem(100L, 0),
-                  new CollectionReorderRequest.ReorderItem(999L, 1)));
+                  new CollectionRequests.Reorder.ReorderItem(100L, 0),
+                  new CollectionRequests.Reorder.ReorderItem(999L, 1)));
 
       when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
       when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))
@@ -179,8 +180,9 @@ class CollectionServiceImplTest {
     void reorderContent_partialReorder_updatesOnlySpecifiedItems() {
       // Arrange
       Long collectionId = 1L;
-      CollectionReorderRequest request =
-          new CollectionReorderRequest(List.of(new CollectionReorderRequest.ReorderItem(100L, 5)));
+      CollectionRequests.Reorder request =
+          new CollectionRequests.Reorder(
+              List.of(new CollectionRequests.Reorder.ReorderItem(100L, 5)));
 
       when(collectionDao.findById(collectionId)).thenReturn(Optional.of(collection));
       when(collectionContentDao.findByCollectionIdOrderByOrderIndex(collectionId))

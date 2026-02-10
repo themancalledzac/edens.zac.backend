@@ -1,9 +1,7 @@
 package edens.zac.portfolio.backend.controller.prod;
 
-import edens.zac.portfolio.backend.model.ContentCameraModel;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
-import edens.zac.portfolio.backend.model.ContentPersonModel;
-import edens.zac.portfolio.backend.model.ContentTagModel;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.util.Arrays;
@@ -17,8 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Production controller for Content read operations. Exception handling is
- * delegated to
+ * Production controller for Content read operations. Exception handling is delegated to
  * GlobalExceptionHandler.
  */
 @Slf4j
@@ -35,8 +32,8 @@ public class ContentControllerProd {
    * @return ResponseEntity with list of all tags
    */
   @GetMapping("/tags")
-  public ResponseEntity<List<ContentTagModel>> getAllTags() {
-    List<ContentTagModel> tags = contentService.getAllTags();
+  public ResponseEntity<List<Records.Tag>> getAllTags() {
+    List<Records.Tag> tags = contentService.getAllTags();
     return ResponseEntity.ok(tags);
   }
 
@@ -46,8 +43,8 @@ public class ContentControllerProd {
    * @return ResponseEntity with list of all people
    */
   @GetMapping("/people")
-  public ResponseEntity<List<ContentPersonModel>> getAllPeople() {
-    List<ContentPersonModel> people = contentService.getAllPeople();
+  public ResponseEntity<List<Records.Person>> getAllPeople() {
+    List<Records.Person> people = contentService.getAllPeople();
     return ResponseEntity.ok(people);
   }
 
@@ -57,20 +54,16 @@ public class ContentControllerProd {
    * @return ResponseEntity with list of all cameras
    */
   @GetMapping("/cameras")
-  public ResponseEntity<List<ContentCameraModel>> getAllCameras() {
-    List<ContentCameraModel> cameras = contentService.getAllCameras();
+  public ResponseEntity<List<Records.Camera>> getAllCameras() {
+    List<Records.Camera> cameras = contentService.getAllCameras();
     return ResponseEntity.ok(cameras);
   }
 
   /**
-   * Get film metadata (film types and formats) GET
-   * /api/read/content/film-metadata
+   * Get film metadata (film types and formats) GET /api/read/content/film-metadata
    *
-   * <p>
-   * Returns all available film types with their default ISO values, and all
-   * available film
-   * formats. Used by the frontend to populate dropdowns in the image editing
-   * interface.
+   * <p>Returns all available film types with their default ISO values, and all available film
+   * formats. Used by the frontend to populate dropdowns in the image editing interface.
    *
    * @return ResponseEntity with film types and formats
    */
@@ -78,14 +71,12 @@ public class ContentControllerProd {
   public ResponseEntity<Map<String, Object>> getFilmMetadata() {
     List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
 
-    List<FilmFormatResponse> filmFormats = Arrays.stream(FilmFormat.values())
-        .map(format -> new FilmFormatResponse(format.name(), format.getDisplayName()))
-        .toList();
+    List<FilmFormatResponse> filmFormats =
+        Arrays.stream(FilmFormat.values())
+            .map(format -> new FilmFormatResponse(format.name(), format.getDisplayName()))
+            .toList();
 
-    return ResponseEntity.ok(
-        Map.of(
-            "filmTypes", filmTypes,
-            "filmFormats", filmFormats));
+    return ResponseEntity.ok(Map.of("filmTypes", filmTypes, "filmFormats", filmFormats));
   }
 
   /** Response DTO for film formats. */

@@ -4,10 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentCameraDao;
@@ -39,46 +35,32 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 @ExtendWith(MockitoExtension.class)
 public class ContentProcessingUtilTest {
 
-  @Mock
-  private S3Client s3Client;
+  @Mock private S3Client s3Client;
+  @Mock private ContentDao contentDao;
+  @Mock private ContentCameraDao contentCameraDao;
+  @Mock private ContentLensDao contentLensDao;
+  @Mock private ContentFilmTypeDao contentFilmTypeDao;
+  @Mock private ContentTagDao contentTagDao;
+  @Mock private edens.zac.portfolio.backend.dao.TagDao tagDao;
+  @Mock private edens.zac.portfolio.backend.dao.LocationDao locationDao;
+  @Mock private ContentPersonDao contentPersonDao;
+  @Mock private CollectionContentDao collectionContentDao;
+  @Mock private CollectionDao collectionDao;
+  @Mock private ContentTextDao contentTextDao;
+  @Mock private ContentCollectionDao contentCollectionDao;
+  @Mock private ContentGifDao contentGifDao;
+  @Mock private ContentImageUpdateValidator contentImageUpdateValidator;
+  @Mock private ContentValidator contentValidator;
 
-  @Mock
-  private ContentDao contentDao;
-  @Mock
-  private ContentCameraDao contentCameraDao;
-  @Mock
-  private ContentLensDao contentLensDao;
-  @Mock
-  private ContentFilmTypeDao contentFilmTypeDao;
-  @Mock
-  private ContentTagDao contentTagDao;
-  @Mock
-  private edens.zac.portfolio.backend.dao.TagDao tagDao;
-  @Mock
-  private edens.zac.portfolio.backend.dao.LocationDao locationDao;
-  @Mock
-  private ContentPersonDao contentPersonDao;
-  @Mock
-  private CollectionContentDao collectionContentDao;
-  @Mock
-  private CollectionDao collectionDao;
-  @Mock
-  private ContentTextDao contentTextDao;
-  @Mock
-  private ContentCollectionDao contentCollectionDao;
-  @Mock
-  private ContentGifDao contentGifDao;
-  @Mock
-  private ContentImageUpdateValidator contentImageUpdateValidator;
-  @Mock
-  private ContentValidator contentValidator;
-
-  @InjectMocks
-  private ContentProcessingUtil contentProcessingUtil;
+  @InjectMocks private ContentProcessingUtil contentProcessingUtil;
 
   private static final String BUCKET_NAME = "test-bucket";
   private static final String CLOUDFRONT_DOMAIN = "test.cloudfront.net";
@@ -98,7 +80,8 @@ public class ContentProcessingUtilTest {
     // Arrange
     ContentImageEntity entity = createContentImageEntity();
     // Mock location lookup
-    LocationEntity locationEntity = LocationEntity.builder().id(1L).locationName("Test Location").build();
+    LocationEntity locationEntity =
+        LocationEntity.builder().id(1L).locationName("Test Location").build();
     when(locationDao.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
 
     // Act
@@ -116,15 +99,15 @@ public class ContentProcessingUtilTest {
     assertEquals(entity.getAuthor(), imageModel.getAuthor());
     assertEquals(entity.getRating(), imageModel.getRating());
     assertEquals(entity.getFStop(), imageModel.getFStop());
-    assertEquals(entity.getLens().getLensName(), imageModel.getLens().getName());
+    assertEquals(entity.getLens().getLensName(), imageModel.getLens().name());
     assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
     assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
     assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
-    assertEquals(entity.getCamera().getCameraName(), imageModel.getCamera().getName());
+    assertEquals(entity.getCamera().getCameraName(), imageModel.getCamera().name());
     assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
     assertNotNull(imageModel.getLocation());
-    assertEquals("Test Location", imageModel.getLocation().getName());
-    assertEquals(1L, imageModel.getLocation().getId());
+    assertEquals("Test Location", imageModel.getLocation().name());
+    assertEquals(1L, imageModel.getLocation().id());
     assertEquals(entity.getCreateDate(), imageModel.getCreateDate());
   }
 
@@ -174,11 +157,12 @@ public class ContentProcessingUtilTest {
     when(entity.getContentType()).thenReturn(null);
 
     // Act & Assert
-    Exception exception = assertThrows(
-        IllegalArgumentException.class,
-        () -> {
-          contentProcessingUtil.convertRegularContentEntityToModel(entity);
-        });
+    Exception exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> {
+              contentProcessingUtil.convertRegularContentEntityToModel(entity);
+            });
     assertTrue(exception.getMessage().contains("Unknown content type"));
   }
 
@@ -206,8 +190,15 @@ public class ContentProcessingUtilTest {
     assertNotNull(result);
     assertInstanceOf(ContentImageEntity.class, result);
     verify(s3Client, times(2))
-        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify S3 upload was called twice (full +
-                                                                         // webP)
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify
+    // S3
+    // upload
+    // was
+    // called
+    // twice
+    // (full
+    // +
+    // webP)
     verify(contentDao).saveImage(any(ContentImageEntity.class));
   }
 
@@ -225,11 +216,12 @@ public class ContentProcessingUtilTest {
     // code may fail
     // earlier
     // during image processing before reaching S3 upload.
-    Throwable exception = assertThrows(
-        Throwable.class,
-        () -> {
-          contentProcessingUtil.processImageContent(file, title);
-        });
+    Throwable exception =
+        assertThrows(
+            Throwable.class,
+            () -> {
+              contentProcessingUtil.processImageContent(file, title);
+            });
     assertTrue(exception instanceof RuntimeException || exception instanceof UnsatisfiedLinkError);
   }
 
@@ -317,12 +309,13 @@ public class ContentProcessingUtilTest {
 
     // Act & Assert
     // Note: May throw different exceptions depending on image library availability
-    Throwable exception = assertThrows(
-        Throwable.class,
-        () -> {
-          contentProcessingUtil.processGifContent(
-              file, collectionId, orderIndex, title, caption);
-        });
+    Throwable exception =
+        assertThrows(
+            Throwable.class,
+            () -> {
+              contentProcessingUtil.processGifContent(
+                  file, collectionId, orderIndex, title, caption);
+            });
     // Accept either the expected RuntimeException or other exceptions from image
     // processing
     assertTrue(
@@ -442,8 +435,15 @@ public class ContentProcessingUtilTest {
     assertNotNull(result);
     assertInstanceOf(ContentImageEntity.class, result);
     verify(s3Client, times(2))
-        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify S3 upload was called twice (full +
-                                                                         // webP)
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify
+    // S3
+    // upload
+    // was
+    // called
+    // twice
+    // (full
+    // +
+    // webP)
     verify(contentDao).saveImage(any(ContentImageEntity.class));
   }
 

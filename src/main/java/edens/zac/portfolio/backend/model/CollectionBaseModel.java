@@ -12,10 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Base model containing common fields shared across all Collection DTOs. This
- * eliminates
- * duplication between CollectionModel, CollectionPageDTO, and
- * CollectionUpdateRequest.
+ * Base model containing common fields shared across all Collection DTOs. This eliminates
+ * duplication between CollectionModel, CollectionPageDTO, and CollectionUpdateRequest.
  */
 @NoArgsConstructor
 @AllArgsConstructor
@@ -27,18 +25,14 @@ public abstract class CollectionBaseModel {
 
   private CollectionType type;
 
-  @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters")
-  private String title;
+  @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") private String title;
 
-  @Size(min = 3, max = 150, message = "Slug must be between 3 and 150 characters")
-  private String slug;
+  @Size(min = 3, max = 150, message = "Slug must be between 3 and 150 characters") private String slug;
 
-  @Size(max = 500, message = "Description cannot exceed 500 characters")
-  private String description;
+  @Size(max = 500, message = "Description cannot exceed 500 characters") private String description;
 
   /** Location associated with the collection (from location table) */
-  @Valid
-  private LocationModel location;
+  @Valid private Records.Location location;
 
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;
@@ -55,8 +49,7 @@ public abstract class CollectionBaseModel {
   private DisplayMode displayMode;
 
   /** Number of items per row (chunk size for layout). Null uses default (4). */
-  @Min(1)
-  private Integer rowsWide;
+  @Min(1) private Integer rowsWide;
 
   // Timestamps
   private LocalDateTime createdAt;

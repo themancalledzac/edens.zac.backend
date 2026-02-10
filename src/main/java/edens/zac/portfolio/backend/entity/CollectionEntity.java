@@ -24,18 +24,13 @@ public class CollectionEntity {
   @NotNull private CollectionType type;
 
   /** Column: title (VARCHAR(100), NOT NULL) */
-  @NotBlank
-  @Size(min = 3, max = 100)
-  private String title;
+  @NotBlank @Size(min = 3, max = 100) private String title;
 
   /** Column: slug (VARCHAR(150), NOT NULL, UNIQUE) */
-  @NotBlank
-  @Size(min = 3, max = 150)
-  private String slug;
+  @NotBlank @Size(min = 3, max = 150) private String slug;
 
   /** Column: description (VARCHAR(500)) */
-  @Size(max = 500)
-  private String description;
+  @Size(max = 500) private String description;
 
   /** Column: location_id (BIGINT, FK to location.id) */
   private Long locationId;
@@ -54,15 +49,13 @@ public class CollectionEntity {
   private Long coverImageId;
 
   /** Column: content_per_page (INTEGER) */
-  @Min(1)
-  private Integer contentPerPage;
+  @Min(1) private Integer contentPerPage;
 
   /** Column: total_content (INTEGER) */
   private Integer totalContent;
 
   /** Column: rows_wide (INTEGER) - Number of items per row (chunk size for layout) */
-  @Min(1)
-  private Integer rowsWide;
+  @Min(1) private Integer rowsWide;
 
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;

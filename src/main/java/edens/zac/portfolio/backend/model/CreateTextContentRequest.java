@@ -21,8 +21,7 @@ public abstract class CreateTextContentRequest {
   private String title;
   private String description;
 
-  @NotBlank(message = "Text content is required")
-  private String textContent;
+  @NotBlank(message = "Text content is required") private String textContent;
 
   private TextFormType formType;
 }

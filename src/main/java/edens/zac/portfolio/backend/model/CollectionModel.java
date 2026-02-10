@@ -29,14 +29,11 @@ public class CollectionModel extends CollectionBaseModel {
       message = "Content per page must be 30 or greater")
   private Integer contentPerPage;
 
-  @Min(value = 0, message = "Total content must be 0 or greater")
-  private Integer contentCount;
+  @Min(value = 0, message = "Total content must be 0 or greater") private Integer contentCount;
 
-  @Min(value = 1, message = "Current page must be 1 or greater")
-  private Integer currentPage;
+  @Min(value = 1, message = "Current page must be 1 or greater") private Integer currentPage;
 
-  @Min(value = 0, message = "Total pages must be 0 or greater")
-  private Integer totalPages;
+  @Min(value = 0, message = "Total pages must be 0 or greater") private Integer totalPages;
 
   // Cover image for the collection (full ContentImageModel when set)
   @Valid private ContentImageModel coverImage;
