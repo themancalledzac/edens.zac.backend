@@ -664,11 +664,18 @@ class ContentServiceImpl implements ContentService {
 
     for (Long imageId : imageIds) {
       try {
-        if (!contentDao.findImageById(imageId).isPresent()) {
+        Optional<ContentImageEntity> imageOpt = contentDao.findImageById(imageId);
+        if (!imageOpt.isPresent()) {
           errors.add("Image not found: " + imageId);
           continue;
         }
 
+        ContentImageEntity image = imageOpt.get();
+
+        // Delete from S3 before deleting from database
+        contentProcessingUtil.deleteImageFromS3(image);
+
+        // Delete from database
         contentDao.deleteImageById(imageId);
         deletedIds.add(imageId);
 
@@ -847,25 +854,6 @@ class ContentServiceImpl implements ContentService {
 
     for (MultipartFile file : files) {
       try {
-        // First, check if this image already exists in the database (duplicate
-        // detection)
-        if (file.getContentType() != null
-            && file.getContentType().startsWith("image/")
-            && !file.getContentType().equals("image/gif")) {
-          // Generate file identifier to check for duplicates
-          String originalFilename = file.getOriginalFilename();
-          if (originalFilename != null) {
-            String date = java.time.LocalDate.now().toString();
-            String fileIdentifier = date + "/" + originalFilename;
-
-            // Check if image already exists
-            if (contentDao.existsByFileIdentifier(fileIdentifier)) {
-              log.info("Skipping duplicate image: {}", originalFilename);
-              continue; // Skip this file and move to the next
-            }
-          }
-        }
-
         // Process file based on content type
         if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
           if (file.getContentType().equals("image/gif")) {
@@ -914,15 +902,17 @@ class ContentServiceImpl implements ContentService {
     return createdImages;
   }
 
+  /** Batch size for parallel image processing to avoid overwhelming resources */
+  private static final int PARALLEL_BATCH_SIZE = 10;
+
   /**
    * OPTIMIZED: Create and upload images with parallel processing.
    *
-   * <p>Architecture: 1. PARALLEL: Process images (S3 upload, resize, convert) using virtual threads
-   * 2. SEQUENTIAL: Save to database in a single short transaction
+   * <p>Architecture: 1. PARALLEL: S3 upload, resize, convert using virtual threads (NO database
+   * calls) 2. SEQUENTIAL: Save all results to database in a single short transaction
    *
-   * <p>Benefits: - No connection leaks (database operations are fast and transactional) - Parallel
-   * S3 uploads (5-10x faster for batch uploads) - Virtual threads don't block OS threads during I/O
-   * - Better error handling per file
+   * <p>Images are processed in batches of PARALLEL_BATCH_SIZE to avoid overwhelming S3/memory.
+   * Virtual threads handle I/O concurrency without blocking OS threads.
    *
    * @param collectionId ID of the collection to add images to
    * @param files List of image files to upload
@@ -931,9 +921,10 @@ class ContentServiceImpl implements ContentService {
   public List<ContentImageModel> createImagesParallel(
       Long collectionId, List<MultipartFile> files) {
     log.info(
-        "Creating {} images for collection {} with parallel processing",
+        "Creating {} images for collection {} with parallel processing (batch size: {})",
         files.size(),
-        collectionId);
+        collectionId,
+        PARALLEL_BATCH_SIZE);
 
     contentValidator.validateFiles(files);
 
@@ -942,44 +933,55 @@ class ContentServiceImpl implements ContentService {
         .findById(collectionId)
         .orElseThrow(() -> new IllegalArgumentException("Collection not found: " + collectionId));
 
-    // PHASE 1: Process images in PARALLEL (S3 upload, resize, convert)
-    // This happens OUTSIDE of any transaction - no database connections held
-    List<CompletableFuture<ProcessedImage>> futures =
-        files.stream()
-            .map(
-                file ->
-                    CompletableFuture.supplyAsync(
-                        () -> processImageAsync(file), imageProcessingExecutor))
-            .toList();
+    // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
+    // NO database calls happen here - only S3 I/O and CPU work
+    List<PreparedImage> allPrepared = new ArrayList<>();
 
-    // Wait for all processing to complete
-    List<ProcessedImage> processedImages =
-        futures.stream()
-            .map(CompletableFuture::join) // Wait for
-            // completion
-            .filter(Objects::nonNull) // Filter out failures
-            .toList();
+    for (int i = 0; i < files.size(); i += PARALLEL_BATCH_SIZE) {
+      int end = Math.min(i + PARALLEL_BATCH_SIZE, files.size());
+      List<MultipartFile> batch = files.subList(i, end);
+      log.info("Processing batch {}-{} of {} files", i + 1, end, files.size());
+
+      List<CompletableFuture<PreparedImage>> futures =
+          batch.stream()
+              .map(
+                  file ->
+                      CompletableFuture.supplyAsync(
+                          () -> prepareImageAsync(file), imageProcessingExecutor))
+              .toList();
+
+      // Wait for this batch to complete before starting the next
+      List<PreparedImage> batchResults =
+          futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).toList();
+
+      allPrepared.addAll(batchResults);
+      log.info(
+          "Batch complete: {}/{} images prepared successfully so far",
+          allPrepared.size(),
+          files.size());
+    }
 
     log.info(
-        "Parallel processing complete: {}/{} images processed successfully",
-        processedImages.size(),
+        "All parallel processing complete: {}/{} images prepared successfully",
+        allPrepared.size(),
         files.size());
 
     // PHASE 2: Save to database in a SINGLE SHORT TRANSACTION
-    return saveProcessedImages(collectionId, processedImages);
+    // All DB calls happen here: camera/lens/location lookups, duplicate detection, saves
+    return saveProcessedImages(collectionId, allPrepared);
   }
 
   /**
-   * Process a single image asynchronously (S3 upload, resize, convert). This method runs in a
+   * Prepare a single image asynchronously (S3 upload, resize, convert). This method runs in a
    * virtual thread and does NOT touch the database.
    *
    * @param file The image file to process
-   * @return Processed image data, or null if processing failed
+   * @return Prepared image data, or null if processing failed
    */
-  private ProcessedImage processImageAsync(MultipartFile file) {
+  private PreparedImage prepareImageAsync(MultipartFile file) {
     String filename = file.getOriginalFilename();
     try {
-      log.debug("Processing image: {}", filename);
+      log.debug("Preparing image: {}", filename);
 
       // Skip non-images and GIFs
       if (file.getContentType() == null
@@ -989,38 +991,30 @@ class ContentServiceImpl implements ContentService {
         return null;
       }
 
-      // Check for duplicates (lightweight query, OK outside transaction)
-      String date = java.time.LocalDate.now().toString();
-      String fileIdentifier = date + "/" + filename;
-      if (contentDao.existsByFileIdentifier(fileIdentifier)) {
-        log.info("Skipping duplicate image: {}", filename);
-        return null;
-      }
+      // S3 upload + resize + WebP conversion only - NO database calls
+      ContentProcessingUtil.PreparedImageData prepared =
+          contentProcessingUtil.prepareImageForUpload(file);
 
-      // Process image: extract metadata, upload to S3, resize, convert
-      // This is the expensive part (network I/O, CPU) that benefits from
-      // parallelization
-      ContentImageEntity entity = contentProcessingUtil.processImageContent(file, null);
-
-      return new ProcessedImage(entity, filename);
+      return new PreparedImage(prepared, filename);
 
     } catch (Exception e) {
-      log.error("Failed to process image {}: {}", filename, e.getMessage(), e);
+      log.error("Failed to prepare image {}: {}", filename, e.getMessage(), e);
       return null;
     }
   }
 
   /**
-   * Save processed images to database in a single transaction.
+   * Save prepared images to database in a single transaction. Handles all DB work: camera/lens
+   * lookups, duplicate detection, entity saves, and collection join entries.
    *
    * @param collectionId The collection to add images to
-   * @param processedImages List of processed image entities
+   * @param preparedImages List of prepared image data (S3 URLs + metadata)
    * @return List of created image models
    */
   @Transactional
   private List<ContentImageModel> saveProcessedImages(
-      Long collectionId, List<ProcessedImage> processedImages) {
-    log.debug("Saving {} processed images to database", processedImages.size());
+      Long collectionId, List<PreparedImage> preparedImages) {
+    log.debug("Saving {} prepared images to database", preparedImages.size());
 
     List<ContentImageModel> createdImages = new ArrayList<>();
 
@@ -1028,9 +1022,10 @@ class ContentServiceImpl implements ContentService {
     Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(collectionId);
     Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
 
-    for (ProcessedImage processed : processedImages) {
+    for (PreparedImage prepared : preparedImages) {
       try {
-        ContentImageEntity entity = processed.entity();
+        // Save to DB: camera/lens/location lookups + duplicate check + insert
+        ContentImageEntity entity = contentProcessingUtil.savePreparedImage(prepared.data(), null);
 
         // Create join table entry linking content to collection
         CollectionContentEntity joinEntry =
@@ -1052,7 +1047,7 @@ class ContentServiceImpl implements ContentService {
         orderIndex++;
 
       } catch (Exception e) {
-        log.error("Failed to save image {}: {}", processed.filename(), e.getMessage());
+        log.error("Failed to save image {}: {}", prepared.filename(), e.getMessage());
       }
     }
 
@@ -1060,8 +1055,8 @@ class ContentServiceImpl implements ContentService {
     return createdImages;
   }
 
-  /** Record to hold processed image data before database save */
-  private record ProcessedImage(ContentImageEntity entity, String filename) {}
+  /** Record to hold prepared image data before database save */
+  private record PreparedImage(ContentProcessingUtil.PreparedImageData data, String filename) {}
 
   @Override
   @Transactional

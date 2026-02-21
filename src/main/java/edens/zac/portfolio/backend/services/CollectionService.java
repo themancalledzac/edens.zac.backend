@@ -77,6 +77,18 @@ public interface CollectionService {
   CollectionRequests.UpdateResponse createCollection(CollectionRequests.Create createRequest);
 
   /**
+   * Create a new child collection under a parent collection. Creates the collection and
+   * automatically links it as a child to the parent.
+   *
+   * @param parentId The ID of the parent collection
+   * @param createRequest The request containing collection data for the child
+   * @return The created child collection with all metadata for the manage page
+   * @throws IllegalArgumentException if parent collection not found
+   */
+  CollectionRequests.UpdateResponse createChildCollection(
+      Long parentId, CollectionRequests.Create createRequest);
+
+  /**
    * Update a collection's content.
    *
    * @param id The ID of the collection
@@ -84,6 +96,17 @@ public interface CollectionService {
    * @return The updated collection
    */
   CollectionModel updateContent(Long id, CollectionRequests.Update updateDTO);
+
+  /**
+   * Update a collection's content and return full update response with metadata. This allows the
+   * frontend to handle slug changes without making additional requests.
+   *
+   * @param id The ID of the collection
+   * @param updateDTO The DTO containing update data
+   * @return The updated collection with all metadata for the manage page
+   */
+  CollectionRequests.UpdateResponse updateContentWithMetadata(
+      Long id, CollectionRequests.Update updateDTO);
 
   /**
    * Delete a collection by ID. This deletes the collection and all join table entries (content

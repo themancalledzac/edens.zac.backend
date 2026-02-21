@@ -105,6 +105,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             null);
   }
 
@@ -152,8 +153,8 @@ class CollectionControllerDevTest {
   @DisplayName("PUT /collections/{id} should update collection metadata")
   void updateCollection_shouldUpdateCollectionMetadata() throws Exception {
     // Arrange
-    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
-        .thenReturn(testCollection);
+    when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
+        .thenReturn(testCollectionUpdateResponse);
 
     // Act & Assert
     mockMvc
@@ -162,10 +163,11 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(testUpdateDTO)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id").value(1))
-        .andExpect(jsonPath("$.title").value("Test Blog"));
+        .andExpect(jsonPath("$.collection.id").value(1))
+        .andExpect(jsonPath("$.collection.title").value("Test Blog"));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
+    verify(collectionService)
+        .updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test
@@ -189,9 +191,11 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             null);
 
-    when(collectionService.updateContent(eq(999L), any(CollectionRequests.Update.class)))
+    when(collectionService.updateContentWithMetadata(
+            eq(999L), any(CollectionRequests.Update.class)))
         .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
 
     // Act & Assert
@@ -203,7 +207,8 @@ class CollectionControllerDevTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message", containsString("not found")));
 
-    verify(collectionService).updateContent(eq(999L), any(CollectionRequests.Update.class));
+    verify(collectionService)
+        .updateContentWithMetadata(eq(999L), any(CollectionRequests.Update.class));
   }
 
   @Test
@@ -365,12 +370,13 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             tagUpdate,
             null,
             null);
 
-    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
-        .thenReturn(testCollection);
+    when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
+        .thenReturn(testCollectionUpdateResponse);
 
     // Act & Assert
     mockMvc
@@ -379,10 +385,11 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(updateRequest)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id", is(1)))
-        .andExpect(jsonPath("$.title", is("Test Blog")));
+        .andExpect(jsonPath("$.collection.id", is(1)))
+        .andExpect(jsonPath("$.collection.title", is("Test Blog")));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
+    verify(collectionService)
+        .updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test
@@ -410,11 +417,12 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             personUpdate,
             null);
 
-    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
-        .thenReturn(testCollection);
+    when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
+        .thenReturn(testCollectionUpdateResponse);
 
     // Act & Assert
     mockMvc
@@ -423,10 +431,11 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(updateRequest)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id", is(1)))
-        .andExpect(jsonPath("$.title", is("Test Blog")));
+        .andExpect(jsonPath("$.collection.id", is(1)))
+        .andExpect(jsonPath("$.collection.title", is("Test Blog")));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
+    verify(collectionService)
+        .updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test
@@ -454,12 +463,13 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             tagUpdate,
             personUpdate,
             null);
 
-    when(collectionService.updateContent(eq(1L), any(CollectionRequests.Update.class)))
-        .thenReturn(testCollection);
+    when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
+        .thenReturn(testCollectionUpdateResponse);
 
     // Act & Assert
     mockMvc
@@ -468,10 +478,11 @@ class CollectionControllerDevTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(updateRequest)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id", is(1)))
-        .andExpect(jsonPath("$.title", is("Test Blog")));
+        .andExpect(jsonPath("$.collection.id", is(1)))
+        .andExpect(jsonPath("$.collection.title", is("Test Blog")));
 
-    verify(collectionService).updateContent(eq(1L), any(CollectionRequests.Update.class));
+    verify(collectionService)
+        .updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class));
   }
 
   @Test

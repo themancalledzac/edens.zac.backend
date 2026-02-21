@@ -569,6 +569,16 @@ public class ContentDao extends BaseDao {
   public void deleteImageById(Long id) {
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
 
+    // Clear any collection cover_image_id references first to avoid FK constraint
+    // violation
+    String clearCoverImageSql =
+        "UPDATE collection SET cover_image_id = NULL WHERE cover_image_id = :id";
+    update(clearCoverImageSql, params);
+
+    // Delete from collection_content join table
+    String deleteCollectionContentSql = "DELETE FROM collection_content WHERE content_id = :id";
+    update(deleteCollectionContentSql, params);
+
     // Delete from many-to-many join tables first
     // Tags are deleted via content_tags (content.id = image.id for images)
     String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";

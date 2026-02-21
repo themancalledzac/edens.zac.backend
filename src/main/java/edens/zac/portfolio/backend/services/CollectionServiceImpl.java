@@ -190,6 +190,59 @@ class CollectionServiceImpl implements CollectionService {
   }
 
   @Override
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
+  public CollectionRequests.UpdateResponse createChildCollection(
+      Long parentId, CollectionRequests.Create createRequest) {
+    log.debug(
+        "Creating new child collection: {} under parent: {}", createRequest.title(), parentId);
+
+    // Verify parent collection exists
+    CollectionEntity parentCollection =
+        collectionDao
+            .findById(parentId)
+            .orElseThrow(
+                () ->
+                    new IllegalArgumentException(
+                        "Parent collection not found with ID: " + parentId));
+
+    // Create the child collection entity
+    CollectionEntity childEntity =
+        collectionProcessingUtil.toEntity(createRequest, DEFAULT_PAGE_SIZE);
+    CollectionEntity savedChildEntity = collectionDao.save(childEntity);
+    log.info("Created child collection with ID: {}", savedChildEntity.getId());
+
+    // Create or find ContentCollectionEntity for the child collection
+    ContentCollectionEntity contentCollectionEntity =
+        findOrCreateContentCollectionEntity(savedChildEntity);
+
+    // Get next order index for parent collection
+    Integer orderIndex = collectionContentDao.getMaxOrderIndexForCollection(parentId);
+    orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
+
+    // Link child to parent via join table
+    CollectionContentEntity joinEntry =
+        CollectionContentEntity.builder()
+            .collectionId(parentId)
+            .contentId(contentCollectionEntity.getId())
+            .orderIndex(orderIndex)
+            .visible(true)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
+
+    collectionContentDao.save(joinEntry);
+    log.info(
+        "Linked child collection {} to parent {} at index {}",
+        savedChildEntity.getId(),
+        parentId,
+        orderIndex);
+
+    // Return full update response for the child collection
+    return getUpdateCollectionData(savedChildEntity.getSlug());
+  }
+
+  @Override
   @Transactional(readOnly = true)
   public CollectionModel findById(Long id) {
     log.debug("Finding collection by ID: {}", id);
@@ -248,6 +301,23 @@ class CollectionServiceImpl implements CollectionService {
     // Return lightweight model without loading all content to avoid N+1 queries
     // Frontend can refetch full content if needed
     return collectionProcessingUtil.convertToBasicModel(savedEntity);
+  }
+
+  @Override
+  @Transactional
+  @CacheEvict(
+      value = "generalMetadata",
+      allEntries = true,
+      condition = "#updateDTO != null && (#updateDTO.title != null || #updateDTO.slug != null)")
+  public CollectionRequests.UpdateResponse updateContentWithMetadata(
+      Long id, CollectionRequests.Update updateDTO) {
+    log.debug("Updating collection with ID: {} (with metadata response)", id);
+
+    // Perform the update
+    CollectionModel updatedCollection = updateContent(id, updateDTO);
+
+    // Get the full update response with metadata using the new slug
+    return getUpdateCollectionData(updatedCollection.getSlug());
   }
 
   @Override
@@ -534,11 +604,9 @@ class CollectionServiceImpl implements CollectionService {
     List<Records.Lens> lenses = contentService.getAllLenses();
     List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
 
-    // Get all collections as Records.CollectionList (using projection for efficiency)
-    List<Records.CollectionList> collections =
-        collectionDao.findIdAndTitleOnly().stream()
-            .map(summary -> new Records.CollectionList(summary.id(), summary.title()))
-            .collect(Collectors.toList());
+    // Get all collections as Records.CollectionList (using projection for
+    // efficiency)
+    List<Records.CollectionList> collections = collectionDao.findIdTitleSlugAndType();
 
     // Convert FilmFormat enums to DTOs
     List<Records.FilmFormat> filmFormats =

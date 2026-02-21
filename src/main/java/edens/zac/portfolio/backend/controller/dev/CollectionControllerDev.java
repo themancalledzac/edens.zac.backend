@@ -53,19 +53,21 @@ public class CollectionControllerDev {
   }
 
   /**
-   * Update collection metadata. Accepts partial updates.
+   * Update collection metadata. Accepts partial updates and returns the full update response
+   * including metadata, allowing the frontend to handle slug changes without additional requests.
    *
    * @param id Collection ID
    * @param updateDTO DTO with update data
-   * @return ResponseEntity with updated collection
+   * @return ResponseEntity with updated collection and all metadata for the manage page
    */
   @PutMapping("/{id}")
-  public ResponseEntity<CollectionModel> updateCollection(
+  public ResponseEntity<CollectionRequests.UpdateResponse> updateCollection(
       @PathVariable Long id, @RequestBody @Valid CollectionRequests.Update updateDTO) {
     log.debug("Updating collection {} with request: {}", id, updateDTO);
-    CollectionModel updatedCollection = collectionService.updateContent(id, updateDTO);
-    log.info("Updated collection: {}", updatedCollection.getId());
-    return ResponseEntity.ok(updatedCollection);
+    CollectionRequests.UpdateResponse response =
+        collectionService.updateContentWithMetadata(id, updateDTO);
+    log.info("Updated collection: {}", response.collection().getId());
+    return ResponseEntity.ok(response);
   }
 
   /**
@@ -148,5 +150,24 @@ public class CollectionControllerDev {
     CollectionModel updatedCollection = collectionService.reorderContent(collectionId, request);
     log.info("Reordered content in collection: {}", collectionId);
     return ResponseEntity.ok(updatedCollection);
+  }
+
+  /**
+   * Create a new child collection under a parent collection. Creates the collection and links it as
+   * a child to the parent, then returns the full update response for the child collection (same as
+   * regular create endpoint).
+   *
+   * @param parentId Parent collection ID
+   * @param createRequest Collection creation data
+   * @return ResponseEntity with the created child collection and all metadata for the manage page
+   */
+  @PostMapping("/{parentId}/child")
+  public ResponseEntity<CollectionRequests.UpdateResponse> createChildCollection(
+      @PathVariable Long parentId, @RequestBody @Valid CollectionRequests.Create createRequest) {
+    CollectionRequests.UpdateResponse response =
+        collectionService.createChildCollection(parentId, createRequest);
+    log.info(
+        "Created child collection: {} under parent: {}", response.collection().getId(), parentId);
+    return ResponseEntity.ok(response);
   }
 }

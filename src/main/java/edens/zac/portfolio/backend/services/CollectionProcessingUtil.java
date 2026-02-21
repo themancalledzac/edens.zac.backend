@@ -346,7 +346,9 @@ public class CollectionProcessingUtil {
         entity.setLocationId(location.getId());
       }
     }
-    if (updateDTO.collectionDate() != null) {
+    if (Boolean.TRUE.equals(updateDTO.clearCollectionDate())) {
+      entity.setCollectionDate(null);
+    } else if (updateDTO.collectionDate() != null) {
       entity.setCollectionDate(updateDTO.collectionDate());
     }
     if (updateDTO.visible() != null) {

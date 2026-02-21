@@ -16,8 +16,8 @@ public class TomcatConfig implements WebServerFactoryCustomizer<TomcatServletWeb
         connector -> {
           Http11NioProtocol protocol = (Http11NioProtocol) connector.getProtocolHandler();
           protocol.setMaxSwallowSize(2 * 1024 * 1024 * 1024); // 2GB
-          protocol.setConnectionTimeout(60000); // 60 seconds
-          log.info("Configured Tomcat: maxSwallowSize=2GB, connectionTimeout=60s");
+          protocol.setConnectionTimeout(300000); // 5 minutes for large batch uploads
+          log.info("Configured Tomcat: maxSwallowSize=2GB, connectionTimeout=300s");
         });
   }
 }

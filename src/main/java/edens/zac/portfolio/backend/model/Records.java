@@ -52,8 +52,11 @@ public final class Records {
    */
   public record CollectionSummary(Long id, String title) {}
 
-  /** Model representing a collection for list views. Contains the collection's ID and name. */
-  public record CollectionList(Long id, String name) {}
+  /**
+   * Model representing a collection for list views. Contains the collection's ID, name, slug, and
+   * type.
+   */
+  public record CollectionList(Long id, String name, String slug, String type) {}
 
   /**
    * DTO representing the relationship between a child entity (content or collection) and a parent

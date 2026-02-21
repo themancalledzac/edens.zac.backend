@@ -174,13 +174,18 @@ public class CollectionDao extends BaseDao {
     return count != null ? count : 0L;
   }
 
-  /** Find collection ID and title only (for metadata). */
+  /** Find collection ID, title, slug, and type (for metadata). */
   @Transactional(readOnly = true)
-  public List<Records.CollectionSummary> findIdAndTitleOnly() {
-    String sql = "SELECT id, title FROM collection ORDER BY title ASC";
+  public List<Records.CollectionList> findIdTitleSlugAndType() {
+    String sql = "SELECT id, title, slug, type FROM collection ORDER BY title ASC";
     return jdbcTemplate.query(
         sql,
-        (rs, rowNum) -> new Records.CollectionSummary(rs.getLong("id"), rs.getString("title")));
+        (rs, rowNum) ->
+            new Records.CollectionList(
+                rs.getLong("id"),
+                rs.getString("title"),
+                rs.getString("slug"),
+                rs.getString("type")));
   }
 
   /** Save a new collection. Returns the entity with generated ID. */
@@ -190,13 +195,13 @@ public class CollectionDao extends BaseDao {
       // Insert
       String sql =
           """
-              INSERT INTO collection (type, title, slug, description, location_id, collection_date,
-                                     visible, display_mode, cover_image_id, content_per_page, total_content,
-                                     rows_wide, created_at, updated_at)
-              VALUES (:type, :title, :slug, :description, :locationId, :collectionDate,
-                      :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
-                      :rowsWide, :createdAt, :updatedAt)
-              """;
+          INSERT INTO collection (type, title, slug, description, location_id, collection_date,
+                                 visible, display_mode, cover_image_id, content_per_page, total_content,
+                                 rows_wide, created_at, updated_at)
+          VALUES (:type, :title, :slug, :description, :locationId, :collectionDate,
+                  :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
+                  :rowsWide, :createdAt, :updatedAt)
+          """;
 
       MapSqlParameterSource params =
           createParameterSource()
@@ -228,14 +233,14 @@ public class CollectionDao extends BaseDao {
       // Update
       String sql =
           """
-              UPDATE collection
-              SET type = :type, title = :title, slug = :slug, description = :description,
-                  location_id = :locationId,
-                  collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
-                  cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-                  rows_wide = :rowsWide, updated_at = :updatedAt
-              WHERE id = :id
-              """;
+          UPDATE collection
+          SET type = :type, title = :title, slug = :slug, description = :description,
+              location_id = :locationId,
+              collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
+              cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
+              rows_wide = :rowsWide, updated_at = :updatedAt
+          WHERE id = :id
+          """;
 
       MapSqlParameterSource params =
           createParameterSource()

@@ -659,7 +659,166 @@ public class ContentProcessingUtil {
   }
 
   // ============================================================================
-  // NEW STREAMLINED IMAGE PROCESSING METHODS
+  // PARALLEL-SAFE IMAGE PROCESSING (no DB calls)
+  // ============================================================================
+
+  /**
+   * Data holder for image preparation results. Contains all data needed to save to DB, but does NOT
+   * hold any DB connections or entity references. Used by the parallel processing phase.
+   */
+  public record PreparedImageData(
+      String originalFilename,
+      String imageUrlOriginal,
+      String imageUrlWeb,
+      String fileIdentifier,
+      Map<String, String> metadata,
+      int imageYear,
+      int imageMonth) {}
+
+  /**
+   * Prepare an image for upload: extract metadata, upload to S3, resize, convert to WebP. This
+   * method does NO database calls and is safe to run in parallel virtual threads.
+   *
+   * @param file The image file to process
+   * @return PreparedImageData with S3 URLs and metadata, ready for DB save
+   * @throws IOException If there's an error processing the file
+   */
+  public PreparedImageData prepareImageForUpload(MultipartFile file) throws IOException {
+    log.info("Preparing image for upload: {}", file.getOriginalFilename());
+
+    // Extract metadata from original file (no DB calls)
+    Map<String, String> metadata = extractImageMetadata(file);
+
+    // Parse image capture date for S3 path organization
+    int[] dateComponents = parseImageDate(metadata.get("createDate"));
+    int imageYear = dateComponents[0];
+    int imageMonth = dateComponents[1];
+    log.info("Image capture date: {}/{}", imageYear, String.format("%02d", imageMonth));
+
+    // Upload original full-size image to S3
+    String originalFilename = file.getOriginalFilename();
+    String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
+    String imageUrlOriginal =
+        uploadImageToS3(
+            file.getBytes(), originalFilename, contentType, PATH_IMAGE_FULL, imageYear, imageMonth);
+
+    // Resize if needed (max 2500px on longest side)
+    BufferedImage originalImage;
+    try (InputStream imageStream = file.getInputStream()) {
+      originalImage = ImageIO.read(imageStream);
+    }
+    if (originalImage == null) {
+      throw new IOException("Failed to read image: " + originalFilename);
+    }
+    BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+
+    // Convert to WebP
+    byte[] processedImageBytes;
+    String finalFilename;
+    if (isJpgFile(file) || isWebPFile(file)) {
+      processedImageBytes = convertJpgToWebP(resizedImage);
+      assert originalFilename != null;
+      finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+    } else {
+      throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
+    }
+
+    // Upload web-optimized image to S3
+    String imageUrlWeb =
+        uploadImageToS3(
+            processedImageBytes,
+            finalFilename,
+            "image/webp",
+            PATH_IMAGE_WEB,
+            imageYear,
+            imageMonth);
+
+    // Generate file identifier for duplicate detection
+    String fileIdentifier = String.format("%d-%02d/%s", imageYear, imageMonth, originalFilename);
+
+    log.info("Image prepared successfully: {}", originalFilename);
+    return new PreparedImageData(
+        originalFilename,
+        imageUrlOriginal,
+        imageUrlWeb,
+        fileIdentifier,
+        metadata,
+        imageYear,
+        imageMonth);
+  }
+
+  /**
+   * Save a prepared image to the database. Handles all DB calls: camera/lens/location lookups,
+   * duplicate detection, and entity save. Call this AFTER prepareImageForUpload() in a sequential
+   * phase.
+   *
+   * @param prepared The prepared image data from prepareImageForUpload()
+   * @param title Optional title override
+   * @return The saved ContentImageEntity
+   */
+  public ContentImageEntity savePreparedImage(PreparedImageData prepared, String title) {
+    Map<String, String> metadata = prepared.metadata();
+    String webFilename = prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+
+    ContentImageEntity entity =
+        ContentImageEntity.builder()
+            .contentType(ContentType.IMAGE)
+            .title(title != null ? title : metadata.getOrDefault("title", webFilename))
+            .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
+            .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
+            .iso(parseIntegerOrDefault(metadata.get("iso"), null))
+            .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
+            .rating(parseIntegerOrDefault(metadata.get("rating"), null))
+            .fStop(metadata.get("fStop"))
+            .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
+            .isFilm(metadata.get("fStop") == null)
+            .shutterSpeed(metadata.get("shutterSpeed"))
+            .imageUrlOriginal(prepared.imageUrlOriginal())
+            .focalLength(metadata.get("focalLength"))
+            .locationId(
+                metadata.get("location") != null
+                    ? locationDao.findOrCreate(metadata.get("location")).getId()
+                    : null)
+            .imageUrlWeb(prepared.imageUrlWeb())
+            .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
+            .createdAt(parseExifDateToLocalDateTime(metadata.get("createDate")))
+            .fileIdentifier(prepared.fileIdentifier())
+            .build();
+
+    // Handle camera
+    String cameraName = metadata.get("camera");
+    String bodySerialNumber = metadata.get("bodySerialNumber");
+    if (cameraName != null && !cameraName.trim().isEmpty()) {
+      entity.setCamera(createCamera(cameraName, bodySerialNumber, null));
+    }
+
+    // Handle lens
+    String lensName = metadata.get("lens");
+    String lensSerialNumber = metadata.get("lensSerialNumber");
+    if (lensName != null && !lensName.trim().isEmpty()) {
+      entity.setLens(createLens(lensName, lensSerialNumber, null));
+    }
+
+    // Replace existing image if duplicate, otherwise insert
+    List<ContentImageEntity> existing =
+        contentDao.findAllByFileIdentifier(prepared.fileIdentifier());
+    if (!existing.isEmpty()) {
+      ContentImageEntity toReplace = existing.get(0);
+      log.info(
+          "Replacing existing image (id={}) for fileIdentifier: {}",
+          toReplace.getId(),
+          prepared.fileIdentifier());
+      deleteImageFromS3(toReplace);
+      entity.setId(toReplace.getId());
+    }
+
+    ContentImageEntity savedEntity = contentDao.saveImage(entity);
+    log.info("Successfully saved image content with ID: {}", savedEntity.getId());
+    return savedEntity;
+  }
+
+  // ============================================================================
+  // ORIGINAL IMAGE PROCESSING (sequential, used by createImages)
   // ============================================================================
 
   /**
@@ -784,7 +943,18 @@ public class ContentProcessingUtil {
       entity.setLens(lens);
     }
 
-    // STEP 7: Save and return
+    // STEP 7: Replace existing image if duplicate, otherwise insert
+    List<ContentImageEntity> existing = contentDao.findAllByFileIdentifier(fileIdentifier);
+    if (!existing.isEmpty()) {
+      ContentImageEntity toReplace = existing.get(0);
+      log.info(
+          "Replacing existing image (id={}) for fileIdentifier: {}",
+          toReplace.getId(),
+          fileIdentifier);
+      deleteImageFromS3(toReplace);
+      entity.setId(toReplace.getId());
+    }
+
     ContentImageEntity savedEntity = contentDao.saveImage(entity);
     log.info("Successfully processed image content with ID: {}", savedEntity.getId());
     return savedEntity;
@@ -1018,6 +1188,56 @@ public class ContentProcessingUtil {
     log.info("Successfully uploaded: {}", cloudfrontUrl);
 
     return cloudfrontUrl;
+  }
+
+  /**
+   * Delete an image and its variants from S3.
+   *
+   * @param image The ContentImageEntity containing S3 URLs to delete
+   */
+  public void deleteImageFromS3(ContentImageEntity image) {
+    List<String> urlsToDelete = new ArrayList<>();
+
+    if (image.getImageUrlWeb() != null) {
+      urlsToDelete.add(image.getImageUrlWeb());
+    }
+    if (image.getImageUrlOriginal() != null) {
+      urlsToDelete.add(image.getImageUrlOriginal());
+    }
+
+    for (String url : urlsToDelete) {
+      try {
+        String s3Key = extractS3KeyFromUrl(url);
+        if (s3Key != null) {
+          log.info("Deleting from S3: {}", s3Key);
+          s3Client.deleteObject(builder -> builder.bucket(bucketName).key(s3Key));
+          log.info("Successfully deleted from S3: {}", s3Key);
+        }
+      } catch (Exception e) {
+        log.error("Failed to delete S3 object {}: {}", url, e.getMessage());
+      }
+    }
+  }
+
+  /**
+   * Extract S3 key from CloudFront URL.
+   *
+   * @param url The CloudFront URL (e.g., "https://cloudfront.domain/Image/Web/2024/01/file.webp")
+   * @return The S3 key (e.g., "Image/Web/2024/01/file.webp") or null if invalid
+   */
+  private String extractS3KeyFromUrl(String url) {
+    if (url == null || url.isEmpty()) {
+      return null;
+    }
+
+    // Remove the CloudFront domain prefix
+    String prefix = "https://" + cloudfrontDomain + "/";
+    if (url.startsWith(prefix)) {
+      return url.substring(prefix.length());
+    }
+
+    log.warn("URL does not match expected CloudFront format: {}", url);
+    return null;
   }
 
   /**

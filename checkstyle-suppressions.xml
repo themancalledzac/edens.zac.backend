@@ -4,6 +4,9 @@
     "https://checkstyle.org/dtds/suppressions_1_2.dtd">
 
 <suppressions>
+  <!-- Indentation/formatting enforced by Spotless (google-java-format); single source of truth -->
+  <suppress checks="Indentation" files=".*"/>
+
   <!-- Suppress Javadoc warnings for internal utility classes -->
   <suppress checks="MissingJavadocType" files=".*ProcessingUtil\.java"/>
   <suppress checks="MissingJavadocMethod" files=".*ProcessingUtil\.java"/>

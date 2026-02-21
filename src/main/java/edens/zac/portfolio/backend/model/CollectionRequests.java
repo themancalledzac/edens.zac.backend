@@ -43,6 +43,8 @@ public final class CollectionRequests {
       @Valid LocationUpdate location,
       /** Date associated with the collection */
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
+      /** Set to true to explicitly clear the collection date (set it to null) */
+      Boolean clearCollectionDate,
       /** Whether the collection is visible */
       Boolean visible,
       /** Display mode for ordering content in the collection */
