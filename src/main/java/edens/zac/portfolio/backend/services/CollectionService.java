@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import static edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentCollectionDao;
@@ -51,7 +52,7 @@ public class CollectionService {
         collectionDao
             .findBySlug(slug)
             .orElseThrow(
-                () -> new IllegalArgumentException("Collection not found with slug: " + slug));
+                () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Normalize pagination parameters
     int normalizedPage = Math.max(0, page);
@@ -86,7 +87,7 @@ public class CollectionService {
     // Verify collection exists (using existsBySlug for efficiency when we don't
     // need the entity)
     if (!collectionDao.existsBySlug(slug)) {
-      throw new IllegalArgumentException("Collection not found with slug: " + slug);
+      throw new ResourceNotFoundException("Collection not found with slug: " + slug);
     }
 
     // For now, all galleries are accessible
@@ -193,7 +194,7 @@ public class CollectionService {
             .findById(parentId)
             .orElseThrow(
                 () ->
-                    new IllegalArgumentException(
+                    new ResourceNotFoundException(
                         "Parent collection not found with ID: " + parentId));
 
     // Create the child collection entity
@@ -240,7 +241,8 @@ public class CollectionService {
     CollectionEntity entity =
         collectionDao
             .findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Collection not found with ID: " + id));
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found with ID: " + id));
 
     // Convert to full model (includes content blocks)
     return convertToFullModel(entity);
@@ -258,7 +260,8 @@ public class CollectionService {
     CollectionEntity entity =
         collectionDao
             .findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Collection not found with ID: " + id));
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found with ID: " + id));
 
     // Update basic properties via utility helper
     collectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
@@ -314,7 +317,7 @@ public class CollectionService {
 
     // Check if collection exists
     if (collectionDao.findById(id).isEmpty()) {
-      throw new IllegalArgumentException("Collection not found with ID: " + id);
+      throw new ResourceNotFoundException("Collection not found with ID: " + id);
     }
 
     // Delete all join table entries (dissociate content from collection)
@@ -564,7 +567,7 @@ public class CollectionService {
     CollectionModel collection =
         findBySlug(slug)
             .orElseThrow(
-                () -> new IllegalArgumentException("Collection not found with slug: " + slug));
+                () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Get all general metadata using helper method
     GeneralMetadataDTO metadata = getGeneralMetadata();
@@ -725,7 +728,7 @@ public class CollectionService {
                 .findById(childCollection.collectionId())
                 .orElseThrow(
                     () ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                             "Child collection not found: " + childCollection.collectionId()));
 
         // Check if ContentCollectionEntity already exists for this referenced
@@ -955,7 +958,7 @@ public class CollectionService {
             .findById(collectionId)
             .orElseThrow(
                 () ->
-                    new IllegalArgumentException("Collection not found with ID: " + collectionId));
+                    new ResourceNotFoundException("Collection not found with ID: " + collectionId));
 
     List<CollectionRequests.Reorder.ReorderItem> reorders = request.reorders();
 

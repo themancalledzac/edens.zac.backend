@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -192,7 +193,7 @@ class CollectionControllerProdTest {
   void getCollectionBySlug_withNonExistentSlug_shouldReturnNotFound() throws Exception {
     // Arrange
     when(collectionService.getCollectionWithPagination(eq("non-existent"), anyInt(), anyInt()))
-        .thenThrow(new IllegalArgumentException("Collection not found with slug: non-existent"));
+        .thenThrow(new ResourceNotFoundException("Collection not found with slug: non-existent"));
 
     // Act & Assert
     mockMvc
@@ -336,7 +337,7 @@ class CollectionControllerProdTest {
     passwordRequest.put("password", "any-password");
 
     when(collectionService.validateClientGalleryAccess(eq("non-existent"), anyString()))
-        .thenThrow(new IllegalArgumentException("Collection not found with slug: non-existent"));
+        .thenThrow(new ResourceNotFoundException("Collection not found with slug: non-existent"));
 
     // Act & Assert
     mockMvc

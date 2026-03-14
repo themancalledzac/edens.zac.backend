@@ -1,14 +1,14 @@
 # Content Collection Backend TODO
 
-
 ## Overview
+
 This document outlines the remaining backend work for the ContentCollection system refactor, organized by priority. All completed work has been removed, and frontend work has been deferred.
 
-
-
 #### ISSUES WE SEE NOW
-* - database needs culling, reorganizing. remove 'priority', not needed, in favor of 'orderIndex
-- '
+
+- - database needs culling, reorganizing. remove 'priority', not needed, in favor of 'orderIndex
+
+* '
 
 ---
 
@@ -16,49 +16,53 @@ This document outlines the remaining backend work for the ContentCollection syst
 
 ### New Features List
 
+- New Updates/Features going forward
+- - Get all tags endpoint
+- - Get all people endpoint
+- - create new tag endpoint
+- - create new 'person' endpoint
+- - Collections can maybe be ALSO a collection of a single person?
+- - - I'm imagining a 'edens-family' collection, that has different vacations, but also a link to each person?
+- - - Something like, a picture of Bodin that redirects to the 'Bodin' Collection
+-
 
-* New Updates/Features going forward
-*  - Get all tags endpoint
-*  - Get all people endpoint
-*  - create new tag endpoint
-*  - create new 'person' endpoint
-*  - Collections can maybe be ALSO a collection of a single person?
-*  - - I'm imagining a 'edens-family' collection, that has different vacations, but also a link to each person?
-*  - - Something like, a picture of Bodin that redirects to the 'Bodin' Collection
-* 
-- With all of these in mind, we probably need a 'ContentBlockControllerDev/Prod'
-*  - - THese include all changes to ImageContentBlock, GifContentBLock, TextContentBLock, and CodeContentBlock
-*  - Endpoints that are Image specific (ImageContentBLock)
-*  - Edit Metadata of Single Image
-*  - Edit Metadata of List of Images
-*  - Add List of images to existing collection
-*  - get All images by:
-*  - - Tag ( new general 'tags' array for images )
-*  - - - will need to be it's own table maybe? why or why not?
-*  - - Person ( new 'person' array for images )
-*  - - - will probably need to be it's own table. a many to many relationship with images and collections
-*  - - date
-*  - - location
-*  - - rating
-*  - - isFilm
-*  - - Need to really think about this 'get By', and whether we want a more General 'get by', and then we filter on the frontend. these are all probably acceptable right now, though.
-* 
-*  - Will Tags need to be it's own 'controller/service/repository' layers? or can we do that in 'contentBlock'? does it exist as a contentBlock as well? what about 'People'
-*  - 
-*  - We need a `don't upload duplicate images` feature for image upload logic.
-- - - as we continue to add new images, we need this explicit feature to allow us to upload more freely, without worry of duplication.
+* With all of these in mind, we probably need a 'ContentBlockControllerDev/Prod'
 
+- - - THese include all changes to ImageContentBlock, GifContentBLock, TextContentBLock, and CodeContentBlock
+- - Endpoints that are Image specific (ImageContentBLock)
+- - Edit Metadata of Single Image
+- - Edit Metadata of List of Images
+- - Add List of images to existing collection
+- - get All images by:
+- - - Tag ( new general 'tags' array for images )
+- - - - will need to be it's own table maybe? why or why not?
+- - - Person ( new 'person' array for images )
+- - - - will probably need to be it's own table. a many to many relationship with images and collections
+- - - date
+- - - location
+- - - rating
+- - - isFilm
+- - - Need to really think about this 'get By', and whether we want a more General 'get by', and then we filter on the frontend. these are all probably acceptable right now, though.
+-
+- - Will Tags need to be it's own 'controller/service/repository' layers? or can we do that in 'contentBlock'? does it exist as a contentBlock as well? what about 'People'
+- -
+- - We need a `don't upload duplicate images` feature for image upload logic.
+
+* - - as we continue to add new images, we need this explicit feature to allow us to upload more freely, without worry of duplication.
 
 ### Gif workflow implementation
 
 #### Current State Analysis
+
 **✅ Already Implemented:**
+
 - `GifContentBlockEntity` - Database schema with fields for gifUrl, thumbnailUrl, width, height, author, createDate
 - `GifContentBlockModel` - DTO for API responses
 - `ContentBlockType.GIF` - Enum support
 - Basic JPA inheritance structure in ContentCollection system
 
 **❌ Missing Key Components:**
+
 1. No gif upload endpoint (current `ImageControllerDev` only handles images)
 2. No gif processing service (no `GifProcessingUtil` equivalent)
 3. No gif metadata extraction capabilities
@@ -133,21 +137,25 @@ This document outlines the remaining backend work for the ContentCollection syst
 #### Technical Considerations
 
 **File Size Management:**
+
 - Gifs are typically larger than images - implement appropriate size limits
 - Consider streaming upload for very large gifs
 - Monitor S3 storage costs with gif uploads
 
 **Performance Considerations:**
+
 - First-frame extraction may be CPU intensive
 - Consider async processing for large batch uploads
 - Implement proper error handling for corrupted gif files
 
 **Frontend Integration:**
+
 - Ensure frontend can handle large gif files
 - Implement proper loading states (show thumbnail while gif loads)
 - Consider lazy loading for gif-heavy collections
 
 **S3 Structure Recommendation:**
+
 ```
 portfolio-bucket/
 ├── images/
@@ -176,9 +184,10 @@ portfolio-bucket/
 4. **Phase 4**: Advanced features and optimization
 
 ### Individual ContentBlock CRUD Operations
+
 - [ ] **ContentBlock Update Endpoint** - `PUT /api/write/collections/{id}/content/{blockId}`
   - TODO: This should probably just be a "update ALl contentBlocks in collection" endpoint.
-    - What I mean by this, is that we always pas an array or List<contentBlock>, as all edits would happen from a ContentCollection page initially. 
+    - What I mean by this, is that we always pas an array or List<contentBlock>, as all edits would happen from a ContentCollection page initially.
     - we can create a 'null', or unused for future use 'individual contentBlock update'
   - Individual content block updates without affecting collection
   - Support for reordering individual blocks
@@ -195,6 +204,7 @@ portfolio-bucket/
   - Order validation and gap handling
 
 ### Complete Image Management System
+
 - [ ] **Individual Image Update Endpoint** - Complete `updateImage` functionality
   - Currently returns `null` in `ImageControllerDev.updateImage()`
   - Image metadata updates
@@ -211,21 +221,28 @@ portfolio-bucket/
   - Orphaned images detection and cleanup
 
 ### Error Handling Standardization
+
+- [x] **Centralized Exception Handling** (Phase 8a/8c/9a — DONE)
+  - `GlobalExceptionHandler` with 7 exception handlers, fully tested (10 tests)
+  - `ResourceNotFoundException` for deterministic 404 routing
+  - Silent failure logging fixes (ERROR with stack traces)
+  - Hide stack traces from production clients
+
+- [ ] **Image Upload Partial-Success Response** (Phase 8b — remaining)
+  - Structured response DTO for partial success/failure
+  - Per-file error collection in `createImages` / `createImagesParallel`
+  - Fix `saveProcessedImages` transaction boundary
+
 - [ ] **Consistent Error Response Patterns**
-  - Standardize error responses across all controllers
   - Implement ProblemDetails (RFC 9457) consistently
   - Improve exception messaging
-
-- [ ] **Centralized Exception Handling**
-  - Complete `@ControllerAdvice` implementation
-  - Proper logging strategies
-  - Hide stack traces from production clients
 
 ---
 
 ## 🟠 MEDIUM PRIORITY - Enhancement Features
 
 ### Complete Home Page System
+
 - [ ] **Finish updateHomePage Implementation**
   - Currently returns `null` in `HomeControllerDev.updateHomePage()`
   - Complete home card management
@@ -237,6 +254,7 @@ portfolio-bucket/
   - Integration with ContentCollections
 
 ### Advanced Search Implementation
+
 - [ ] **Port ImageSpecification Logic**
   - Adapt existing advanced search capabilities for ContentBlocks
   - Advanced filtering combinations
@@ -248,6 +266,7 @@ portfolio-bucket/
   - Combined search filters
 
 ### Bulk Operations
+
 - [ ] **Batch Content Block Operations**
   - Bulk content block updates
   - Mass import/export capabilities
@@ -263,6 +282,7 @@ portfolio-bucket/
 ## 🟡 LOW PRIORITY - Nice to Have Features
 
 ### Performance Optimizations
+
 - [ ] **Query Optimizations**
   - Optimize slow queries discovered in production
   - Database index improvements
@@ -274,6 +294,7 @@ portfolio-bucket/
   - Connection pooling improvements
 
 ### Advanced Features
+
 - [ ] **Collection Templates**
   - Pre-defined collection structures
   - Template-based collection creation
@@ -291,51 +312,32 @@ portfolio-bucket/
 
 ---
 
-## 🧪 COMPREHENSIVE TESTING REQUIREMENTS
+## 🧪 TESTING STATUS
 
-### Missing Test Files
+### Current: 318 tests, BUILD SUCCESS (as of 2026-03-13)
 
-#### Entity Layer Tests
-- [ ] **ContentCollectionHomeCardEntityTest.java** - Missing
-  - Entity validation tests
-  - Relationship mapping tests
-  - Constraint validation tests
+#### Recently Added (Phases 9a-9d, +67 tests)
 
-#### Repository Layer Tests
-- [ ] **ContentBlockRepositoryTest.java** - Missing
-  - Repository method tests
-  - Pagination functionality tests
-  - Custom query method validation
-  - Performance tests with large datasets
+- [x] **GlobalExceptionHandlerTest.java** — 10 tests (all 7 handlers, response body shape)
+- [x] **ImageMetadataTest.java** — 29 tests (XMP fallback, ValueExtractor logic)
+- [x] **ContentRequestsTest.java** — 26 tests (Jakarta Bean Validation on all request records)
+- [x] **DateParsingTest.java** — 12 tests (fallback chains, EXIF format, edge cases)
 
-- [ ] **HomeCardRepositoryTest.java** - Missing (if exists)
-  - Repository method tests
-  - Query performance tests
+#### Known Issue
 
-#### Service Layer Tests
-- [ ] **ContentCollectionServiceImplTest.java** - Needs Enhancement
-  - Current tests may not cover `addContentBlocks` flow fully
-  - Test client gallery password validation
-  - Test pagination edge cases
-  - Test error scenarios and rollbacks
+- `parseExifDateToLocalDateTime` silently fails on ISO-8601 input (replaceFirst mangles time colons)
 
-- [ ] **HomeServiceImplTest.java** - Missing
-  - Home page generation tests
-  - Priority management tests
-  - Integration with ContentCollection tests
+#### Remaining Test Work
 
+- [ ] **CollectionServiceTest.java** - Phase 9e (P3)
+  - Only tests `reorderContent` (4 tests) out of 1054-line service
+  - Needs: `createCollection`, `updateContentWithMetadata`, `deleteCollection`, `addContentsToCollection`
+
+#### Longer-term Test Gaps (pre-existing debt, not from this branch)
+
+- [ ] **HomeServiceTest.java** - Missing
 - [ ] **HomeProcessingUtilTest.java** - Missing
-  - Utility method tests
-  - Data conversion tests
-  - Error handling tests
-
-- [ ] **ImageServiceImplTest.java** - Missing
-  - Image processing workflow tests
-  - Metadata extraction tests
-  - S3 integration tests
-
-- [ ] **CatalogServiceImplTest.java** - Missing
-  - Legacy system tests for comparison
+- [ ] **Entity layer validation tests** - Missing
   - Migration compatibility tests
 
 - [ ] **ImageProcessingServiceTest.java** - Missing (if exists)
@@ -344,6 +346,7 @@ portfolio-bucket/
   - Error scenario tests
 
 #### Controller Layer Tests
+
 - [ ] **HomeControllerProdTest.java** - Missing
   - Endpoint integration tests
   - Response format validation
@@ -374,6 +377,7 @@ portfolio-bucket/
   - CRUD operation tests
 
 #### Integration Tests
+
 - [ ] **ContentCollectionIntegrationTest.java** - Missing
   - Full workflow integration tests
   - Cross-service interaction tests
@@ -390,6 +394,7 @@ portfolio-bucket/
   - Performance tests with large datasets
 
 #### Configuration Tests
+
 - [ ] **S3ConfigTest.java** - Missing
   - Configuration validation tests
   - Connection tests
@@ -401,6 +406,7 @@ portfolio-bucket/
   - Security configuration tests
 
 #### Utility Tests
+
 - [ ] **PaginationUtilTest.java** - Missing
   - Pagination logic tests
   - Edge case handling tests
@@ -414,6 +420,7 @@ portfolio-bucket/
 ### Test Coverage Requirements
 
 #### Unit Tests (Target: 100% for new code)
+
 - **Entity Validation**: All Bean Validation annotations tested
 - **Repository Methods**: All custom query methods tested
 - **Service Logic**: All business logic paths tested
@@ -421,6 +428,7 @@ portfolio-bucket/
 - **Model Conversions**: All entity-to-model conversions tested
 
 #### Integration Tests
+
 - **API Endpoints**: All endpoints tested with realistic data
 - **Database Operations**: All CRUD operations tested
 - **S3 Integration**: File upload/download workflows tested
@@ -428,12 +436,14 @@ portfolio-bucket/
 - **Security**: Client gallery access controls tested
 
 #### Performance Tests
+
 - **Large Collections**: Test with 200+ content blocks
 - **Database Queries**: Query performance validation
 - **S3 Operations**: Batch upload performance tests
 - **Memory Usage**: Large dataset memory footprint tests
 
 #### Error Scenario Tests
+
 - **Database Failures**: Transaction rollback tests
 - **S3 Failures**: File upload failure handling tests
 - **Validation Failures**: Invalid input handling tests
@@ -444,7 +454,9 @@ portfolio-bucket/
 ## 🚀 CI/CD & DEPLOYMENT AUTOMATION
 
 ### Current State Analysis
+
 **Current Deployment Process:**
+
 - Manual GitHub push/merge
 - SSH into EC2 instance via `ec2Login()`
 - Manual execution of `./deploy.sh` on server
@@ -455,6 +467,7 @@ portfolio-bucket/
 ### 🔴 HIGH PRIORITY - GitHub Actions CI/CD Pipeline Implementation
 
 #### Step 1: Maven Linting Configuration
+
 - [ ] **Add Checkstyle Plugin to pom.xml**
   - Version: 3.3.1 with Checkstyle 10.12.7
   - Config: `google_checks.xml` (Google Java Style Guide)
@@ -475,6 +488,7 @@ portfolio-bucket/
   - Generates JUnit XML reports for GitHub Actions
 
 #### Step 2: Create Configuration Files
+
 - [ ] **Create `spotbugs-exclude.xml`** (root directory)
   - Exclude Lombok-generated inner classes
   - Exclude Lombok equals/hashCode warnings in entities
@@ -485,6 +499,7 @@ portfolio-bucket/
   - For known false positives or accepted vulnerabilities
 
 #### Step 3: GitHub Actions Workflow
+
 - [ ] **Create `.github/workflows/ci-cd.yml`**
   - **Stage 1: Lint** (BLOCKING) - `mvn checkstyle:check && mvn spotbugs:check`
   - **Stage 2: Test** (depends on lint) - PostgreSQL 16 container, `mvn test -B`
@@ -495,6 +510,7 @@ portfolio-bucket/
   - All artifacts retained for 7-14 days
 
 #### Step 4: GitHub Configuration
+
 - [ ] **Configure GitHub Secrets** (Settings → Secrets and variables → Actions)
   - `EC2_SSH_PRIVATE_KEY` - Private SSH key (.pem file content)
   - `EC2_HOST` - EC2 public IP or hostname
@@ -512,6 +528,7 @@ portfolio-bucket/
   - ✅ Require conversation resolution before merging
 
 #### Step 5: Testing & Validation
+
 - [ ] **Fix Existing Linting Violations**
   - Run locally: `mvn checkstyle:check`
   - Run locally: `mvn spotbugs:check`
@@ -540,6 +557,7 @@ portfolio-bucket/
   - Health check passes: `curl http://localhost:8080/actuator/health`
 
 #### Step 6: Documentation
+
 - [ ] **Add CI/CD Status Badge to README.md**
   - Badge: `[![CI/CD Pipeline](https://github.com/themancalledzac/edens.zac.backend/actions/workflows/ci-cd.yml/badge.svg)](...)`
 
@@ -554,13 +572,16 @@ portfolio-bucket/
 ### 🟠 MEDIUM PRIORITY - Future Terraform & Advanced CI/CD
 
 #### Environment Configuration Management
-  - Secure secrets management via GitHub Actions secrets
-  - Environment-specific variables (staging vs production)
-  - Database connection string management
-  - S3 bucket configuration per environment
+
+- Secure secrets management via GitHub Actions secrets
+- Environment-specific variables (staging vs production)
+- Database connection string management
+- S3 bucket configuration per environment
 
 #### Terraform Infrastructure as Code
+
 - [ ] **Create `terraform/` Directory Structure**
+
   ```
   terraform/
   ├── environments/
@@ -593,6 +614,7 @@ portfolio-bucket/
   - Cross-region replication for disaster recovery
 
 #### Deployment Automation Scripts
+
 - [ ] **Create `scripts/deploy/` Directory**
   - `build.sh` - Application build automation
   - `deploy.sh` - Enhanced deployment with validation
@@ -610,6 +632,7 @@ portfolio-bucket/
 ### 🟠 MEDIUM PRIORITY - Advanced CI/CD Features
 
 #### Monitoring & Observability
+
 - [ ] **Application Performance Monitoring**
   - CloudWatch integration for EC2 metrics
   - Application-level logging and metrics
@@ -623,6 +646,7 @@ portfolio-bucket/
   - Slack/Discord integration for team notifications
 
 #### Security & Compliance
+
 - [ ] **Automated Security Scanning**
   - Dependency vulnerability scanning
   - Container image security scanning (if using Docker)
@@ -636,6 +660,7 @@ portfolio-bucket/
   - Environment access controls
 
 #### Testing Integration
+
 - [ ] **Automated Testing in Pipeline**
   - Unit test execution in CI
   - Integration test execution in staging
@@ -653,6 +678,7 @@ portfolio-bucket/
 ### 🟡 LOW PRIORITY - Advanced Deployment Features
 
 #### Multi-Environment Management
+
 - [ ] **Environment Parity**
   - Consistent infrastructure across environments
   - Environment-specific scaling rules
@@ -666,6 +692,7 @@ portfolio-bucket/
   - Dynamic configuration management
 
 #### Cost Optimization
+
 - [ ] **Resource Optimization**
   - Automated scaling based on load
   - Cost monitoring and alerting
@@ -683,6 +710,7 @@ portfolio-bucket/
 ### 🔧 MIGRATION STRATEGY - Current to Automated
 
 #### Phase 1: Foundation (Week 1-2)
+
 - [ ] **Setup GitHub Actions Basic CI**
   - Basic build and test pipeline
   - Code quality checks
@@ -694,6 +722,7 @@ portfolio-bucket/
   - S3 bucket management
 
 #### Phase 2: Automated Deployment (Week 3-4)
+
 - [ ] **Implement Blue-Green Deployment**
   - Create deployment scripts
   - Setup staging environment automation
@@ -705,6 +734,7 @@ portfolio-bucket/
   - Monitoring and alerting integration
 
 #### Phase 3: Advanced Features (Week 5-6)
+
 - [ ] **Enhanced Monitoring**
   - Application performance monitoring
   - Cost tracking and optimization
@@ -720,18 +750,21 @@ portfolio-bucket/
 ### 🚨 CRITICAL DEPLOYMENT CONSIDERATIONS
 
 #### Security Requirements
+
 - **Never commit secrets to repository** - Use GitHub Actions secrets exclusively
 - **Implement least-privilege IAM roles** - Separate roles for CI/CD vs runtime
 - **Enable audit logging** - Track all deployment activities and changes
 - **Secure network configuration** - VPC, security groups, and NACLs properly configured
 
 #### Data Safety
+
 - **Automated backups before deployment** - RDS snapshots and S3 versioning
 - **Database migration validation** - Test migrations in staging first
 - **Rollback strategy for data changes** - Plan for schema rollbacks
 - **Zero-downtime deployment validation** - Ensure no service interruption
 
 #### Performance Requirements
+
 - **Health checks during deployment** - Validate application functionality
 - **Performance baseline monitoring** - Detect performance regressions
 - **Resource utilization tracking** - Monitor CPU, memory, and disk usage
@@ -752,13 +785,16 @@ Each step must be implemented incrementally with full understanding before proce
 ### 🔄 INCREMENTAL IMPLEMENTATION METHODOLOGY
 
 **Core Principle: One Concept at a Time**
+
 - Each Terraform resource added individually with full explanation
 - Test and validate each component before adding the next
 - Build understanding through hands-on implementation
 - Always start with the simplest working version first
 
 #### Terraform Incremental Strategy
+
 **Phase 1: Minimal Working Infrastructure**
+
 - [ ] **Step 1:** Single EC2 instance with basic configuration
   - Understand: AWS provider, resource blocks, variables
   - Test: Manual deployment to verify Terraform works
@@ -775,6 +811,7 @@ Each step must be implemented incrementally with full understanding before proce
   - Learn: Resource relationships, implicit vs explicit dependencies
 
 **Phase 2: Database Integration**
+
 - [ ] **Step 4:** Add RDS instance (smallest configuration)
   - Understand: RDS basics, subnet groups, parameter groups
   - Test: Database connectivity from EC2 instance
@@ -786,6 +823,7 @@ Each step must be implemented incrementally with full understanding before proce
   - Learn: Resource references, cross-resource communication
 
 **Phase 3: Storage and Load Balancing**
+
 - [ ] **Step 6:** Add S3 bucket with basic configuration
   - Understand: S3 bucket policies, versioning, lifecycle rules
   - Test: File upload/download from application
@@ -797,6 +835,7 @@ Each step must be implemented incrementally with full understanding before proce
   - Learn: Advanced networking, service discovery
 
 **Phase 4: Advanced Features (One at a Time)**
+
 - [ ] **Step 8:** Add Auto Scaling Group (start with fixed size)
   - Understand: Launch configurations, scaling policies
   - Test: Instance replacement, capacity management
@@ -808,7 +847,9 @@ Each step must be implemented incrementally with full understanding before proce
   - Learn: Observability, automated responses
 
 #### GitHub Actions Incremental Strategy
+
 **Phase 1: Basic CI Pipeline**
+
 - [ ] **Step 1:** Simple build-only workflow
   - Understand: YAML syntax, job structure, runners
   - Test: Code compilation and basic validation
@@ -825,6 +866,7 @@ Each step must be implemented incrementally with full understanding before proce
   - Learn: Security automation, compliance checking
 
 **Phase 2: Deployment Automation**
+
 - [ ] **Step 4:** Add staging deployment
   - Understand: Environment-specific deployment, secrets management
   - Test: Automated deployment to staging environment
@@ -838,6 +880,7 @@ Each step must be implemented incrementally with full understanding before proce
 ### 🧠 LEARNING VALIDATION CHECKLIST
 
 After each incremental step, verify understanding by answering:
+
 - **What does this component do?** (Functional understanding)
 - **Why is it configured this way?** (Design rationale)
 - **How does it interact with other components?** (System integration)
@@ -847,6 +890,7 @@ After each incremental step, verify understanding by answering:
 ### 📚 DOCUMENTATION REQUIREMENTS
 
 For each incremental step, create:
+
 - [ ] **Step-by-step implementation notes** - What was done and why
 - [ ] **Configuration explanations** - Purpose of each setting/parameter
 - [ ] **Testing validation** - How to verify the step worked correctly
@@ -868,10 +912,13 @@ This approach allows for gradual migration while maintaining current deployment 
 ## 🧹 LEGACY CLEANUP - Removal of Deprecated Catalog System
 
 ### Overview
+
 The new `ContentCollection` system has fully replaced the legacy `Catalog` system. All catalog functionality is now handled through `ContentCollectionControllerDev` and `ContentCollectionControllerProd`. This section documents the strategy for removing all legacy code while ensuring no functionality currently in use is broken.
 
 ### Strategy
+
 **Three-Phase Approach:**
+
 1. **Phase 1: Verification** - Confirm no new code depends on legacy components
 2. **Phase 2: Incremental Removal** - Remove components in dependency order
 3. **Phase 3: Database Cleanup** - Plan database migration for legacy tables
@@ -881,6 +928,7 @@ The new `ContentCollection` system has fully replaced the legacy `Catalog` syste
 ### 🔴 HIGH PRIORITY - Phase 1: Verification & Analysis
 
 #### Verify New System Independence
+
 - [ ] **Audit ContentCollection Controllers**
   - Verify `ContentCollectionControllerDev` has no imports of Catalog classes
   - Verify `ContentCollectionControllerProd` has no imports of Catalog classes
@@ -1112,37 +1160,19 @@ Before removing ANY legacy code, verify:
 ### 📋 IMPLEMENTATION ORDER (RECOMMENDED)
 
 **Week 1: Verification Phase**
+
 1. Audit all files to confirm no ContentCollection code depends on Catalog
 2. Document all current Catalog usage (controllers, services, database)
 3. Create comprehensive test plan for validation
 4. Backup production database
 
-**Week 2: Service Layer Cleanup**
-5. Remove Catalog-specific methods from HomeService, HomeServiceImpl, HomeProcessingUtil
-6. Remove Catalog-specific methods from ImageService, ImageServiceImpl, ImageProcessingUtil
-7. Run full test suite after each change
-8. Deploy to staging and validate
+**Week 2: Service Layer Cleanup** 5. Remove Catalog-specific methods from HomeService, HomeServiceImpl, HomeProcessingUtil 6. Remove Catalog-specific methods from ImageService, ImageServiceImpl, ImageProcessingUtil 7. Run full test suite after each change 8. Deploy to staging and validate
 
-**Week 3: Controller & Core Removal**
-9. Remove CatalogControllerDev and CatalogControllerProd
-10. Remove or clean up ImageControllerDev and ImageControllerProd
-11. Remove CatalogService, CatalogServiceImpl, CatalogProcessingUtil
-12. Remove CatalogRepository
-13. Deploy to staging and validate all ContentCollection endpoints work
+**Week 3: Controller & Core Removal** 9. Remove CatalogControllerDev and CatalogControllerProd 10. Remove or clean up ImageControllerDev and ImageControllerProd 11. Remove CatalogService, CatalogServiceImpl, CatalogProcessingUtil 12. Remove CatalogRepository 13. Deploy to staging and validate all ContentCollection endpoints work
 
-**Week 4: Entity & Database Cleanup**
-14. Update ImageEntity to remove Catalog relationship
-15. Remove CatalogEntity
-16. Remove all Catalog models/DTOs
-17. Remove catalogExceptions.java
-18. Run database migration scripts to drop tables
-19. Final validation and deploy to production
+**Week 4: Entity & Database Cleanup** 14. Update ImageEntity to remove Catalog relationship 15. Remove CatalogEntity 16. Remove all Catalog models/DTOs 17. Remove catalogExceptions.java 18. Run database migration scripts to drop tables 19. Final validation and deploy to production
 
-**Week 5: Documentation & Finalization**
-20. Update all documentation to remove Catalog references
-21. Archive old Catalog data if needed
-22. Update project guidelines and context files
-23. Mark this section as completed in todo.md
+**Week 5: Documentation & Finalization** 20. Update all documentation to remove Catalog references 21. Archive old Catalog data if needed 22. Update project guidelines and context files 23. Mark this section as completed in todo.md
 
 ---
 
@@ -1163,40 +1193,44 @@ Before removing ANY legacy code, verify:
 
 ## 📊 Current System Status
 
-| Component | Implementation Status | Test Coverage Status |
-|-----------|----------------------|---------------------|
-| Core Entities | ✅ Complete | ⚠️ Partial |
-| Repositories | ✅ Complete | ⚠️ Partial |
-| Service Layer | ✅ Mostly Complete | ⚠️ Partial |
-| Read Controllers | ✅ Complete | ✅ Good |
-| Write Controllers | ⚠️ Missing CRUD ops | ⚠️ Partial |
-| Models/DTOs | ✅ Complete | ✅ Good |
-| Utilities | ✅ Complete | ✅ Good |
-| Home Integration | ❌ Incomplete | ❌ Missing |
-| Image Management | ❌ Incomplete | ❌ Missing |
-| Migration Tools | ❌ Not Started | ❌ Not Started |
+| Component         | Implementation Status | Test Coverage Status |
+| ----------------- | --------------------- | -------------------- |
+| Core Entities     | ✅ Complete           | ⚠️ Partial           |
+| Repositories      | ✅ Complete           | ⚠️ Partial           |
+| Service Layer     | ✅ Mostly Complete    | ⚠️ Partial           |
+| Read Controllers  | ✅ Complete           | ✅ Good              |
+| Write Controllers | ⚠️ Missing CRUD ops   | ⚠️ Partial           |
+| Models/DTOs       | ✅ Complete           | ✅ Good              |
+| Utilities         | ✅ Complete           | ✅ Good              |
+| Home Integration  | ❌ Incomplete         | ❌ Missing           |
+| Image Management  | ❌ Incomplete         | ❌ Missing           |
+| Migration Tools   | ❌ Not Started        | ❌ Not Started       |
 
 ---
 
 ## 🚨 Critical Implementation Notes
 
 ### Security Considerations
+
 - **Client Gallery Passwords**: Currently using SHA-256, need to migrate to BCrypt before production use
 - **Input Validation**: Ensure all user inputs are sanitized to prevent injection attacks
 - **Sensitive Data**: Never expose sensitive data in API responses or logs
 
 ### Performance Monitoring
+
 - **Database Performance**: Monitor new pagination queries
 - **S3 Usage**: Track usage patterns with mixed content types
 - **Memory Usage**: Monitor memory footprint with large collections
 
 ### Code Quality Requirements
+
 - **Follow Java 17+ best practices**: Use modern Java features appropriately
 - **Maintain Spring Boot patterns**: Follow established conventions
 - **Comprehensive logging**: Proper log levels and structured logging
 - **Exception handling**: Consistent error responses and proper HTTP status codes
 
 ### Data Migration Strategy
+
 - **Parallel Development**: Keep existing system functional during transition
 - **Gradual Migration**: Migrate collections by risk level (art galleries first, client galleries last)
 - **Data Validation**: Comprehensive validation before and after migration
@@ -1214,3 +1248,87 @@ Before removing ANY legacy code, verify:
 6. **Performance testing with realistic data** (Required before production use)
 
 This refactor provides significant architectural improvements but requires careful implementation to maintain existing functionality while gaining the benefits of the new flexible design.
+
+## THOUGHTS:
+
+- NEED to verify ALL todos to fully deploy the postgreSQL db will work.
+  - Already exists, so don't need to create
+  - Deploy of backend only effects the backend part of the EC2 instance
+  - What part of our 'docker' deploy needs to be our DB? do we need it at all? why do we even have it as part of our deployment strategy if not?
+- NEED to add a 'docker builder prune -f' or something on a successful deploy, so as to keep our EC2 instance light
+- Want to look at the idea of having 'generated' collections, such as:
+  - all images from this city
+  - A parent collection for a certain Tag or Location, (i.e. America), that adds child collections based on if the collection fits, or maybe if a certain percentage of images also have that same tag/locagion
+  - a 'tag' collection
+  - a 'person' collection
+- Want to work on 'image locations' and 'collection' locations as the same database ( if not yet )
+- Want to update frontend location to a dropdown
+- Want to update 'textContent' to match our new frontend, which includes things like:
+  - (side note, the 'header text box' is using data from the collection)
+  - 'title', 'description', 'date'(inherited?), 'paragraph2?', thoughts?
+- Need to make sure we add 'locations' to our metadata list ( for the 'Manage/Update' api call)
+  - This makes it like 'filmType', 'people', 'tags', etc
+- FRONTEND:
+  - Need the 'edit multiple images' to have a 'select all'
+  - Need the 'edit image' box to have the 'save' on the bottom ALWAYS visible
+  - Need to condense 'manage' top header to be far more concise
+  - Need any text box to be more dynamic with layout
+  - Need to work on 'line algorithm'
+    - This should work similarly to our 'ImageMetadata' ENUM:
+    - a concise way of describing each 'line organization'/grouping/shape
+    - a concise way of describing the required images for that grouping/shape
+    - a better name for our 'line algorithm' - box organizer or some shit
+  - Need to add 'people' and 'tags' from all images in a collection, to the collection header textBox
+    - Do we need to think about how we 'organize' these 'people/tags'? do we want the backend to have these as items IN the collection, so the frontend doesn't need to do logic to pull them out of each image that is in the API response body?
+    - Backend would need to update the 'getCollection' endpoint to simply, for each associated image, add any people/tag/location to the collection itself
+  - Need
+- UPDATE 'collection type' to include a 'parent' collection type ( naming can change )
+  - This is specifically for collections that are solely for the purpose of organizing other collections. maybe lacks a 'date', or other normal collection data
+- Need to be able to upload images at the same time as creating collection, if wanted
+  - Reason being, sometimes idk what collection/name i'll use until i get the images
+- Future goal - ai model to help 'suggest' tags, based on image inputs. Will require MORE of my images to be uploaded
+- NEED way of being able to change the 'siteSlug' when the title of the collection changes
+-
+
+
+
+
+
+Idea:
+- NUMBER: the number of images in a row is our 'number'. Up to 5, up to 6. 6 being our max, which would usually be 'all small'
+- this means that we just need patterns for each combination of images for each 'NUMBER'
+  - Number = 5:
+    - `H5*`, `H4*-V(3)*`, `H3*-V2*`, `V2*-V2*-V2*`, etc etc, all the way up to `5xV(0-2)*`, where 5 is the max number of images we can put in a row *******
+  - Number = 6:
+    - `H5*-[V(0-2)*/V(0-2)*]`, `H4*etc etc
+What this means:
+- we can 'always' make a row with 'up to' the amount required
+- we could move to the 'Greedy' or Full Passthrough to do the following, which is:
+  - Break up the array into 'as equal' as possible to our 'NUMBER'
+    - i.e.: NUMBER=5 ? 
+      - Array.length(25)=5rows of 5
+    BUT, this is just the 'ideal' situation. as we split them up, there may be rows that ARE a lot of `H5*` iamges, and so will Just Have Less Images in those rows. do we counter that? no. we simply try to, 
+    - Actually, conceptually, how WOULD we best be able to connect these dots, between 'number of available per row', to 'ideal overall', to 'star rating'?
+    - Is this 3 separate concerns that need to be balanced out? Or just two?
+    - Would it conceptually be a 
+      - 'NUMBER=x - max number of images per row
+      - Value: overall 'ratings added'(call it a catalog 'value'?) determine the number of rows. 
+        - 5images with 5 stars would be worth 25value. 
+        - 10images with (0-1)stars would be 10value. 
+        - 5 images of (1x1, 1x2, 1x3, 1x4, 1x5) would have 15value.
+        - etc
+      - Value / Number = number of rows?
+
+What are your thoughts on this? I'm looking to think about this 'conceptually', in the sense that, it's a DIFFERENT way of solving the problem we sort of have already solved Twice ( with our current itteration being Just Finished ).
+
+I am looking to find out, by a whole host of datapoints, how we should be 'creating' rows.
+Our current route works well, and we will likely need to do some refactoring, BUT, I am curious about this approach I just mentioned.
+
+If we have Value/Number=Rows, what does that mean? does the simple equation simplify how we calculate? do we just 'calculate that we will have an exact number of rows per value
+
+OR, is it less 'Value/Number=Rows', but more like `Value/X=Rows`, where NUMBER instead determines the 'pattern orientation', or 'pattern availability'. There would likely need to be a certain number of 'patterns' we can build based on each 'number of images' in a row.
+
+The `NUMBER` means how much `VALUE` per `ROW` possible. For Each `ROW`, `VALUE`.subtract((up to)`NUMBER`).
+If this is our algorithm, does that mean we just have, as we progress through the array, breaking it up (greedily) by `up to NUMBER`.
+DOes this cause issues with missed rows? Reliability?
+- One of the MAIN goals, if trying to change this again would be that this would need to SIMPLIFY more than it COMPLICATES. it should SCALE without needless BLOAT.

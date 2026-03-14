@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentDao;
@@ -98,7 +99,7 @@ public class ContentService {
     // Verify all requested images exist
     for (Long imageId : imageIds) {
       if (!imageMap.containsKey(imageId)) {
-        throw new IllegalArgumentException("Image not found: " + imageId);
+        throw new ResourceNotFoundException("Image not found: " + imageId);
       }
     }
 
@@ -119,7 +120,7 @@ public class ContentService {
 
         ContentImageEntity image = imageMap.get(imageId);
         if (image == null) {
-          throw new IllegalArgumentException("Image not found: " + imageId);
+          throw new ResourceNotFoundException("Image not found: " + imageId);
         }
 
         // Apply basic image metadata updates using the processing util
@@ -403,7 +404,7 @@ public class ContentService {
           .findById(childCollection.collectionId())
           .orElseThrow(
               () ->
-                  new IllegalArgumentException(
+                  new ResourceNotFoundException(
                       "Collection not found: " + childCollection.collectionId()));
 
       // Check if this content is already in the collection
@@ -509,7 +510,7 @@ public class ContentService {
 
       } catch (Exception e) {
         errors.add("Failed to delete image " + imageId + ": " + e.getMessage());
-        log.error("Error deleting image {}: {}", imageId, e.getMessage());
+        log.error("Error deleting image {}: {}", imageId, e.getMessage(), e);
       }
     }
 
@@ -564,7 +565,7 @@ public class ContentService {
     // Verify collection exists
     collectionDao
         .findById(collectionId)
-        .orElseThrow(() -> new IllegalArgumentException("Collection not found: " + collectionId));
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     List<ContentModels.Image> createdImages = new ArrayList<>();
 
@@ -651,7 +652,7 @@ public class ContentService {
     // Verify collection exists (outside transaction)
     collectionDao
         .findById(collectionId)
-        .orElseThrow(() -> new IllegalArgumentException("Collection not found: " + collectionId));
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
     // NO database calls happen here - only S3 I/O and CPU work
@@ -788,7 +789,7 @@ public class ContentService {
     collectionDao
         .findById(request.collectionId())
         .orElseThrow(
-            () -> new IllegalArgumentException("Collection not found: " + request.collectionId()));
+            () -> new ResourceNotFoundException("Collection not found: " + request.collectionId()));
 
     // Get the next order index for this collection
     Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(request.collectionId());

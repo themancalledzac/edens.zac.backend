@@ -36,23 +36,20 @@ public class GlobalExceptionHandler {
     }
   }
 
-  /**
-   * Handle IllegalArgumentException - typically used for "not found" or invalid input scenarios.
-   * Returns 404 if message contains "not found", otherwise 400.
-   */
+  /** Handle ResourceNotFoundException - always returns 404. */
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException e) {
+    log.warn("Resource not found: {}", e.getMessage());
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(ErrorResponse.of(HttpStatus.NOT_FOUND, e.getMessage()));
+  }
+
+  /** Handle IllegalArgumentException - invalid input, always returns 400. */
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
-    String message = e.getMessage();
-
-    if (message != null && message.toLowerCase().contains("not found")) {
-      log.warn("Resource not found: {}", message);
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .body(ErrorResponse.of(HttpStatus.NOT_FOUND, message));
-    }
-
-    log.warn("Bad request - invalid argument: {}", message);
+    log.warn("Bad request - invalid argument: {}", e.getMessage());
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-        .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, message));
+        .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, e.getMessage()));
   }
 
   /** Handle IllegalStateException - typically indicates a bad request or invalid state. */

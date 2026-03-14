@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
@@ -196,7 +197,7 @@ class CollectionControllerDevTest {
 
     when(collectionService.updateContentWithMetadata(
             eq(999L), any(CollectionRequests.Update.class)))
-        .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
+        .thenThrow(new ResourceNotFoundException("Collection not found with ID: 999"));
 
     // Act & Assert
     mockMvc
@@ -227,7 +228,7 @@ class CollectionControllerDevTest {
   @DisplayName("DELETE /collections/{id} should handle not found error")
   void deleteCollection_shouldHandleNotFoundError() throws Exception {
     // Arrange
-    doThrow(new IllegalArgumentException("Collection not found with ID: 999"))
+    doThrow(new ResourceNotFoundException("Collection not found with ID: 999"))
         .when(collectionService)
         .deleteCollection(999L);
 
@@ -318,7 +319,7 @@ class CollectionControllerDevTest {
     // Arrange
     when(collectionService.getUpdateCollectionData("non-existent-slug"))
         .thenThrow(
-            new IllegalArgumentException("Collection not found with slug: non-existent-slug"));
+            new ResourceNotFoundException("Collection not found with slug: non-existent-slug"));
 
     // Act & Assert
     mockMvc
@@ -562,7 +563,7 @@ class CollectionControllerDevTest {
     CollectionRequests.Reorder reorderRequest = new CollectionRequests.Reorder(List.of(reorder1));
 
     when(collectionService.reorderContent(eq(999L), any(CollectionRequests.Reorder.class)))
-        .thenThrow(new IllegalArgumentException("Collection not found with ID: 999"));
+        .thenThrow(new ResourceNotFoundException("Collection not found with ID: 999"));
 
     // Act & Assert
     mockMvc

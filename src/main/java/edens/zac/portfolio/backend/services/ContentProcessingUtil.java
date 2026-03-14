@@ -120,7 +120,12 @@ public class ContentProcessingUtil {
       case IMAGE -> convertImageToModel((ContentImageEntity) entity, null, null);
       case TEXT -> convertTextToModel((ContentTextEntity) entity, null, null);
       case GIF -> convertGifToModel((ContentGifEntity) entity, null, null);
-      case COLLECTION -> null;
+      case COLLECTION -> {
+        log.warn(
+            "COLLECTION content type not supported in convertRegularContentEntityToModel, entity id={}",
+            entity.getId());
+        yield null;
+      }
     };
   }
 
@@ -948,7 +953,11 @@ public class ContentProcessingUtil {
       log.info("Final rating value: {}", metadata.getOrDefault("rating", "NULL"));
 
     } catch (Exception e) {
-      log.warn("Failed to extract full metadata: {}", e.getMessage());
+      log.error(
+          "Failed to extract full metadata for {}: {}",
+          file.getOriginalFilename(),
+          e.getMessage(),
+          e);
       ensureDimensions(file, metadata);
     }
 
@@ -1055,7 +1064,7 @@ public class ContentProcessingUtil {
    * @param modifyDate The modify date string (Lightroom export date), used as fallback
    * @return int[] {year, month} or current date as last resort
    */
-  private int[] parseImageDate(String createDate, String modifyDate) {
+  int[] parseImageDate(String createDate, String modifyDate) {
     if (createDate != null && !createDate.isEmpty()) {
       try {
         // EXIF format: "2024:05:15 14:30:00" or ISO-8601: "2024-05-15T14:30:00"
@@ -1086,7 +1095,7 @@ public class ContentProcessingUtil {
    * @param createDate The date string from EXIF metadata
    * @return LocalDateTime parsed from EXIF date, or null if parsing fails
    */
-  private LocalDateTime parseExifDateToLocalDateTime(String createDate) {
+  LocalDateTime parseExifDateToLocalDateTime(String createDate) {
     if (createDate == null || createDate.trim().isEmpty()) {
       return null;
     }
@@ -1097,7 +1106,7 @@ public class ContentProcessingUtil {
           createDate.replaceFirst(":", "-").replaceFirst(":", "-").replace(" ", "T");
       return LocalDateTime.parse(normalized);
     } catch (Exception e) {
-      log.warn("Failed to parse EXIF date '{}' to LocalDateTime, will use upload time", createDate);
+      log.warn("Failed to parse EXIF date '{}' to LocalDateTime, date will be null", createDate);
       return null;
     }
   }

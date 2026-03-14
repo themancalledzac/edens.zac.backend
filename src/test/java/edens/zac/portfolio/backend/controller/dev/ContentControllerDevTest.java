@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.types.ContentType;
@@ -273,7 +274,7 @@ class ContentControllerDevTest {
         ContentImageUpdateRequest.builder().id(999L).title("Non-existent Image").build();
 
     when(contentService.updateImages(any(List.class)))
-        .thenThrow(new IllegalArgumentException("Image not found with ID: 999"));
+        .thenThrow(new ResourceNotFoundException("Image not found with ID: 999"));
 
     // Act & Assert
     mockMvc
@@ -531,7 +532,7 @@ class ContentControllerDevTest {
     Map<String, List<Long>> request = Map.of("imageIds", List.of(999L));
 
     when(contentService.deleteImages(any(List.class)))
-        .thenThrow(new IllegalArgumentException("Image not found with ID: 999"));
+        .thenThrow(new ResourceNotFoundException("Image not found with ID: 999"));
 
     // Act & Assert
     mockMvc

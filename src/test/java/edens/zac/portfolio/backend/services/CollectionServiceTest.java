@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentCollectionDao;
@@ -148,7 +149,7 @@ class CollectionServiceTest {
 
       // Act & Assert
       assertThatThrownBy(() -> service.reorderContent(collectionId, request))
-          .isInstanceOf(IllegalArgumentException.class)
+          .isInstanceOf(ResourceNotFoundException.class)
           .hasMessageContaining("Collection not found with ID: 999");
 
       verify(collectionContentDao, never()).batchUpdateOrderIndexes(any(), any());
