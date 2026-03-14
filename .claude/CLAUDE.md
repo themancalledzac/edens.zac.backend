@@ -90,3 +90,4 @@ Read these only when working in that specific area:
 - [database.md](database.md) - Schema structure, table relationships, queries
 - [testing.md](testing.md) - Test patterns, naming, what to test
 - [api-patterns.md](api-patterns.md) - Endpoint design, response formats, error handling
+- [ai_deployment_strategy.md](../ai_docs/ai_deployment_strategy.md) - Deployment pipeline, EC2 setup, backups, HTTPS

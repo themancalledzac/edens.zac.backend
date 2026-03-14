@@ -8,9 +8,6 @@ REPO_URL="https://github.com/themancalledzac/edens.zac.backend.git"
 BRANCH="main"
 APP_DIR="$HOME/portfolio-backend"
 
-# Clear Docker system
-docker system prune -a -f
-
 # Pull latest code
 echo "Pulling latest code..."
 if [ -d "$APP_DIR/repo" ]; then
@@ -26,15 +23,15 @@ fi
 echo "Setting up environment variables..."
 cp "$APP_DIR/.env" "$APP_DIR/repo/.env"
 
-# Build and deploy with Docker Compose (profile local-db starts database + backend on EC2)
-echo "Building and deploying with Docker Compose..."
+# Build new image first while old containers still serve traffic
+echo "Building and deploying..."
 cd "$APP_DIR/repo"
-docker-compose --profile local-db down || true
-docker-compose build --no-cache
-docker-compose --profile local-db up -d
+docker compose build
+docker compose --profile local-db down || true
+docker compose --profile local-db up -d
 
-# Cleanup old images to save disk space
-echo "Cleaning up old Docker images..."
+# Cleanup dangling images
 docker image prune -f
 
 echo "Deployment completed successfully!"
+echo "If something went wrong: docker compose --profile local-db logs --tail=100"

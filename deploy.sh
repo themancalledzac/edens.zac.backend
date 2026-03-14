@@ -10,10 +10,6 @@ REPO_URL="https://github.com/themancalledzac/edens.zac.backend.git"
 BRANCH="main"
 APP_DIR="$HOME/portfolio-backend"
 
-# Clear Docker system
-echo "Cleaning up Docker resources..."
-docker system prune -a -f
-
 # Pull latest code
 echo "Pulling latest code from $BRANCH..."
 if [ -d "$APP_DIR/repo" ]; then
@@ -37,17 +33,15 @@ else
   exit 1
 fi
 
-# Stop existing containers (use same profile as up so database is stopped too)
-echo "Stopping existing containers..."
+# Build new image first (old containers keep serving traffic)
+echo "Building images..."
 cd "$APP_DIR/repo"
-docker-compose --profile local-db down || true
+docker compose build
 
-# Build and deploy with Docker Compose (profile local-db starts database + backend on EC2)
-echo "Building images (no cache)..."
-docker-compose build --no-cache
-
-echo "Starting containers (database + backend)..."
-docker-compose --profile local-db up -d
+# Stop old containers and start new ones
+echo "Restarting containers (database + backend)..."
+docker compose --profile local-db down || true
+docker compose --profile local-db up -d
 
 # Wait for services to be healthy
 echo "Waiting for services to be healthy..."
@@ -56,11 +50,11 @@ sleep 10
 # Check container status
 echo ""
 echo "Container Status:"
-docker-compose --profile local-db ps
+docker compose --profile local-db ps
 
-# Cleanup old images to save disk space
+# Cleanup dangling images to save disk space
 echo ""
-echo "Cleaning up old Docker images..."
+echo "Cleaning up dangling Docker images..."
 docker image prune -f
 
 echo ""
@@ -69,8 +63,11 @@ echo "Deployment completed successfully!"
 echo "======================================"
 echo ""
 echo "To view logs:"
-echo "  docker-compose --profile local-db logs -f"
+echo "  docker compose --profile local-db logs -f"
 echo ""
 echo "To check health:"
-echo "  curl http://localhost:8080/actuator/health"
+echo "  curl http://localhost:8080/api/read/collections"
+echo ""
+echo "If something went wrong, check logs with:"
+echo "  docker compose --profile local-db logs --tail=100"
 echo ""

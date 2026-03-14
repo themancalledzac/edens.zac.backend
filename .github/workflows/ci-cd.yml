@@ -154,17 +154,6 @@ jobs:
           docker build -t edens.zac.backend:${{ github.sha }} .
           docker tag edens.zac.backend:${{ github.sha }} edens.zac.backend:latest
 
-      - name: Save Docker image
-        run: |
-          docker save edens.zac.backend:latest | gzip > backend-image.tar.gz
-
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-docker-image
-          path: backend-image.tar.gz
-          retention-days: 7
-
   security-scan:
     name: Security Vulnerability Scan
     runs-on: ubuntu-latest
