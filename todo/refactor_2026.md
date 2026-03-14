@@ -4,16 +4,16 @@ Modernization roadmap for `edens.zac.portfolio.backend` (Spring Boot 3.4.1 / Jav
 
 ---
 
-## Current State (as of 2026-03-13, updated after 8a/8c/9a)
+## Current State (as of 2026-03-14, updated after 8b/9e)
 
 | Metric | Current | Target | Notes |
 |--------|---------|--------|-------|
-| Model/DTO files | 11 | 10-12 | Was 19; Phase 2b: -1; Phase 2c: -4+1 (net -3) |
+| Model/DTO files | 12 | 10-12 | Was 19; Phase 8b: +1 (ImageUploadResult.java) |
 | Service line counts | 1009 / 1098 | <300 each | CollectionService / ContentService (concrete, no Impl suffix) |
 | DAOs | 14 | 5-6 | Unchanged |
 | Dependencies per service | 8-14 | 2-4 | CollectionService=8, ContentService=9 (was 14, Phase 3b: -5) |
-| Total Java files | ~70 | ~50 | Phase 2c: -4 old models, +1 ContentModels.java (net -3) |
-| Tests | 318 | — | Phase 9a-9d: +67 tests (was 251) |
+| Total Java files | ~71 | ~50 | Phase 8b: +1 (ImageUploadResult.java) |
+| Tests | 333 | — | Phase 9e: +15 tests (was 318) |
 
 ---
 
@@ -139,6 +139,18 @@ Modernization roadmap for `edens.zac.portfolio.backend` (Spring Boot 3.4.1 / Jav
 - [x] `parseImageDate()` uses `modifyDate` as fallback for S3 path instead of `LocalDate.now()`
 - [x] Warning log when no capture date found (film scan case)
 
+### Phase 8b: Image Upload Structured Response (DONE 2026-03-14)
+- [x] `ImageUploadResult.java` record created with `successful` + `failed` (list of `FileError(filename, error)`)
+- [x] `createImages()` (sequential) refactored to collect per-file errors instead of silently catching
+- [x] `createImagesParallel()` tracks null results from `prepareImageAsync` as `FileError` entries
+- [x] `saveProcessedImages()` accepts `previousFailures`, catches per-image save exceptions
+- [x] `ContentControllerDev.createImages` returns `ResponseEntity<ImageUploadResult>` instead of `ResponseEntity<List<ContentModels.Image>>`
+- [x] BUILD SUCCESS — 333 tests, 0 failures
+
+### Phase 9e: CollectionService Test Coverage (DONE 2026-03-14)
+- [x] 15 tests added across 6 nested test classes: CreateCollection (2), DeleteCollection (3), UpdateContentWithMetadata (3), GetCollectionWithPagination (3), ValidateClientGalleryAccess (2), FindById (2)
+- [x] BUILD SUCCESS — 333 tests, 0 failures
+
 ---
 
 ## Remaining Work - Phase Index
@@ -191,12 +203,12 @@ Each phase is a self-contained task. Execute in order within a priority tier; ti
 |-------|------|---------|--------|
 | ~~8a~~ | ~~ResourceNotFoundException + deterministic 404 routing~~ | DONE 2026-03-13 | — |
 | ~~8c~~ | ~~Silent failure quick fixes (logging, misleading log msg, COLLECTION null)~~ | DONE 2026-03-13 | — |
-| 8b | [phase-8-error-handling.md](phase-8-error-handling.md#8b-image-upload-silent-failures) | Image upload silent failures — structured partial-success response | 1-2 days |
+| ~~8b~~ | ~~[phase-8-error-handling.md](phase-8-error-handling.md#8b-image-upload-silent-failures)~~ | ~~Image upload silent failures — structured partial-success response~~ | DONE 2026-03-14 |
 | ~~9a~~ | ~~GlobalExceptionHandlerTest (P0)~~ | DONE 2026-03-13 | — |
 | ~~9b~~ | ~~ImageMetadata & XMP extraction tests~~ | DONE 2026-03-13 | — |
 | ~~9c~~ | ~~Request record validation tests~~ | DONE 2026-03-13 | — |
 | ~~9d~~ | ~~Date parsing tests~~ | DONE 2026-03-13 | — |
-| 9e | [phase-9-test-coverage.md](phase-9-test-coverage.md#9e-collectionservicetest-coverage-priority-p3) | CollectionService test coverage | 1 day |
+| ~~9e~~ | ~~[phase-9-test-coverage.md](phase-9-test-coverage.md#9e-collectionservicetest-coverage-priority-p3)~~ | ~~CollectionService test coverage~~ | DONE 2026-03-14 |
 
 ---
 
@@ -215,8 +227,8 @@ Each phase is a self-contained task. Execute in order within a priority tier; ti
 - ~~DB connection pool starvation during parallel image uploads~~ — fixed Phase 3c
 - ~~Missing/wrong capture dates on film scan uploads~~ — fixed Phase 7a/7a+
 - No GIF/MP4 upload path (stub throws UnsupportedOperationException)
-- Silent failures in image upload pipeline (partial results returned as success) — 8c quick fixes done; 8b structured response pending
+- ~~Silent failures in image upload pipeline (partial results returned as success)~~ — fixed Phase 8b/8c (structured `ImageUploadResult` response)
 - ~~Fragile string-matching for HTTP status routing in GlobalExceptionHandler~~ — fixed Phase 8a
-- ~~Test coverage gaps: GlobalExceptionHandler, ImageMetadata, request validation, date parsing~~ — fixed Phases 9a-9d; 9e (CollectionService tests) pending
+- ~~Test coverage gaps: GlobalExceptionHandler, ImageMetadata, request validation, date parsing, CollectionService~~ — fixed Phases 9a-9e
 
 **Recommendation: stay with Java.** Modernize with records, sealed interfaces, and focused services rather than rewriting in another language.

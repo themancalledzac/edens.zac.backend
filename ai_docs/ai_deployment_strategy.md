@@ -43,6 +43,7 @@ Single EC2 instance running Docker Compose with PostgreSQL 16 + Spring Boot 3.4.
 | `.env.example` | Template for environment variables | Adding new env vars |
 | `ai_docs/ai_ec2.md` | EC2 infrastructure reference | EC2 config changes |
 | `ai_docs/ai_cicd.md` | CI/CD pipeline reference | Pipeline changes |
+| `config/InternalSecretFilter.java` | Servlet filter rejecting requests without `X-Internal-Secret` | Changing secret validation logic |
 
 ## Deployment Pipeline
 
@@ -206,7 +207,7 @@ bash setup-ec2.sh
 | 22 | TCP | Your IP | SSH access |
 | 80 | TCP | 0.0.0.0/0 | HTTP (Caddy redirect to HTTPS) |
 | 443 | TCP | 0.0.0.0/0 | HTTPS (Caddy with Let's Encrypt) |
-| 8080 | TCP | 0.0.0.0/0 | Direct API access (if no Caddy) |
+| 8080 | TCP | 0.0.0.0/0 | Required — Amplify (outside VPC) calls EC2 via public IP. InternalSecretFilter rejects unauthenticated requests. Can close if Caddy handles HTTPS on 443 instead. |
 
 **IMPORTANT:** Do NOT expose port 5432. Use SSH tunnel for local dev database access:
 ```bash
@@ -276,11 +277,11 @@ If the EC2 instance dies completely:
 
 ## Environment Variables
 
-### Required (in `~/portfolio-backend/.env`)
+### Required (in `~/portfolio-backend/.env` on EC2)
 
 | Variable | Example | Purpose |
 |----------|---------|---------|
-| `SPRING_PROFILES_ACTIVE` | `default` | Spring profile (don't use `prod` unless configured) |
+| `SPRING_PROFILES_ACTIVE` | `prod` | Spring profile (`prod` enables InternalSecretFilter + WebConfigProd) |
 | `POSTGRES_HOST` | `database` | Docker service name (use `database` on EC2) |
 | `POSTGRES_PORT` | `5432` | PostgreSQL port |
 | `POSTGRES_DB` | `edens_zac` | Database name |
@@ -290,12 +291,23 @@ If the EC2 instance dies completely:
 | `AWS_SECRET_ACCESS_KEY` | (secret) | AWS credentials for S3 |
 | `AWS_PORTFOLIO_S3_BUCKET` | `my-bucket` | S3 bucket for image storage |
 | `AWS_CLOUDFRONT_DOMAIN` | `d1234.cloudfront.net` | CloudFront CDN domain |
+| `INTERNAL_API_SECRET` | (generate with `openssl rand -hex 32`) | Shared secret — EC2 rejects any request missing this header |
 
-### Optional
+### Optional (EC2 .env)
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `DOMAIN` | `localhost` | Domain for Caddy HTTPS (e.g., `api.example.com`) |
+
+### Amplify Environment Variables
+
+| Variable | Action | Purpose |
+|----------|--------|---------|
+| `API_URL` | Add | EC2 backend URL — server-side only, never in JS bundle |
+| `NEXT_PUBLIC_APP_URL` | Add | Amplify app URL (e.g. `https://yourapp.amplifyapp.com`) — used by Server Components to build absolute proxy URLs |
+| `INTERNAL_API_SECRET` | Add | Same value as EC2 — injected by proxy into every backend request |
+| `NEXT_PUBLIC_ENV` | Add | Set to `production` — used by `isProduction()` check |
+| `NEXT_PUBLIC_API_URL` | **REMOVE** | Was the EC2 URL baked into the client JS bundle — must not exist |
 
 ## Troubleshooting
 
@@ -348,26 +360,50 @@ docker compose --profile local-db up -d
 These require manual action on the EC2 instance or AWS console:
 
 ### P0 — Security
-- [ ] **Close port 5432 in AWS security group** — Use SSH tunnel for local dev instead
+- [x] **Port 5432 not exposed** — confirmed not in security group
+- [x] **Removed "All TCP 0-65535 from 0.0.0.0/0" security group rule** — was opening every port to the internet
 - [ ] **Change database password** if it's still a weak/default value
 
 ### P1 — Reliability
-- [ ] **Set up backup cron job:**
-  ```bash
-  crontab -e
-  # Add: 0 3 * * * bash ~/portfolio-backend/repo/scripts/backup-postgres.sh
-  ```
-- [ ] **Install AWS CLI on EC2** (for S3 backup sync):
-  ```bash
-  sudo dnf install -y awscli
-  aws configure  # Use same credentials as .env
-  ```
+- [x] **Backup cron job running:** `0 3 * * * bash ~/portfolio-backend/repo/scripts/backup-postgres.sh >> ~/portfolio-backend/backups/backup.log 2>&1`
+- [x] **AWS CLI installed and working** — S3 sync confirmed working
+- [x] **Log rotation configured** — `/etc/logrotate.d/portfolio-backup` (weekly, 4 rotations, compressed)
+- [ ] **Add `cronie` to `setup-ec2.sh`** — not installed by default on Amazon Linux 2023; needed for cron jobs
 
-### P2 — HTTPS
-- [ ] **Point a domain to EC2** (Route 53 or your DNS provider)
-- [ ] **Add `DOMAIN=api.yourdomain.com` to `.env`**
-- [ ] **Open ports 80/443, close port 8080** in security group
-- [ ] **Deploy with Caddy:** `docker compose --profile local-db --profile production up -d`
+### P2 — BFF Proxy Security Hardening (IN PROGRESS — 2026-03-14)
+
+**Problem solved**: The browser was calling EC2 directly, and the EC2 URL was baked into the client JS bundle via `NEXT_PUBLIC_API_URL`. Anyone could discover the EC2 address and bypass the frontend entirely.
+
+**Solution**: Next.js BFF (Backend-For-Frontend) proxy pattern. All API calls route through `/api/proxy/` on the Amplify app. EC2 rejects any request that doesn't carry a shared secret header.
+
+**What was changed:**
+
+Frontend (`edens.zac.frontend`):
+- `app/api/proxy/[...path]/route.ts` — reads `API_URL` (server-only env var, never in bundle); injects `X-Internal-Secret` header; removed EC2 URL from 502 error body
+- `app/lib/api/core.ts` — production calls now route to `/api/proxy/api/{endpointType}`, never directly to EC2
+- `app/utils/environment.ts` — `isProduction()` no longer depends on `NEXT_PUBLIC_API_URL`
+
+Backend (`edens.zac.backend`):
+- `config/InternalSecretFilter.java` — `@Order(1)` filter; returns 403 on any request missing/wrong `X-Internal-Secret`; `/actuator/health` is exempt
+- `application.properties` — added `internal.api.secret=${INTERNAL_API_SECRET}`
+
+**Remaining steps to complete:**
+- [ ] Generate secret: `openssl rand -hex 32`
+- [ ] Add `INTERNAL_API_SECRET` to EC2 `~/portfolio-backend/.env` and deploy backend
+- [ ] Verify EC2 rejects unauthenticated requests: `curl http://ec2-ip:8080/api/read/collections` → 403
+- [ ] Add `API_URL`, `NEXT_PUBLIC_APP_URL`, `INTERNAL_API_SECRET`, `NEXT_PUBLIC_ENV=production` to Amplify env vars
+- [ ] Remove `NEXT_PUBLIC_API_URL` from Amplify env vars
+- [ ] Redeploy frontend; confirm site loads and all data renders
+- [ ] Check built JS bundle — EC2 IP/domain must not appear
+- [ ] Close port 8080 in EC2 security group (final step, after everything verified)
+
+**Verification checklist:**
+1. Browser devtools Network tab — no direct requests to EC2 IP/domain
+2. `curl http://ec2-ip:8080/api/read/collections` → 403
+3. `curl http://ec2-ip:8080/api/read/collections -H "X-Internal-Secret: wrongvalue"` → 403
+4. `curl http://ec2-ip:8080/actuator/health` → 200
+5. Site loads, all collections and images render normally
+6. Search built JS bundle for EC2 IP — must not appear
 
 ## Future Improvements (Not Started)
 
