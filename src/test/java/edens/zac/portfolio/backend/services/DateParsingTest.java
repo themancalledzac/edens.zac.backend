@@ -2,19 +2,12 @@ package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import edens.zac.portfolio.backend.dao.CollectionContentDao;
-import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentCameraDao;
-import edens.zac.portfolio.backend.dao.ContentCollectionDao;
-import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
-import edens.zac.portfolio.backend.dao.ContentGifDao;
-import edens.zac.portfolio.backend.dao.ContentLensDao;
-import edens.zac.portfolio.backend.dao.ContentPersonDao;
-import edens.zac.portfolio.backend.dao.ContentTagDao;
-import edens.zac.portfolio.backend.dao.ContentTextDao;
-import edens.zac.portfolio.backend.dao.LocationDao;
-import edens.zac.portfolio.backend.dao.TagDao;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.EquipmentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import java.time.LocalDate;
@@ -31,19 +24,12 @@ import software.amazon.awssdk.services.s3.S3Client;
 class DateParsingTest {
 
   @Mock private S3Client s3Client;
-  @Mock private ContentDao contentDao;
-  @Mock private CollectionDao collectionDao;
-  @Mock private ContentCameraDao contentCameraDao;
-  @Mock private ContentLensDao contentLensDao;
-  @Mock private ContentFilmTypeDao contentFilmTypeDao;
-  @Mock private ContentTagDao contentTagDao;
-  @Mock private TagDao tagDao;
-  @Mock private ContentPersonDao contentPersonDao;
-  @Mock private LocationDao locationDao;
-  @Mock private CollectionContentDao collectionContentDao;
-  @Mock private ContentTextDao contentTextDao;
-  @Mock private ContentCollectionDao contentCollectionDao;
-  @Mock private ContentGifDao contentGifDao;
+  @Mock private ContentRepository contentRepository;
+  @Mock private CollectionRepository collectionRepository;
+  @Mock private EquipmentRepository equipmentRepository;
+  @Mock private TagRepository tagRepository;
+  @Mock private PersonRepository personRepository;
+  @Mock private LocationRepository locationRepository;
   @Mock private ContentImageUpdateValidator contentImageUpdateValidator;
   @Mock private ContentValidator contentValidator;
 

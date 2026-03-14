@@ -8,19 +8,12 @@ import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
-import edens.zac.portfolio.backend.dao.CollectionContentDao;
-import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentCameraDao;
-import edens.zac.portfolio.backend.dao.ContentCollectionDao;
-import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
-import edens.zac.portfolio.backend.dao.ContentGifDao;
-import edens.zac.portfolio.backend.dao.ContentLensDao;
-import edens.zac.portfolio.backend.dao.ContentPersonDao;
-import edens.zac.portfolio.backend.dao.ContentTagDao;
-import edens.zac.portfolio.backend.dao.ContentTextDao;
-import edens.zac.portfolio.backend.dao.LocationDao;
-import edens.zac.portfolio.backend.dao.TagDao;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.EquipmentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.*;
@@ -60,21 +53,14 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 @Slf4j
 public class ContentProcessingUtil {
 
-  // Dependencies for S3 upload and DAOs
+  // Dependencies for S3 upload and repositories
   private final S3Client s3Client;
-  private final ContentDao contentDao;
-  private final CollectionDao collectionDao;
-  private final ContentCameraDao contentCameraDao;
-  private final ContentLensDao contentLensDao;
-  private final ContentFilmTypeDao contentFilmTypeDao;
-  private final ContentTagDao contentTagDao;
-  private final TagDao tagDao;
-  private final ContentPersonDao contentPersonDao;
-  private final LocationDao locationDao;
-  private final CollectionContentDao collectionContentDao;
-  private final ContentTextDao contentTextDao;
-  private final ContentCollectionDao contentCollectionDao;
-  private final ContentGifDao contentGifDao;
+  private final ContentRepository contentRepository;
+  private final CollectionRepository collectionRepository;
+  private final EquipmentRepository equipmentRepository;
+  private final TagRepository tagRepository;
+  private final PersonRepository personRepository;
+  private final LocationRepository locationRepository;
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
 
@@ -165,7 +151,7 @@ public class ContentProcessingUtil {
     // Load content entity - try loading as different types based on contentType
     // First, get the base content to determine type
     Optional<ContentEntity> baseContentOpt =
-        contentDao.findAllByIds(List.of(contentId)).stream().findFirst();
+        contentRepository.findAllByIds(List.of(contentId)).stream().findFirst();
     if (baseContentOpt.isEmpty()) {
       log.error(
           "Content entity {} not found for CollectionContentEntity {}", contentId, entity.getId());
@@ -178,19 +164,20 @@ public class ContentProcessingUtil {
     // Load typed entity based on contentType
     switch (baseContent.getContentType()) {
       case IMAGE -> {
-        Optional<ContentImageEntity> imageOpt = contentDao.findImageById(contentId);
+        Optional<ContentImageEntity> imageOpt = contentRepository.findImageById(contentId);
         content = imageOpt.orElse(null);
       }
       case TEXT -> {
-        Optional<ContentTextEntity> textOpt = contentTextDao.findById(contentId);
+        Optional<ContentTextEntity> textOpt = contentRepository.findTextById(contentId);
         content = textOpt.orElse(null);
       }
       case GIF -> {
-        Optional<ContentGifEntity> gifOpt = contentGifDao.findById(contentId);
+        Optional<ContentGifEntity> gifOpt = contentRepository.findGifById(contentId);
         content = gifOpt.orElse(null);
       }
       case COLLECTION -> {
-        Optional<ContentCollectionEntity> collectionOpt = contentCollectionDao.findById(contentId);
+        Optional<ContentCollectionEntity> collectionOpt =
+            contentRepository.findCollectionContentById(contentId);
         content = collectionOpt.orElse(null);
       }
       default -> {
@@ -307,7 +294,8 @@ public class ContentProcessingUtil {
 
     Records.Location location = null;
     if (entity.getLocationId() != null) {
-      LocationEntity locationEntity = locationDao.findById(entity.getLocationId()).orElse(null);
+      LocationEntity locationEntity =
+          locationRepository.findById(entity.getLocationId()).orElse(null);
       if (locationEntity != null) {
         location = new Records.Location(locationEntity.getId(), locationEntity.getLocationName());
       }
@@ -436,13 +424,13 @@ public class ContentProcessingUtil {
       log.debug(
           "Loading full collection data for referencedCollectionId: {}", referencedCollectionId);
       referencedCollection =
-          collectionDao.findById(referencedCollectionId).orElse(referencedCollection);
+          collectionRepository.findById(referencedCollectionId).orElse(referencedCollection);
     }
 
     ContentModels.Image coverImage = null;
     if (referencedCollection.getCoverImageId() != null) {
       ContentImageEntity coverImageEntity =
-          contentDao.findImageById(referencedCollection.getCoverImageId()).orElse(null);
+          contentRepository.findImageById(referencedCollection.getCoverImageId()).orElse(null);
       if (coverImageEntity != null) {
         coverImage = convertImageEntityToModel(coverImageEntity);
       }
@@ -731,7 +719,7 @@ public class ContentProcessingUtil {
             .focalLength(metadata.get("focalLength"))
             .locationId(
                 metadata.get("location") != null
-                    ? locationDao.findOrCreate(metadata.get("location")).getId()
+                    ? locationRepository.findOrCreate(metadata.get("location")).getId()
                     : null)
             .imageUrlWeb(prepared.imageUrlWeb())
             .createDate(metadata.get("createDate"))
@@ -755,7 +743,7 @@ public class ContentProcessingUtil {
 
     // Replace existing image if duplicate, otherwise insert
     List<ContentImageEntity> existing =
-        contentDao.findAllByFileIdentifier(prepared.fileIdentifier());
+        contentRepository.findAllByFileIdentifier(prepared.fileIdentifier());
     if (!existing.isEmpty()) {
       ContentImageEntity toReplace = existing.get(0);
       log.info(
@@ -766,7 +754,7 @@ public class ContentProcessingUtil {
       entity.setId(toReplace.getId());
     }
 
-    ContentImageEntity savedEntity = contentDao.saveImage(entity);
+    ContentImageEntity savedEntity = contentRepository.saveImage(entity);
     log.info("Successfully saved image content with ID: {}", savedEntity.getId());
     return savedEntity;
   }
@@ -875,7 +863,7 @@ public class ContentProcessingUtil {
             .focalLength(metadata.get("focalLength"))
             .locationId(
                 metadata.get("location") != null
-                    ? locationDao.findOrCreate(metadata.get("location")).getId()
+                    ? locationRepository.findOrCreate(metadata.get("location")).getId()
                     : null)
             .imageUrlWeb(imageUrlWeb)
             .createDate(metadata.get("createDate"))
@@ -900,7 +888,7 @@ public class ContentProcessingUtil {
     }
 
     // STEP 7: Replace existing image if duplicate, otherwise insert
-    List<ContentImageEntity> existing = contentDao.findAllByFileIdentifier(fileIdentifier);
+    List<ContentImageEntity> existing = contentRepository.findAllByFileIdentifier(fileIdentifier);
     if (!existing.isEmpty()) {
       ContentImageEntity toReplace = existing.get(0);
       log.info(
@@ -911,7 +899,7 @@ public class ContentProcessingUtil {
       entity.setId(toReplace.getId());
     }
 
-    ContentImageEntity savedEntity = contentDao.saveImage(entity);
+    ContentImageEntity savedEntity = contentRepository.saveImage(entity);
     log.info("Successfully processed image content with ID: {}", savedEntity.getId());
     return savedEntity;
   }
@@ -1400,7 +1388,7 @@ public class ContentProcessingUtil {
 
     // Check by serial number first (for deduplication)
     Optional<ContentCameraEntity> existingBySerial =
-        contentCameraDao.findByBodySerialNumber(serialNumber);
+        equipmentRepository.findCameraByBodySerialNumber(serialNumber);
     if (existingBySerial.isPresent()) {
       log.debug("Found existing camera by serial number: {}", serialNumber);
       return existingBySerial.get();
@@ -1408,7 +1396,7 @@ public class ContentProcessingUtil {
 
     // Check by name (case-insensitive)
     Optional<ContentCameraEntity> existingByName =
-        contentCameraDao.findByCameraNameIgnoreCase(cameraName);
+        equipmentRepository.findCameraByNameIgnoreCase(cameraName);
     if (existingByName.isPresent()) {
       log.debug("Found existing camera by name: {}", cameraName);
       return existingByName.get();
@@ -1418,7 +1406,7 @@ public class ContentProcessingUtil {
     log.info("Creating new camera: {} (serial: {})", cameraName, serialNumber);
     ContentCameraEntity newCamera =
         ContentCameraEntity.builder().cameraName(cameraName).bodySerialNumber(serialNumber).build();
-    ContentCameraEntity savedCamera = contentCameraDao.save(newCamera);
+    ContentCameraEntity savedCamera = equipmentRepository.saveCamera(newCamera);
     if (newCameras != null) {
       newCameras.add(savedCamera);
     }
@@ -1452,14 +1440,15 @@ public class ContentProcessingUtil {
 
     // Check by serial number first (for deduplication)
     Optional<ContentLensEntity> existingBySerial =
-        contentLensDao.findByLensSerialNumber(serialNumber);
+        equipmentRepository.findLensBySerialNumber(serialNumber);
     if (existingBySerial.isPresent()) {
       log.debug("Found existing lens by serial number: {}", serialNumber);
       return existingBySerial.get();
     }
 
     // Check by name (case-insensitive)
-    Optional<ContentLensEntity> existingByName = contentLensDao.findByLensNameIgnoreCase(lensName);
+    Optional<ContentLensEntity> existingByName =
+        equipmentRepository.findLensByNameIgnoreCase(lensName);
     if (existingByName.isPresent()) {
       log.debug("Found existing lens by name: {}", lensName);
       return existingByName.get();
@@ -1469,7 +1458,7 @@ public class ContentProcessingUtil {
     log.info("Creating new lens: {} (serial: {})", lensName, serialNumber);
     ContentLensEntity newLens =
         ContentLensEntity.builder().lensName(lensName).lensSerialNumber(serialNumber).build();
-    ContentLensEntity savedLens = contentLensDao.save(newLens);
+    ContentLensEntity savedLens = equipmentRepository.saveLens(newLens);
     if (newLenses != null) {
       newLenses.add(savedLens);
     }
@@ -1536,8 +1525,8 @@ public class ContentProcessingUtil {
       } else if (cameraUpdate.getPrev() != null) {
         // Use existing camera by ID
         ContentCameraEntity camera =
-            contentCameraDao
-                .findById(cameraUpdate.getPrev())
+            equipmentRepository
+                .findCameraById(cameraUpdate.getPrev())
                 .orElseThrow(
                     () ->
                         new IllegalArgumentException(
@@ -1562,8 +1551,8 @@ public class ContentProcessingUtil {
       } else if (lensUpdate.getPrev() != null) {
         // Use existing lens by ID
         ContentLensEntity lens =
-            contentLensDao
-                .findById(lensUpdate.getPrev())
+            equipmentRepository
+                .findLensById(lensUpdate.getPrev())
                 .orElseThrow(
                     () ->
                         new IllegalArgumentException(
@@ -1589,8 +1578,8 @@ public class ContentProcessingUtil {
         String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
 
         ContentFilmTypeEntity filmType =
-            contentFilmTypeDao
-                .findByFilmTypeNameIgnoreCase(technicalName)
+            equipmentRepository
+                .findFilmTypeByNameIgnoreCase(technicalName)
                 .orElseGet(
                     () -> {
                       log.info(
@@ -1600,14 +1589,14 @@ public class ContentProcessingUtil {
                       ContentFilmTypeEntity newFilmType =
                           new ContentFilmTypeEntity(
                               technicalName, displayName, newFilmTypeRequest.defaultIso());
-                      return contentFilmTypeDao.save(newFilmType);
+                      return equipmentRepository.saveFilmType(newFilmType);
                     });
         entity.setFilmType(filmType);
       } else if (filmTypeUpdate.getPrev() != null) {
         // Use existing film type by ID
         ContentFilmTypeEntity filmType =
-            contentFilmTypeDao
-                .findById(filmTypeUpdate.getPrev())
+            equipmentRepository
+                .findFilmTypeById(filmTypeUpdate.getPrev())
                 .orElseThrow(
                     () ->
                         new IllegalArgumentException(
@@ -1627,13 +1616,13 @@ public class ContentProcessingUtil {
       } else if (locationUpdate.newValue() != null && !locationUpdate.newValue().trim().isEmpty()) {
         // Create new location by name
         String locationName = locationUpdate.newValue().trim();
-        LocationEntity location = locationDao.findOrCreate(locationName);
+        LocationEntity location = locationRepository.findOrCreate(locationName);
         entity.setLocationId(location.getId());
         log.info("Set location to: {} (ID: {})", locationName, location.getId());
       } else if (locationUpdate.prev() != null) {
         // Use existing location by ID
         LocationEntity location =
-            locationDao
+            locationRepository
                 .findById(locationUpdate.prev())
                 .orElseThrow(
                     () ->
@@ -1697,7 +1686,7 @@ public class ContentProcessingUtil {
 
         // Find the join table entry for this image in this collection
         Optional<CollectionContentEntity> joinEntryOpt =
-            collectionContentDao.findByCollectionIdAndContentId(collectionId, image.getId());
+            collectionRepository.findContentByCollectionIdAndContentId(collectionId, image.getId());
 
         if (joinEntryOpt.isEmpty()) {
           log.warn(
@@ -1712,7 +1701,7 @@ public class ContentProcessingUtil {
 
         // Update Order Index if provided
         if (orderIndex != null) {
-          collectionContentDao.updateOrderIndex(
+          collectionRepository.updateContentOrderIndex(
               joinEntry.getId(), // Use join table entry ID, not collection ID
               orderIndex);
           log.info(
@@ -1725,7 +1714,7 @@ public class ContentProcessingUtil {
 
         // Update visibility if provided
         if (visible != null) {
-          collectionContentDao.updateVisible(
+          collectionRepository.updateContentVisible(
               joinEntry.getId(), // Use join table entry ID, not collection ID
               visible);
           log.info(
@@ -1756,15 +1745,13 @@ public class ContentProcessingUtil {
    * @param newTags Optional set to track newly created tags (for response metadata)
    * @return Updated set of tags
    */
-  public Set<ContentTagEntity> updateTags(
-      Set<ContentTagEntity> currentTags,
-      CollectionRequests.TagUpdate tagUpdate,
-      Set<ContentTagEntity> newTags) {
+  public Set<TagEntity> updateTags(
+      Set<TagEntity> currentTags, CollectionRequests.TagUpdate tagUpdate, Set<TagEntity> newTags) {
     if (tagUpdate == null) {
       return currentTags;
     }
 
-    Set<ContentTagEntity> tags = new HashSet<>(currentTags);
+    Set<TagEntity> tags = new HashSet<>(currentTags);
 
     // Remove tags if specified
     if (tagUpdate.remove() != null && !tagUpdate.remove().isEmpty()) {
@@ -1773,11 +1760,11 @@ public class ContentProcessingUtil {
 
     // Add existing tags by ID (prev)
     if (tagUpdate.prev() != null && !tagUpdate.prev().isEmpty()) {
-      Set<ContentTagEntity> existingTags =
+      Set<TagEntity> existingTags =
           tagUpdate.prev().stream()
               .map(
                   tagId ->
-                      contentTagDao
+                      tagRepository
                           .findById(tagId)
                           .orElseThrow(
                               () -> new IllegalArgumentException("Tag not found: " + tagId)))
@@ -1790,12 +1777,12 @@ public class ContentProcessingUtil {
       for (String tagName : tagUpdate.newValue()) {
         if (tagName != null && !tagName.trim().isEmpty()) {
           String trimmedName = tagName.trim();
-          var existing = contentTagDao.findByTagNameIgnoreCase(trimmedName);
+          var existing = tagRepository.findByTagNameIgnoreCase(trimmedName);
           if (existing.isPresent()) {
             tags.add(existing.get());
           } else {
-            ContentTagEntity newTag = new ContentTagEntity(trimmedName);
-            newTag = contentTagDao.save(newTag);
+            TagEntity newTag = new TagEntity(trimmedName);
+            newTag = tagRepository.save(newTag);
             tags.add(newTag);
             if (newTags != null) {
               newTags.add(newTag);
@@ -1839,7 +1826,7 @@ public class ContentProcessingUtil {
           personUpdate.prev().stream()
               .map(
                   personId ->
-                      contentPersonDao
+                      personRepository
                           .findById(personId)
                           .orElseThrow(
                               () -> new IllegalArgumentException("Person not found: " + personId)))
@@ -1852,12 +1839,12 @@ public class ContentProcessingUtil {
       for (String personName : personUpdate.newValue()) {
         if (personName != null && !personName.trim().isEmpty()) {
           String trimmedName = personName.trim();
-          var existing = contentPersonDao.findByPersonNameIgnoreCase(trimmedName);
+          var existing = personRepository.findByPersonNameIgnoreCase(trimmedName);
           if (existing.isPresent()) {
             people.add(existing.get());
           } else {
             ContentPersonEntity newPerson = new ContentPersonEntity(trimmedName);
-            newPerson = contentPersonDao.save(newPerson);
+            newPerson = personRepository.save(newPerson);
             people.add(newPerson);
             if (newPeople != null) {
               newPeople.add(newPerson);
@@ -1877,7 +1864,7 @@ public class ContentProcessingUtil {
 
   /**
    * Load tags for a content entity from the database. Populates the entity's tags set with
-   * ContentTagEntity objects.
+   * TagEntity objects.
    *
    * @param entity The content entity (ContentImageEntity or ContentGifEntity)
    */
@@ -1887,14 +1874,14 @@ public class ContentProcessingUtil {
     }
 
     // Load tags from database using TagDao
-    List<TagEntity> tagEntities = tagDao.findContentTags(entity.getId());
+    List<TagEntity> tagEntities = tagRepository.findContentTags(entity.getId());
 
-    // Convert TagEntity to ContentTagEntity and populate the entity's tags set
-    Set<ContentTagEntity> contentTagEntities =
+    // Convert TagEntity to TagEntity and populate the entity's tags set
+    Set<TagEntity> contentTagEntities =
         tagEntities.stream()
             .map(
                 tagEntity -> {
-                  ContentTagEntity contentTag = new ContentTagEntity();
+                  TagEntity contentTag = new TagEntity();
                   contentTag.setId(tagEntity.getId());
                   contentTag.setTagName(tagEntity.getTagName());
                   contentTag.setCreatedAt(tagEntity.getCreatedAt());
@@ -1922,7 +1909,7 @@ public class ContentProcessingUtil {
     }
 
     // Load people from database using ContentPersonDao
-    List<ContentPersonEntity> personEntities = contentPersonDao.findContentPeople(entity.getId());
+    List<ContentPersonEntity> personEntities = personRepository.findContentPeople(entity.getId());
 
     // Convert to set and populate the entity's people set
     Set<ContentPersonEntity> contentPeopleEntities = new HashSet<>(personEntities);
@@ -1934,13 +1921,13 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a set of ContentTagEntity to a sorted list of ContentTagModel. Returns empty list if
-   * tags is null or empty.
+   * Convert a set of TagEntity to a sorted list of ContentTagModel. Returns empty list if tags is
+   * null or empty.
    *
    * @param tags Set of tag entities to convert
    * @return Sorted list of tag models (alphabetically by name)
    */
-  public List<Records.Tag> convertTagsToModels(Set<ContentTagEntity> tags) {
+  public List<Records.Tag> convertTagsToModels(Set<TagEntity> tags) {
     if (tags == null || tags.isEmpty()) {
       return new ArrayList<>();
     }
@@ -1979,7 +1966,7 @@ public class ContentProcessingUtil {
    * @return The location entity, or null if locationName is null/empty
    */
   public LocationEntity findOrCreateLocation(String locationName) {
-    return locationDao.findOrCreate(locationName);
+    return locationRepository.findOrCreate(locationName);
   }
 
   /**
@@ -1992,7 +1979,7 @@ public class ContentProcessingUtil {
     if (locationId == null) {
       return null;
     }
-    return locationDao.findById(locationId).orElse(null);
+    return locationRepository.findById(locationId).orElse(null);
   }
 
   /**
@@ -2018,6 +2005,9 @@ public class ContentProcessingUtil {
     if (locationId == null) {
       return null;
     }
-    return locationDao.findById(locationId).map(LocationEntity::getLocationName).orElse(null);
+    return locationRepository
+        .findById(locationId)
+        .map(LocationEntity::getLocationName)
+        .orElse(null);
   }
 }

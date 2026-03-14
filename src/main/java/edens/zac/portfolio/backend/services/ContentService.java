@@ -1,11 +1,9 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
-import edens.zac.portfolio.backend.dao.CollectionContentDao;
-import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.ContentTextDao;
-import edens.zac.portfolio.backend.dao.TagDao;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
@@ -34,11 +32,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ContentService {
 
-  private final TagDao tagDao;
-  private final ContentDao contentDao;
-  private final CollectionContentDao collectionContentDao;
-  private final CollectionDao collectionDao;
-  private final ContentTextDao contentTextDao;
+  private final TagRepository tagRepository;
+  private final ContentRepository contentRepository;
+  private final CollectionRepository collectionRepository;
   private final ContentProcessingUtil contentProcessingUtil;
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
@@ -68,7 +64,7 @@ public class ContentService {
 
     // Track updated images and newly created metadata
     List<ContentModels.Image> updatedImages = new ArrayList<>();
-    Set<ContentTagEntity> newlyCreatedTags = new HashSet<>();
+    Set<TagEntity> newlyCreatedTags = new HashSet<>();
     Set<ContentPersonEntity> newlyCreatedPeople = new HashSet<>();
     Set<ContentCameraEntity> newlyCreatedCameras = new HashSet<>();
     Set<ContentLensEntity> newlyCreatedLenses = new HashSet<>();
@@ -92,7 +88,7 @@ public class ContentService {
     }
 
     // OPTIMIZED: Batch fetch all images in a single query (avoids N+1)
-    List<ContentImageEntity> imageList = contentDao.findImagesByIds(imageIds);
+    List<ContentImageEntity> imageList = contentRepository.findImagesByIds(imageIds);
     Map<Long, ContentImageEntity> imageMap =
         imageList.stream().collect(Collectors.toMap(ContentImageEntity::getId, img -> img));
 
@@ -104,8 +100,9 @@ public class ContentService {
     }
 
     // OPTIMIZED: Pre-fetch all current tags and people for all images (avoids N+1)
-    Map<Long, List<Long>> currentTagsByImage = tagDao.findTagIdsByContentIds(imageIds);
-    Map<Long, List<Long>> currentPeopleByImage = contentDao.findPersonIdsByImageIds(imageIds);
+    Map<Long, List<Long>> currentTagsByImage = tagRepository.findTagIdsByContentIds(imageIds);
+    Map<Long, List<Long>> currentPeopleByImage =
+        contentRepository.findPersonIdsByImageIds(imageIds);
 
     // Track successfully updated images for batch save
     List<ContentImageEntity> imagesToSave = new ArrayList<>();
@@ -150,7 +147,7 @@ public class ContentService {
           // Remove from collections if specified
           if (collectionUpdate.remove() != null && !collectionUpdate.remove().isEmpty()) {
             for (Long collectionIdToRemove : collectionUpdate.remove()) {
-              collectionContentDao.removeContentFromCollection(
+              collectionRepository.removeContentFromCollection(
                   collectionIdToRemove, List.of(image.getId()));
               log.info("Removed image {} from collection {}", image.getId(), collectionIdToRemove);
             }
@@ -191,7 +188,7 @@ public class ContentService {
     // Batch save all successfully updated images for efficiency
     if (!imagesToSave.isEmpty()) {
       for (ContentImageEntity image : imagesToSave) {
-        contentDao.saveImage(image);
+        contentRepository.saveImage(image);
       }
       log.debug("Batch saved {} updated images", imagesToSave.size());
     }
@@ -355,19 +352,19 @@ public class ContentService {
       ContentImageEntity image,
       CollectionRequests.TagUpdate tagUpdate,
       List<Long> currentTagIds,
-      Set<ContentTagEntity> newTags) {
+      Set<TagEntity> newTags) {
     // Convert pre-fetched IDs to entities
-    Set<ContentTagEntity> currentTags =
+    Set<TagEntity> currentTags =
         currentTagIds.stream()
             .map(
                 tagId -> {
-                  ContentTagEntity tag = new ContentTagEntity();
+                  TagEntity tag = new TagEntity();
                   tag.setId(tagId);
                   return tag;
                 })
             .collect(Collectors.toSet());
 
-    Set<ContentTagEntity> updatedTags =
+    Set<TagEntity> updatedTags =
         contentProcessingUtil.updateTags(
             currentTags, tagUpdate, newTags // Track newly created tags
             // for response
@@ -377,10 +374,10 @@ public class ContentService {
     // Save updated tags to database
     List<Long> updatedTagIds =
         updatedTags.stream()
-            .map(ContentTagEntity::getId)
+            .map(TagEntity::getId)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-    tagDao.saveContentTags(image.getId(), updatedTagIds);
+    tagRepository.saveContentTags(image.getId(), updatedTagIds);
   }
 
   /**
@@ -400,7 +397,7 @@ public class ContentService {
       }
 
       // Verify collection exists
-      collectionDao
+      collectionRepository
           .findById(childCollection.collectionId())
           .orElseThrow(
               () ->
@@ -409,7 +406,7 @@ public class ContentService {
 
       // Check if this content is already in the collection
       Optional<CollectionContentEntity> existingOpt =
-          collectionContentDao.findByCollectionIdAndContentId(
+          collectionRepository.findContentByCollectionIdAndContentId(
               childCollection.collectionId(), image.getId());
 
       if (existingOpt.isPresent()) {
@@ -424,7 +421,7 @@ public class ContentService {
       Integer orderIndex = childCollection.orderIndex();
       if (orderIndex == null) {
         Integer maxOrder =
-            collectionContentDao.getMaxOrderIndexForCollection(childCollection.collectionId());
+            collectionRepository.getMaxOrderIndexForCollection(childCollection.collectionId());
         orderIndex = maxOrder != null ? maxOrder + 1 : 0;
       }
 
@@ -437,7 +434,7 @@ public class ContentService {
               .visible(childCollection.visible() != null ? childCollection.visible() : true)
               .build();
 
-      collectionContentDao.save(joinEntry);
+      collectionRepository.saveContent(joinEntry);
       log.info(
           "Added image {} to collection {} at orderIndex {} with visible={}",
           image.getId(),
@@ -481,7 +478,7 @@ public class ContentService {
             .map(ContentPersonEntity::getId)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-    contentDao.saveImagePeople(image.getId(), updatedPersonIds);
+    contentRepository.saveImagePeople(image.getId(), updatedPersonIds);
   }
 
   @Transactional
@@ -493,7 +490,7 @@ public class ContentService {
 
     for (Long imageId : imageIds) {
       try {
-        Optional<ContentImageEntity> imageOpt = contentDao.findImageById(imageId);
+        Optional<ContentImageEntity> imageOpt = contentRepository.findImageById(imageId);
         if (!imageOpt.isPresent()) {
           errors.add("Image not found: " + imageId);
           continue;
@@ -505,7 +502,7 @@ public class ContentService {
         contentProcessingUtil.deleteImageFromS3(image);
 
         // Delete from database
-        contentDao.deleteImageById(imageId);
+        contentRepository.deleteImageById(imageId);
         deletedIds.add(imageId);
 
       } catch (Exception e) {
@@ -519,7 +516,7 @@ public class ContentService {
 
   @Transactional(readOnly = true)
   public List<ContentModels.Image> getAllImages() {
-    return contentDao.findAllImagesOrderByCreateDateDesc().stream()
+    return contentRepository.findAllImagesOrderByCreateDateDesc().stream()
         .map(
             entity ->
                 (ContentModels.Image)
@@ -531,11 +528,11 @@ public class ContentService {
   public org.springframework.data.domain.Page<ContentModels.Image> getAllImages(
       org.springframework.data.domain.Pageable pageable) {
     // Get total count for pagination
-    int total = contentDao.countImages();
+    int total = contentRepository.countImages();
 
     // Fetch paginated results from database
     List<ContentImageEntity> imageEntities =
-        contentDao.findAllImagesOrderByCreateDateDesc(
+        contentRepository.findAllImagesOrderByCreateDateDesc(
             pageable.getPageSize(), (int) pageable.getOffset());
 
     // Convert to models
@@ -555,7 +552,7 @@ public class ContentService {
    * performance. Kept for backward compatibility.
    */
   @Transactional
-  public List<ContentModels.Image> createImages(Long collectionId, List<MultipartFile> files) {
+  public ImageUploadResult createImages(Long collectionId, List<MultipartFile> files) {
     log.warn(
         "Using deprecated sequential image processing. Consider using parallel processing for better performance.");
     log.debug("Creating images for collection ID: {}", collectionId);
@@ -563,23 +560,28 @@ public class ContentService {
     contentValidator.validateFiles(files);
 
     // Verify collection exists
-    collectionDao
+    collectionRepository
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     List<ContentModels.Image> createdImages = new ArrayList<>();
+    List<ImageUploadResult.FileError> failures = new ArrayList<>();
 
     // Get the next order index for this collection
-    Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(collectionId);
+    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
     Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
 
     for (MultipartFile file : files) {
+      String filename = file.getOriginalFilename();
       try {
         // Process file based on content type
         if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
           if (file.getContentType().equals("image/gif")) {
             // Process as GIF - skip for now (future implementation)
-            log.debug("Skipping GIF file (not yet implemented): {}", file.getOriginalFilename());
+            log.debug("Skipping GIF file (not yet implemented): {}", filename);
+            failures.add(
+                new ImageUploadResult.FileError(
+                    filename != null ? filename : "unknown", "GIF processing not yet implemented"));
           } else {
             // STEP 1: Process and save the image content (NO collection reference)
             ContentImageEntity img = contentProcessingUtil.processImageContent(file, null);
@@ -593,7 +595,7 @@ public class ContentService {
                     .visible(true) // Visible by default
                     .build();
 
-            collectionContentDao.save(joinEntry);
+            collectionRepository.saveContent(joinEntry);
 
             log.debug(
                 "Created join table entry for image {} in collection {} at orderIndex {}",
@@ -616,11 +618,19 @@ public class ContentService {
           }
         }
       } catch (Exception e) {
-        log.error("Error processing file: {}", e.getMessage(), e);
+        log.error("Error processing file {}: {}", filename, e.getMessage(), e);
+        failures.add(
+            new ImageUploadResult.FileError(
+                filename != null ? filename : "unknown", e.getMessage()));
       }
     }
 
-    return createdImages;
+    log.info(
+        "Upload complete for collection {}: {} succeeded, {} failed",
+        collectionId,
+        createdImages.size(),
+        failures.size());
+    return new ImageUploadResult(createdImages, failures);
   }
 
   /** Batch size for parallel image processing to avoid overwhelming resources */
@@ -639,8 +649,7 @@ public class ContentService {
    * @param files List of image files to upload
    * @return List of successfully created images
    */
-  public List<ContentModels.Image> createImagesParallel(
-      Long collectionId, List<MultipartFile> files) {
+  public ImageUploadResult createImagesParallel(Long collectionId, List<MultipartFile> files) {
     log.info(
         "Creating {} images for collection {} with parallel processing (batch size: {})",
         files.size(),
@@ -650,13 +659,14 @@ public class ContentService {
     contentValidator.validateFiles(files);
 
     // Verify collection exists (outside transaction)
-    collectionDao
+    collectionRepository
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
     // NO database calls happen here - only S3 I/O and CPU work
     List<PreparedImage> allPrepared = new ArrayList<>();
+    List<ImageUploadResult.FileError> allFailures = new ArrayList<>();
 
     for (int i = 0; i < files.size(); i += PARALLEL_BATCH_SIZE) {
       int end = Math.min(i + PARALLEL_BATCH_SIZE, files.size());
@@ -671,11 +681,20 @@ public class ContentService {
                           () -> prepareImageAsync(file), imageProcessingExecutor))
               .toList();
 
-      // Wait for this batch to complete before starting the next
-      List<PreparedImage> batchResults =
-          futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).toList();
+      // Wait for this batch to complete and track failures
+      for (int j = 0; j < futures.size(); j++) {
+        PreparedImage result = futures.get(j).join();
+        if (result != null) {
+          allPrepared.add(result);
+        } else {
+          String filename = batch.get(j).getOriginalFilename();
+          allFailures.add(
+              new ImageUploadResult.FileError(
+                  filename != null ? filename : "unknown",
+                  "Image preparation failed (S3 upload or processing error)"));
+        }
+      }
 
-      allPrepared.addAll(batchResults);
       log.info(
           "Batch complete: {}/{} images prepared successfully so far",
           allPrepared.size(),
@@ -683,13 +702,14 @@ public class ContentService {
     }
 
     log.info(
-        "All parallel processing complete: {}/{} images prepared successfully",
+        "All parallel processing complete: {}/{} images prepared, {} failed",
         allPrepared.size(),
-        files.size());
+        files.size(),
+        allFailures.size());
 
     // PHASE 2: Save to database in a SINGLE SHORT TRANSACTION
     // All DB calls happen here: camera/lens/location lookups, duplicate detection, saves
-    return saveProcessedImages(collectionId, allPrepared);
+    return saveProcessedImages(collectionId, allPrepared, allFailures);
   }
 
   /**
@@ -730,17 +750,21 @@ public class ContentService {
    *
    * @param collectionId The collection to add images to
    * @param preparedImages List of prepared image data (S3 URLs + metadata)
-   * @return List of created image models
+   * @param previousFailures Failures from the preparation phase
+   * @return ImageUploadResult with successful images and all failures
    */
   @Transactional
-  private List<ContentModels.Image> saveProcessedImages(
-      Long collectionId, List<PreparedImage> preparedImages) {
+  private ImageUploadResult saveProcessedImages(
+      Long collectionId,
+      List<PreparedImage> preparedImages,
+      List<ImageUploadResult.FileError> previousFailures) {
     log.debug("Saving {} prepared images to database", preparedImages.size());
 
     List<ContentModels.Image> createdImages = new ArrayList<>();
+    List<ImageUploadResult.FileError> failures = new ArrayList<>(previousFailures);
 
     // Get the next order index for this collection
-    Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(collectionId);
+    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
     Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
 
     for (PreparedImage prepared : preparedImages) {
@@ -757,7 +781,7 @@ public class ContentService {
                 .visible(true)
                 .build();
 
-        collectionContentDao.save(joinEntry);
+        collectionRepository.saveContent(joinEntry);
 
         // Convert to model
         ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
@@ -768,12 +792,17 @@ public class ContentService {
         orderIndex++;
 
       } catch (Exception e) {
-        log.error("Failed to save image {}: {}", prepared.filename(), e.getMessage());
+        log.error("Failed to save image {}: {}", prepared.filename(), e.getMessage(), e);
+        failures.add(new ImageUploadResult.FileError(prepared.filename(), e.getMessage()));
       }
     }
 
-    log.info("Successfully saved {} images to collection {}", createdImages.size(), collectionId);
-    return createdImages;
+    log.info(
+        "Upload complete for collection {}: {} succeeded, {} failed",
+        collectionId,
+        createdImages.size(),
+        failures.size());
+    return new ImageUploadResult(createdImages, failures);
   }
 
   /** Record to hold prepared image data before database save */
@@ -786,13 +815,13 @@ public class ContentService {
     contentValidator.validateTextContent(request.textContent());
 
     // Verify collection exists
-    collectionDao
+    collectionRepository
         .findById(request.collectionId())
         .orElseThrow(
             () -> new ResourceNotFoundException("Collection not found: " + request.collectionId()));
 
     // Get the next order index for this collection
-    Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(request.collectionId());
+    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(request.collectionId());
     Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
 
     // Create text content entity
@@ -803,7 +832,7 @@ public class ContentService {
             .build();
 
     // Save the text content
-    textEntity = contentTextDao.save(textEntity);
+    textEntity = contentRepository.saveText(textEntity);
 
     // Create join table entry linking content to collection
     CollectionContentEntity joinEntry =
@@ -814,7 +843,7 @@ public class ContentService {
             .visible(true)
             .build();
 
-    collectionContentDao.save(joinEntry);
+    collectionRepository.saveContent(joinEntry);
 
     log.info(
         "Created text content {} in collection {} at orderIndex {}",

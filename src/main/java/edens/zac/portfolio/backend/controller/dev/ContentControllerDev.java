@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.ContentService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -54,7 +55,7 @@ public class ContentControllerDev {
   @PostMapping(
       value = "/images/{collectionId}",
       consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-  public ResponseEntity<List<ContentModels.Image>> createImages(
+  public ResponseEntity<ImageUploadResult> createImages(
       @PathVariable Long collectionId,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
@@ -62,10 +63,13 @@ public class ContentControllerDev {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    List<ContentModels.Image> createdImages =
-        contentService.createImagesParallel(collectionId, files);
-    log.info("Created {} image(s) in collection: {}", createdImages.size(), collectionId);
-    return ResponseEntity.status(HttpStatus.CREATED).body(createdImages);
+    ImageUploadResult result = contentService.createImagesParallel(collectionId, files);
+    log.info(
+        "Created {} image(s) in collection: {} ({} failed)",
+        result.successful().size(),
+        collectionId,
+        result.failed().size());
+    return ResponseEntity.status(HttpStatus.CREATED).body(result);
   }
 
   /**

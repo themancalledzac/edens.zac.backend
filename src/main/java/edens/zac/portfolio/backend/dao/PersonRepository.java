@@ -4,27 +4,28 @@ import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Repository for ContentPersonEntity. Manages people and their content associations. */
 @Component
 @Slf4j
-public class ContentPersonDao extends BaseDao {
+public class PersonRepository extends BaseDao {
 
-  public ContentPersonDao(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+  public PersonRepository(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
   }
 
   private static final RowMapper<ContentPersonEntity> PERSON_ROW_MAPPER =
-      (rs, rowNum) -> {
-        return ContentPersonEntity.builder()
-            .id(rs.getLong("id"))
-            .personName(rs.getString("person_name"))
-            .createdAt(getLocalDateTime(rs, "created_at"))
-            .build();
-      };
+      (rs, rowNum) ->
+          ContentPersonEntity.builder()
+              .id(rs.getLong("id"))
+              .personName(rs.getString("person_name"))
+              .createdAt(getLocalDateTime(rs, "created_at"))
+              .build();
 
   @Transactional(readOnly = true)
   public Optional<ContentPersonEntity> findByPersonName(String personName) {
@@ -78,12 +79,12 @@ public class ContentPersonDao extends BaseDao {
   public List<ContentPersonEntity> findAllOrderByImageCountDesc() {
     String sql =
         """
-            SELECT p.id, p.person_name, p.created_at
-            FROM content_people p
-            LEFT JOIN content_image_people cip ON p.id = cip.person_id
-            GROUP BY p.id, p.person_name, p.created_at
-            ORDER BY COUNT(cip.image_id) DESC
-            """;
+        SELECT p.id, p.person_name, p.created_at
+        FROM content_people p
+        LEFT JOIN content_image_people cip ON p.id = cip.person_id
+        GROUP BY p.id, p.person_name, p.created_at
+        ORDER BY COUNT(cip.image_id) DESC
+        """;
     return query(sql, PERSON_ROW_MAPPER);
   }
 
@@ -121,22 +122,16 @@ public class ContentPersonDao extends BaseDao {
     return queryForObject(sql, PERSON_ROW_MAPPER, params);
   }
 
-  /**
-   * Find people for content (image).
-   *
-   * @param contentId The content's ID (from content_image table)
-   * @return List of ContentPersonEntity objects
-   */
   @Transactional(readOnly = true)
   public List<ContentPersonEntity> findContentPeople(Long contentId) {
     String sql =
         """
-            SELECT p.id, p.person_name, p.created_at
-            FROM content_people p
-            JOIN content_image_people cip ON p.id = cip.person_id
-            WHERE cip.image_id = :contentId
-            ORDER BY p.person_name ASC
-            """;
+        SELECT p.id, p.person_name, p.created_at
+        FROM content_people p
+        JOIN content_image_people cip ON p.id = cip.person_id
+        WHERE cip.image_id = :contentId
+        ORDER BY p.person_name ASC
+        """;
     MapSqlParameterSource params = createParameterSource().addValue("contentId", contentId);
     return query(sql, PERSON_ROW_MAPPER, params);
   }

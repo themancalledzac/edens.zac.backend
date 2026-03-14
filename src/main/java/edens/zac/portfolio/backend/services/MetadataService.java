@@ -1,17 +1,15 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.dao.ContentCameraDao;
-import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
-import edens.zac.portfolio.backend.dao.ContentLensDao;
-import edens.zac.portfolio.backend.dao.ContentPersonDao;
-import edens.zac.portfolio.backend.dao.ContentTagDao;
-import edens.zac.portfolio.backend.dao.LocationDao;
+import edens.zac.portfolio.backend.dao.EquipmentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.ContentCameraEntity;
 import edens.zac.portfolio.backend.entity.ContentFilmTypeEntity;
 import edens.zac.portfolio.backend.entity.ContentLensEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
-import edens.zac.portfolio.backend.entity.ContentTagEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.MetadataValidator;
@@ -33,19 +31,17 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MetadataService {
 
-  private final ContentTagDao contentTagDao;
-  private final ContentPersonDao contentPersonDao;
-  private final ContentCameraDao contentCameraDao;
-  private final ContentLensDao contentLensDao;
-  private final ContentFilmTypeDao contentFilmTypeDao;
-  private final LocationDao locationDao;
+  private final TagRepository tagRepository;
+  private final PersonRepository personRepository;
+  private final EquipmentRepository equipmentRepository;
+  private final LocationRepository locationRepository;
   private final MetadataValidator metadataValidator;
 
   // ========== Tag Operations ==========
 
   @Transactional(readOnly = true)
   public List<Records.Tag> getAllTags() {
-    return contentTagDao.findAllByOrderByTagNameAsc().stream()
+    return tagRepository.findAllByOrderByTagNameAsc().stream()
         .map(this::toTagModel)
         .collect(Collectors.toList());
   }
@@ -56,12 +52,12 @@ public class MetadataService {
     metadataValidator.validateTagName(tagName);
     tagName = tagName.trim();
 
-    if (contentTagDao.existsByTagNameIgnoreCase(tagName)) {
+    if (tagRepository.existsByTagNameIgnoreCase(tagName)) {
       throw new DataIntegrityViolationException("Tag already exists: " + tagName);
     }
 
-    ContentTagEntity tag = new ContentTagEntity(tagName);
-    ContentTagEntity savedTag = contentTagDao.save(tag);
+    TagEntity tag = new TagEntity(tagName);
+    TagEntity savedTag = tagRepository.save(tag);
 
     return Map.of(
         "id", savedTag.getId(),
@@ -73,7 +69,7 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public List<Records.Person> getAllPeople() {
-    return contentPersonDao.findAllByOrderByPersonNameAsc().stream()
+    return personRepository.findAllByOrderByPersonNameAsc().stream()
         .map(this::toPersonModel)
         .collect(Collectors.toList());
   }
@@ -84,12 +80,12 @@ public class MetadataService {
     metadataValidator.validatePersonName(personName);
     personName = personName.trim();
 
-    if (contentPersonDao.existsByPersonNameIgnoreCase(personName)) {
+    if (personRepository.existsByPersonNameIgnoreCase(personName)) {
       throw new DataIntegrityViolationException("Person already exists: " + personName);
     }
 
     ContentPersonEntity person = new ContentPersonEntity(personName);
-    ContentPersonEntity savedPerson = contentPersonDao.save(person);
+    ContentPersonEntity savedPerson = personRepository.save(person);
 
     return Map.of(
         "id", savedPerson.getId(),
@@ -101,7 +97,7 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public List<Records.Camera> getAllCameras() {
-    return contentCameraDao.findAllByOrderByCameraNameAsc().stream()
+    return equipmentRepository.findAllCamerasOrderByName().stream()
         .map(ContentProcessingUtil::cameraEntityToCameraModel)
         .collect(Collectors.toList());
   }
@@ -116,14 +112,14 @@ public class MetadataService {
 
     if (bodySerialNumber != null && !bodySerialNumber.trim().isEmpty()) {
       Optional<ContentCameraEntity> existing =
-          contentCameraDao.findByBodySerialNumber(bodySerialNumber);
+          equipmentRepository.findCameraByBodySerialNumber(bodySerialNumber);
       if (existing.isPresent()) {
         throw new DataIntegrityViolationException(
             "Camera with serial number already exists: " + bodySerialNumber);
       }
     }
 
-    if (contentCameraDao.existsByCameraNameIgnoreCase(cameraName)) {
+    if (equipmentRepository.existsByCameraNameIgnoreCase(cameraName)) {
       throw new DataIntegrityViolationException("Camera already exists: " + cameraName);
     }
 
@@ -132,7 +128,7 @@ public class MetadataService {
             .cameraName(cameraName)
             .bodySerialNumber(bodySerialNumber != null ? bodySerialNumber.trim() : null)
             .build();
-    ContentCameraEntity savedCamera = contentCameraDao.save(camera);
+    ContentCameraEntity savedCamera = equipmentRepository.saveCamera(camera);
 
     return Map.of(
         "id", savedCamera.getId(),
@@ -142,8 +138,8 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public ContentCameraEntity findCameraById(Long id) {
-    return contentCameraDao
-        .findById(id)
+    return equipmentRepository
+        .findCameraById(id)
         .orElseThrow(() -> new IllegalArgumentException("Camera not found: " + id));
   }
 
@@ -151,7 +147,7 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public List<Records.Lens> getAllLenses() {
-    return contentLensDao.findAllByOrderByLensNameAsc().stream()
+    return equipmentRepository.findAllLensesOrderByName().stream()
         .map(ContentProcessingUtil::lensEntityToLensModel)
         .collect(Collectors.toList());
   }
@@ -166,14 +162,14 @@ public class MetadataService {
 
     if (lensSerialNumber != null && !lensSerialNumber.trim().isEmpty()) {
       Optional<ContentLensEntity> existing =
-          contentLensDao.findByLensSerialNumber(lensSerialNumber);
+          equipmentRepository.findLensBySerialNumber(lensSerialNumber);
       if (existing.isPresent()) {
         throw new DataIntegrityViolationException(
             "Lens with serial number already exists: " + lensSerialNumber);
       }
     }
 
-    if (contentLensDao.existsByLensNameIgnoreCase(lensName)) {
+    if (equipmentRepository.existsByLensNameIgnoreCase(lensName)) {
       throw new DataIntegrityViolationException("Lens already exists: " + lensName);
     }
 
@@ -182,7 +178,7 @@ public class MetadataService {
             .lensName(lensName)
             .lensSerialNumber(lensSerialNumber != null ? lensSerialNumber.trim() : null)
             .build();
-    ContentLensEntity savedLens = contentLensDao.save(lens);
+    ContentLensEntity savedLens = equipmentRepository.saveLens(lens);
 
     return Map.of(
         "id", savedLens.getId(),
@@ -192,8 +188,8 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public ContentLensEntity findLensById(Long id) {
-    return contentLensDao
-        .findById(id)
+    return equipmentRepository
+        .findLensById(id)
         .orElseThrow(() -> new IllegalArgumentException("Lens not found: " + id));
   }
 
@@ -201,7 +197,7 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public List<ContentFilmTypeModel> getAllFilmTypes() {
-    return contentFilmTypeDao.findAllByOrderByDisplayNameAsc().stream()
+    return equipmentRepository.findAllFilmTypesOrderByDisplayName().stream()
         .map(this::toFilmTypeModel)
         .collect(Collectors.toList());
   }
@@ -214,13 +210,13 @@ public class MetadataService {
     filmTypeName = filmTypeName.trim();
     displayName = displayName.trim();
 
-    if (contentFilmTypeDao.existsByFilmTypeNameIgnoreCase(filmTypeName)) {
+    if (equipmentRepository.existsByFilmTypeNameIgnoreCase(filmTypeName)) {
       throw new DataIntegrityViolationException("Film type already exists: " + filmTypeName);
     }
 
     ContentFilmTypeEntity filmType =
         new ContentFilmTypeEntity(filmTypeName, displayName, defaultIso);
-    filmType = contentFilmTypeDao.save(filmType);
+    filmType = equipmentRepository.saveFilmType(filmType);
     log.info("Created film type: {} (ID: {})", filmType.getDisplayName(), filmType.getId());
 
     return Map.of(
@@ -241,13 +237,13 @@ public class MetadataService {
       String displayName, Integer defaultIso, Set<ContentFilmTypeEntity> tracking) {
     String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
     Optional<ContentFilmTypeEntity> existing =
-        contentFilmTypeDao.findByFilmTypeNameIgnoreCase(technicalName);
+        equipmentRepository.findFilmTypeByNameIgnoreCase(technicalName);
     if (existing.isPresent()) {
       return existing.get();
     }
     ContentFilmTypeEntity newFilmType =
         new ContentFilmTypeEntity(technicalName, displayName, defaultIso);
-    newFilmType = contentFilmTypeDao.save(newFilmType);
+    newFilmType = equipmentRepository.saveFilmType(newFilmType);
     if (tracking != null) {
       tracking.add(newFilmType);
     }
@@ -257,8 +253,8 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public ContentFilmTypeEntity findFilmTypeById(Long id) {
-    return contentFilmTypeDao
-        .findById(id)
+    return equipmentRepository
+        .findFilmTypeById(id)
         .orElseThrow(() -> new IllegalArgumentException("Film type not found: " + id));
   }
 
@@ -266,26 +262,26 @@ public class MetadataService {
 
   @Transactional(readOnly = true)
   public List<Records.Location> getAllLocations() {
-    return locationDao.findAllByOrderByLocationNameAsc().stream()
+    return locationRepository.findAllByOrderByLocationNameAsc().stream()
         .map(this::toLocationModel)
         .collect(Collectors.toList());
   }
 
   @Transactional
   public LocationEntity findOrCreateLocation(String name) {
-    return locationDao.findOrCreate(name);
+    return locationRepository.findOrCreate(name);
   }
 
   @Transactional(readOnly = true)
   public LocationEntity findLocationById(Long id) {
-    return locationDao
+    return locationRepository
         .findById(id)
         .orElseThrow(() -> new IllegalArgumentException("Location not found with ID: " + id));
   }
 
   // ========== Private Converters ==========
 
-  private Records.Tag toTagModel(ContentTagEntity entity) {
+  private Records.Tag toTagModel(TagEntity entity) {
     return new Records.Tag(entity.getId(), entity.getTagName());
   }
 

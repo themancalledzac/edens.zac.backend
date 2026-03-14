@@ -4,17 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import edens.zac.portfolio.backend.dao.CollectionContentDao;
-import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentCameraDao;
-import edens.zac.portfolio.backend.dao.ContentCollectionDao;
-import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
-import edens.zac.portfolio.backend.dao.ContentGifDao;
-import edens.zac.portfolio.backend.dao.ContentLensDao;
-import edens.zac.portfolio.backend.dao.ContentPersonDao;
-import edens.zac.portfolio.backend.dao.ContentTagDao;
-import edens.zac.portfolio.backend.dao.ContentTextDao;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.EquipmentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -45,19 +40,12 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 public class ContentProcessingUtilTest {
 
   @Mock private S3Client s3Client;
-  @Mock private ContentDao contentDao;
-  @Mock private ContentCameraDao contentCameraDao;
-  @Mock private ContentLensDao contentLensDao;
-  @Mock private ContentFilmTypeDao contentFilmTypeDao;
-  @Mock private ContentTagDao contentTagDao;
-  @Mock private edens.zac.portfolio.backend.dao.TagDao tagDao;
-  @Mock private edens.zac.portfolio.backend.dao.LocationDao locationDao;
-  @Mock private ContentPersonDao contentPersonDao;
-  @Mock private CollectionContentDao collectionContentDao;
-  @Mock private CollectionDao collectionDao;
-  @Mock private ContentTextDao contentTextDao;
-  @Mock private ContentCollectionDao contentCollectionDao;
-  @Mock private ContentGifDao contentGifDao;
+  @Mock private ContentRepository contentRepository;
+  @Mock private CollectionRepository collectionRepository;
+  @Mock private EquipmentRepository equipmentRepository;
+  @Mock private TagRepository tagRepository;
+  @Mock private PersonRepository personRepository;
+  @Mock private LocationRepository locationRepository;
   @Mock private ContentImageUpdateValidator contentImageUpdateValidator;
   @Mock private ContentValidator contentValidator;
 
@@ -71,9 +59,9 @@ public class ContentProcessingUtilTest {
     ReflectionTestUtils.setField(contentProcessingUtil, "bucketName", BUCKET_NAME);
     ReflectionTestUtils.setField(contentProcessingUtil, "cloudfrontDomain", CLOUDFRONT_DOMAIN);
 
-    // Mock tagDao.findContentTags() to return empty lists for all content IDs
+    // Mock tagRepository.findContentTags() to return empty lists for all content IDs
     // Using lenient() because not all tests use this mock
-    lenient().when(tagDao.findContentTags(anyLong())).thenReturn(java.util.Collections.emptyList());
+    lenient().when(tagRepository.findContentTags(anyLong())).thenReturn(java.util.Collections.emptyList());
   }
 
   @Test
@@ -83,7 +71,7 @@ public class ContentProcessingUtilTest {
     // Mock location lookup
     LocationEntity locationEntity =
         LocationEntity.builder().id(1L).locationName("Test Location").build();
-    when(locationDao.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
+    when(locationRepository.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
 
     // Act
     ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
@@ -182,7 +170,7 @@ public class ContentProcessingUtilTest {
         .thenReturn(PutObjectResponse.builder().build());
 
     ContentImageEntity savedEntity = createContentImageEntity();
-    when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
+    when(contentRepository.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
 
     // Act
     ContentEntity result = contentProcessingUtil.processImageContent(file, title);
@@ -200,7 +188,7 @@ public class ContentProcessingUtilTest {
     // (full
     // +
     // webP)
-    verify(contentDao).saveImage(any(ContentImageEntity.class));
+    verify(contentRepository).saveImage(any(ContentImageEntity.class));
   }
 
   @Test
@@ -242,7 +230,7 @@ public class ContentProcessingUtilTest {
 
     // Note: GIF saving not yet implemented in DAO layer
     // ContentGifEntity savedEntity = createContentGifEntity();
-    // when(contentGifDao.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
+    // when(contentRepository.saveGif(any(ContentGifEntity.class))).thenReturn(savedEntity);
 
     // Act & Assert - Will throw UnsupportedOperationException until GIF DAO save is
     // implemented
@@ -299,7 +287,7 @@ public class ContentProcessingUtilTest {
         .thenReturn(PutObjectResponse.builder().build());
 
     ContentImageEntity imageEntity = createContentImageEntity();
-    when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(imageEntity);
+    when(contentRepository.saveImage(any(ContentImageEntity.class))).thenReturn(imageEntity);
 
     // Act
     ContentEntity result = contentProcessingUtil.processImageContent(file, title);
@@ -317,7 +305,7 @@ public class ContentProcessingUtilTest {
     // (full
     // +
     // webP)
-    verify(contentDao).saveImage(any(ContentImageEntity.class));
+    verify(contentRepository).saveImage(any(ContentImageEntity.class));
   }
 
   // Helper methods to create test entities and models

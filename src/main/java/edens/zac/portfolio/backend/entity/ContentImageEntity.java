@@ -92,8 +92,8 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: file_identifier (VARCHAR, UNIQUE) - Format: "YYYY-MM-DD/filename.jpg" */
   private String fileIdentifier;
 
-  /** Relationship: Many-to-many with ContentTagEntity (via content_tags table) */
-  @Builder.Default private Set<ContentTagEntity> tags = new HashSet<>();
+  /** Relationship: Many-to-many with TagEntity (via content_tags table) */
+  @Builder.Default private Set<TagEntity> tags = new HashSet<>();
 
   /** Relationship: Many-to-many with ContentPersonEntity (via content_image_people table) */
   @Builder.Default private Set<ContentPersonEntity> people = new HashSet<>();

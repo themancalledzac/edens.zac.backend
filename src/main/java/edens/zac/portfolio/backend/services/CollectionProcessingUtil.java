@@ -1,9 +1,8 @@
 package edens.zac.portfolio.backend.services;
 
-import edens.zac.portfolio.backend.dao.CollectionContentDao;
-import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.LocationDao;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
@@ -30,11 +29,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CollectionProcessingUtil {
 
-  private final CollectionDao collectionDao;
-  private final ContentDao contentDao;
-  private final CollectionContentDao collectionContentDao;
+  private final CollectionRepository collectionRepository;
+  private final ContentRepository contentRepository;
   private final ContentProcessingUtil contentProcessingUtil;
-  private final LocationDao locationDao;
+  private final LocationRepository locationRepository;
 
   // =============================================================================
   // ERROR HANDLING
@@ -51,7 +49,7 @@ public class CollectionProcessingUtil {
   private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
     if (entity.getCoverImageId() != null) {
       ContentImageEntity coverImage =
-          contentDao.findImageById(entity.getCoverImageId()).orElse(null);
+          contentRepository.findImageById(entity.getCoverImageId()).orElse(null);
       if (coverImage != null) {
         ContentModels.Image coverImageModel =
             contentProcessingUtil.convertImageEntityToModel(coverImage);
@@ -80,7 +78,8 @@ public class CollectionProcessingUtil {
     model.setDescription(entity.getDescription());
     // Convert locationId to LocationModel
     if (entity.getLocationId() != null) {
-      LocationEntity locationEntity = locationDao.findById(entity.getLocationId()).orElse(null);
+      LocationEntity locationEntity =
+          locationRepository.findById(entity.getLocationId()).orElse(null);
       if (locationEntity != null) {
         model.setLocation(
             new Records.Location(locationEntity.getId(), locationEntity.getLocationName()));
@@ -135,7 +134,7 @@ public class CollectionProcessingUtil {
     // Fetch join table entries explicitly to get content with collection-specific
     // metadata
     List<CollectionContentEntity> joinEntries =
-        collectionContentDao.findByCollectionIdOrderByOrderIndex(entity.getId());
+        collectionRepository.findContentByCollectionIdOrderByOrderIndex(entity.getId());
 
     // Extract content IDs from join table entries
     List<Long> contentIds =
@@ -148,7 +147,7 @@ public class CollectionProcessingUtil {
     // subclasses)
     final Map<Long, ContentEntity> contentMap;
     if (!contentIds.isEmpty()) {
-      List<ContentEntity> contentEntities = contentDao.findAllByIds(contentIds);
+      List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
       contentMap =
           contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
     } else {
@@ -215,7 +214,7 @@ public class CollectionProcessingUtil {
     // subclasses)
     final Map<Long, ContentEntity> contentMap;
     if (!contentIds.isEmpty()) {
-      List<ContentEntity> contentEntities = contentDao.findAllByIds(contentIds);
+      List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
       contentMap =
           contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
     } else {
@@ -326,13 +325,13 @@ public class CollectionProcessingUtil {
       } else if (locationUpdate.newValue() != null && !locationUpdate.newValue().trim().isEmpty()) {
         // Create new location by name
         String locationName = locationUpdate.newValue().trim();
-        LocationEntity location = locationDao.findOrCreate(locationName);
+        LocationEntity location = locationRepository.findOrCreate(locationName);
         entity.setLocationId(location.getId());
         log.info("Set location to: {} (ID: {})", locationName, location.getId());
       } else if (locationUpdate.prev() != null) {
         // Use existing location by ID
         LocationEntity location =
-            locationDao
+            locationRepository
                 .findById(locationUpdate.prev())
                 .orElseThrow(
                     () ->
@@ -370,7 +369,7 @@ public class CollectionProcessingUtil {
         entity.setCoverImageId(null);
       } else {
         // Verify cover image exists
-        contentDao
+        contentRepository
             .findImageById(updateDTO.coverImageId())
             .orElseThrow(
                 () ->
@@ -432,7 +431,7 @@ public class CollectionProcessingUtil {
 
     // Check if slug already exists
     boolean exists =
-        collectionDao
+        collectionRepository
             .findBySlug(slug)
             .map(entity -> !entity.getId().equals(existingId))
             .orElse(false);
@@ -446,7 +445,7 @@ public class CollectionProcessingUtil {
     String newSlug;
     do {
       newSlug = slug + "-" + counter++;
-      exists = collectionDao.findBySlug(newSlug).isPresent();
+      exists = collectionRepository.findBySlug(newSlug).isPresent();
     } while (exists && counter < 100); // Limit to prevent infinite loop
 
     if (exists) {

@@ -11,12 +11,12 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** DAO for LocationEntity using raw SQL queries. */
+/** Repository for LocationEntity using raw SQL queries. */
 @Component
 @Slf4j
-public class LocationDao extends BaseDao {
+public class LocationRepository extends BaseDao {
 
-  public LocationDao(JdbcTemplate jdbcTemplate) {
+  public LocationRepository(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
   }
 
@@ -28,7 +28,6 @@ public class LocationDao extends BaseDao {
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
-  /** Find location by exact name. */
   @Transactional(readOnly = true)
   public Optional<LocationEntity> findByLocationName(String locationName) {
     String sql =
@@ -37,7 +36,6 @@ public class LocationDao extends BaseDao {
     return queryForObject(sql, LOCATION_ROW_MAPPER, params);
   }
 
-  /** Find location by name (case-insensitive). */
   @Transactional(readOnly = true)
   public Optional<LocationEntity> findByLocationNameIgnoreCase(String locationName) {
     String sql =
@@ -46,7 +44,6 @@ public class LocationDao extends BaseDao {
     return queryForObject(sql, LOCATION_ROW_MAPPER, params);
   }
 
-  /** Find locations by name containing (case-insensitive, for autocomplete). */
   @Transactional(readOnly = true)
   public List<LocationEntity> findByLocationNameContainingIgnoreCase(String searchTerm) {
     String sql =
@@ -56,14 +53,12 @@ public class LocationDao extends BaseDao {
     return query(sql, LOCATION_ROW_MAPPER, params);
   }
 
-  /** Find all locations ordered by name. */
   @Transactional(readOnly = true)
   public List<LocationEntity> findAllByOrderByLocationNameAsc() {
     String sql = "SELECT id, location_name, created_at FROM location ORDER BY location_name ASC";
     return query(sql, LOCATION_ROW_MAPPER);
   }
 
-  /** Find location by ID. */
   @Transactional(readOnly = true)
   public Optional<LocationEntity> findById(Long id) {
     String sql = "SELECT id, location_name, created_at FROM location WHERE id = :id";
@@ -71,7 +66,6 @@ public class LocationDao extends BaseDao {
     return queryForObject(sql, LOCATION_ROW_MAPPER, params);
   }
 
-  /** Check if location exists by name. */
   @Transactional(readOnly = true)
   public boolean existsByLocationName(String locationName) {
     String sql = "SELECT COUNT(*) > 0 FROM location WHERE location_name = :locationName";
@@ -80,7 +74,6 @@ public class LocationDao extends BaseDao {
     return result != null && result;
   }
 
-  /** Check if location exists by name (case-insensitive). */
   @Transactional(readOnly = true)
   public boolean existsByLocationNameIgnoreCase(String locationName) {
     String sql =
@@ -90,7 +83,6 @@ public class LocationDao extends BaseDao {
     return result != null && result;
   }
 
-  /** Save a location. Returns entity with generated ID. */
   @Transactional
   public LocationEntity save(LocationEntity entity) {
     if (entity.getId() == null) {
@@ -116,10 +108,6 @@ public class LocationDao extends BaseDao {
     }
   }
 
-  /**
-   * Find or create a location by name. If the location exists (case-insensitive), returns the
-   * existing one. Otherwise, creates a new location and returns it.
-   */
   @Transactional
   public LocationEntity findOrCreate(String locationName) {
     if (locationName == null || locationName.trim().isEmpty()) {
@@ -128,19 +116,16 @@ public class LocationDao extends BaseDao {
 
     String trimmedName = locationName.trim();
 
-    // Try to find existing (case-insensitive)
     Optional<LocationEntity> existing = findByLocationNameIgnoreCase(trimmedName);
     if (existing.isPresent()) {
       return existing.get();
     }
 
-    // Create new
     LocationEntity newLocation =
         LocationEntity.builder().locationName(trimmedName).createdAt(LocalDateTime.now()).build();
     return save(newLocation);
   }
 
-  /** Delete location by ID. */
   @Transactional
   public void deleteById(Long id) {
     String sql = "DELETE FROM location WHERE id = :id";

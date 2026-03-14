@@ -1,34 +1,46 @@
 package edens.zac.portfolio.backend.dao;
 
+import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCameraEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
+import edens.zac.portfolio.backend.entity.ContentFilmTypeEntity;
+import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentLensEntity;
+import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.types.ContentType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * DAO for ContentEntity and its subclasses using raw SQL queries. Handles JOINED inheritance
- * pattern (content + content_image, content_text, etc.). Replaces ContentRepository.
+ * Repository for all content types: images, text, GIFs, and collection references. Consolidates
+ * ContentDao, ContentGifDao, ContentTextDao, and ContentCollectionDao.
  */
 @Component
 @Slf4j
-public class ContentDao extends BaseDao {
+public class ContentRepository extends BaseDao {
 
-  public ContentDao(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+  public ContentRepository(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
   }
 
-  /**
-   * RowMapper for ContentImageEntity (JOINED inheritance). Joins content and content_image tables.
-   */
+  // ============================================================
+  // RowMappers
+  // ============================================================
+
   private static final RowMapper<ContentImageEntity> CONTENT_IMAGE_ROW_MAPPER =
       (rs, rowNum) -> {
         ContentImageEntity entity =
@@ -46,8 +58,7 @@ public class ContentDao extends BaseDao {
                 .isFilm(getBoolean(rs, "is_film"))
                 .filmFormat(
                     rs.getString("film_format") != null
-                        ? edens.zac.portfolio.backend.types.FilmFormat.valueOf(
-                            rs.getString("film_format"))
+                        ? FilmFormat.valueOf(rs.getString("film_format"))
                         : null)
                 .shutterSpeed(getString(rs, "shutter_speed"))
                 .focalLength(getString(rs, "focal_length"))
@@ -62,11 +73,10 @@ public class ContentDao extends BaseDao {
                 .people(new HashSet<>())
                 .build();
 
-        // Load camera, lens, and filmType with names from LEFT JOINs
         Long cameraId = getLong(rs, "camera_id");
         if (cameraId != null) {
           entity.setCamera(
-              edens.zac.portfolio.backend.entity.ContentCameraEntity.builder()
+              ContentCameraEntity.builder()
                   .id(cameraId)
                   .cameraName(getString(rs, "camera_name"))
                   .build());
@@ -75,16 +85,13 @@ public class ContentDao extends BaseDao {
         Long lensId = getLong(rs, "lens_id");
         if (lensId != null) {
           entity.setLens(
-              edens.zac.portfolio.backend.entity.ContentLensEntity.builder()
-                  .id(lensId)
-                  .lensName(getString(rs, "lens_name"))
-                  .build());
+              ContentLensEntity.builder().id(lensId).lensName(getString(rs, "lens_name")).build());
         }
 
         Long filmTypeId = getLong(rs, "film_type_id");
         if (filmTypeId != null) {
           entity.setFilmType(
-              edens.zac.portfolio.backend.entity.ContentFilmTypeEntity.builder()
+              ContentFilmTypeEntity.builder()
                   .id(filmTypeId)
                   .filmTypeName(getString(rs, "film_type_name"))
                   .displayName(getString(rs, "film_type_display_name"))
@@ -95,40 +102,37 @@ public class ContentDao extends BaseDao {
         return entity;
       };
 
-  private static final RowMapper<edens.zac.portfolio.backend.entity.ContentTextEntity>
-      CONTENT_TEXT_ROW_MAPPER =
-          (rs, rowNum) ->
-              edens.zac.portfolio.backend.entity.ContentTextEntity.builder()
-                  .id(rs.getLong("id"))
-                  .contentType(ContentType.TEXT)
-                  .textContent(rs.getString("text_content"))
-                  .formatType(getString(rs, "format_type"))
-                  .createdAt(getLocalDateTime(rs, "created_at"))
-                  .updatedAt(getLocalDateTime(rs, "updated_at"))
-                  .build();
+  private static final RowMapper<ContentTextEntity> CONTENT_TEXT_ROW_MAPPER =
+      (rs, rowNum) ->
+          ContentTextEntity.builder()
+              .id(rs.getLong("id"))
+              .contentType(ContentType.TEXT)
+              .textContent(rs.getString("text_content"))
+              .formatType(getString(rs, "format_type"))
+              .createdAt(getLocalDateTime(rs, "created_at"))
+              .updatedAt(getLocalDateTime(rs, "updated_at"))
+              .build();
 
-  private static final RowMapper<edens.zac.portfolio.backend.entity.ContentGifEntity>
-      CONTENT_GIF_ROW_MAPPER =
-          (rs, rowNum) ->
-              edens.zac.portfolio.backend.entity.ContentGifEntity.builder()
-                  .id(rs.getLong("id"))
-                  .contentType(ContentType.GIF)
-                  .title(getString(rs, "title"))
-                  .gifUrl(rs.getString("gif_url"))
-                  .thumbnailUrl(getString(rs, "thumbnail_url"))
-                  .width(getInteger(rs, "width"))
-                  .height(getInteger(rs, "height"))
-                  .author(getString(rs, "author"))
-                  .createDate(getString(rs, "create_date"))
-                  .createdAt(getLocalDateTime(rs, "created_at"))
-                  .updatedAt(getLocalDateTime(rs, "updated_at"))
-                  .tags(new HashSet<>())
-                  .build();
+  private static final RowMapper<ContentGifEntity> CONTENT_GIF_ROW_MAPPER =
+      (rs, rowNum) ->
+          ContentGifEntity.builder()
+              .id(rs.getLong("id"))
+              .contentType(ContentType.GIF)
+              .title(getString(rs, "title"))
+              .gifUrl(rs.getString("gif_url"))
+              .thumbnailUrl(getString(rs, "thumbnail_url"))
+              .width(getInteger(rs, "width"))
+              .height(getInteger(rs, "height"))
+              .author(getString(rs, "author"))
+              .createDate(getString(rs, "create_date"))
+              .createdAt(getLocalDateTime(rs, "created_at"))
+              .updatedAt(getLocalDateTime(rs, "updated_at"))
+              .tags(new HashSet<>())
+              .build();
 
   private static final RowMapper<ContentCollectionEntity> CONTENT_COLLECTION_ROW_MAPPER =
       (rs, rowNum) -> {
-        edens.zac.portfolio.backend.entity.CollectionEntity referencedCollection =
-            new edens.zac.portfolio.backend.entity.CollectionEntity();
+        CollectionEntity referencedCollection = new CollectionEntity();
         referencedCollection.setId(rs.getLong("referenced_collection_id"));
         return ContentCollectionEntity.builder()
             .id(rs.getLong("id"))
@@ -138,6 +142,10 @@ public class ContentDao extends BaseDao {
             .updatedAt(getLocalDateTime(rs, "updated_at"))
             .build();
       };
+
+  // ============================================================
+  // SELECT Fragments
+  // ============================================================
 
   private static final String SELECT_CONTENT_IMAGE =
       """
@@ -182,7 +190,10 @@ public class ContentDao extends BaseDao {
       JOIN content_collection cc ON c.id = cc.id
       """;
 
-  /** Check if image with fileIdentifier exists. */
+  // ============================================================
+  // Image Operations
+  // ============================================================
+
   @Transactional(readOnly = true)
   public boolean existsByFileIdentifier(String fileIdentifier) {
     String sql = "SELECT COUNT(*) > 0 FROM content_image WHERE file_identifier = :fileIdentifier";
@@ -192,7 +203,6 @@ public class ContentDao extends BaseDao {
     return result != null && result;
   }
 
-  /** Find all ContentImageEntity by fileIdentifier. */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findAllByFileIdentifier(String fileIdentifier) {
     String sql = SELECT_CONTENT_IMAGE + " WHERE ci.file_identifier = :fileIdentifier";
@@ -201,7 +211,6 @@ public class ContentDao extends BaseDao {
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
-  /** Find ContentImageEntity by ID. */
   @Transactional(readOnly = true)
   public Optional<ContentImageEntity> findImageById(Long id) {
     String sql = SELECT_CONTENT_IMAGE + " WHERE c.id = :id";
@@ -209,10 +218,6 @@ public class ContentDao extends BaseDao {
     return queryForObject(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
-  /**
-   * Batch fetch multiple images by IDs in a single query. More efficient than calling findImageById
-   * in a loop (avoids N+1).
-   */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findImagesByIds(List<Long> ids) {
     if (ids == null || ids.isEmpty()) {
@@ -223,10 +228,6 @@ public class ContentDao extends BaseDao {
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
-  /**
-   * Find all images ordered by createDate DESC. Note: Relationships (tags, people, camera, lens,
-   * filmType) loaded separately.
-   */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc() {
     String sql =
@@ -234,10 +235,6 @@ public class ContentDao extends BaseDao {
     return query(sql, CONTENT_IMAGE_ROW_MAPPER);
   }
 
-  /**
-   * Find images with pagination, ordered by createDate DESC. Uses database-level LIMIT and OFFSET
-   * for efficient pagination.
-   */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc(int limit, int offset) {
     String sql =
@@ -248,7 +245,6 @@ public class ContentDao extends BaseDao {
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
-  /** Count total number of images. */
   @Transactional(readOnly = true)
   public int countImages() {
     String sql = "SELECT COUNT(*) FROM content WHERE content_type = 'IMAGE'";
@@ -256,7 +252,6 @@ public class ContentDao extends BaseDao {
     return count != null ? count : 0;
   }
 
-  /** Find all content IDs by contentType. */
   @Transactional(readOnly = true)
   public List<Long> findIdsByContentType(String contentType) {
     String sql = "SELECT id FROM content WHERE content_type = :contentType";
@@ -264,36 +259,26 @@ public class ContentDao extends BaseDao {
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
-  /**
-   * Find all ContentEntity by IDs, loading the fully-typed entities. Returns ContentImageEntity,
-   * ContentTextEntity, ContentGifEntity, or ContentCollectionEntity based on each entity's
-   * content_type.
-   *
-   * <p>IMPORTANT: This performs type-specific JOINs to load complete entity data.
-   */
   @Transactional(readOnly = true)
   public List<ContentEntity> findAllByIds(List<Long> ids) {
     if (ids == null || ids.isEmpty()) {
       return List.of();
     }
 
-    // First, get the content_type for each ID to determine which tables to query
     String typeSql = "SELECT id, content_type FROM content WHERE id IN (:ids)";
     MapSqlParameterSource typeParams = createParameterSource().addValue("ids", ids);
-    List<java.util.Map<String, Object>> typeRows =
+    List<Map<String, Object>> typeRows =
         namedParameterJdbcTemplate.queryForList(typeSql, typeParams);
 
-    // Group IDs by content type
-    java.util.Map<ContentType, List<Long>> idsByType = new java.util.HashMap<>();
-    for (java.util.Map<String, Object> row : typeRows) {
+    Map<ContentType, List<Long>> idsByType = new HashMap<>();
+    for (Map<String, Object> row : typeRows) {
       Long id = ((Number) row.get("id")).longValue();
       ContentType type = ContentType.valueOf((String) row.get("content_type"));
-      idsByType.computeIfAbsent(type, k -> new java.util.ArrayList<>()).add(id);
+      idsByType.computeIfAbsent(type, k -> new ArrayList<>()).add(id);
     }
 
-    List<ContentEntity> results = new java.util.ArrayList<>();
+    List<ContentEntity> results = new ArrayList<>();
 
-    // Load each type from its specific table
     if (idsByType.containsKey(ContentType.IMAGE)) {
       String imageSql = SELECT_CONTENT_IMAGE + " WHERE c.id IN (:ids)";
       MapSqlParameterSource imageParams =
@@ -325,51 +310,11 @@ public class ContentDao extends BaseDao {
     return results;
   }
 
-  /** Find ContentCollectionEntity by referenced collection ID. */
-  @Transactional(readOnly = true)
-  public Optional<ContentCollectionEntity> findContentCollectionByReferencedCollectionId(
-      Long referencedCollectionId) {
-    String sql =
-        """
-        SELECT c.id, c.content_type, c.created_at, c.updated_at, cc.referenced_collection_id
-        FROM content c
-        JOIN content_collection cc ON c.id = cc.id
-        WHERE cc.referenced_collection_id = :referencedCollectionId
-        """;
-
-    MapSqlParameterSource params =
-        createParameterSource().addValue("referencedCollectionId", referencedCollectionId);
-    return queryForObject(
-        sql,
-        (rs, rowNum) -> {
-          ContentCollectionEntity entity =
-              ContentCollectionEntity.builder()
-                  .id(rs.getLong("id"))
-                  .contentType(ContentType.COLLECTION)
-                  .createdAt(rs.getTimestamp("created_at").toLocalDateTime())
-                  .updatedAt(rs.getTimestamp("updated_at").toLocalDateTime())
-                  .referencedCollection(
-                      new edens.zac.portfolio.backend.entity.CollectionEntity() {
-                        {
-                          setId(rs.getLong("referenced_collection_id"));
-                        }
-                      })
-                  .build();
-          return entity;
-        },
-        params);
-  }
-
-  /**
-   * Save ContentImageEntity. IMPORTANT: Must be wrapped in @Transactional. Inserts into content
-   * first, then content_image using the same ID.
-   */
   @Transactional
   public ContentImageEntity saveImage(ContentImageEntity entity) {
     LocalDateTime now = LocalDateTime.now();
 
     if (entity.getId() == null) {
-      // Step 1: Insert into content table
       String contentSql =
           """
           INSERT INTO content (content_type, created_at, updated_at)
@@ -384,7 +329,6 @@ public class ContentDao extends BaseDao {
 
       Long contentId = insertAndReturnId(contentSql, "id", contentParams);
 
-      // Step 2: Insert into content_image using the same ID
       String imageSql =
           """
           INSERT INTO content_image (id, title, image_width, image_height, iso, author, rating,
@@ -438,7 +382,6 @@ public class ContentDao extends BaseDao {
 
       return entity;
     } else {
-      // Update existing
       String contentSql =
           """
           UPDATE content
@@ -496,17 +439,12 @@ public class ContentDao extends BaseDao {
     }
   }
 
-  /**
-   * Save image people (many-to-many relationship). Deletes existing people and inserts new ones.
-   */
   @Transactional
   public void saveImagePeople(Long imageId, List<Long> personIds) {
-    // Delete existing people
     String deleteSql = "DELETE FROM content_image_people WHERE image_id = :imageId";
     MapSqlParameterSource deleteParams = createParameterSource().addValue("imageId", imageId);
     update(deleteSql, deleteParams);
 
-    // Insert new people
     if (personIds != null && !personIds.isEmpty()) {
       String insertSql =
           "INSERT INTO content_image_people (image_id, person_id) VALUES (:imageId, :personId)";
@@ -522,7 +460,6 @@ public class ContentDao extends BaseDao {
     }
   }
 
-  /** Load people for an image. */
   @Transactional(readOnly = true)
   public List<Long> findImagePersonIds(Long imageId) {
     String sql = "SELECT person_id FROM content_image_people WHERE image_id = :imageId";
@@ -530,69 +467,373 @@ public class ContentDao extends BaseDao {
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
-  /**
-   * Batch fetch person IDs for multiple images. Returns a map of imageId -> list of person IDs.
-   * More efficient than calling findImagePersonIds in a loop (avoids N+1).
-   *
-   * @param imageIds List of image IDs
-   * @return Map of image ID to list of person IDs
-   */
   @Transactional(readOnly = true)
-  public java.util.Map<Long, List<Long>> findPersonIdsByImageIds(List<Long> imageIds) {
+  public Map<Long, List<Long>> findPersonIdsByImageIds(List<Long> imageIds) {
     if (imageIds == null || imageIds.isEmpty()) {
-      return java.util.Map.of();
+      return Map.of();
     }
 
     String sql =
         "SELECT image_id, person_id FROM content_image_people WHERE image_id IN (:imageIds)";
     MapSqlParameterSource params = createParameterSource().addValue("imageIds", imageIds);
 
-    java.util.Map<Long, List<Long>> result = new java.util.HashMap<>();
+    Map<Long, List<Long>> result = new HashMap<>();
     namedParameterJdbcTemplate.query(
         sql,
         params,
         rs -> {
           Long imageId = rs.getLong("image_id");
           Long personId = rs.getLong("person_id");
-          result.computeIfAbsent(imageId, k -> new java.util.ArrayList<>()).add(personId);
+          result.computeIfAbsent(imageId, k -> new ArrayList<>()).add(personId);
         });
 
     return result;
   }
 
-  /**
-   * Delete ContentImageEntity by ID. Deletes from content_image first (child table), then content
-   * (parent table). Also deletes related tags and people associations. Note: Tags are deleted via
-   * content_tags table (handled by TagDao or cascade).
-   */
   @Transactional
   public void deleteImageById(Long id) {
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
 
-    // Clear any collection cover_image_id references first to avoid FK constraint
-    // violation
     String clearCoverImageSql =
         "UPDATE collection SET cover_image_id = NULL WHERE cover_image_id = :id";
     update(clearCoverImageSql, params);
 
-    // Delete from collection_content join table
     String deleteCollectionContentSql = "DELETE FROM collection_content WHERE content_id = :id";
     update(deleteCollectionContentSql, params);
 
-    // Delete from many-to-many join tables first
-    // Tags are deleted via content_tags (content.id = image.id for images)
     String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";
     update(deleteTagsSql, params);
 
     String deletePeopleSql = "DELETE FROM content_image_people WHERE image_id = :id";
     update(deletePeopleSql, params);
 
-    // Delete from content_image (child table)
     String deleteImageSql = "DELETE FROM content_image WHERE id = :id";
     update(deleteImageSql, params);
 
-    // Delete from content (parent table)
     String deleteContentSql = "DELETE FROM content WHERE id = :id";
     update(deleteContentSql, params);
+  }
+
+  // ============================================================
+  // Text Operations
+  // ============================================================
+
+  @Transactional(readOnly = true)
+  public Optional<ContentTextEntity> findTextById(Long id) {
+    String sql = SELECT_CONTENT_TEXT + " WHERE c.id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    return queryForObject(sql, CONTENT_TEXT_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public List<ContentTextEntity> findAllTextOrderByCreatedAtDesc() {
+    String sql = SELECT_CONTENT_TEXT + " ORDER BY c.created_at DESC";
+    return query(sql, CONTENT_TEXT_ROW_MAPPER);
+  }
+
+  @Transactional
+  public ContentTextEntity saveText(ContentTextEntity entity) {
+    LocalDateTime now = LocalDateTime.now();
+
+    if (entity.getId() == null) {
+      String contentSql =
+          """
+          INSERT INTO content (content_type, created_at, updated_at)
+          VALUES (:contentType, :createdAt, :updatedAt)
+          """;
+
+      MapSqlParameterSource contentParams =
+          createParameterSource()
+              .addValue("contentType", ContentType.TEXT.name())
+              .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : now)
+              .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : now);
+
+      Long contentId = insertAndReturnId(contentSql, "id", contentParams);
+
+      String textSql =
+          """
+          INSERT INTO content_text (id, text_content, format_type)
+          VALUES (:id, :textContent, :formatType)
+          """;
+
+      MapSqlParameterSource textParams =
+          createParameterSource()
+              .addValue("id", contentId)
+              .addValue("textContent", entity.getTextContent())
+              .addValue("formatType", entity.getFormatType());
+
+      update(textSql, textParams);
+
+      entity.setId(contentId);
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(now);
+      }
+      if (entity.getUpdatedAt() == null) {
+        entity.setUpdatedAt(now);
+      }
+
+      return entity;
+    } else {
+      String contentSql =
+          """
+          UPDATE content
+          SET updated_at = :updatedAt
+          WHERE id = :id
+          """;
+      MapSqlParameterSource contentParams =
+          createParameterSource().addValue("updatedAt", now).addValue("id", entity.getId());
+      update(contentSql, contentParams);
+
+      String textSql =
+          """
+          UPDATE content_text
+          SET text_content = :textContent, format_type = :formatType
+          WHERE id = :id
+          """;
+
+      MapSqlParameterSource textParams =
+          createParameterSource()
+              .addValue("id", entity.getId())
+              .addValue("textContent", entity.getTextContent())
+              .addValue("formatType", entity.getFormatType());
+
+      update(textSql, textParams);
+
+      entity.setUpdatedAt(now);
+      return entity;
+    }
+  }
+
+  @Transactional
+  public void deleteTextById(Long id) {
+    String textSql = "DELETE FROM content_text WHERE id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    update(textSql, params);
+
+    String contentSql = "DELETE FROM content WHERE id = :id";
+    update(contentSql, params);
+  }
+
+  // ============================================================
+  // GIF Operations
+  // ============================================================
+
+  @Transactional(readOnly = true)
+  public Optional<ContentGifEntity> findGifById(Long id) {
+    String sql = SELECT_CONTENT_GIF + " WHERE c.id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    return queryForObject(sql, CONTENT_GIF_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public List<ContentGifEntity> findAllGifsOrderByCreateDateDesc() {
+    String sql = SELECT_CONTENT_GIF + " ORDER BY cg.create_date DESC NULLS LAST, c.created_at DESC";
+    return query(sql, CONTENT_GIF_ROW_MAPPER);
+  }
+
+  @Transactional
+  public ContentGifEntity saveGif(ContentGifEntity entity) {
+    LocalDateTime now = LocalDateTime.now();
+
+    if (entity.getId() == null) {
+      String contentSql =
+          """
+          INSERT INTO content (content_type, created_at, updated_at)
+          VALUES (:contentType, :createdAt, :updatedAt)
+          """;
+
+      MapSqlParameterSource contentParams =
+          createParameterSource()
+              .addValue("contentType", ContentType.GIF.name())
+              .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : now)
+              .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : now);
+
+      Long contentId = insertAndReturnId(contentSql, "id", contentParams);
+
+      String gifSql =
+          """
+          INSERT INTO content_gif (id, title, gif_url, thumbnail_url, width, height, author, create_date)
+          VALUES (:id, :title, :gifUrl, :thumbnailUrl, :width, :height, :author, :createDate)
+          """;
+
+      MapSqlParameterSource gifParams =
+          createParameterSource()
+              .addValue("id", contentId)
+              .addValue("title", entity.getTitle())
+              .addValue("gifUrl", entity.getGifUrl())
+              .addValue("thumbnailUrl", entity.getThumbnailUrl())
+              .addValue("width", entity.getWidth())
+              .addValue("height", entity.getHeight())
+              .addValue("author", entity.getAuthor())
+              .addValue("createDate", entity.getCreateDate());
+
+      update(gifSql, gifParams);
+
+      entity.setId(contentId);
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(now);
+      }
+      if (entity.getUpdatedAt() == null) {
+        entity.setUpdatedAt(now);
+      }
+
+      return entity;
+    } else {
+      String contentSql =
+          """
+          UPDATE content
+          SET updated_at = :updatedAt
+          WHERE id = :id
+          """;
+      MapSqlParameterSource contentParams =
+          createParameterSource().addValue("updatedAt", now).addValue("id", entity.getId());
+      update(contentSql, contentParams);
+
+      String gifSql =
+          """
+          UPDATE content_gif
+          SET title = :title, gif_url = :gifUrl, thumbnail_url = :thumbnailUrl,
+              width = :width, height = :height, author = :author, create_date = :createDate
+          WHERE id = :id
+          """;
+
+      MapSqlParameterSource gifParams =
+          createParameterSource()
+              .addValue("id", entity.getId())
+              .addValue("title", entity.getTitle())
+              .addValue("gifUrl", entity.getGifUrl())
+              .addValue("thumbnailUrl", entity.getThumbnailUrl())
+              .addValue("width", entity.getWidth())
+              .addValue("height", entity.getHeight())
+              .addValue("author", entity.getAuthor())
+              .addValue("createDate", entity.getCreateDate());
+
+      update(gifSql, gifParams);
+
+      entity.setUpdatedAt(now);
+      return entity;
+    }
+  }
+
+  @Transactional
+  public void deleteGifById(Long id) {
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+
+    String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";
+    update(deleteTagsSql, params);
+
+    String gifSql = "DELETE FROM content_gif WHERE id = :id";
+    update(gifSql, params);
+
+    String contentSql = "DELETE FROM content WHERE id = :id";
+    update(contentSql, params);
+  }
+
+  // ============================================================
+  // Collection Content Operations
+  // ============================================================
+
+  @Transactional(readOnly = true)
+  public Optional<ContentCollectionEntity> findCollectionContentById(Long id) {
+    String sql = SELECT_CONTENT_COLLECTION + " WHERE c.id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    return queryForObject(sql, CONTENT_COLLECTION_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<ContentCollectionEntity> findCollectionContentByReferencedCollectionId(
+      Long referencedCollectionId) {
+    String sql =
+        SELECT_CONTENT_COLLECTION + " WHERE cc.referenced_collection_id = :referencedCollectionId";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("referencedCollectionId", referencedCollectionId);
+    return queryForObject(sql, CONTENT_COLLECTION_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public List<ContentCollectionEntity> findAllCollectionContentOrderByCreatedAtDesc() {
+    String sql = SELECT_CONTENT_COLLECTION + " ORDER BY c.created_at DESC";
+    return query(sql, CONTENT_COLLECTION_ROW_MAPPER);
+  }
+
+  @Transactional
+  public ContentCollectionEntity saveCollectionContent(ContentCollectionEntity entity) {
+    LocalDateTime now = LocalDateTime.now();
+
+    if (entity.getId() == null) {
+      String contentSql =
+          """
+          INSERT INTO content (content_type, created_at, updated_at)
+          VALUES (:contentType, :createdAt, :updatedAt)
+          """;
+
+      MapSqlParameterSource contentParams =
+          createParameterSource()
+              .addValue("contentType", ContentType.COLLECTION.name())
+              .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : now)
+              .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : now);
+
+      Long contentId = insertAndReturnId(contentSql, "id", contentParams);
+
+      String collectionSql =
+          """
+          INSERT INTO content_collection (id, referenced_collection_id)
+          VALUES (:id, :referencedCollectionId)
+          """;
+
+      MapSqlParameterSource collectionParams =
+          createParameterSource()
+              .addValue("id", contentId)
+              .addValue("referencedCollectionId", entity.getReferencedCollection().getId());
+
+      update(collectionSql, collectionParams);
+
+      entity.setId(contentId);
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(now);
+      }
+      if (entity.getUpdatedAt() == null) {
+        entity.setUpdatedAt(now);
+      }
+
+      return entity;
+    } else {
+      String contentSql =
+          """
+          UPDATE content
+          SET updated_at = :updatedAt
+          WHERE id = :id
+          """;
+      MapSqlParameterSource contentParams =
+          createParameterSource().addValue("updatedAt", now).addValue("id", entity.getId());
+      update(contentSql, contentParams);
+
+      String collectionSql =
+          """
+          UPDATE content_collection
+          SET referenced_collection_id = :referencedCollectionId
+          WHERE id = :id
+          """;
+
+      MapSqlParameterSource collectionParams =
+          createParameterSource()
+              .addValue("id", entity.getId())
+              .addValue("referencedCollectionId", entity.getReferencedCollection().getId());
+
+      update(collectionSql, collectionParams);
+
+      entity.setUpdatedAt(now);
+      return entity;
+    }
+  }
+
+  @Transactional
+  public void deleteCollectionContentById(Long id) {
+    String collectionSql = "DELETE FROM content_collection WHERE id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    update(collectionSql, params);
+
+    String contentSql = "DELETE FROM content WHERE id = :id";
+    update(contentSql, params);
   }
 }
