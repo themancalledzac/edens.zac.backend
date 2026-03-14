@@ -61,7 +61,9 @@ public class ContentProcessingUtilTest {
 
     // Mock tagRepository.findContentTags() to return empty lists for all content IDs
     // Using lenient() because not all tests use this mock
-    lenient().when(tagRepository.findContentTags(anyLong())).thenReturn(java.util.Collections.emptyList());
+    lenient()
+        .when(tagRepository.findContentTags(anyLong()))
+        .thenReturn(java.util.Collections.emptyList());
   }
 
   @Test

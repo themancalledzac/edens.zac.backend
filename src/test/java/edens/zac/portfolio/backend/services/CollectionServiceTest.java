@@ -236,7 +236,8 @@ class CollectionServiceTest {
           .thenReturn(updatedModel);
 
       // getUpdateCollectionData mocks
-      when(collectionRepository.findBySlug("test-collection")).thenReturn(Optional.of(testCollection));
+      when(collectionRepository.findBySlug("test-collection"))
+          .thenReturn(Optional.of(testCollection));
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(1L))
           .thenReturn(Collections.emptyList());
       when(metadataService.getAllTags()).thenReturn(List.of());
@@ -489,7 +490,8 @@ class CollectionServiceTest {
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(collectionId))
           .thenReturn(existingContent);
-      when(collectionRepository.batchUpdateContentOrderIndexes(eq(collectionId), any())).thenReturn(3);
+      when(collectionRepository.batchUpdateContentOrderIndexes(eq(collectionId), any()))
+          .thenReturn(3);
 
       CollectionModel expectedModel =
           CollectionModel.builder().id(1L).title("Test Collection").build();
@@ -502,7 +504,8 @@ class CollectionServiceTest {
       assertThat(result).isNotNull();
       assertThat(result.getId()).isEqualTo(1L);
 
-      verify(collectionRepository).batchUpdateContentOrderIndexes(eq(collectionId), mapCaptor.capture());
+      verify(collectionRepository)
+          .batchUpdateContentOrderIndexes(eq(collectionId), mapCaptor.capture());
       Map<Long, Integer> capturedMap = mapCaptor.getValue();
       assertThat(capturedMap)
           .containsEntry(100L, 2)
@@ -557,7 +560,8 @@ class CollectionServiceTest {
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(collectionId))
           .thenReturn(existingContent);
-      when(collectionRepository.batchUpdateContentOrderIndexes(eq(collectionId), any())).thenReturn(1);
+      when(collectionRepository.batchUpdateContentOrderIndexes(eq(collectionId), any()))
+          .thenReturn(1);
 
       CollectionModel expectedModel =
           CollectionModel.builder().id(1L).title("Test Collection").build();
@@ -569,7 +573,8 @@ class CollectionServiceTest {
 
       assertThat(result).isNotNull();
 
-      verify(collectionRepository).batchUpdateContentOrderIndexes(eq(collectionId), mapCaptor.capture());
+      verify(collectionRepository)
+          .batchUpdateContentOrderIndexes(eq(collectionId), mapCaptor.capture());
       Map<Long, Integer> capturedMap = mapCaptor.getValue();
       assertThat(capturedMap).containsEntry(100L, 5).hasSize(1);
     }

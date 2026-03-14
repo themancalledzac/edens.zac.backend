@@ -68,7 +68,8 @@ class CollectionContentDaoTest {
           .thenReturn(3);
 
       // Act
-      int result = collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
+      int result =
+          collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
       // Assert
       assertThat(result).isEqualTo(3);
@@ -97,7 +98,8 @@ class CollectionContentDaoTest {
           .thenReturn(1);
 
       // Act
-      int result = collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
+      int result =
+          collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
       // Assert
       assertThat(result).isEqualTo(1);
@@ -118,7 +120,8 @@ class CollectionContentDaoTest {
       Map<Long, Integer> contentIdToOrderIndex = Map.of();
 
       // Act
-      int result = collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
+      int result =
+          collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
       // Assert
       assertThat(result).isZero();
