@@ -20,7 +20,7 @@ public class ContentImageUpdateResponse {
    * Full image content blocks for all successfully updated images. Includes all metadata (tags,
    * people, camera, lens, film type, etc.)
    */
-  private List<ContentImageModel> updatedImages;
+  private List<ContentModels.Image> updatedImages;
 
   /**
    * Metadata for newly created entities during the update operation. Only includes entities that
@@ -38,16 +38,16 @@ public class ContentImageUpdateResponse {
   @AllArgsConstructor
   public static class NewMetadata {
     /** Tags created during the update */
-    private List<ContentTagModel> tags;
+    private List<Records.Tag> tags;
 
     /** People created during the update */
-    private List<ContentPersonModel> people;
+    private List<Records.Person> people;
 
     /** Cameras created during the update */
-    private List<ContentCameraModel> cameras;
+    private List<Records.Camera> cameras;
 
     /** Lenses created during the update */
-    private List<ContentLensModel> lenses;
+    private List<Records.Lens> lenses;
 
     /** Film types created during the update */
     private List<ContentFilmTypeModel> filmTypes;

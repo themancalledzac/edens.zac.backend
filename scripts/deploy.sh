@@ -26,12 +26,12 @@ fi
 echo "Setting up environment variables..."
 cp "$APP_DIR/.env" "$APP_DIR/repo/.env"
 
-# Build and deploy with Docker Compose
+# Build and deploy with Docker Compose (profile local-db starts database + backend on EC2)
 echo "Building and deploying with Docker Compose..."
 cd "$APP_DIR/repo"
-docker-compose down || true
+docker-compose --profile local-db down || true
 docker-compose build --no-cache
-docker-compose up -d
+docker-compose --profile local-db up -d
 
 # Cleanup old images to save disk space
 echo "Cleaning up old Docker images..."

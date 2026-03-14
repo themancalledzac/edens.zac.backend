@@ -84,3 +84,5 @@ atlassian-ide-plugin.xml
 # Backup files
 backup-*.sql
 backup-*.tar.gz
+
+todo

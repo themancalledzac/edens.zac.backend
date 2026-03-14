@@ -4,15 +4,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import edens.zac.portfolio.backend.dao.CollectionContentDao;
-import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentDao;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDateTime;
@@ -29,13 +29,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CollectionProcessingUtilTest {
 
-  @Mock private CollectionDao collectionDao;
+  @Mock private CollectionRepository collectionRepository;
 
-  @Mock private CollectionContentDao collectionContentDao;
-
-  @Mock private ContentDao contentDao;
+  @Mock private ContentRepository contentRepository;
 
   @Mock private ContentProcessingUtil contentProcessingUtil;
+
+  @Mock private LocationRepository locationRepository;
 
   @InjectMocks private CollectionProcessingUtil util;
 
@@ -119,18 +119,26 @@ class CollectionProcessingUtilTest {
     joinEntries.add(join1);
     joinEntries.add(join2);
 
-    when(collectionContentDao.findByCollectionIdOrderByOrderIndex(testEntity.getId()))
+    when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(testEntity.getId()))
         .thenReturn(joinEntries);
-    when(contentDao.findAllByIds(anyList())).thenReturn(testBlocks);
+    when(contentRepository.findAllByIds(anyList())).thenReturn(testBlocks);
     when(contentProcessingUtil.convertBulkLoadedContentToModel(
             any(ContentEntity.class), any(CollectionContentEntity.class)))
         .thenAnswer(
             invocation -> {
               ContentEntity entity = invocation.getArgument(0);
-              ContentModel model = new ContentModel();
-              model.setId(entity.getId());
-              model.setContentType(entity.getContentType());
-              return model;
+              return new ContentModels.Text(
+                  entity.getId(),
+                  entity.getContentType(),
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null);
             });
 
     // Act
@@ -140,8 +148,8 @@ class CollectionProcessingUtilTest {
     assertNotNull(model);
     assertNotNull(model.getContent());
     assertEquals(2, model.getContent().size());
-    assertEquals(testBlocks.get(0).getId(), model.getContent().get(0).getId());
-    assertEquals(testBlocks.get(1).getId(), model.getContent().get(1).getId());
+    assertEquals(testBlocks.get(0).getId(), model.getContent().get(0).id());
+    assertEquals(testBlocks.get(1).getId(), model.getContent().get(1).id());
   }
 
   // TODO: Fix
@@ -177,7 +185,7 @@ class CollectionProcessingUtilTest {
   @Test
   void validateAndEnsureUniqueSlug_shouldReturnOriginalSlugWhenUnique() {
     // Arrange
-    when(collectionDao.findBySlug("test-slug")).thenReturn(Optional.empty());
+    when(collectionRepository.findBySlug("test-slug")).thenReturn(Optional.empty());
 
     // Act
     String result = util.validateAndEnsureUniqueSlug("test-slug", null);
@@ -192,8 +200,8 @@ class CollectionProcessingUtilTest {
     CollectionEntity existingEntity = new CollectionEntity();
     existingEntity.setId(2L);
 
-    when(collectionDao.findBySlug("test-slug")).thenReturn(Optional.of(existingEntity));
-    when(collectionDao.findBySlug("test-slug-1")).thenReturn(Optional.empty());
+    when(collectionRepository.findBySlug("test-slug")).thenReturn(Optional.of(existingEntity));
+    when(collectionRepository.findBySlug("test-slug-1")).thenReturn(Optional.empty());
 
     // Act
     String result = util.validateAndEnsureUniqueSlug("test-slug", 1L);

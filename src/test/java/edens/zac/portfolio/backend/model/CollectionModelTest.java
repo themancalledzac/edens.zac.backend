@@ -49,7 +49,7 @@ class CollectionModelTest {
               .title("Test Portfolio")
               .slug("test-portfolio")
               .description("Test description")
-              .location(LocationModel.builder().id(1L).name("Test location").build())
+              .location(new Records.Location(1L, "Test location"))
               .collectionDate(today)
               .visible(true)
               .createdAt(now)
@@ -68,7 +68,7 @@ class CollectionModelTest {
       assertEquals("test-portfolio", model.getSlug());
       assertEquals("Test description", model.getDescription());
       assertNotNull(model.getLocation());
-      assertEquals("Test location", model.getLocation().getName());
+      assertEquals("Test location", model.getLocation().name());
       assertEquals(today, model.getCollectionDate());
       assertTrue(model.getVisible());
       assertNull(model.getCoverImage());

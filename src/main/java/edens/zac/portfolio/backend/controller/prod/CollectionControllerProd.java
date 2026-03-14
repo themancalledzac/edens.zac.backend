@@ -21,8 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Production controller for Collection read operations. Exception handling is
- * delegated to
+ * Production controller for Collection read operations. Exception handling is delegated to
  * GlobalExceptionHandler.
  */
 @Slf4j
@@ -64,13 +63,13 @@ public class CollectionControllerProd {
     int normalizedPage = PaginationUtil.normalizePage(page);
     int normalizedSize = PaginationUtil.normalizeSize(size, DefaultValues.default_content_per_page);
 
-    CollectionModel collection = collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
+    CollectionModel collection =
+        collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
     return ResponseEntity.ok(collection);
   }
 
   /**
-   * Get visible collections by type ordered by collection date (newest first).
-   * Currently only
+   * Get visible collections by type ordered by collection date (newest first). Currently only
    * accepts BLOG type.
    *
    * @param type Collection type (currently only BLOG is supported)
@@ -90,14 +89,15 @@ public class CollectionControllerProd {
           "Only BLOG collection type is currently supported. Received: " + type);
     }
 
-    List<CollectionModel> collections = collectionService.findVisibleByTypeOrderByDate(collectionType);
+    List<CollectionModel> collections =
+        collectionService.findVisibleByTypeOrderByDate(collectionType);
     return ResponseEntity.ok(collections);
   }
 
   /**
    * Validate client gallery access with password.
    *
-   * @param slug            Collection slug
+   * @param slug Collection slug
    * @param passwordRequest Request body containing password
    * @return ResponseEntity with access status
    */

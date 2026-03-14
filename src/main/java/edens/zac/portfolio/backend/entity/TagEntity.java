@@ -26,9 +26,7 @@ public class TagEntity {
 
   private Long id;
 
-  @NotBlank
-  @Size(min = 1, max = 50)
-  private String tagName;
+  @NotBlank @Size(min = 1, max = 50) private String tagName;
 
   private LocalDateTime createdAt;
 

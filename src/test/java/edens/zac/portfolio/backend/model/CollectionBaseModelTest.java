@@ -29,14 +29,37 @@ class CollectionBaseModelTest {
     validator = factory.getValidator();
   }
 
-  /** Helper method to create a test ImageContentBlockModel */
-  private static ContentImageModel createTestContentImage(String imageUrl) {
-    ContentImageModel imageBlock = new ContentImageModel();
-    imageBlock.setId(123L);
-    imageBlock.setImageUrl(imageUrl);
-    imageBlock.setImageWidth(1920);
-    imageBlock.setImageHeight(1080);
-    return imageBlock;
+  /** Helper method to create a test image content model */
+  private static ContentModels.Image createTestContentImage(String imageUrl) {
+    return new ContentModels.Image(
+        123L,
+        edens.zac.portfolio.backend.types.ContentType.IMAGE,
+        null,
+        null,
+        imageUrl,
+        null,
+        null,
+        null,
+        null,
+        1920,
+        1080,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        java.util.List.of());
   }
 
   @Nested
@@ -56,7 +79,7 @@ class CollectionBaseModelTest {
               .title("Valid Title")
               .slug("valid-slug")
               .description("Valid description")
-              .location(LocationModel.builder().id(1L).name("Valid location").build())
+              .location(new Records.Location(1L, "Valid location"))
               .collectionDate(today)
               .visible(true)
               .coverImage(createTestContentImage("https://example.com/cover.jpg"))
@@ -71,11 +94,11 @@ class CollectionBaseModelTest {
       assertEquals("valid-slug", model.getSlug());
       assertEquals("Valid description", model.getDescription());
       assertNotNull(model.getLocation());
-      assertEquals("Valid location", model.getLocation().getName());
+      assertEquals("Valid location", model.getLocation().name());
       assertEquals(today, model.getCollectionDate());
       assertTrue(model.getVisible());
       assertNotNull(model.getCoverImage());
-      assertEquals("https://example.com/cover.jpg", model.getCoverImage().getImageUrl());
+      assertEquals("https://example.com/cover.jpg", model.getCoverImage().imageUrl());
       assertEquals(now, model.getCreatedAt());
       assertEquals(now, model.getUpdatedAt());
     }
@@ -360,7 +383,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(LocationModel.builder().id(1L).name("Arches National Park, Utah").build())
+              .location(new Records.Location(1L, "Arches National Park, Utah"))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -392,7 +415,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(LocationModel.builder().id(1L).name(longLocation).build())
+              .location(new Records.Location(1L, longLocation))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -412,7 +435,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(LocationModel.builder().id(1L).name(maxLocation).build())
+              .location(new Records.Location(1L, maxLocation))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);

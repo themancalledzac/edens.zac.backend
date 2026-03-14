@@ -23,6 +23,22 @@ ContentEntity (abstract base)
 All content types share: `id`, `contentType`, `createdAt`, `updatedAt`
 Child tables add type-specific fields (e.g., image dimensions, ISO, lens).
 
+## Content Model Layer (DTOs)
+
+Entities are converted to a sealed interface hierarchy for API responses:
+
+```
+ContentModel (sealed interface)
+    |-- ContentModels.Image    (record, 28 fields)
+    |-- ContentModels.Text     (record, 11 fields)
+    |-- ContentModels.Gif      (record, 16 fields)
+    |-- ContentModels.Collection (record, 13 fields)
+```
+
+Jackson polymorphism uses `@JsonTypeInfo(use=NAME, include=EXISTING_PROPERTY, property="contentType", visible=true)`.
+`visible=true` is required so the `contentType` field is passed to the record constructor (not just consumed for type resolution).
+Records are immutable; `ContentModels.Image.withCollections()` returns a new instance with collections replaced.
+
 ## Collection-Content Relationship
 ```
 CollectionEntity (1) <---> (*) CollectionContentEntity <---> (1) ContentEntity
@@ -56,9 +72,14 @@ A single image can belong to multiple collections with different ordering/captio
 6. Added to collection via CollectionContentEntity
 
 ## Data Flow: API Request
-1. Controller receives request, validates input
-2. Calls service interface method
+1. Controller receives request (params validated by `@Valid`)
+2. Calls service method (concrete class, no interface wrapper)
 3. Service uses DAO for database queries (JDBC)
 4. DAO returns entities
 5. Service converts entities to models (DTOs)
-6. Controller wraps in ResponseEntity
+6. Controller wraps in `ResponseEntity<T>`
+7. On exception: `GlobalExceptionHandler` maps to appropriate HTTP status/body
+
+<!-- PLANNED CHANGES (refactor_2026.md):
+- Phase 4: DAOs will be consolidated and potentially renamed to *Repository
+-->

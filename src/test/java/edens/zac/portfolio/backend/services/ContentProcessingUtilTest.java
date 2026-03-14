@@ -4,23 +4,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
-import edens.zac.portfolio.backend.dao.CollectionContentDao;
-import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentCameraDao;
-import edens.zac.portfolio.backend.dao.ContentCollectionDao;
-import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
-import edens.zac.portfolio.backend.dao.ContentGifDao;
-import edens.zac.portfolio.backend.dao.ContentLensDao;
-import edens.zac.portfolio.backend.dao.ContentPersonDao;
-import edens.zac.portfolio.backend.dao.ContentTagDao;
-import edens.zac.portfolio.backend.dao.ContentTextDao;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.EquipmentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
@@ -39,46 +31,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 @ExtendWith(MockitoExtension.class)
 public class ContentProcessingUtilTest {
 
-  @Mock
-  private S3Client s3Client;
+  @Mock private S3Client s3Client;
+  @Mock private ContentRepository contentRepository;
+  @Mock private CollectionRepository collectionRepository;
+  @Mock private EquipmentRepository equipmentRepository;
+  @Mock private TagRepository tagRepository;
+  @Mock private PersonRepository personRepository;
+  @Mock private LocationRepository locationRepository;
+  @Mock private ContentImageUpdateValidator contentImageUpdateValidator;
+  @Mock private ContentValidator contentValidator;
 
-  @Mock
-  private ContentDao contentDao;
-  @Mock
-  private ContentCameraDao contentCameraDao;
-  @Mock
-  private ContentLensDao contentLensDao;
-  @Mock
-  private ContentFilmTypeDao contentFilmTypeDao;
-  @Mock
-  private ContentTagDao contentTagDao;
-  @Mock
-  private edens.zac.portfolio.backend.dao.TagDao tagDao;
-  @Mock
-  private edens.zac.portfolio.backend.dao.LocationDao locationDao;
-  @Mock
-  private ContentPersonDao contentPersonDao;
-  @Mock
-  private CollectionContentDao collectionContentDao;
-  @Mock
-  private CollectionDao collectionDao;
-  @Mock
-  private ContentTextDao contentTextDao;
-  @Mock
-  private ContentCollectionDao contentCollectionDao;
-  @Mock
-  private ContentGifDao contentGifDao;
-  @Mock
-  private ContentImageUpdateValidator contentImageUpdateValidator;
-  @Mock
-  private ContentValidator contentValidator;
-
-  @InjectMocks
-  private ContentProcessingUtil contentProcessingUtil;
+  @InjectMocks private ContentProcessingUtil contentProcessingUtil;
 
   private static final String BUCKET_NAME = "test-bucket";
   private static final String CLOUDFRONT_DOMAIN = "test.cloudfront.net";
@@ -88,9 +59,11 @@ public class ContentProcessingUtilTest {
     ReflectionTestUtils.setField(contentProcessingUtil, "bucketName", BUCKET_NAME);
     ReflectionTestUtils.setField(contentProcessingUtil, "cloudfrontDomain", CLOUDFRONT_DOMAIN);
 
-    // Mock tagDao.findContentTags() to return empty lists for all content IDs
+    // Mock tagRepository.findContentTags() to return empty lists for all content IDs
     // Using lenient() because not all tests use this mock
-    lenient().when(tagDao.findContentTags(anyLong())).thenReturn(java.util.Collections.emptyList());
+    lenient()
+        .when(tagRepository.findContentTags(anyLong()))
+        .thenReturn(java.util.Collections.emptyList());
   }
 
   @Test
@@ -98,34 +71,35 @@ public class ContentProcessingUtilTest {
     // Arrange
     ContentImageEntity entity = createContentImageEntity();
     // Mock location lookup
-    LocationEntity locationEntity = LocationEntity.builder().id(1L).locationName("Test Location").build();
-    when(locationDao.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
+    LocationEntity locationEntity =
+        LocationEntity.builder().id(1L).locationName("Test Location").build();
+    when(locationRepository.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
 
     // Act
     ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
     // Assert
-    assertInstanceOf(ContentImageModel.class, result);
-    ContentImageModel imageModel = (ContentImageModel) result;
-    assertEquals(entity.getId(), imageModel.getId());
-    assertEquals(entity.getContentType(), imageModel.getContentType());
-    assertEquals(entity.getTitle(), imageModel.getTitle());
-    assertEquals(entity.getImageWidth(), imageModel.getImageWidth());
-    assertEquals(entity.getImageHeight(), imageModel.getImageHeight());
-    assertEquals(entity.getIso(), imageModel.getIso());
-    assertEquals(entity.getAuthor(), imageModel.getAuthor());
-    assertEquals(entity.getRating(), imageModel.getRating());
-    assertEquals(entity.getFStop(), imageModel.getFStop());
-    assertEquals(entity.getLens().getLensName(), imageModel.getLens().getName());
-    assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
-    assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
-    assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
-    assertEquals(entity.getCamera().getCameraName(), imageModel.getCamera().getName());
-    assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
-    assertNotNull(imageModel.getLocation());
-    assertEquals("Test Location", imageModel.getLocation().getName());
-    assertEquals(1L, imageModel.getLocation().getId());
-    assertEquals(entity.getCreateDate(), imageModel.getCreateDate());
+    assertInstanceOf(ContentModels.Image.class, result);
+    ContentModels.Image imageModel = (ContentModels.Image) result;
+    assertEquals(entity.getId(), imageModel.id());
+    assertEquals(entity.getContentType(), imageModel.contentType());
+    assertEquals(entity.getTitle(), imageModel.title());
+    assertEquals(entity.getImageWidth(), imageModel.imageWidth());
+    assertEquals(entity.getImageHeight(), imageModel.imageHeight());
+    assertEquals(entity.getIso(), imageModel.iso());
+    assertEquals(entity.getAuthor(), imageModel.author());
+    assertEquals(entity.getRating(), imageModel.rating());
+    assertEquals(entity.getFStop(), imageModel.fStop());
+    assertEquals(entity.getLens().getLensName(), imageModel.lens().name());
+    assertEquals(entity.getBlackAndWhite(), imageModel.blackAndWhite());
+    assertEquals(entity.getIsFilm(), imageModel.isFilm());
+    assertEquals(entity.getShutterSpeed(), imageModel.shutterSpeed());
+    assertEquals(entity.getCamera().getCameraName(), imageModel.camera().name());
+    assertEquals(entity.getFocalLength(), imageModel.focalLength());
+    assertNotNull(imageModel.location());
+    assertEquals("Test Location", imageModel.location().name());
+    assertEquals(1L, imageModel.location().id());
+    assertEquals(entity.getCreateDate(), imageModel.createDate());
   }
 
   @Test
@@ -137,12 +111,12 @@ public class ContentProcessingUtilTest {
     ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
     // Assert
-    assertInstanceOf(ContentTextModel.class, result);
-    ContentTextModel textModel = (ContentTextModel) result;
-    assertEquals(entity.getId(), textModel.getId());
-    assertEquals(entity.getContentType(), textModel.getContentType());
-    assertEquals(entity.getTextContent(), textModel.getTextContent());
-    assertEquals(entity.getFormatType(), textModel.getFormatType());
+    assertInstanceOf(ContentModels.Text.class, result);
+    ContentModels.Text textModel = (ContentModels.Text) result;
+    assertEquals(entity.getId(), textModel.id());
+    assertEquals(entity.getContentType(), textModel.contentType());
+    assertEquals(entity.getTextContent(), textModel.textContent());
+    assertEquals(entity.getFormatType(), textModel.formatType());
   }
 
   @Test
@@ -154,17 +128,17 @@ public class ContentProcessingUtilTest {
     ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
     // Assert
-    assertInstanceOf(ContentGifModel.class, result);
-    ContentGifModel gifModel = (ContentGifModel) result;
-    assertEquals(entity.getId(), gifModel.getId());
-    assertEquals(entity.getContentType(), gifModel.getContentType());
-    assertEquals(entity.getTitle(), gifModel.getTitle());
-    assertEquals(entity.getGifUrl(), gifModel.getGifUrl());
-    assertEquals(entity.getThumbnailUrl(), gifModel.getThumbnailUrl());
-    assertEquals(entity.getWidth(), gifModel.getWidth());
-    assertEquals(entity.getHeight(), gifModel.getHeight());
-    assertEquals(entity.getAuthor(), gifModel.getAuthor());
-    assertEquals(entity.getCreateDate(), gifModel.getCreateDate());
+    assertInstanceOf(ContentModels.Gif.class, result);
+    ContentModels.Gif gifModel = (ContentModels.Gif) result;
+    assertEquals(entity.getId(), gifModel.id());
+    assertEquals(entity.getContentType(), gifModel.contentType());
+    assertEquals(entity.getTitle(), gifModel.title());
+    assertEquals(entity.getGifUrl(), gifModel.gifUrl());
+    assertEquals(entity.getThumbnailUrl(), gifModel.thumbnailUrl());
+    assertEquals(entity.getWidth(), gifModel.width());
+    assertEquals(entity.getHeight(), gifModel.height());
+    assertEquals(entity.getAuthor(), gifModel.author());
+    assertEquals(entity.getCreateDate(), gifModel.createDate());
   }
 
   @Test
@@ -174,11 +148,12 @@ public class ContentProcessingUtilTest {
     when(entity.getContentType()).thenReturn(null);
 
     // Act & Assert
-    Exception exception = assertThrows(
-        IllegalArgumentException.class,
-        () -> {
-          contentProcessingUtil.convertRegularContentEntityToModel(entity);
-        });
+    Exception exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> {
+              contentProcessingUtil.convertRegularContentEntityToModel(entity);
+            });
     assertTrue(exception.getMessage().contains("Unknown content type"));
   }
 
@@ -197,7 +172,7 @@ public class ContentProcessingUtilTest {
         .thenReturn(PutObjectResponse.builder().build());
 
     ContentImageEntity savedEntity = createContentImageEntity();
-    when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
+    when(contentRepository.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
 
     // Act
     ContentEntity result = contentProcessingUtil.processImageContent(file, title);
@@ -206,9 +181,16 @@ public class ContentProcessingUtilTest {
     assertNotNull(result);
     assertInstanceOf(ContentImageEntity.class, result);
     verify(s3Client, times(2))
-        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify S3 upload was called twice (full +
-                                                                         // webP)
-    verify(contentDao).saveImage(any(ContentImageEntity.class));
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify
+    // S3
+    // upload
+    // was
+    // called
+    // twice
+    // (full
+    // +
+    // webP)
+    verify(contentRepository).saveImage(any(ContentImageEntity.class));
   }
 
   @Test
@@ -225,59 +207,14 @@ public class ContentProcessingUtilTest {
     // code may fail
     // earlier
     // during image processing before reaching S3 upload.
-    Throwable exception = assertThrows(
-        Throwable.class,
-        () -> {
-          contentProcessingUtil.processImageContent(file, title);
-        });
+    Throwable exception =
+        assertThrows(
+            Throwable.class,
+            () -> {
+              contentProcessingUtil.processImageContent(file, title);
+            });
     assertTrue(exception instanceof RuntimeException || exception instanceof UnsatisfiedLinkError);
   }
-
-  // @Test
-  // void processTextContent_withValidText_shouldReturnTextContentEntity() {
-  // // Arrange
-  // String text = "This is test content";
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String caption = "Test Caption";
-  //
-  // ContentTextEntity savedEntity = createTextContentEntity();
-  // when(contentRepository.save(any(ContentTextEntity.class))).thenReturn(savedEntity);
-
-  // TODO: Commented out until we can abstract this logic out from it's main
-  // serviceImpl layer
-  // location
-  // Act
-  // ContentTextEntity result = contentProcessingUtil.processTextContent(text,
-  // collectionId,
-  // orderIndex, caption);
-
-  // // Assert
-  // assertNotNull(result);
-  // assertInstanceOf(ContentTextEntity.class, result);
-  // assertEquals(text, result.getTextContent());
-  // verify(contentRepository).save(any(ContentTextEntity.class));
-  // }
-
-  // @Test
-  // void processTextContent_withEmptyText_shouldThrowException() {
-  // // Arrange
-  // String text = "";
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String caption = "Test Caption";
-  //
-  // TODO: Commented out until we can abstract this logic out from it's main
-  // serviceImpl layer
-  // location
-  // // Act & Assert
-  // Exception exception = assertThrows(RuntimeException.class, () -> {
-  // contentProcessingUtil.processTextContent(text, collectionId, orderIndex,
-  // caption);
-  // });
-  // assertTrue(exception.getMessage().contains("Failed to process text content
-  // block"));
-  // }
 
   @Disabled("GIF saving not yet implemented in DAO layer - throws UnsupportedOperationException")
   @Test
@@ -295,7 +232,7 @@ public class ContentProcessingUtilTest {
 
     // Note: GIF saving not yet implemented in DAO layer
     // ContentGifEntity savedEntity = createContentGifEntity();
-    // when(contentGifDao.save(any(ContentGifEntity.class))).thenReturn(savedEntity);
+    // when(contentRepository.saveGif(any(ContentGifEntity.class))).thenReturn(savedEntity);
 
     // Act & Assert - Will throw UnsupportedOperationException until GIF DAO save is
     // implemented
@@ -317,12 +254,13 @@ public class ContentProcessingUtilTest {
 
     // Act & Assert
     // Note: May throw different exceptions depending on image library availability
-    Throwable exception = assertThrows(
-        Throwable.class,
-        () -> {
-          contentProcessingUtil.processGifContent(
-              file, collectionId, orderIndex, title, caption);
-        });
+    Throwable exception =
+        assertThrows(
+            Throwable.class,
+            () -> {
+              contentProcessingUtil.processGifContent(
+                  file, collectionId, orderIndex, title, caption);
+            });
     // Accept either the expected RuntimeException or other exceptions from image
     // processing
     assertTrue(
@@ -333,88 +271,6 @@ public class ContentProcessingUtilTest {
                     || exception.getMessage().contains("GIF"))));
   }
 
-  // @Test
-  // void reorderContent_withValidBlockIds_shouldUpdateOrderIndexes() {
-  // // Arrange
-  // Long collectionId = 1L;
-  // List<Long> blockIds = List.of(3L, 1L, 2L);
-  //
-  // List<ContentEntity> existingBlocks = new ArrayList<>();
-  // ContentEntity block1 = mock(ContentEntity.class);
-  // when(block1.getId()).thenReturn(1L);
-  // ContentEntity block2 = mock(ContentEntity.class);
-  // when(block2.getId()).thenReturn(2L);
-  // ContentEntity block3 = mock(ContentEntity.class);
-  // when(block3.getId()).thenReturn(3L);
-  // existingBlocks.add(block1);
-  // existingBlocks.add(block2);
-  // existingBlocks.add(block3);
-  //
-  // // // TODO: Update this with the new 'findCollectionOrderIndex'
-  ////// Integer orderIndex =
-  // collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
-  ////// orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
-  //
-  // when(contentRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
-  // when(contentRepository.saveAll(anyList())).thenReturn(existingBlocks);
-  //
-  // // Act
-  // List<ContentEntity> result =
-  // contentProcessingUtil.reorderContent(collectionId,
-  // blockIds);
-  //
-  // // Assert
-  // assertNotNull(result);
-  // assertEquals(3, result.size());
-  // verify(block3).setOrderIndex(0);
-  // verify(block1).setOrderIndex(1);
-  // verify(block2).setOrderIndex(2);
-  // verify(contentRepository).saveAll(anyList());
-  // }
-
-  // @Test
-  // void reorderContent_withEmptyBlockIds_shouldThrowException() {
-  // // Arrange
-  // Long collectionId = 1L;
-  // List<Long> blockIds = List.of();
-  //
-  // // Act & Assert
-  // Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-  // contentProcessingUtil.reorderContent(collectionId, blockIds);
-  // });
-  // assertTrue(exception.getMessage().contains("Block IDs list cannot be
-  // empty"));
-  // }
-
-  // @Test
-  // void reorderContent_withInvalidBlockId_shouldThrowException() {
-  // // Arrange
-  // Long collectionId = 1L;
-  // List<Long> blockIds = List.of(1L, 2L, 99L); // 99L doesn't exist
-  //
-  // List<ContentEntity> existingBlocks = new ArrayList<>();
-  // ContentEntity block1 = mock(ContentEntity.class);
-  // when(block1.getId()).thenReturn(1L);
-  // ContentEntity block2 = mock(ContentEntity.class);
-  // when(block2.getId()).thenReturn(2L);
-  // existingBlocks.add(block1);
-  // existingBlocks.add(block2);
-  //
-  // // TODO: Update this with the new 'findCollectionOrderIndex'
-
-  /// / Integer orderIndex =
-  // collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
-  /// / orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
-  //
-  // when(contentRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
-  //
-  // // Act & Assert
-  // Exception exception = assertThrows(RuntimeException.class, () -> {
-  // contentProcessingUtil.reorderContent(collectionId, blockIds);
-  // });
-  // assertTrue(exception.getMessage().contains("Failed to reorder content
-  // blocks"));
-  // }
   @Disabled
   @Test
   void processContentBlock_withImageType_shouldCallProcessImageContent() throws IOException {
@@ -433,7 +289,7 @@ public class ContentProcessingUtilTest {
         .thenReturn(PutObjectResponse.builder().build());
 
     ContentImageEntity imageEntity = createContentImageEntity();
-    when(contentDao.saveImage(any(ContentImageEntity.class))).thenReturn(imageEntity);
+    when(contentRepository.saveImage(any(ContentImageEntity.class))).thenReturn(imageEntity);
 
     // Act
     ContentEntity result = contentProcessingUtil.processImageContent(file, title);
@@ -442,58 +298,17 @@ public class ContentProcessingUtilTest {
     assertNotNull(result);
     assertInstanceOf(ContentImageEntity.class, result);
     verify(s3Client, times(2))
-        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify S3 upload was called twice (full +
-                                                                         // webP)
-    verify(contentDao).saveImage(any(ContentImageEntity.class));
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class)); // Verify
+    // S3
+    // upload
+    // was
+    // called
+    // twice
+    // (full
+    // +
+    // webP)
+    verify(contentRepository).saveImage(any(ContentImageEntity.class));
   }
-
-  // @Test
-  // void processContentBlock_withTextType_shouldCallProcessTextContent() {
-  // // Arrange
-  // MultipartFile file = null;
-  // ContentType type = ContentType.TEXT;
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String content = "This is test content";
-  // String language = null;
-  // String title = null;
-  // String caption = "Test Caption";
-  //
-  // ContentTextEntity textEntity = createTextContentEntity();
-  // when(contentRepository.save(any(ContentTextEntity.class))).thenReturn(textEntity);
-  //
-  // Commented out until we abstract our textProcessing from the
-  // ContentServiceImpl layer
-  // // Act
-  // ContentEntity result = contentProcessingUtil.processContent(
-  // file, type, collectionId, orderIndex, content, language, title, caption);
-  //
-  // // Assert
-  // assertNotNull(result);
-  // assertInstanceOf(ContentTextEntity.class, result);
-  // }
-
-  // @Test
-  // void processContent_withUnknownType_shouldThrowException() {
-  // // Arrange
-  // MultipartFile file = null;
-  // ContentType type = null;
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String content = null;
-  // String language = null;
-  // String title = null;
-  // String caption = null;
-  //
-  // TODO: Determine what our issue is here, do we even have a WAY of doing this
-  // any longer?
-  // // Act & Assert
-  // Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-  // contentProcessingUtil.processContent(
-  // file, type, collectionId, orderIndex, content, language, title, caption);
-  // });
-  // assertTrue(exception.getMessage().contains("Unknown content block type"));
-  // }
 
   // Helper methods to create test entities and models
 

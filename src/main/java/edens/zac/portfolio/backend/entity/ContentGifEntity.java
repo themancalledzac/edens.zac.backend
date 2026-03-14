@@ -47,8 +47,8 @@ public class ContentGifEntity extends ContentEntity {
   /** Column: create_date (VARCHAR) */
   private String createDate;
 
-  /** Relationship: Many-to-many with ContentTagEntity (via content_tags table) */
-  @Builder.Default private Set<ContentTagEntity> tags = new HashSet<>();
+  /** Relationship: Many-to-many with TagEntity (via content_tags table) */
+  @Builder.Default private Set<TagEntity> tags = new HashSet<>();
 
   @Override
   public ContentType getContentType() {

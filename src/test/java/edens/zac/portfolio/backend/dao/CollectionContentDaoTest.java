@@ -32,31 +32,31 @@ class CollectionContentDaoTest {
 
   @Captor private ArgumentCaptor<MapSqlParameterSource> paramsCaptor;
 
-  private CollectionContentDao dao;
+  private CollectionRepository collectionRepository;
 
   @BeforeEach
   void setUp() {
-    dao = new CollectionContentDao(jdbcTemplate);
+    collectionRepository = new CollectionRepository(jdbcTemplate);
     // Replace the internal namedParameterJdbcTemplate with our mock
-    setNamedParameterJdbcTemplate(dao, namedParameterJdbcTemplate);
+    setNamedParameterJdbcTemplate(collectionRepository, namedParameterJdbcTemplate);
   }
 
   private void setNamedParameterJdbcTemplate(
-      CollectionContentDao dao, NamedParameterJdbcTemplate template) {
+      CollectionRepository repository, NamedParameterJdbcTemplate template) {
     try {
       java.lang.reflect.Field field = BaseDao.class.getDeclaredField("namedParameterJdbcTemplate");
       field.setAccessible(true);
-      field.set(dao, template);
+      field.set(repository, template);
     } catch (Exception e) {
       throw new RuntimeException("Failed to set mock NamedParameterJdbcTemplate", e);
     }
   }
 
   @Nested
-  class BatchUpdateOrderIndexes {
+  class BatchUpdateContentOrderIndexes {
 
     @Test
-    void batchUpdateOrderIndexes_withMultipleItems_buildsCaseStatement() {
+    void batchUpdateContentOrderIndexes_withMultipleItems_buildsCaseStatement() {
       // Arrange
       Long collectionId = 1L;
       Map<Long, Integer> contentIdToOrderIndex = new HashMap<>();
@@ -68,7 +68,8 @@ class CollectionContentDaoTest {
           .thenReturn(3);
 
       // Act
-      int result = dao.batchUpdateOrderIndexes(collectionId, contentIdToOrderIndex);
+      int result =
+          collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
       // Assert
       assertThat(result).isEqualTo(3);
@@ -88,7 +89,7 @@ class CollectionContentDaoTest {
     }
 
     @Test
-    void batchUpdateOrderIndexes_withSingleItem_buildsCaseStatement() {
+    void batchUpdateContentOrderIndexes_withSingleItem_buildsCaseStatement() {
       // Arrange
       Long collectionId = 1L;
       Map<Long, Integer> contentIdToOrderIndex = Map.of(100L, 5);
@@ -97,7 +98,8 @@ class CollectionContentDaoTest {
           .thenReturn(1);
 
       // Act
-      int result = dao.batchUpdateOrderIndexes(collectionId, contentIdToOrderIndex);
+      int result =
+          collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
       // Assert
       assertThat(result).isEqualTo(1);
@@ -112,13 +114,14 @@ class CollectionContentDaoTest {
     }
 
     @Test
-    void batchUpdateOrderIndexes_withEmptyMap_returnsZero() {
+    void batchUpdateContentOrderIndexes_withEmptyMap_returnsZero() {
       // Arrange
       Long collectionId = 1L;
       Map<Long, Integer> contentIdToOrderIndex = Map.of();
 
       // Act
-      int result = dao.batchUpdateOrderIndexes(collectionId, contentIdToOrderIndex);
+      int result =
+          collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
       // Assert
       assertThat(result).isZero();
@@ -127,12 +130,12 @@ class CollectionContentDaoTest {
     }
 
     @Test
-    void batchUpdateOrderIndexes_withNullMap_returnsZero() {
+    void batchUpdateContentOrderIndexes_withNullMap_returnsZero() {
       // Arrange
       Long collectionId = 1L;
 
       // Act
-      int result = dao.batchUpdateOrderIndexes(collectionId, null);
+      int result = collectionRepository.batchUpdateContentOrderIndexes(collectionId, null);
 
       // Assert
       assertThat(result).isZero();

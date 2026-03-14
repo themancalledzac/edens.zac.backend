@@ -1,11 +1,10 @@
 package edens.zac.portfolio.backend.controller.dev;
 
-import edens.zac.portfolio.backend.model.ContentImageModel;
 import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
-import edens.zac.portfolio.backend.model.CreatePersonRequest;
-import edens.zac.portfolio.backend.model.CreateTagRequest;
-import edens.zac.portfolio.backend.model.CreateTextContentRequest;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.ContentService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -31,10 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Controller for Content write operations (dev environment only). Provides
- * endpoints for creating,
- * updating, and managing content, tags, and people. Exception handling is
- * delegated to
+ * Controller for Content write operations (dev environment only). Provides endpoints for creating,
+ * updating, and managing content, tags, and people. Exception handling is delegated to
  * GlobalExceptionHandler.
  */
 @Slf4j
@@ -46,21 +43,19 @@ public class ContentControllerDev {
   private final ContentService contentService;
 
   /**
-   * Create and upload images to a collection POST
-   * /api/admin/content/images/{collectionId}
+   * Create and upload images to a collection POST /api/admin/content/images/{collectionId}
    *
-   * <p>
-   * OPTIMIZED: Uses parallel processing for faster batch uploads. Images are
-   * processed
-   * concurrently (S3 upload, resize, convert) then saved to database in a single
-   * transaction.
+   * <p>OPTIMIZED: Uses parallel processing for faster batch uploads. Images are processed
+   * concurrently (S3 upload, resize, convert) then saved to database in a single transaction.
    *
    * @param collectionId ID of the collection to add images to
-   * @param files        List of image files to upload
+   * @param files List of image files to upload
    * @return ResponseEntity with created images
    */
-  @PostMapping(value = "/images/{collectionId}", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-  public ResponseEntity<List<ContentImageModel>> createImages(
+  @PostMapping(
+      value = "/images/{collectionId}",
+      consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
+  public ResponseEntity<ImageUploadResult> createImages(
       @PathVariable Long collectionId,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
@@ -68,9 +63,13 @@ public class ContentControllerDev {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    List<ContentImageModel> createdImages = contentService.createImagesParallel(collectionId, files);
-    log.info("Created {} image(s) in collection: {}", createdImages.size(), collectionId);
-    return ResponseEntity.status(HttpStatus.CREATED).body(createdImages);
+    ImageUploadResult result = contentService.createImagesParallel(collectionId, files);
+    log.info(
+        "Created {} image(s) in collection: {} ({} failed)",
+        result.successful().size(),
+        collectionId,
+        result.failed().size());
+    return ResponseEntity.status(HttpStatus.CREATED).body(result);
   }
 
   /**
@@ -81,7 +80,7 @@ public class ContentControllerDev {
    */
   @PostMapping("/content")
   public ResponseEntity<ContentModel> createTextContent(
-      @RequestBody @Valid CreateTextContentRequest request) {
+      @RequestBody @Valid ContentRequests.CreateTextContent request) {
     ContentModel textContent = contentService.createTextContent(request);
     if (textContent == null) {
       throw new IllegalArgumentException("Failed to create text content");
@@ -101,7 +100,8 @@ public class ContentControllerDev {
     Map<String, Object> response = contentService.updateImages(updates);
 
     @SuppressWarnings("unchecked")
-    List<ContentImageModel> updatedImages = (List<ContentImageModel>) response.get("updatedImages");
+    List<ContentModels.Image> updatedImages =
+        (List<ContentModels.Image>) response.get("updatedImages");
 
     if (updatedImages == null || updatedImages.isEmpty()) {
       throw new IllegalArgumentException("No images were updated");
@@ -111,23 +111,19 @@ public class ContentControllerDev {
   }
 
   /**
-   * Get all images ordered by date descending (newest first) GET
-   * /api/admin/content/images
+   * Get all images ordered by date descending (newest first) GET /api/admin/content/images
    *
-   * <p>
-   * OPTIMIZED: Uses database-level pagination to prevent loading all images at
-   * once.
+   * <p>OPTIMIZED: Uses database-level pagination to prevent loading all images at once.
    *
    * @param page Page number (0-indexed, default: 0)
    * @param size Page size (default: 50)
-   * @return ResponseEntity with paginated list of images sorted by createDate
-   *         descending
+   * @return ResponseEntity with paginated list of images sorted by createDate descending
    */
   @GetMapping("/images")
-  public ResponseEntity<Page<ContentImageModel>> getAllImages(
+  public ResponseEntity<Page<ContentModels.Image>> getAllImages(
       @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
     Pageable pageable = PageRequest.of(page, size);
-    Page<ContentImageModel> images = contentService.getAllImages(pageable);
+    Page<ContentModels.Image> images = contentService.getAllImages(pageable);
     return ResponseEntity.ok(images);
   }
 
@@ -165,8 +161,8 @@ public class ContentControllerDev {
    */
   @PostMapping("/tags")
   public ResponseEntity<Map<String, Object>> createTag(
-      @RequestBody @Valid CreateTagRequest request) {
-    String tagName = request.getTagName();
+      @RequestBody @Valid ContentRequests.CreateTag request) {
+    String tagName = request.tagName();
     Map<String, Object> response = contentService.createTag(tagName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
@@ -179,8 +175,8 @@ public class ContentControllerDev {
    */
   @PostMapping("/people")
   public ResponseEntity<Map<String, Object>> createPerson(
-      @RequestBody @Valid CreatePersonRequest request) {
-    String personName = request.getPersonName();
+      @RequestBody @Valid ContentRequests.CreatePerson request) {
+    String personName = request.personName();
     Map<String, Object> response = contentService.createPerson(personName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }

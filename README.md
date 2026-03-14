@@ -79,6 +79,29 @@ A scalable, enterprise-grade backend API service powering a photography and codi
 
 5. The API will be available at http://localhost:8080
 
+### Code formatting (editor)
+
+The build uses [Spotless](https://github.com/diffplug/spotless) with [google-java-format](https://github.com/google/google-java-format). Save and build use the same formatter.
+
+- **VS Code / Cursor**: Install the [Run On Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave) extension. This repo's `.vscode/settings.json` runs `mvn spotless:apply` when you save a `.java` file, so format-on-save matches the build. Java "Format on Save" is disabled for `[java]` so only Spotless runs.
+- **Command line**: `mvn spotless:apply` formats all Java sources.
+
+### Docker
+
+- **Backend only (EC2/external database)**  
+  Set `POSTGRES_HOST` (and other `POSTGRES_*`) in `.env` to your EC2 or external DB, then:
+  ```bash
+  docker-compose up --build
+  ```
+  Only the backend container runs; no local PostgreSQL.
+
+- **Backend + local PostgreSQL**  
+  Use when you want a local DB. In `.env` set `POSTGRES_HOST=database`, then:
+  ```bash
+  docker-compose --profile local-db up --build
+  ```
+  Starts the database first, then the backend (backend waits for DB health).
+
 ## 📝 API Documentation
 
 The API is organized into read and write operations to clearly separate data retrieval from data modification endpoints.

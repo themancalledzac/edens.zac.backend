@@ -11,8 +11,17 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zedens} -d ${POSTGRES_DB:-edens_zac}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-zedens} -d ${POSTGRES_DB:-edens_zac}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,7 +29,7 @@ services:
       postgres
       -c shared_buffers=256MB
       -c max_connections=100
-      -c log_statement=all
+      -c log_statement=ddl
       -c log_destination=stderr
 
   backend:
@@ -33,6 +42,11 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       # Database Config - Docker DNS (POSTGRES_HOST=database)
       SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST:-database}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-edens_zac}
