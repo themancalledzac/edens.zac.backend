@@ -2,7 +2,7 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.util.Arrays;
 import java.util.List;
@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/read/content")
 public class ContentControllerProd {
 
-  private final ContentService contentService;
+  private final MetadataService metadataService;
 
   /**
    * Get all tags (ordered alphabetically) GET /api/read/content/tags
@@ -33,7 +33,7 @@ public class ContentControllerProd {
    */
   @GetMapping("/tags")
   public ResponseEntity<List<Records.Tag>> getAllTags() {
-    List<Records.Tag> tags = contentService.getAllTags();
+    List<Records.Tag> tags = metadataService.getAllTags();
     return ResponseEntity.ok(tags);
   }
 
@@ -44,7 +44,7 @@ public class ContentControllerProd {
    */
   @GetMapping("/people")
   public ResponseEntity<List<Records.Person>> getAllPeople() {
-    List<Records.Person> people = contentService.getAllPeople();
+    List<Records.Person> people = metadataService.getAllPeople();
     return ResponseEntity.ok(people);
   }
 
@@ -55,7 +55,7 @@ public class ContentControllerProd {
    */
   @GetMapping("/cameras")
   public ResponseEntity<List<Records.Camera>> getAllCameras() {
-    List<Records.Camera> cameras = contentService.getAllCameras();
+    List<Records.Camera> cameras = metadataService.getAllCameras();
     return ResponseEntity.ok(cameras);
   }
 
@@ -69,7 +69,7 @@ public class ContentControllerProd {
    */
   @GetMapping("/film-metadata")
   public ResponseEntity<Map<String, Object>> getFilmMetadata() {
-    List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
+    List<ContentFilmTypeModel> filmTypes = metadataService.getAllFilmTypes();
 
     List<FilmFormatResponse> filmFormats =
         Arrays.stream(FilmFormat.values())

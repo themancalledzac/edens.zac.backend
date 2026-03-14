@@ -62,8 +62,8 @@
   <suppress checks="NeedBraces" files=".*[/\\]entity[/\\].*\.java"/>
 
   <!-- Suppress Javadoc on service implementation methods (previously exempt via @Override) -->
-  <suppress checks="MissingJavadocMethod" files="(CollectionService|ContentService)\.java"/>
-  <suppress checks="MissingJavadocType" files="(CollectionService|ContentService)\.java"/>
+  <suppress checks="MissingJavadocMethod" files="(CollectionService|ContentService|MetadataService)\.java"/>
+  <suppress checks="MissingJavadocType" files="(CollectionService|ContentService|MetadataService)\.java"/>
 
   <!-- Allow domain-specific naming patterns (fStop, ContentImages, etc.) in entities and models -->
   <suppress checks="MemberName" files=".*[/\\]entity[/\\].*\.java"/>

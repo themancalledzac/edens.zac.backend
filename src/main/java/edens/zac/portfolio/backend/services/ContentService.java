@@ -2,20 +2,13 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
-import edens.zac.portfolio.backend.dao.ContentCameraDao;
 import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.ContentFilmTypeDao;
-import edens.zac.portfolio.backend.dao.ContentLensDao;
-import edens.zac.portfolio.backend.dao.ContentPersonDao;
-import edens.zac.portfolio.backend.dao.ContentTagDao;
 import edens.zac.portfolio.backend.dao.ContentTextDao;
-import edens.zac.portfolio.backend.dao.LocationDao;
 import edens.zac.portfolio.backend.dao.TagDao;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.services.validator.MetadataValidator;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -30,7 +23,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,21 +33,15 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ContentService {
 
-  private final ContentTagDao contentTagDao;
   private final TagDao tagDao;
-  private final ContentPersonDao contentPersonDao;
-  private final ContentCameraDao contentCameraDao;
-  private final ContentLensDao contentLensDao;
-  private final ContentFilmTypeDao contentFilmTypeDao;
-  private final LocationDao locationDao;
   private final ContentDao contentDao;
   private final CollectionContentDao collectionContentDao;
   private final CollectionDao collectionDao;
   private final ContentTextDao contentTextDao;
   private final ContentProcessingUtil contentProcessingUtil;
   private final ContentImageUpdateValidator contentImageUpdateValidator;
-  private final MetadataValidator metadataValidator;
   private final ContentValidator contentValidator;
+  private final MetadataService metadataService;
 
   // Virtual thread executor for parallel image processing (Java 21+)
   // Virtual threads are lightweight and don't consume OS threads while waiting on
@@ -63,128 +49,12 @@ public class ContentService {
   private final ExecutorService imageProcessingExecutor =
       Executors.newVirtualThreadPerTaskExecutor();
 
-  @Transactional
-  @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createTag(String tagName) {
-    metadataValidator.validateTagName(tagName);
-    tagName = tagName.trim();
-
-    // Check if tag already exists (case-insensitive)
-    if (contentTagDao.existsByTagNameIgnoreCase(tagName)) {
-      throw new DataIntegrityViolationException("Tag already exists: " + tagName);
-    }
-
-    ContentTagEntity tag = new ContentTagEntity(tagName);
-    ContentTagEntity savedTag = contentTagDao.save(tag);
-
-    return Map.of(
-        "id",
-        savedTag.getId(),
-        "tagName",
-        savedTag.getTagName(),
-        "createdAt",
-        savedTag.getCreatedAt());
+    return metadataService.createTag(tagName);
   }
 
-  @Transactional
-  @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createPerson(String personName) {
-    metadataValidator.validatePersonName(personName);
-    personName = personName.trim();
-
-    // Check if person already exists (case-insensitive)
-    if (contentPersonDao.existsByPersonNameIgnoreCase(personName)) {
-      throw new DataIntegrityViolationException("Person already exists: " + personName);
-    }
-
-    ContentPersonEntity person = new ContentPersonEntity(personName);
-    ContentPersonEntity savedPerson = contentPersonDao.save(person);
-
-    return Map.of(
-        "id",
-        savedPerson.getId(),
-        "personName",
-        savedPerson.getPersonName(),
-        "createdAt",
-        savedPerson.getCreatedAt());
-  }
-
-  @Transactional
-  @CacheEvict(value = "generalMetadata", allEntries = true)
-  public Map<String, Object> createCamera(String cameraName, String bodySerialNumber) {
-    if (cameraName == null || cameraName.trim().isEmpty()) {
-      throw new IllegalArgumentException("cameraName is required");
-    }
-    cameraName = cameraName.trim();
-
-    // If serial number provided, check by serial number first (for deduplication)
-    if (bodySerialNumber != null && !bodySerialNumber.trim().isEmpty()) {
-      Optional<ContentCameraEntity> existing =
-          contentCameraDao.findByBodySerialNumber(bodySerialNumber);
-      if (existing.isPresent()) {
-        throw new DataIntegrityViolationException(
-            "Camera with serial number already exists: " + bodySerialNumber);
-      }
-    }
-
-    // Check if camera already exists by name (case-insensitive)
-    if (contentCameraDao.existsByCameraNameIgnoreCase(cameraName)) {
-      throw new DataIntegrityViolationException("Camera already exists: " + cameraName);
-    }
-
-    ContentCameraEntity camera =
-        ContentCameraEntity.builder()
-            .cameraName(cameraName)
-            .bodySerialNumber(bodySerialNumber != null ? bodySerialNumber.trim() : null)
-            .build();
-    ContentCameraEntity savedCamera = contentCameraDao.save(camera);
-
-    return Map.of(
-        "id",
-        savedCamera.getId(),
-        "cameraName",
-        savedCamera.getCameraName(),
-        "createdAt",
-        savedCamera.getCreatedAt());
-  }
-
-  @Transactional
-  @CacheEvict(value = "generalMetadata", allEntries = true)
-  public Map<String, Object> createLens(String lensName, String lensSerialNumber) {
-    if (lensName == null || lensName.trim().isEmpty()) {
-      throw new IllegalArgumentException("lensName is required");
-    }
-    lensName = lensName.trim();
-
-    // If serial number provided, check by serial number first (for deduplication)
-    if (lensSerialNumber != null && !lensSerialNumber.trim().isEmpty()) {
-      Optional<ContentLensEntity> existing =
-          contentLensDao.findByLensSerialNumber(lensSerialNumber);
-      if (existing.isPresent()) {
-        throw new DataIntegrityViolationException(
-            "Lens with serial number already exists: " + lensSerialNumber);
-      }
-    }
-
-    // Check if lens already exists by name (case-insensitive)
-    if (contentLensDao.existsByLensNameIgnoreCase(lensName)) {
-      throw new DataIntegrityViolationException("Lens already exists: " + lensName);
-    }
-
-    ContentLensEntity lens =
-        ContentLensEntity.builder()
-            .lensName(lensName)
-            .lensSerialNumber(lensSerialNumber != null ? lensSerialNumber.trim() : null)
-            .build();
-    ContentLensEntity savedLens = contentLensDao.save(lens);
-
-    return Map.of(
-        "id",
-        savedLens.getId(),
-        "lensName",
-        savedLens.getLensName(),
-        "createdAt",
-        savedLens.getCreatedAt());
+    return metadataService.createPerson(personName);
   }
 
   @Transactional
@@ -331,12 +201,14 @@ public class ContentService {
             .tags(
                 newlyCreatedTags.isEmpty()
                     ? null
-                    : newlyCreatedTags.stream().map(this::toTagModel).collect(Collectors.toList()))
+                    : newlyCreatedTags.stream()
+                        .map(e -> new Records.Tag(e.getId(), e.getTagName()))
+                        .collect(Collectors.toList()))
             .people(
                 newlyCreatedPeople.isEmpty()
                     ? null
                     : newlyCreatedPeople.stream()
-                        .map(this::toPersonModel)
+                        .map(e -> new Records.Person(e.getId(), e.getPersonName()))
                         .collect(Collectors.toList()))
             .cameras(
                 newlyCreatedCameras.isEmpty()
@@ -354,7 +226,7 @@ public class ContentService {
                 newlyCreatedFilmTypes.isEmpty()
                     ? null
                     : newlyCreatedFilmTypes.stream()
-                        .map(this::toFilmTypeModel)
+                        .map(metadataService::toFilmTypeModel)
                         .collect(Collectors.toList()))
             .build();
 
@@ -415,14 +287,7 @@ public class ContentService {
             contentProcessingUtil.createCamera(cameraName, null, newCameras);
         image.setCamera(camera);
       } else if (cameraUpdate.getPrev() != null) {
-        ContentCameraEntity camera =
-            contentCameraDao
-                .findById(cameraUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Camera not found: " + cameraUpdate.getPrev()));
-        image.setCamera(camera);
+        image.setCamera(metadataService.findCameraById(cameraUpdate.getPrev()));
       }
     }
 
@@ -438,12 +303,7 @@ public class ContentService {
         ContentLensEntity lens = contentProcessingUtil.createLens(lensName, null, newLenses);
         image.setLens(lens);
       } else if (lensUpdate.getPrev() != null) {
-        ContentLensEntity lens =
-            contentLensDao
-                .findById(lensUpdate.getPrev())
-                .orElseThrow(
-                    () -> new IllegalArgumentException("Lens not found: " + lensUpdate.getPrev()));
-        image.setLens(lens);
+        image.setLens(metadataService.findLensById(lensUpdate.getPrev()));
       }
     }
 
@@ -455,29 +315,11 @@ public class ContentService {
       } else if (filmTypeUpdate.getNewValue() != null) {
         ContentRequests.NewFilmType newFilmTypeRequest = filmTypeUpdate.getNewValue();
         String displayName = newFilmTypeRequest.filmTypeName().trim();
-        String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
-
-        var existing = contentFilmTypeDao.findByFilmTypeNameIgnoreCase(technicalName);
-        if (existing.isPresent()) {
-          image.setFilmType(existing.get());
-        } else {
-          ContentFilmTypeEntity newFilmType =
-              new ContentFilmTypeEntity(
-                  technicalName, displayName, newFilmTypeRequest.defaultIso());
-          newFilmType = contentFilmTypeDao.save(newFilmType);
-          image.setFilmType(newFilmType);
-          newFilmTypes.add(newFilmType);
-          log.info("Created new film type: {}", displayName);
-        }
+        image.setFilmType(
+            metadataService.findOrCreateFilmType(
+                displayName, newFilmTypeRequest.defaultIso(), newFilmTypes));
       } else if (filmTypeUpdate.getPrev() != null) {
-        ContentFilmTypeEntity filmType =
-            contentFilmTypeDao
-                .findById(filmTypeUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Film type not found: " + filmTypeUpdate.getPrev()));
-        image.setFilmType(filmType);
+        image.setFilmType(metadataService.findFilmTypeById(filmTypeUpdate.getPrev()));
       }
     }
 
@@ -492,18 +334,12 @@ public class ContentService {
       } else if (locationUpdate.newValue() != null && !locationUpdate.newValue().trim().isEmpty()) {
         // Create new location by name
         String locationName = locationUpdate.newValue().trim();
-        LocationEntity location = locationDao.findOrCreate(locationName);
+        LocationEntity location = metadataService.findOrCreateLocation(locationName);
         image.setLocationId(location.getId());
         log.info("Set location to: {} (ID: {})", locationName, location.getId());
       } else if (locationUpdate.prev() != null) {
         // Use existing location by ID
-        LocationEntity location =
-            locationDao
-                .findById(locationUpdate.prev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Location not found with ID: " + locationUpdate.prev()));
+        LocationEntity location = metadataService.findLocationById(locationUpdate.prev());
         image.setLocationId(location.getId());
         log.info("Set location to existing location ID: {}", location.getId());
       }
@@ -678,104 +514,6 @@ public class ContentService {
     }
 
     return Map.of("deletedIds", deletedIds, "deletedCount", deletedIds.size(), "errors", errors);
-  }
-
-  @Transactional(readOnly = true)
-  public List<Records.Tag> getAllTags() {
-    return contentTagDao.findAllByOrderByTagNameAsc().stream()
-        .map(this::toTagModel)
-        .collect(Collectors.toList());
-  }
-
-  @Transactional(readOnly = true)
-  public List<Records.Person> getAllPeople() {
-    return contentPersonDao.findAllByOrderByPersonNameAsc().stream()
-        .map(this::toPersonModel)
-        .collect(Collectors.toList());
-  }
-
-  @Transactional(readOnly = true)
-  public List<Records.Camera> getAllCameras() {
-    return contentCameraDao.findAllByOrderByCameraNameAsc().stream()
-        .map(ContentProcessingUtil::cameraEntityToCameraModel)
-        .collect(Collectors.toList());
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentFilmTypeModel> getAllFilmTypes() {
-    return contentFilmTypeDao.findAllByOrderByDisplayNameAsc().stream()
-        .map(this::toFilmTypeModel)
-        .collect(Collectors.toList());
-  }
-
-  @Transactional(readOnly = true)
-  public List<Records.Lens> getAllLenses() {
-    return contentLensDao.findAllByOrderByLensNameAsc().stream()
-        .map(ContentProcessingUtil::lensEntityToLensModel)
-        .collect(Collectors.toList());
-  }
-
-  @Transactional(readOnly = true)
-  public List<Records.Location> getAllLocations() {
-    return locationDao.findAllByOrderByLocationNameAsc().stream()
-        .map(this::toLocationModel)
-        .collect(Collectors.toList());
-  }
-
-  @Transactional
-  @CacheEvict(value = "generalMetadata", allEntries = true)
-  public Map<String, Object> createFilmType(
-      String filmTypeName, String displayName, Integer defaultIso) {
-    metadataValidator.validateFilmType(filmTypeName, displayName, defaultIso);
-    filmTypeName = filmTypeName.trim();
-    displayName = displayName.trim();
-
-    // Check if film type already exists
-    if (contentFilmTypeDao.existsByFilmTypeNameIgnoreCase(filmTypeName)) {
-      throw new DataIntegrityViolationException("Film type already exists: " + filmTypeName);
-    }
-
-    // Create and save
-    ContentFilmTypeEntity filmType =
-        new ContentFilmTypeEntity(filmTypeName, displayName, defaultIso);
-    filmType = contentFilmTypeDao.save(filmType);
-    log.info("Created film type: {} (ID: {})", filmType.getDisplayName(), filmType.getId());
-
-    // Return result
-    return Map.of(
-        "success",
-        true,
-        "message",
-        "Film type created successfully",
-        "filmType",
-        toFilmTypeModel(filmType));
-  }
-
-  // ========== Helper Methods: Entity to Model Conversion ==========
-
-  /** Convert ContentTagEntity to Records.Tag */
-  private Records.Tag toTagModel(ContentTagEntity entity) {
-    return new Records.Tag(entity.getId(), entity.getTagName());
-  }
-
-  /** Convert ContentPersonEntity to Records.Person */
-  private Records.Person toPersonModel(ContentPersonEntity entity) {
-    return new Records.Person(entity.getId(), entity.getPersonName());
-  }
-
-  /** Convert LocationEntity to Records.Location */
-  private Records.Location toLocationModel(LocationEntity entity) {
-    return new Records.Location(entity.getId(), entity.getLocationName());
-  }
-
-  /** Convert ContentFilmTypeEntity to ContentFilmTypeModel */
-  private ContentFilmTypeModel toFilmTypeModel(ContentFilmTypeEntity entity) {
-    return new ContentFilmTypeModel(
-        entity.getId(),
-        entity.getFilmTypeName(),
-        entity.getDisplayName(),
-        entity.getDefaultIso(),
-        List.of());
   }
 
   @Transactional(readOnly = true)

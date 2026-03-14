@@ -38,7 +38,7 @@ public class CollectionService {
   private final TagDao tagDao;
   private final ContentProcessingUtil contentProcessingUtil;
   private final CollectionProcessingUtil collectionProcessingUtil;
-  private final ContentService contentService;
+  private final MetadataService metadataService;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
 
@@ -578,14 +578,13 @@ public class CollectionService {
   public GeneralMetadataDTO getGeneralMetadata() {
     log.debug("Getting general metadata (cache miss)");
 
-    // Get all tags, people, locations, cameras, lenses, and film types from
-    // ContentService
-    List<Records.Tag> tags = contentService.getAllTags();
-    List<Records.Person> people = contentService.getAllPeople();
-    List<Records.Location> locations = contentService.getAllLocations();
-    List<Records.Camera> cameras = contentService.getAllCameras();
-    List<Records.Lens> lenses = contentService.getAllLenses();
-    List<ContentFilmTypeModel> filmTypes = contentService.getAllFilmTypes();
+    // Get all tags, people, locations, cameras, lenses, and film types from MetadataService
+    List<Records.Tag> tags = metadataService.getAllTags();
+    List<Records.Person> people = metadataService.getAllPeople();
+    List<Records.Location> locations = metadataService.getAllLocations();
+    List<Records.Camera> cameras = metadataService.getAllCameras();
+    List<Records.Lens> lenses = metadataService.getAllLenses();
+    List<ContentFilmTypeModel> filmTypes = metadataService.getAllFilmTypes();
 
     // Get all collections as Records.CollectionList (using projection for
     // efficiency)

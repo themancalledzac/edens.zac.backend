@@ -121,7 +121,4 @@ Key points:
 - `*ControllerProd` (`/api/read/...`): Read-only public endpoints, `@Profile("prod")`
 - Never expose dev/admin endpoints in production
 
-<!-- PLANNED CHANGES (refactor_2026.md Phase 3):
-- Interface/Impl split on services will be removed -- controllers will inject
-  the concrete service class directly instead of the interface
--->
+<!-- Phase 3a DONE: Interface/Impl split removed -- controllers inject concrete service classes directly -->
