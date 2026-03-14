@@ -14,7 +14,7 @@ import edens.zac.portfolio.backend.dao.CollectionContentDao;
 import edens.zac.portfolio.backend.dao.CollectionDao;
 import edens.zac.portfolio.backend.dao.ContentCollectionDao;
 import edens.zac.portfolio.backend.dao.ContentDao;
-import edens.zac.portfolio.backend.dao.ContentTextDao;
+import edens.zac.portfolio.backend.dao.TagDao;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -41,7 +41,7 @@ class CollectionServiceTest {
   @Mock private CollectionContentDao collectionContentDao;
   @Mock private ContentDao contentDao;
   @Mock private ContentCollectionDao contentCollectionDao;
-  @Mock private ContentTextDao contentTextDao;
+  @Mock private TagDao tagDao;
   @Mock private CollectionProcessingUtil collectionProcessingUtil;
   @Mock private ContentProcessingUtil contentProcessingUtil;
   @Mock private ContentService contentService;

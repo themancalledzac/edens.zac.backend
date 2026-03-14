@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -56,7 +57,7 @@ public final class Records {
    * Model representing a collection for list views. Contains the collection's ID, name, slug, and
    * type.
    */
-  public record CollectionList(Long id, String name, String slug, String type) {}
+  public record CollectionList(Long id, String name, String slug, CollectionType type) {}
 
   /**
    * DTO representing the relationship between a child entity (content or collection) and a parent

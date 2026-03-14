@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import static org.junit.jupiter.api.Assertions.*;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -39,7 +40,7 @@ class CollectionUpdateRequestTest {
       LocalDate collectionDate,
       Boolean clearCollectionDate,
       Boolean visible,
-      CollectionBaseModel.DisplayMode displayMode,
+      DisplayMode displayMode,
       String password,
       Integer contentPerPage,
       Integer rowsWide,
@@ -493,7 +494,7 @@ class CollectionUpdateRequestTest {
               null,
               null,
               null,
-              CollectionBaseModel.DisplayMode.CHRONOLOGICAL,
+              DisplayMode.CHRONOLOGICAL,
               null,
               null,
               null,
@@ -504,7 +505,7 @@ class CollectionUpdateRequestTest {
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
-      assertEquals(CollectionBaseModel.DisplayMode.CHRONOLOGICAL, dto.displayMode());
+      assertEquals(DisplayMode.CHRONOLOGICAL, dto.displayMode());
     }
 
     @Test
@@ -521,7 +522,7 @@ class CollectionUpdateRequestTest {
               null,
               null,
               null,
-              CollectionBaseModel.DisplayMode.ORDERED,
+              DisplayMode.ORDERED,
               null,
               null,
               null,
@@ -532,7 +533,7 @@ class CollectionUpdateRequestTest {
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
-      assertEquals(CollectionBaseModel.DisplayMode.ORDERED, dto.displayMode());
+      assertEquals(DisplayMode.ORDERED, dto.displayMode());
     }
 
     @Test

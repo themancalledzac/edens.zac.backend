@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.model;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Response DTO for the general metadata endpoint. Contains all metadata without a specific
@@ -22,4 +23,16 @@ public record GeneralMetadataDTO(
     /** All available film types with their metadata (display name, default ISO) */
     List<ContentFilmTypeModel> filmTypes,
     /** All available film formats (35mm, 120, etc.) */
-    List<Records.FilmFormat> filmFormats) {}
+    List<Records.FilmFormat> filmFormats) {
+
+  public GeneralMetadataDTO {
+    tags = Objects.requireNonNullElse(tags, List.of());
+    people = Objects.requireNonNullElse(people, List.of());
+    locations = Objects.requireNonNullElse(locations, List.of());
+    collections = Objects.requireNonNullElse(collections, List.of());
+    cameras = Objects.requireNonNullElse(cameras, List.of());
+    lenses = Objects.requireNonNullElse(lenses, List.of());
+    filmTypes = Objects.requireNonNullElse(filmTypes, List.of());
+    filmFormats = Objects.requireNonNullElse(filmFormats, List.of());
+  }
+}

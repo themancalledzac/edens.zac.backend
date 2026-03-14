@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.dao;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.DisplayMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -50,9 +51,7 @@ public class CollectionDao extends BaseDao {
         String displayMode = rs.getString("display_mode");
         if (displayMode != null) {
           try {
-            entity.setDisplayMode(
-                edens.zac.portfolio.backend.model.CollectionBaseModel.DisplayMode.valueOf(
-                    displayMode));
+            entity.setDisplayMode(DisplayMode.valueOf(displayMode));
           } catch (IllegalArgumentException e) {
             log.warn("Invalid display_mode value: {}", displayMode);
           }
@@ -185,7 +184,7 @@ public class CollectionDao extends BaseDao {
                 rs.getLong("id"),
                 rs.getString("title"),
                 rs.getString("slug"),
-                rs.getString("type")));
+                CollectionType.valueOf(rs.getString("type"))));
   }
 
   /** Save a new collection. Returns the entity with generated ID. */

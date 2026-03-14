@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import edens.zac.portfolio.backend.model.CollectionBaseModel;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -43,7 +43,7 @@ public class CollectionEntity {
   @NotNull private Boolean visible;
 
   /** Column: display_mode (VARCHAR) - enum: GRID, LIST, etc. */
-  private CollectionBaseModel.DisplayMode displayMode;
+  private DisplayMode displayMode;
 
   /** Column: cover_image_id (BIGINT, FK to content_image.id) */
   private Long coverImageId;

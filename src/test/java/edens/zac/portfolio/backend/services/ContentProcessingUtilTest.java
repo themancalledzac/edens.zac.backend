@@ -225,52 +225,6 @@ public class ContentProcessingUtilTest {
     assertTrue(exception instanceof RuntimeException || exception instanceof UnsatisfiedLinkError);
   }
 
-  // @Test
-  // void processTextContent_withValidText_shouldReturnTextContentEntity() {
-  // // Arrange
-  // String text = "This is test content";
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String caption = "Test Caption";
-  //
-  // ContentTextEntity savedEntity = createTextContentEntity();
-  // when(contentRepository.save(any(ContentTextEntity.class))).thenReturn(savedEntity);
-
-  // TODO: Commented out until we can abstract this logic out from it's main
-  // serviceImpl layer
-  // location
-  // Act
-  // ContentTextEntity result = contentProcessingUtil.processTextContent(text,
-  // collectionId,
-  // orderIndex, caption);
-
-  // // Assert
-  // assertNotNull(result);
-  // assertInstanceOf(ContentTextEntity.class, result);
-  // assertEquals(text, result.getTextContent());
-  // verify(contentRepository).save(any(ContentTextEntity.class));
-  // }
-
-  // @Test
-  // void processTextContent_withEmptyText_shouldThrowException() {
-  // // Arrange
-  // String text = "";
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String caption = "Test Caption";
-  //
-  // TODO: Commented out until we can abstract this logic out from it's main
-  // serviceImpl layer
-  // location
-  // // Act & Assert
-  // Exception exception = assertThrows(RuntimeException.class, () -> {
-  // contentProcessingUtil.processTextContent(text, collectionId, orderIndex,
-  // caption);
-  // });
-  // assertTrue(exception.getMessage().contains("Failed to process text content
-  // block"));
-  // }
-
   @Disabled("GIF saving not yet implemented in DAO layer - throws UnsupportedOperationException")
   @Test
   void processContentGif_withValidGif_shouldReturnGifContentEntity() throws IOException {
@@ -326,88 +280,6 @@ public class ContentProcessingUtilTest {
                     || exception.getMessage().contains("GIF"))));
   }
 
-  // @Test
-  // void reorderContent_withValidBlockIds_shouldUpdateOrderIndexes() {
-  // // Arrange
-  // Long collectionId = 1L;
-  // List<Long> blockIds = List.of(3L, 1L, 2L);
-  //
-  // List<ContentEntity> existingBlocks = new ArrayList<>();
-  // ContentEntity block1 = mock(ContentEntity.class);
-  // when(block1.getId()).thenReturn(1L);
-  // ContentEntity block2 = mock(ContentEntity.class);
-  // when(block2.getId()).thenReturn(2L);
-  // ContentEntity block3 = mock(ContentEntity.class);
-  // when(block3.getId()).thenReturn(3L);
-  // existingBlocks.add(block1);
-  // existingBlocks.add(block2);
-  // existingBlocks.add(block3);
-  //
-  // // // TODO: Update this with the new 'findCollectionOrderIndex'
-  ////// Integer orderIndex =
-  // collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
-  ////// orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
-  //
-  // when(contentRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
-  // when(contentRepository.saveAll(anyList())).thenReturn(existingBlocks);
-  //
-  // // Act
-  // List<ContentEntity> result =
-  // contentProcessingUtil.reorderContent(collectionId,
-  // blockIds);
-  //
-  // // Assert
-  // assertNotNull(result);
-  // assertEquals(3, result.size());
-  // verify(block3).setOrderIndex(0);
-  // verify(block1).setOrderIndex(1);
-  // verify(block2).setOrderIndex(2);
-  // verify(contentRepository).saveAll(anyList());
-  // }
-
-  // @Test
-  // void reorderContent_withEmptyBlockIds_shouldThrowException() {
-  // // Arrange
-  // Long collectionId = 1L;
-  // List<Long> blockIds = List.of();
-  //
-  // // Act & Assert
-  // Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-  // contentProcessingUtil.reorderContent(collectionId, blockIds);
-  // });
-  // assertTrue(exception.getMessage().contains("Block IDs list cannot be
-  // empty"));
-  // }
-
-  // @Test
-  // void reorderContent_withInvalidBlockId_shouldThrowException() {
-  // // Arrange
-  // Long collectionId = 1L;
-  // List<Long> blockIds = List.of(1L, 2L, 99L); // 99L doesn't exist
-  //
-  // List<ContentEntity> existingBlocks = new ArrayList<>();
-  // ContentEntity block1 = mock(ContentEntity.class);
-  // when(block1.getId()).thenReturn(1L);
-  // ContentEntity block2 = mock(ContentEntity.class);
-  // when(block2.getId()).thenReturn(2L);
-  // existingBlocks.add(block1);
-  // existingBlocks.add(block2);
-  //
-  // // TODO: Update this with the new 'findCollectionOrderIndex'
-
-  /// / Integer orderIndex =
-  // collectionContentRepository.getMaxOrderIndexForCollection(request.getCollectionId());
-  /// / orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
-  //
-  // when(contentRepository.findByCollectionIdOrderByOrderIndex(collectionId)).thenReturn(existingBlocks);
-  //
-  // // Act & Assert
-  // Exception exception = assertThrows(RuntimeException.class, () -> {
-  // contentProcessingUtil.reorderContent(collectionId, blockIds);
-  // });
-  // assertTrue(exception.getMessage().contains("Failed to reorder content
-  // blocks"));
-  // }
   @Disabled
   @Test
   void processContentBlock_withImageType_shouldCallProcessImageContent() throws IOException {
@@ -446,54 +318,6 @@ public class ContentProcessingUtilTest {
     // webP)
     verify(contentDao).saveImage(any(ContentImageEntity.class));
   }
-
-  // @Test
-  // void processContentBlock_withTextType_shouldCallProcessTextContent() {
-  // // Arrange
-  // MultipartFile file = null;
-  // ContentType type = ContentType.TEXT;
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String content = "This is test content";
-  // String language = null;
-  // String title = null;
-  // String caption = "Test Caption";
-  //
-  // ContentTextEntity textEntity = createTextContentEntity();
-  // when(contentRepository.save(any(ContentTextEntity.class))).thenReturn(textEntity);
-  //
-  // Commented out until we abstract our textProcessing from the
-  // ContentServiceImpl layer
-  // // Act
-  // ContentEntity result = contentProcessingUtil.processContent(
-  // file, type, collectionId, orderIndex, content, language, title, caption);
-  //
-  // // Assert
-  // assertNotNull(result);
-  // assertInstanceOf(ContentTextEntity.class, result);
-  // }
-
-  // @Test
-  // void processContent_withUnknownType_shouldThrowException() {
-  // // Arrange
-  // MultipartFile file = null;
-  // ContentType type = null;
-  // Long collectionId = 1L;
-  // Integer orderIndex = 0;
-  // String content = null;
-  // String language = null;
-  // String title = null;
-  // String caption = null;
-  //
-  // TODO: Determine what our issue is here, do we even have a WAY of doing this
-  // any longer?
-  // // Act & Assert
-  // Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-  // contentProcessingUtil.processContent(
-  // file, type, collectionId, orderIndex, content, language, title, caption);
-  // });
-  // assertTrue(exception.getMessage().contains("Unknown content block type"));
-  // }
 
   // Helper methods to create test entities and models
 

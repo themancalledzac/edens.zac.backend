@@ -592,7 +592,7 @@ public class CollectionService {
 
     // Convert FilmFormat enums to DTOs
     List<Records.FilmFormat> filmFormats =
-        java.util.Arrays.stream(FilmFormat.values())
+        Arrays.stream(FilmFormat.values())
             .map(this::convertToFilmFormatDTO)
             .collect(Collectors.toList());
 

@@ -9,6 +9,7 @@ import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
 import java.io.File;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
  */
 class ImageMetadataExtractionTest {
 
+  @Disabled("Diagnostic tool -- not an automated test")
   @Test
   void dumpAllMetadata() throws Exception {
     String imagePath = System.getProperty("image.path");

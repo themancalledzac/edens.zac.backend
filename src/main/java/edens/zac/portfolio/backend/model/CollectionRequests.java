@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
@@ -48,7 +49,7 @@ public final class CollectionRequests {
       /** Whether the collection is visible */
       Boolean visible,
       /** Display mode for ordering content in the collection */
-      CollectionBaseModel.DisplayMode displayMode,
+      DisplayMode displayMode,
       /** Password for client galleries (raw password, will be hashed) null = no change */
       @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters") String password,
       /** Number of content items per page */

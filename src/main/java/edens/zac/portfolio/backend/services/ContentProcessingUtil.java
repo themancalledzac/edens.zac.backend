@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.services;
 
-import com.adobe.internal.xmp.XMPConst;
 import com.adobe.internal.xmp.XMPException;
 import com.adobe.internal.xmp.XMPMeta;
 import com.adobe.internal.xmp.properties.XMPProperty;
@@ -694,7 +693,7 @@ public class ContentProcessingUtil {
     Map<String, String> metadata = extractImageMetadata(file);
 
     // Parse image capture date for S3 path organization
-    int[] dateComponents = parseImageDate(metadata.get("createDate"));
+    int[] dateComponents = parseImageDate(metadata.get("createDate"), metadata.get("modifyDate"));
     int imageYear = dateComponents[0];
     int imageMonth = dateComponents[1];
     log.info("Image capture date: {}/{}", imageYear, String.format("%02d", imageMonth));
@@ -721,7 +720,9 @@ public class ContentProcessingUtil {
     String finalFilename;
     if (isJpgFile(file) || isWebPFile(file)) {
       processedImageBytes = convertJpgToWebP(resizedImage);
-      assert originalFilename != null;
+      if (originalFilename == null) {
+        throw new IllegalArgumentException("Original filename must not be null");
+      }
       finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
     } else {
       throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
@@ -848,7 +849,7 @@ public class ContentProcessingUtil {
     Map<String, String> metadata = extractImageMetadata(file);
 
     // Parse image capture date for S3 path organization (year/month from EXIF)
-    int[] dateComponents = parseImageDate(metadata.get("createDate"));
+    int[] dateComponents = parseImageDate(metadata.get("createDate"), metadata.get("modifyDate"));
     int imageYear = dateComponents[0];
     int imageMonth = dateComponents[1];
     log.info("Image capture date: {}/{}", imageYear, String.format("%02d", imageMonth));
@@ -882,7 +883,9 @@ public class ContentProcessingUtil {
 
     if (isJpgFile(file) || isWebPFile(file)) {
       processedImageBytes = convertJpgToWebP(resizedImage);
-      assert originalFilename != null;
+      if (originalFilename == null) {
+        throw new IllegalArgumentException("Original filename must not be null");
+      }
       finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
     } else {
       throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
@@ -990,29 +993,6 @@ public class ContentProcessingUtil {
         extractFromXmpDirectory(xmpDirectory, metadata);
       }
 
-      // Last-resort fallback: xmp:CreateDate (NS_XMP namespace) for capture date.
-      // Lightroom writes manually-assigned capture dates here when DateTimeOriginal
-      // is absent (common for digital photos where date was set in Lightroom).
-      // Checked after the main XMP loop because NS_EXIF/DateTimeOriginal takes priority.
-      if (!metadata.containsKey("createDate")) {
-        for (XmpDirectory xmpDirectory : imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
-          XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
-          try {
-            XMPProperty prop = xmpMeta.getProperty(XMPConst.NS_XMP, "CreateDate");
-            if (prop != null && prop.getValue() != null) {
-              String value = new ImageMetadata.SimpleStringExtractor().extract(prop.getValue());
-              if (value != null) {
-                metadata.put("createDate", value);
-                log.info("Capture date found via xmp:CreateDate fallback: {}", value);
-                break;
-              }
-            }
-          } catch (XMPException e) {
-            // Property not present, continue
-          }
-        }
-      }
-
       if (!metadata.containsKey("createDate")) {
         log.warn("No capture date found in EXIF or XMP for file: {}", file.getOriginalFilename());
       }
@@ -1076,10 +1056,10 @@ public class ContentProcessingUtil {
         continue;
       }
 
-      // Try each property name in the namespace
-      for (String propertyName : xmpProperty.getPropertyNames()) {
+      // Try each (namespace, propertyName) pair in priority order
+      for (ImageMetadata.XmpProperty.NamespaceProp entry : xmpProperty.getEntries()) {
         try {
-          XMPProperty prop = xmpMeta.getProperty(xmpProperty.getNamespace(), propertyName);
+          XMPProperty prop = xmpMeta.getProperty(entry.namespace(), entry.propertyName());
 
           if (prop != null && prop.getValue() != null) {
             // Only set if not already extracted from EXIF
@@ -1087,12 +1067,17 @@ public class ContentProcessingUtil {
               String extractedValue = field.getExtractor().extract(prop.getValue());
               if (extractedValue != null) {
                 metadata.put(field.getFieldName(), extractedValue);
-                break; // Found value, stop trying other property names
+                break; // Found value, stop trying further fallbacks
               }
             }
           }
         } catch (XMPException e) {
-          // Property not found, continue to next
+          log.debug(
+              "XMP extraction failed for {}/{} (code {}): {}",
+              entry.namespace(),
+              entry.propertyName(),
+              e.getErrorCode(),
+              e.getMessage());
         }
       }
     }
@@ -1122,25 +1107,32 @@ public class ContentProcessingUtil {
    * Parse year and month from EXIF date string. EXIF date format is typically "2024:05:15
    * 14:30:00".
    *
-   * @param createDate The date string from EXIF metadata
-   * @return int[] {year, month} or current date as fallback
+   * @param createDate The capture date string from EXIF/XMP metadata
+   * @param modifyDate The modify date string (Lightroom export date), used as fallback
+   * @return int[] {year, month} or current date as last resort
    */
-  private int[] parseImageDate(String createDate) {
-    if (createDate == null || createDate.isEmpty()) {
-      LocalDate now = LocalDate.now();
-      return new int[] {now.getYear(), now.getMonthValue()};
+  private int[] parseImageDate(String createDate, String modifyDate) {
+    if (createDate != null && !createDate.isEmpty()) {
+      try {
+        // EXIF format: "2024:05:15 14:30:00" or ISO-8601: "2024-05-15T14:30:00"
+        String[] parts = createDate.split("[: T-]");
+        return new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
+      } catch (Exception e) {
+        log.warn("Failed to parse capture date '{}', trying modify date", createDate);
+      }
     }
-    try {
-      // EXIF format: "2024:05:15 14:30:00"
-      String[] parts = createDate.split("[: ]");
-      int year = Integer.parseInt(parts[0]);
-      int month = Integer.parseInt(parts[1]);
-      return new int[] {year, month};
-    } catch (Exception e) {
-      log.warn("Failed to parse EXIF date '{}', using current date", createDate);
-      LocalDate now = LocalDate.now();
-      return new int[] {now.getYear(), now.getMonthValue()};
+    if (modifyDate != null && !modifyDate.isEmpty()) {
+      try {
+        String[] parts = modifyDate.split("[: T-]");
+        log.info("Using modify date for S3 path: {}/{}", parts[0], parts[1]);
+        return new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
+      } catch (Exception e) {
+        log.warn("Failed to parse modify date '{}', using current date", modifyDate);
+      }
     }
+    log.warn("No valid date for S3 path, using current date");
+    LocalDate now = LocalDate.now();
+    return new int[] {now.getYear(), now.getMonthValue()};
   }
 
   /**

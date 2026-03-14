@@ -84,20 +84,25 @@ public class ImageMetadata {
      * Image capture date from EXIF/XMP metadata. Uses the original capture date/time from when the
      * photo was taken, not the file modification date.
      *
-     * <p>EXIF tags: "Date/Time Original" is the actual tag name format used by the
-     * metadata-extractor library (with spaces and slashes). "DateTimeOriginal" is included as a
-     * fallback for other tag name variations.
-     *
-     * <p>XMP property: Uses "DateTimeOriginal" (not "CreateDate") because: - "DateTimeOriginal" is
-     * the EXIF standard property name in XMP that corresponds to the EXIF DateTimeOriginal tag -
-     * "CreateDate" is a different XMP property that may represent file creation time rather than
-     * image capture time
+     * <p>Priority order: NS_EXIF/DateTimeOriginal (standard EXIF), NS_EXIF/DateTimeDigitized
+     * (fallback EXIF), NS_XMP/CreateDate (Lightroom digital exports), NS_PHOTOSHOP/DateCreated
+     * (also written by Lightroom on export).
      */
     CREATE_DATE(
         "createDate",
         ExifTags.of(
             "Date/Time Original", "DateTimeOriginal", "Date/Time Digitized", "DateTimeDigitized"),
-        XmpProperty.of(XMPConst.NS_EXIF, "DateTimeOriginal", "DateTimeDigitized"),
+        XmpProperty.ofFallbacks(
+            new XmpProperty.NamespaceProp(XMPConst.NS_EXIF, "DateTimeOriginal"),
+            new XmpProperty.NamespaceProp(XMPConst.NS_EXIF, "DateTimeDigitized"),
+            new XmpProperty.NamespaceProp(XMPConst.NS_XMP, "CreateDate"),
+            new XmpProperty.NamespaceProp(XMPConst.NS_PHOTOSHOP, "DateCreated")),
+        new SimpleStringExtractor()),
+
+    MODIFY_DATE(
+        "modifyDate",
+        ExifTags.of("Date/Time", "DateTime"),
+        XmpProperty.of(XMPConst.NS_XMP, "ModifyDate"),
         new SimpleStringExtractor()),
 
     BODY_SERIAL_NUMBER(
@@ -154,7 +159,7 @@ public class ImageMetadata {
     }
 
     public static ExifTags of(String... tagNames) {
-      return new ExifTags(Arrays.asList(tagNames));
+      return new ExifTags(List.of(tagNames));
     }
 
     public static ExifTags none() {
@@ -171,29 +176,37 @@ public class ImageMetadata {
   }
 
   /**
-   * Wrapper for XMP namespace and property names. XMP metadata is organized by namespace (e.g.,
-   * NS_EXIF) and property name (e.g., "ISOSpeedRatings").
+   * Wrapper for XMP namespace/property pairs to try in priority order. Each entry is a (namespace,
+   * propertyName) pair; the first one that yields a non-null value wins.
    */
   @Getter
   public static class XmpProperty {
-    private final String namespace;
-    private final List<String> propertyNames;
+    private final List<NamespaceProp> entries;
 
-    private XmpProperty(String namespace, List<String> propertyNames) {
-      this.namespace = namespace;
-      this.propertyNames = propertyNames;
+    /** A single XMP namespace + property name pair to look up. */
+    public record NamespaceProp(String namespace, String propertyName) {}
+
+    private XmpProperty(List<NamespaceProp> entries) {
+      this.entries = entries;
     }
 
+    /** Single namespace, one or more property names tried in order. */
     public static XmpProperty of(String namespace, String... propertyNames) {
-      return new XmpProperty(namespace, Arrays.asList(propertyNames));
+      return new XmpProperty(
+          Arrays.stream(propertyNames).map(p -> new NamespaceProp(namespace, p)).toList());
+    }
+
+    /** Multiple (namespace, propertyName) pairs tried in priority order. */
+    public static XmpProperty ofFallbacks(NamespaceProp... pairs) {
+      return new XmpProperty(List.of(pairs));
     }
 
     public static XmpProperty none() {
-      return new XmpProperty(null, Collections.emptyList());
+      return new XmpProperty(Collections.emptyList());
     }
 
     public boolean hasProperties() {
-      return namespace != null && !propertyNames.isEmpty();
+      return !entries.isEmpty();
     }
   }
 

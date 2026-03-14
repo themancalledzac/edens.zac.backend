@@ -11,6 +11,7 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.DisplayMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -101,13 +102,11 @@ public class CollectionProcessingUtil {
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
     // Use stored displayMode if available, otherwise compute default based on type
-    CollectionBaseModel.DisplayMode mode = entity.getDisplayMode();
+    DisplayMode mode = entity.getDisplayMode();
     if (mode == null) {
       // Fallback to computed default for existing records without displayMode
       mode =
-          entity.getType() == CollectionType.BLOG
-              ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
-              : CollectionBaseModel.DisplayMode.ORDERED;
+          entity.getType() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED;
     }
     model.setDisplayMode(mode);
 
@@ -283,9 +282,7 @@ public class CollectionProcessingUtil {
     entity.setTotalContent(0);
     // Set default displayMode based on type
     entity.setDisplayMode(
-        request.type() == CollectionType.BLOG
-            ? CollectionBaseModel.DisplayMode.CHRONOLOGICAL
-            : CollectionBaseModel.DisplayMode.ORDERED);
+        request.type() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED);
     // TODO: Re-implement password protection after migration
     // entity.setPasswordProtected(false);
     // entity.setPasswordHash(null);
@@ -544,7 +541,7 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /** Check if a collection is publicly visible. */
-  public static boolean isVisible(CollectionBaseModel model) {
+  public static boolean isVisible(CollectionModel model) {
     return model.getVisible() != null && model.getVisible();
   }
 
