@@ -46,16 +46,14 @@ public class CollectionProcessingUtil {
 
   /**
    * Helper method to populate coverImage on a model from an entity. Fetches the cover image by ID
-   * and converts to ContentImageModel with all metadata including imageWidth and imageHeight.
+   * and converts to ContentModels.Image with all metadata including imageWidth and imageHeight.
    */
   private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
     if (entity.getCoverImageId() != null) {
-      // Fetch the ContentImageEntity by ID and convert to ContentImageModel with full
-      // metadata
       ContentImageEntity coverImage =
           contentDao.findImageById(entity.getCoverImageId()).orElse(null);
       if (coverImage != null) {
-        ContentImageModel coverImageModel =
+        ContentModels.Image coverImageModel =
             contentProcessingUtil.convertImageEntityToModel(coverImage);
         model.setCoverImage(coverImageModel);
       }

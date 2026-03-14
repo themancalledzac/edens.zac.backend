@@ -29,14 +29,37 @@ class CollectionBaseModelTest {
     validator = factory.getValidator();
   }
 
-  /** Helper method to create a test ImageContentBlockModel */
-  private static ContentImageModel createTestContentImage(String imageUrl) {
-    ContentImageModel imageBlock = new ContentImageModel();
-    imageBlock.setId(123L);
-    imageBlock.setImageUrl(imageUrl);
-    imageBlock.setImageWidth(1920);
-    imageBlock.setImageHeight(1080);
-    return imageBlock;
+  /** Helper method to create a test image content model */
+  private static ContentModels.Image createTestContentImage(String imageUrl) {
+    return new ContentModels.Image(
+        123L,
+        edens.zac.portfolio.backend.types.ContentType.IMAGE,
+        null,
+        null,
+        imageUrl,
+        null,
+        null,
+        null,
+        null,
+        1920,
+        1080,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        java.util.List.of());
   }
 
   @Nested
@@ -75,7 +98,7 @@ class CollectionBaseModelTest {
       assertEquals(today, model.getCollectionDate());
       assertTrue(model.getVisible());
       assertNotNull(model.getCoverImage());
-      assertEquals("https://example.com/cover.jpg", model.getCoverImage().getImageUrl());
+      assertEquals("https://example.com/cover.jpg", model.getCoverImage().imageUrl());
       assertEquals(now, model.getCreatedAt());
       assertEquals(now, model.getUpdatedAt());
     }

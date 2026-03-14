@@ -62,7 +62,7 @@ public class CollectionModel {
 
   // === Content ===
 
-  @Valid private ContentImageModel coverImage;
+  @Valid private ContentModels.Image coverImage;
 
   private List<String> tags;
 

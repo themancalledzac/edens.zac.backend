@@ -26,7 +26,6 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -118,9 +117,9 @@ public class ContentProcessingUtil {
     // No need to unproxy - entities are loaded directly from DAOs
 
     return switch (entity.getContentType()) {
-      case IMAGE -> convertImageToModel((ContentImageEntity) entity);
-      case TEXT -> convertTextToModel((ContentTextEntity) entity);
-      case GIF -> convertGifToModel((ContentGifEntity) entity);
+      case IMAGE -> convertImageToModel((ContentImageEntity) entity, null, null);
+      case TEXT -> convertTextToModel((ContentTextEntity) entity, null, null);
+      case GIF -> convertGifToModel((ContentGifEntity) entity, null, null);
       case COLLECTION -> null;
     };
   }
@@ -233,20 +232,14 @@ public class ContentProcessingUtil {
       return convertRegularContentEntityToModel(content);
     }
 
-    // For COLLECTION type, we need to ensure the entity is properly resolved (not a
-    // proxy)
-    // before doing instanceof check, as COLLECTION entities may still be proxies
-    // even after bulk loading
+    Integer orderIndex = joinEntry.getOrderIndex();
+    Boolean visible = joinEntry.getVisible();
+
+    // For COLLECTION type, ensure the entity is properly resolved (not a proxy)
     if (content.getContentType() == ContentType.COLLECTION) {
-      // Resolve proxy if needed before instanceof check
       content = unproxyContentEntity(content);
       if (content instanceof ContentCollectionEntity contentCollectionEntity) {
-        ContentModel model = convertCollectionToModel(contentCollectionEntity, joinEntry);
-        if (model != null) {
-          model.setOrderIndex(joinEntry.getOrderIndex());
-          model.setVisible(joinEntry.getVisible());
-        }
-        return model;
+        return convertCollectionToModel(contentCollectionEntity, joinEntry);
       } else {
         log.error(
             "Content type is COLLECTION but entity is not ContentCollectionEntity after unproxy: {}",
@@ -255,39 +248,12 @@ public class ContentProcessingUtil {
       }
     }
 
-    // First convert to basic model (will handle IMAGE, TEXT, GIF)
-    ContentModel model = convertRegularContentEntityToModel(content);
-
-    if (model == null) {
-      log.error("Failed to convert content entity {} to model", content.getId());
-      return null;
-    }
-
-    // Populate join table metadata from the join table entry
-    model.setOrderIndex(joinEntry.getOrderIndex());
-    model.setVisible(joinEntry.getVisible());
-
-    return model;
-  }
-
-  /**
-   * Copy base properties from a ContentEntity to a ContentModel. Note: This does NOT populate join
-   * table fields (orderIndex, visible). Those must be set separately using the overloaded
-   * convertToModel method with CollectionContentEntity.
-   *
-   * @param entity The source entity
-   * @param model The target model
-   */
-  private void copyBaseProperties(ContentEntity entity, ContentModel model) {
-    model.setId(entity.getId());
-    model.setContentType(entity.getContentType());
-    model.setCreatedAt(entity.getCreatedAt());
-    model.setUpdatedAt(entity.getUpdatedAt());
-
-    // Join table fields (orderIndex, visible, description/caption) are NOT on
-    // ContentEntity
-    // They must be populated from CollectionContentEntity in the overloaded
-    // convertToModel method
+    return switch (content.getContentType()) {
+      case IMAGE -> convertImageToModel((ContentImageEntity) content, orderIndex, visible);
+      case TEXT -> convertTextToModel((ContentTextEntity) content, orderIndex, visible);
+      case GIF -> convertGifToModel((ContentGifEntity) content, orderIndex, visible);
+      case COLLECTION -> null; // handled above
+    };
   }
 
   public static Records.Camera cameraEntityToCameraModel(ContentCameraEntity entity) {
@@ -299,23 +265,27 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Convert a ContentImageEntity to a ContentImageModel. Public method for use by other utilities
-   * (e.g., CollectionProcessingUtil).
+   * Convert a ContentImageEntity to a ContentModels.Image. Public method for use by other utilities
+   * (e.g., CollectionProcessingUtil). orderIndex and visible are null when the image is not fetched
+   * in the context of a specific collection.
    *
    * @param entity The image content entity to convert
    * @return The corresponding image content model
    */
-  public ContentImageModel convertImageEntityToModel(ContentImageEntity entity) {
-    return convertImageToModel(entity);
+  public ContentModels.Image convertImageEntityToModel(ContentImageEntity entity) {
+    return convertImageToModel(entity, null, null);
   }
 
   /**
-   * Convert an ImageContentEntity to an ImageContentModel.
+   * Convert a ContentImageEntity to a ContentModels.Image record.
    *
    * @param entity The image content entity to convert
+   * @param orderIndex Position within the parent collection (null outside collection context)
+   * @param visible Visibility in the parent collection (null outside collection context)
    * @return The corresponding image content model
    */
-  private ContentImageModel convertImageToModel(ContentImageEntity entity) {
+  private ContentModels.Image convertImageToModel(
+      ContentImageEntity entity, Integer orderIndex, Boolean visible) {
     if (entity == null) {
       return null;
     }
@@ -330,86 +300,83 @@ public class ContentProcessingUtil {
       loadContentPeople(entity);
     }
 
-    ContentImageModel model = new ContentImageModel();
-
-    // Copy base properties
-    copyBaseProperties(entity, model);
-
-    // Copy image-specific properties
-    model.setTitle(entity.getTitle());
-    model.setImageWidth(entity.getImageWidth());
-    model.setImageHeight(entity.getImageHeight());
-    model.setIso(entity.getIso());
-    model.setAuthor(entity.getAuthor());
-    model.setRating(entity.getRating());
-    model.setFStop(entity.getFStop());
-    model.setLens(entity.getLens() != null ? lensEntityToLensModel(entity.getLens()) : null);
-    model.setBlackAndWhite(entity.getBlackAndWhite());
-    model.setIsFilm(entity.getIsFilm());
-    // Convert film type entity to display name
-    model.setFilmType(entity.getFilmType() != null ? entity.getFilmType().getDisplayName() : null);
-    model.setFilmFormat(entity.getFilmFormat());
-    model.setShutterSpeed(entity.getShutterSpeed());
-    // Map entity's imageUrlWeb to model's imageUrl field
-    model.setImageUrl(entity.getImageUrlWeb());
-    model.setCamera(
-        entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null);
-    model.setFocalLength(entity.getFocalLength());
-    // Convert locationId to LocationModel
+    Records.Location location = null;
     if (entity.getLocationId() != null) {
       LocationEntity locationEntity = locationDao.findById(entity.getLocationId()).orElse(null);
       if (locationEntity != null) {
-        model.setLocation(
-            new Records.Location(locationEntity.getId(), locationEntity.getLocationName()));
+        location = new Records.Location(locationEntity.getId(), locationEntity.getLocationName());
       }
     }
-    model.setCreateDate(entity.getCreateDate());
 
-    // Map tags - convert entities to simplified tag objects (id and name only)
-    model.setTags(convertTagsToModels(entity.getTags()));
-
-    // Map people - convert entities to simplified person objects (id and name only)
-    model.setPeople(convertPeopleToModels(entity.getPeople()));
-
-    // TODO: Populate collections array using join table
-    // This requires querying CollectionContentDao to find all collections
-    // containing this content
-    // For now, set empty list for minimum functionality
-    model.setCollections(new ArrayList<>());
-
-    return model;
+    return new ContentModels.Image(
+        entity.getId(),
+        entity.getContentType(),
+        entity.getTitle(),
+        null,
+        entity.getImageUrlWeb(),
+        orderIndex,
+        visible,
+        entity.getCreatedAt(),
+        entity.getUpdatedAt(),
+        entity.getImageWidth(),
+        entity.getImageHeight(),
+        entity.getIso(),
+        entity.getAuthor(),
+        entity.getRating(),
+        entity.getFStop(),
+        entity.getLens() != null ? lensEntityToLensModel(entity.getLens()) : null,
+        entity.getBlackAndWhite(),
+        entity.getIsFilm(),
+        entity.getFilmType() != null ? entity.getFilmType().getDisplayName() : null,
+        entity.getFilmFormat(),
+        entity.getShutterSpeed(),
+        entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null,
+        entity.getFocalLength(),
+        location,
+        entity.getCreateDate(),
+        convertTagsToModels(entity.getTags()),
+        convertPeopleToModels(entity.getPeople()),
+        new ArrayList<>());
   }
 
   /**
-   * Convert a TextContentEntity to a TextContentModel.
+   * Convert a ContentTextEntity to a ContentModels.Text record.
    *
    * @param entity The text content entity to convert
+   * @param orderIndex Position within the parent collection (null outside collection context)
+   * @param visible Visibility in the parent collection (null outside collection context)
    * @return The corresponding text content model
    */
-  private ContentTextModel convertTextToModel(ContentTextEntity entity) {
+  private ContentModels.Text convertTextToModel(
+      ContentTextEntity entity, Integer orderIndex, Boolean visible) {
     if (entity == null) {
       return null;
     }
 
-    ContentTextModel model = new ContentTextModel();
-
-    // Copy base properties
-    copyBaseProperties(entity, model);
-
-    // Copy text-specific properties
-    model.setTextContent(entity.getTextContent());
-    model.setFormatType(entity.getFormatType());
-
-    return model;
+    return new ContentModels.Text(
+        entity.getId(),
+        entity.getContentType(),
+        null,
+        null,
+        null,
+        orderIndex,
+        visible,
+        entity.getCreatedAt(),
+        entity.getUpdatedAt(),
+        entity.getTextContent(),
+        entity.getFormatType());
   }
 
   /**
-   * Convert a GifContentEntity to a GifContentModel.
+   * Convert a ContentGifEntity to a ContentModels.Gif record.
    *
    * @param entity The gif content entity to convert
+   * @param orderIndex Position within the parent collection (null outside collection context)
+   * @param visible Visibility in the parent collection (null outside collection context)
    * @return The corresponding gif content model
    */
-  private ContentGifModel convertGifToModel(ContentGifEntity entity) {
+  private ContentModels.Gif convertGifToModel(
+      ContentGifEntity entity, Integer orderIndex, Boolean visible) {
     if (entity == null) {
       return null;
     }
@@ -419,36 +386,34 @@ public class ContentProcessingUtil {
       loadContentTags(entity);
     }
 
-    ContentGifModel model = new ContentGifModel();
-
-    // Copy base properties
-    copyBaseProperties(entity, model);
-
-    // Copy gif-specific properties
-    model.setTitle(entity.getTitle());
-    model.setGifUrl(entity.getGifUrl());
-    model.setThumbnailUrl(entity.getThumbnailUrl());
-    model.setWidth(entity.getWidth());
-    model.setHeight(entity.getHeight());
-    model.setAuthor(entity.getAuthor());
-    model.setCreateDate(entity.getCreateDate());
-
-    // Map tags - convert entities to simplified tag objects (id and name only)
-    model.setTags(convertTagsToModels(entity.getTags()));
-
-    return model;
+    return new ContentModels.Gif(
+        entity.getId(),
+        entity.getContentType(),
+        entity.getTitle(),
+        null,
+        null,
+        orderIndex,
+        visible,
+        entity.getCreatedAt(),
+        entity.getUpdatedAt(),
+        entity.getGifUrl(),
+        entity.getThumbnailUrl(),
+        entity.getWidth(),
+        entity.getHeight(),
+        entity.getAuthor(),
+        entity.getCreateDate(),
+        convertTagsToModels(entity.getTags()));
   }
 
   /**
-   * Convert a ContentCollectionEntity to a ContentCollectionModel. This handles the COLLECTION
-   * content type by extracting data from the referenced collection.
+   * Convert a ContentCollectionEntity to a ContentModels.Collection. Extracts data from the
+   * referenced collection and populates join table metadata (orderIndex, visible) from joinEntry.
    *
-   * @param contentEntity The ContentCollectionEntity containing the reference to another collection
-   * @param joinEntry The join table entry containing collection-specific metadata (orderIndex,
-   *     visible)
-   * @return The converted ContentCollectionModel
+   * @param contentEntity The ContentCollectionEntity referencing another collection
+   * @param joinEntry The join table entry with collection-specific metadata
+   * @return The converted collection content model
    */
-  private ContentCollectionModel convertCollectionToModel(
+  private ContentModels.Collection convertCollectionToModel(
       ContentCollectionEntity contentEntity, CollectionContentEntity joinEntry) {
     if (contentEntity == null) {
       return null;
@@ -460,59 +425,38 @@ public class ContentProcessingUtil {
       return null;
     }
 
-    // Check if we only have the ID (loaded from bulk query via
-    // ContentDao.findAllByIds)
-    // and load full collection data from database
+    // Load full collection data if only the ID is present (from bulk query)
     Long referencedCollectionId = referencedCollection.getId();
     if (referencedCollectionId != null && referencedCollection.getTitle() == null) {
       log.debug(
           "Loading full collection data for referencedCollectionId: {}", referencedCollectionId);
       referencedCollection =
-          collectionDao
-              .findById(referencedCollectionId)
-              .orElse(referencedCollection); // Fall back to partial data if not found
+          collectionDao.findById(referencedCollectionId).orElse(referencedCollection);
     }
 
-    // Extract all needed fields (now from fully-loaded collection)
-    Long collectionId = referencedCollection.getId();
-    String title = referencedCollection.getTitle();
-    String slug = referencedCollection.getSlug();
-    CollectionType collectionType = referencedCollection.getType();
-    String description = referencedCollection.getDescription();
-
-    // Load cover image entity using coverImageId
-    ContentImageEntity coverImageEntity = null;
+    ContentModels.Image coverImage = null;
     if (referencedCollection.getCoverImageId() != null) {
-      coverImageEntity =
+      ContentImageEntity coverImageEntity =
           contentDao.findImageById(referencedCollection.getCoverImageId()).orElse(null);
+      if (coverImageEntity != null) {
+        coverImage = convertImageEntityToModel(coverImageEntity);
+      }
     }
 
-    ContentCollectionModel model = new ContentCollectionModel();
-
-    // Copy base properties from ContentEntity (sets id to content table ID)
-    copyBaseProperties(contentEntity, model);
-
-    // Set collection-specific fields from the referenced collection
-    // Note: id is already set by copyBaseProperties to contentEntity.getId()
-    // (content table ID)
-    // We set referencedCollectionId separately for navigation to the actual
-    // collection
-    model.setReferencedCollectionId(collectionId);
-    model.setTitle(title);
-    model.setSlug(slug);
-    model.setCollectionType(collectionType);
-    model.setDescription(description);
-
-    // Set full cover image model with dimensions and metadata
-    if (coverImageEntity != null) {
-      ContentImageModel coverImageModel = convertImageEntityToModel(coverImageEntity);
-      model.setCoverImage(coverImageModel);
-    }
-
-    // Join table metadata (orderIndex, visible) are set in the calling method
-    // Timestamps from ContentEntity are already set via copyBaseProperties
-
-    return model;
+    return new ContentModels.Collection(
+        contentEntity.getId(),
+        contentEntity.getContentType(),
+        referencedCollection.getTitle(),
+        referencedCollection.getDescription(),
+        null,
+        joinEntry != null ? joinEntry.getOrderIndex() : null,
+        joinEntry != null ? joinEntry.getVisible() : null,
+        contentEntity.getCreatedAt(),
+        contentEntity.getUpdatedAt(),
+        referencedCollection.getId(),
+        referencedCollection.getSlug(),
+        referencedCollection.getType(),
+        coverImage);
   }
 
   /**

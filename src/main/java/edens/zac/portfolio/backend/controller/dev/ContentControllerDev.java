@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.controller.dev;
 
-import edens.zac.portfolio.backend.model.ContentImageModel;
 import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.services.ContentService;
 import jakarta.validation.Valid;
@@ -54,7 +54,7 @@ public class ContentControllerDev {
   @PostMapping(
       value = "/images/{collectionId}",
       consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
-  public ResponseEntity<List<ContentImageModel>> createImages(
+  public ResponseEntity<List<ContentModels.Image>> createImages(
       @PathVariable Long collectionId,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
@@ -62,7 +62,7 @@ public class ContentControllerDev {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    List<ContentImageModel> createdImages =
+    List<ContentModels.Image> createdImages =
         contentService.createImagesParallel(collectionId, files);
     log.info("Created {} image(s) in collection: {}", createdImages.size(), collectionId);
     return ResponseEntity.status(HttpStatus.CREATED).body(createdImages);
@@ -96,7 +96,8 @@ public class ContentControllerDev {
     Map<String, Object> response = contentService.updateImages(updates);
 
     @SuppressWarnings("unchecked")
-    List<ContentImageModel> updatedImages = (List<ContentImageModel>) response.get("updatedImages");
+    List<ContentModels.Image> updatedImages =
+        (List<ContentModels.Image>) response.get("updatedImages");
 
     if (updatedImages == null || updatedImages.isEmpty()) {
       throw new IllegalArgumentException("No images were updated");
@@ -115,10 +116,10 @@ public class ContentControllerDev {
    * @return ResponseEntity with paginated list of images sorted by createDate descending
    */
   @GetMapping("/images")
-  public ResponseEntity<Page<ContentImageModel>> getAllImages(
+  public ResponseEntity<Page<ContentModels.Image>> getAllImages(
       @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
     Pageable pageable = PageRequest.of(page, size);
-    Page<ContentImageModel> images = contentService.getAllImages(pageable);
+    Page<ContentModels.Image> images = contentService.getAllImages(pageable);
     return ResponseEntity.ok(images);
   }
 

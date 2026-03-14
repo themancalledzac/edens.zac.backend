@@ -196,7 +196,7 @@ public class ContentService {
     contentValidator.validateImageUpdates(updates);
 
     // Track updated images and newly created metadata
-    List<ContentImageModel> updatedImages = new ArrayList<>();
+    List<ContentModels.Image> updatedImages = new ArrayList<>();
     Set<ContentTagEntity> newlyCreatedTags = new HashSet<>();
     Set<ContentPersonEntity> newlyCreatedPeople = new HashSet<>();
     Set<ContentCameraEntity> newlyCreatedCameras = new HashSet<>();
@@ -301,8 +301,8 @@ public class ContentService {
         imagesToSave.add(image);
 
         // Convert to model and add to results
-        ContentImageModel imageModel =
-            (ContentImageModel) contentProcessingUtil.convertRegularContentEntityToModel(image);
+        ContentModels.Image imageModel =
+            (ContentModels.Image) contentProcessingUtil.convertRegularContentEntityToModel(image);
         updatedImages.add(imageModel);
 
       } catch (IllegalArgumentException e) {
@@ -779,17 +779,17 @@ public class ContentService {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentImageModel> getAllImages() {
+  public List<ContentModels.Image> getAllImages() {
     return contentDao.findAllImagesOrderByCreateDateDesc().stream()
         .map(
             entity ->
-                (ContentImageModel)
+                (ContentModels.Image)
                     contentProcessingUtil.convertRegularContentEntityToModel(entity))
         .collect(Collectors.toList());
   }
 
   @Transactional(readOnly = true)
-  public org.springframework.data.domain.Page<ContentImageModel> getAllImages(
+  public org.springframework.data.domain.Page<ContentModels.Image> getAllImages(
       org.springframework.data.domain.Pageable pageable) {
     // Get total count for pagination
     int total = contentDao.countImages();
@@ -800,11 +800,11 @@ public class ContentService {
             pageable.getPageSize(), (int) pageable.getOffset());
 
     // Convert to models
-    List<ContentImageModel> imageModels =
+    List<ContentModels.Image> imageModels =
         imageEntities.stream()
             .map(
                 entity ->
-                    (ContentImageModel)
+                    (ContentModels.Image)
                         contentProcessingUtil.convertRegularContentEntityToModel(entity))
             .collect(Collectors.toList());
 
@@ -816,7 +816,7 @@ public class ContentService {
    * performance. Kept for backward compatibility.
    */
   @Transactional
-  public List<ContentImageModel> createImages(Long collectionId, List<MultipartFile> files) {
+  public List<ContentModels.Image> createImages(Long collectionId, List<MultipartFile> files) {
     log.warn(
         "Using deprecated sequential image processing. Consider using parallel processing for better performance.");
     log.debug("Creating images for collection ID: {}", collectionId);
@@ -828,7 +828,7 @@ public class ContentService {
         .findById(collectionId)
         .orElseThrow(() -> new IllegalArgumentException("Collection not found: " + collectionId));
 
-    List<ContentImageModel> createdImages = new ArrayList<>();
+    List<ContentModels.Image> createdImages = new ArrayList<>();
 
     // Get the next order index for this collection
     Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(collectionId);
@@ -864,11 +864,11 @@ public class ContentService {
 
             // STEP 3: Convert to model with join table metadata and add to results
             ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
-            if (contentModel instanceof ContentImageModel imageModel) {
+            if (contentModel instanceof ContentModels.Image imageModel) {
               createdImages.add(imageModel);
             } else {
               log.error(
-                  "Expected ContentImageModel but got {}",
+                  "Expected ContentModels.Image but got {}",
                   contentModel != null ? contentModel.getClass() : "null");
             }
 
@@ -900,7 +900,7 @@ public class ContentService {
    * @param files List of image files to upload
    * @return List of successfully created images
    */
-  public List<ContentImageModel> createImagesParallel(
+  public List<ContentModels.Image> createImagesParallel(
       Long collectionId, List<MultipartFile> files) {
     log.info(
         "Creating {} images for collection {} with parallel processing (batch size: {})",
@@ -994,11 +994,11 @@ public class ContentService {
    * @return List of created image models
    */
   @Transactional
-  private List<ContentImageModel> saveProcessedImages(
+  private List<ContentModels.Image> saveProcessedImages(
       Long collectionId, List<PreparedImage> preparedImages) {
     log.debug("Saving {} prepared images to database", preparedImages.size());
 
-    List<ContentImageModel> createdImages = new ArrayList<>();
+    List<ContentModels.Image> createdImages = new ArrayList<>();
 
     // Get the next order index for this collection
     Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(collectionId);
@@ -1022,7 +1022,7 @@ public class ContentService {
 
         // Convert to model
         ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
-        if (contentModel instanceof ContentImageModel imageModel) {
+        if (contentModel instanceof ContentModels.Image imageModel) {
           createdImages.add(imageModel);
         }
 
@@ -1041,7 +1041,7 @@ public class ContentService {
   private record PreparedImage(ContentProcessingUtil.PreparedImageData data, String filename) {}
 
   @Transactional
-  public ContentTextModel createTextContent(ContentRequests.CreateTextContent request) {
+  public ContentModels.Text createTextContent(ContentRequests.CreateTextContent request) {
     log.debug("Creating text content for collection ID: {}", request.collectionId());
 
     contentValidator.validateTextContent(request.textContent());
@@ -1085,11 +1085,11 @@ public class ContentService {
 
     // Convert to model and return
     ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
-    if (contentModel instanceof ContentTextModel textModel) {
+    if (contentModel instanceof ContentModels.Text textModel) {
       return textModel;
     } else {
       throw new IllegalStateException(
-          "Expected ContentTextModel but got "
+          "Expected ContentModels.Text but got "
               + (contentModel != null ? contentModel.getClass() : "null"));
     }
   }

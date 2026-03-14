@@ -432,7 +432,7 @@ public class CollectionService {
 
   /**
    * Populate collections on content items in a CollectionModel. Batch-loads all collections for all
-   * content items and populates the collections field on ContentImageModel instances. This avoids
+   * content items and populates the collections field on ContentModels.Image instances. This avoids
    * N+1 queries by pre-loading all collections and cover images upfront.
    *
    * @param model The CollectionModel with content items to populate
@@ -445,7 +445,7 @@ public class CollectionService {
     // Extract all content IDs for batch loading
     List<Long> contentIds =
         model.getContent().stream()
-            .map(ContentModel::getId)
+            .map(ContentModel::id)
             .filter(Objects::nonNull)
             .distinct()
             .toList();
@@ -491,13 +491,13 @@ public class CollectionService {
                     Collectors.toMap(
                         ContentImageEntity::getId, ContentImageEntity::getImageUrlWeb));
 
-    // Populate collections for image content
+    // Populate collections for image content (records are immutable — use withCollections)
     List<ContentModel> contents =
         model.getContent().stream()
-            .peek(
+            .map(
                 content -> {
-                  if (content instanceof ContentImageModel imageModel) {
-                    Long contentId = content.getId();
+                  if (content instanceof ContentModels.Image imageModel) {
+                    Long contentId = content.id();
                     List<CollectionContentEntity> contentCollections =
                         collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
                     List<Records.ChildCollection> childCollections =
@@ -508,8 +508,9 @@ public class CollectionService {
                                         joinEntry, collectionsById, coverImageUrlsById))
                             .filter(Objects::nonNull)
                             .collect(Collectors.toList());
-                    imageModel.setCollections(childCollections);
+                    return (ContentModel) imageModel.withCollections(childCollections);
                   }
+                  return content;
                 })
             .collect(Collectors.toList());
 
@@ -518,7 +519,7 @@ public class CollectionService {
 
   /**
    * Convert a CollectionContentEntity to a ChildCollection model using pre-loaded collections and
-   * cover images. Used for populating the collections field in ContentImageModel. This avoids N+1
+   * cover images. Used for populating the collections field in ContentModels.Image. This avoids N+1
    * queries by using maps instead of individual database lookups.
    *
    * @param joinEntry The join table entry

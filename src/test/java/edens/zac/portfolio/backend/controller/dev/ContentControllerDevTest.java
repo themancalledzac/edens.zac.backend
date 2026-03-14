@@ -35,7 +35,7 @@ class ContentControllerDevTest {
 
   private ObjectMapper objectMapper;
 
-  private List<ContentImageModel> testImages;
+  private List<ContentModels.Image> testImages;
 
   @BeforeEach
   void setUp() {
@@ -50,10 +50,36 @@ class ContentControllerDevTest {
             .build();
 
     // Create test image model
-    ContentImageModel testImage = new ContentImageModel();
-    testImage.setId(1L);
-    testImage.setContentType(ContentType.IMAGE);
-    testImage.setTitle("Test Image");
+    ContentModels.Image testImage =
+        new ContentModels.Image(
+            1L,
+            ContentType.IMAGE,
+            "Test Image",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            java.util.List.of());
 
     testImages = List.of(testImage);
   }
@@ -444,7 +470,7 @@ class ContentControllerDevTest {
     // Arrange
     org.springframework.data.domain.Pageable pageable =
         org.springframework.data.domain.PageRequest.of(0, 50);
-    org.springframework.data.domain.Page<ContentImageModel> page =
+    org.springframework.data.domain.Page<ContentModels.Image> page =
         new org.springframework.data.domain.PageImpl<>(testImages, pageable, testImages.size());
     when(contentService.getAllImages(any(org.springframework.data.domain.Pageable.class)))
         .thenReturn(page);

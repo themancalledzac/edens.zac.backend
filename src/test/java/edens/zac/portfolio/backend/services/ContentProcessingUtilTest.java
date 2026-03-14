@@ -16,7 +16,8 @@ import edens.zac.portfolio.backend.dao.ContentPersonDao;
 import edens.zac.portfolio.backend.dao.ContentTagDao;
 import edens.zac.portfolio.backend.dao.ContentTextDao;
 import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
@@ -88,27 +89,27 @@ public class ContentProcessingUtilTest {
     ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
     // Assert
-    assertInstanceOf(ContentImageModel.class, result);
-    ContentImageModel imageModel = (ContentImageModel) result;
-    assertEquals(entity.getId(), imageModel.getId());
-    assertEquals(entity.getContentType(), imageModel.getContentType());
-    assertEquals(entity.getTitle(), imageModel.getTitle());
-    assertEquals(entity.getImageWidth(), imageModel.getImageWidth());
-    assertEquals(entity.getImageHeight(), imageModel.getImageHeight());
-    assertEquals(entity.getIso(), imageModel.getIso());
-    assertEquals(entity.getAuthor(), imageModel.getAuthor());
-    assertEquals(entity.getRating(), imageModel.getRating());
-    assertEquals(entity.getFStop(), imageModel.getFStop());
-    assertEquals(entity.getLens().getLensName(), imageModel.getLens().name());
-    assertEquals(entity.getBlackAndWhite(), imageModel.getBlackAndWhite());
-    assertEquals(entity.getIsFilm(), imageModel.getIsFilm());
-    assertEquals(entity.getShutterSpeed(), imageModel.getShutterSpeed());
-    assertEquals(entity.getCamera().getCameraName(), imageModel.getCamera().name());
-    assertEquals(entity.getFocalLength(), imageModel.getFocalLength());
-    assertNotNull(imageModel.getLocation());
-    assertEquals("Test Location", imageModel.getLocation().name());
-    assertEquals(1L, imageModel.getLocation().id());
-    assertEquals(entity.getCreateDate(), imageModel.getCreateDate());
+    assertInstanceOf(ContentModels.Image.class, result);
+    ContentModels.Image imageModel = (ContentModels.Image) result;
+    assertEquals(entity.getId(), imageModel.id());
+    assertEquals(entity.getContentType(), imageModel.contentType());
+    assertEquals(entity.getTitle(), imageModel.title());
+    assertEquals(entity.getImageWidth(), imageModel.imageWidth());
+    assertEquals(entity.getImageHeight(), imageModel.imageHeight());
+    assertEquals(entity.getIso(), imageModel.iso());
+    assertEquals(entity.getAuthor(), imageModel.author());
+    assertEquals(entity.getRating(), imageModel.rating());
+    assertEquals(entity.getFStop(), imageModel.fStop());
+    assertEquals(entity.getLens().getLensName(), imageModel.lens().name());
+    assertEquals(entity.getBlackAndWhite(), imageModel.blackAndWhite());
+    assertEquals(entity.getIsFilm(), imageModel.isFilm());
+    assertEquals(entity.getShutterSpeed(), imageModel.shutterSpeed());
+    assertEquals(entity.getCamera().getCameraName(), imageModel.camera().name());
+    assertEquals(entity.getFocalLength(), imageModel.focalLength());
+    assertNotNull(imageModel.location());
+    assertEquals("Test Location", imageModel.location().name());
+    assertEquals(1L, imageModel.location().id());
+    assertEquals(entity.getCreateDate(), imageModel.createDate());
   }
 
   @Test
@@ -120,12 +121,12 @@ public class ContentProcessingUtilTest {
     ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
     // Assert
-    assertInstanceOf(ContentTextModel.class, result);
-    ContentTextModel textModel = (ContentTextModel) result;
-    assertEquals(entity.getId(), textModel.getId());
-    assertEquals(entity.getContentType(), textModel.getContentType());
-    assertEquals(entity.getTextContent(), textModel.getTextContent());
-    assertEquals(entity.getFormatType(), textModel.getFormatType());
+    assertInstanceOf(ContentModels.Text.class, result);
+    ContentModels.Text textModel = (ContentModels.Text) result;
+    assertEquals(entity.getId(), textModel.id());
+    assertEquals(entity.getContentType(), textModel.contentType());
+    assertEquals(entity.getTextContent(), textModel.textContent());
+    assertEquals(entity.getFormatType(), textModel.formatType());
   }
 
   @Test
@@ -137,17 +138,17 @@ public class ContentProcessingUtilTest {
     ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
 
     // Assert
-    assertInstanceOf(ContentGifModel.class, result);
-    ContentGifModel gifModel = (ContentGifModel) result;
-    assertEquals(entity.getId(), gifModel.getId());
-    assertEquals(entity.getContentType(), gifModel.getContentType());
-    assertEquals(entity.getTitle(), gifModel.getTitle());
-    assertEquals(entity.getGifUrl(), gifModel.getGifUrl());
-    assertEquals(entity.getThumbnailUrl(), gifModel.getThumbnailUrl());
-    assertEquals(entity.getWidth(), gifModel.getWidth());
-    assertEquals(entity.getHeight(), gifModel.getHeight());
-    assertEquals(entity.getAuthor(), gifModel.getAuthor());
-    assertEquals(entity.getCreateDate(), gifModel.getCreateDate());
+    assertInstanceOf(ContentModels.Gif.class, result);
+    ContentModels.Gif gifModel = (ContentModels.Gif) result;
+    assertEquals(entity.getId(), gifModel.id());
+    assertEquals(entity.getContentType(), gifModel.contentType());
+    assertEquals(entity.getTitle(), gifModel.title());
+    assertEquals(entity.getGifUrl(), gifModel.gifUrl());
+    assertEquals(entity.getThumbnailUrl(), gifModel.thumbnailUrl());
+    assertEquals(entity.getWidth(), gifModel.width());
+    assertEquals(entity.getHeight(), gifModel.height());
+    assertEquals(entity.getAuthor(), gifModel.author());
+    assertEquals(entity.getCreateDate(), gifModel.createDate());
   }
 
   @Test

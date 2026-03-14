@@ -65,9 +65,10 @@
   <suppress checks="MissingJavadocMethod" files="(CollectionService|ContentService)\.java"/>
   <suppress checks="MissingJavadocType" files="(CollectionService|ContentService)\.java"/>
 
-  <!-- Allow domain-specific naming patterns (fStop, ContentImages, etc.) in entities -->
+  <!-- Allow domain-specific naming patterns (fStop, ContentImages, etc.) in entities and models -->
   <suppress checks="MemberName" files=".*[/\\]entity[/\\].*\.java"/>
   <suppress checks="MemberName" files=".*[/\\]model[/\\].*\.java"/>
+  <suppress checks="RecordComponentName" files=".*[/\\]model[/\\].*\.java"/>
 
   <!-- Allow slightly longer lines in model/DTO classes for field declarations -->
   <suppress checks="LineLength" files=".*[/\\]model[/\\].*\.java"/>

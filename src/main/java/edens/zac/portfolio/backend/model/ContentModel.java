@@ -3,84 +3,61 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import edens.zac.portfolio.backend.types.ContentType;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
-@Data
-@NoArgsConstructor
+/**
+ * Sealed interface for all content block types. Pattern matching on subtypes is exhaustive.
+ *
+ * <p>Jackson polymorphism is driven by the {@code contentType} property. Spring Boot 3.4 / Jackson
+ * 2.15+ support sealed interfaces and record canonical constructors without extra configuration.
+ */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
     include = JsonTypeInfo.As.EXISTING_PROPERTY,
-    property = "contentType")
+    property = "contentType",
+    visible = true)
 @JsonSubTypes({
-  @JsonSubTypes.Type(value = ContentImageModel.class, name = "IMAGE"),
-  @JsonSubTypes.Type(value = ContentTextModel.class, name = "TEXT"),
-  //        @JsonSubTypes.Type(value = ContentCodeModel.class, name = "CODE"),
-  @JsonSubTypes.Type(value = ContentGifModel.class, name = "GIF"),
-  @JsonSubTypes.Type(value = ContentCollectionModel.class, name = "COLLECTION")
+  @JsonSubTypes.Type(value = ContentModels.Image.class, name = "IMAGE"),
+  @JsonSubTypes.Type(value = ContentModels.Text.class, name = "TEXT"),
+  @JsonSubTypes.Type(value = ContentModels.Gif.class, name = "GIF"),
+  @JsonSubTypes.Type(value = ContentModels.Collection.class, name = "COLLECTION")
 })
-public class ContentModel {
-  /**
-   * The content table ID. Consistent across all content types. Use this ID for reordering content
-   * within collections. - For IMAGE: ContentImageEntity.id (same as content.id due to JOINED
-   * inheritance) - For COLLECTION: ContentCollectionEntity.id (use referencedCollectionId to
-   * navigate to the actual collection) - For TEXT/GIF: Their respective entity IDs
-   */
-  private Long id;
+public sealed interface ContentModel
+    permits ContentModels.Image, ContentModels.Text, ContentModels.Gif, ContentModels.Collection {
 
-  /** Type of content (IMAGE, TEXT, CODE, GIF, COLLECTION). Used for frontend rendering logic. */
-  @NotNull private ContentType contentType;
+  /** Content-table primary key. Same across all types; use for reordering. */
+  Long id();
 
-  /**
-   * Title of this content. - For IMAGE: Image title - For COLLECTION: Collection title - For
-   * TEXT/CODE/GIF: Content title
-   */
-  @Size(max = 250) private String title;
+  /** Discriminator used by Jackson and frontend rendering logic. */
+  ContentType contentType();
+
+  /** Human-readable title for the content block. */
+  String title();
 
   /**
-   * Description text for this content. Populated from: - For COLLECTION content: The referenced
-   * collection's description field - For all other content: The content entity's own
-   * description/title field
+   * Description text. Populated for COLLECTION content from the referenced collection; null for
+   * IMAGE / TEXT / GIF.
    */
-  @Size(max = 500) private String description;
+  String description();
 
   /**
-   * Preview/cover image URL. - For IMAGE: The image URL itself - For COLLECTION: The collection's
-   * cover image URL - For GIF: The GIF or thumbnail URL - For TEXT/CODE: null (no image)
+   * Preview URL. For IMAGE this is the web-quality image URL; for COLLECTION this is the cover
+   * image URL; null for TEXT.
    */
-  private String imageUrl;
-
-  // =============================================================================
-  // JOIN TABLE METADATA (from collection_content)
-  // These fields are populated from CollectionContentEntity when content is
-  // fetched in the context of a specific collection. Same content can have
-  // different values in different collections.
-  // =============================================================================
+  String imageUrl();
 
   /**
-   * Position of this content within the parent collection. Lower values appear first.
-   * Collection-specific. Populated from collection_content.order_index.
+   * Position of this content within its parent collection. Null when content is fetched outside a
+   * collection context (e.g., admin image list).
    */
-  @NotNull @Min(0) private Integer orderIndex;
+  Integer orderIndex();
 
-  /**
-   * Whether this content is visible in the parent collection. Same content can be visible in one
-   * collection but hidden in another. Populated from collection_content.visible. Defaults to true
-   * if not specified.
-   */
-  private Boolean visible;
+  /** Visibility flag within the parent collection. Null outside a collection context. */
+  Boolean visible();
 
-  // =============================================================================
-  // CONTENT METADATA (from content table)
-  // =============================================================================
+  /** When the content entity was created. */
+  LocalDateTime createdAt();
 
-  /** When this content was created. */
-  private LocalDateTime createdAt;
-
-  /** When this content was last updated. */
-  private LocalDateTime updatedAt;
+  /** When the content entity was last updated. */
+  LocalDateTime updatedAt();
 }

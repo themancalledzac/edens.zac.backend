@@ -12,7 +12,7 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDateTime;
@@ -127,10 +127,18 @@ class CollectionProcessingUtilTest {
         .thenAnswer(
             invocation -> {
               ContentEntity entity = invocation.getArgument(0);
-              ContentModel model = new ContentModel();
-              model.setId(entity.getId());
-              model.setContentType(entity.getContentType());
-              return model;
+              return new ContentModels.Text(
+                  entity.getId(),
+                  entity.getContentType(),
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null);
             });
 
     // Act
@@ -140,8 +148,8 @@ class CollectionProcessingUtilTest {
     assertNotNull(model);
     assertNotNull(model.getContent());
     assertEquals(2, model.getContent().size());
-    assertEquals(testBlocks.get(0).getId(), model.getContent().get(0).getId());
-    assertEquals(testBlocks.get(1).getId(), model.getContent().get(1).getId());
+    assertEquals(testBlocks.get(0).getId(), model.getContent().get(0).id());
+    assertEquals(testBlocks.get(1).getId(), model.getContent().get(1).id());
   }
 
   // TODO: Fix

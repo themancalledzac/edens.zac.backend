@@ -16,7 +16,7 @@ Package: `edens.zac.portfolio.backend`
 ```
 controller/dev/   - Development endpoints (@Profile("dev"))
 controller/prod/  - Production endpoints (@Profile("prod"))
-services/         - Business logic (interface + *ServiceImpl)
+services/         - Business logic (concrete *Service classes, no interface/Impl split)
 dao/              - Data access (JDBC via NamedParameterJdbcTemplate, not JPA repositories)
 entity/           - JPA entities (*Entity suffix)
 model/            - DTOs, requests, responses (*Model, *Request, *ResponseDTO)
@@ -27,7 +27,7 @@ config/           - Spring configuration
 ## Naming Conventions
 - **Entities**: `*Entity` (e.g., `CollectionEntity`, `ContentEntity`, `ContentImageEntity`)
 - **Models/DTOs**: `*Model`, `*Request`, `*ResponseDTO`
-- **Services**: Interface `*Service`, implementation `*ServiceImpl` (package-private)
+- **Services**: Concrete class `*Service` (no interface, no `*ServiceImpl` suffix)
 - **Controllers**: `*ControllerDev` (dev profile) / `*ControllerProd` (prod profile)
 
 ## Key Rules

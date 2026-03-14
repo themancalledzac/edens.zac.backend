@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,42 +18,58 @@ class ContentModelSerializationTest {
   @BeforeEach
   void setUp() {
     objectMapper = new ObjectMapper();
-    // Configure ObjectMapper for LocalDateTime serialization
     objectMapper.findAndRegisterModules();
   }
 
   @Test
-  @DisplayName("ContentModel should serialize to JSON correctly")
-  void contentModel_shouldSerializeToJson() throws IOException {
-    // Arrange
+  @DisplayName("ContentModels.Image should serialize to JSON correctly")
+  void imageModel_shouldSerializeToJson() throws IOException {
     LocalDateTime now = LocalDateTime.of(2023, 1, 1, 12, 0, 0);
 
-    ContentModel model = new ContentModel();
-    model.setId(1L);
-    model.setOrderIndex(3);
-    model.setContentType(ContentType.IMAGE);
-    model.setTitle("Test caption");
-    model.setCreatedAt(now);
-    model.setUpdatedAt(now);
+    ContentModels.Image model =
+        new ContentModels.Image(
+            1L,
+            ContentType.IMAGE,
+            "Test caption",
+            null,
+            "https://example.com/img.jpg",
+            3,
+            true,
+            now,
+            now,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of());
 
-    // Act
     String json = objectMapper.writeValueAsString(model);
 
-    // Assert
     assertTrue(json.contains("\"id\":1"));
     assertTrue(json.contains("\"orderIndex\":3"));
     assertTrue(json.contains("\"contentType\":\"IMAGE\""));
     assertTrue(json.contains("\"title\":\"Test caption\""));
-
-    // Check for date format as array [year,month,day,hour,minute]
     assertTrue(json.contains("\"createdAt\":[2023,1,1,12,0]"));
     assertTrue(json.contains("\"updatedAt\":[2023,1,1,12,0]"));
   }
 
   @Test
-  @DisplayName("ContentModel should deserialize from JSON correctly")
-  void contentModel_shouldDeserializeFromJson() throws IOException {
-    // Arrange
+  @DisplayName("ContentModels.Image should deserialize from JSON correctly")
+  void imageModel_shouldDeserializeFromJson() throws IOException {
     String jsonContent =
         """
             {
@@ -67,100 +82,86 @@ class ContentModelSerializationTest {
             }
             """;
 
-    // Act
-    ContentImageModel result = objectMapper.readValue(jsonContent, ContentImageModel.class);
+    ContentModels.Image result = objectMapper.readValue(jsonContent, ContentModels.Image.class);
 
-    // Set contentType explicitly since it's not being properly deserialized
-    result.setContentType(ContentType.IMAGE);
-
-    // Assert
-    assertEquals(1L, result.getId());
-    assertEquals(3, result.getOrderIndex());
-    assertEquals(ContentType.IMAGE, result.getContentType());
-    assertEquals(LocalDateTime.of(2023, 1, 1, 12, 0, 0), result.getCreatedAt());
-    assertEquals(LocalDateTime.of(2023, 1, 1, 12, 0, 0), result.getUpdatedAt());
+    assertEquals(1L, result.id());
+    assertEquals(3, result.orderIndex());
+    assertEquals(ContentType.IMAGE, result.contentType());
+    assertEquals(LocalDateTime.of(2023, 1, 1, 12, 0, 0), result.createdAt());
+    assertEquals(LocalDateTime.of(2023, 1, 1, 12, 0, 0), result.updatedAt());
   }
 
   @Test
-  @DisplayName("ContentModel should handle null optional fields during serialization")
-  void contentModel_shouldHandleNullOptionalFields() throws IOException {
-    // Arrange
-    ContentModel model = new ContentModel();
-    model.setOrderIndex(0);
-    model.setContentType(ContentType.TEXT);
-    // Leave id, caption, createdAt, updatedAt as null
-
-    // Act
-    String json = objectMapper.writeValueAsString(model);
-
-    // Assert
-    assertTrue(json.contains("\"orderIndex\":0"));
-    assertTrue(json.contains("\"contentType\":\"TEXT\""));
-
-    // Check that null fields are either not present or explicitly null
-    // Different Jackson configurations might handle this differently
-    assertTrue(json.contains("\"id\":null") || !json.contains("\"id\""));
-    assertTrue(json.contains("\"title\":null") || !json.contains("\"title\""));
-    assertTrue(json.contains("\"createdAt\":null") || !json.contains("\"createdAt\""));
-    assertTrue(json.contains("\"updatedAt\":null") || !json.contains("\"updatedAt\""));
-  }
-
-  @Test
-  @DisplayName("ContentModel subclasses should serialize and deserialize with polymorphism")
+  @DisplayName("ContentModel sealed subtypes should serialize and deserialize with polymorphism")
   void contentModel_shouldHandlePolymorphicSerialization() throws IOException {
-    // Arrange
     LocalDateTime now = LocalDateTime.of(2023, 1, 1, 12, 0, 0);
 
-    // Create an ImageContentModel
-    ContentImageModel imageModel = new ContentImageModel();
-    imageModel.setId(1L);
-    imageModel.setOrderIndex(0);
-    imageModel.setContentType(ContentType.IMAGE);
-    imageModel.setCreatedAt(now);
-    imageModel.setUpdatedAt(now);
-    imageModel.setImageUrl("https://example.com/image.jpg");
-    imageModel.setImageWidth(1200);
-    imageModel.setImageHeight(800);
+    ContentModels.Image imageModel =
+        new ContentModels.Image(
+            1L,
+            ContentType.IMAGE,
+            null,
+            null,
+            "https://example.com/image.jpg",
+            0,
+            true,
+            now,
+            now,
+            1200,
+            800,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of());
 
-    // Create a TextContentModel
-    ContentTextModel textModel = new ContentTextModel();
-    textModel.setId(2L);
-    textModel.setOrderIndex(1);
-    textModel.setContentType(ContentType.TEXT);
-    textModel.setCreatedAt(now);
-    textModel.setUpdatedAt(now);
-    textModel.setTextContent("This is some text content");
+    ContentModels.Text textModel =
+        new ContentModels.Text(
+            2L,
+            ContentType.TEXT,
+            null,
+            null,
+            null,
+            1,
+            true,
+            now,
+            now,
+            "This is some text content",
+            "markdown");
 
-    // Create a list of ContentModel containing different subclasses
-    List<ContentModel> content = new ArrayList<>();
-    content.add(imageModel);
-    content.add(textModel);
+    List<ContentModel> content = List.of(imageModel, textModel);
 
-    // Act
-    // Serialize the list to JSON
     String json = objectMapper.writeValueAsString(content);
 
-    // Deserialize back to a list of ContentModel
     List<ContentModel> deserializedContent =
         objectMapper.readValue(
             json,
             objectMapper.getTypeFactory().constructCollectionType(List.class, ContentModel.class));
 
-    // Assert
     assertEquals(2, deserializedContent.size());
 
-    // First item should be an ImageContentModel
-    assertInstanceOf(ContentImageModel.class, deserializedContent.getFirst());
-    ContentImageModel deserializedImageModel = (ContentImageModel) deserializedContent.getFirst();
-    assertEquals(1L, deserializedImageModel.getId());
-    assertEquals("https://example.com/image.jpg", deserializedImageModel.getImageUrl());
-    assertEquals(1200, deserializedImageModel.getImageWidth());
-    assertEquals(800, deserializedImageModel.getImageHeight());
+    assertInstanceOf(ContentModels.Image.class, deserializedContent.getFirst());
+    ContentModels.Image deserializedImage = (ContentModels.Image) deserializedContent.getFirst();
+    assertEquals(1L, deserializedImage.id());
+    assertEquals("https://example.com/image.jpg", deserializedImage.imageUrl());
+    assertEquals(1200, deserializedImage.imageWidth());
+    assertEquals(800, deserializedImage.imageHeight());
 
-    // Second item should be a TextContentModel
-    assertInstanceOf(ContentTextModel.class, deserializedContent.get(1));
-    ContentTextModel deserializedTextModel = (ContentTextModel) deserializedContent.get(1);
-    assertEquals(2L, deserializedTextModel.getId());
-    assertEquals("This is some text content", deserializedTextModel.getTextContent());
+    assertInstanceOf(ContentModels.Text.class, deserializedContent.get(1));
+    ContentModels.Text deserializedText = (ContentModels.Text) deserializedContent.get(1);
+    assertEquals(2L, deserializedText.id());
+    assertEquals("This is some text content", deserializedText.textContent());
   }
 }
