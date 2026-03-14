@@ -15,7 +15,7 @@
 
 ```
 ~/portfolio-db/              # PostgreSQL service
-├── docker-compose.yml       # PostgreSQL container config
+├── docker compose.yml       # PostgreSQL container config
 ├── .env                     # Database credentials (not in git)
 ├── data/                    # PostgreSQL data volume (persistent)
 └── scripts/                 # Initialization scripts
@@ -23,7 +23,7 @@
 
 ~/portfolio-backend/         # Application service
 ├── repo/                    # Git repository clone
-│   ├── docker-compose.yml   # Application container config
+│   ├── docker compose.yml   # Application container config
 │   └── .env                 # App environment variables (copied from parent)
 └── .env                     # Master environment file (not in git)
 ```
@@ -31,7 +31,7 @@
 ## PostgreSQL Service
 
 ### Configuration
-**File**: `scripts/ec2-postgres/docker-compose.yml`
+**File**: `scripts/ec2-postgres/docker compose.yml`
 **Image**: `postgres:16-alpine`
 **Container name**: `portfolio-postgres`
 **Port**: `5432` (exposed to host)
@@ -53,7 +53,7 @@ POSTGRES_PASSWORD=<secure-password>
 
 **1. Copy files to EC2**:
 ```bash
-scp -i "$EC2_PEM_FILE" scripts/ec2-postgres/docker-compose.yml "$EC2_USER@$EC2_HOST:~/portfolio-db/"
+scp -i "$EC2_PEM_FILE" scripts/ec2-postgres/docker compose.yml "$EC2_USER@$EC2_HOST:~/portfolio-db/"
 scp -i "$EC2_PEM_FILE" scripts/ec2-postgres/env.template "$EC2_USER@$EC2_HOST:~/portfolio-db/"
 scp -i "$EC2_PEM_FILE" scripts/postgres-init.sql "$EC2_USER@$EC2_HOST:~/portfolio-db/scripts/"
 ```
@@ -69,18 +69,18 @@ nano .env  # Set POSTGRES_PASSWORD
 **3. Start PostgreSQL**:
 ```bash
 cd ~/portfolio-db
-docker-compose up -d
+docker compose up -d
 ```
 
 **4. Initialize database schema**:
 ```bash
-docker-compose exec postgres psql -U zedens -d edens_zac -f /scripts/postgres-init.sql
+docker compose exec postgres psql -U zedens -d edens_zac -f /scripts/postgres-init.sql
 ```
 
 **5. Verify**:
 ```bash
-docker-compose ps
-docker-compose exec postgres psql -U zedens -d edens_zac -c "\dt"
+docker compose ps
+docker compose exec postgres psql -U zedens -d edens_zac -c "\dt"
 ```
 
 ### Database Management
@@ -88,13 +88,13 @@ docker-compose exec postgres psql -U zedens -d edens_zac -c "\dt"
 **Access PostgreSQL shell**:
 ```bash
 cd ~/portfolio-db
-docker-compose exec postgres psql -U zedens -d edens_zac
+docker compose exec postgres psql -U zedens -d edens_zac
 ```
 
 **Manual backup**:
 ```bash
 cd ~/portfolio-db
-docker-compose exec postgres pg_dump -U zedens edens_zac > backup_$(date +%Y%m%d_%H%M%S).sql
+docker compose exec postgres pg_dump -U zedens edens_zac > backup_$(date +%Y%m%d_%H%M%S).sql
 gzip backup_*.sql
 ```
 
@@ -102,25 +102,25 @@ gzip backup_*.sql
 ```bash
 cd ~/portfolio-db
 gunzip backup_YYYYMMDD_HHMMSS.sql.gz
-docker-compose exec -T postgres psql -U zedens -d edens_zac < backup_YYYYMMDD_HHMMSS.sql
+docker compose exec -T postgres psql -U zedens -d edens_zac < backup_YYYYMMDD_HHMMSS.sql
 ```
 
 **View logs**:
 ```bash
 cd ~/portfolio-db
-docker-compose logs -f postgres
+docker compose logs -f postgres
 ```
 
 **Restart PostgreSQL**:
 ```bash
 cd ~/portfolio-db
-docker-compose restart
+docker compose restart
 ```
 
 ## Application Service
 
 ### Configuration
-**File**: `docker-compose.yml` (root of repo)
+**File**: `docker compose.yml` (root of repo)
 **Image**: `edens.zac.backend:latest`
 **Port**: `8080` (exposed to host)
 **No local PostgreSQL**: Database service commented out, uses EC2 PostgreSQL
@@ -150,30 +150,27 @@ SPRING_PROFILES_ACTIVE=default
 **Automated deployment script**: `scripts/deploy.sh`
 
 **What it does**:
-1. Clears Docker system cache (`docker system prune -a -f`)
-2. Pulls latest code from `main` branch
-3. Copies `.env` from `~/portfolio-backend/.env` to repo
-4. Stops existing containers
-5. Rebuilds Docker image (no cache)
-6. Starts containers
-7. Cleans up old images
+1. Pulls latest code from `main` branch (`git fetch` + `git reset --hard`)
+2. Copies `.env` from `~/portfolio-backend/.env` to repo
+3. Builds new Docker image (with layer caching, while old containers still serve)
+4. Stops old containers and starts new ones
+5. Waits for health checks
+6. Cleans up dangling images
 
 **Manual deployment**:
 ```bash
-ssh -i ~/path/to/key.pem ubuntu@<ec2-ip>
-cd ~/edens.zac.backend  # or wherever repo is
-git pull origin main
-bash scripts/deploy.sh
+ssh -i ~/path/to/key.pem ec2-user@<ec2-ip>
+bash ~/portfolio-backend/repo/deploy.sh
 ```
 
 **Deployment verification**:
 ```bash
 # Check container status
 cd ~/portfolio-backend/repo
-docker-compose ps
+docker compose ps
 
 # Check application logs
-docker-compose logs -f backend
+docker compose logs -f backend
 
 # Test health endpoint
 curl http://localhost:8080/actuator/health
@@ -187,26 +184,26 @@ curl http://localhost:8080/api/read/home
 **View application logs**:
 ```bash
 cd ~/portfolio-backend/repo
-docker-compose logs -f backend
+docker compose logs -f backend
 ```
 
 **Restart application** (without rebuild):
 ```bash
 cd ~/portfolio-backend/repo
-docker-compose restart backend
+docker compose restart backend
 ```
 
 **Full restart** (with rebuild):
 ```bash
 cd ~/portfolio-backend/repo
-docker-compose down
-docker-compose up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 **Access application shell**:
 ```bash
 cd ~/portfolio-backend/repo
-docker-compose exec backend /bin/sh
+docker compose exec backend /bin/sh
 ```
 
 ## Local Development Setup
@@ -242,10 +239,13 @@ jdbc:postgresql://<ec2-public-ip>:5432/edens_zac
 
 | Script | Location | Purpose |
 |--------|----------|---------|
-| `deploy.sh` | `scripts/deploy.sh` | Deploy application to EC2 (run on EC2) |
-| `backup-database.sh` | `scripts/backup-database.sh` | Database backup (legacy MySQL, not used for PostgreSQL) |
-| `restore-database.sh` | `scripts/restore-database.sh` | Database restore (legacy MySQL) |
-| `migrate-from-rds.sh` | `scripts/migrate-from-rds.sh` | Migration script (legacy, RDS → EC2 MySQL) |
+| `deploy.sh` | Root + `scripts/deploy.sh` | Deploy application to EC2 (run on EC2) |
+| `setup-ec2.sh` | `scripts/setup-ec2.sh` | One-time EC2 instance setup |
+| `backup-postgres.sh` | `scripts/backup-postgres.sh` | PostgreSQL backup with S3 sync |
+| `restore-postgres.sh` | `scripts/restore-postgres.sh` | Restore PostgreSQL from backup |
+| `backup-database.sh` | `scripts/backup-database.sh` | **DEPRECATED** — Legacy MySQL backup |
+| `restore-database.sh` | `scripts/restore-database.sh` | **DEPRECATED** — Legacy MySQL restore |
+| `migrate-from-rds.sh` | `scripts/migrate-from-rds.sh` | **DEPRECATED** — RDS → EC2 MySQL migration |
 | `postgres-init.sql` | `scripts/postgres-init.sql` | PostgreSQL schema initialization |
 
 **Note**: Backup/restore/migrate scripts are legacy MySQL scripts. PostgreSQL backups use `pg_dump` manually.
@@ -254,10 +254,10 @@ jdbc:postgresql://<ec2-public-ip>:5432/edens_zac
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `scripts/ec2-postgres/docker-compose.yml` | Repo | PostgreSQL container config (copy to EC2) |
+| `scripts/ec2-postgres/docker compose.yml` | Repo | PostgreSQL container config (copy to EC2) |
 | `scripts/ec2-postgres/env.template` | Repo | Template for PostgreSQL `.env` file |
 | `scripts/postgres-init.sql` | Repo | Database schema and initial data |
-| `docker-compose.yml` | Repo root | Application container config (backend only, no local DB) |
+| `docker compose.yml` | Repo root | Application container config (backend only, no local DB) |
 | `~/portfolio-db/.env` | EC2 only | PostgreSQL credentials (not in git) |
 | `~/portfolio-backend/.env` | EC2 only | Application environment variables (not in git) |
 
@@ -268,34 +268,34 @@ jdbc:postgresql://<ec2-public-ip>:5432/edens_zac
 **Container won't start**:
 ```bash
 cd ~/portfolio-db
-docker-compose logs postgres
-docker-compose restart postgres
+docker compose logs postgres
+docker compose restart postgres
 ```
 
 **Connection refused**:
 ```bash
 # Check if PostgreSQL is running
-docker-compose ps
+docker compose ps
 
 # Check if port is listening
 netstat -tlnp | grep 5432
 
 # Check health
-docker-compose exec postgres pg_isready -U zedens
+docker compose exec postgres pg_isready -U zedens
 ```
 
 **Data corruption**:
 ```bash
 # Stop PostgreSQL
 cd ~/portfolio-db
-docker-compose down
+docker compose down
 
 # Remove corrupted data (WARNING: data loss)
 rm -rf data/
 
 # Restart and re-initialize
-docker-compose up -d
-docker-compose exec postgres psql -U zedens -d edens_zac -f /scripts/postgres-init.sql
+docker compose up -d
+docker compose exec postgres psql -U zedens -d edens_zac -f /scripts/postgres-init.sql
 ```
 
 ### Application Issues
@@ -304,11 +304,11 @@ docker-compose exec postgres psql -U zedens -d edens_zac -f /scripts/postgres-in
 ```bash
 # Check PostgreSQL is accessible
 cd ~/portfolio-db
-docker-compose exec postgres psql -U zedens -d edens_zac -c "SELECT 1;"
+docker compose exec postgres psql -U zedens -d edens_zac -c "SELECT 1;"
 
 # Check environment variables
 cd ~/portfolio-backend/repo
-docker-compose exec backend env | grep POSTGRES
+docker compose exec backend env | grep POSTGRES
 
 # Verify connection string
 # EC2 app should use: POSTGRES_HOST=localhost or <ec2-private-ip>
@@ -318,13 +318,13 @@ docker-compose exec backend env | grep POSTGRES
 ```bash
 # Check logs for errors
 cd ~/portfolio-backend/repo
-docker-compose logs backend
+docker compose logs backend
 
 # Check health endpoint
 curl http://localhost:8080/actuator/health
 
 # Restart application
-docker-compose restart backend
+docker compose restart backend
 ```
 
 **Old version still running**:
@@ -334,9 +334,9 @@ docker images | grep edens.zac.backend
 
 # Force recreate with new build
 cd ~/portfolio-backend/repo
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ### Deployment Issues
@@ -373,6 +373,8 @@ ls -la ~/portfolio-backend/repo/.env
 - **SSH key security** - Store EC2 PEM files securely, never commit
 - **Security groups** - Limit PostgreSQL port 5432 access to trusted IPs only
 - **AWS credentials** - Use IAM users with minimal required permissions
+- **Port 5432 should NOT be in the security group** — Use SSH tunnel: `ssh -L 5432:localhost:5432 ec2-user@<ip>`
+- **Swap file is mandatory** on instances with ≤2GB RAM — without it, OOM kills Postgres or the app with no recovery path except reboot
 
 ## CI/CD Integration
 
@@ -389,16 +391,19 @@ ls -la ~/portfolio-backend/repo/.env
 ## EC2 Instance Requirements
 
 **Minimum specifications**:
-- Instance type: t2.small or larger (2GB+ RAM recommended)
-- Storage: 20GB+ EBS volume
-- OS: Ubuntu 22.04 LTS or later
+- Instance type: t3.small or larger (2GB+ RAM required — t2.micro confirmed insufficient)
+- Storage: 20GB+ EBS volume (8GB fills up with Docker images and logs)
+- OS: Amazon Linux 2023 or Ubuntu 22.04 LTS
 - Docker installed
-- Docker Compose installed
+- Docker Compose plugin installed
+- Swap file configured (1GB, critical for ≤2GB RAM instances)
 
 **Ports to expose**:
 - `22` - SSH access
-- `8080` - Application HTTP
-- `5432` - PostgreSQL (for local dev access)
+- `80` - HTTP (Caddy redirect to HTTPS)
+- `443` - HTTPS (Caddy with Let's Encrypt)
+- `8080` - Application HTTP (direct, if no Caddy)
+- ~~`5432`~~ - **Do NOT expose** — Use SSH tunnel instead
 
 **Security group inbound rules**:
 - SSH (22) from your IP
@@ -409,11 +414,11 @@ ls -la ~/portfolio-backend/repo/.env
 
 - **Architecture**: Single EC2 instance, two separate Docker Compose services
 - **Database sharing**: Local dev connects to EC2 PostgreSQL remotely (not localhost)
-- **No local database**: `docker-compose.yml` has PostgreSQL service commented out
+- **No local database**: `docker compose.yml` has PostgreSQL service commented out
 - **Deployment is manual**: `deploy.sh` must be run via SSH, no GitHub Actions automation
 - **Environment files**: `.env` files exist only on EC2 and local dev, never in git
 - **Legacy scripts**: MySQL backup/restore/migration scripts are deprecated (PostgreSQL now)
-- **PostgreSQL backups**: Manual `pg_dump` commands, no automated backup script yet
+- **PostgreSQL backups**: Automated via `scripts/backup-postgres.sh`, restore via `scripts/restore-postgres.sh`
 - **Connection patterns**:
   - EC2 app uses `POSTGRES_HOST=localhost` or EC2 private IP
   - Local dev uses `POSTGRES_HOST=<ec2-public-ip>`

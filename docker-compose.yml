@@ -25,6 +25,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     command: >
       postgres
       -c shared_buffers=256MB
@@ -61,6 +65,10 @@ services:
       AWS_REGION: us-west-2
       AWS_PORTFOLIO_S3_BUCKET: ${AWS_PORTFOLIO_S3_BUCKET}
       AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN}
+    deploy:
+      resources:
+        limits:
+          memory: 768M
     restart: unless-stopped
     healthcheck:
       test:
@@ -72,5 +80,30 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: portfolio-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

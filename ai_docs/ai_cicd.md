@@ -38,9 +38,9 @@ mvn test -B
 
 ### 3. Build Job (`build`)
 - **Runs on**: After test passes
-- **Outputs**: JAR file, Docker image
+- **Outputs**: JAR file, Docker image (build validation only, not saved as artifact)
 - **Image tags**: `edens.zac.backend:{sha}`, `edens.zac.backend:latest`
-- **Artifacts**: backend-docker-image (7 days retention)
+- **Artifacts**: None — image is rebuilt on EC2 during deploy
 
 **Commands**:
 ```bash
@@ -130,10 +130,8 @@ docker build -t edens.zac.backend:${{ github.sha }} .
 
 **Manual deployment steps**:
 ```bash
-ssh -i ~/path/to/key.pem ubuntu@<ec2-ip>
-cd ~/edens.zac.backend
-git pull origin main
-bash scripts/deploy.sh
+ssh -i ~/path/to/key.pem ec2-user@<ec2-ip>
+bash ~/portfolio-backend/repo/deploy.sh
 ```
 
 ## Branch Protection
@@ -226,12 +224,44 @@ Eliminates rate limiting for OWASP scans.
 ## Pipeline Execution Flow
 
 ```
-Push/PR → lint (checkstyle) → test (postgres) → build (docker) ✓
+Push/PR → lint (checkstyle) → test (postgres) → build (docker, validation only) ✓
                 ↓
          security-scan (owasp, non-blocking) ✓
 
-Merge to main → Same flow → Manual SSH deployment to EC2
+Merge to main → Same flow → Manual SSH deploy (bash ~/portfolio-backend/repo/deploy.sh)
+
+Note: CI builds the Docker image as validation but does NOT save/push it.
+EC2 deploy.sh rebuilds on the instance with Docker layer caching.
 ```
+
+## Future: Automated Deployment
+
+To add auto-deploy on merge to main, add this job to `.github/workflows/ci-cd.yml`:
+
+```yaml
+deploy:
+  name: Deploy to EC2
+  runs-on: ubuntu-latest
+  needs: build
+  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  steps:
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: bash ~/portfolio-backend/repo/deploy.sh
+```
+
+**Required GitHub secrets**: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`
+
+## Future: Container Registry
+
+Instead of rebuilding on EC2, push to a registry and pull:
+- **ECR** (AWS): 500MB free tier, integrates with IAM
+- **GHCR** (GitHub): Free for public repos
+- Benefit: Faster deploys (pull vs. build), less EC2 CPU pressure
 
 ## Notes for AI Agents
 
