@@ -126,7 +126,7 @@ public class ContentImageUpdateRequest {
   @AllArgsConstructor
   public static class FilmTypeUpdate {
     private Long prev;
-    private NewFilmTypeRequest newValue;
+    private ContentRequests.NewFilmType newValue;
     private Boolean remove;
   }
 }

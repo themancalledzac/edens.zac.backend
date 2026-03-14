@@ -453,8 +453,8 @@ public class ContentService {
       if (Boolean.TRUE.equals(filmTypeUpdate.getRemove())) {
         image.setFilmType(null);
       } else if (filmTypeUpdate.getNewValue() != null) {
-        NewFilmTypeRequest newFilmTypeRequest = filmTypeUpdate.getNewValue();
-        String displayName = newFilmTypeRequest.getFilmTypeName().trim();
+        ContentRequests.NewFilmType newFilmTypeRequest = filmTypeUpdate.getNewValue();
+        String displayName = newFilmTypeRequest.filmTypeName().trim();
         String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
 
         var existing = contentFilmTypeDao.findByFilmTypeNameIgnoreCase(technicalName);
@@ -463,7 +463,7 @@ public class ContentService {
         } else {
           ContentFilmTypeEntity newFilmType =
               new ContentFilmTypeEntity(
-                  technicalName, displayName, newFilmTypeRequest.getDefaultIso());
+                  technicalName, displayName, newFilmTypeRequest.defaultIso());
           newFilmType = contentFilmTypeDao.save(newFilmType);
           image.setFilmType(newFilmType);
           newFilmTypes.add(newFilmType);
@@ -770,12 +770,12 @@ public class ContentService {
 
   /** Convert ContentFilmTypeEntity to ContentFilmTypeModel */
   private ContentFilmTypeModel toFilmTypeModel(ContentFilmTypeEntity entity) {
-    return ContentFilmTypeModel.builder()
-        .id(entity.getId())
-        .filmTypeName(entity.getFilmTypeName())
-        .name(entity.getDisplayName())
-        .defaultIso(entity.getDefaultIso())
-        .build();
+    return new ContentFilmTypeModel(
+        entity.getId(),
+        entity.getFilmTypeName(),
+        entity.getDisplayName(),
+        entity.getDefaultIso(),
+        List.of());
   }
 
   @Transactional(readOnly = true)
@@ -1041,28 +1041,26 @@ public class ContentService {
   private record PreparedImage(ContentProcessingUtil.PreparedImageData data, String filename) {}
 
   @Transactional
-  public ContentTextModel createTextContent(CreateTextContentRequest request) {
-    log.debug("Creating text content for collection ID: {}", request.getCollectionId());
+  public ContentTextModel createTextContent(ContentRequests.CreateTextContent request) {
+    log.debug("Creating text content for collection ID: {}", request.collectionId());
 
-    contentValidator.validateTextContent(request.getTextContent());
+    contentValidator.validateTextContent(request.textContent());
 
     // Verify collection exists
     collectionDao
-        .findById(request.getCollectionId())
+        .findById(request.collectionId())
         .orElseThrow(
-            () ->
-                new IllegalArgumentException("Collection not found: " + request.getCollectionId()));
+            () -> new IllegalArgumentException("Collection not found: " + request.collectionId()));
 
     // Get the next order index for this collection
-    Integer maxOrder =
-        collectionContentDao.getMaxOrderIndexForCollection(request.getCollectionId());
+    Integer maxOrder = collectionContentDao.getMaxOrderIndexForCollection(request.collectionId());
     Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
 
     // Create text content entity
     ContentTextEntity textEntity =
         ContentTextEntity.builder()
-            .textContent(request.getTextContent().trim())
-            .formatType(request.getFormType() != null ? request.getFormType().name() : "PLAIN")
+            .textContent(request.textContent().trim())
+            .formatType(request.formType() != null ? request.formType().name() : "PLAIN")
             .build();
 
     // Save the text content
@@ -1071,7 +1069,7 @@ public class ContentService {
     // Create join table entry linking content to collection
     CollectionContentEntity joinEntry =
         CollectionContentEntity.builder()
-            .collectionId(request.getCollectionId())
+            .collectionId(request.collectionId())
             .contentId(textEntity.getId())
             .orderIndex(orderIndex)
             .visible(true)
@@ -1082,7 +1080,7 @@ public class ContentService {
     log.info(
         "Created text content {} in collection {} at orderIndex {}",
         textEntity.getId(),
-        request.getCollectionId(),
+        request.collectionId(),
         orderIndex);
 
     // Convert to model and return

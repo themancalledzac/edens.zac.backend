@@ -305,8 +305,7 @@ class ContentControllerDevTest {
   @DisplayName("POST /content/tags should create a new tag")
   void createTag_shouldCreateNewTag() throws Exception {
     // Arrange
-    CreateTagRequest request = new CreateTagRequest();
-    request.setTagName("landscape");
+    ContentRequests.CreateTag request = new ContentRequests.CreateTag("landscape");
 
     Map<String, Object> response = new HashMap<>();
     response.put("tag", new Records.Tag(1L, "landscape"));
@@ -331,8 +330,7 @@ class ContentControllerDevTest {
   @DisplayName("POST /content/tags should handle duplicate tag error")
   void createTag_shouldHandleDuplicateTagError() throws Exception {
     // Arrange
-    CreateTagRequest request = new CreateTagRequest();
-    request.setTagName("landscape");
+    ContentRequests.CreateTag request = new ContentRequests.CreateTag("landscape");
 
     when(contentService.createTag("landscape"))
         .thenThrow(new IllegalArgumentException("Tag already exists: landscape"));
@@ -353,8 +351,7 @@ class ContentControllerDevTest {
   @DisplayName("POST /content/tags should handle general errors")
   void createTag_shouldHandleGeneralErrors() throws Exception {
     // Arrange
-    CreateTagRequest request = new CreateTagRequest();
-    request.setTagName("landscape");
+    ContentRequests.CreateTag request = new ContentRequests.CreateTag("landscape");
 
     when(contentService.createTag("landscape")).thenThrow(new RuntimeException("Database error"));
 
@@ -377,8 +374,7 @@ class ContentControllerDevTest {
   @DisplayName("POST /content/people should create a new person")
   void createPerson_shouldCreateNewPerson() throws Exception {
     // Arrange
-    CreatePersonRequest request = new CreatePersonRequest();
-    request.setPersonName("John Doe");
+    ContentRequests.CreatePerson request = new ContentRequests.CreatePerson("John Doe");
 
     Map<String, Object> response = new HashMap<>();
     response.put("person", new Records.Person(1L, "John Doe"));
@@ -403,8 +399,7 @@ class ContentControllerDevTest {
   @DisplayName("POST /content/people should handle duplicate person error")
   void createPerson_shouldHandleDuplicatePersonError() throws Exception {
     // Arrange
-    CreatePersonRequest request = new CreatePersonRequest();
-    request.setPersonName("John Doe");
+    ContentRequests.CreatePerson request = new ContentRequests.CreatePerson("John Doe");
 
     when(contentService.createPerson("John Doe"))
         .thenThrow(new IllegalArgumentException("Person already exists: John Doe"));
@@ -425,8 +420,7 @@ class ContentControllerDevTest {
   @DisplayName("POST /content/people should handle general errors")
   void createPerson_shouldHandleGeneralErrors() throws Exception {
     // Arrange
-    CreatePersonRequest request = new CreatePersonRequest();
-    request.setPersonName("John Doe");
+    ContentRequests.CreatePerson request = new ContentRequests.CreatePerson("John Doe");
 
     when(contentService.createPerson("John Doe")).thenThrow(new RuntimeException("Database error"));
 

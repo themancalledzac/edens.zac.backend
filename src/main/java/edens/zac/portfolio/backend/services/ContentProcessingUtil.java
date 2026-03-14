@@ -1637,8 +1637,8 @@ public class ContentProcessingUtil {
         log.info("Removed film type association from image {}", entity.getId());
       } else if (filmTypeUpdate.getNewValue() != null) {
         // Create new film type
-        NewFilmTypeRequest newFilmTypeRequest = filmTypeUpdate.getNewValue();
-        String displayName = newFilmTypeRequest.getFilmTypeName().trim();
+        ContentRequests.NewFilmType newFilmTypeRequest = filmTypeUpdate.getNewValue();
+        String displayName = newFilmTypeRequest.filmTypeName().trim();
         // Generate technical name from display name: "Kodak Portra 400" ->
         // "KODAK_PORTRA_400"
         String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
@@ -1654,7 +1654,7 @@ public class ContentProcessingUtil {
                           technicalName);
                       ContentFilmTypeEntity newFilmType =
                           new ContentFilmTypeEntity(
-                              technicalName, displayName, newFilmTypeRequest.getDefaultIso());
+                              technicalName, displayName, newFilmTypeRequest.defaultIso());
                       return contentFilmTypeDao.save(newFilmType);
                     });
         entity.setFilmType(filmType);

@@ -3,9 +3,7 @@ package edens.zac.portfolio.backend.controller.dev;
 import edens.zac.portfolio.backend.model.ContentImageModel;
 import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
-import edens.zac.portfolio.backend.model.CreatePersonRequest;
-import edens.zac.portfolio.backend.model.CreateTagRequest;
-import edens.zac.portfolio.backend.model.CreateTextContentRequest;
+import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.services.ContentService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -78,7 +76,7 @@ public class ContentControllerDev {
    */
   @PostMapping("/content")
   public ResponseEntity<ContentModel> createTextContent(
-      @RequestBody @Valid CreateTextContentRequest request) {
+      @RequestBody @Valid ContentRequests.CreateTextContent request) {
     ContentModel textContent = contentService.createTextContent(request);
     if (textContent == null) {
       throw new IllegalArgumentException("Failed to create text content");
@@ -158,8 +156,8 @@ public class ContentControllerDev {
    */
   @PostMapping("/tags")
   public ResponseEntity<Map<String, Object>> createTag(
-      @RequestBody @Valid CreateTagRequest request) {
-    String tagName = request.getTagName();
+      @RequestBody @Valid ContentRequests.CreateTag request) {
+    String tagName = request.tagName();
     Map<String, Object> response = contentService.createTag(tagName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
@@ -172,8 +170,8 @@ public class ContentControllerDev {
    */
   @PostMapping("/people")
   public ResponseEntity<Map<String, Object>> createPerson(
-      @RequestBody @Valid CreatePersonRequest request) {
-    String personName = request.getPersonName();
+      @RequestBody @Valid ContentRequests.CreatePerson request) {
+    String personName = request.personName();
     Map<String, Object> response = contentService.createPerson(personName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }

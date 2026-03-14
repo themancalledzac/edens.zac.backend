@@ -72,15 +72,15 @@ class CollectionControllerDevTest {
 
     // Create test collection update response (for createCollection)
     GeneralMetadataDTO metadata =
-        GeneralMetadataDTO.builder()
-            .tags(new ArrayList<>())
-            .people(new ArrayList<>())
-            .collections(new ArrayList<>())
-            .cameras(new ArrayList<>())
-            .lenses(new ArrayList<>())
-            .filmTypes(new ArrayList<>())
-            .filmFormats(new ArrayList<>())
-            .build();
+        new GeneralMetadataDTO(
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>());
 
     testCollectionUpdateResponse = new CollectionRequests.UpdateResponse(testCollection, metadata);
 
@@ -245,16 +245,15 @@ class CollectionControllerDevTest {
   void getMetadata_shouldReturnAllMetadata() throws Exception {
     // Arrange
     GeneralMetadataDTO metadata =
-        GeneralMetadataDTO.builder()
-            .tags(new ArrayList<>())
-            .people(new ArrayList<>())
-            .locations(new ArrayList<>())
-            .collections(new ArrayList<>())
-            .cameras(new ArrayList<>())
-            .lenses(new ArrayList<>())
-            .filmTypes(new ArrayList<>())
-            .filmFormats(new ArrayList<>())
-            .build();
+        new GeneralMetadataDTO(
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>());
 
     when(collectionService.getGeneralMetadata()).thenReturn(metadata);
 

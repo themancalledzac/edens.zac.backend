@@ -597,16 +597,8 @@ public class CollectionService {
             .collect(Collectors.toList());
 
     // Build and return metadata DTO
-    return GeneralMetadataDTO.builder()
-        .tags(tags)
-        .people(people)
-        .locations(locations)
-        .collections(collections)
-        .cameras(cameras)
-        .lenses(lenses)
-        .filmTypes(filmTypes)
-        .filmFormats(filmFormats)
-        .build();
+    return new GeneralMetadataDTO(
+        tags, people, locations, collections, cameras, lenses, filmTypes, filmFormats);
   }
 
   /** Convert FilmFormat enum to Records.FilmFormat */
