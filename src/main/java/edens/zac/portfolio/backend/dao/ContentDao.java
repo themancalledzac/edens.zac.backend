@@ -379,7 +379,7 @@ public class ContentDao extends BaseDao {
       MapSqlParameterSource contentParams =
           createParameterSource()
               .addValue("contentType", ContentType.IMAGE.name())
-              .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : now)
+              .addValue("createdAt", entity.getCreatedAt())
               .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : now);
 
       Long contentId = insertAndReturnId(contentSql, "id", contentParams);

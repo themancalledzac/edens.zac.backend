@@ -56,9 +56,16 @@ A single image can belong to multiple collections with different ordering/captio
 6. Added to collection via CollectionContentEntity
 
 ## Data Flow: API Request
-1. Controller receives request, validates input
-2. Calls service interface method
+1. Controller receives request (params validated by `@Valid`)
+2. Calls service method (currently via interface; see planned changes below)
 3. Service uses DAO for database queries (JDBC)
 4. DAO returns entities
 5. Service converts entities to models (DTOs)
-6. Controller wraps in ResponseEntity
+6. Controller wraps in `ResponseEntity<T>`
+7. On exception: `GlobalExceptionHandler` maps to appropriate HTTP status/body
+
+<!-- PLANNED CHANGES (refactor_2026.md):
+- Phase 3: Interface/Impl split will be removed -- services become concrete classes
+  (e.g., CollectionService directly, no CollectionServiceImpl)
+- Phase 4: DAOs will be consolidated and potentially renamed to *Repository
+-->

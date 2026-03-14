@@ -92,3 +92,9 @@ SELECT * FROM content_image WHERE id IN (?, ?, ?)
 - Uses `NamedParameterJdbcTemplate` (not JPA repositories)
 - DAOs extend `BaseDao` pattern
 - Entities are POJOs with Lombok, mapped manually from ResultSet
+
+<!-- PLANNED CHANGES (refactor_2026.md Phase 4):
+- Consolidate 14 DAOs down to 5-6 focused repositories
+- Potentially rename *Dao to *Repository
+- Evaluate Spring Data JDBC to reduce RowMapper boilerplate
+-->

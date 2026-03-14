@@ -95,8 +95,9 @@ public class ImageMetadata {
      */
     CREATE_DATE(
         "createDate",
-        ExifTags.of("Date/Time Original", "DateTimeOriginal"),
-        XmpProperty.of(XMPConst.NS_EXIF, "DateTimeOriginal"),
+        ExifTags.of(
+            "Date/Time Original", "DateTimeOriginal", "Date/Time Digitized", "DateTimeDigitized"),
+        XmpProperty.of(XMPConst.NS_EXIF, "DateTimeOriginal", "DateTimeDigitized"),
         new SimpleStringExtractor()),
 
     BODY_SERIAL_NUMBER(

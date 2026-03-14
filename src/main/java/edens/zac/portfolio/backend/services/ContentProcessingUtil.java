@@ -1,5 +1,9 @@
 package edens.zac.portfolio.backend.services;
 
+import com.adobe.internal.xmp.XMPConst;
+import com.adobe.internal.xmp.XMPException;
+import com.adobe.internal.xmp.XMPMeta;
+import com.adobe.internal.xmp.properties.XMPProperty;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
@@ -780,7 +784,7 @@ public class ContentProcessingUtil {
                     ? locationDao.findOrCreate(metadata.get("location")).getId()
                     : null)
             .imageUrlWeb(prepared.imageUrlWeb())
-            .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
+            .createDate(metadata.get("createDate"))
             .createdAt(parseExifDateToLocalDateTime(metadata.get("createDate")))
             .fileIdentifier(prepared.fileIdentifier())
             .build();
@@ -922,7 +926,7 @@ public class ContentProcessingUtil {
                     ? locationDao.findOrCreate(metadata.get("location")).getId()
                     : null)
             .imageUrlWeb(imageUrlWeb)
-            .createDate(metadata.getOrDefault("createDate", LocalDate.now().toString()))
+            .createDate(metadata.get("createDate"))
             .createdAt(parseExifDateToLocalDateTime(metadata.get("createDate")))
             .fileIdentifier(fileIdentifier)
             .build();
@@ -986,6 +990,34 @@ public class ContentProcessingUtil {
         extractFromXmpDirectory(xmpDirectory, metadata);
       }
 
+      // Last-resort fallback: xmp:CreateDate (NS_XMP namespace) for capture date.
+      // Lightroom writes manually-assigned capture dates here when DateTimeOriginal
+      // is absent (common for digital photos where date was set in Lightroom).
+      // Checked after the main XMP loop because NS_EXIF/DateTimeOriginal takes priority.
+      if (!metadata.containsKey("createDate")) {
+        for (XmpDirectory xmpDirectory :
+            imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
+          XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
+          try {
+            XMPProperty prop = xmpMeta.getProperty(XMPConst.NS_XMP, "CreateDate");
+            if (prop != null && prop.getValue() != null) {
+              String value = new ImageMetadata.SimpleStringExtractor().extract(prop.getValue());
+              if (value != null) {
+                metadata.put("createDate", value);
+                log.info("Capture date found via xmp:CreateDate fallback: {}", value);
+                break;
+              }
+            }
+          } catch (XMPException e) {
+            // Property not present, continue
+          }
+        }
+      }
+
+      if (!metadata.containsKey("createDate")) {
+        log.warn("No capture date found in EXIF or XMP for file: {}", file.getOriginalFilename());
+      }
+
       // Fallback: Get dimensions from BufferedImage if not found
       ensureDimensions(file, metadata);
 
@@ -1035,7 +1067,7 @@ public class ContentProcessingUtil {
    * @param metadata The metadata map to populate
    */
   private void extractFromXmpDirectory(XmpDirectory xmpDirectory, Map<String, String> metadata) {
-    com.adobe.internal.xmp.XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
+    XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
 
     // Try each metadata field
     for (ImageMetadata.MetadataField field : ImageMetadata.MetadataField.values()) {
@@ -1048,8 +1080,7 @@ public class ContentProcessingUtil {
       // Try each property name in the namespace
       for (String propertyName : xmpProperty.getPropertyNames()) {
         try {
-          com.adobe.internal.xmp.properties.XMPProperty prop =
-              xmpMeta.getProperty(xmpProperty.getNamespace(), propertyName);
+          XMPProperty prop = xmpMeta.getProperty(xmpProperty.getNamespace(), propertyName);
 
           if (prop != null && prop.getValue() != null) {
             // Only set if not already extracted from EXIF
@@ -1061,7 +1092,7 @@ public class ContentProcessingUtil {
               }
             }
           }
-        } catch (com.adobe.internal.xmp.XMPException e) {
+        } catch (XMPException e) {
           // Property not found, continue to next
         }
       }

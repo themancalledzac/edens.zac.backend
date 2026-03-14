@@ -2,10 +2,36 @@
 
 ## Endpoint Structure
 ```
-/api/read/...   - Public GET endpoints (cached)
-/api/write/...  - Authenticated mutation endpoints
-/api/dev/...    - Development-only (@Profile("dev"))
+/api/read/...    - Public GET endpoints (prod, @Profile("prod"))
+/api/admin/...   - Admin/write endpoints (dev, @Profile("dev"))
 ```
+
+## Error Handling
+
+All error handling is centralized in `GlobalExceptionHandler` (`config/GlobalExceptionHandler.java`).
+Controllers do NOT use try-catch blocks -- they throw exceptions and let the handler respond.
+
+### Error Response Format
+```json
+{
+  "timestamp": "2026-02-21T10:30:00",
+  "status": 404,
+  "error": "Not Found",
+  "message": "Collection not found: my-slug"
+}
+```
+
+### Exception Mapping
+| Exception | HTTP Status | When |
+|-----------|-------------|------|
+| `IllegalArgumentException` (msg contains "not found") | 404 NOT_FOUND | Resource not found |
+| `IllegalArgumentException` (other) | 400 BAD_REQUEST | Invalid input |
+| `IllegalStateException` | 400 BAD_REQUEST | Invalid state |
+| `MethodArgumentNotValidException` | 400 BAD_REQUEST | `@Valid` failures |
+| `ConstraintViolationException` | 400 BAD_REQUEST | `@Validated` failures |
+| `MethodArgumentTypeMismatchException` | 400 BAD_REQUEST | Wrong param type |
+| `DataIntegrityViolationException` | 409 CONFLICT | Duplicate/FK violation |
+| `Exception` (catch-all) | 500 INTERNAL_SERVER_ERROR | Unexpected errors |
 
 ## Controller Pattern
 ```java
@@ -18,22 +44,21 @@ public class CollectionControllerProd {
     private final CollectionService collectionService;
 
     @GetMapping("/{slug}")
-    public ResponseEntity<?> getCollectionBySlug(@PathVariable String slug) {
-        try {
-            CollectionModel collection = collectionService.getBySlug(slug);
-            return ResponseEntity.ok(collection);
-        } catch (IllegalArgumentException e) {
-            log.warn("Collection not found: {}", slug);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body("Collection not found: " + slug);
-        } catch (Exception e) {
-            log.error("Error: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Failed to retrieve collection: " + e.getMessage());
-        }
+    public ResponseEntity<CollectionModel> getCollectionBySlug(
+            @PathVariable String slug,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "30") int size) {
+        CollectionModel collection =
+            collectionService.getCollectionWithPagination(slug, page, size);
+        return ResponseEntity.ok(collection);
     }
 }
 ```
+
+Key points:
+- Use `ResponseEntity<T>` with typed return (not `ResponseEntity<?>`)
+- No try-catch -- GlobalExceptionHandler handles all exceptions
+- Throw `IllegalArgumentException` for not-found / bad input
 
 ## Response Patterns
 
@@ -42,56 +67,61 @@ public class CollectionControllerProd {
 return ResponseEntity.ok(model);           // 200 with body
 return ResponseEntity.ok(page);            // 200 with Page<T>
 return ResponseEntity.status(HttpStatus.CREATED).body(model);  // 201
+return ResponseEntity.noContent().build(); // 204 for deletes
 ```
 
-### Errors
+### Triggering Errors (in services or controllers)
 ```java
-return ResponseEntity.status(HttpStatus.NOT_FOUND)
-    .body("Resource not found: " + id);
+// 404 -- message must contain "not found"
+throw new IllegalArgumentException("Collection not found: " + slug);
 
-return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-    .body("Invalid parameter: " + param);
+// 400 -- any other IllegalArgumentException
+throw new IllegalArgumentException("Invalid collection type: " + type);
 
-return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-    .body("Failed to process: " + e.getMessage());
+// 400 -- invalid state
+throw new IllegalStateException("Cannot delete: collection has content");
 ```
 
 ## Pagination
 ```java
 @GetMapping
-public ResponseEntity<?> getAll(
-    @RequestParam(defaultValue = "0") int page,
-    @RequestParam(defaultValue = "50") int size) {
-
+public ResponseEntity<Page<CollectionModel>> getAllCollections(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "50") int size) {
     Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
-    Page<Model> results = service.getAll(pageable);
-    return ResponseEntity.ok(results);
+    Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
+    return ResponseEntity.ok(collections);
 }
 ```
 
 ## Request Bodies
 ```java
 @PostMapping
-public ResponseEntity<?> create(@RequestBody CreateRequest request) {
-    // Validate, process, return
+public ResponseEntity<CollectionUpdateResponseDTO> create(
+        @RequestBody @Valid CollectionRequests.Create request) {
+    var response = collectionService.createCollection(request);
+    return ResponseEntity.ok(response);
 }
 
 @PostMapping("/{slug}/access")
-public ResponseEntity<?> validateAccess(
-    @PathVariable String slug,
-    @RequestBody Map<String, String> passwordRequest) {
+public ResponseEntity<Map<String, Boolean>> validateAccess(
+        @PathVariable String slug,
+        @RequestBody Map<String, String> passwordRequest) {
     String password = passwordRequest.get("password");
     // ...
 }
 ```
 
-## Dev vs Prod Controllers
-- `*ControllerDev`: Additional debug endpoints, less validation
-- `*ControllerProd`: Production-ready, proper error handling
-- Use `@Profile("dev")` and `@Profile("prod")` annotations
-- Never expose dev endpoints in production
+Key points:
+- Always use `@Valid` with `@RequestBody` for request DTOs
+- Use typed `ResponseEntity<T>` -- never `ResponseEntity<?>`
 
-## Error Handling Hierarchy
-1. `IllegalArgumentException` -> 404 NOT_FOUND (resource not found)
-2. Validation errors -> 400 BAD_REQUEST
-3. All other exceptions -> 500 INTERNAL_SERVER_ERROR + log.error()
+## Dev vs Prod Controllers
+- `*ControllerDev` (`/api/admin/...`): Write/admin endpoints, `@Profile("dev")`
+- `*ControllerProd` (`/api/read/...`): Read-only public endpoints, `@Profile("prod")`
+- Never expose dev/admin endpoints in production
+
+<!-- PLANNED CHANGES (refactor_2026.md Phase 3):
+- Interface/Impl split on services will be removed -- controllers will inject
+  the concrete service class directly instead of the interface
+-->
