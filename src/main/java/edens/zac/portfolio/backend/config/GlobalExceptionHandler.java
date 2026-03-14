@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
@@ -103,6 +104,12 @@ public class GlobalExceptionHandler {
         .body(
             ErrorResponse.of(
                 HttpStatus.CONFLICT, "Data integrity violation: duplicate or invalid data"));
+  }
+
+  /** Client disconnected before response was fully sent -- not a server error. */
+  @ExceptionHandler(AsyncRequestNotUsableException.class)
+  public void handleClientDisconnect(AsyncRequestNotUsableException e) {
+    log.debug("Client disconnected before response completed: {}", e.getMessage());
   }
 
   /** Catch-all handler for unexpected exceptions. */
