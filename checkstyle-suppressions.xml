@@ -44,14 +44,13 @@
 
   <!-- Allow star imports for model packages (cleaner when using many DTOs) -->
   <suppress checks="AvoidStarImport" files=".*ProcessingUtil\.java"/>
-  <suppress checks="AvoidStarImport" files=".*ServiceImpl\.java"/>
+  <suppress checks="AvoidStarImport" files=".*Service(Impl)?\.java"/>
   <suppress checks="AvoidStarImport" files=".*Controller.*\.java"/>
   <suppress checks="AvoidStarImport" files=".*[/\\]entity[/\\].*\.java"/>
   <suppress checks="AvoidStarImport" files=".*[/\\]model[/\\].*\.java"/>
-  <suppress checks="AvoidStarImport" files=".*Service\.java"/>
 
   <!-- Allow slightly longer lines for builder patterns and method chains -->
-  <suppress checks="LineLength" files=".*ServiceImpl\.java"/>
+  <suppress checks="LineLength" files=".*Service(Impl)?\.java"/>
   <suppress checks="LineLength" files=".*Controller.*\.java"/>
   <suppress checks="LineLength" files=".*[/\\]types[/\\].*\.java"/>
   <suppress checks="LineLength" files=".*[/\\]dao[/\\].*\.java"/>
@@ -59,8 +58,12 @@
 
   <!-- Allow missing braces for simple guard clauses and null checks -->
   <suppress checks="NeedBraces" files=".*ProcessingUtil\.java"/>
-  <suppress checks="NeedBraces" files=".*ServiceImpl\.java"/>
+  <suppress checks="NeedBraces" files=".*Service(Impl)?\.java"/>
   <suppress checks="NeedBraces" files=".*[/\\]entity[/\\].*\.java"/>
+
+  <!-- Suppress Javadoc on service implementation methods (previously exempt via @Override) -->
+  <suppress checks="MissingJavadocMethod" files="(CollectionService|ContentService)\.java"/>
+  <suppress checks="MissingJavadocType" files="(CollectionService|ContentService)\.java"/>
 
   <!-- Allow domain-specific naming patterns (fStop, ContentImages, etc.) in entities -->
   <suppress checks="MemberName" files=".*[/\\]entity[/\\].*\.java"/>

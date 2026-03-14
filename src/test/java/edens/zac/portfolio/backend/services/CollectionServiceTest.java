@@ -35,7 +35,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class CollectionServiceImplTest {
+class CollectionServiceTest {
 
   @Mock private CollectionDao collectionDao;
   @Mock private CollectionContentDao collectionContentDao;
@@ -46,7 +46,7 @@ class CollectionServiceImplTest {
   @Mock private ContentProcessingUtil contentProcessingUtil;
   @Mock private ContentService contentService;
 
-  @InjectMocks private CollectionServiceImpl service;
+  @InjectMocks private CollectionService service;
 
   @Captor private ArgumentCaptor<Map<Long, Integer>> mapCaptor;
 

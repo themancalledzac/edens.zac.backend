@@ -995,8 +995,7 @@ public class ContentProcessingUtil {
       // is absent (common for digital photos where date was set in Lightroom).
       // Checked after the main XMP loop because NS_EXIF/DateTimeOriginal takes priority.
       if (!metadata.containsKey("createDate")) {
-        for (XmpDirectory xmpDirectory :
-            imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
+        for (XmpDirectory xmpDirectory : imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
           XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
           try {
             XMPProperty prop = xmpMeta.getProperty(XMPConst.NS_XMP, "CreateDate");
