@@ -22,7 +22,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 @ExtendWith(MockitoExtension.class)
-class CollectionContentDaoTest {
+class CollectionRepositoryTest {
 
   @Mock private JdbcTemplate jdbcTemplate;
 

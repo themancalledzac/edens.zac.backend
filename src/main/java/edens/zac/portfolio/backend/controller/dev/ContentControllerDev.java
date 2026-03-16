@@ -154,6 +154,26 @@ public class ContentControllerDev {
   }
 
   /**
+   * Upload an MP4 or GIF as animated content in a collection. POST
+   * /api/admin/content/{collectionId}/gifs
+   */
+  @PostMapping(
+      value = "/{collectionId}/gifs",
+      consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
+  public ResponseEntity<ContentModels.Gif> createGif(
+      @PathVariable Long collectionId,
+      @RequestPart("file") MultipartFile file,
+      @RequestParam(value = "title", required = false) String title,
+      @RequestParam(value = "orderIndex", required = false) Integer orderIndex) {
+    if (file.isEmpty()) {
+      throw new IllegalArgumentException("No file provided. Use 'file' part with an MP4 or GIF.");
+    }
+    ContentModels.Gif gif = contentService.createGif(collectionId, file, title, orderIndex);
+    log.info("Created GIF {} in collection {}", gif.id(), collectionId);
+    return ResponseEntity.status(HttpStatus.CREATED).body(gif);
+  }
+
+  /**
    * Create a new tag POST /api/admin/content/tags
    *
    * @param request CreateTagRequest containing tag name

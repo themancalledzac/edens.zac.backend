@@ -269,7 +269,8 @@ public class ContentService {
     if (updateRequest.getShutterSpeed() != null)
       image.setShutterSpeed(updateRequest.getShutterSpeed());
     if (updateRequest.getIso() != null) image.setIso(updateRequest.getIso());
-    if (updateRequest.getCreateDate() != null) image.setCreateDate(updateRequest.getCreateDate());
+    if (updateRequest.getCaptureDate() != null)
+      image.setCaptureDate(updateRequest.getCaptureDate());
 
     // Handle camera update with tracking
     if (updateRequest.getCamera() != null) {
@@ -491,7 +492,7 @@ public class ContentService {
     for (Long imageId : imageIds) {
       try {
         Optional<ContentImageEntity> imageOpt = contentRepository.findImageById(imageId);
-        if (!imageOpt.isPresent()) {
+        if (imageOpt.isEmpty()) {
           errors.add("Image not found: " + imageId);
           continue;
         }
@@ -515,16 +516,6 @@ public class ContentService {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentModels.Image> getAllImages() {
-    return contentRepository.findAllImagesOrderByCreateDateDesc().stream()
-        .map(
-            entity ->
-                (ContentModels.Image)
-                    contentProcessingUtil.convertRegularContentEntityToModel(entity))
-        .collect(Collectors.toList());
-  }
-
-  @Transactional(readOnly = true)
   public org.springframework.data.domain.Page<ContentModels.Image> getAllImages(
       org.springframework.data.domain.Pageable pageable) {
     // Get total count for pagination
@@ -545,92 +536,6 @@ public class ContentService {
             .collect(Collectors.toList());
 
     return new org.springframework.data.domain.PageImpl<>(imageModels, pageable, total);
-  }
-
-  /**
-   * ORIGINAL METHOD: Sequential image processing. DEPRECATED: Use createImagesParallel() for better
-   * performance. Kept for backward compatibility.
-   */
-  @Transactional
-  public ImageUploadResult createImages(Long collectionId, List<MultipartFile> files) {
-    log.warn(
-        "Using deprecated sequential image processing. Consider using parallel processing for better performance.");
-    log.debug("Creating images for collection ID: {}", collectionId);
-
-    contentValidator.validateFiles(files);
-
-    // Verify collection exists
-    collectionRepository
-        .findById(collectionId)
-        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
-
-    List<ContentModels.Image> createdImages = new ArrayList<>();
-    List<ImageUploadResult.FileError> failures = new ArrayList<>();
-
-    // Get the next order index for this collection
-    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
-    Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
-
-    for (MultipartFile file : files) {
-      String filename = file.getOriginalFilename();
-      try {
-        // Process file based on content type
-        if (file.getContentType() != null && file.getContentType().startsWith("image/")) {
-          if (file.getContentType().equals("image/gif")) {
-            // Process as GIF - skip for now (future implementation)
-            log.debug("Skipping GIF file (not yet implemented): {}", filename);
-            failures.add(
-                new ImageUploadResult.FileError(
-                    filename != null ? filename : "unknown", "GIF processing not yet implemented"));
-          } else {
-            // STEP 1: Process and save the image content (NO collection reference)
-            ContentImageEntity img = contentProcessingUtil.processImageContent(file, null);
-
-            // STEP 2: Create join table entry linking content to collection
-            CollectionContentEntity joinEntry =
-                CollectionContentEntity.builder()
-                    .collectionId(collectionId)
-                    .contentId(img.getId())
-                    .orderIndex(orderIndex)
-                    .visible(true) // Visible by default
-                    .build();
-
-            collectionRepository.saveContent(joinEntry);
-
-            log.debug(
-                "Created join table entry for image {} in collection {} at orderIndex {}",
-                img.getId(),
-                collectionId,
-                orderIndex);
-
-            // STEP 3: Convert to model with join table metadata and add to results
-            ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
-            if (contentModel instanceof ContentModels.Image imageModel) {
-              createdImages.add(imageModel);
-            } else {
-              log.error(
-                  "Expected ContentModels.Image but got {}",
-                  contentModel != null ? contentModel.getClass() : "null");
-            }
-
-            // Increment order index for next image
-            orderIndex++;
-          }
-        }
-      } catch (Exception e) {
-        log.error("Error processing file {}: {}", filename, e.getMessage(), e);
-        failures.add(
-            new ImageUploadResult.FileError(
-                filename != null ? filename : "unknown", e.getMessage()));
-      }
-    }
-
-    log.info(
-        "Upload complete for collection {}: {} succeeded, {} failed",
-        collectionId,
-        createdImages.size(),
-        failures.size());
-    return new ImageUploadResult(createdImages, failures);
   }
 
   /** Batch size for parallel image processing to avoid overwhelming resources */
@@ -762,15 +667,40 @@ public class ContentService {
 
     List<ContentModels.Image> createdImages = new ArrayList<>();
     List<ImageUploadResult.FileError> failures = new ArrayList<>(previousFailures);
-
-    // Get the next order index for this collection
-    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
-    Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
+    List<ImageUploadResult.SkippedFile> skipped = new ArrayList<>();
+    int orderIndex = nextOrderIndex(collectionId);
 
     for (PreparedImage prepared : preparedImages) {
       try {
-        // Save to DB: camera/lens/location lookups + duplicate check + insert
-        ContentImageEntity entity = contentProcessingUtil.savePreparedImage(prepared.data(), null);
+        // Save to DB with dedupe: CREATE, UPDATE, or SKIP
+        ContentProcessingUtil.DedupeResult dedupeResult =
+            contentProcessingUtil.savePreparedImageWithDedupe(prepared.data(), null);
+
+        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.SKIP) {
+          skipped.add(
+              new ImageUploadResult.SkippedFile(
+                  prepared.filename(), "Duplicate with same or older export date"));
+          orderIndex++;
+          continue;
+        }
+
+        ContentImageEntity entity = dedupeResult.entity();
+
+        // For UPDATE, check if already in this collection
+        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.UPDATE) {
+          Optional<CollectionContentEntity> existingJoin =
+              collectionRepository.findContentByCollectionIdAndContentId(
+                  collectionId, entity.getId());
+          if (existingJoin.isPresent()) {
+            // Already linked, just convert and add to results
+            ContentModel contentModel =
+                contentProcessingUtil.convertEntityToModel(existingJoin.get());
+            if (contentModel instanceof ContentModels.Image imageModel) {
+              createdImages.add(imageModel);
+            }
+            continue;
+          }
+        }
 
         // Create join table entry linking content to collection
         CollectionContentEntity joinEntry =
@@ -798,11 +728,12 @@ public class ContentService {
     }
 
     log.info(
-        "Upload complete for collection {}: {} succeeded, {} failed",
+        "Upload complete for collection {}: {} succeeded, {} failed, {} skipped",
         collectionId,
         createdImages.size(),
-        failures.size());
-    return new ImageUploadResult(createdImages, failures);
+        failures.size(),
+        skipped.size());
+    return new ImageUploadResult(createdImages, failures, skipped);
   }
 
   /** Record to hold prepared image data before database save */
@@ -820,9 +751,7 @@ public class ContentService {
         .orElseThrow(
             () -> new ResourceNotFoundException("Collection not found: " + request.collectionId()));
 
-    // Get the next order index for this collection
-    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(request.collectionId());
-    Integer orderIndex = maxOrder != null ? maxOrder + 1 : 0;
+    int orderIndex = nextOrderIndex(request.collectionId());
 
     // Create text content entity
     ContentTextEntity textEntity =
@@ -860,5 +789,52 @@ public class ContentService {
           "Expected ContentModels.Text but got "
               + (contentModel != null ? contentModel.getClass() : "null"));
     }
+  }
+
+  /** Returns the next available orderIndex for a collection (max + 1, or 0 if empty). */
+  private int nextOrderIndex(Long collectionId) {
+    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
+    return maxOrder != null ? maxOrder + 1 : 0;
+  }
+
+  @Transactional
+  public ContentModels.Gif createGif(
+      Long collectionId, MultipartFile file, String title, Integer orderIndex) {
+    log.debug("Creating GIF/MP4 for collection ID: {}", collectionId);
+
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
+
+    // Process file: upload to S3 + extract first-frame WebP thumbnail + save entity
+    ContentGifEntity gifEntity = contentProcessingUtil.processGifContent(file, title);
+
+    // Resolve order index: use provided value or append to end
+    int resolvedOrderIndex = orderIndex != null ? orderIndex : nextOrderIndex(collectionId);
+
+    // Link to collection
+    CollectionContentEntity joinEntry =
+        CollectionContentEntity.builder()
+            .collectionId(collectionId)
+            .contentId(gifEntity.getId())
+            .orderIndex(resolvedOrderIndex)
+            .visible(true)
+            .build();
+
+    collectionRepository.saveContent(joinEntry);
+
+    log.info(
+        "Created GIF {} in collection {} at orderIndex {}",
+        gifEntity.getId(),
+        collectionId,
+        resolvedOrderIndex);
+
+    ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+    if (contentModel instanceof ContentModels.Gif gifModel) {
+      return gifModel;
+    }
+    throw new IllegalStateException(
+        "Expected ContentModels.Gif but got "
+            + (contentModel != null ? contentModel.getClass() : "null"));
   }
 }
