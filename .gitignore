@@ -86,3 +86,16 @@ backup-*.sql
 backup-*.tar.gz
 
 todo
+!todo/refactor_2026.md
+
+# Media files (don't commit large binaries)
+*.mp4
+*.mov
+*.avi
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+!terraform.tfvars.example

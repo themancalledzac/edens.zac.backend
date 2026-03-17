@@ -1,50 +1,10 @@
 services:
-  database:
-    image: postgres:16-alpine
-    container_name: portfolio-postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-edens_zac}
-      POSTGRES_USER: ${POSTGRES_USER:-zedens}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-zedens} -d ${POSTGRES_DB:-edens_zac}",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    command: >
-      postgres
-      -c shared_buffers=256MB
-      -c max_connections=100
-      -c log_statement=ddl
-      -c log_destination=stderr
-
   backend:
     image: edens.zac.backend:latest
     platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
-    depends_on:
-      database:
-        condition: service_healthy
     ports:
       - "0.0.0.0:8080:8080"
     logging:
@@ -53,8 +13,8 @@ services:
         max-size: "10m"
         max-file: "3"
     environment:
-      # Database Config - Docker DNS (POSTGRES_HOST=database)
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST:-database}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-edens_zac}
+      # Database Config - connects to external PostgreSQL (managed in ~/portfolio-db/)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST:-localhost}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-edens_zac}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-zedens}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       # Spring profile: defaults to dev locally, set to prod on EC2
@@ -108,6 +68,5 @@ services:
         max-file: "3"
 
 volumes:
-  postgres_data:
   caddy_data:
   caddy_config:

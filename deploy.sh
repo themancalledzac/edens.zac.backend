@@ -33,15 +33,24 @@ else
   exit 1
 fi
 
+# Verify database is running (managed separately in ~/portfolio-db/)
+echo "Checking database health..."
+if ! docker exec portfolio-postgres pg_isready -U ${POSTGRES_USER:-zedens} -q 2>/dev/null; then
+  echo "ERROR: PostgreSQL container 'portfolio-postgres' is not running or not healthy."
+  echo "Start it first: cd ~/portfolio-db && docker compose up -d"
+  exit 1
+fi
+echo "Database is healthy"
+
 # Build new image first (old containers keep serving traffic)
 echo "Building images..."
 cd "$APP_DIR/repo"
 docker compose build
 
 # Stop old containers and start new ones
-echo "Restarting containers (database + backend)..."
-docker compose --profile local-db down || true
-docker compose --profile local-db up -d
+echo "Restarting backend..."
+docker compose down || true
+docker compose up -d
 
 # Wait for services to be healthy
 echo "Waiting for services to be healthy..."
@@ -50,7 +59,7 @@ sleep 10
 # Check container status
 echo ""
 echo "Container Status:"
-docker compose --profile local-db ps
+docker compose ps
 
 # Cleanup dangling images to save disk space
 echo ""
@@ -63,11 +72,11 @@ echo "Deployment completed successfully!"
 echo "======================================"
 echo ""
 echo "To view logs:"
-echo "  docker compose --profile local-db logs -f"
+echo "  docker compose logs -f"
 echo ""
 echo "To check health:"
 echo "  curl http://localhost:8080/actuator/health"
 echo ""
 echo "If something went wrong, check logs with:"
-echo "  docker compose --profile local-db logs --tail=100"
+echo "  docker compose logs --tail=100"
 echo ""
