@@ -42,7 +42,7 @@ class ContentImageEntityTest {
             .camera(new ContentCameraEntity("Canon EOS R5"))
             .focalLength("50mm")
             .locationId(1L)
-            .createDate("2023-05-15")
+            .captureDate(java.time.LocalDate.of(2023, 5, 15))
             .build();
 
     Set<ConstraintViolation<ContentImageEntity>> violations = validator.validate(imageBlock);
@@ -93,7 +93,7 @@ class ContentImageEntityTest {
             .camera(new ContentCameraEntity("Canon EOS R5"))
             .focalLength("50mm")
             .locationId(1L)
-            .createDate("2023-05-15")
+            .captureDate(java.time.LocalDate.of(2023, 5, 15))
             .build();
 
     // Verify all fields were set correctly
@@ -113,7 +113,7 @@ class ContentImageEntityTest {
     assertEquals("Canon EOS R5", imageBlock.getCamera().getCameraName());
     assertEquals("50mm", imageBlock.getFocalLength());
     assertEquals(1L, imageBlock.getLocationId());
-    assertEquals("2023-05-15", imageBlock.getCreateDate());
+    assertEquals(java.time.LocalDate.of(2023, 5, 15), imageBlock.getCaptureDate());
   }
 
   @Test

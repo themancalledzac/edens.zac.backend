@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services.validator;
 
 import java.util.List;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -61,20 +62,33 @@ public class ContentValidator {
     }
   }
 
+  private static final Set<String> VIDEO_MIME_TYPES = Set.of("video/mp4", "video/quicktime");
+
+  private static final Set<String> ACCEPTED_GIF_MIME_TYPES =
+      Set.of("image/gif", "video/mp4", "video/quicktime");
+
   /**
-   * Validate that a GIF file is provided.
+   * Validate that a GIF or MP4 file is provided.
    *
    * @param file The file to validate
    * @throws IllegalArgumentException if validation fails
    */
   public void validateGifFile(MultipartFile file) {
     if (file == null || file.isEmpty()) {
-      throw new IllegalArgumentException("GIF file cannot be empty");
+      throw new IllegalArgumentException("GIF/MP4 file cannot be empty");
     }
 
     String contentType = file.getContentType();
-    if (contentType == null || !contentType.toLowerCase().contains("gif")) {
-      throw new IllegalArgumentException("File is not a GIF");
+    if (contentType == null || !ACCEPTED_GIF_MIME_TYPES.contains(contentType.toLowerCase())) {
+      throw new IllegalArgumentException(
+          "File type not accepted. Expected image/gif, video/mp4, or video/quicktime, got: "
+              + contentType);
     }
+  }
+
+  /** Returns true if the file has a video MIME type (MP4 or QuickTime). */
+  public boolean isMp4File(MultipartFile file) {
+    String ct = file.getContentType();
+    return ct != null && VIDEO_MIME_TYPES.contains(ct);
   }
 }

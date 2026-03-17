@@ -70,8 +70,8 @@ mvn checkstyle:check       # Verify style compliance
 ```
 
 ## Environment
-- Dev profile: Local PostgreSQL, relaxed CORS
-- Prod profile: AWS RDS PostgreSQL, CloudFront integration
+- Dev profile: EC2 PostgreSQL, relaxed CORS
+- Prod profile: EC2 PostgreSQL, CloudFront integration, InternalSecretFilter
 - Key env vars: `POSTGRES_*`, `AWS_*`, `CLOUDFRONT_DOMAIN`
 
 ## What to Avoid

@@ -147,7 +147,7 @@ SPRING_PROFILES_ACTIVE=default
 
 ### Deployment Process
 
-**Automated deployment script**: `scripts/deploy.sh`
+**Automated deployment script**: `deploy.sh` (repo root)
 
 **What it does**:
 1. Pulls latest code from `main` branch (`git fetch` + `git reset --hard`)
@@ -239,7 +239,7 @@ jdbc:postgresql://<ec2-public-ip>:5432/edens_zac
 
 | Script | Location | Purpose |
 |--------|----------|---------|
-| `deploy.sh` | Root + `scripts/deploy.sh` | Deploy application to EC2 (run on EC2) |
+| `deploy.sh` | Repo root | Deploy application to EC2 (run on EC2) |
 | `setup-ec2.sh` | `scripts/setup-ec2.sh` | One-time EC2 instance setup |
 | `backup-postgres.sh` | `scripts/backup-postgres.sh` | PostgreSQL backup with S3 sync |
 | `restore-postgres.sh` | `scripts/restore-postgres.sh` | Restore PostgreSQL from backup |
@@ -385,7 +385,7 @@ ls -la ~/portfolio-backend/repo/.env
 **Post-merge workflow**:
 1. CI pipeline passes on merge to `main`
 2. SSH to EC2: `ssh -i ~/key.pem ubuntu@<ec2-ip>`
-3. Run deployment: `cd ~/edens.zac.backend && bash scripts/deploy.sh`
+3. Run deployment: `bash ~/portfolio-backend/repo/deploy.sh`
 4. Verify: `curl http://localhost:8080/actuator/health`
 
 ## EC2 Instance Requirements

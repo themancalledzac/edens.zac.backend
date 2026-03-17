@@ -3,6 +3,8 @@ package edens.zac.portfolio.backend.entity;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.Builder;
@@ -86,11 +88,14 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: image_url_original (VARCHAR) - S3 URL for original full-size image */
   private String imageUrlOriginal;
 
-  /** Column: create_date (VARCHAR) - EXIF date string */
-  private String createDate;
+  /** Column: capture_date (DATE) - parsed EXIF capture date */
+  private LocalDate captureDate;
 
-  /** Column: file_identifier (VARCHAR, UNIQUE) - Format: "YYYY-MM-DD/filename.jpg" */
-  private String fileIdentifier;
+  /** Column: last_export_date (TIMESTAMP) - file modification timestamp for dedupe */
+  private LocalDateTime lastExportDate;
+
+  /** Column: original_filename (VARCHAR) - original uploaded filename for dedupe */
+  private String originalFilename;
 
   /** Relationship: Many-to-many with TagEntity (via content_tags table) */
   @Builder.Default private Set<TagEntity> tags = new HashSet<>();

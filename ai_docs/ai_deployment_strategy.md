@@ -8,10 +8,14 @@ Single EC2 instance running Docker Compose with PostgreSQL 16 + Spring Boot 3.4.
 
 ## Architecture
 
+Two separate Docker Compose stacks on the same EC2 instance:
+
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ EC2 Instance (t2.small+ recommended)                    │
+│ EC2 Instance (t3.small+ recommended)                    │
 │                                                         │
+│  ~/portfolio-db/          ~/portfolio-backend/repo/     │
+│  (separate stack)         (separate stack)              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │  PostgreSQL   │  │  Spring Boot │  │    Caddy     │  │
 │  │  (512M limit) │  │  (768M limit)│  │  (optional)  │  │
@@ -27,6 +31,8 @@ Single EC2 instance running Docker Compose with PostgreSQL 16 + Spring Boot 3.4.
     (local dev)                          (CDN/frontend)
 ```
 
+**Key point:** The database runs from `~/portfolio-db/` as its own Docker Compose stack. The backend app runs from `~/portfolio-backend/repo/`. This means the database survives backend deploys -- `docker compose down` in the backend directory does not touch PostgreSQL.
+
 ## File Map
 
 | File | Purpose | When to edit |
@@ -34,8 +40,7 @@ Single EC2 instance running Docker Compose with PostgreSQL 16 + Spring Boot 3.4.
 | `Dockerfile` | Multi-stage build: Maven → JRE-alpine runtime | Changing Java version, build args, JVM flags |
 | `docker-compose.yml` | All services: database, backend, caddy | Adding services, changing ports, memory limits |
 | `Caddyfile` | HTTPS reverse proxy config | Changing domain, adding routes |
-| `deploy.sh` | Main deploy script (verbose, with health checks) | Changing deploy workflow |
-| `scripts/deploy.sh` | Concise deploy script (same logic, less output) | Mirror changes from root deploy.sh |
+| `deploy.sh` | Deploy script (DB pre-check, build, restart, health check) | Changing deploy workflow |
 | `scripts/setup-ec2.sh` | One-time EC2 instance setup | Adding setup steps |
 | `scripts/backup-postgres.sh` | Automated PostgreSQL backup + S3 sync | Changing retention, backup format |
 | `scripts/restore-postgres.sh` | Restore from backup with confirmation | Changing restore process |
@@ -90,8 +95,8 @@ Push to any branch
 1. `git fetch` + `git reset --hard origin/main` (pull latest code)
 2. Copy `.env` from `~/portfolio-backend/.env` to repo
 3. `docker compose build` (builds new image while old containers still serve traffic)
-4. `docker compose --profile local-db down` (stop old containers)
-5. `docker compose --profile local-db up -d` (start new containers)
+4. `docker compose down` (stop old containers -- DB is separate, unaffected)
+5. `docker compose up -d` (start new containers)
 6. Wait 10s for health checks
 7. `docker image prune -f` (clean dangling images)
 
@@ -117,22 +122,18 @@ Push to any branch
 
 ### docker-compose.yml
 
-**Services:**
+**Services** (backend stack only -- database runs separately from `~/portfolio-db/`):
 
 | Service | Image | Memory Limit | Profile | Purpose |
 |---------|-------|-------------|---------|---------|
-| `database` | postgres:16-alpine | 512M | `local-db` | PostgreSQL with tuned shared_buffers |
 | `backend` | edens.zac.backend:latest | 768M | (always) | Spring Boot application |
 | `caddy` | caddy:2-alpine | (default) | `production` | HTTPS reverse proxy |
 
 **Profile usage:**
-- Local dev (no DB): `docker compose up` (backend only, connects to remote DB)
-- Local dev (with DB): `docker compose --profile local-db up`
-- EC2 production: `docker compose --profile local-db up -d`
-- EC2 with HTTPS: `docker compose --profile local-db --profile production up -d`
+- Production: `docker compose up -d` (backend only, DB runs from ~/portfolio-db/)
+- With HTTPS: `docker compose --profile production up -d` (adds Caddy)
 
 **Volumes:**
-- `postgres_data` — PostgreSQL data (persists across restarts and deploys)
 - `caddy_data` — TLS certificates from Let's Encrypt
 - `caddy_config` — Caddy configuration state
 
@@ -187,6 +188,10 @@ bash setup-ec2.sh
 ### EC2 Directory Structure
 
 ```
+~/portfolio-db/
+├── docker-compose.yml      # PostgreSQL stack (managed separately)
+└── .env                    # DB credentials
+
 ~/portfolio-backend/
 ├── .env                    # Master credentials (NOT in git)
 ├── backups/                # PostgreSQL backups
@@ -194,7 +199,7 @@ bash setup-ec2.sh
 │   └── ...
 └── repo/                   # Git clone of this repository
     ├── deploy.sh
-    ├── docker-compose.yml
+    ├── docker-compose.yml  # Backend + Caddy only (no database)
     ├── Dockerfile
     ├── .env                # Copied from parent by deploy.sh
     └── ...
@@ -330,24 +335,24 @@ If SSH hangs or Docker commands freeze:
 
 ### App won't start — OOM killed
 ```bash
-docker compose --profile local-db logs backend | tail -50
+docker compose logs backend | tail -50
 docker stats --no-stream          # Check memory usage
 # If consistently hitting limits, increase instance size or tune -Xmx in Dockerfile
 ```
 
 ### Database connection refused
 ```bash
-docker compose --profile local-db ps    # Is database container healthy?
-docker compose --profile local-db logs database | tail -20
+docker compose ps    # Is backend container healthy?
+docker compose logs backend | tail -20
 docker exec portfolio-postgres pg_isready -U zedens
 ```
 
 ### Old version still running after deploy
 ```bash
 docker images | grep edens.zac    # Check image timestamps
-docker compose --profile local-db down
+docker compose down
 docker compose build              # Rebuild (uses layer cache, fast)
-docker compose --profile local-db up -d
+docker compose up -d
 ```
 
 ### Caddy won't get HTTPS certificate
@@ -439,11 +444,7 @@ Push Docker images to ECR or GitHub Container Registry so EC2 pulls pre-built im
 Run two backend containers and swap traffic between them for zero-downtime deploys. Overkill for a portfolio site but interesting if traffic grows.
 
 ### Terraform / Infrastructure as Code
-Not recommended at current scale. A single EC2 instance with Docker Compose doesn't benefit from Terraform's complexity. Revisit if you add:
-- Separate staging environment
-- Load balancer (ALB)
-- RDS instead of local PostgreSQL
-- Multiple services or microservices
+Terraform has been added in the `terraform/` directory for managing AWS infrastructure. The project intentionally migrated FROM RDS to a local PostgreSQL instance (cheaper, simpler, co-located). Terraform manages EC2, security groups, and other AWS resources.
 
 ### Monitoring & Alerting
 - Spring Boot Actuator metrics are already exposed
@@ -458,14 +459,13 @@ Currently logs are in Docker json-file driver (10MB max, 3 files). For searchabl
 
 ## Notes for AI Agents
 
-- **Primary deploy script**: `deploy.sh` at repo root (the verbose one with health checks)
-- **`scripts/deploy.sh`**: Concise version, same logic, less output
-- **Profile `local-db`**: Starts PostgreSQL alongside the app (used on EC2)
+- **Deploy script**: `deploy.sh` at repo root (DB pre-check, build, restart, health check)
+- **Database runs separately**: PostgreSQL runs from `~/portfolio-db/` as its own Docker Compose stack
 - **Profile `production`**: Adds Caddy reverse proxy for HTTPS
-- **Memory limits are enforced**: 512M for DB, 768M for backend, via Docker deploy.resources
+- **Memory limits are enforced**: 512M for DB (in portfolio-db stack), 768M for backend, via Docker deploy.resources
 - **JVM is capped**: `-Xmx512m` hard limit even without Docker memory enforcement
 - **No automatic deployment**: Merge to main does NOT deploy. Manual SSH required.
-- **Database is co-located**: PostgreSQL runs on same EC2 instance as the app
+- **Database is co-located**: PostgreSQL runs on same EC2 instance but in a separate Docker Compose stack (`~/portfolio-db/`)
 - **Backups go to S3**: If AWS CLI is installed and `AWS_PORTFOLIO_S3_BUCKET` is set
 - **Legacy MySQL scripts exist**: `scripts/backup-database.sh`, `scripts/restore-database.sh`, `scripts/migrate-from-rds.sh` — these are deprecated, PostgreSQL equivalents are `scripts/backup-postgres.sh` and `scripts/restore-postgres.sh`
 - **Security**: Port 5432 should NOT be in the security group. Use SSH tunnel.

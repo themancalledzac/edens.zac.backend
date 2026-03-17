@@ -11,6 +11,7 @@ import edens.zac.portfolio.backend.entity.ContentLensEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,8 +66,12 @@ public class ContentRepository extends BaseDao {
                 .locationId(getLong(rs, "location_id"))
                 .imageUrlWeb(rs.getString("image_url_web"))
                 .imageUrlOriginal(getString(rs, "image_url_original"))
-                .createDate(getString(rs, "create_date"))
-                .fileIdentifier(getString(rs, "file_identifier"))
+                .captureDate(
+                    rs.getDate("capture_date") != null
+                        ? rs.getDate("capture_date").toLocalDate()
+                        : null)
+                .lastExportDate(getLocalDateTime(rs, "last_export_date"))
+                .originalFilename(getString(rs, "original_filename"))
                 .createdAt(getLocalDateTime(rs, "created_at"))
                 .updatedAt(getLocalDateTime(rs, "updated_at"))
                 .tags(new HashSet<>())
@@ -154,7 +159,8 @@ public class ContentRepository extends BaseDao {
              ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
              ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
              ci.location_id,
-             ci.image_url_web, ci.image_url_original, ci.create_date, ci.file_identifier,
+             ci.image_url_web, ci.image_url_original,
+             ci.capture_date, ci.last_export_date, ci.original_filename,
              cam.camera_name,
              lens.lens_name,
              ft.film_type_name, ft.display_name as film_type_display_name, ft.default_iso
@@ -195,19 +201,25 @@ public class ContentRepository extends BaseDao {
   // ============================================================
 
   @Transactional(readOnly = true)
-  public boolean existsByFileIdentifier(String fileIdentifier) {
-    String sql = "SELECT COUNT(*) > 0 FROM content_image WHERE file_identifier = :fileIdentifier";
+  public Optional<ContentImageEntity> findByOriginalFilenameAndCaptureDate(
+      String originalFilename, LocalDate captureDate) {
+    String sql =
+        SELECT_CONTENT_IMAGE
+            + " WHERE ci.original_filename = :originalFilename AND ci.capture_date = :captureDate";
     MapSqlParameterSource params =
-        createParameterSource().addValue("fileIdentifier", fileIdentifier);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
+        createParameterSource()
+            .addValue("originalFilename", originalFilename)
+            .addValue("captureDate", captureDate);
+    return queryForObject(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
-  public List<ContentImageEntity> findAllByFileIdentifier(String fileIdentifier) {
-    String sql = SELECT_CONTENT_IMAGE + " WHERE ci.file_identifier = :fileIdentifier";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("fileIdentifier", fileIdentifier);
+  public List<ContentImageEntity> findByOriginalFilenames(List<String> filenames) {
+    if (filenames == null || filenames.isEmpty()) {
+      return List.of();
+    }
+    String sql = SELECT_CONTENT_IMAGE + " WHERE ci.original_filename IN (:filenames)";
+    MapSqlParameterSource params = createParameterSource().addValue("filenames", filenames);
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
@@ -231,7 +243,7 @@ public class ContentRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc() {
     String sql =
-        SELECT_CONTENT_IMAGE + " ORDER BY ci.create_date DESC NULLS LAST, c.created_at DESC";
+        SELECT_CONTENT_IMAGE + " ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC";
     return query(sql, CONTENT_IMAGE_ROW_MAPPER);
   }
 
@@ -239,7 +251,7 @@ public class ContentRepository extends BaseDao {
   public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc(int limit, int offset) {
     String sql =
         SELECT_CONTENT_IMAGE
-            + " ORDER BY ci.create_date DESC NULLS LAST, c.created_at DESC LIMIT :limit OFFSET :offset";
+            + " ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC LIMIT :limit OFFSET :offset";
     MapSqlParameterSource params =
         createParameterSource().addValue("limit", limit).addValue("offset", offset);
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
@@ -335,42 +347,17 @@ public class ContentRepository extends BaseDao {
                                     f_stop, lens_id, black_and_white, is_film, film_type_id,
                                     film_format, shutter_speed, camera_id, focal_length,
                                     location_id,
-                                    image_url_web, image_url_original, create_date, file_identifier)
+                                    image_url_web, image_url_original,
+                                    capture_date, last_export_date, original_filename)
           VALUES (:id, :title, :imageWidth, :imageHeight, :iso, :author, :rating,
                   :fStop, :lensId, :blackAndWhite, :isFilm, :filmTypeId,
                   :filmFormat, :shutterSpeed, :cameraId, :focalLength,
                   :locationId,
-                  :imageUrlWeb, :imageUrlOriginal, :createDate, :fileIdentifier)
+                  :imageUrlWeb, :imageUrlOriginal,
+                  :captureDate, :lastExportDate, :originalFilename)
           """;
 
-      MapSqlParameterSource imageParams =
-          createParameterSource()
-              .addValue("id", contentId)
-              .addValue("title", entity.getTitle())
-              .addValue("imageWidth", entity.getImageWidth())
-              .addValue("imageHeight", entity.getImageHeight())
-              .addValue("iso", entity.getIso())
-              .addValue("author", entity.getAuthor())
-              .addValue("rating", entity.getRating())
-              .addValue("fStop", entity.getFStop())
-              .addValue("lensId", entity.getLens() != null ? entity.getLens().getId() : null)
-              .addValue("blackAndWhite", entity.getBlackAndWhite())
-              .addValue("isFilm", entity.getIsFilm())
-              .addValue(
-                  "filmTypeId", entity.getFilmType() != null ? entity.getFilmType().getId() : null)
-              .addValue(
-                  "filmFormat",
-                  entity.getFilmFormat() != null ? entity.getFilmFormat().name() : null)
-              .addValue("shutterSpeed", entity.getShutterSpeed())
-              .addValue("cameraId", entity.getCamera() != null ? entity.getCamera().getId() : null)
-              .addValue("focalLength", entity.getFocalLength())
-              .addValue("locationId", entity.getLocationId())
-              .addValue("imageUrlWeb", entity.getImageUrlWeb())
-              .addValue("imageUrlOriginal", entity.getImageUrlOriginal())
-              .addValue("createDate", entity.getCreateDate())
-              .addValue("fileIdentifier", entity.getFileIdentifier());
-
-      update(imageSql, imageParams);
+      update(imageSql, buildImageParams(entity, contentId));
 
       entity.setId(contentId);
       if (entity.getCreatedAt() == null) {
@@ -401,42 +388,43 @@ public class ContentRepository extends BaseDao {
               film_format = :filmFormat, shutter_speed = :shutterSpeed, camera_id = :cameraId,
               focal_length = :focalLength, location_id = :locationId,
               image_url_web = :imageUrlWeb, image_url_original = :imageUrlOriginal,
-              create_date = :createDate, file_identifier = :fileIdentifier
+              capture_date = :captureDate, last_export_date = :lastExportDate,
+              original_filename = :originalFilename
           WHERE id = :id
           """;
 
-      MapSqlParameterSource imageParams =
-          createParameterSource()
-              .addValue("id", entity.getId())
-              .addValue("title", entity.getTitle())
-              .addValue("imageWidth", entity.getImageWidth())
-              .addValue("imageHeight", entity.getImageHeight())
-              .addValue("iso", entity.getIso())
-              .addValue("author", entity.getAuthor())
-              .addValue("rating", entity.getRating())
-              .addValue("fStop", entity.getFStop())
-              .addValue("lensId", entity.getLens() != null ? entity.getLens().getId() : null)
-              .addValue("blackAndWhite", entity.getBlackAndWhite())
-              .addValue("isFilm", entity.getIsFilm())
-              .addValue(
-                  "filmTypeId", entity.getFilmType() != null ? entity.getFilmType().getId() : null)
-              .addValue(
-                  "filmFormat",
-                  entity.getFilmFormat() != null ? entity.getFilmFormat().name() : null)
-              .addValue("shutterSpeed", entity.getShutterSpeed())
-              .addValue("cameraId", entity.getCamera() != null ? entity.getCamera().getId() : null)
-              .addValue("focalLength", entity.getFocalLength())
-              .addValue("locationId", entity.getLocationId())
-              .addValue("imageUrlWeb", entity.getImageUrlWeb())
-              .addValue("imageUrlOriginal", entity.getImageUrlOriginal())
-              .addValue("createDate", entity.getCreateDate())
-              .addValue("fileIdentifier", entity.getFileIdentifier());
-
-      update(imageSql, imageParams);
+      update(imageSql, buildImageParams(entity, entity.getId()));
 
       entity.setUpdatedAt(now);
       return entity;
     }
+  }
+
+  private MapSqlParameterSource buildImageParams(ContentImageEntity entity, Long id) {
+    return createParameterSource()
+        .addValue("id", id)
+        .addValue("title", entity.getTitle())
+        .addValue("imageWidth", entity.getImageWidth())
+        .addValue("imageHeight", entity.getImageHeight())
+        .addValue("iso", entity.getIso())
+        .addValue("author", entity.getAuthor())
+        .addValue("rating", entity.getRating())
+        .addValue("fStop", entity.getFStop())
+        .addValue("lensId", entity.getLens() != null ? entity.getLens().getId() : null)
+        .addValue("blackAndWhite", entity.getBlackAndWhite())
+        .addValue("isFilm", entity.getIsFilm())
+        .addValue("filmTypeId", entity.getFilmType() != null ? entity.getFilmType().getId() : null)
+        .addValue(
+            "filmFormat", entity.getFilmFormat() != null ? entity.getFilmFormat().name() : null)
+        .addValue("shutterSpeed", entity.getShutterSpeed())
+        .addValue("cameraId", entity.getCamera() != null ? entity.getCamera().getId() : null)
+        .addValue("focalLength", entity.getFocalLength())
+        .addValue("locationId", entity.getLocationId())
+        .addValue("imageUrlWeb", entity.getImageUrlWeb())
+        .addValue("imageUrlOriginal", entity.getImageUrlOriginal())
+        .addValue("captureDate", entity.getCaptureDate())
+        .addValue("lastExportDate", entity.getLastExportDate())
+        .addValue("originalFilename", entity.getOriginalFilename());
   }
 
   @Transactional

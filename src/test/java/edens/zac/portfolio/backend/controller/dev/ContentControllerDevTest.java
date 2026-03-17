@@ -322,7 +322,7 @@ class ContentControllerDevTest {
     // actual upload
     // Full file upload testing would require integration tests with @SpringBootTest
 
-    verify(contentService, never()).createImages(any(), any());
+    verify(contentService, never()).createImagesParallel(any(), any());
   }
 
   // ============== MEDIUM PRIORITY TESTS - POST /api/admin/content/tags

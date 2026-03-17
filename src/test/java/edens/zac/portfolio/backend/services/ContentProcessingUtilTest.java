@@ -19,7 +19,10 @@ import edens.zac.portfolio.backend.types.ContentType;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Optional;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -99,7 +102,7 @@ public class ContentProcessingUtilTest {
     assertNotNull(imageModel.location());
     assertEquals("Test Location", imageModel.location().name());
     assertEquals(1L, imageModel.location().id());
-    assertEquals(entity.getCreateDate(), imageModel.createDate());
+    assertEquals(entity.getCaptureDate(), imageModel.captureDate());
   }
 
   @Test
@@ -216,59 +219,43 @@ public class ContentProcessingUtilTest {
     assertTrue(exception instanceof RuntimeException || exception instanceof UnsatisfiedLinkError);
   }
 
-  @Disabled("GIF saving not yet implemented in DAO layer - throws UnsupportedOperationException")
+  @Disabled("WebP native library architecture mismatch in local test environment")
   @Test
-  void processContentGif_withValidGif_shouldReturnGifContentEntity() throws IOException {
+  void processGifContent_withValidGif_shouldSaveAndReturnEntity() throws IOException {
     // Arrange
     MultipartFile file = createMockGifFile();
-    Long collectionId = 1L;
-    Integer orderIndex = 0;
     String title = "Test GIF";
-    String caption = "Test Caption";
 
-    // Mock S3 upload
     when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
         .thenReturn(PutObjectResponse.builder().build());
 
-    // Note: GIF saving not yet implemented in DAO layer
-    // ContentGifEntity savedEntity = createContentGifEntity();
-    // when(contentRepository.saveGif(any(ContentGifEntity.class))).thenReturn(savedEntity);
+    ContentGifEntity savedEntity = createContentGifEntity();
+    when(contentRepository.saveGif(any(ContentGifEntity.class))).thenReturn(savedEntity);
 
-    // Act & Assert - Will throw UnsupportedOperationException until GIF DAO save is
-    // implemented
-    assertThrows(
-        UnsupportedOperationException.class,
-        () -> {
-          contentProcessingUtil.processGifContent(file, collectionId, orderIndex, title, caption);
-        });
+    // Act
+    ContentGifEntity result = contentProcessingUtil.processGifContent(file, title);
+
+    // Assert
+    assertNotNull(result);
+    assertEquals(savedEntity.getId(), result.getId());
+    verify(contentRepository).saveGif(any(ContentGifEntity.class));
   }
 
   @Test
   void processGifContent_withEmptyFile_shouldThrowException() {
     // Arrange
     MultipartFile file = new MockMultipartFile("file", "test.gif", "image/gif", new byte[0]);
-    Long collectionId = 1L;
-    Integer orderIndex = 0;
-    String title = "Test GIF";
-    String caption = "Test Caption";
+
+    doThrow(new IllegalArgumentException("GIF/MP4 file cannot be empty"))
+        .when(contentValidator)
+        .validateGifFile(file);
 
     // Act & Assert
-    // Note: May throw different exceptions depending on image library availability
-    Throwable exception =
-        assertThrows(
-            Throwable.class,
-            () -> {
-              contentProcessingUtil.processGifContent(
-                  file, collectionId, orderIndex, title, caption);
-            });
-    // Accept either the expected RuntimeException or other exceptions from image
-    // processing
-    assertTrue(
-        exception instanceof RuntimeException
-            || exception instanceof UnsatisfiedLinkError
-            || (exception.getMessage() != null
-                && (exception.getMessage().contains("Failed to process GIF")
-                    || exception.getMessage().contains("GIF"))));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          contentProcessingUtil.processGifContent(file, "Test GIF");
+        });
   }
 
   @Disabled
@@ -310,6 +297,186 @@ public class ContentProcessingUtilTest {
     verify(contentRepository).saveImage(any(ContentImageEntity.class));
   }
 
+  // ============================================================================
+  // Tests for parseCaptureDateToLocalDate
+  // ============================================================================
+
+  @Test
+  void parseCaptureDateToLocalDate_withExifFormat_shouldReturnLocalDate() {
+    LocalDate result = contentProcessingUtil.parseCaptureDateToLocalDate("2026:01:26 17:48:38");
+    assertEquals(LocalDate.of(2026, 1, 26), result);
+  }
+
+  @Test
+  void parseCaptureDateToLocalDate_withIsoFormat_shouldReturnLocalDate() {
+    LocalDate result = contentProcessingUtil.parseCaptureDateToLocalDate("2026-01-26");
+    assertEquals(LocalDate.of(2026, 1, 26), result);
+  }
+
+  @Test
+  void parseCaptureDateToLocalDate_withNull_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate(null));
+  }
+
+  @Test
+  void parseCaptureDateToLocalDate_withEmptyString_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate(""));
+  }
+
+  @Test
+  void parseCaptureDateToLocalDate_withMalformedString_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate("not-a-date"));
+  }
+
+  @Test
+  void parseCaptureDateToLocalDate_withShortString_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate("2026"));
+  }
+
+  // ============================================================================
+  // Tests for savePreparedImageWithDedupe
+  // ============================================================================
+
+  private ContentProcessingUtil.PreparedImageData createPreparedImageData(
+      String filename, LocalDate captureDate, LocalDateTime lastExportDate) {
+    Map<String, String> metadata =
+        Map.of(
+            "imageWidth", "800",
+            "imageHeight", "600",
+            "author", "Test Author",
+            "fStop", "f/2.8",
+            "shutterSpeed", "1/125",
+            "iso", "100",
+            "focalLength", "50mm");
+    return new ContentProcessingUtil.PreparedImageData(
+        filename,
+        "https://cdn/full/image.jpg",
+        "https://cdn/web/image.webp",
+        metadata,
+        2026,
+        1,
+        captureDate,
+        lastExportDate);
+  }
+
+  @Test
+  void savePreparedImageWithDedupe_create_whenNoDuplicateExists() {
+    // Arrange
+    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime exportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
+    ContentProcessingUtil.PreparedImageData prepared =
+        createPreparedImageData("photo.jpg", captureDate, exportDate);
+
+    when(contentRepository.findByOriginalFilenameAndCaptureDate("photo.jpg", captureDate))
+        .thenReturn(Optional.empty());
+
+    ContentImageEntity savedEntity = createContentImageEntity();
+    when(contentRepository.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
+
+    // Act
+    ContentProcessingUtil.DedupeResult result =
+        contentProcessingUtil.savePreparedImageWithDedupe(prepared, "Test");
+
+    // Assert
+    assertEquals(ContentProcessingUtil.DedupeAction.CREATE, result.action());
+    assertNotNull(result.entity());
+    verify(contentRepository).saveImage(any(ContentImageEntity.class));
+  }
+
+  @Test
+  void savePreparedImageWithDedupe_skip_whenSameExportDate() {
+    // Arrange
+    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime exportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
+    ContentProcessingUtil.PreparedImageData prepared =
+        createPreparedImageData("photo.jpg", captureDate, exportDate);
+
+    ContentImageEntity existing = createContentImageEntity();
+    existing.setLastExportDate(exportDate); // same export date
+    when(contentRepository.findByOriginalFilenameAndCaptureDate("photo.jpg", captureDate))
+        .thenReturn(Optional.of(existing));
+
+    // Act
+    ContentProcessingUtil.DedupeResult result =
+        contentProcessingUtil.savePreparedImageWithDedupe(prepared, null);
+
+    // Assert
+    assertEquals(ContentProcessingUtil.DedupeAction.SKIP, result.action());
+    assertEquals(existing, result.entity());
+    verify(contentRepository, never()).saveImage(any());
+  }
+
+  @Test
+  void savePreparedImageWithDedupe_skip_whenExistingHasNullExportDate() {
+    // Arrange: migrated rows have null lastExportDate -- should SKIP, not UPDATE
+    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime exportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
+    ContentProcessingUtil.PreparedImageData prepared =
+        createPreparedImageData("photo.jpg", captureDate, exportDate);
+
+    ContentImageEntity existing = createContentImageEntity();
+    existing.setLastExportDate(null); // migrated row
+    when(contentRepository.findByOriginalFilenameAndCaptureDate("photo.jpg", captureDate))
+        .thenReturn(Optional.of(existing));
+
+    // Act
+    ContentProcessingUtil.DedupeResult result =
+        contentProcessingUtil.savePreparedImageWithDedupe(prepared, null);
+
+    // Assert
+    assertEquals(ContentProcessingUtil.DedupeAction.SKIP, result.action());
+    verify(contentRepository, never()).saveImage(any());
+  }
+
+  @Test
+  void savePreparedImageWithDedupe_update_whenNewerExportDate() {
+    // Arrange
+    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime oldExportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
+    LocalDateTime newExportDate = LocalDateTime.of(2026, 3, 1, 12, 0);
+    ContentProcessingUtil.PreparedImageData prepared =
+        createPreparedImageData("photo.jpg", captureDate, newExportDate);
+
+    ContentImageEntity existing = createContentImageEntity();
+    existing.setLastExportDate(oldExportDate);
+    existing.setImageUrlWeb("https://cdn/old-web.webp");
+    existing.setImageUrlOriginal("https://cdn/old-full.jpg");
+    when(contentRepository.findByOriginalFilenameAndCaptureDate("photo.jpg", captureDate))
+        .thenReturn(Optional.of(existing));
+    when(contentRepository.saveImage(any(ContentImageEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    // Act
+    ContentProcessingUtil.DedupeResult result =
+        contentProcessingUtil.savePreparedImageWithDedupe(prepared, null);
+
+    // Assert
+    assertEquals(ContentProcessingUtil.DedupeAction.UPDATE, result.action());
+    assertEquals("https://cdn/web/image.webp", result.entity().getImageUrlWeb());
+    assertEquals("https://cdn/full/image.jpg", result.entity().getImageUrlOriginal());
+    assertEquals(newExportDate, result.entity().getLastExportDate());
+    verify(contentRepository).saveImage(any(ContentImageEntity.class));
+  }
+
+  @Test
+  void savePreparedImageWithDedupe_create_whenCaptureDateIsNull() {
+    // Arrange: no captureDate means dedupe is bypassed entirely
+    ContentProcessingUtil.PreparedImageData prepared =
+        createPreparedImageData("photo.jpg", null, LocalDateTime.now());
+
+    ContentImageEntity savedEntity = createContentImageEntity();
+    when(contentRepository.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
+
+    // Act
+    ContentProcessingUtil.DedupeResult result =
+        contentProcessingUtil.savePreparedImageWithDedupe(prepared, "Test");
+
+    // Assert
+    assertEquals(ContentProcessingUtil.DedupeAction.CREATE, result.action());
+    // Should never attempt dedupe lookup
+    verify(contentRepository, never()).findByOriginalFilenameAndCaptureDate(any(), any());
+  }
+
   // Helper methods to create test entities and models
 
   private ContentImageEntity createContentImageEntity() {
@@ -333,7 +500,8 @@ public class ContentProcessingUtilTest {
     entity.setFocalLength("50mm");
     entity.setLocationId(1L);
     entity.setImageUrlWeb("https://example.com/image.jpg");
-    entity.setCreateDate("2023-01-01");
+    entity.setCaptureDate(java.time.LocalDate.of(2023, 1, 1));
+    entity.setOriginalFilename("test-image.jpg");
     return entity;
   }
 

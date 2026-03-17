@@ -24,6 +24,9 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -76,6 +79,7 @@ public class ContentProcessingUtil {
   private static final String PATH_IMAGE_WEB = "Image/Web";
   // private static final String PATH_IMAGE_RAW = "Image/Raw"; // future use
   private static final String PATH_GIF_FULL = "Gif/Full";
+  private static final String PATH_GIF_THUMBNAIL = "Gif/Thumbnail";
 
   // Default values for image metadata
   public static final class DEFAULT {
@@ -113,19 +117,6 @@ public class ContentProcessingUtil {
         yield null;
       }
     };
-  }
-
-  /**
-   * No-op method for backward compatibility. With raw SQL/DAOs, entities are never proxies, so this
-   * just returns the entity as-is.
-   *
-   * @param entity The entity (never a proxy with DAOs)
-   * @return The entity unchanged
-   */
-  public ContentEntity unproxyContentEntity(ContentEntity entity) {
-    // With raw SQL DAOs, entities are never Hibernate proxies
-    // This method exists for backward compatibility with code that calls it
-    return entity;
   }
 
   /**
@@ -227,14 +218,13 @@ public class ContentProcessingUtil {
     Integer orderIndex = joinEntry.getOrderIndex();
     Boolean visible = joinEntry.getVisible();
 
-    // For COLLECTION type, ensure the entity is properly resolved (not a proxy)
+    // For COLLECTION type, cast and convert
     if (content.getContentType() == ContentType.COLLECTION) {
-      content = unproxyContentEntity(content);
       if (content instanceof ContentCollectionEntity contentCollectionEntity) {
         return convertCollectionToModel(contentCollectionEntity, joinEntry);
       } else {
         log.error(
-            "Content type is COLLECTION but entity is not ContentCollectionEntity after unproxy: {}",
+            "Content type is COLLECTION but entity is not ContentCollectionEntity: {}",
             content.getClass());
         return null;
       }
@@ -326,7 +316,7 @@ public class ContentProcessingUtil {
         entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null,
         entity.getFocalLength(),
         location,
-        entity.getCreateDate(),
+        entity.getCaptureDate(),
         convertTagsToModels(entity.getTags()),
         convertPeopleToModels(entity.getPeople()),
         new ArrayList<>());
@@ -453,132 +443,135 @@ public class ContentProcessingUtil {
   }
 
   /**
-   * Process and save a gif content.
+   * Process and save a GIF/MP4 upload. Uploads the file to S3, extracts a first-frame WebP
+   * thumbnail, and saves the entity to the database.
    *
-   * @param file The gif file to process
-   * @param collectionId The ID of the collection this content belongs to
-   * @param orderIndex The order index of this content within the collection
-   * @param title The title of the gif
-   * @param caption The caption for the gif
-   * @return The saved gif content entity
+   * @param file The GIF or MP4 file
+   * @param title Optional title override (defaults to filename)
+   * @return The saved ContentGifEntity
    */
-  public ContentGifEntity processGifContent(
-      MultipartFile file, Long collectionId, Integer orderIndex, String title, String caption) {
-    log.info("Processing gif content for collection {}", collectionId);
+  public ContentGifEntity processGifContent(MultipartFile file, String title) {
+    log.info("Processing GIF/MP4 content: {}", file.getOriginalFilename());
 
     try {
-      // Validate input
       contentValidator.validateGifFile(file);
 
-      // Upload GIF to S3 and get URLs
-      Map<String, String> urls = uploadGifToS3(file);
-      String gifUrl = urls.get("gifUrl");
-      String thumbnailUrl = urls.get("thumbnailUrl");
+      byte[] fileBytes = file.getBytes();
+      String originalFilename = file.getOriginalFilename();
+      String contentType =
+          file.getContentType() != null ? file.getContentType() : "application/octet-stream";
 
-      // Get dimensions from the first frame
+      LocalDate now = LocalDate.now();
+      int year = now.getYear();
+      int month = now.getMonthValue();
+
+      // Upload raw file to S3
+      String gifUrl =
+          uploadImageToS3(fileBytes, originalFilename, contentType, PATH_GIF_FULL, year, month);
+
+      // Extract first frame for WebP thumbnail
       BufferedImage firstFrame;
-      try (InputStream gifStream = file.getInputStream()) {
-        firstFrame = ImageIO.read(gifStream);
+      if (contentValidator.isMp4File(file)) {
+        firstFrame = extractFirstFrameViaFfmpeg(fileBytes, originalFilename);
+      } else {
+        try (InputStream is = new ByteArrayInputStream(fileBytes)) {
+          firstFrame = ImageIO.read(is);
+        }
       }
-      int width = firstFrame.getWidth();
-      int height = firstFrame.getHeight();
 
-      // Create the gif content entity
-      ContentGifEntity entity = new ContentGifEntity();
-      entity.setContentType(ContentType.GIF);
-      entity.setTitle(title != null ? title : file.getOriginalFilename());
-      entity.setGifUrl(gifUrl);
-      entity.setThumbnailUrl(thumbnailUrl);
-      entity.setWidth(width);
-      entity.setHeight(height);
-      entity.setAuthor("System"); // Default author
-      entity.setCreateDate(LocalDate.now().toString());
+      String thumbnailUrl = null;
+      Integer width = null;
+      Integer height = null;
 
-      // Save the entity using the DAO
-      // Note: GIF saving not yet implemented in DAO - placeholder
-      throw new UnsupportedOperationException(
-          "GIF content saving not yet implemented in DAO layer");
+      if (firstFrame != null) {
+        width = firstFrame.getWidth();
+        height = firstFrame.getHeight();
+        byte[] webpBytes = convertJpgToWebP(firstFrame);
+        String thumbFilename = stripVideoExtension(originalFilename) + "-thumbnail.webp";
+        thumbnailUrl =
+            uploadImageToS3(
+                webpBytes, thumbFilename, "image/webp", PATH_GIF_THUMBNAIL, year, month);
+      } else {
+        log.warn("Could not extract first frame from: {}", originalFilename);
+      }
 
-    } catch (Exception e) {
-      log.error("Error processing gif content: {}", e.getMessage(), e);
-      throw new RuntimeException("Failed to process GIF content", e);
+      // Build and save entity
+      ContentGifEntity entity =
+          ContentGifEntity.builder()
+              .contentType(ContentType.GIF)
+              .title(title != null && !title.isBlank() ? title : originalFilename)
+              .gifUrl(gifUrl)
+              .thumbnailUrl(thumbnailUrl)
+              .width(width)
+              .height(height)
+              .author(DEFAULT.AUTHOR)
+              .createDate(now.toString())
+              .build();
+
+      return contentRepository.saveGif(entity);
+
+    } catch (IOException e) {
+      log.error("Error processing GIF/MP4 content: {}", e.getMessage(), e);
+      throw new RuntimeException("Failed to process GIF/MP4 content", e);
     }
   }
 
   /**
-   * Upload a GIF to S3.
+   * Extract the first frame of an MP4/MOV video using ffmpeg. Writes the video bytes to a temp
+   * file, runs ffmpeg to extract frame 1 as PNG, reads the result into a BufferedImage.
    *
-   * @param file The GIF file to upload
-   * @return A map containing the S3 URLs for the GIF and its thumbnail
-   * @throws IOException If there's an error processing the file
+   * @param videoBytes The raw video file bytes
+   * @param filename The original filename (for logging)
+   * @return BufferedImage of the first frame, or null if extraction fails
    */
-  private Map<String, String> uploadGifToS3(MultipartFile file) throws IOException {
-    log.info("Uploading GIF to S3: {}", file.getOriginalFilename());
+  private BufferedImage extractFirstFrameViaFfmpeg(byte[] videoBytes, String filename)
+      throws IOException {
+    Path tempInput = Files.createTempFile("gif-upload-", "-" + filename);
+    Path tempOutput = Files.createTempFile("gif-frame-", ".png");
+    try {
+      Files.write(tempInput, videoBytes);
 
-    // Validate file is a GIF
-    String contentType = file.getContentType();
-    if (contentType == null || !contentType.toLowerCase().contains("gif")) {
-      throw new IllegalArgumentException("File is not a GIF");
+      ProcessBuilder pb =
+          new ProcessBuilder(
+              "ffmpeg",
+              "-y",
+              "-i",
+              tempInput.toAbsolutePath().toString(),
+              "-vframes",
+              "1",
+              "-f",
+              "image2",
+              tempOutput.toAbsolutePath().toString());
+      pb.redirectErrorStream(true);
+      Process process = pb.start();
+
+      String ffmpegOutput;
+      try (InputStream is = process.getInputStream()) {
+        ffmpegOutput = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+      }
+
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        log.error("ffmpeg exited with code {}: {}", exitCode, ffmpegOutput);
+        return null;
+      }
+
+      return ImageIO.read(tempOutput.toFile());
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("ffmpeg was interrupted", e);
+    } finally {
+      Files.deleteIfExists(tempInput);
+      Files.deleteIfExists(tempOutput);
     }
+  }
 
-    // Read the file
-    byte[] fileBytes = file.getBytes();
-
-    // Generate S3 keys using new path structure: Gif/Full/{year}/{month}/{filename}
-    // GIFs don't have EXIF data, so we use the current date
-    LocalDate now = LocalDate.now();
-    int year = now.getYear();
-    int month = now.getMonthValue();
-    String filename = file.getOriginalFilename();
-    String gifS3Key = String.format("%s/%d/%02d/%s", PATH_GIF_FULL, year, month, filename);
-    String thumbnailS3Key =
-        String.format(
-            "%s/%d/%02d/%s",
-            PATH_GIF_FULL,
-            year,
-            month,
-            Objects.requireNonNull(filename).replace(".gif", "-thumbnail.jpg"));
-
-    // Upload GIF to S3
-    PutObjectRequest putGifRequest =
-        PutObjectRequest.builder()
-            .bucket(bucketName)
-            .key(gifS3Key)
-            .contentType(contentType)
-            .contentLength((long) fileBytes.length)
-            .build();
-
-    s3Client.putObject(putGifRequest, RequestBody.fromBytes(fileBytes));
-
-    // Generate thumbnail from first frame of GIF
-    BufferedImage firstFrame = ImageIO.read(new ByteArrayInputStream(fileBytes));
-    ByteArrayOutputStream thumbnailOutput = new ByteArrayOutputStream();
-    ImageIO.write(firstFrame, "jpg", thumbnailOutput);
-    byte[] thumbnailBytes = thumbnailOutput.toByteArray();
-
-    // Upload thumbnail to S3
-    PutObjectRequest putThumbnailRequest =
-        PutObjectRequest.builder()
-            .bucket(bucketName)
-            .key(thumbnailS3Key)
-            .contentType("image/jpeg")
-            .contentLength((long) thumbnailBytes.length)
-            .build();
-
-    s3Client.putObject(putThumbnailRequest, RequestBody.fromBytes(thumbnailBytes));
-
-    // Return CloudFront URLs
-    String gifUrl = "https://" + cloudfrontDomain + "/" + gifS3Key;
-    String thumbnailUrl = "https://" + cloudfrontDomain + "/" + thumbnailS3Key;
-
-    log.info("GIF uploaded successfully. URL: {}", gifUrl);
-    log.info("Thumbnail uploaded successfully. URL: {}", thumbnailUrl);
-
-    Map<String, String> urls = new HashMap<>();
-    urls.put("gifUrl", gifUrl);
-    urls.put("thumbnailUrl", thumbnailUrl);
-
-    return urls;
+  private String stripVideoExtension(String filename) {
+    if (filename == null) {
+      return "gif-upload-" + UUID.randomUUID();
+    }
+    return filename.replaceAll("(?i)\\.(mp4|mov|gif)$", "");
   }
 
   /**
@@ -610,10 +603,11 @@ public class ContentProcessingUtil {
       String originalFilename,
       String imageUrlOriginal,
       String imageUrlWeb,
-      String fileIdentifier,
       Map<String, String> metadata,
       int imageYear,
-      int imageMonth) {}
+      int imageMonth,
+      LocalDate captureDate,
+      LocalDateTime lastExportDate) {}
 
   /**
    * Prepare an image for upload: extract metadata, upload to S3, resize, convert to WebP. This
@@ -675,33 +669,90 @@ public class ContentProcessingUtil {
             imageYear,
             imageMonth);
 
-    // Generate file identifier for duplicate detection
-    String fileIdentifier = String.format("%d-%02d/%s", imageYear, imageMonth, originalFilename);
+    // Parse capture date for deduplication
+    LocalDate captureDate = parseCaptureDateToLocalDate(metadata.get("createDate"));
+
+    // Use file last-modified as export date (approximation for dedupe)
+    LocalDateTime lastExportDate = LocalDateTime.now();
 
     log.info("Image prepared successfully: {}", originalFilename);
     return new PreparedImageData(
         originalFilename,
         imageUrlOriginal,
         imageUrlWeb,
-        fileIdentifier,
         metadata,
         imageYear,
-        imageMonth);
+        imageMonth,
+        captureDate,
+        lastExportDate);
   }
 
   /**
-   * Save a prepared image to the database. Handles all DB calls: camera/lens/location lookups,
-   * duplicate detection, and entity save. Call this AFTER prepareImageForUpload() in a sequential
-   * phase.
+   * Result of dedupe-aware save. Indicates whether the image was created, updated, or skipped.
    *
-   * @param prepared The prepared image data from prepareImageForUpload()
-   * @param title Optional title override
-   * @return The saved ContentImageEntity
+   * @param entity The saved entity (null if skipped)
+   * @param action CREATE, UPDATE, or SKIP
    */
-  public ContentImageEntity savePreparedImage(PreparedImageData prepared, String title) {
+  public record DedupeResult(ContentImageEntity entity, DedupeAction action) {}
+
+  public enum DedupeAction {
+    CREATE,
+    UPDATE,
+    SKIP
+  }
+
+  public DedupeResult savePreparedImageWithDedupe(PreparedImageData prepared, String title) {
     Map<String, String> metadata = prepared.metadata();
     String webFilename = prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
 
+    // Check for existing image by filename + capture date
+    if (prepared.originalFilename() != null && prepared.captureDate() != null) {
+      Optional<ContentImageEntity> existingOpt =
+          contentRepository.findByOriginalFilenameAndCaptureDate(
+              prepared.originalFilename(), prepared.captureDate());
+
+      if (existingOpt.isPresent()) {
+        ContentImageEntity existing = existingOpt.get();
+
+        // Compare export dates: if existing has no export date, or same/older, skip
+        if (existing.getLastExportDate() == null
+            || (prepared.lastExportDate() != null
+                && !prepared.lastExportDate().isAfter(existing.getLastExportDate()))) {
+          log.info(
+              "Skipping duplicate image (id={}) for {}: same or older export",
+              existing.getId(),
+              prepared.originalFilename());
+          return new DedupeResult(existing, DedupeAction.SKIP);
+        }
+
+        // Newer export: update entity in DB first, then delete old S3 files
+        log.info(
+            "Updating existing image (id={}) for {}: newer export detected",
+            existing.getId(),
+            prepared.originalFilename());
+
+        // Capture old URLs before overwriting
+        String oldImageUrlWeb = existing.getImageUrlWeb();
+        String oldImageUrlOriginal = existing.getImageUrlOriginal();
+
+        existing.setImageUrlOriginal(prepared.imageUrlOriginal());
+        existing.setImageUrlWeb(prepared.imageUrlWeb());
+        existing.setLastExportDate(prepared.lastExportDate());
+        existing.setImageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0));
+        existing.setImageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0));
+
+        // Save DB first -- if this fails, old S3 files remain valid
+        ContentImageEntity savedEntity = contentRepository.saveImage(existing);
+
+        // Now safe to delete old S3 files (DB already points to new URLs)
+        deleteS3ObjectByUrl(oldImageUrlWeb);
+        deleteS3ObjectByUrl(oldImageUrlOriginal);
+
+        return new DedupeResult(savedEntity, DedupeAction.UPDATE);
+      }
+    }
+
+    // No duplicate found: create new entity
     ContentImageEntity entity =
         ContentImageEntity.builder()
             .contentType(ContentType.IMAGE)
@@ -713,7 +764,7 @@ public class ContentProcessingUtil {
             .rating(parseIntegerOrDefault(metadata.get("rating"), null))
             .fStop(metadata.get("fStop"))
             .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
-            .isFilm(metadata.get("fStop") == null)
+            .isFilm(parseBooleanOrDefault(metadata.get("isFilm"), false))
             .shutterSpeed(metadata.get("shutterSpeed"))
             .imageUrlOriginal(prepared.imageUrlOriginal())
             .focalLength(metadata.get("focalLength"))
@@ -722,9 +773,10 @@ public class ContentProcessingUtil {
                     ? locationRepository.findOrCreate(metadata.get("location")).getId()
                     : null)
             .imageUrlWeb(prepared.imageUrlWeb())
-            .createDate(metadata.get("createDate"))
+            .captureDate(prepared.captureDate())
+            .lastExportDate(prepared.lastExportDate())
+            .originalFilename(prepared.originalFilename())
             .createdAt(parseExifDateToLocalDateTime(metadata.get("createDate")))
-            .fileIdentifier(prepared.fileIdentifier())
             .build();
 
     // Handle camera
@@ -741,22 +793,9 @@ public class ContentProcessingUtil {
       entity.setLens(createLens(lensName, lensSerialNumber, null));
     }
 
-    // Replace existing image if duplicate, otherwise insert
-    List<ContentImageEntity> existing =
-        contentRepository.findAllByFileIdentifier(prepared.fileIdentifier());
-    if (!existing.isEmpty()) {
-      ContentImageEntity toReplace = existing.get(0);
-      log.info(
-          "Replacing existing image (id={}) for fileIdentifier: {}",
-          toReplace.getId(),
-          prepared.fileIdentifier());
-      deleteImageFromS3(toReplace);
-      entity.setId(toReplace.getId());
-    }
-
     ContentImageEntity savedEntity = contentRepository.saveImage(entity);
-    log.info("Successfully saved image content with ID: {}", savedEntity.getId());
-    return savedEntity;
+    log.info("Successfully created new image content with ID: {}", savedEntity.getId());
+    return new DedupeResult(savedEntity, DedupeAction.CREATE);
   }
 
   // ============================================================================
@@ -779,129 +818,11 @@ public class ContentProcessingUtil {
    */
   public ContentImageEntity processImageContent(MultipartFile file, String title)
       throws IOException {
-    log.info("Processing image content");
-
-    // STEP 1: Extract metadata from original file (before any conversion)
-    log.info("Step 1: Extracting metadata from original file");
-    Map<String, String> metadata = extractImageMetadata(file);
-
-    // Parse image capture date for S3 path organization (year/month from EXIF)
-    int[] dateComponents = parseImageDate(metadata.get("createDate"), metadata.get("modifyDate"));
-    int imageYear = dateComponents[0];
-    int imageMonth = dateComponents[1];
-    log.info("Image capture date: {}/{}", imageYear, String.format("%02d", imageMonth));
-
-    // STEP 2: Upload original full-size image to S3
-    log.info("Step 2: Uploading original full-size image to S3");
-    String originalFilename = file.getOriginalFilename();
-    String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
-    String imageUrlOriginal =
-        uploadImageToS3(
-            file.getBytes(), originalFilename, contentType, PATH_IMAGE_FULL, imageYear, imageMonth);
-
-    // STEP 3: Resize FIRST if needed (max 2500px on longest side)
-    // We resize BEFORE converting to WebP to avoid having to decode WebP back to
-    // BufferedImage
-    log.info("Step 3: Resizing original image if needed");
-    BufferedImage originalImage;
-    try (InputStream imageStream = file.getInputStream()) {
-      originalImage = ImageIO.read(imageStream);
-    }
-    if (originalImage == null) {
-      throw new IOException("Failed to read image: " + originalFilename);
-    }
-
-    BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
-
-    // STEP 4: Convert to WebP (includes compression)
-    log.info("Step 4: Converting to WebP and compressing");
-    byte[] processedImageBytes;
-    String finalFilename;
-
-    if (isJpgFile(file) || isWebPFile(file)) {
-      processedImageBytes = convertJpgToWebP(resizedImage);
-      if (originalFilename == null) {
-        throw new IllegalArgumentException("Original filename must not be null");
-      }
-      finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
-    } else {
-      throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
-    }
-
-    // STEP 5: Upload web-optimized image to S3
-    log.info("Step 5: Uploading web-optimized image to S3");
-    String imageUrlWeb =
-        uploadImageToS3(
-            processedImageBytes,
-            finalFilename,
-            "image/webp",
-            PATH_IMAGE_WEB,
-            imageYear,
-            imageMonth);
-
-    // STEP 6: Create and save ImageContentEntity with metadata
-    log.info("Step 6: Saving to database");
-
-    // Generate file identifier for duplicate detection (format:
-    // "YYYY-MM/filename.jpg")
-    String fileIdentifier = String.format("%d-%02d/%s", imageYear, imageMonth, originalFilename);
-
-    ContentImageEntity entity =
-        ContentImageEntity.builder()
-            .contentType(ContentType.IMAGE)
-            .title(title != null ? title : metadata.getOrDefault("title", finalFilename))
-            .imageWidth(parseIntegerOrDefault(metadata.get("imageWidth"), 0))
-            .imageHeight(parseIntegerOrDefault(metadata.get("imageHeight"), 0))
-            .iso(parseIntegerOrDefault(metadata.get("iso"), null))
-            .author(metadata.getOrDefault("author", DEFAULT.AUTHOR))
-            .rating(parseIntegerOrDefault(metadata.get("rating"), null))
-            .fStop(metadata.get("fStop"))
-            .blackAndWhite(parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
-            .isFilm(metadata.get("fStop") == null)
-            .shutterSpeed(metadata.get("shutterSpeed"))
-            .imageUrlOriginal(imageUrlOriginal)
-            .focalLength(metadata.get("focalLength"))
-            .locationId(
-                metadata.get("location") != null
-                    ? locationRepository.findOrCreate(metadata.get("location")).getId()
-                    : null)
-            .imageUrlWeb(imageUrlWeb)
-            .createDate(metadata.get("createDate"))
-            .createdAt(parseExifDateToLocalDateTime(metadata.get("createDate")))
-            .fileIdentifier(fileIdentifier)
-            .build();
-
-    // Handle camera - use helper method to create or find existing
-    String cameraName = metadata.get("camera");
-    String bodySerialNumber = metadata.get("bodySerialNumber");
-    if (cameraName != null && !cameraName.trim().isEmpty()) {
-      ContentCameraEntity camera = createCamera(cameraName, bodySerialNumber, null);
-      entity.setCamera(camera);
-    }
-
-    // Handle lens - use helper method to create or find existing
-    String lensName = metadata.get("lens");
-    String lensSerialNumber = metadata.get("lensSerialNumber");
-    if (lensName != null && !lensName.trim().isEmpty()) {
-      ContentLensEntity lens = createLens(lensName, lensSerialNumber, null);
-      entity.setLens(lens);
-    }
-
-    // STEP 7: Replace existing image if duplicate, otherwise insert
-    List<ContentImageEntity> existing = contentRepository.findAllByFileIdentifier(fileIdentifier);
-    if (!existing.isEmpty()) {
-      ContentImageEntity toReplace = existing.get(0);
-      log.info(
-          "Replacing existing image (id={}) for fileIdentifier: {}",
-          toReplace.getId(),
-          fileIdentifier);
-      deleteImageFromS3(toReplace);
-      entity.setId(toReplace.getId());
-    }
-
-    ContentImageEntity savedEntity = contentRepository.saveImage(entity);
-    log.info("Successfully processed image content with ID: {}", savedEntity.getId());
-    return savedEntity;
+    log.info("Processing image content: {}", file.getOriginalFilename());
+    PreparedImageData prepared = prepareImageForUpload(file);
+    DedupeResult result = savePreparedImageWithDedupe(prepared, title);
+    log.info("Successfully processed image content with ID: {}", result.entity().getId());
+    return result.entity();
   }
 
   /**
@@ -1083,6 +1004,21 @@ public class ContentProcessingUtil {
    * @param createDate The date string from EXIF metadata
    * @return LocalDateTime parsed from EXIF date, or null if parsing fails
    */
+  LocalDate parseCaptureDateToLocalDate(String createDate) {
+    if (createDate == null || createDate.trim().isEmpty()) {
+      return null;
+    }
+    try {
+      // EXIF format: "2026:01:26 17:48:38" -> parse date part only
+      String datePart = createDate.trim().substring(0, Math.min(10, createDate.trim().length()));
+      String normalized = datePart.replace(":", "-");
+      return LocalDate.parse(normalized);
+    } catch (Exception e) {
+      log.warn("Failed to parse capture date '{}' to LocalDate", createDate);
+      return null;
+    }
+  }
+
   LocalDateTime parseExifDateToLocalDateTime(String createDate) {
     if (createDate == null || createDate.trim().isEmpty()) {
       return null;
@@ -1159,26 +1095,24 @@ public class ContentProcessingUtil {
    * @param image The ContentImageEntity containing S3 URLs to delete
    */
   public void deleteImageFromS3(ContentImageEntity image) {
-    List<String> urlsToDelete = new ArrayList<>();
+    deleteS3ObjectByUrl(image.getImageUrlWeb());
+    deleteS3ObjectByUrl(image.getImageUrlOriginal());
+  }
 
-    if (image.getImageUrlWeb() != null) {
-      urlsToDelete.add(image.getImageUrlWeb());
+  /** Delete a single S3 object by its CloudFront URL. Logs but does not throw on failure. */
+  private void deleteS3ObjectByUrl(String url) {
+    if (url == null) {
+      return;
     }
-    if (image.getImageUrlOriginal() != null) {
-      urlsToDelete.add(image.getImageUrlOriginal());
-    }
-
-    for (String url : urlsToDelete) {
-      try {
-        String s3Key = extractS3KeyFromUrl(url);
-        if (s3Key != null) {
-          log.info("Deleting from S3: {}", s3Key);
-          s3Client.deleteObject(builder -> builder.bucket(bucketName).key(s3Key));
-          log.info("Successfully deleted from S3: {}", s3Key);
-        }
-      } catch (Exception e) {
-        log.error("Failed to delete S3 object {}: {}", url, e.getMessage());
+    try {
+      String s3Key = extractS3KeyFromUrl(url);
+      if (s3Key != null) {
+        log.info("Deleting from S3: {}", s3Key);
+        s3Client.deleteObject(builder -> builder.bucket(bucketName).key(s3Key));
+        log.info("Successfully deleted from S3: {}", s3Key);
       }
+    } catch (Exception e) {
+      log.error("Failed to delete S3 object {}: {}", url, e.getMessage());
     }
   }
 
@@ -1470,191 +1404,6 @@ public class ContentProcessingUtil {
   // =============================================================================
 
   /**
-   * Apply partial updates from ImageUpdateRequest to an ImageContentEntity. Only fields provided in
-   * the update request will be updated. This uses the new prev/new/remove pattern for entity
-   * relationships.
-   *
-   * @param entity The image entity to update
-   * @param updateRequest The update request containing the fields to update
-   */
-  public void applyImageUpdates(
-      ContentImageEntity entity, ContentImageUpdateRequest updateRequest) {
-    // Update basic image metadata fields if provided
-    if (updateRequest.getTitle() != null) {
-      entity.setTitle(updateRequest.getTitle());
-    }
-    if (updateRequest.getRating() != null) {
-      entity.setRating(updateRequest.getRating());
-    }
-    if (updateRequest.getAuthor() != null) {
-      entity.setAuthor(updateRequest.getAuthor());
-    }
-    if (updateRequest.getIsFilm() != null) {
-      entity.setIsFilm(updateRequest.getIsFilm());
-    }
-    if (updateRequest.getFilmFormat() != null) {
-      entity.setFilmFormat(updateRequest.getFilmFormat());
-    }
-
-    // Validate: if isFilm is being set to true in the update request,
-    // filmFormat must also be provided in the update request (or already exist on
-    // the entity)
-    if (updateRequest.getIsFilm() != null && updateRequest.getIsFilm()) {
-      contentImageUpdateValidator.validateFilmFormatRequired(
-          updateRequest.getIsFilm(), updateRequest.getFilmFormat(), entity.getFilmFormat());
-    }
-
-    if (updateRequest.getBlackAndWhite() != null) {
-      entity.setBlackAndWhite(updateRequest.getBlackAndWhite());
-    }
-
-    // Handle camera update using prev/new/remove pattern
-    if (updateRequest.getCamera() != null) {
-      ContentImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
-
-      if (Boolean.TRUE.equals(cameraUpdate.getRemove())) {
-        // Remove camera association
-        entity.setCamera(null);
-        log.info("Removed camera association from image {}", entity.getId());
-      } else if (cameraUpdate.getNewValue() != null
-          && !cameraUpdate.getNewValue().trim().isEmpty()) {
-        String cameraName = cameraUpdate.getNewValue().trim();
-        // Use helper method - no serial number provided, will generate UUID
-        ContentCameraEntity camera = createCamera(cameraName, null, null);
-        entity.setCamera(camera);
-      } else if (cameraUpdate.getPrev() != null) {
-        // Use existing camera by ID
-        ContentCameraEntity camera =
-            equipmentRepository
-                .findCameraById(cameraUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Camera not found with ID: " + cameraUpdate.getPrev()));
-        entity.setCamera(camera);
-      }
-    }
-
-    // Handle lens update using prev/new/remove pattern
-    if (updateRequest.getLens() != null) {
-      ContentImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
-
-      if (Boolean.TRUE.equals(lensUpdate.getRemove())) {
-        // Remove lens association
-        entity.setLens(null);
-        log.info("Removed lens association from image {}", entity.getId());
-      } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
-        String lensName = lensUpdate.getNewValue().trim();
-        // Use helper method - no serial number provided, will generate UUID
-        ContentLensEntity lens = createLens(lensName, null, null);
-        entity.setLens(lens);
-      } else if (lensUpdate.getPrev() != null) {
-        // Use existing lens by ID
-        ContentLensEntity lens =
-            equipmentRepository
-                .findLensById(lensUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Lens not found with ID: " + lensUpdate.getPrev()));
-        entity.setLens(lens);
-      }
-    }
-
-    // Handle film type update using prev/new/remove pattern
-    if (updateRequest.getFilmType() != null) {
-      ContentImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
-
-      if (Boolean.TRUE.equals(filmTypeUpdate.getRemove())) {
-        // Remove film type association
-        entity.setFilmType(null);
-        log.info("Removed film type association from image {}", entity.getId());
-      } else if (filmTypeUpdate.getNewValue() != null) {
-        // Create new film type
-        ContentRequests.NewFilmType newFilmTypeRequest = filmTypeUpdate.getNewValue();
-        String displayName = newFilmTypeRequest.filmTypeName().trim();
-        // Generate technical name from display name: "Kodak Portra 400" ->
-        // "KODAK_PORTRA_400"
-        String technicalName = displayName.toUpperCase().replaceAll("\\s+", "_");
-
-        ContentFilmTypeEntity filmType =
-            equipmentRepository
-                .findFilmTypeByNameIgnoreCase(technicalName)
-                .orElseGet(
-                    () -> {
-                      log.info(
-                          "Creating new film type: {} (technical name: {})",
-                          displayName,
-                          technicalName);
-                      ContentFilmTypeEntity newFilmType =
-                          new ContentFilmTypeEntity(
-                              technicalName, displayName, newFilmTypeRequest.defaultIso());
-                      return equipmentRepository.saveFilmType(newFilmType);
-                    });
-        entity.setFilmType(filmType);
-      } else if (filmTypeUpdate.getPrev() != null) {
-        // Use existing film type by ID
-        ContentFilmTypeEntity filmType =
-            equipmentRepository
-                .findFilmTypeById(filmTypeUpdate.getPrev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Film type not found with ID: " + filmTypeUpdate.getPrev()));
-        entity.setFilmType(filmType);
-      }
-    }
-
-    // Handle location update using prev/new/remove pattern
-    if (updateRequest.getLocation() != null) {
-      CollectionRequests.LocationUpdate locationUpdate = updateRequest.getLocation();
-
-      if (Boolean.TRUE.equals(locationUpdate.remove())) {
-        // Remove location association
-        entity.setLocationId(null);
-        log.info("Removed location association from image {}", entity.getId());
-      } else if (locationUpdate.newValue() != null && !locationUpdate.newValue().trim().isEmpty()) {
-        // Create new location by name
-        String locationName = locationUpdate.newValue().trim();
-        LocationEntity location = locationRepository.findOrCreate(locationName);
-        entity.setLocationId(location.getId());
-        log.info("Set location to: {} (ID: {})", locationName, location.getId());
-      } else if (locationUpdate.prev() != null) {
-        // Use existing location by ID
-        LocationEntity location =
-            locationRepository
-                .findById(locationUpdate.prev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Location not found with ID: " + locationUpdate.prev()));
-        entity.setLocationId(location.getId());
-      }
-    }
-
-    if (updateRequest.getFocalLength() != null) {
-      entity.setFocalLength(updateRequest.getFocalLength());
-    }
-    if (updateRequest.getFStop() != null) {
-      entity.setFStop(updateRequest.getFStop());
-    }
-    if (updateRequest.getShutterSpeed() != null) {
-      entity.setShutterSpeed(updateRequest.getShutterSpeed());
-    }
-    if (updateRequest.getIso() != null) {
-      entity.setIso(updateRequest.getIso());
-    }
-    if (updateRequest.getCreateDate() != null) {
-      entity.setCreateDate(updateRequest.getCreateDate());
-    }
-
-    // Note: Tag and person relationship updates are handled separately in the
-    // service layer
-    // Collection visibility updates are also handled separately in
-    // handleCollectionVisibilityUpdates
-  }
-
-  /**
    * Handle collection visibility and orderIndex updates for an image. This method updates the
    * 'visible' flag and 'orderIndex' for the content entry in the current collection. Note: For
    * cross-collection updates (updating the same image in multiple collections), you would need to
@@ -1873,27 +1622,14 @@ public class ContentProcessingUtil {
       return;
     }
 
-    // Load tags from database using TagDao
+    // Load tags from database
     List<TagEntity> tagEntities = tagRepository.findContentTags(entity.getId());
+    Set<TagEntity> tagSet = new HashSet<>(tagEntities);
 
-    // Convert TagEntity to TagEntity and populate the entity's tags set
-    Set<TagEntity> contentTagEntities =
-        tagEntities.stream()
-            .map(
-                tagEntity -> {
-                  TagEntity contentTag = new TagEntity();
-                  contentTag.setId(tagEntity.getId());
-                  contentTag.setTagName(tagEntity.getTagName());
-                  contentTag.setCreatedAt(tagEntity.getCreatedAt());
-                  return contentTag;
-                })
-            .collect(Collectors.toSet());
-
-    // Set tags on the entity based on its type
     if (entity instanceof ContentImageEntity imageEntity) {
-      imageEntity.setTags(contentTagEntities);
+      imageEntity.setTags(tagSet);
     } else if (entity instanceof ContentGifEntity gifEntity) {
-      gifEntity.setTags(contentTagEntities);
+      gifEntity.setTags(tagSet);
     }
   }
 
@@ -1952,62 +1688,5 @@ public class ContentProcessingUtil {
         .map(person -> new Records.Person(person.getId(), person.getPersonName()))
         .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
         .collect(Collectors.toList());
-  }
-
-  // =============================================================================
-  // LOCATION HANDLING HELPERS
-  // =============================================================================
-
-  /**
-   * Find or create a location by name. If the location exists (case-insensitive), returns the
-   * existing one. Otherwise, creates a new location and returns it.
-   *
-   * @param locationName The location name to find or create
-   * @return The location entity, or null if locationName is null/empty
-   */
-  public LocationEntity findOrCreateLocation(String locationName) {
-    return locationRepository.findOrCreate(locationName);
-  }
-
-  /**
-   * Get a location by ID.
-   *
-   * @param locationId The location ID
-   * @return The location entity, or null if not found
-   */
-  public LocationEntity getLocationById(Long locationId) {
-    if (locationId == null) {
-      return null;
-    }
-    return locationRepository.findById(locationId).orElse(null);
-  }
-
-  /**
-   * Convert a LocationEntity to a Records.Location for API responses.
-   *
-   * @param location The location entity to convert
-   * @return The location model, or null if location is null
-   */
-  public Records.Location convertLocationToModel(LocationEntity location) {
-    if (location == null) {
-      return null;
-    }
-    return new Records.Location(location.getId(), location.getLocationName());
-  }
-
-  /**
-   * Get a location name by ID. Useful for converting locationId to display string.
-   *
-   * @param locationId The location ID
-   * @return The location name, or null if not found or ID is null
-   */
-  public String getLocationNameById(Long locationId) {
-    if (locationId == null) {
-      return null;
-    }
-    return locationRepository
-        .findById(locationId)
-        .map(LocationEntity::getLocationName)
-        .orElse(null);
   }
 }
