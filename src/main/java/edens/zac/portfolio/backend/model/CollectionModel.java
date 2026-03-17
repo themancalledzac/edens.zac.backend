@@ -68,6 +68,10 @@ public class CollectionModel {
 
   @Valid private List<ContentModel> content;
 
+  // === Access Control ===
+
+  private Boolean isPasswordProtected;
+
   // === Timestamps ===
 
   private LocalDateTime createdAt;

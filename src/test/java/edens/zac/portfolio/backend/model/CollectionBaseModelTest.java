@@ -406,9 +406,9 @@ class CollectionBaseModelTest {
     }
 
     @Test
-    @DisplayName("Should reject location that is too long")
-    void shouldRejectLocationTooLong() {
-      String longLocation = "A".repeat(256); // 256 characters
+    @DisplayName("Should accept location with any length name (response DTO, no validation)")
+    void shouldAcceptLocationWithAnyLengthName() {
+      String longLocation = "A".repeat(256);
 
       CollectionModel model =
           CollectionModel.builder()
@@ -416,26 +416,6 @@ class CollectionBaseModelTest {
               .title("Valid Title")
               .slug("valid-slug")
               .location(new Records.Location(1L, longLocation))
-              .build();
-
-      Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-      assertFalse(violations.isEmpty());
-      assertTrue(
-          violations.stream()
-              .anyMatch(v -> v.getMessage().contains("Location cannot exceed 255 characters")));
-    }
-
-    @Test
-    @DisplayName("Should accept location at maximum length")
-    void shouldAcceptLocationAtMaxLength() {
-      String maxLocation = "A".repeat(255); // Exactly 255 characters
-
-      CollectionModel model =
-          CollectionModel.builder()
-              .type(CollectionType.PORTFOLIO)
-              .title("Valid Title")
-              .slug("valid-slug")
-              .location(new Records.Location(1L, maxLocation))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);

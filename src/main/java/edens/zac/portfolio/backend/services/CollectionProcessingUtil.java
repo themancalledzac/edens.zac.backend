@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
@@ -11,9 +12,6 @@ import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.DisplayMode;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +20,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -33,10 +32,6 @@ public class CollectionProcessingUtil {
   private final ContentRepository contentRepository;
   private final ContentProcessingUtil contentProcessingUtil;
   private final LocationRepository locationRepository;
-
-  // =============================================================================
-  // ERROR HANDLING
-  // =============================================================================
 
   // =============================================================================
   // ENTITY-TO-MODEL CONVERSION
@@ -91,11 +86,7 @@ public class CollectionProcessingUtil {
     // Populate coverImage using helper method
     populateCoverImage(model, entity);
 
-    // TODO: Re-implement password protection after migration
-    // model.setIsPasswordProtected(entity.isPasswordProtected());
-    // model.setHasAccess(!entity.isPasswordProtected()); // Default access for
-    // non-protected
-    // collections
+    model.setIsPasswordProtected(entity.getPasswordHash() != null);
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
     // Use stored displayMode if available, otherwise compute default based on type
@@ -114,69 +105,6 @@ public class CollectionProcessingUtil {
     model.setCurrentPage(0);
     model.setRowsWide(entity.getRowsWide());
 
-    return model;
-  }
-
-  /**
-   * Convert a CollectionEntity to a CollectionModel with all content. Uses bulk loading of
-   * ContentEntity instances to avoid proxy issues and improve performance.
-   *
-   * @param entity The entity to convert
-   * @return The converted model
-   */
-  public CollectionModel convertToFullModel(CollectionEntity entity) {
-    if (entity == null) {
-      return null;
-    }
-
-    CollectionModel model = convertToBasicModel(entity);
-
-    // Fetch join table entries explicitly to get content with collection-specific
-    // metadata
-    List<CollectionContentEntity> joinEntries =
-        collectionRepository.findContentByCollectionIdOrderByOrderIndex(entity.getId());
-
-    // Extract content IDs from join table entries
-    List<Long> contentIds =
-        joinEntries.stream()
-            .map(CollectionContentEntity::getContentId)
-            .filter(Objects::nonNull)
-            .toList();
-
-    // Bulk fetch all ContentEntity instances in one query (properly loads all
-    // subclasses)
-    final Map<Long, ContentEntity> contentMap;
-    if (!contentIds.isEmpty()) {
-      List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
-      contentMap =
-          contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
-    } else {
-      contentMap = new HashMap<>();
-    }
-
-    // Convert join table entries to content models with collection-specific
-    // metadata
-    // Use the bulk-loaded content entities instead of lazy-loaded ones
-    List<ContentModel> contents =
-        joinEntries.stream()
-            .filter(Objects::nonNull)
-            .map(
-                cc -> {
-                  ContentEntity content = contentMap.get(cc.getContentId());
-                  if (content == null) {
-                    log.warn(
-                        "Content entity {} not found in bulk load for collection {}",
-                        cc.getContentId(),
-                        entity.getId());
-                    return null;
-                  }
-                  // Use bulk-loaded conversion method directly (no temporary object needed)
-                  return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
-                })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-
-    model.setContent(contents);
     return model;
   }
 
@@ -472,9 +400,7 @@ public class CollectionProcessingUtil {
 
     // Set default blocks per page if not set
     if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
-      entity.setContentPerPage(
-          edens.zac.portfolio.backend.config.DefaultValues
-              .default_content_per_page); // Default page size
+      entity.setContentPerPage(DefaultValues.default_content_per_page); // Default page size
     }
 
     // Set type-specific visibility defaults
@@ -485,10 +411,6 @@ public class CollectionProcessingUtil {
 
     return entity;
   }
-
-  // =============================================================================
-  // VALIDATION METHODS
-  // =============================================================================
 
   // =============================================================================
   // PASSWORD PROTECTION HELPERS
@@ -508,29 +430,17 @@ public class CollectionProcessingUtil {
     return dto.password() != null && !dto.password().trim().isEmpty();
   }
 
-  /**
-   * Hash a password using SHA-256. Note: For production client gallery secrets, prefer BCrypt or
-   * Argon2.
-   */
+  private static final BCryptPasswordEncoder BCRYPT_ENCODER = new BCryptPasswordEncoder();
+
+  /** Hash a password using BCrypt. */
   public static String hashPassword(String password) {
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-      StringBuilder hexString = new StringBuilder();
-      for (byte b : hash) {
-        String hex = Integer.toHexString(0xff & b);
-        if (hex.length() == 1) hexString.append('0');
-        hexString.append(hex);
-      }
-      return hexString.toString();
-    } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException("Error hashing password", e);
-    }
+    return BCRYPT_ENCODER.encode(password);
   }
 
-  /** Check if a password matches a stored hash. */
-  public static boolean passwordMatches(String password, String hash) {
-    return hashPassword(password).equals(hash);
+  /** Check if a raw password matches a stored BCrypt hash. */
+  public static boolean passwordMatches(String rawPassword, String storedHash) {
+    if (rawPassword == null || storedHash == null) return false;
+    return BCRYPT_ENCODER.matches(rawPassword, storedHash);
   }
 
   // =============================================================================

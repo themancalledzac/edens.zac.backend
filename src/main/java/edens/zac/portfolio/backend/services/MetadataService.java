@@ -267,6 +267,11 @@ public class MetadataService {
         .collect(Collectors.toList());
   }
 
+  @Transactional(readOnly = true)
+  public List<Records.LocationWithCounts> getLocationsWithCounts() {
+    return locationRepository.findLocationsWithVisibleContent();
+  }
+
   @Transactional
   public LocationEntity findOrCreateLocation(String name) {
     return locationRepository.findOrCreate(name);

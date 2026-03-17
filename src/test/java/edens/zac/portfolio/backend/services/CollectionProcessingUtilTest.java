@@ -1,18 +1,15 @@
 package edens.zac.portfolio.backend.services;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
-import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
-import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDateTime;
@@ -99,90 +96,6 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void convertToFullModel_shouldConvertEntityWithContentBlocks() {
-    // Arrange
-    List<CollectionContentEntity> joinEntries = new ArrayList<>();
-    CollectionContentEntity join1 =
-        CollectionContentEntity.builder()
-            .collectionId(testEntity.getId())
-            .contentId(testBlocks.get(0).getId())
-            .orderIndex(0)
-            .visible(true)
-            .build();
-    CollectionContentEntity join2 =
-        CollectionContentEntity.builder()
-            .collectionId(testEntity.getId())
-            .contentId(testBlocks.get(1).getId())
-            .orderIndex(1)
-            .visible(true)
-            .build();
-    joinEntries.add(join1);
-    joinEntries.add(join2);
-
-    when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(testEntity.getId()))
-        .thenReturn(joinEntries);
-    when(contentRepository.findAllByIds(anyList())).thenReturn(testBlocks);
-    when(contentProcessingUtil.convertBulkLoadedContentToModel(
-            any(ContentEntity.class), any(CollectionContentEntity.class)))
-        .thenAnswer(
-            invocation -> {
-              ContentEntity entity = invocation.getArgument(0);
-              return new ContentModels.Text(
-                  entity.getId(),
-                  entity.getContentType(),
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null);
-            });
-
-    // Act
-    CollectionModel model = util.convertToFullModel(testEntity);
-
-    // Assert
-    assertNotNull(model);
-    assertNotNull(model.getContent());
-    assertEquals(2, model.getContent().size());
-    assertEquals(testBlocks.get(0).getId(), model.getContent().get(0).id());
-    assertEquals(testBlocks.get(1).getId(), model.getContent().get(1).id());
-  }
-
-  // TODO: Fix
-  //    @Test
-  //    void convertToModel_shouldConvertEntityWithPaginatedContentBlocks() {
-  //        // Arrange
-  ////        when(homeCardRepository.findByReferenceId(any())).thenReturn(Optional.empty());
-  //        Page<CollectionContentEntity> page = new PageImpl<CollectionContentEntity>(testBlocks,
-  // PageRequest.of(0, 10), 2);
-  //
-  //        when(contentProcessingUtil.convertToModel(any(ContentEntity.class)))
-  //                .thenAnswer(invocation -> {
-  //                    ContentEntity entity = invocation.getArgument(0);
-  //                    ContentModel model = new ContentModel();
-  //                    model.setId(entity.getId());
-  //                    model.setContentType(entity.getContentType());
-  //                    return model;
-  //                });
-  //
-  //        // Act
-  //        CollectionModel model = util.convertToModel(testEntity, page);
-  //
-  //        // Assert
-  //        assertNotNull(model);
-  //        assertNotNull(model.getContent());
-  //        assertEquals(2, model.getContent().size());
-  //        assertEquals(page.getNumber(), model.getCurrentPage());
-  //        assertEquals(page.getTotalPages(), model.getTotalPages());
-  //        assertEquals((int) page.getTotalElements(), model.getContentCount());
-  //        assertEquals(page.getSize(), model.getContentPerPage());
-  //    }
-
-  @Test
   void validateAndEnsureUniqueSlug_shouldReturnOriginalSlugWhenUnique() {
     // Arrange
     when(collectionRepository.findBySlug("test-slug")).thenReturn(Optional.empty());
@@ -227,51 +140,29 @@ class CollectionProcessingUtilTest {
   }
 
   // ======================================
-  // hashPassword and passwordMatches tests
+  // hashPassword and passwordMatches tests (BCrypt)
   // ======================================
 
   @Test
-  void hashPassword_shouldReturnExpectedHash_forKnownPassword() {
+  void hashPassword_shouldReturnBCryptHash() {
     String hash = CollectionProcessingUtil.hashPassword("password");
-    assertEquals("5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8", hash);
+    // BCrypt hashes start with $2a$ (or $2b$, $2y$)
+    assertTrue(hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$"));
   }
 
   @Test
-  void hashPassword_shouldReturnExpectedHash_forEmptyString() {
-    String hash = CollectionProcessingUtil.hashPassword("");
-    assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hash);
-  }
-
-  @Test
-  void hashPassword_shouldHandleUnicodeUtf8Consistently() {
-    String hash = CollectionProcessingUtil.hashPassword("pässwörd");
-    assertEquals("46970bef70aced8123f0d5d094717e2a5cd412041e03b26376049fe65b2834a4", hash);
-  }
-
-  @Test
-  void hashPassword_outputShouldBe64LowercaseHex() {
-    String hash = CollectionProcessingUtil.hashPassword("any input");
-    assertEquals(64, hash.length());
-    assertTrue(hash.matches("[0-9a-f]{64}"));
-  }
-
-  @Test
-  void hashPassword_sameInputGivesSameOutput_everyTime() {
+  void hashPassword_differentCallsProduceDifferentHashes() {
+    // BCrypt uses random salt, so same input produces different hashes
     String h1 = CollectionProcessingUtil.hashPassword("repeatable");
     String h2 = CollectionProcessingUtil.hashPassword("repeatable");
-    assertEquals(h1, h2);
-  }
-
-  @Test
-  void hashPassword_differentInputsGiveDifferentOutputs() {
-    String h1 = CollectionProcessingUtil.hashPassword("one");
-    String h2 = CollectionProcessingUtil.hashPassword("two");
     assertNotEquals(h1, h2);
   }
 
   @Test
-  void hashPassword_shouldThrowNullPointer_whenPasswordIsNull() {
-    assertThrows(NullPointerException.class, () -> CollectionProcessingUtil.hashPassword(null));
+  void hashPassword_shouldHandleUnicode() {
+    String hash = CollectionProcessingUtil.hashPassword("passwörd");
+    assertNotNull(hash);
+    assertTrue(hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$"));
   }
 
   @Test
@@ -287,18 +178,18 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void passwordMatches_emptyPasswordAgainstEmptyHash_shouldBehaveAsExpected() {
-    // Hash of empty string compared to empty string should be false
-    assertFalse(CollectionProcessingUtil.passwordMatches("", ""));
-    // But against the correct empty-string hash should be true
-    String emptyHash = CollectionProcessingUtil.hashPassword("");
-    assertTrue(CollectionProcessingUtil.passwordMatches("", emptyHash));
+  void passwordMatches_nullPassword_returnsFalse() {
+    String hash = CollectionProcessingUtil.hashPassword("abc");
+    assertFalse(CollectionProcessingUtil.passwordMatches(null, hash));
   }
 
   @Test
-  void passwordMatches_shouldThrowNullPointer_whenPasswordIsNull() {
-    String someHash = CollectionProcessingUtil.hashPassword("abc");
-    assertThrows(
-        NullPointerException.class, () -> CollectionProcessingUtil.passwordMatches(null, someHash));
+  void passwordMatches_nullHash_returnsFalse() {
+    assertFalse(CollectionProcessingUtil.passwordMatches("password", null));
+  }
+
+  @Test
+  void passwordMatches_bothNull_returnsFalse() {
+    assertFalse(CollectionProcessingUtil.passwordMatches(null, null));
   }
 }

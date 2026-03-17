@@ -16,9 +16,12 @@ import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
-import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.LocationPageResponse;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -34,6 +37,7 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class CollectionServiceTest {
@@ -51,8 +55,19 @@ class CollectionServiceTest {
 
   private CollectionEntity testCollection;
 
+  private void stubEmptyMetadata() {
+    when(metadataService.getAllTags()).thenReturn(List.of());
+    when(metadataService.getAllPeople()).thenReturn(List.of());
+    when(metadataService.getAllLocations()).thenReturn(List.of());
+    when(metadataService.getAllCameras()).thenReturn(List.of());
+    when(metadataService.getAllLenses()).thenReturn(List.of());
+    when(metadataService.getAllFilmTypes()).thenReturn(List.of());
+    when(collectionRepository.findIdTitleSlugAndType()).thenReturn(List.of());
+  }
+
   @BeforeEach
   void setUp() {
+    ReflectionTestUtils.setField(service, "accessTokenSecret", "test-secret-key");
     testCollection =
         CollectionEntity.builder()
             .id(1L)
@@ -83,24 +98,13 @@ class CollectionServiceTest {
       CollectionModel model =
           CollectionModel.builder().id(10L).title("New Collection").slug("new-collection").build();
 
-      GeneralMetadataDTO metadata =
-          new GeneralMetadataDTO(
-              List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-              List.of());
-
       when(collectionProcessingUtil.toEntity(eq(request), anyInt())).thenReturn(savedEntity);
       when(collectionRepository.save(savedEntity)).thenReturn(savedEntity);
       when(collectionRepository.findBySlug("new-collection")).thenReturn(Optional.of(savedEntity));
       when(collectionProcessingUtil.convertToBasicModel(savedEntity)).thenReturn(model);
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(10L))
           .thenReturn(Collections.emptyList());
-      when(metadataService.getAllTags()).thenReturn(List.of());
-      when(metadataService.getAllPeople()).thenReturn(List.of());
-      when(metadataService.getAllLocations()).thenReturn(List.of());
-      when(metadataService.getAllCameras()).thenReturn(List.of());
-      when(metadataService.getAllLenses()).thenReturn(List.of());
-      when(metadataService.getAllFilmTypes()).thenReturn(List.of());
-      when(collectionRepository.findIdTitleSlugAndType()).thenReturn(List.of());
+      stubEmptyMetadata();
 
       CollectionRequests.UpdateResponse result = service.createCollection(request);
 
@@ -127,24 +131,13 @@ class CollectionServiceTest {
       CollectionModel model =
           CollectionModel.builder().id(5L).title("My Blog").slug("my-blog").build();
 
-      GeneralMetadataDTO metadata =
-          new GeneralMetadataDTO(
-              List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-              List.of());
-
       when(collectionProcessingUtil.toEntity(eq(request), anyInt())).thenReturn(entity);
       when(collectionRepository.save(entity)).thenReturn(entity);
       when(collectionRepository.findBySlug("my-blog")).thenReturn(Optional.of(entity));
       when(collectionProcessingUtil.convertToBasicModel(entity)).thenReturn(model);
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(5L))
           .thenReturn(Collections.emptyList());
-      when(metadataService.getAllTags()).thenReturn(List.of());
-      when(metadataService.getAllPeople()).thenReturn(List.of());
-      when(metadataService.getAllLocations()).thenReturn(List.of());
-      when(metadataService.getAllCameras()).thenReturn(List.of());
-      when(metadataService.getAllLenses()).thenReturn(List.of());
-      when(metadataService.getAllFilmTypes()).thenReturn(List.of());
-      when(collectionRepository.findIdTitleSlugAndType()).thenReturn(List.of());
+      stubEmptyMetadata();
 
       service.createCollection(request);
 
@@ -223,30 +216,16 @@ class CollectionServiceTest {
       CollectionModel updatedModel =
           CollectionModel.builder().id(1L).title("Updated Title").slug("test-collection").build();
 
-      GeneralMetadataDTO metadata =
-          new GeneralMetadataDTO(
-              List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-              List.of());
-
-      // updateContent mocks
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(collectionRepository.countContentByCollectionId(collectionId)).thenReturn(0L);
       when(collectionRepository.save(any(CollectionEntity.class))).thenReturn(testCollection);
       when(collectionProcessingUtil.convertToBasicModel(any(CollectionEntity.class)))
           .thenReturn(updatedModel);
-
-      // getUpdateCollectionData mocks
       when(collectionRepository.findBySlug("test-collection"))
           .thenReturn(Optional.of(testCollection));
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(1L))
           .thenReturn(Collections.emptyList());
-      when(metadataService.getAllTags()).thenReturn(List.of());
-      when(metadataService.getAllPeople()).thenReturn(List.of());
-      when(metadataService.getAllLocations()).thenReturn(List.of());
-      when(metadataService.getAllCameras()).thenReturn(List.of());
-      when(metadataService.getAllLenses()).thenReturn(List.of());
-      when(metadataService.getAllFilmTypes()).thenReturn(List.of());
-      when(collectionRepository.findIdTitleSlugAndType()).thenReturn(List.of());
+      stubEmptyMetadata();
 
       CollectionRequests.UpdateResponse result =
           service.updateContentWithMetadata(collectionId, updateDTO);
@@ -321,13 +300,7 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("new-slug")).thenReturn(Optional.of(testCollection));
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(1L))
           .thenReturn(Collections.emptyList());
-      when(metadataService.getAllTags()).thenReturn(List.of());
-      when(metadataService.getAllPeople()).thenReturn(List.of());
-      when(metadataService.getAllLocations()).thenReturn(List.of());
-      when(metadataService.getAllCameras()).thenReturn(List.of());
-      when(metadataService.getAllLenses()).thenReturn(List.of());
-      when(metadataService.getAllFilmTypes()).thenReturn(List.of());
-      when(collectionRepository.findIdTitleSlugAndType()).thenReturn(List.of());
+      stubEmptyMetadata();
 
       service.updateContentWithMetadata(collectionId, updateDTO);
 
@@ -393,21 +366,170 @@ class CollectionServiceTest {
   class ValidateClientGalleryAccess {
 
     @Test
-    void validateClientGalleryAccess_existingSlug_returnsTrue() {
-      when(collectionRepository.existsBySlug("gallery")).thenReturn(true);
+    void validateClientGalleryAccess_noPasswordSet_returnsTrue() {
+      // Arrange
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(null).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
+      // Act
       boolean result = service.validateClientGalleryAccess("gallery", null);
 
+      // Assert
       assertThat(result).isTrue();
     }
 
     @Test
-    void validateClientGalleryAccess_nonexistentSlug_throwsException() {
-      when(collectionRepository.existsBySlug("missing")).thenReturn(false);
+    void validateClientGalleryAccess_correctPassword_returnsTrue() {
+      // Arrange
+      String password = "secret123";
+      String hash = CollectionProcessingUtil.hashPassword(password);
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
+      // Act
+      boolean result = service.validateClientGalleryAccess("gallery", password);
+
+      // Assert
+      assertThat(result).isTrue();
+    }
+
+    @Test
+    void validateClientGalleryAccess_wrongPassword_returnsFalse() {
+      // Arrange
+      String hash = CollectionProcessingUtil.hashPassword("correct-password");
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
+
+      // Act
+      boolean result = service.validateClientGalleryAccess("gallery", "wrong-password");
+
+      // Assert
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void validateClientGalleryAccess_nullPassword_returnsFalse() {
+      // Arrange
+      String hash = CollectionProcessingUtil.hashPassword("some-password");
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
+
+      // Act
+      boolean result = service.validateClientGalleryAccess("gallery", null);
+
+      // Assert
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void validateClientGalleryAccess_nonExistentSlug_throwsException() {
+      // Arrange
+      when(collectionRepository.findBySlug("missing")).thenReturn(Optional.empty());
+
+      // Act & Assert
       assertThatThrownBy(() -> service.validateClientGalleryAccess("missing", null))
           .isInstanceOf(ResourceNotFoundException.class)
           .hasMessageContaining("Collection not found with slug: missing");
+    }
+  }
+
+  @Nested
+  class ValidateAccessToken {
+
+    @Test
+    void validateAccessToken_nullToken_returnsFalse() {
+      // Act
+      boolean result = service.validateAccessToken("gallery", null);
+
+      // Assert
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void validateAccessToken_tokenWithoutPipe_returnsFalse() {
+      // Act
+      boolean result = service.validateAccessToken("gallery", "no-pipe-character");
+
+      // Assert
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void validateAccessToken_validToken_returnsTrue() {
+      // Arrange
+      String hash = CollectionProcessingUtil.hashPassword("secret123");
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
+
+      // Generate a real token via the service
+      String token = service.generateAccessToken("gallery");
+
+      // Act
+      boolean result = service.validateAccessToken("gallery", token);
+
+      // Assert
+      assertThat(result).isTrue();
+    }
+
+    @Test
+    void validateAccessToken_invalidToken_returnsFalse() {
+      // Arrange
+      String hash = CollectionProcessingUtil.hashPassword("secret123");
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
+
+      // Act
+      boolean result = service.validateAccessToken("gallery", "wrong-hmac|9999999999");
+
+      // Assert
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void validateAccessToken_noPasswordOnCollection_returnsTrue() {
+      // Arrange
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(null).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
+
+      // Act - any token with a pipe is accepted for non-protected collections
+      boolean result = service.validateAccessToken("gallery", "any|token");
+
+      // Assert
+      assertThat(result).isTrue();
+    }
+
+    @Test
+    void validateAccessToken_nonExistentSlug_returnsFalse() {
+      // Arrange
+      when(collectionRepository.findBySlug("missing")).thenReturn(Optional.empty());
+
+      // Act
+      boolean result = service.validateAccessToken("missing", "some|token");
+
+      // Assert
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void validateAccessToken_expiredToken_returnsFalse() {
+      // Arrange
+      String hash = CollectionProcessingUtil.hashPassword("secret123");
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
+
+      // Act - use an expired timestamp (epoch 0)
+      boolean result = service.validateAccessToken("gallery", "some-hmac|0");
+
+      // Assert
+      assertThat(result).isFalse();
     }
   }
 
@@ -577,6 +699,179 @@ class CollectionServiceTest {
           .batchUpdateContentOrderIndexes(eq(collectionId), mapCaptor.capture());
       Map<Long, Integer> capturedMap = mapCaptor.getValue();
       assertThat(capturedMap).containsEntry(100L, 5).hasSize(1);
+    }
+  }
+
+  @Nested
+  class GetLocationPage {
+
+    @Test
+    void getLocationPage_shouldReturnCollectionsAndOrphanImages() {
+      // Arrange
+      String locationName = "Seattle";
+
+      CollectionEntity collectionEntity =
+          CollectionEntity.builder()
+              .id(10L)
+              .title("Seattle Trip")
+              .slug("seattle-trip")
+              .type(CollectionType.PORTFOLIO)
+              .visible(true)
+              .build();
+
+      CollectionModel collectionModel =
+          CollectionModel.builder()
+              .id(10L)
+              .title("Seattle Trip")
+              .slug("seattle-trip")
+              .location(new Records.Location(1L, "Seattle"))
+              .build();
+
+      ContentImageEntity orphanImage = ContentImageEntity.builder().id(20L).title("Sunset").build();
+
+      ContentModels.Image imageModel =
+          new ContentModels.Image(
+              20L, null, "Sunset", null, null, null, null, null, null, null, null, null, null, null,
+              null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+
+      when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(1L);
+      when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
+          .thenReturn(List.of(collectionEntity));
+      when(collectionRepository.findVisibleIdsByLocationName(locationName))
+          .thenReturn(List.of(10L));
+      when(collectionProcessingUtil.convertToBasicModel(collectionEntity))
+          .thenReturn(collectionModel);
+      when(contentRepository.findOrphanImagesByLocationName(
+              eq(locationName), eq(List.of(10L)), eq(50), eq(0)))
+          .thenReturn(List.of(orphanImage));
+      when(contentRepository.countOrphanImagesByLocationName(eq(locationName), eq(List.of(10L))))
+          .thenReturn(1L);
+      when(contentProcessingUtil.convertImageEntityToModel(orphanImage)).thenReturn(imageModel);
+
+      // Act
+      LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
+
+      // Assert
+      assertThat(result).isNotNull();
+      assertThat(result.location()).isNotNull();
+      assertThat(result.collections()).hasSize(1);
+      assertThat(result.collections().getFirst().getTitle()).isEqualTo("Seattle Trip");
+      assertThat(result.images()).hasSize(1);
+      assertThat(result.totalCollections()).isEqualTo(1L);
+      assertThat(result.totalImages()).isEqualTo(1L);
+    }
+
+    @Test
+    void getLocationPage_noCollections_shouldReturnEmptyCollectionsWithOrphans() {
+      // Arrange
+      String locationName = "Portland";
+
+      ContentImageEntity orphanImage = ContentImageEntity.builder().id(30L).title("Bridge").build();
+
+      ContentModels.Image imageModel =
+          new ContentModels.Image(
+              30L, null, "Bridge", null, null, null, null, null, null, null, null, null, null, null,
+              null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+
+      when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
+      when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
+          .thenReturn(Collections.emptyList());
+      when(collectionRepository.findVisibleIdsByLocationName(locationName))
+          .thenReturn(Collections.emptyList());
+      when(contentRepository.findOrphanImagesByLocationName(
+              eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))
+          .thenReturn(List.of(orphanImage));
+      when(contentRepository.countOrphanImagesByLocationName(
+              eq(locationName), eq(Collections.emptyList())))
+          .thenReturn(1L);
+      when(contentProcessingUtil.convertImageEntityToModel(orphanImage)).thenReturn(imageModel);
+
+      // Act
+      LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
+
+      // Assert
+      assertThat(result).isNotNull();
+      assertThat(result.location()).isNotNull();
+      assertThat(result.location().name()).isEqualTo("Portland");
+      assertThat(result.location().id()).isNull();
+      assertThat(result.collections()).isEmpty();
+      assertThat(result.images()).hasSize(1);
+      assertThat(result.images().getFirst().title()).isEqualTo("Bridge");
+      assertThat(result.totalCollections()).isEqualTo(0L);
+      assertThat(result.totalImages()).isEqualTo(1L);
+    }
+
+    @Test
+    void getLocationPage_noResults_shouldReturnEmptyResponse() {
+      // Arrange
+      String locationName = "Nowhere";
+
+      when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
+      when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
+          .thenReturn(Collections.emptyList());
+      when(collectionRepository.findVisibleIdsByLocationName(locationName))
+          .thenReturn(Collections.emptyList());
+      when(contentRepository.findOrphanImagesByLocationName(
+              eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))
+          .thenReturn(Collections.emptyList());
+      when(contentRepository.countOrphanImagesByLocationName(
+              eq(locationName), eq(Collections.emptyList())))
+          .thenReturn(0L);
+
+      // Act
+      LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
+
+      // Assert
+      assertThat(result).isNotNull();
+      assertThat(result.location()).isNotNull();
+      assertThat(result.location().name()).isEqualTo("Nowhere");
+      assertThat(result.location().id()).isNull();
+      assertThat(result.collections()).isEmpty();
+      assertThat(result.images()).isEmpty();
+      assertThat(result.totalCollections()).isEqualTo(0L);
+      assertThat(result.totalImages()).isEqualTo(0L);
+    }
+  }
+
+  @Nested
+  class FindMetaBySlug {
+
+    @Test
+    void findMetaBySlug_existingSlug_shouldReturnBasicModel() {
+      // Arrange
+      String slug = "test-collection";
+      CollectionModel basicModel =
+          CollectionModel.builder()
+              .id(1L)
+              .title("Test Collection")
+              .slug(slug)
+              .type(CollectionType.PORTFOLIO)
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
+      when(collectionProcessingUtil.convertToBasicModel(testCollection)).thenReturn(basicModel);
+
+      // Act
+      CollectionModel result = service.findMetaBySlug(slug);
+
+      // Assert
+      assertThat(result).isNotNull();
+      assertThat(result.getTitle()).isEqualTo("Test Collection");
+      assertThat(result.getSlug()).isEqualTo(slug);
+      verify(collectionRepository).findBySlug(slug);
+      verify(collectionProcessingUtil).convertToBasicModel(testCollection);
+    }
+
+    @Test
+    void findMetaBySlug_nonExistentSlug_shouldThrowResourceNotFoundException() {
+      // Arrange
+      String slug = "non-existent";
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.empty());
+
+      // Act & Assert
+      assertThatThrownBy(() -> service.findMetaBySlug(slug))
+          .isInstanceOf(ResourceNotFoundException.class)
+          .hasMessageContaining("Collection not found with slug: non-existent");
     }
   }
 }

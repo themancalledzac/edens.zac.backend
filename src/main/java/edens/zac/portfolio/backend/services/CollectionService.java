@@ -11,11 +11,18 @@ import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -36,6 +43,9 @@ public class CollectionService {
   private final ContentProcessingUtil contentProcessingUtil;
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final MetadataService metadataService;
+
+  @Value("${app.access-token.secret}")
+  private String accessTokenSecret;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
 
@@ -77,32 +87,87 @@ public class CollectionService {
   public boolean validateClientGalleryAccess(String slug, String password) {
     log.debug("Validating access to client gallery: {}", slug);
 
-    // TODO: Re-implement password protection after migration
-    // Password protection temporarily disabled during refactoring
+    CollectionEntity collection =
+        collectionRepository
+            .findBySlug(slug)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
-    // Verify collection exists (using existsBySlug for efficiency when we don't
-    // need the entity)
-    if (!collectionRepository.existsBySlug(slug)) {
-      throw new ResourceNotFoundException("Collection not found with slug: " + slug);
+    // Not password-protected — allow access
+    if (collection.getPasswordHash() == null) {
+      return true;
     }
 
-    // For now, all galleries are accessible
-    return true;
+    // Password required but not provided
+    if (password == null || password.isEmpty()) {
+      return false;
+    }
 
-    // TODO: Uncomment when password protection is re-implemented
-    // // Check if collection is password-protected
-    // if (!collection.isPasswordProtected()) {
-    // return true; // No password required
-    // }
-    //
-    // // Validate password
-    // if (password == null || password.isEmpty()) {
-    // return false; // Password required but not provided
-    // }
-    //
-    // // Check if password matches
-    // return CollectionProcessingUtil.passwordMatches(password,
-    // collection.getPasswordHash());
+    // Compare submitted password against stored hash
+    return CollectionProcessingUtil.passwordMatches(password, collection.getPasswordHash());
+  }
+
+  /**
+   * Generate a time-limited HMAC access token for a client gallery.
+   *
+   * @param slug Collection slug
+   * @return HMAC token with embedded expiry
+   */
+  public String generateAccessToken(String slug) {
+    long expiry = Instant.now().plus(Duration.ofHours(24)).getEpochSecond();
+    String payload = slug + "|" + expiry;
+    String hmac = computeHmac(payload, accessTokenSecret);
+    return hmac + "|" + expiry;
+  }
+
+  /**
+   * Validate a time-limited HMAC access token for a client gallery.
+   *
+   * @param slug Collection slug
+   * @param accessToken The token to validate
+   * @return true if valid and not expired
+   */
+  @Transactional(readOnly = true)
+  public boolean validateAccessToken(String slug, String accessToken) {
+    if (accessToken == null || !accessToken.contains("|")) {
+      return false;
+    }
+    // Look up the collection; if it doesn't exist, deny access
+    Optional<CollectionEntity> optCollection = collectionRepository.findBySlug(slug);
+    if (optCollection.isEmpty()) {
+      return false;
+    }
+    // Non-protected collections are always accessible
+    if (optCollection.get().getPasswordHash() == null) {
+      return true;
+    }
+
+    String[] parts = accessToken.split("\\|");
+    if (parts.length != 2) {
+      return false;
+    }
+    try {
+      long expiry = Long.parseLong(parts[1]);
+      if (Instant.now().getEpochSecond() > expiry) {
+        return false;
+      }
+      String expectedHmac = computeHmac(slug + "|" + expiry, accessTokenSecret);
+      return MessageDigest.isEqual(
+          expectedHmac.getBytes(StandardCharsets.UTF_8), parts[0].getBytes(StandardCharsets.UTF_8));
+    } catch (NumberFormatException e) {
+      return false;
+    }
+  }
+
+  private String computeHmac(String data, String secret) {
+    try {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+      byte[] hmacBytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(hmacBytes);
+    } catch (Exception e) {
+      throw new RuntimeException("HMAC computation failed", e);
+    }
   }
 
   @Transactional(readOnly = true)
@@ -112,21 +177,11 @@ public class CollectionService {
     // Get total count
     long totalElements = collectionRepository.countByType(type);
 
-    // Get all collections of this type (no pagination in DAO yet, so we'll paginate
-    // in memory)
-    List<CollectionEntity> allCollections =
-        collectionRepository.findTop50ByTypeOrderByCollectionDateDesc(type);
-
-    // Apply pagination manually
+    // Get paginated collections directly from DB
     int page = pageable.getPageNumber();
     int size = pageable.getPageSize();
-    int start = page * size;
-    int end = Math.min(start + size, allCollections.size());
-
     List<CollectionEntity> paginatedCollections =
-        start < allCollections.size()
-            ? allCollections.subList(start, end)
-            : Collections.emptyList();
+        collectionRepository.findByTypeOrderByCollectionDateDesc(type, size, page * size);
 
     // Convert to models
     List<CollectionModel> models =
@@ -150,6 +205,60 @@ public class CollectionService {
     return collections.stream()
         .map(collectionProcessingUtil::convertToBasicModel)
         .collect(Collectors.toList());
+  }
+
+  @Transactional(readOnly = true)
+  public LocationPageResponse getLocationPage(
+      String locationName, int collectionPage, int collectionSize, int imagePage, int imageSize) {
+    log.debug("Getting location page for: {}", locationName);
+
+    // Get visible collections at this location
+    long totalCollections = collectionRepository.countVisibleByLocationName(locationName);
+    int collectionOffset = collectionPage * collectionSize;
+    List<CollectionEntity> collectionEntities =
+        collectionRepository.findVisibleByLocationName(
+            locationName, collectionSize, collectionOffset);
+
+    List<CollectionModel> collections =
+        collectionEntities.stream()
+            .map(collectionProcessingUtil::convertToBasicModel)
+            .collect(Collectors.toList());
+
+    // Get IDs of ALL visible collections at this location (for orphan exclusion)
+    List<Long> allCollectionIds = collectionRepository.findVisibleIdsByLocationName(locationName);
+
+    // Get orphan images (at this location but not in any of those collections)
+    int imageOffset = imagePage * imageSize;
+    List<ContentImageEntity> orphanImageEntities =
+        contentRepository.findOrphanImagesByLocationName(
+            locationName, allCollectionIds, imageSize, imageOffset);
+    long totalImages =
+        contentRepository.countOrphanImagesByLocationName(locationName, allCollectionIds);
+
+    List<ContentModels.Image> images =
+        orphanImageEntities.stream()
+            .map(contentProcessingUtil::convertImageEntityToModel)
+            .collect(Collectors.toList());
+
+    // Resolve the location record
+    Records.Location location =
+        collectionEntities.isEmpty()
+            ? new Records.Location(null, locationName)
+            : collectionProcessingUtil
+                .convertToBasicModel(collectionEntities.getFirst())
+                .getLocation();
+
+    return new LocationPageResponse(location, collections, images, totalCollections, totalImages);
+  }
+
+  @Transactional(readOnly = true)
+  public CollectionModel findMetaBySlug(String slug) {
+    log.debug("Finding collection metadata by slug: {}", slug);
+    return collectionRepository
+        .findBySlug(slug)
+        .map(collectionProcessingUtil::convertToBasicModel)
+        .orElseThrow(
+            () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
   }
 
   @Transactional(readOnly = true)
@@ -592,17 +701,12 @@ public class CollectionService {
     // Convert FilmFormat enums to DTOs
     List<Records.FilmFormat> filmFormats =
         Arrays.stream(FilmFormat.values())
-            .map(this::convertToFilmFormatDTO)
+            .map(ff -> new Records.FilmFormat(ff.name(), ff.getDisplayName()))
             .collect(Collectors.toList());
 
     // Build and return metadata DTO
     return new GeneralMetadataDTO(
         tags, people, locations, collections, cameras, lenses, filmTypes, filmFormats);
-  }
-
-  /** Convert FilmFormat enum to Records.FilmFormat */
-  private Records.FilmFormat convertToFilmFormatDTO(FilmFormat filmFormat) {
-    return new Records.FilmFormat(filmFormat.name(), filmFormat.getDisplayName());
   }
 
   /**
@@ -732,14 +836,12 @@ public class CollectionService {
         ContentCollectionEntity existingContentCollection =
             findOrCreateContentCollectionEntity(childCollectionEntity);
 
+        Integer maxIndex =
+            collectionRepository.getMaxOrderIndexForCollection(parentCollection.getId());
         Integer orderIndex =
             childCollection.orderIndex() != null
                 ? childCollection.orderIndex()
-                : (collectionRepository.getMaxOrderIndexForCollection(parentCollection.getId())
-                        != null
-                    ? collectionRepository.getMaxOrderIndexForCollection(parentCollection.getId())
-                        + 1
-                    : 0);
+                : (maxIndex != null ? maxIndex + 1 : 0);
 
         // Check if this content is already in the parent collection
         CollectionContentEntity existingJoinEntry =

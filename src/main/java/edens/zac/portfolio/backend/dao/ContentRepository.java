@@ -9,6 +9,7 @@ import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentLensEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
+import edens.zac.portfolio.backend.model.ImageSearchRequest;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDate;
@@ -241,13 +242,6 @@ public class ContentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc() {
-    String sql =
-        SELECT_CONTENT_IMAGE + " ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC";
-    return query(sql, CONTENT_IMAGE_ROW_MAPPER);
-  }
-
-  @Transactional(readOnly = true)
   public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc(int limit, int offset) {
     String sql =
         SELECT_CONTENT_IMAGE
@@ -257,18 +251,77 @@ public class ContentRepository extends BaseDao {
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
+  /**
+   * Find images at a location that are NOT in any of the specified collections. These are "orphan"
+   * images that appear on the location page below collections.
+   */
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> findOrphanImagesByLocationName(
+      String locationName, List<Long> excludeCollectionIds, int limit, int offset) {
+    String sql =
+        SELECT_CONTENT_IMAGE
+            + """
+             JOIN location l ON ci.location_id = l.id
+             WHERE l.location_name = :locationName
+            """;
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("locationName", locationName)
+            .addValue("limit", limit)
+            .addValue("offset", offset);
+
+    if (excludeCollectionIds != null && !excludeCollectionIds.isEmpty()) {
+      sql +=
+          """
+           AND NOT EXISTS (
+             SELECT 1 FROM collection_content cc
+             WHERE cc.content_id = c.id
+               AND cc.collection_id IN (:excludeCollectionIds)
+               AND cc.visible = true
+           )
+          """;
+      params.addValue("excludeCollectionIds", excludeCollectionIds);
+    }
+
+    sql += " ORDER BY ci.capture_date DESC NULLS LAST LIMIT :limit OFFSET :offset";
+    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public long countOrphanImagesByLocationName(
+      String locationName, List<Long> excludeCollectionIds) {
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            SELECT COUNT(DISTINCT c.id) FROM content c
+            JOIN content_image ci ON c.id = ci.id
+            JOIN location l ON ci.location_id = l.id
+            WHERE l.location_name = :locationName
+            """);
+    MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
+
+    if (excludeCollectionIds != null && !excludeCollectionIds.isEmpty()) {
+      sql.append(
+          """
+           AND NOT EXISTS (
+             SELECT 1 FROM collection_content cc
+             WHERE cc.content_id = c.id
+               AND cc.collection_id IN (:excludeCollectionIds)
+               AND cc.visible = true
+           )
+          """);
+      params.addValue("excludeCollectionIds", excludeCollectionIds);
+    }
+
+    Long count = namedParameterJdbcTemplate.queryForObject(sql.toString(), params, Long.class);
+    return count != null ? count : 0L;
+  }
+
   @Transactional(readOnly = true)
   public int countImages() {
     String sql = "SELECT COUNT(*) FROM content WHERE content_type = 'IMAGE'";
     Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
     return count != null ? count : 0;
-  }
-
-  @Transactional(readOnly = true)
-  public List<Long> findIdsByContentType(String contentType) {
-    String sql = "SELECT id FROM content WHERE content_type = :contentType";
-    MapSqlParameterSource params = createParameterSource().addValue("contentType", contentType);
-    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
   @Transactional(readOnly = true)
@@ -503,6 +556,129 @@ public class ContentRepository extends BaseDao {
   }
 
   // ============================================================
+  // Image Search Operations
+  // ============================================================
+
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> searchImages(ImageSearchRequest request, int limit, int offset) {
+    StringBuilder sql = new StringBuilder(SELECT_CONTENT_IMAGE);
+    MapSqlParameterSource params = createParameterSource();
+
+    appendSearchJoins(sql, request);
+    appendSearchConditions(sql, params, request);
+    appendSearchGroupBy(sql, request);
+
+    sql.append(" ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC");
+    sql.append(" LIMIT :limit OFFSET :offset");
+    params.addValue("limit", limit);
+    params.addValue("offset", offset);
+
+    return query(sql.toString(), CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public long countSearchImages(ImageSearchRequest request) {
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            SELECT COUNT(DISTINCT c.id) FROM content c
+            JOIN content_image ci ON c.id = ci.id
+            LEFT JOIN content_cameras cam ON ci.camera_id = cam.id
+            LEFT JOIN content_lenses lens ON ci.lens_id = lens.id
+            LEFT JOIN content_film_types ft ON ci.film_type_id = ft.id
+            """);
+    MapSqlParameterSource params = createParameterSource();
+
+    appendSearchJoins(sql, request);
+    appendSearchConditions(sql, params, request);
+
+    Long count = namedParameterJdbcTemplate.queryForObject(sql.toString(), params, Long.class);
+    return count != null ? count : 0L;
+  }
+
+  private void appendSearchJoins(StringBuilder sql, ImageSearchRequest request) {
+    if (request.tagIds() != null && !request.tagIds().isEmpty()) {
+      sql.append(" JOIN content_tags ctag ON c.id = ctag.content_id");
+    }
+    if (request.personIds() != null && !request.personIds().isEmpty()) {
+      sql.append(" JOIN content_image_people cip ON c.id = cip.image_id");
+    }
+  }
+
+  private void appendSearchConditions(
+      StringBuilder sql, MapSqlParameterSource params, ImageSearchRequest request) {
+    List<String> conditions = new ArrayList<>();
+
+    if (request.tagIds() != null && !request.tagIds().isEmpty()) {
+      conditions.add("ctag.tag_id IN (:tagIds)");
+      params.addValue("tagIds", request.tagIds());
+    }
+    if (request.personIds() != null && !request.personIds().isEmpty()) {
+      conditions.add("cip.person_id IN (:personIds)");
+      params.addValue("personIds", request.personIds());
+    }
+    if (request.cameraId() != null) {
+      conditions.add("ci.camera_id = :cameraId");
+      params.addValue("cameraId", request.cameraId());
+    }
+    if (request.lensId() != null) {
+      conditions.add("ci.lens_id = :lensId");
+      params.addValue("lensId", request.lensId());
+    }
+    if (request.locationId() != null) {
+      conditions.add("ci.location_id = :locationId");
+      params.addValue("locationId", request.locationId());
+    }
+    if (request.minRating() != null) {
+      conditions.add("ci.rating >= :minRating");
+      params.addValue("minRating", request.minRating());
+    }
+    if (request.isFilm() != null) {
+      conditions.add("ci.is_film = :isFilm");
+      params.addValue("isFilm", request.isFilm());
+    }
+    if (request.blackAndWhite() != null) {
+      conditions.add("ci.black_and_white = :blackAndWhite");
+      params.addValue("blackAndWhite", request.blackAndWhite());
+    }
+    if (request.captureStartDate() != null) {
+      conditions.add("ci.capture_date >= :captureStartDate");
+      params.addValue("captureStartDate", request.captureStartDate());
+    }
+    if (request.captureEndDate() != null) {
+      conditions.add("ci.capture_date <= :captureEndDate");
+      params.addValue("captureEndDate", request.captureEndDate());
+    }
+
+    if (!conditions.isEmpty()) {
+      sql.append(" WHERE ");
+      sql.append(String.join(" AND ", conditions));
+    }
+  }
+
+  private void appendSearchGroupBy(StringBuilder sql, ImageSearchRequest request) {
+    boolean needsGroupBy =
+        (request.tagIds() != null && !request.tagIds().isEmpty())
+            || (request.personIds() != null && !request.personIds().isEmpty());
+
+    if (needsGroupBy) {
+      sql.append(
+          """
+           GROUP BY c.id, c.content_type, c.created_at, c.updated_at,
+                    ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
+                    ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
+                    ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
+                    ci.location_id,
+                    ci.image_url_web, ci.image_url_original,
+                    ci.capture_date, ci.last_export_date, ci.original_filename,
+                    cam.camera_name,
+                    lens.lens_name,
+                    ft.film_type_name, ft.display_name, ft.default_iso
+          """);
+    }
+  }
+
+  // ============================================================
   // Text Operations
   // ============================================================
 
@@ -511,12 +687,6 @@ public class ContentRepository extends BaseDao {
     String sql = SELECT_CONTENT_TEXT + " WHERE c.id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, CONTENT_TEXT_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentTextEntity> findAllTextOrderByCreatedAtDesc() {
-    String sql = SELECT_CONTENT_TEXT + " ORDER BY c.created_at DESC";
-    return query(sql, CONTENT_TEXT_ROW_MAPPER);
   }
 
   @Transactional
@@ -611,12 +781,6 @@ public class ContentRepository extends BaseDao {
     String sql = SELECT_CONTENT_GIF + " WHERE c.id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, CONTENT_GIF_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentGifEntity> findAllGifsOrderByCreateDateDesc() {
-    String sql = SELECT_CONTENT_GIF + " ORDER BY cg.create_date DESC NULLS LAST, c.created_at DESC";
-    return query(sql, CONTENT_GIF_ROW_MAPPER);
   }
 
   @Transactional
@@ -736,12 +900,6 @@ public class ContentRepository extends BaseDao {
     MapSqlParameterSource params =
         createParameterSource().addValue("referencedCollectionId", referencedCollectionId);
     return queryForObject(sql, CONTENT_COLLECTION_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentCollectionEntity> findAllCollectionContentOrderByCreatedAtDesc() {
-    String sql = SELECT_CONTENT_COLLECTION + " ORDER BY c.created_at DESC";
-    return query(sql, CONTENT_COLLECTION_ROW_MAPPER);
   }
 
   @Transactional

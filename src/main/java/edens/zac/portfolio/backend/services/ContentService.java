@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 /** Service for managing content, tags, and people. */
@@ -39,6 +40,7 @@ public class ContentService {
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
   private final MetadataService metadataService;
+  private final TransactionTemplate transactionTemplate;
 
   // Virtual thread executor for parallel image processing (Java 21+)
   // Virtual threads are lightweight and don't consume OS threads while waiting on
@@ -516,6 +518,23 @@ public class ContentService {
   }
 
   @Transactional(readOnly = true)
+  public ImageSearchResponse searchImages(ImageSearchRequest request) {
+    int limit = request.size();
+    int offset = request.page() * request.size();
+
+    List<ContentImageEntity> entities = contentRepository.searchImages(request, limit, offset);
+    long totalElements = contentRepository.countSearchImages(request);
+    int totalPages = limit > 0 ? (int) Math.ceil((double) totalElements / limit) : 0;
+
+    List<ContentModels.Image> images =
+        entities.stream()
+            .map(contentProcessingUtil::convertImageEntityToModel)
+            .collect(Collectors.toList());
+
+    return new ImageSearchResponse(images, totalElements, totalPages);
+  }
+
+  @Transactional(readOnly = true)
   public org.springframework.data.domain.Page<ContentModels.Image> getAllImages(
       org.springframework.data.domain.Pageable pageable) {
     // Get total count for pagination
@@ -613,8 +632,9 @@ public class ContentService {
         allFailures.size());
 
     // PHASE 2: Save to database in a SINGLE SHORT TRANSACTION
-    // All DB calls happen here: camera/lens/location lookups, duplicate detection, saves
-    return saveProcessedImages(collectionId, allPrepared, allFailures);
+    // Uses TransactionTemplate to avoid self-invocation proxy bypass
+    return transactionTemplate.execute(
+        status -> saveProcessedImages(collectionId, allPrepared, allFailures));
   }
 
   /**
@@ -658,7 +678,6 @@ public class ContentService {
    * @param previousFailures Failures from the preparation phase
    * @return ImageUploadResult with successful images and all failures
    */
-  @Transactional
   private ImageUploadResult saveProcessedImages(
       Long collectionId,
       List<PreparedImage> preparedImages,

@@ -29,6 +29,8 @@ services:
 
       # Shared secret for BFF proxy authentication
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret}
+      # Access token secret for client gallery HMAC tokens
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-dev-access-token-secret}
     deploy:
       resources:
         limits:

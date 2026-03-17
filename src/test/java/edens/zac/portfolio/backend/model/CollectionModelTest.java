@@ -461,6 +461,76 @@ class CollectionModelTest {
   }
 
   @Nested
+  @DisplayName("Password Protection Tests")
+  class PasswordProtectionTests {
+
+    @Test
+    @DisplayName("Should default isPasswordProtected to null when not set")
+    void shouldDefaultIsPasswordProtectedToNull() {
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.BLOG)
+              .title("Test Blog")
+              .slug("test-blog")
+              .build();
+
+      assertNull(model.getIsPasswordProtected());
+    }
+
+    @Test
+    @DisplayName("Should set isPasswordProtected to true")
+    void shouldSetIsPasswordProtectedToTrue() {
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Protected Gallery")
+              .slug("protected-gallery")
+              .isPasswordProtected(true)
+              .build();
+
+      assertTrue(model.getIsPasswordProtected());
+    }
+
+    @Test
+    @DisplayName("Should set isPasswordProtected to false")
+    void shouldSetIsPasswordProtectedToFalse() {
+      CollectionModel model =
+          CollectionModel.builder()
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Open Gallery")
+              .slug("open-gallery")
+              .isPasswordProtected(false)
+              .build();
+
+      assertFalse(model.getIsPasswordProtected());
+    }
+
+    @Test
+    @DisplayName("Should include isPasswordProtected in equals and hashCode")
+    void shouldIncludeIsPasswordProtectedInEquality() {
+      CollectionModel model1 =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Gallery")
+              .slug("gallery")
+              .isPasswordProtected(true)
+              .build();
+
+      CollectionModel model2 =
+          CollectionModel.builder()
+              .id(1L)
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Gallery")
+              .slug("gallery")
+              .isPasswordProtected(false)
+              .build();
+
+      assertNotEquals(model1, model2);
+    }
+  }
+
+  @Nested
   @DisplayName("Type-Specific Tests")
   class TypeSpecificTests {
 

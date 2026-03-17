@@ -37,7 +37,7 @@ public class CollectionRepository extends BaseDao {
       """
       SELECT id, type, title, slug, description, location_id, collection_date,
              visible, display_mode, cover_image_id, content_per_page, total_content,
-             rows_wide, created_at, updated_at
+             rows_wide, password_hash, created_at, updated_at
       FROM collection
       """;
 
@@ -70,6 +70,7 @@ public class CollectionRepository extends BaseDao {
         entity.setContentPerPage(getInteger(rs, "content_per_page"));
         entity.setTotalContent(getInteger(rs, "total_content"));
         entity.setRowsWide(getInteger(rs, "rows_wide"));
+        entity.setPasswordHash(rs.getString("password_hash"));
         entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
         entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
 
@@ -110,26 +111,6 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public boolean existsBySlug(String slug) {
-    String sql = "SELECT COUNT(*) > 0 FROM collection WHERE slug = :slug";
-    MapSqlParameterSource params = createParameterSource().addValue("slug", slug);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
-  public List<CollectionEntity> findTop50ByTypeAndVisibleTrueOrderByCollectionDateDesc(
-      CollectionType type) {
-    String sql =
-        SELECT_COLLECTION
-            + " WHERE type = :type AND visible = true "
-            + "ORDER BY collection_date DESC NULLS LAST "
-            + "LIMIT 50";
-    MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
-    return query(sql, COLLECTION_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public List<CollectionEntity> findByTypeAndVisibleTrueOrderByCollectionDateDesc(
       CollectionType type) {
     String sql =
@@ -141,28 +122,70 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findTop50ByTypeOrderByCollectionDateDesc(CollectionType type) {
+  public List<CollectionEntity> findByTypeOrderByCollectionDateDesc(
+      CollectionType type, int limit, int offset) {
     String sql =
         SELECT_COLLECTION
-            + " WHERE type = :type "
+            + " WHERE type = :type AND visible = true "
             + "ORDER BY collection_date DESC NULLS LAST "
-            + "LIMIT 50";
-    MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
+            + "LIMIT :limit OFFSET :offset";
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("type", type.name())
+            .addValue("limit", limit)
+            .addValue("offset", offset);
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
   public long countByType(CollectionType type) {
-    String sql = "SELECT COUNT(*) FROM collection WHERE type = :type";
+    String sql = "SELECT COUNT(*) FROM collection WHERE type = :type AND visible = true";
     MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
     Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
     return count != null ? count : 0L;
   }
 
   @Transactional(readOnly = true)
-  public long countByTypeAndVisibleTrue(CollectionType type) {
-    String sql = "SELECT COUNT(*) FROM collection WHERE type = :type AND visible = true";
-    MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
+  public List<CollectionEntity> findVisibleByLocationName(
+      String locationName, int limit, int offset) {
+    String sql =
+        """
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.location_id, c.collection_date,
+               c.visible, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
+               c.rows_wide, c.password_hash, c.created_at, c.updated_at
+        FROM collection c
+        JOIN location l ON c.location_id = l.id
+        WHERE l.location_name = :locationName AND c.visible = true
+        ORDER BY c.collection_date DESC NULLS LAST
+        LIMIT :limit OFFSET :offset
+        """;
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("locationName", locationName)
+            .addValue("limit", limit)
+            .addValue("offset", offset);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public List<Long> findVisibleIdsByLocationName(String locationName) {
+    String sql =
+        "SELECT c.id FROM collection c "
+            + "JOIN location l ON c.location_id = l.id "
+            + "WHERE l.location_name = :locationName AND c.visible = true";
+    MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
+    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
+  }
+
+  @Transactional(readOnly = true)
+  public long countVisibleByLocationName(String locationName) {
+    String sql =
+        """
+        SELECT COUNT(*) FROM collection c
+        JOIN location l ON c.location_id = l.id
+        WHERE l.location_name = :locationName AND c.visible = true
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
     Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
     return count != null ? count : 0L;
   }
@@ -209,10 +232,10 @@ public class CollectionRepository extends BaseDao {
           """
           INSERT INTO collection (type, title, slug, description, location_id, collection_date,
                                  visible, display_mode, cover_image_id, content_per_page, total_content,
-                                 rows_wide, created_at, updated_at)
+                                 rows_wide, password_hash, created_at, updated_at)
           VALUES (:type, :title, :slug, :description, :locationId, :collectionDate,
                   :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
-                  :rowsWide, :createdAt, :updatedAt)
+                  :rowsWide, :passwordHash, :createdAt, :updatedAt)
           """;
 
       MapSqlParameterSource params =
@@ -231,6 +254,7 @@ public class CollectionRepository extends BaseDao {
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
+              .addValue("passwordHash", entity.getPasswordHash())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now())
@@ -249,7 +273,7 @@ public class CollectionRepository extends BaseDao {
               location_id = :locationId,
               collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-              rows_wide = :rowsWide, updated_at = :updatedAt
+              rows_wide = :rowsWide, password_hash = :passwordHash, updated_at = :updatedAt
           WHERE id = :id
           """;
 
@@ -270,6 +294,7 @@ public class CollectionRepository extends BaseDao {
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
+              .addValue("passwordHash", entity.getPasswordHash())
               .addValue("updatedAt", LocalDateTime.now());
 
       update(sql, params);
