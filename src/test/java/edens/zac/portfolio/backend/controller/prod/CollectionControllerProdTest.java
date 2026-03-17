@@ -12,15 +12,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.LocationPageResponse;
+import edens.zac.portfolio.backend.model.PasswordRequest;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,73 +54,100 @@ class CollectionControllerProdTest {
 
   @BeforeEach
   void setUp() {
-    // Initialize ObjectMapper
     objectMapper = new ObjectMapper();
     objectMapper.findAndRegisterModules();
 
-    // Set up MockMvc with GlobalExceptionHandler
     mockMvc =
         MockMvcBuilders.standaloneSetup(contentCollectionController)
-            .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
-    // Create test collections
-    testCollections = new ArrayList<>();
+    CollectionModel blog =
+        CollectionModel.builder()
+            .id(1L)
+            .type(CollectionType.BLOG)
+            .title("Test Blog")
+            .slug("test-blog")
+            .visible(true)
+            .contentCount(5)
+            .totalPages(1)
+            .currentPage(0)
+            .content(new ArrayList<>())
+            .build();
 
-    // Create a blog collection
-    CollectionModel blog = new CollectionModel();
-    blog.setId(1L);
-    blog.setType(CollectionType.BLOG);
-    blog.setTitle("Test Blog");
-    blog.setSlug("test-blog");
-    blog.setDescription("A test blog collection");
-    blog.setVisible(true);
-    blog.setContentPerPage(30);
-    blog.setContentCount(5);
-    blog.setTotalPages(1);
-    blog.setCurrentPage(0);
-    blog.setContent(new ArrayList<>());
-    blog.setCreatedAt(LocalDateTime.now());
-    blog.setUpdatedAt(LocalDateTime.now());
+    CollectionModel artGallery =
+        CollectionModel.builder()
+            .id(2L)
+            .type(CollectionType.ART_GALLERY)
+            .title("Test Art Gallery")
+            .slug("test-art-gallery")
+            .visible(true)
+            .contentCount(10)
+            .totalPages(1)
+            .currentPage(0)
+            .content(new ArrayList<>())
+            .build();
 
-    // Create an art gallery collection
-    CollectionModel artGallery = new CollectionModel();
-    artGallery.setId(2L);
-    artGallery.setType(CollectionType.ART_GALLERY);
-    artGallery.setTitle("Test Art Gallery");
-    artGallery.setSlug("test-art-gallery");
-    artGallery.setDescription("A test art gallery collection");
-    artGallery.setVisible(true);
-    artGallery.setContentPerPage(30);
-    artGallery.setContentCount(10);
-    artGallery.setTotalPages(1);
-    artGallery.setCurrentPage(0);
-    artGallery.setContent(new ArrayList<>());
-    artGallery.setCreatedAt(LocalDateTime.now());
-    artGallery.setUpdatedAt(LocalDateTime.now());
+    CollectionModel clientGallery =
+        CollectionModel.builder()
+            .id(3L)
+            .type(CollectionType.CLIENT_GALLERY)
+            .title("Test Client Gallery")
+            .slug("test-client-gallery")
+            .visible(true)
+            .contentCount(100)
+            .totalPages(2)
+            .currentPage(0)
+            .content(new ArrayList<>())
+            .build();
 
-    // Create a client gallery collection with password protection
-    CollectionModel clientGallery = new CollectionModel();
-    clientGallery.setId(3L);
-    clientGallery.setType(CollectionType.CLIENT_GALLERY);
-    clientGallery.setTitle("Test Client Gallery");
-    clientGallery.setSlug("test-client-gallery");
-    clientGallery.setDescription("A test client gallery collection");
-    clientGallery.setVisible(true);
-    clientGallery.setContentPerPage(50);
-    clientGallery.setContentCount(100);
-    clientGallery.setTotalPages(2);
-    clientGallery.setCurrentPage(0);
-    clientGallery.setContent(new ArrayList<>());
-    clientGallery.setCreatedAt(LocalDateTime.now());
-    clientGallery.setUpdatedAt(LocalDateTime.now());
-
-    testCollections.add(blog);
-    testCollections.add(artGallery);
-    testCollections.add(clientGallery);
-
-    // Set the test collection for individual tests
+    testCollections = List.of(blog, artGallery, clientGallery);
     testCollection = blog;
+  }
+
+  private ContentModels.Image createStubImage(Long id, String title) {
+    return new ContentModels.Image(
+        id,
+        null,
+        title,
+        null,
+        "https://example.com/stub.jpg",
+        0,
+        true,
+        null,
+        null,
+        1920,
+        1080,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private CollectionModel createPasswordProtectedCollection() {
+    return CollectionModel.builder()
+        .id(3L)
+        .title("Client Gallery")
+        .slug("client-gallery")
+        .type(CollectionType.CLIENT_GALLERY)
+        .visible(true)
+        .isPasswordProtected(true)
+        .contentCount(5)
+        .content(new ArrayList<>(List.of(createStubImage(99L, "Gallery Image"))))
+        .build();
   }
 
   @Test
@@ -253,6 +282,61 @@ class CollectionControllerProdTest {
   }
 
   @Test
+  @DisplayName("GET /collections/type/PORTFOLIO should return portfolio collections")
+  void getCollectionsByType_withPortfolioType_shouldReturnPortfolioCollections() throws Exception {
+    // Arrange
+    CollectionModel portfolio =
+        CollectionModel.builder()
+            .id(1L)
+            .title("Test Portfolio")
+            .type(CollectionType.PORTFOLIO)
+            .slug("test-portfolio")
+            .visible(true)
+            .build();
+
+    when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.PORTFOLIO)))
+        .thenReturn(List.of(portfolio));
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/type/PORTFOLIO").contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].title", is("Test Portfolio")))
+        .andExpect(jsonPath("$[0].type", is("PORTFOLIO")));
+  }
+
+  @Test
+  @DisplayName("GET /collections/type/CLIENT_GALLERY should return client gallery collections")
+  void getCollectionsByType_withClientGalleryType_shouldReturnClientGalleryCollections()
+      throws Exception {
+    // Arrange
+    CollectionModel gallery =
+        CollectionModel.builder()
+            .id(1L)
+            .title("Wedding Gallery")
+            .type(CollectionType.CLIENT_GALLERY)
+            .slug("wedding-gallery")
+            .visible(true)
+            .isPasswordProtected(false)
+            .build();
+
+    when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.CLIENT_GALLERY)))
+        .thenReturn(List.of(gallery));
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/type/CLIENT_GALLERY")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].type", is("CLIENT_GALLERY")))
+        .andExpect(jsonPath("$[0].isPasswordProtected", is(false)));
+  }
+
+  @Test
   @DisplayName("GET /collections/type/{type} with invalid type should return bad request")
   void getCollectionsByType_withInvalidType_shouldReturnBadRequest() throws Exception {
     // Act & Assert
@@ -271,12 +355,13 @@ class CollectionControllerProdTest {
   void validateClientGalleryAccess_withCorrectPassword_shouldReturnAccessGranted()
       throws Exception {
     // Arrange
-    Map<String, String> passwordRequest = new HashMap<>();
-    passwordRequest.put("password", "correct-password");
+    PasswordRequest passwordRequest = new PasswordRequest("correct-password");
 
     when(collectionService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("correct-password")))
         .thenReturn(true);
+    when(collectionService.generateAccessToken(eq("test-client-gallery")))
+        .thenReturn("mock-token|12345");
 
     // Act & Assert
     mockMvc
@@ -294,8 +379,7 @@ class CollectionControllerProdTest {
   void validateClientGalleryAccess_withIncorrectPassword_shouldReturnAccessDenied()
       throws Exception {
     // Arrange
-    Map<String, String> passwordRequest = new HashMap<>();
-    passwordRequest.put("password", "wrong-password");
+    PasswordRequest passwordRequest = new PasswordRequest("wrong-password");
 
     when(collectionService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("wrong-password")))
@@ -314,17 +398,17 @@ class CollectionControllerProdTest {
   @Test
   @DisplayName("POST /collections/{slug}/access without password should return bad request")
   void validateClientGalleryAccess_withoutPassword_shouldReturnBadRequest() throws Exception {
-    // Arrange
-    Map<String, String> emptyRequest = new HashMap<>();
+    // Arrange - send JSON with blank password to trigger @NotBlank validation
+    String blankPasswordJson = "{\"password\": \"\"}";
 
     // Act & Assert
     mockMvc
         .perform(
             post("/api/read/collections/test-client-gallery/access")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(emptyRequest)))
+                .content(blankPasswordJson))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.message").value("Password is required"));
+        .andExpect(jsonPath("$.message", containsString("Password is required")));
   }
 
   @Test
@@ -333,8 +417,7 @@ class CollectionControllerProdTest {
   void validateClientGalleryAccess_withNonExistentCollection_shouldReturnNotFound()
       throws Exception {
     // Arrange
-    Map<String, String> passwordRequest = new HashMap<>();
-    passwordRequest.put("password", "any-password");
+    PasswordRequest passwordRequest = new PasswordRequest("any-password");
 
     when(collectionService.validateClientGalleryAccess(eq("non-existent"), anyString()))
         .thenThrow(new ResourceNotFoundException("Collection not found with slug: non-existent"));
@@ -347,5 +430,213 @@ class CollectionControllerProdTest {
                 .content(objectMapper.writeValueAsString(passwordRequest)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message", containsString("not found")));
+  }
+
+  @Test
+  @DisplayName("GET /collections/location/{name} should return collections and orphan images")
+  void getLocationPage_shouldReturnCollectionsAndOrphanImages() throws Exception {
+    // Arrange
+    Records.Location location = new Records.Location(1L, "Seattle");
+
+    CollectionModel collection =
+        CollectionModel.builder()
+            .id(1L)
+            .title("Seattle Trip")
+            .slug("seattle-trip")
+            .type(CollectionType.PORTFOLIO)
+            .visible(true)
+            .build();
+
+    ContentModels.Image image = createStubImage(10L, "Sunset");
+
+    LocationPageResponse response =
+        new LocationPageResponse(location, List.of(collection), List.of(image), 1L, 1L);
+
+    when(collectionService.getLocationPage(eq("Seattle"), anyInt(), anyInt(), anyInt(), anyInt()))
+        .thenReturn(response);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/location/Seattle").contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.location.id", is(1)))
+        .andExpect(jsonPath("$.location.name", is("Seattle")))
+        .andExpect(jsonPath("$.collections", hasSize(1)))
+        .andExpect(jsonPath("$.collections[0].title", is("Seattle Trip")))
+        .andExpect(jsonPath("$.images", hasSize(1)))
+        .andExpect(jsonPath("$.totalCollections", is(1)))
+        .andExpect(jsonPath("$.totalImages", is(1)));
+  }
+
+  @Test
+  @DisplayName("GET /collections/{slug}/meta should return metadata only")
+  void getCollectionMeta_shouldReturnMetadataOnly() throws Exception {
+    // Arrange
+    CollectionModel metaModel =
+        CollectionModel.builder()
+            .id(1L)
+            .title("Test Blog")
+            .slug("test-blog")
+            .type(CollectionType.BLOG)
+            .visible(true)
+            .build();
+
+    when(collectionService.findMetaBySlug("test-blog")).thenReturn(metaModel);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/test-blog/meta").contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title", is("Test Blog")))
+        .andExpect(jsonPath("$.slug", is("test-blog")))
+        .andExpect(jsonPath("$.content").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("GET /collections/{slug}/meta with non-existent slug should return 404")
+  void getCollectionMeta_nonExistentSlug_shouldReturn404() throws Exception {
+    // Arrange
+    when(collectionService.findMetaBySlug("non-existent"))
+        .thenThrow(new ResourceNotFoundException("Collection not found with slug: non-existent"));
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/non-existent/meta").contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.message", containsString("not found")));
+  }
+
+  @Test
+  @DisplayName("GET /collections/{slug} password protected without token should omit content")
+  void getCollectionBySlug_passwordProtected_noToken_shouldOmitContent() throws Exception {
+    // Arrange
+    CollectionModel protectedCollection = createPasswordProtectedCollection();
+
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(protectedCollection);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title", is("Client Gallery")))
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.content").doesNotExist())
+        .andExpect(jsonPath("$.contentCount").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("GET /collections/{slug} password protected with valid token should include content")
+  void getCollectionBySlug_passwordProtected_validToken_shouldIncludeContent() throws Exception {
+    // Arrange
+    CollectionModel protectedCollection = createPasswordProtectedCollection();
+
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(protectedCollection);
+    when(collectionService.validateAccessToken(eq("client-gallery"), eq("valid-token")))
+        .thenReturn(true);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .param("accessToken", "valid-token")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title", is("Client Gallery")))
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.contentCount", is(5)));
+  }
+
+  @Test
+  @DisplayName("GET /collections/{slug} password protected with invalid token should omit content")
+  void getCollectionBySlug_passwordProtected_invalidToken_shouldOmitContent() throws Exception {
+    // Arrange
+    CollectionModel protectedCollection = createPasswordProtectedCollection();
+
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(protectedCollection);
+    when(collectionService.validateAccessToken(eq("client-gallery"), eq("wrong-token")))
+        .thenReturn(false);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .param("accessToken", "wrong-token")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title", is("Client Gallery")))
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.content").doesNotExist())
+        .andExpect(jsonPath("$.contentCount").doesNotExist());
+  }
+
+  @Test
+  @DisplayName(
+      "GET /collections/{slug} not password protected should include content without token")
+  void getCollectionBySlug_notPasswordProtected_shouldIncludeContent() throws Exception {
+    // Arrange
+    CollectionModel publicCollection =
+        CollectionModel.builder()
+            .id(1L)
+            .title("Public Gallery")
+            .slug("public-gallery")
+            .type(CollectionType.PORTFOLIO)
+            .visible(true)
+            .isPasswordProtected(false)
+            .content(new ArrayList<>(List.of(createStubImage(99L, "Stub"))))
+            .contentCount(5)
+            .build();
+
+    when(collectionService.getCollectionWithPagination(eq("public-gallery"), anyInt(), anyInt()))
+        .thenReturn(publicCollection);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            get("/api/read/collections/public-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title", is("Public Gallery")))
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.contentCount", is(5)));
+  }
+
+  @Test
+  @DisplayName("POST /collections/{slug}/access with correct password should return access token")
+  void validateClientGalleryAccess_success_shouldReturnAccessToken() throws Exception {
+    // Arrange
+    PasswordRequest passwordRequest = new PasswordRequest("correct-password");
+
+    when(collectionService.validateClientGalleryAccess(
+            eq("test-client-gallery"), eq("correct-password")))
+        .thenReturn(true);
+    when(collectionService.generateAccessToken(eq("test-client-gallery")))
+        .thenReturn("hmac-token|1234567890");
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            post("/api/read/collections/test-client-gallery/access")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(passwordRequest)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.hasAccess", is(true)))
+        .andExpect(jsonPath("$.accessToken", is("hmac-token|1234567890")));
   }
 }

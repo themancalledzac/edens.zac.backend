@@ -2,9 +2,13 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.LocationPageResponse;
+import edens.zac.portfolio.backend.model.PasswordRequest;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
 import edens.zac.portfolio.backend.types.CollectionType;
+import jakarta.validation.Valid;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -59,20 +63,29 @@ public class CollectionControllerProd {
   public ResponseEntity<CollectionModel> getCollectionBySlug(
       @PathVariable String slug,
       @RequestParam(defaultValue = "0") int page,
-      @RequestParam(defaultValue = "30") int size) {
+      @RequestParam(defaultValue = "30") int size,
+      @RequestParam(required = false) String accessToken) {
     int normalizedPage = PaginationUtil.normalizePage(page);
     int normalizedSize = PaginationUtil.normalizeSize(size, DefaultValues.default_content_per_page);
 
     CollectionModel collection =
         collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
+
+    // For password-protected galleries, omit content unless valid accessToken is provided
+    if (Boolean.TRUE.equals(collection.getIsPasswordProtected())) {
+      if (accessToken == null || !collectionService.validateAccessToken(slug, accessToken)) {
+        collection.setContent(null);
+        collection.setContentCount(null);
+      }
+    }
+
     return ResponseEntity.ok(collection);
   }
 
   /**
-   * Get visible collections by type ordered by collection date (newest first). Currently only
-   * accepts BLOG type.
+   * Get visible collections by type ordered by collection date (newest first).
    *
-   * @param type Collection type (currently only BLOG is supported)
+   * @param type Collection type (e.g., BLOG, PORTFOLIO, CLIENT_GALLERY, ART_GALLERY)
    * @return ResponseEntity with list of visible collections of the specified type
    */
   @GetMapping("/type/{type}")
@@ -84,14 +97,49 @@ public class CollectionControllerProd {
       throw new IllegalArgumentException("Invalid collection type: " + type);
     }
 
-    if (collectionType != CollectionType.BLOG) {
-      throw new IllegalArgumentException(
-          "Only BLOG collection type is currently supported. Received: " + type);
-    }
-
     List<CollectionModel> collections =
         collectionService.findVisibleByTypeOrderByDate(collectionType);
     return ResponseEntity.ok(collections);
+  }
+
+  /**
+   * Get location page with collections and orphan images.
+   *
+   * @param name Location name
+   * @param collectionPage Collection page number (0-based)
+   * @param collectionSize Collections per page
+   * @param imagePage Image page number (0-based)
+   * @param imageSize Images per page
+   * @return ResponseEntity with location page data
+   */
+  @GetMapping("/location/{name}")
+  public ResponseEntity<LocationPageResponse> getLocationPage(
+      @PathVariable String name,
+      @RequestParam(defaultValue = "0") int collectionPage,
+      @RequestParam(defaultValue = "35") int collectionSize,
+      @RequestParam(defaultValue = "0") int imagePage,
+      @RequestParam(defaultValue = "50") int imageSize) {
+    int normCollPage = PaginationUtil.normalizePage(collectionPage);
+    int normCollSize = PaginationUtil.normalizeSize(collectionSize, 35);
+    int normImgPage = PaginationUtil.normalizePage(imagePage);
+    int normImgSize = PaginationUtil.normalizeSize(imageSize, 50);
+
+    LocationPageResponse response =
+        collectionService.getLocationPage(
+            name, normCollPage, normCollSize, normImgPage, normImgSize);
+    return ResponseEntity.ok(response);
+  }
+
+  /**
+   * Get collection metadata only (no content). Lightweight endpoint for SEO/generateMetadata.
+   *
+   * @param slug Collection slug
+   * @return ResponseEntity with collection metadata
+   */
+  @GetMapping("/{slug}/meta")
+  public ResponseEntity<CollectionModel> getCollectionMeta(@PathVariable String slug) {
+    CollectionModel model = collectionService.findMetaBySlug(slug);
+    return ResponseEntity.ok(model);
   }
 
   /**
@@ -102,15 +150,20 @@ public class CollectionControllerProd {
    * @return ResponseEntity with access status
    */
   @PostMapping("/{slug}/access")
-  public ResponseEntity<Map<String, Boolean>> validateClientGalleryAccess(
-      @PathVariable String slug, @RequestBody Map<String, String> passwordRequest) {
-    String password = passwordRequest.get("password");
+  public ResponseEntity<Map<String, Object>> validateClientGalleryAccess(
+      @PathVariable String slug, @Valid @RequestBody PasswordRequest passwordRequest) {
+    boolean hasAccess =
+        collectionService.validateClientGalleryAccess(slug, passwordRequest.password());
 
-    if (password == null) {
-      throw new IllegalArgumentException("Password is required");
+    if (!hasAccess) {
+      log.warn("Failed client gallery access attempt for slug: {}", slug);
     }
 
-    boolean hasAccess = collectionService.validateClientGalleryAccess(slug, password);
-    return ResponseEntity.ok(Map.of("hasAccess", hasAccess));
+    Map<String, Object> response = new HashMap<>();
+    response.put("hasAccess", hasAccess);
+    if (hasAccess) {
+      response.put("accessToken", collectionService.generateAccessToken(slug));
+    }
+    return ResponseEntity.ok(response);
   }
 }

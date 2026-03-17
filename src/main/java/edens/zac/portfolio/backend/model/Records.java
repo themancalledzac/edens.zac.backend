@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.CollectionType;
-import jakarta.validation.constraints.Size;
 
 /**
  * Simple immutable data transfer objects implemented as Java records. These replace the verbose
@@ -42,8 +41,13 @@ public final class Records {
   // Location
 
   /** Model representing a location for API responses. Contains the location's ID and name. */
-  public record Location(
-      Long id, @Size(max = 255, message = "Location cannot exceed 255 characters") String name) {}
+  public record Location(Long id, String name) {}
+
+  /**
+   * Location with counts of visible collections and orphan images. Used by the frontend to
+   * determine if a location link should be clickable.
+   */
+  public record LocationWithCounts(Long id, String name, int collectionCount, int imageCount) {}
 
   // Collection references
 

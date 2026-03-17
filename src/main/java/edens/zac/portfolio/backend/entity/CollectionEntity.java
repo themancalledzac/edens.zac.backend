@@ -57,6 +57,9 @@ public class CollectionEntity {
   /** Column: rows_wide (INTEGER) - Number of items per row (chunk size for layout) */
   @Min(1) private Integer rowsWide;
 
+  /** Column: password_hash (VARCHAR(255)) - SHA-256 hash for client gallery access */
+  private String passwordHash;
+
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;
 
