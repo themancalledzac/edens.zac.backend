@@ -187,7 +187,8 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Minimal create: from CollectionRequests.Create (type, title only), apply defaults for the rest.
+   * Create a CollectionEntity from a Create request. Required fields: type, title. Optional fields:
+   * description, locationId/locationName, collectionDate — use defaults when not provided.
    */
   public CollectionEntity toEntity(CollectionRequests.Create request, int defaultPageSize) {
     if (request == null) {
@@ -199,18 +200,16 @@ public class CollectionProcessingUtil {
     String baseSlug = generateSlug(request.title());
     String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
     entity.setSlug(uniqueSlug);
-    entity.setDescription("");
-    entity.setLocationId(null);
-    entity.setCollectionDate(LocalDate.now());
+    entity.setDescription(request.description() != null ? request.description() : "");
+    entity.setLocationId(resolveLocationId(request.locationId(), request.locationName()));
+    entity.setCollectionDate(
+        request.collectionDate() != null ? request.collectionDate() : LocalDate.now());
     entity.setVisible(false);
     entity.setContentPerPage(defaultPageSize);
     entity.setTotalContent(0);
     // Set default displayMode based on type
     entity.setDisplayMode(
         request.type() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED);
-    // TODO: Re-implement password protection after migration
-    // entity.setPasswordProtected(false);
-    // entity.setPasswordHash(null);
     // Apply type-specific defaults (may adjust visibility etc.)
     return applyTypeSpecificDefaults(entity);
   }
@@ -381,6 +380,34 @@ public class CollectionProcessingUtil {
     }
 
     return newSlug;
+  }
+
+  // =============================================================================
+  // LOCATION HELPERS
+  // =============================================================================
+
+  /**
+   * Resolve a location ID from either an explicit ID or a location name. If locationId is provided,
+   * validates it exists. If locationName is provided, finds or creates the location. Returns null
+   * if neither is provided.
+   */
+  public Long resolveLocationId(Long locationId, String locationName) {
+    if (locationId != null) {
+      LocationEntity location =
+          locationRepository
+              .findById(locationId)
+              .orElseThrow(
+                  () -> new IllegalArgumentException("Location not found with ID: " + locationId));
+      return location.getId();
+    } else if (locationName != null && !locationName.trim().isEmpty()) {
+      LocationEntity location = locationRepository.findOrCreate(locationName.trim());
+      if (location == null) {
+        throw new IllegalStateException(
+            "Failed to find or create location with name: " + locationName);
+      }
+      return location.getId();
+    }
+    return null;
   }
 
   // =============================================================================

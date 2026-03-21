@@ -293,24 +293,50 @@ public class CollectionService {
     log.debug(
         "Creating new child collection: {} under parent: {}", createRequest.title(), parentId);
 
-    // Verify parent collection exists
-    CollectionEntity parentCollection =
-        collectionRepository
-            .findById(parentId)
-            .orElseThrow(
-                () ->
-                    new ResourceNotFoundException(
-                        "Parent collection not found with ID: " + parentId));
-
     // Create the child collection entity
     CollectionEntity childEntity =
         collectionProcessingUtil.toEntity(createRequest, DEFAULT_PAGE_SIZE);
     CollectionEntity savedChildEntity = collectionRepository.save(childEntity);
     log.info("Created child collection with ID: {}", savedChildEntity.getId());
 
-    // Create or find ContentCollectionEntity for the child collection
+    // Link to parent
+    linkCollectionToParent(parentId, savedChildEntity.getId());
+
+    // Return full update response for the child collection
+    return getUpdateCollectionData(savedChildEntity.getSlug());
+  }
+
+  /**
+   * Link an existing collection as a child of a parent collection. Creates the
+   * ContentCollectionEntity if needed and adds the join table entry. No-op if already linked.
+   */
+  @Transactional
+  public void linkCollectionToParent(Long parentId, Long childCollectionId) {
+    collectionRepository
+        .findById(parentId)
+        .orElseThrow(
+            () ->
+                new ResourceNotFoundException("Parent collection not found with ID: " + parentId));
+
+    CollectionEntity childEntity =
+        collectionRepository
+            .findById(childCollectionId)
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        "Child collection not found with ID: " + childCollectionId));
+
     ContentCollectionEntity contentCollectionEntity =
-        findOrCreateContentCollectionEntity(savedChildEntity);
+        findOrCreateContentCollectionEntity(childEntity);
+
+    // Check if already linked
+    Optional<CollectionContentEntity> existing =
+        collectionRepository.findContentByCollectionIdAndContentId(
+            parentId, contentCollectionEntity.getId());
+    if (existing.isPresent()) {
+      log.debug("Collection {} already linked to parent {}", childCollectionId, parentId);
+      return;
+    }
 
     // Get next order index for parent collection
     Integer orderIndex = collectionRepository.getMaxOrderIndexForCollection(parentId);
@@ -330,12 +356,9 @@ public class CollectionService {
     collectionRepository.saveContent(joinEntry);
     log.info(
         "Linked child collection {} to parent {} at index {}",
-        savedChildEntity.getId(),
+        childCollectionId,
         parentId,
         orderIndex);
-
-    // Return full update response for the child collection
-    return getUpdateCollectionData(savedChildEntity.getSlug());
   }
 
   @Transactional(readOnly = true)
