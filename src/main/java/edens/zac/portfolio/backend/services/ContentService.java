@@ -595,7 +595,9 @@ public class ContentService {
       postUploadProcessing(newCollectionId, createRequest, result.successful());
     }
 
-    return result;
+    // Return result with collectionId so callers (e.g. Lightroom plugin) can send follow-up batches
+    return new ImageUploadResult(
+        newCollectionId, result.successful(), result.failed(), result.skipped());
   }
 
   /**
