@@ -5,6 +5,7 @@ import static edens.zac.portfolio.backend.config.DefaultValues.default_content_p
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
@@ -39,6 +40,7 @@ public class CollectionService {
 
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
+  private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
   private final ContentProcessingUtil contentProcessingUtil;
   private final CollectionProcessingUtil collectionProcessingUtil;
@@ -243,12 +245,27 @@ public class CollectionService {
     // Resolve the location record
     Records.Location location =
         collectionEntities.isEmpty()
-            ? new Records.Location(null, locationName)
+            ? new Records.Location(null, locationName, SlugUtil.generateSlug(locationName))
             : collectionProcessingUtil
                 .convertToBasicModel(collectionEntities.getFirst())
                 .getLocation();
 
     return new LocationPageResponse(location, collections, images, totalCollections, totalImages);
+  }
+
+  @Transactional(readOnly = true)
+  public LocationPageResponse getLocationPageBySlug(
+      String slug, int collectionPage, int collectionSize, int imagePage, int imageSize) {
+    log.debug("Getting location page by slug: {}", slug);
+
+    LocationEntity locationEntity =
+        locationRepository
+            .findBySlug(slug)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Location not found with slug: " + slug));
+
+    return getLocationPage(
+        locationEntity.getLocationName(), collectionPage, collectionSize, imagePage, imageSize);
   }
 
   @Transactional(readOnly = true)
@@ -293,24 +310,50 @@ public class CollectionService {
     log.debug(
         "Creating new child collection: {} under parent: {}", createRequest.title(), parentId);
 
-    // Verify parent collection exists
-    CollectionEntity parentCollection =
-        collectionRepository
-            .findById(parentId)
-            .orElseThrow(
-                () ->
-                    new ResourceNotFoundException(
-                        "Parent collection not found with ID: " + parentId));
-
     // Create the child collection entity
     CollectionEntity childEntity =
         collectionProcessingUtil.toEntity(createRequest, DEFAULT_PAGE_SIZE);
     CollectionEntity savedChildEntity = collectionRepository.save(childEntity);
     log.info("Created child collection with ID: {}", savedChildEntity.getId());
 
-    // Create or find ContentCollectionEntity for the child collection
+    // Link to parent
+    linkCollectionToParent(parentId, savedChildEntity.getId());
+
+    // Return full update response for the child collection
+    return getUpdateCollectionData(savedChildEntity.getSlug());
+  }
+
+  /**
+   * Link an existing collection as a child of a parent collection. Creates the
+   * ContentCollectionEntity if needed and adds the join table entry. No-op if already linked.
+   */
+  @Transactional
+  public void linkCollectionToParent(Long parentId, Long childCollectionId) {
+    collectionRepository
+        .findById(parentId)
+        .orElseThrow(
+            () ->
+                new ResourceNotFoundException("Parent collection not found with ID: " + parentId));
+
+    CollectionEntity childEntity =
+        collectionRepository
+            .findById(childCollectionId)
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        "Child collection not found with ID: " + childCollectionId));
+
     ContentCollectionEntity contentCollectionEntity =
-        findOrCreateContentCollectionEntity(savedChildEntity);
+        findOrCreateContentCollectionEntity(childEntity);
+
+    // Check if already linked
+    Optional<CollectionContentEntity> existing =
+        collectionRepository.findContentByCollectionIdAndContentId(
+            parentId, contentCollectionEntity.getId());
+    if (existing.isPresent()) {
+      log.debug("Collection {} already linked to parent {}", childCollectionId, parentId);
+      return;
+    }
 
     // Get next order index for parent collection
     Integer orderIndex = collectionRepository.getMaxOrderIndexForCollection(parentId);
@@ -330,12 +373,9 @@ public class CollectionService {
     collectionRepository.saveContent(joinEntry);
     log.info(
         "Linked child collection {} to parent {} at index {}",
-        savedChildEntity.getId(),
+        childCollectionId,
         parentId,
         orderIndex);
-
-    // Return full update response for the child collection
-    return getUpdateCollectionData(savedChildEntity.getSlug());
   }
 
   @Transactional(readOnly = true)

@@ -49,7 +49,7 @@ class CollectionModelTest {
               .title("Test Portfolio")
               .slug("test-portfolio")
               .description("Test description")
-              .location(new Records.Location(1L, "Test location"))
+              .location(new Records.Location(1L, "Test location", "test-location"))
               .collectionDate(today)
               .visible(true)
               .createdAt(now)

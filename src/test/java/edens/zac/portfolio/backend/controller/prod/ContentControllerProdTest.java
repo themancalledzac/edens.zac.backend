@@ -93,8 +93,8 @@ class ContentControllerProdTest {
     // Arrange
     List<Records.LocationWithCounts> locations =
         List.of(
-            new Records.LocationWithCounts(1L, "Seattle", 3, 15),
-            new Records.LocationWithCounts(2L, "Portland", 1, 8));
+            new Records.LocationWithCounts(1L, "Seattle", "seattle", 3, 15),
+            new Records.LocationWithCounts(2L, "Portland", "portland", 1, 8));
 
     when(metadataService.getLocationsWithCounts()).thenReturn(locations);
 
@@ -128,7 +128,9 @@ class ContentControllerProdTest {
   void getAllTags_shouldReturnAllTags() throws Exception {
     // Arrange
     List<Records.Tag> tags =
-        List.of(new Records.Tag(1L, "landscape"), new Records.Tag(2L, "portrait"));
+        List.of(
+            new Records.Tag(1L, "landscape", "landscape"),
+            new Records.Tag(2L, "portrait", "portrait"));
 
     when(metadataService.getAllTags()).thenReturn(tags);
 
@@ -163,9 +165,9 @@ class ContentControllerProdTest {
     // Arrange
     List<Records.Person> people =
         List.of(
-            new Records.Person(1L, "Alice"),
-            new Records.Person(2L, "Bob"),
-            new Records.Person(3L, "Charlie"));
+            new Records.Person(1L, "Alice", "alice"),
+            new Records.Person(2L, "Bob", "bob"),
+            new Records.Person(3L, "Charlie", "charlie"));
 
     when(metadataService.getAllPeople()).thenReturn(people);
 

@@ -433,10 +433,10 @@ class CollectionControllerProdTest {
   }
 
   @Test
-  @DisplayName("GET /collections/location/{name} should return collections and orphan images")
+  @DisplayName("GET /collections/location/{slug} should return collections and orphan images")
   void getLocationPage_shouldReturnCollectionsAndOrphanImages() throws Exception {
     // Arrange
-    Records.Location location = new Records.Location(1L, "Seattle");
+    Records.Location location = new Records.Location(1L, "Seattle", "seattle");
 
     CollectionModel collection =
         CollectionModel.builder()
@@ -452,13 +452,14 @@ class CollectionControllerProdTest {
     LocationPageResponse response =
         new LocationPageResponse(location, List.of(collection), List.of(image), 1L, 1L);
 
-    when(collectionService.getLocationPage(eq("Seattle"), anyInt(), anyInt(), anyInt(), anyInt()))
+    when(collectionService.getLocationPageBySlug(
+            eq("seattle"), anyInt(), anyInt(), anyInt(), anyInt()))
         .thenReturn(response);
 
     // Act & Assert
     mockMvc
         .perform(
-            get("/api/read/collections/location/Seattle").contentType(MediaType.APPLICATION_JSON))
+            get("/api/read/collections/location/seattle").contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.location.id", is(1)))
         .andExpect(jsonPath("$.location.name", is("Seattle")))

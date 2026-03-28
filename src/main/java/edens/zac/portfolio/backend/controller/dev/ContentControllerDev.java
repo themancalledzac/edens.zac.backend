@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.dev;
 
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -57,10 +58,16 @@ public class ContentControllerDev {
       consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
   public ResponseEntity<ImageUploadResult> createImages(
       @PathVariable Long collectionId,
+      @RequestParam(value = "locationId", required = false) Long locationId,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
       throw new IllegalArgumentException(
           "No files provided. Use 'files' part with one or more images.");
+    }
+
+    // Optionally set collection location if provided and not already set
+    if (locationId != null) {
+      contentService.setCollectionLocationIfMissing(collectionId, locationId);
     }
 
     ImageUploadResult result = contentService.createImagesParallel(collectionId, files);
@@ -171,6 +178,49 @@ public class ContentControllerDev {
     ContentModels.Gif gif = contentService.createGif(collectionId, file, title, orderIndex);
     log.info("Created GIF {} in collection {}", gif.id(), collectionId);
     return ResponseEntity.status(HttpStatus.CREATED).body(gif);
+  }
+
+  /**
+   * Create a new collection and upload images to it in one request. POST
+   * /api/admin/content/images/create-collection
+   *
+   * <p>The collection is automatically linked as a child of the "staging" collection. If
+   * collectionDate is not provided, it is auto-derived from image EXIF data. The highest-rated
+   * uploaded image is auto-set as the cover image.
+   */
+  @PostMapping(
+      value = "/images/create-collection",
+      consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
+  public ResponseEntity<ImageUploadResult> createCollectionWithImages(
+      @RequestParam("title") String title,
+      @RequestParam("type") String type,
+      @RequestParam(value = "description", required = false) String description,
+      @RequestParam(value = "locationId", required = false) Long locationId,
+      @RequestParam(value = "locationName", required = false) String locationName,
+      @RequestParam(value = "collectionDate", required = false)
+          @org.springframework.format.annotation.DateTimeFormat(
+              iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+          java.time.LocalDate collectionDate,
+      @RequestPart(value = "files", required = true) List<MultipartFile> files) {
+    if (files == null || files.isEmpty()) {
+      throw new IllegalArgumentException(
+          "No files provided. Use 'files' part with one or more images.");
+    }
+
+    edens.zac.portfolio.backend.types.CollectionType collectionType =
+        edens.zac.portfolio.backend.types.CollectionType.valueOf(type);
+
+    CollectionRequests.Create createRequest =
+        new CollectionRequests.Create(
+            collectionType, title, description, locationId, locationName, collectionDate);
+
+    ImageUploadResult result = contentService.createCollectionWithImages(createRequest, files);
+    log.info(
+        "Created collection '{}' with {} image(s) ({} failed)",
+        title,
+        result.successful().size(),
+        result.failed().size());
+    return ResponseEntity.status(HttpStatus.CREATED).body(result);
   }
 
   /**

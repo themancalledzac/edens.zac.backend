@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.services.SlugUtil;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ public class TagRepository extends BaseDao {
           TagEntity.builder()
               .id(rs.getLong("id"))
               .tagName(rs.getString("tag_name"))
+              .slug(rs.getString("slug"))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
@@ -40,14 +42,15 @@ public class TagRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<TagEntity> findByTagName(String tagName) {
-    String sql = "SELECT id, tag_name, created_at FROM tag WHERE tag_name = :tagName";
+    String sql = "SELECT id, tag_name, slug, created_at FROM tag WHERE tag_name = :tagName";
     MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
     return queryForObject(sql, TAG_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
   public Optional<TagEntity> findByTagNameIgnoreCase(String tagName) {
-    String sql = "SELECT id, tag_name, created_at FROM tag WHERE LOWER(tag_name) = LOWER(:tagName)";
+    String sql =
+        "SELECT id, tag_name, slug, created_at FROM tag WHERE LOWER(tag_name) = LOWER(:tagName)";
     MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
     return queryForObject(sql, TAG_ROW_MAPPER, params);
   }
@@ -55,7 +58,7 @@ public class TagRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<TagEntity> findByTagNameContainingIgnoreCase(String searchTerm) {
     String sql =
-        "SELECT id, tag_name, created_at FROM tag WHERE LOWER(tag_name) LIKE LOWER(:searchTerm) ORDER BY tag_name ASC";
+        "SELECT id, tag_name, slug, created_at FROM tag WHERE LOWER(tag_name) LIKE LOWER(:searchTerm) ORDER BY tag_name ASC";
     MapSqlParameterSource params =
         createParameterSource().addValue("searchTerm", "%" + searchTerm + "%");
     return query(sql, TAG_ROW_MAPPER, params);
@@ -63,13 +66,13 @@ public class TagRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public List<TagEntity> findAllByOrderByTagNameAsc() {
-    String sql = "SELECT id, tag_name, created_at FROM tag ORDER BY tag_name ASC";
+    String sql = "SELECT id, tag_name, slug, created_at FROM tag ORDER BY tag_name ASC";
     return query(sql, TAG_ROW_MAPPER);
   }
 
   @Transactional(readOnly = true)
   public Optional<TagEntity> findById(Long id) {
-    String sql = "SELECT id, tag_name, created_at FROM tag WHERE id = :id";
+    String sql = "SELECT id, tag_name, slug, created_at FROM tag WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, TAG_ROW_MAPPER, params);
   }
@@ -90,13 +93,25 @@ public class TagRepository extends BaseDao {
     return result != null && result;
   }
 
+  @Transactional(readOnly = true)
+  public Optional<TagEntity> findBySlug(String slug) {
+    String sql = "SELECT id, tag_name, slug, created_at FROM tag WHERE slug = :slug";
+    MapSqlParameterSource params = createParameterSource().addValue("slug", slug);
+    return queryForObject(sql, TAG_ROW_MAPPER, params);
+  }
+
   @Transactional
   public TagEntity save(TagEntity entity) {
+    if (entity.getSlug() == null || entity.getSlug().isEmpty()) {
+      entity.setSlug(SlugUtil.generateSlug(entity.getTagName()));
+    }
     if (entity.getId() == null) {
-      String sql = "INSERT INTO tag (tag_name, created_at) VALUES (:tagName, :createdAt)";
+      String sql =
+          "INSERT INTO tag (tag_name, slug, created_at) VALUES (:tagName, :slug, :createdAt)";
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("tagName", entity.getTagName())
+              .addValue("slug", entity.getSlug())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now());
@@ -104,10 +119,11 @@ public class TagRepository extends BaseDao {
       entity.setId(id);
       return entity;
     } else {
-      String sql = "UPDATE tag SET tag_name = :tagName WHERE id = :id";
+      String sql = "UPDATE tag SET tag_name = :tagName, slug = :slug WHERE id = :id";
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("tagName", entity.getTagName())
+              .addValue("slug", entity.getSlug())
               .addValue("id", entity.getId());
       update(sql, params);
       return entity;
@@ -176,7 +192,7 @@ public class TagRepository extends BaseDao {
   public List<TagEntity> findCollectionTags(Long collectionId) {
     String sql =
         """
-        SELECT t.id, t.tag_name, t.created_at
+        SELECT t.id, t.tag_name, t.slug, t.created_at
         FROM tag t
         JOIN collection_tags ct ON t.id = ct.tag_id
         WHERE ct.collection_id = :collectionId
@@ -269,7 +285,7 @@ public class TagRepository extends BaseDao {
   public List<TagEntity> findContentTags(Long contentId) {
     String sql =
         """
-        SELECT t.id, t.tag_name, t.created_at
+        SELECT t.id, t.tag_name, t.slug, t.created_at
         FROM tag t
         JOIN content_tags ct ON t.id = ct.tag_id
         WHERE ct.content_id = :contentId

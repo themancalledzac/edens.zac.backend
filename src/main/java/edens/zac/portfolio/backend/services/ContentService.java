@@ -40,6 +40,7 @@ public class ContentService {
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
   private final MetadataService metadataService;
+  private final CollectionService collectionService;
   private final TransactionTemplate transactionTemplate;
 
   // Virtual thread executor for parallel image processing (Java 21+)
@@ -202,13 +203,13 @@ public class ContentService {
                 newlyCreatedTags.isEmpty()
                     ? null
                     : newlyCreatedTags.stream()
-                        .map(e -> new Records.Tag(e.getId(), e.getTagName()))
+                        .map(e -> new Records.Tag(e.getId(), e.getTagName(), e.getSlug()))
                         .collect(Collectors.toList()))
             .people(
                 newlyCreatedPeople.isEmpty()
                     ? null
                     : newlyCreatedPeople.stream()
-                        .map(e -> new Records.Person(e.getId(), e.getPersonName()))
+                        .map(e -> new Records.Person(e.getId(), e.getPersonName(), e.getSlug()))
                         .collect(Collectors.toList()))
             .cameras(
                 newlyCreatedCameras.isEmpty()
@@ -557,6 +558,132 @@ public class ContentService {
     return new org.springframework.data.domain.PageImpl<>(imageModels, pageable, total);
   }
 
+  /**
+   * Set a collection's location if it doesn't already have one. Used when uploading to an existing
+   * collection that is missing location metadata.
+   */
+  @Transactional
+  public void setCollectionLocationIfMissing(Long collectionId, Long locationId) {
+    CollectionEntity entity =
+        collectionRepository
+            .findById(collectionId)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
+    if (entity.getLocationId() == null) {
+      entity.setLocationId(locationId);
+      collectionRepository.save(entity);
+      log.info("Set location {} on collection {}", locationId, collectionId);
+    }
+  }
+
+  private static final String STAGING_COLLECTION_SLUG = "staging";
+
+  /**
+   * Create a new collection and upload images to it in one operation. After images are uploaded,
+   * auto-derives collectionDate from image EXIF if not provided, selects the highest-rated image as
+   * cover, and links the new collection as a child of the "staging" collection.
+   */
+  public ImageUploadResult createCollectionWithImages(
+      CollectionRequests.Create createRequest, List<MultipartFile> files) {
+    CollectionRequests.UpdateResponse collectionResponse =
+        collectionService.createCollection(createRequest);
+    Long newCollectionId = collectionResponse.collection().getId();
+
+    ImageUploadResult result = createImagesParallel(newCollectionId, files);
+
+    if (!result.successful().isEmpty()) {
+      postUploadProcessing(newCollectionId, createRequest, result.successful());
+    }
+
+    // Return result with collectionId so callers (e.g. Lightroom plugin) can send follow-up batches
+    return new ImageUploadResult(
+        newCollectionId, result.successful(), result.failed(), result.skipped());
+  }
+
+  /**
+   * Post-upload processing: derive collection date from images if not provided, set highest-rated
+   * image as cover, and link to staging collection. Each step is independent and errors are logged
+   * without failing the upload.
+   */
+  private void postUploadProcessing(
+      Long collectionId,
+      CollectionRequests.Create createRequest,
+      List<ContentModels.Image> uploadedImages) {
+
+    // Auto-derive collectionDate and set cover image
+    try {
+      transactionTemplate.executeWithoutResult(
+          status -> {
+            CollectionEntity entity =
+                collectionRepository
+                    .findById(collectionId)
+                    .orElseThrow(
+                        () ->
+                            new ResourceNotFoundException("Collection not found: " + collectionId));
+
+            if (createRequest.collectionDate() == null) {
+              deriveCollectionDate(entity, uploadedImages);
+            }
+            selectCoverImage(entity, uploadedImages);
+            collectionRepository.save(entity);
+          });
+    } catch (Exception e) {
+      log.error(
+          "Failed to update collection metadata for collection {}: {}",
+          collectionId,
+          e.getMessage(),
+          e);
+    }
+
+    // Link to staging collection (separate try/catch so metadata errors don't block staging)
+    try {
+      linkToStagingCollection(collectionId);
+    } catch (Exception e) {
+      log.error("Failed to link collection {} to staging: {}", collectionId, e.getMessage(), e);
+    }
+  }
+
+  private void deriveCollectionDate(
+      CollectionEntity entity, List<ContentModels.Image> uploadedImages) {
+    java.time.LocalDateTime earliest = null;
+    for (ContentModels.Image img : uploadedImages) {
+      if (img.captureDate() != null) {
+        if (earliest == null || img.captureDate().isBefore(earliest)) {
+          earliest = img.captureDate();
+        }
+      }
+    }
+    if (earliest != null) {
+      entity.setCollectionDate(earliest.toLocalDate());
+      log.info("Auto-derived collectionDate {} for collection {}", earliest, entity.getId());
+    }
+  }
+
+  private void selectCoverImage(CollectionEntity entity, List<ContentModels.Image> uploadedImages) {
+    ContentModels.Image best = null;
+    for (ContentModels.Image img : uploadedImages) {
+      if (best == null
+          || (img.rating() != null && (best.rating() == null || img.rating() > best.rating()))) {
+        best = img;
+      }
+    }
+    if (best != null) {
+      entity.setCoverImageId(best.id());
+      log.info("Auto-set cover image {} for collection {}", best.id(), entity.getId());
+    }
+  }
+
+  private void linkToStagingCollection(Long childCollectionId) {
+    Optional<CollectionEntity> stagingOpt =
+        collectionRepository.findBySlug(STAGING_COLLECTION_SLUG);
+    if (stagingOpt.isEmpty()) {
+      log.info("No '{}' collection found — skipping auto-staging", STAGING_COLLECTION_SLUG);
+      return;
+    }
+    collectionService.linkCollectionToParent(stagingOpt.get().getId(), childCollectionId);
+    log.info("Linked collection {} to staging collection", childCollectionId);
+  }
+
   /** Batch size for parallel image processing to avoid overwhelming resources */
   private static final int PARALLEL_BATCH_SIZE = 10;
 
@@ -704,6 +831,12 @@ public class ContentService {
         }
 
         ContentImageEntity entity = dedupeResult.entity();
+
+        // Auto-associate tags and people extracted from XMP keywords (only on new images)
+        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.CREATE) {
+          contentProcessingUtil.associateExtractedKeywords(
+              entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
+        }
 
         // For UPDATE, check if already in this collection
         if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.UPDATE) {

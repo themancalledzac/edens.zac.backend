@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.Records;
+import edens.zac.portfolio.backend.services.SlugUtil;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -26,13 +27,14 @@ public class LocationRepository extends BaseDao {
           LocationEntity.builder()
               .id(rs.getLong("id"))
               .locationName(rs.getString("location_name"))
+              .slug(rs.getString("slug"))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
   @Transactional(readOnly = true)
   public Optional<LocationEntity> findByLocationName(String locationName) {
     String sql =
-        "SELECT id, location_name, created_at FROM location WHERE location_name = :locationName";
+        "SELECT id, location_name, slug, created_at FROM location WHERE location_name = :locationName";
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
     return queryForObject(sql, LOCATION_ROW_MAPPER, params);
   }
@@ -40,32 +42,44 @@ public class LocationRepository extends BaseDao {
   @Transactional(readOnly = true)
   public Optional<LocationEntity> findByLocationNameIgnoreCase(String locationName) {
     String sql =
-        "SELECT id, location_name, created_at FROM location WHERE LOWER(location_name) = LOWER(:locationName)";
+        "SELECT id, location_name, slug, created_at FROM location WHERE LOWER(location_name) = LOWER(:locationName)";
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
     return queryForObject(sql, LOCATION_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
   public List<LocationEntity> findAllByOrderByLocationNameAsc() {
-    String sql = "SELECT id, location_name, created_at FROM location ORDER BY location_name ASC";
+    String sql =
+        "SELECT id, location_name, slug, created_at FROM location ORDER BY location_name ASC";
     return query(sql, LOCATION_ROW_MAPPER);
   }
 
   @Transactional(readOnly = true)
   public Optional<LocationEntity> findById(Long id) {
-    String sql = "SELECT id, location_name, created_at FROM location WHERE id = :id";
+    String sql = "SELECT id, location_name, slug, created_at FROM location WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    return queryForObject(sql, LOCATION_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<LocationEntity> findBySlug(String slug) {
+    String sql = "SELECT id, location_name, slug, created_at FROM location WHERE slug = :slug";
+    MapSqlParameterSource params = createParameterSource().addValue("slug", slug);
     return queryForObject(sql, LOCATION_ROW_MAPPER, params);
   }
 
   @Transactional
   public LocationEntity save(LocationEntity entity) {
+    if (entity.getSlug() == null || entity.getSlug().isEmpty()) {
+      entity.setSlug(SlugUtil.generateSlug(entity.getLocationName()));
+    }
     if (entity.getId() == null) {
       String sql =
-          "INSERT INTO location (location_name, created_at) VALUES (:locationName, :createdAt)";
+          "INSERT INTO location (location_name, slug, created_at) VALUES (:locationName, :slug, :createdAt)";
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("locationName", entity.getLocationName())
+              .addValue("slug", entity.getSlug())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now());
@@ -73,10 +87,11 @@ public class LocationRepository extends BaseDao {
       entity.setId(id);
       return entity;
     } else {
-      String sql = "UPDATE location SET location_name = :locationName WHERE id = :id";
+      String sql = "UPDATE location SET location_name = :locationName, slug = :slug WHERE id = :id";
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("locationName", entity.getLocationName())
+              .addValue("slug", entity.getSlug())
               .addValue("id", entity.getId());
       update(sql, params);
       return entity;
@@ -109,7 +124,7 @@ public class LocationRepository extends BaseDao {
   public List<Records.LocationWithCounts> findLocationsWithVisibleContent() {
     String sql =
         """
-        SELECT l.id, l.location_name,
+        SELECT l.id, l.location_name, l.slug,
           COUNT(DISTINCT c.id) AS collection_count,
           COUNT(DISTINCT CASE
             WHEN ci.id IS NOT NULL
@@ -126,7 +141,7 @@ public class LocationRepository extends BaseDao {
         FROM location l
         LEFT JOIN collection c ON c.location_id = l.id AND c.visible = true
         LEFT JOIN content_image ci ON ci.location_id = l.id
-        GROUP BY l.id, l.location_name
+        GROUP BY l.id, l.location_name, l.slug
         HAVING COUNT(DISTINCT c.id) > 0
             OR COUNT(DISTINCT CASE
                  WHEN ci.id IS NOT NULL
@@ -148,6 +163,7 @@ public class LocationRepository extends BaseDao {
             new Records.LocationWithCounts(
                 rs.getLong("id"),
                 rs.getString("location_name"),
+                rs.getString("slug"),
                 rs.getInt("collection_count"),
                 rs.getInt("orphan_image_count")));
   }

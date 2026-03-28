@@ -17,12 +17,22 @@ public final class CollectionRequests {
   private CollectionRequests() {} // Prevent instantiation
 
   /**
-   * Minimal request for creating a new ContentCollection. Only accepts the essentials: type and
-   * title.
+   * Request for creating a new ContentCollection. Type and title are required; all other fields are
+   * optional and will use defaults if not provided.
    */
   public record Create(
       @NotNull(message = "Type is required") CollectionType type,
-      @NotNull(message = "Title is required") @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title) {}
+      @NotNull(message = "Title is required") @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,
+      @Size(max = 500, message = "Description cannot exceed 500 characters") String description,
+      Long locationId,
+      @Size(max = 255, message = "Location name cannot exceed 255 characters") String locationName,
+      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate) {
+
+    /** Backwards-compatible constructor for callers that only provide type and title. */
+    public Create(CollectionType type, String title) {
+      this(type, title, null, null, null, null);
+    }
+  }
 
   /**
    * Request DTO for updating collections. All fields except 'id' are optional to support partial

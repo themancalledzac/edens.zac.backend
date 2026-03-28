@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.model;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -44,7 +43,7 @@ public final class ContentModels {
       Records.Camera camera,
       String focalLength,
       Records.Location location,
-      LocalDate captureDate,
+      LocalDateTime captureDate,
       List<Records.Tag> tags,
       List<Records.Person> people,
       List<Records.ChildCollection> collections)

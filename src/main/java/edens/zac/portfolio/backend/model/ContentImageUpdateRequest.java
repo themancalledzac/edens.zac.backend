@@ -2,7 +2,7 @@ package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -58,7 +58,7 @@ public class ContentImageUpdateRequest {
   private Integer iso;
 
   /** Date the image was captured (from EXIF) */
-  private LocalDate captureDate;
+  private LocalDateTime captureDate;
 
   /** Camera update using prev/new/remove pattern */
   private CameraUpdate camera;

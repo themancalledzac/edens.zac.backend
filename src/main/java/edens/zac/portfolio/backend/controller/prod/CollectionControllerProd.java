@@ -105,16 +105,16 @@ public class CollectionControllerProd {
   /**
    * Get location page with collections and orphan images.
    *
-   * @param name Location name
+   * @param slug Location slug
    * @param collectionPage Collection page number (0-based)
    * @param collectionSize Collections per page
    * @param imagePage Image page number (0-based)
    * @param imageSize Images per page
    * @return ResponseEntity with location page data
    */
-  @GetMapping("/location/{name}")
+  @GetMapping("/location/{slug}")
   public ResponseEntity<LocationPageResponse> getLocationPage(
-      @PathVariable String name,
+      @PathVariable String slug,
       @RequestParam(defaultValue = "0") int collectionPage,
       @RequestParam(defaultValue = "35") int collectionSize,
       @RequestParam(defaultValue = "0") int imagePage,
@@ -125,8 +125,8 @@ public class CollectionControllerProd {
     int normImgSize = PaginationUtil.normalizeSize(imageSize, 50);
 
     LocationPageResponse response =
-        collectionService.getLocationPage(
-            name, normCollPage, normCollSize, normImgPage, normImgSize);
+        collectionService.getLocationPageBySlug(
+            slug, normCollPage, normCollSize, normImgPage, normImgSize);
     return ResponseEntity.ok(response);
   }
 

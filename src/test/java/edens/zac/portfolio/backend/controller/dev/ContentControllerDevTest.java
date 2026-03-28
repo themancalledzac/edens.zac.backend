@@ -335,7 +335,7 @@ class ContentControllerDevTest {
     ContentRequests.CreateTag request = new ContentRequests.CreateTag("landscape");
 
     Map<String, Object> response = new HashMap<>();
-    response.put("tag", new Records.Tag(1L, "landscape"));
+    response.put("tag", new Records.Tag(1L, "landscape", "landscape"));
     response.put("message", "Tag created successfully");
 
     when(contentService.createTag("landscape")).thenReturn(response);
@@ -404,7 +404,7 @@ class ContentControllerDevTest {
     ContentRequests.CreatePerson request = new ContentRequests.CreatePerson("John Doe");
 
     Map<String, Object> response = new HashMap<>();
-    response.put("person", new Records.Person(1L, "John Doe"));
+    response.put("person", new Records.Person(1L, "John Doe", "john-doe"));
     response.put("message", "Person created successfully");
 
     when(contentService.createPerson("John Doe")).thenReturn(response);

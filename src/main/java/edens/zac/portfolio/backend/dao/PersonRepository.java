@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
+import edens.zac.portfolio.backend.services.SlugUtil;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -24,13 +25,14 @@ public class PersonRepository extends BaseDao {
           ContentPersonEntity.builder()
               .id(rs.getLong("id"))
               .personName(rs.getString("person_name"))
+              .slug(rs.getString("slug"))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
   @Transactional(readOnly = true)
   public Optional<ContentPersonEntity> findByPersonName(String personName) {
     String sql =
-        "SELECT id, person_name, created_at FROM content_people WHERE person_name = :personName";
+        "SELECT id, person_name, slug, created_at FROM content_people WHERE person_name = :personName";
     MapSqlParameterSource params = createParameterSource().addValue("personName", personName);
     return queryForObject(sql, PERSON_ROW_MAPPER, params);
   }
@@ -38,7 +40,7 @@ public class PersonRepository extends BaseDao {
   @Transactional(readOnly = true)
   public Optional<ContentPersonEntity> findByPersonNameIgnoreCase(String personName) {
     String sql =
-        "SELECT id, person_name, created_at FROM content_people WHERE LOWER(person_name) = LOWER(:personName)";
+        "SELECT id, person_name, slug, created_at FROM content_people WHERE LOWER(person_name) = LOWER(:personName)";
     MapSqlParameterSource params = createParameterSource().addValue("personName", personName);
     return queryForObject(sql, PERSON_ROW_MAPPER, params);
   }
@@ -46,7 +48,7 @@ public class PersonRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<ContentPersonEntity> findByPersonNameContainingIgnoreCase(String searchTerm) {
     String sql =
-        "SELECT id, person_name, created_at FROM content_people WHERE LOWER(person_name) LIKE LOWER(:searchTerm) ORDER BY person_name ASC";
+        "SELECT id, person_name, slug, created_at FROM content_people WHERE LOWER(person_name) LIKE LOWER(:searchTerm) ORDER BY person_name ASC";
     MapSqlParameterSource params =
         createParameterSource().addValue("searchTerm", "%" + searchTerm + "%");
     return query(sql, PERSON_ROW_MAPPER, params);
@@ -54,7 +56,8 @@ public class PersonRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public List<ContentPersonEntity> findAllByOrderByPersonNameAsc() {
-    String sql = "SELECT id, person_name, created_at FROM content_people ORDER BY person_name ASC";
+    String sql =
+        "SELECT id, person_name, slug, created_at FROM content_people ORDER BY person_name ASC";
     return query(sql, PERSON_ROW_MAPPER);
   }
 
@@ -79,23 +82,34 @@ public class PersonRepository extends BaseDao {
   public List<ContentPersonEntity> findAllOrderByImageCountDesc() {
     String sql =
         """
-        SELECT p.id, p.person_name, p.created_at
+        SELECT p.id, p.person_name, p.slug, p.created_at
         FROM content_people p
         LEFT JOIN content_image_people cip ON p.id = cip.person_id
-        GROUP BY p.id, p.person_name, p.created_at
+        GROUP BY p.id, p.person_name, p.slug, p.created_at
         ORDER BY COUNT(cip.image_id) DESC
         """;
     return query(sql, PERSON_ROW_MAPPER);
   }
 
+  @Transactional(readOnly = true)
+  public Optional<ContentPersonEntity> findBySlug(String slug) {
+    String sql = "SELECT id, person_name, slug, created_at FROM content_people WHERE slug = :slug";
+    MapSqlParameterSource params = createParameterSource().addValue("slug", slug);
+    return queryForObject(sql, PERSON_ROW_MAPPER, params);
+  }
+
   @Transactional
   public ContentPersonEntity save(ContentPersonEntity entity) {
+    if (entity.getSlug() == null || entity.getSlug().isEmpty()) {
+      entity.setSlug(SlugUtil.generateSlug(entity.getPersonName()));
+    }
     if (entity.getId() == null) {
       String sql =
-          "INSERT INTO content_people (person_name, created_at) VALUES (:personName, :createdAt)";
+          "INSERT INTO content_people (person_name, slug, created_at) VALUES (:personName, :slug, :createdAt)";
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("personName", entity.getPersonName())
+              .addValue("slug", entity.getSlug())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null
@@ -105,10 +119,12 @@ public class PersonRepository extends BaseDao {
       entity.setId(id);
       return entity;
     } else {
-      String sql = "UPDATE content_people SET person_name = :personName WHERE id = :id";
+      String sql =
+          "UPDATE content_people SET person_name = :personName, slug = :slug WHERE id = :id";
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("personName", entity.getPersonName())
+              .addValue("slug", entity.getSlug())
               .addValue("id", entity.getId());
       update(sql, params);
       return entity;
@@ -117,7 +133,7 @@ public class PersonRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentPersonEntity> findById(Long id) {
-    String sql = "SELECT id, person_name, created_at FROM content_people WHERE id = :id";
+    String sql = "SELECT id, person_name, slug, created_at FROM content_people WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, PERSON_ROW_MAPPER, params);
   }
@@ -126,7 +142,7 @@ public class PersonRepository extends BaseDao {
   public List<ContentPersonEntity> findContentPeople(Long contentId) {
     String sql =
         """
-        SELECT p.id, p.person_name, p.created_at
+        SELECT p.id, p.person_name, p.slug, p.created_at
         FROM content_people p
         JOIN content_image_people cip ON p.id = cip.person_id
         WHERE cip.image_id = :contentId

@@ -24,6 +24,8 @@ public class LocationEntity {
 
   @NotBlank @Size(min = 1, max = 255) private String locationName;
 
+  @Size(min = 1, max = 255) private String slug;
+
   private LocalDateTime createdAt;
 
   /**
