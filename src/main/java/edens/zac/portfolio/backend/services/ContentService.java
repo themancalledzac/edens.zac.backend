@@ -645,7 +645,7 @@ public class ContentService {
 
   private void deriveCollectionDate(
       CollectionEntity entity, List<ContentModels.Image> uploadedImages) {
-    java.time.LocalDate earliest = null;
+    java.time.LocalDateTime earliest = null;
     for (ContentModels.Image img : uploadedImages) {
       if (img.captureDate() != null) {
         if (earliest == null || img.captureDate().isBefore(earliest)) {
@@ -654,7 +654,7 @@ public class ContentService {
       }
     }
     if (earliest != null) {
-      entity.setCollectionDate(earliest);
+      entity.setCollectionDate(earliest.toLocalDate());
       log.info("Auto-derived collectionDate {} for collection {}", earliest, entity.getId());
     }
   }
@@ -831,6 +831,12 @@ public class ContentService {
         }
 
         ContentImageEntity entity = dedupeResult.entity();
+
+        // Auto-associate tags and people extracted from XMP keywords (only on new images)
+        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.CREATE) {
+          contentProcessingUtil.associateExtractedKeywords(
+              entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
+        }
 
         // For UPDATE, check if already in this collection
         if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.UPDATE) {

@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.entity;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -88,8 +87,8 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: image_url_original (VARCHAR) - S3 URL for original full-size image */
   private String imageUrlOriginal;
 
-  /** Column: capture_date (DATE) - parsed EXIF capture date */
-  private LocalDate captureDate;
+  /** Column: capture_date (TIMESTAMP) - parsed EXIF capture datetime */
+  private LocalDateTime captureDate;
 
   /** Column: last_export_date (TIMESTAMP) - file modification timestamp for dedupe */
   private LocalDateTime lastExportDate;

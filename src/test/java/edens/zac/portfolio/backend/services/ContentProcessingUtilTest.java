@@ -19,8 +19,8 @@ import edens.zac.portfolio.backend.types.ContentType;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.imageio.ImageIO;
@@ -298,39 +298,34 @@ public class ContentProcessingUtilTest {
   }
 
   // ============================================================================
-  // Tests for parseCaptureDateToLocalDate
+  // Tests for parseExifDateToLocalDateTime
   // ============================================================================
 
   @Test
-  void parseCaptureDateToLocalDate_withExifFormat_shouldReturnLocalDate() {
-    LocalDate result = contentProcessingUtil.parseCaptureDateToLocalDate("2026:01:26 17:48:38");
-    assertEquals(LocalDate.of(2026, 1, 26), result);
+  void parseExifDateToLocalDateTime_withExifFormat_shouldReturnLocalDateTime() {
+    LocalDateTime result =
+        contentProcessingUtil.parseExifDateToLocalDateTime("2026:01:26 17:48:38");
+    assertEquals(LocalDateTime.of(2026, 1, 26, 17, 48, 38), result);
   }
 
   @Test
-  void parseCaptureDateToLocalDate_withIsoFormat_shouldReturnLocalDate() {
-    LocalDate result = contentProcessingUtil.parseCaptureDateToLocalDate("2026-01-26");
-    assertEquals(LocalDate.of(2026, 1, 26), result);
+  void parseExifDateToLocalDateTime_withNull_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseExifDateToLocalDateTime(null));
   }
 
   @Test
-  void parseCaptureDateToLocalDate_withNull_shouldReturnNull() {
-    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate(null));
+  void parseExifDateToLocalDateTime_withEmptyString_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseExifDateToLocalDateTime(""));
   }
 
   @Test
-  void parseCaptureDateToLocalDate_withEmptyString_shouldReturnNull() {
-    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate(""));
+  void parseExifDateToLocalDateTime_withMalformedString_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseExifDateToLocalDateTime("not-a-date"));
   }
 
   @Test
-  void parseCaptureDateToLocalDate_withMalformedString_shouldReturnNull() {
-    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate("not-a-date"));
-  }
-
-  @Test
-  void parseCaptureDateToLocalDate_withShortString_shouldReturnNull() {
-    assertNull(contentProcessingUtil.parseCaptureDateToLocalDate("2026"));
+  void parseExifDateToLocalDateTime_withShortString_shouldReturnNull() {
+    assertNull(contentProcessingUtil.parseExifDateToLocalDateTime("2026"));
   }
 
   // ============================================================================
@@ -338,7 +333,7 @@ public class ContentProcessingUtilTest {
   // ============================================================================
 
   private ContentProcessingUtil.PreparedImageData createPreparedImageData(
-      String filename, LocalDate captureDate, LocalDateTime lastExportDate) {
+      String filename, LocalDateTime captureDate, LocalDateTime lastExportDate) {
     Map<String, String> metadata =
         Map.of(
             "imageWidth", "800",
@@ -353,6 +348,8 @@ public class ContentProcessingUtilTest {
         "https://cdn/full/image.jpg",
         "https://cdn/web/image.webp",
         metadata,
+        List.of(),
+        List.of(),
         2026,
         1,
         captureDate,
@@ -362,7 +359,7 @@ public class ContentProcessingUtilTest {
   @Test
   void savePreparedImageWithDedupe_create_whenNoDuplicateExists() {
     // Arrange
-    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
     LocalDateTime exportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
     ContentProcessingUtil.PreparedImageData prepared =
         createPreparedImageData("photo.jpg", captureDate, exportDate);
@@ -386,7 +383,7 @@ public class ContentProcessingUtilTest {
   @Test
   void savePreparedImageWithDedupe_skip_whenSameExportDate() {
     // Arrange
-    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
     LocalDateTime exportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
     ContentProcessingUtil.PreparedImageData prepared =
         createPreparedImageData("photo.jpg", captureDate, exportDate);
@@ -409,7 +406,7 @@ public class ContentProcessingUtilTest {
   @Test
   void savePreparedImageWithDedupe_skip_whenExistingHasNullExportDate() {
     // Arrange: migrated rows have null lastExportDate -- should SKIP, not UPDATE
-    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
     LocalDateTime exportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
     ContentProcessingUtil.PreparedImageData prepared =
         createPreparedImageData("photo.jpg", captureDate, exportDate);
@@ -431,7 +428,7 @@ public class ContentProcessingUtilTest {
   @Test
   void savePreparedImageWithDedupe_update_whenNewerExportDate() {
     // Arrange
-    LocalDate captureDate = LocalDate.of(2026, 1, 15);
+    LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
     LocalDateTime oldExportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
     LocalDateTime newExportDate = LocalDateTime.of(2026, 3, 1, 12, 0);
     ContentProcessingUtil.PreparedImageData prepared =
@@ -500,7 +497,7 @@ public class ContentProcessingUtilTest {
     entity.setFocalLength("50mm");
     entity.setLocationId(1L);
     entity.setImageUrlWeb("https://example.com/image.jpg");
-    entity.setCaptureDate(java.time.LocalDate.of(2023, 1, 1));
+    entity.setCaptureDate(LocalDateTime.of(2023, 1, 1, 0, 0));
     entity.setOriginalFilename("test-image.jpg");
     return entity;
   }

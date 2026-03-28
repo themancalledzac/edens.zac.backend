@@ -81,10 +81,26 @@ public class ContentProcessingUtil {
   private static final String PATH_GIF_FULL = "Gif/Full";
   private static final String PATH_GIF_THUMBNAIL = "Gif/Thumbnail";
 
+  // Lightroom hierarchical subject XMP namespace
+  private static final String NS_LIGHTROOM = "http://ns.adobe.com/lightroom/1.0/";
+
+  // Keywords to filter out (already handled by BLACK_AND_WHITE / IS_FILM metadata fields)
+  private static final Set<String> FILTERED_KEYWORDS =
+      Set.of("monochrome", "blackandwhite", "black-and-white", "film");
+
   // Default values for image metadata
   public static final class DEFAULT {
     public static final String AUTHOR = "Zechariah Edens";
   }
+
+  /** Tags and people extracted from image XMP keywords. */
+  public record ExtractedKeywords(List<String> tags, List<String> people) {
+    public static final ExtractedKeywords EMPTY = new ExtractedKeywords(List.of(), List.of());
+  }
+
+  /** Result of metadata extraction: technical fields plus keyword-based tags/people. */
+  private record MetadataExtractionResult(
+      Map<String, String> metadata, List<String> extractedTags, List<String> extractedPeople) {}
 
   /**
    * Convert a ContentEntity to its corresponding ContentModel based on type. This version does not
@@ -604,9 +620,11 @@ public class ContentProcessingUtil {
       String imageUrlOriginal,
       String imageUrlWeb,
       Map<String, String> metadata,
+      List<String> extractedTags,
+      List<String> extractedPeople,
       int imageYear,
       int imageMonth,
-      LocalDate captureDate,
+      LocalDateTime captureDate,
       LocalDateTime lastExportDate) {}
 
   /**
@@ -621,7 +639,8 @@ public class ContentProcessingUtil {
     log.info("Preparing image for upload: {}", file.getOriginalFilename());
 
     // Extract metadata from original file (no DB calls)
-    Map<String, String> metadata = extractImageMetadata(file);
+    MetadataExtractionResult extraction = extractImageMetadata(file);
+    Map<String, String> metadata = extraction.metadata();
 
     // Parse image capture date for S3 path organization
     int[] dateComponents = parseImageDate(metadata.get("createDate"), metadata.get("modifyDate"));
@@ -670,7 +689,7 @@ public class ContentProcessingUtil {
             imageMonth);
 
     // Parse capture date for deduplication
-    LocalDate captureDate = parseCaptureDateToLocalDate(metadata.get("createDate"));
+    LocalDateTime captureDate = parseExifDateToLocalDateTime(metadata.get("createDate"));
 
     // Use file last-modified as export date (approximation for dedupe)
     LocalDateTime lastExportDate = LocalDateTime.now();
@@ -681,6 +700,8 @@ public class ContentProcessingUtil {
         imageUrlOriginal,
         imageUrlWeb,
         metadata,
+        extraction.extractedTags(),
+        extraction.extractedPeople(),
         imageYear,
         imageMonth,
         captureDate,
@@ -821,20 +842,29 @@ public class ContentProcessingUtil {
     log.info("Processing image content: {}", file.getOriginalFilename());
     PreparedImageData prepared = prepareImageForUpload(file);
     DedupeResult result = savePreparedImageWithDedupe(prepared, title);
+
+    // Auto-associate tags and people extracted from XMP keywords (only on new images)
+    if (result.action() == DedupeAction.CREATE) {
+      associateExtractedKeywords(
+          result.entity().getId(), prepared.extractedTags(), prepared.extractedPeople());
+    }
+
     log.info("Successfully processed image content with ID: {}", result.entity().getId());
     return result.entity();
   }
 
   /**
    * Extract metadata from an image file using Drew Noakes metadata-extractor. Uses the
-   * ImageMetadata enum system for consistent, maintainable field extraction.
+   * ImageMetadata enum system for consistent, maintainable field extraction. Also extracts tags and
+   * people from XMP keyword arrays (lr:hierarchicalSubject / dc:subject).
    *
    * @param file The image file to extract metadata from
-   * @return Map of metadata key-value pairs
+   * @return MetadataExtractionResult with technical metadata map plus extracted tags/people
    * @throws IOException If there's an error reading the file
    */
-  private Map<String, String> extractImageMetadata(MultipartFile file) throws IOException {
+  private MetadataExtractionResult extractImageMetadata(MultipartFile file) throws IOException {
     Map<String, String> metadata = new HashMap<>();
+    ExtractedKeywords keywords = ExtractedKeywords.EMPTY;
 
     try (InputStream inputStream = file.getInputStream()) {
       Metadata imageMetadata = ImageMetadataReader.readMetadata(inputStream);
@@ -846,9 +876,24 @@ public class ContentProcessingUtil {
         }
       }
 
-      // Extract XMP metadata for all defined fields
+      // Extract XMP metadata for all defined fields + keywords/people
       for (XmpDirectory xmpDirectory : imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
         extractFromXmpDirectory(xmpDirectory, metadata);
+
+        // Extract tags and people from XMP keyword arrays (stop after first non-empty result)
+        if (keywords.tags().isEmpty() && keywords.people().isEmpty()) {
+          try {
+            XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
+            if (xmpMeta != null) {
+              keywords = extractTagsAndPeopleFromXmp(xmpMeta);
+            }
+          } catch (Exception e) {
+            log.warn(
+                "Failed to extract keywords from XMP for {}: {}",
+                file.getOriginalFilename(),
+                e.getMessage());
+          }
+        }
       }
 
       if (!metadata.containsKey("createDate")) {
@@ -858,8 +903,14 @@ public class ContentProcessingUtil {
       // Fallback: Get dimensions from BufferedImage if not found
       ensureDimensions(file, metadata);
 
-      log.info("Extracted metadata: {} tags", metadata.size());
+      log.info("Extracted metadata: {} fields", metadata.size());
       log.info("Final rating value: {}", metadata.getOrDefault("rating", "NULL"));
+      if (!keywords.tags().isEmpty() || !keywords.people().isEmpty()) {
+        log.info(
+            "Extracted {} tags and {} people from XMP keywords",
+            keywords.tags().size(),
+            keywords.people().size());
+      }
 
     } catch (Exception e) {
       log.error(
@@ -870,7 +921,7 @@ public class ContentProcessingUtil {
       ensureDimensions(file, metadata);
     }
 
-    return metadata;
+    return new MetadataExtractionResult(metadata, keywords.tags(), keywords.people());
   }
 
   /**
@@ -946,6 +997,85 @@ public class ContentProcessingUtil {
   }
 
   /**
+   * Extract all items from an XMP array property (bag or sequence).
+   *
+   * @param xmpMeta The XMP metadata object
+   * @param namespace The XMP namespace URI
+   * @param propertyName The array property name
+   * @return List of string values, empty list if property is absent or on error
+   */
+  private List<String> extractXmpArrayItems(
+      XMPMeta xmpMeta, String namespace, String propertyName) {
+    List<String> items = new ArrayList<>();
+    try {
+      int count = xmpMeta.countArrayItems(namespace, propertyName);
+      for (int i = 1; i <= count; i++) {
+        XMPProperty item = xmpMeta.getArrayItem(namespace, propertyName, i);
+        if (item != null && item.getValue() != null && !item.getValue().isBlank()) {
+          items.add(item.getValue().trim());
+        }
+      }
+    } catch (XMPException e) {
+      log.debug(
+          "XMP array extraction failed for {}/{}: {}", namespace, propertyName, e.getMessage());
+    }
+    return items;
+  }
+
+  /**
+   * Extract tags and people from XMP keyword arrays. Uses lr:hierarchicalSubject to distinguish
+   * people (under "People" parent) from tags. Falls back to dc:subject (flat keywords, all become
+   * tags) if hierarchical subjects are not present.
+   *
+   * @param xmpMeta The XMP metadata object
+   * @return ExtractedKeywords with separated tag and people name lists
+   */
+  private ExtractedKeywords extractTagsAndPeopleFromXmp(XMPMeta xmpMeta) {
+    // Try hierarchical subjects first (Lightroom writes these with category parents)
+    List<String> hierarchicalSubjects =
+        extractXmpArrayItems(xmpMeta, NS_LIGHTROOM, "hierarchicalSubject");
+
+    if (!hierarchicalSubjects.isEmpty()) {
+      List<String> tags = new ArrayList<>();
+      List<String> people = new ArrayList<>();
+
+      for (String subject : hierarchicalSubjects) {
+        if (subject.toLowerCase().startsWith("people|")) {
+          // "People|Jane Doe" → person "Jane Doe"
+          String personName = subject.substring("people|".length()).trim();
+          if (!personName.isEmpty()) {
+            people.add(personName);
+          }
+        } else {
+          // "Weather|sunset" → tag "sunset" (leaf segment)
+          String leaf =
+              subject.contains("|")
+                  ? subject.substring(subject.lastIndexOf('|') + 1).trim()
+                  : subject.trim();
+          if (!leaf.isEmpty() && !FILTERED_KEYWORDS.contains(leaf.toLowerCase())) {
+            tags.add(leaf);
+          }
+        }
+      }
+
+      return new ExtractedKeywords(tags, people);
+    }
+
+    // Fallback: flat dc:subject — all become tags, no people distinction
+    List<String> dcSubjects =
+        extractXmpArrayItems(xmpMeta, com.adobe.internal.xmp.XMPConst.NS_DC, "subject");
+
+    List<String> tags =
+        dcSubjects.stream()
+            .filter(s -> !s.isBlank())
+            .map(String::trim)
+            .filter(s -> !FILTERED_KEYWORDS.contains(s.toLowerCase()))
+            .toList();
+
+    return new ExtractedKeywords(tags, List.of());
+  }
+
+  /**
    * Ensure dimensions are present in metadata, reading from BufferedImage if needed.
    *
    * @param file The image file
@@ -995,28 +1125,6 @@ public class ContentProcessingUtil {
     log.warn("No valid date for S3 path, using current date");
     LocalDate now = LocalDate.now();
     return new int[] {now.getYear(), now.getMonthValue()};
-  }
-
-  /**
-   * Parse EXIF date string to LocalDateTime. EXIF date format is "2026:01:26 17:48:38" (YYYY:MM:DD
-   * HH:MM:SS).
-   *
-   * @param createDate The date string from EXIF metadata
-   * @return LocalDateTime parsed from EXIF date, or null if parsing fails
-   */
-  LocalDate parseCaptureDateToLocalDate(String createDate) {
-    if (createDate == null || createDate.trim().isEmpty()) {
-      return null;
-    }
-    try {
-      // EXIF format: "2026:01:26 17:48:38" -> parse date part only
-      String datePart = createDate.trim().substring(0, Math.min(10, createDate.trim().length()));
-      String normalized = datePart.replace(":", "-");
-      return LocalDate.parse(normalized);
-    } catch (Exception e) {
-      log.warn("Failed to parse capture date '{}' to LocalDate", createDate);
-      return null;
-    }
   }
 
   LocalDateTime parseExifDateToLocalDateTime(String createDate) {
@@ -1484,6 +1592,71 @@ public class ContentProcessingUtil {
   // =============================================================================
   // TAG AND PEOPLE UPDATE HELPERS (Shared utility methods)
   // =============================================================================
+
+  /**
+   * Associate tags and people extracted from image XMP metadata with a saved image. Creates new
+   * tag/person entities if they don't already exist (case-insensitive dedup). Failures are logged
+   * but do not propagate — the image save is not affected.
+   *
+   * @param imageId The saved image entity ID
+   * @param tagNames Tag names extracted from XMP keywords
+   * @param peopleNames Person names extracted from XMP keywords
+   */
+  public void associateExtractedKeywords(
+      Long imageId, List<String> tagNames, List<String> peopleNames) {
+    if ((tagNames == null || tagNames.isEmpty())
+        && (peopleNames == null || peopleNames.isEmpty())) {
+      return;
+    }
+
+    try {
+      // Associate tags (deduplicate names to avoid redundant DB lookups)
+      if (tagNames != null && !tagNames.isEmpty()) {
+        Set<Long> tagIds = new LinkedHashSet<>();
+        Set<String> seenTags = new HashSet<>();
+        for (String tagName : tagNames) {
+          if (!seenTags.add(tagName.toLowerCase())) {
+            continue;
+          }
+          var existing = tagRepository.findByTagNameIgnoreCase(tagName);
+          if (existing.isPresent()) {
+            tagIds.add(existing.get().getId());
+          } else {
+            TagEntity newTag = tagRepository.save(new TagEntity(tagName));
+            tagIds.add(newTag.getId());
+            log.info("Created new tag from XMP keyword: {}", tagName);
+          }
+        }
+        tagRepository.saveContentTags(imageId, new ArrayList<>(tagIds));
+        log.info("Associated {} tags with image {}", tagIds.size(), imageId);
+      }
+
+      // Associate people (deduplicate names to avoid redundant DB lookups)
+      if (peopleNames != null && !peopleNames.isEmpty()) {
+        Set<Long> personIds = new LinkedHashSet<>();
+        Set<String> seenPeople = new HashSet<>();
+        for (String personName : peopleNames) {
+          if (!seenPeople.add(personName.toLowerCase())) {
+            continue;
+          }
+          var existing = personRepository.findByPersonNameIgnoreCase(personName);
+          if (existing.isPresent()) {
+            personIds.add(existing.get().getId());
+          } else {
+            ContentPersonEntity newPerson =
+                personRepository.save(new ContentPersonEntity(personName));
+            personIds.add(newPerson.getId());
+            log.info("Created new person from XMP keyword: {}", personName);
+          }
+        }
+        contentRepository.saveImagePeople(imageId, new ArrayList<>(personIds));
+        log.info("Associated {} people with image {}", personIds.size(), imageId);
+      }
+    } catch (Exception e) {
+      log.warn(
+          "Failed to associate extracted keywords with image {}: {}", imageId, e.getMessage(), e);
+    }
+  }
 
   /**
    * Update tags on an entity using the prev/new/remove pattern. This is a shared utility method

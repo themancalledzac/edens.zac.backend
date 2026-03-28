@@ -12,7 +12,6 @@ import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -67,10 +66,7 @@ public class ContentRepository extends BaseDao {
                 .locationId(getLong(rs, "location_id"))
                 .imageUrlWeb(rs.getString("image_url_web"))
                 .imageUrlOriginal(getString(rs, "image_url_original"))
-                .captureDate(
-                    rs.getDate("capture_date") != null
-                        ? rs.getDate("capture_date").toLocalDate()
-                        : null)
+                .captureDate(getLocalDateTime(rs, "capture_date"))
                 .lastExportDate(getLocalDateTime(rs, "last_export_date"))
                 .originalFilename(getString(rs, "original_filename"))
                 .createdAt(getLocalDateTime(rs, "created_at"))
@@ -203,7 +199,7 @@ public class ContentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentImageEntity> findByOriginalFilenameAndCaptureDate(
-      String originalFilename, LocalDate captureDate) {
+      String originalFilename, LocalDateTime captureDate) {
     String sql =
         SELECT_CONTENT_IMAGE
             + " WHERE ci.original_filename = :originalFilename AND ci.capture_date = :captureDate";
@@ -642,11 +638,11 @@ public class ContentRepository extends BaseDao {
       params.addValue("blackAndWhite", request.blackAndWhite());
     }
     if (request.captureStartDate() != null) {
-      conditions.add("ci.capture_date >= :captureStartDate");
+      conditions.add("ci.capture_date::date >= :captureStartDate");
       params.addValue("captureStartDate", request.captureStartDate());
     }
     if (request.captureEndDate() != null) {
-      conditions.add("ci.capture_date <= :captureEndDate");
+      conditions.add("ci.capture_date::date <= :captureEndDate");
       params.addValue("captureEndDate", request.captureEndDate());
     }
 
