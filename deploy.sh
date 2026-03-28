@@ -42,26 +42,51 @@ if ! docker exec portfolio-postgres pg_isready -U ${POSTGRES_USER:-zedens} -q 2>
 fi
 echo "Database is healthy"
 
-# Build new image first (old containers keep serving traffic)
+# Free disk space before building (old images, build cache)
+echo "Cleaning up old Docker resources..."
+docker image prune -f
+docker builder prune -f --filter "until=24h"
+
+# Build new image (bust source cache on new commits, keep dependency cache)
 echo "Building images..."
 cd "$APP_DIR/repo"
-docker compose build
+docker compose build --build-arg CACHE_BUST="$(git rev-parse HEAD)"
 
 # Stop old containers and start new ones
 echo "Restarting backend..."
 docker compose down || true
 docker compose up -d
 
-# Wait for services to be healthy
-echo "Waiting for services to be healthy..."
-sleep 10
+# Wait for backend to be healthy (up to 60 seconds)
+echo "Waiting for backend to be healthy..."
+RETRIES=30
+HEALTHY=false
+for i in $(seq 1 $RETRIES); do
+  if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
+    HEALTHY=true
+    echo "Backend is healthy (took ~$((i * 2))s)"
+    break
+  fi
+  sleep 2
+done
+
+if [ "$HEALTHY" = false ]; then
+  echo "WARNING: Backend did not become healthy within 60s"
+  echo "Recent logs:"
+  docker compose logs --tail=30 backend
+fi
 
 # Check container status
 echo ""
 echo "Container Status:"
 docker compose ps
 
-# Cleanup dangling images to save disk space
+# Show startup logs (Flyway migrations, errors, etc.)
+echo ""
+echo "Startup logs:"
+docker compose logs --tail=20 backend
+
+# Final cleanup
 echo ""
 echo "Cleaning up dangling Docker images..."
 docker image prune -f

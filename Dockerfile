@@ -13,6 +13,9 @@ COPY checkstyle-suppressions.xml ./
 COPY spotbugs-exclude.xml ./
 COPY dependency-check-suppressions.xml ./
 
+# Bust cache when git commit changes (dependencies above stay cached)
+ARG CACHE_BUST=unknown
+
 # Copy the entire project and build it
 COPY src ./src
 RUN mvn clean package -DskipTests
