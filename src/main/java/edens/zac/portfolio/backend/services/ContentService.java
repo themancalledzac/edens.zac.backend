@@ -203,13 +203,13 @@ public class ContentService {
                 newlyCreatedTags.isEmpty()
                     ? null
                     : newlyCreatedTags.stream()
-                        .map(e -> new Records.Tag(e.getId(), e.getTagName()))
+                        .map(e -> new Records.Tag(e.getId(), e.getTagName(), e.getSlug()))
                         .collect(Collectors.toList()))
             .people(
                 newlyCreatedPeople.isEmpty()
                     ? null
                     : newlyCreatedPeople.stream()
-                        .map(e -> new Records.Person(e.getId(), e.getPersonName()))
+                        .map(e -> new Records.Person(e.getId(), e.getPersonName(), e.getSlug()))
                         .collect(Collectors.toList()))
             .cameras(
                 newlyCreatedCameras.isEmpty()

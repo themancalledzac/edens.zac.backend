@@ -303,7 +303,9 @@ public class ContentProcessingUtil {
       LocationEntity locationEntity =
           locationRepository.findById(entity.getLocationId()).orElse(null);
       if (locationEntity != null) {
-        location = new Records.Location(locationEntity.getId(), locationEntity.getLocationName());
+        location =
+            new Records.Location(
+                locationEntity.getId(), locationEntity.getLocationName(), locationEntity.getSlug());
       }
     }
 
@@ -1841,7 +1843,7 @@ public class ContentProcessingUtil {
       return new ArrayList<>();
     }
     return tags.stream()
-        .map(tag -> new Records.Tag(tag.getId(), tag.getTagName()))
+        .map(tag -> new Records.Tag(tag.getId(), tag.getTagName(), tag.getSlug()))
         .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
         .collect(Collectors.toList());
   }
@@ -1858,7 +1860,7 @@ public class ContentProcessingUtil {
       return new ArrayList<>();
     }
     return people.stream()
-        .map(person -> new Records.Person(person.getId(), person.getPersonName()))
+        .map(person -> new Records.Person(person.getId(), person.getPersonName(), person.getSlug()))
         .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
         .collect(Collectors.toList());
   }

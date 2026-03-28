@@ -36,6 +36,8 @@ public class ContentPersonEntity {
 
   @NotBlank @Size(min = 1, max = 100) private String personName;
 
+  @Size(min = 1, max = 150) private String slug;
+
   private LocalDateTime createdAt;
 
   // Many-to-many relationship with ContentImageEntity (mappedBy side - non-owning)

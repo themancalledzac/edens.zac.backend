@@ -77,7 +77,10 @@ public class CollectionProcessingUtil {
           locationRepository.findById(entity.getLocationId()).orElse(null);
       if (locationEntity != null) {
         model.setLocation(
-            new Records.Location(locationEntity.getId(), locationEntity.getLocationName()));
+            new Records.Location(
+                locationEntity.getId(),
+                locationEntity.getLocationName(),
+                locationEntity.getSlug()));
       }
     }
     model.setCollectionDate(entity.getCollectionDate());
@@ -331,16 +334,7 @@ public class CollectionProcessingUtil {
    * @return The generated slug
    */
   public String generateSlug(String title) {
-    if (title == null || title.isEmpty()) {
-      return "";
-    }
-
-    return title
-        .toLowerCase()
-        .replaceAll("[^a-zA-Z0-9\\s-]", "") // Remove all non-alphanumeric chars except space and -
-        .replaceAll("\\s+", "-") // Replace spaces with hyphens
-        .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
-        .replaceAll("^-|-$", ""); // Remove leading and trailing hyphens
+    return SlugUtil.generateSlug(title);
   }
 
   /**

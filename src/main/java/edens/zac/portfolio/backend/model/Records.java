@@ -33,21 +33,22 @@ public final class Records {
   // People and Tags
 
   /** Model representing a content tag for API responses. Contains the tag's ID and name. */
-  public record Tag(Long id, String name) {}
+  public record Tag(Long id, String name, String slug) {}
 
   /** Model representing a person for API responses. Contains the person's ID and name. */
-  public record Person(Long id, String name) {}
+  public record Person(Long id, String name, String slug) {}
 
   // Location
 
   /** Model representing a location for API responses. Contains the location's ID and name. */
-  public record Location(Long id, String name) {}
+  public record Location(Long id, String name, String slug) {}
 
   /**
    * Location with counts of visible collections and orphan images. Used by the frontend to
    * determine if a location link should be clickable.
    */
-  public record LocationWithCounts(Long id, String name, int collectionCount, int imageCount) {}
+  public record LocationWithCounts(
+      Long id, String name, String slug, int collectionCount, int imageCount) {}
 
   // Collection references
 

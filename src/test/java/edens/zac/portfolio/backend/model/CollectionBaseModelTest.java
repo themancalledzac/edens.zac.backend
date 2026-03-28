@@ -79,7 +79,7 @@ class CollectionBaseModelTest {
               .title("Valid Title")
               .slug("valid-slug")
               .description("Valid description")
-              .location(new Records.Location(1L, "Valid location"))
+              .location(new Records.Location(1L, "Valid location", "valid-location"))
               .collectionDate(today)
               .visible(true)
               .coverImage(createTestContentImage("https://example.com/cover.jpg"))
@@ -383,7 +383,9 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(new Records.Location(1L, "Arches National Park, Utah"))
+              .location(
+                  new Records.Location(
+                      1L, "Arches National Park, Utah", "arches-national-park-utah"))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -415,7 +417,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(new Records.Location(1L, longLocation))
+              .location(new Records.Location(1L, longLocation, "long-location"))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);

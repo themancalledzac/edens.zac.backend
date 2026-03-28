@@ -28,6 +28,8 @@ public class TagEntity {
 
   @NotBlank @Size(min = 1, max = 50) private String tagName;
 
+  @Size(min = 1, max = 100) private String slug;
+
   private LocalDateTime createdAt;
 
   /**

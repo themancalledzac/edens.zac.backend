@@ -5,6 +5,7 @@ import static edens.zac.portfolio.backend.config.DefaultValues.default_content_p
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.*;
 import edens.zac.portfolio.backend.model.*;
@@ -39,6 +40,7 @@ public class CollectionService {
 
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
+  private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
   private final ContentProcessingUtil contentProcessingUtil;
   private final CollectionProcessingUtil collectionProcessingUtil;
@@ -243,12 +245,27 @@ public class CollectionService {
     // Resolve the location record
     Records.Location location =
         collectionEntities.isEmpty()
-            ? new Records.Location(null, locationName)
+            ? new Records.Location(null, locationName, SlugUtil.generateSlug(locationName))
             : collectionProcessingUtil
                 .convertToBasicModel(collectionEntities.getFirst())
                 .getLocation();
 
     return new LocationPageResponse(location, collections, images, totalCollections, totalImages);
+  }
+
+  @Transactional(readOnly = true)
+  public LocationPageResponse getLocationPageBySlug(
+      String slug, int collectionPage, int collectionSize, int imagePage, int imageSize) {
+    log.debug("Getting location page by slug: {}", slug);
+
+    LocationEntity locationEntity =
+        locationRepository
+            .findBySlug(slug)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Location not found with slug: " + slug));
+
+    return getLocationPage(
+        locationEntity.getLocationName(), collectionPage, collectionSize, imagePage, imageSize);
   }
 
   @Transactional(readOnly = true)

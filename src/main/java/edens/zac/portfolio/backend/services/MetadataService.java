@@ -287,15 +287,15 @@ public class MetadataService {
   // ========== Private Converters ==========
 
   private Records.Tag toTagModel(TagEntity entity) {
-    return new Records.Tag(entity.getId(), entity.getTagName());
+    return new Records.Tag(entity.getId(), entity.getTagName(), entity.getSlug());
   }
 
   private Records.Person toPersonModel(ContentPersonEntity entity) {
-    return new Records.Person(entity.getId(), entity.getPersonName());
+    return new Records.Person(entity.getId(), entity.getPersonName(), entity.getSlug());
   }
 
   private Records.Location toLocationModel(LocationEntity entity) {
-    return new Records.Location(entity.getId(), entity.getLocationName());
+    return new Records.Location(entity.getId(), entity.getLocationName(), entity.getSlug());
   }
 
   ContentFilmTypeModel toFilmTypeModel(ContentFilmTypeEntity entity) {

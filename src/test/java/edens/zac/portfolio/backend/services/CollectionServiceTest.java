@@ -724,7 +724,7 @@ class CollectionServiceTest {
               .id(10L)
               .title("Seattle Trip")
               .slug("seattle-trip")
-              .location(new Records.Location(1L, "Seattle"))
+              .location(new Records.Location(1L, "Seattle", "seattle"))
               .build();
 
       ContentImageEntity orphanImage = ContentImageEntity.builder().id(20L).title("Sunset").build();
