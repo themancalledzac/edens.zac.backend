@@ -35,7 +35,7 @@ is_film         BOOLEAN
 id              BIGINT PRIMARY KEY
 slug            VARCHAR UNIQUE NOT NULL
 title           VARCHAR NOT NULL
-collection_type VARCHAR  -- PROJECT, PHOTOGRAPHY, BLOG
+collection_type VARCHAR  -- BLOG, PORTFOLIO, ART_GALLERY, CLIENT_GALLERY, HOME, MISC
 cover_image_url VARCHAR
 collection_date DATE
 is_visible      BOOLEAN

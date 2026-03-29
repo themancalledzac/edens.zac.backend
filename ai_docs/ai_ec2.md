@@ -228,7 +228,10 @@ AWS_CLOUDFRONT_DOMAIN=<domain>
 SPRING_PROFILES_ACTIVE=default
 ```
 
-**Security group requirement**: EC2 security group must allow inbound PostgreSQL (port 5432) from your local IP.
+**Security**: Use SSH tunnel for database access (do NOT open port 5432 in security group):
+```bash
+ssh -L 5432:localhost:5432 -i ~/key.pem ec2-user@<ec2-ip>
+```
 
 **Connection string in Spring**:
 ```
@@ -408,7 +411,7 @@ ls -la ~/portfolio-backend/repo/.env
 **Security group inbound rules**:
 - SSH (22) from your IP
 - HTTP (8080) from 0.0.0.0/0 (if public API) or specific IPs
-- PostgreSQL (5432) from your local dev IP (for remote dev access)
+- ~~PostgreSQL (5432)~~ — **Do NOT expose**. Use SSH tunnel: `ssh -L 5432:localhost:5432 ec2-user@<ip>`
 
 ## Notes for AI Agents
 

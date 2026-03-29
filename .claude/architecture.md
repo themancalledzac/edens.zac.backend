@@ -2,7 +2,7 @@
 
 ## System Overview
 ```
-Frontend (React) --> REST API --> Services --> DAOs --> PostgreSQL
+Frontend (Next.js) --> REST API --> Services --> DAOs --> PostgreSQL
                                      |
                                      v
                               AWS S3 (images)
@@ -60,7 +60,7 @@ A single image can belong to multiple collections with different ordering/captio
 
 ### Collection Hierarchy
 - Collections can contain any ContentEntity type
-- CollectionType enum: `PROJECT`, `PHOTOGRAPHY`, `BLOG`
+- CollectionType enum: `BLOG`, `PORTFOLIO`, `ART_GALLERY`, `CLIENT_GALLERY`, `HOME`, `MISC`
 - Collections have: slug, title, coverImage, date, visibility flags
 
 ## Data Flow: Image Upload
