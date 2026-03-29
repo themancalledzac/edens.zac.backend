@@ -377,6 +377,6 @@ public class ImageMetadataExtractor {
     if (value == null || value.trim().isEmpty()) {
       return defaultValue;
     }
-    return Boolean.parseBoolean(value) || value.equalsIgnoreCase("true") || value.equals("1");
+    return Boolean.parseBoolean(value) || value.equals("1");
   }
 }

@@ -32,7 +32,6 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -46,7 +45,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
  * extraction, and dedup-aware save.
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class ImageProcessingService {
 
@@ -56,12 +54,27 @@ public class ImageProcessingService {
   private final LocationRepository locationRepository;
   private final ImageMetadataExtractor imageMetadataExtractor;
   private final ContentValidator contentValidator;
+  private final String bucketName;
+  private final String cloudfrontDomain;
 
-  @Value("${aws.portfolio.s3.bucket}")
-  private String bucketName;
-
-  @Value("${cloudfront.domain}")
-  private String cloudfrontDomain;
+  ImageProcessingService(
+      S3Client s3Client,
+      ContentRepository contentRepository,
+      EquipmentRepository equipmentRepository,
+      LocationRepository locationRepository,
+      ImageMetadataExtractor imageMetadataExtractor,
+      ContentValidator contentValidator,
+      @Value("${aws.portfolio.s3.bucket}") String bucketName,
+      @Value("${cloudfront.domain}") String cloudfrontDomain) {
+    this.s3Client = s3Client;
+    this.contentRepository = contentRepository;
+    this.equipmentRepository = equipmentRepository;
+    this.locationRepository = locationRepository;
+    this.imageMetadataExtractor = imageMetadataExtractor;
+    this.contentValidator = contentValidator;
+    this.bucketName = bucketName;
+    this.cloudfrontDomain = cloudfrontDomain;
+  }
 
   // S3 path constants for content type hierarchy:
   // {ContentType}/{Quality}/{Year}/{Month}/{filename}

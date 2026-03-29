@@ -11,7 +11,6 @@ import java.util.Base64;
 import java.util.Optional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,14 +21,18 @@ import org.springframework.transaction.annotation.Transactional;
  * verification.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ClientGalleryAuthService {
 
   private final CollectionRepository collectionRepository;
+  private final String accessTokenSecret;
 
-  @Value("${app.access-token.secret}")
-  private String accessTokenSecret;
+  ClientGalleryAuthService(
+      CollectionRepository collectionRepository,
+      @Value("${app.access-token.secret}") String accessTokenSecret) {
+    this.collectionRepository = collectionRepository;
+    this.accessTokenSecret = accessTokenSecret;
+  }
 
   /**
    * Validate password-based access to a client gallery.

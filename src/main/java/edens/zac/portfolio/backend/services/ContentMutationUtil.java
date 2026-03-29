@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.model.Records;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,7 +48,7 @@ public class ContentMutationUtil {
    * @param collectionUpdates List of collection updates containing visibility and orderIndex
    */
   public void handleContentChildCollectionUpdates(
-      ContentImageEntity image, java.util.List<Records.ChildCollection> collectionUpdates) {
+      ContentImageEntity image, List<Records.ChildCollection> collectionUpdates) {
     if (collectionUpdates == null || collectionUpdates.isEmpty()) {
       return;
     }
@@ -113,7 +114,7 @@ public class ContentMutationUtil {
    * @param peopleNames Person names extracted from XMP keywords
    */
   public void associateExtractedKeywords(
-      Long imageId, java.util.List<String> tagNames, java.util.List<String> peopleNames) {
+      Long imageId, List<String> tagNames, List<String> peopleNames) {
     if ((tagNames == null || tagNames.isEmpty())
         && (peopleNames == null || peopleNames.isEmpty())) {
       return;

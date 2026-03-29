@@ -40,7 +40,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ContentModelConverter {
+class ContentModelConverter {
 
   private final ContentRepository contentRepository;
   private final CollectionRepository collectionRepository;
@@ -110,32 +110,13 @@ public class ContentModelConverter {
     }
 
     ContentEntity baseContent = baseContentOpt.get();
-    ContentEntity content;
-
-    switch (baseContent.getContentType()) {
-      case IMAGE -> {
-        Optional<ContentImageEntity> imageOpt = contentRepository.findImageById(contentId);
-        content = imageOpt.orElse(null);
-      }
-      case TEXT -> {
-        Optional<ContentTextEntity> textOpt = contentRepository.findTextById(contentId);
-        content = textOpt.orElse(null);
-      }
-      case GIF -> {
-        Optional<ContentGifEntity> gifOpt = contentRepository.findGifById(contentId);
-        content = gifOpt.orElse(null);
-      }
-      case COLLECTION -> {
-        Optional<ContentCollectionEntity> collectionOpt =
-            contentRepository.findCollectionContentById(contentId);
-        content = collectionOpt.orElse(null);
-      }
-      default -> {
-        log.error(
-            "Unknown content type {} for content {}", baseContent.getContentType(), contentId);
-        return null;
-      }
-    }
+    ContentEntity content =
+        switch (baseContent.getContentType()) {
+          case IMAGE -> contentRepository.findImageById(contentId).orElse(null);
+          case TEXT -> contentRepository.findTextById(contentId).orElse(null);
+          case GIF -> contentRepository.findGifById(contentId).orElse(null);
+          case COLLECTION -> contentRepository.findCollectionContentById(contentId).orElse(null);
+        };
 
     if (content == null) {
       log.error(

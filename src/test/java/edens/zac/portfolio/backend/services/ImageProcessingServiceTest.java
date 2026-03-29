@@ -19,10 +19,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,15 +33,23 @@ class ImageProcessingServiceTest {
   @Mock private ImageMetadataExtractor imageMetadataExtractor;
   @Mock private ContentValidator contentValidator;
 
-  @InjectMocks private ImageProcessingService imageProcessingService;
+  private ImageProcessingService imageProcessingService;
 
   private static final String BUCKET_NAME = "test-bucket";
   private static final String CLOUDFRONT_DOMAIN = "test.cloudfront.net";
 
   @BeforeEach
   void setUp() {
-    ReflectionTestUtils.setField(imageProcessingService, "bucketName", BUCKET_NAME);
-    ReflectionTestUtils.setField(imageProcessingService, "cloudfrontDomain", CLOUDFRONT_DOMAIN);
+    imageProcessingService =
+        new ImageProcessingService(
+            s3Client,
+            contentRepository,
+            equipmentRepository,
+            locationRepository,
+            imageMetadataExtractor,
+            contentValidator,
+            BUCKET_NAME,
+            CLOUDFRONT_DOMAIN);
   }
 
   // ============================================================================

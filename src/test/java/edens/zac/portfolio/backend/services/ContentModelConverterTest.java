@@ -14,12 +14,16 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentLensEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -136,6 +140,155 @@ public class ContentModelConverterTest {
               contentModelConverter.convertRegularContentEntityToModel(entity);
             });
     assertTrue(exception.getMessage().contains("Unknown content type"));
+  }
+
+  // =============================================================================
+  // Tests for batchConvertImageEntitiesToModels
+  // =============================================================================
+
+  @Test
+  void batchConvertImageEntitiesToModels_emptyList_returnsEmptyList() {
+    // Act
+    List<ContentModels.Image> result =
+        contentModelConverter.batchConvertImageEntitiesToModels(List.of());
+
+    // Assert
+    assertTrue(result.isEmpty());
+    verifyNoInteractions(tagRepository, personRepository, locationRepository);
+  }
+
+  @Test
+  void batchConvertImageEntitiesToModels_nullList_returnsEmptyList() {
+    // Act
+    List<ContentModels.Image> result =
+        contentModelConverter.batchConvertImageEntitiesToModels(null);
+
+    // Assert
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  void batchConvertImageEntitiesToModels_multipleEntities_batchLoadsRelatedData() {
+    // Arrange
+    ContentImageEntity entity1 = createContentImageEntity();
+    entity1.setId(10L);
+    entity1.setTitle("Image One");
+    entity1.setLocationId(100L);
+
+    ContentImageEntity entity2 = createContentImageEntity();
+    entity2.setId(20L);
+    entity2.setTitle("Image Two");
+    entity2.setLocationId(200L);
+
+    List<Long> contentIds = List.of(10L, 20L);
+
+    TagEntity tag1 = new TagEntity("landscape");
+    tag1.setId(1L);
+    TagEntity tag2 = new TagEntity("portrait");
+    tag2.setId(2L);
+
+    ContentPersonEntity person1 = new ContentPersonEntity("Alice");
+    person1.setId(1L);
+
+    LocationEntity loc100 = LocationEntity.builder().id(100L).locationName("Seattle").build();
+    LocationEntity loc200 = LocationEntity.builder().id(200L).locationName("Portland").build();
+
+    when(tagRepository.findTagsByContentIds(contentIds))
+        .thenReturn(Map.of(10L, List.of(tag1), 20L, List.of(tag2)));
+    when(personRepository.findPeopleByContentIds(contentIds))
+        .thenReturn(Map.of(10L, List.of(person1)));
+    when(locationRepository.findByIds(anyList())).thenReturn(Map.of(100L, loc100, 200L, loc200));
+
+    // Act
+    List<ContentModels.Image> result =
+        contentModelConverter.batchConvertImageEntitiesToModels(List.of(entity1, entity2));
+
+    // Assert
+    assertEquals(2, result.size());
+
+    ContentModels.Image model1 = result.get(0);
+    assertEquals(10L, model1.id());
+    assertEquals("Image One", model1.title());
+    assertEquals("Seattle", model1.location().name());
+    assertEquals(1, model1.tags().size());
+    assertEquals("landscape", model1.tags().get(0).name());
+    assertEquals(1, model1.people().size());
+    assertEquals("Alice", model1.people().get(0).name());
+
+    ContentModels.Image model2 = result.get(1);
+    assertEquals(20L, model2.id());
+    assertEquals("Image Two", model2.title());
+    assertEquals("Portland", model2.location().name());
+    assertEquals(1, model2.tags().size());
+    assertEquals("portrait", model2.tags().get(0).name());
+    assertTrue(model2.people().isEmpty());
+
+    // Verify batch queries were used (one call each, not per-entity)
+    verify(tagRepository).findTagsByContentIds(contentIds);
+    verify(personRepository).findPeopleByContentIds(contentIds);
+    verify(locationRepository).findByIds(anyList());
+  }
+
+  // =============================================================================
+  // Tests for buildImageModelWithBatchData
+  // =============================================================================
+
+  @Test
+  void buildImageModelWithBatchData_nullEntity_returnsNull() {
+    // Act
+    ContentModels.Image result =
+        contentModelConverter.buildImageModelWithBatchData(
+            null, null, null, Map.of(), Map.of(), Map.of());
+
+    // Assert
+    assertNull(result);
+  }
+
+  @Test
+  void buildImageModelWithBatchData_withOrderIndexAndVisible_populatesFields() {
+    // Arrange
+    ContentImageEntity entity = createContentImageEntity();
+    entity.setLocationId(null); // no location
+
+    TagEntity tag = new TagEntity("nature");
+    tag.setId(1L);
+    ContentPersonEntity person = new ContentPersonEntity("Bob");
+    person.setId(1L);
+
+    Map<Long, List<TagEntity>> tagMap = Map.of(entity.getId(), List.of(tag));
+    Map<Long, List<ContentPersonEntity>> peopleMap = Map.of(entity.getId(), List.of(person));
+
+    // Act
+    ContentModels.Image result =
+        contentModelConverter.buildImageModelWithBatchData(
+            entity, 3, true, tagMap, peopleMap, Map.of());
+
+    // Assert
+    assertEquals(3, result.orderIndex());
+    assertEquals(true, result.visible());
+    assertNull(result.location());
+    assertEquals(1, result.tags().size());
+    assertEquals("nature", result.tags().get(0).name());
+    assertEquals(1, result.people().size());
+    assertEquals("Bob", result.people().get(0).name());
+  }
+
+  @Test
+  void buildImageModelWithBatchData_noMatchingRelatedData_returnsEmptyCollections() {
+    // Arrange
+    ContentImageEntity entity = createContentImageEntity();
+    entity.setId(99L);
+    entity.setLocationId(null);
+
+    // Act - maps don't contain entity's ID
+    ContentModels.Image result =
+        contentModelConverter.buildImageModelWithBatchData(
+            entity, null, null, Map.of(), Map.of(), Map.of());
+
+    // Assert
+    assertTrue(result.tags().isEmpty());
+    assertTrue(result.people().isEmpty());
+    assertNull(result.location());
   }
 
   // Helper methods to create test entities
