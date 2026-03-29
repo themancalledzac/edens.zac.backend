@@ -206,8 +206,25 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
+  public List<CollectionEntity> findVisibleByOrderByCollectionDateDesc(int limit, int offset) {
+    String sql =
+        SELECT_COLLECTION
+            + " WHERE visible = true ORDER BY collection_date DESC NULLS LAST LIMIT :limit OFFSET :offset";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("limit", limit).addValue("offset", offset);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
   public long countAllCollections() {
     String sql = "SELECT COUNT(*) FROM collection";
+    Long count = jdbcTemplate.queryForObject(sql, Long.class);
+    return count != null ? count : 0L;
+  }
+
+  @Transactional(readOnly = true)
+  public long countVisibleCollections() {
+    String sql = "SELECT COUNT(*) FROM collection WHERE visible = true";
     Long count = jdbcTemplate.queryForObject(sql, Long.class);
     return count != null ? count : 0L;
   }
