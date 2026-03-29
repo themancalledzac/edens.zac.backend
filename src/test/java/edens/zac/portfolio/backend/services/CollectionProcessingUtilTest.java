@@ -6,6 +6,8 @@ import static org.mockito.Mockito.*;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
@@ -33,6 +35,10 @@ class CollectionProcessingUtilTest {
   @Mock private ContentProcessingUtil contentProcessingUtil;
 
   @Mock private LocationRepository locationRepository;
+
+  @Mock private TagRepository tagRepository;
+
+  @Mock private PersonRepository personRepository;
 
   @InjectMocks private CollectionProcessingUtil util;
 

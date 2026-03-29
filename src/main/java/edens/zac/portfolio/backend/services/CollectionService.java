@@ -185,11 +185,9 @@ public class CollectionService {
     List<CollectionEntity> paginatedCollections =
         collectionRepository.findByTypeOrderByCollectionDateDesc(type, size, page * size);
 
-    // Convert to models
+    // Convert to models using batch loading
     List<CollectionModel> models =
-        paginatedCollections.stream()
-            .map(collectionProcessingUtil::convertToBasicModel)
-            .collect(Collectors.toList());
+        collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
 
     return new PageImpl<>(models, pageable, totalElements);
   }
@@ -203,10 +201,8 @@ public class CollectionService {
     List<CollectionEntity> collections =
         collectionRepository.findByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
 
-    // Convert to basic CollectionModel objects (no content blocks)
-    return collections.stream()
-        .map(collectionProcessingUtil::convertToBasicModel)
-        .collect(Collectors.toList());
+    // Convert to basic CollectionModel objects (no content blocks) using batch loading
+    return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
   @Transactional(readOnly = true)
@@ -222,12 +218,17 @@ public class CollectionService {
             locationName, collectionSize, collectionOffset);
 
     List<CollectionModel> collections =
-        collectionEntities.stream()
-            .map(collectionProcessingUtil::convertToBasicModel)
-            .collect(Collectors.toList());
+        collectionProcessingUtil.batchConvertToBasicModels(collectionEntities);
 
-    // Get IDs of ALL visible collections at this location (for orphan exclusion)
-    List<Long> allCollectionIds = collectionRepository.findVisibleIdsByLocationName(locationName);
+    // Get IDs of ALL visible collections at this location (for orphan exclusion).
+    // If the paginated result already covers all collections, extract IDs directly
+    // to avoid a redundant query.
+    List<Long> allCollectionIds;
+    if (totalCollections <= collectionSize) {
+      allCollectionIds = collectionEntities.stream().map(CollectionEntity::getId).toList();
+    } else {
+      allCollectionIds = collectionRepository.findVisibleIdsByLocationName(locationName);
+    }
 
     // Get orphan images (at this location but not in any of those collections)
     int imageOffset = imagePage * imageSize;
@@ -240,13 +241,11 @@ public class CollectionService {
     List<ContentModels.Image> images =
         contentProcessingUtil.batchConvertImageEntitiesToModels(orphanImageEntities);
 
-    // Resolve the location record
+    // Resolve the location record from already-converted collections
     Records.Location location =
-        collectionEntities.isEmpty()
+        collections.isEmpty()
             ? new Records.Location(null, locationName, SlugUtil.generateSlug(locationName))
-            : collectionProcessingUtil
-                .convertToBasicModel(collectionEntities.getFirst())
-                .getLocation();
+            : collections.getFirst().getLocation();
 
     return new LocationPageResponse(location, collections, images, totalCollections, totalImages);
   }
@@ -485,11 +484,9 @@ public class CollectionService {
     List<CollectionEntity> paginatedCollections =
         collectionRepository.findAllByOrderByCollectionDateDesc(pageable.getPageSize(), offset);
 
-    // Convert to models
+    // Convert to models using batch loading
     List<CollectionModel> models =
-        paginatedCollections.stream()
-            .map(collectionProcessingUtil::convertToBasicModel)
-            .collect(Collectors.toList());
+        collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
 
     return new PageImpl<>(models, pageable, totalElements);
   }
@@ -501,10 +498,8 @@ public class CollectionService {
     // Get all collections ordered by collection date descending
     List<CollectionEntity> collections = collectionRepository.findAllByOrderByCollectionDateDesc();
 
-    // Convert to basic models (no content blocks)
-    return collections.stream()
-        .map(collectionProcessingUtil::convertToBasicModel)
-        .collect(Collectors.toList());
+    // Convert to basic models (no content blocks) using batch loading
+    return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
   /**
