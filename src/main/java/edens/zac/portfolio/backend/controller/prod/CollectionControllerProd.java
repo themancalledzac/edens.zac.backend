@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.PasswordRequest;
+import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/read/collections")
 public class CollectionControllerProd {
 
+  private final ClientGalleryAuthService clientGalleryAuthService;
   private final CollectionService collectionService;
 
   /**
@@ -73,7 +75,7 @@ public class CollectionControllerProd {
 
     // For password-protected galleries, omit content unless valid accessToken is provided
     if (Boolean.TRUE.equals(collection.getIsPasswordProtected())) {
-      if (accessToken == null || !collectionService.validateAccessToken(slug, accessToken)) {
+      if (accessToken == null || !clientGalleryAuthService.validateAccessToken(slug, accessToken)) {
         collection.setContent(null);
         collection.setContentCount(null);
       }
@@ -153,7 +155,7 @@ public class CollectionControllerProd {
   public ResponseEntity<Map<String, Object>> validateClientGalleryAccess(
       @PathVariable String slug, @Valid @RequestBody PasswordRequest passwordRequest) {
     boolean hasAccess =
-        collectionService.validateClientGalleryAccess(slug, passwordRequest.password());
+        clientGalleryAuthService.validateClientGalleryAccess(slug, passwordRequest.password());
 
     if (!hasAccess) {
       log.warn("Failed client gallery access attempt for slug: {}", slug);
@@ -162,7 +164,7 @@ public class CollectionControllerProd {
     Map<String, Object> response = new HashMap<>();
     response.put("hasAccess", hasAccess);
     if (hasAccess) {
-      response.put("accessToken", collectionService.generateAccessToken(slug));
+      response.put("accessToken", clientGalleryAuthService.generateAccessToken(slug));
     }
     return ResponseEntity.ok(response);
   }

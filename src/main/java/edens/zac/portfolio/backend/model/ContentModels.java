@@ -16,7 +16,7 @@ public final class ContentModels {
 
   /**
    * Image content block. Carries all EXIF metadata, equipment, tagging, and collection membership
-   * data. Created by ContentProcessingUtil; collections populated by CollectionService.
+   * data. Created by ContentModelConverter; collections populated by CollectionService.
    */
   public record Image(
       Long id,

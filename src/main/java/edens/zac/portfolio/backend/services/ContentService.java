@@ -55,7 +55,8 @@ public class ContentService {
   private final TagRepository tagRepository;
   private final ContentRepository contentRepository;
   private final CollectionRepository collectionRepository;
-  private final ContentProcessingUtil contentProcessingUtil;
+  private final ContentMutationUtil contentMutationUtil;
+  private final ContentModelConverter contentModelConverter;
   private final ImageProcessingService imageProcessingService;
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
@@ -178,8 +179,7 @@ public class ContentService {
 
           // Update existing collection relationships (visibility, orderIndex)
           if (collectionUpdate.prev() != null && !collectionUpdate.prev().isEmpty()) {
-            contentProcessingUtil.handleContentChildCollectionUpdates(
-                image, collectionUpdate.prev());
+            contentMutationUtil.handleContentChildCollectionUpdates(image, collectionUpdate.prev());
           }
 
           // Add to new collections if specified
@@ -193,7 +193,7 @@ public class ContentService {
 
         // Convert to model and add to results
         ContentModels.Image imageModel =
-            (ContentModels.Image) contentProcessingUtil.convertRegularContentEntityToModel(image);
+            (ContentModels.Image) contentModelConverter.convertRegularContentEntityToModel(image);
         updatedImages.add(imageModel);
 
       } catch (IllegalArgumentException e) {
@@ -235,13 +235,13 @@ public class ContentService {
                 newlyCreatedCameras.isEmpty()
                     ? null
                     : newlyCreatedCameras.stream()
-                        .map(ContentProcessingUtil::cameraEntityToCameraModel)
+                        .map(ContentModelConverter::cameraEntityToCameraModel)
                         .collect(Collectors.toList()))
             .lenses(
                 newlyCreatedLenses.isEmpty()
                     ? null
                     : newlyCreatedLenses.stream()
-                        .map(ContentProcessingUtil::lensEntityToLensModel)
+                        .map(ContentModelConverter::lensEntityToLensModel)
                         .collect(Collectors.toList()))
             .filmTypes(
                 newlyCreatedFilmTypes.isEmpty()
@@ -389,7 +389,7 @@ public class ContentService {
             .collect(Collectors.toSet());
 
     Set<TagEntity> updatedTags =
-        contentProcessingUtil.updateTags(
+        contentMutationUtil.updateTags(
             currentTags, tagUpdate, newTags // Track newly created tags
             // for response
             );
@@ -489,7 +489,7 @@ public class ContentService {
             .collect(Collectors.toSet());
 
     Set<ContentPersonEntity> updatedPeople =
-        contentProcessingUtil.updatePeople(
+        contentMutationUtil.updatePeople(
             currentPeople, personUpdate, newPeople // Track newly
             // created people
             // for response
@@ -549,7 +549,7 @@ public class ContentService {
 
     List<ContentModels.Image> images =
         entities.stream()
-            .map(contentProcessingUtil::convertImageEntityToModel)
+            .map(contentModelConverter::convertImageEntityToModel)
             .collect(Collectors.toList());
 
     return new ImageSearchResponse(images, totalElements, totalPages);
@@ -572,7 +572,7 @@ public class ContentService {
             .map(
                 entity ->
                     (ContentModels.Image)
-                        contentProcessingUtil.convertRegularContentEntityToModel(entity))
+                        contentModelConverter.convertRegularContentEntityToModel(entity))
             .collect(Collectors.toList());
 
     return new org.springframework.data.domain.PageImpl<>(imageModels, pageable, total);
@@ -854,7 +854,7 @@ public class ContentService {
 
         // Auto-associate tags and people extracted from XMP keywords (only on new images)
         if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE) {
-          contentProcessingUtil.associateExtractedKeywords(
+          contentMutationUtil.associateExtractedKeywords(
               entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
         }
 
@@ -866,7 +866,7 @@ public class ContentService {
           if (existingJoin.isPresent()) {
             // Already linked, just convert and add to results
             ContentModel contentModel =
-                contentProcessingUtil.convertEntityToModel(existingJoin.get());
+                contentModelConverter.convertEntityToModel(existingJoin.get());
             if (contentModel instanceof ContentModels.Image imageModel) {
               createdImages.add(imageModel);
             }
@@ -886,7 +886,7 @@ public class ContentService {
         collectionRepository.saveContent(joinEntry);
 
         // Convert to model
-        ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+        ContentModel contentModel = contentModelConverter.convertEntityToModel(joinEntry);
         if (contentModel instanceof ContentModels.Image imageModel) {
           createdImages.add(imageModel);
         }
@@ -953,7 +953,7 @@ public class ContentService {
         orderIndex);
 
     // Convert to model and return
-    ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+    ContentModel contentModel = contentModelConverter.convertEntityToModel(joinEntry);
     if (contentModel instanceof ContentModels.Text textModel) {
       return textModel;
     } else {
@@ -1001,7 +1001,7 @@ public class ContentService {
         collectionId,
         resolvedOrderIndex);
 
-    ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+    ContentModel contentModel = contentModelConverter.convertEntityToModel(joinEntry);
     if (contentModel instanceof ContentModels.Gif gifModel) {
       return gifModel;
     }

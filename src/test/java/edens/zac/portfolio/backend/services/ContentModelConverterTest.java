@@ -28,7 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class ContentProcessingUtilTest {
+public class ContentModelConverterTest {
 
   @Mock private ContentRepository contentRepository;
   @Mock private CollectionRepository collectionRepository;
@@ -36,7 +36,7 @@ public class ContentProcessingUtilTest {
   @Mock private PersonRepository personRepository;
   @Mock private LocationRepository locationRepository;
 
-  @InjectMocks private ContentProcessingUtil contentProcessingUtil;
+  @InjectMocks private ContentModelConverter contentModelConverter;
 
   @BeforeEach
   void setUp() {
@@ -57,7 +57,7 @@ public class ContentProcessingUtilTest {
     when(locationRepository.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
 
     // Act
-    ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
+    ContentModel result = contentModelConverter.convertRegularContentEntityToModel(entity);
 
     // Assert
     assertInstanceOf(ContentModels.Image.class, result);
@@ -89,7 +89,7 @@ public class ContentProcessingUtilTest {
     ContentTextEntity entity = createTextContentEntity();
 
     // Act
-    ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
+    ContentModel result = contentModelConverter.convertRegularContentEntityToModel(entity);
 
     // Assert
     assertInstanceOf(ContentModels.Text.class, result);
@@ -106,7 +106,7 @@ public class ContentProcessingUtilTest {
     ContentGifEntity entity = createContentGifEntity();
 
     // Act
-    ContentModel result = contentProcessingUtil.convertRegularContentEntityToModel(entity);
+    ContentModel result = contentModelConverter.convertRegularContentEntityToModel(entity);
 
     // Assert
     assertInstanceOf(ContentModels.Gif.class, result);
@@ -133,7 +133,7 @@ public class ContentProcessingUtilTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> {
-              contentProcessingUtil.convertRegularContentEntityToModel(entity);
+              contentModelConverter.convertRegularContentEntityToModel(entity);
             });
     assertTrue(exception.getMessage().contains("Unknown content type"));
   }

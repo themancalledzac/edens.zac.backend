@@ -32,7 +32,7 @@ class CollectionProcessingUtilTest {
 
   @Mock private ContentRepository contentRepository;
 
-  @Mock private ContentProcessingUtil contentProcessingUtil;
+  @Mock private ContentModelConverter contentModelConverter;
 
   @Mock private LocationRepository locationRepository;
 
