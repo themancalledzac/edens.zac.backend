@@ -7,8 +7,22 @@ import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
-import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
+import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
+import edens.zac.portfolio.backend.model.LocationPageResponse;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
@@ -50,6 +64,7 @@ public class CollectionService {
   private String accessTokenSecret;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
+  private static final String HOME_SLUG = "home";
 
   @Transactional(readOnly = true)
   public CollectionModel getCollectionWithPagination(String slug, int page, int size) {
@@ -61,6 +76,9 @@ public class CollectionService {
             .findBySlug(slug)
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+
+    // Enforce visibility: invisible collections are not publicly accessible (except "home")
+    enforceVisibility(collection, slug);
 
     // Normalize pagination parameters
     int normalizedPage = Math.max(0, page);
@@ -81,6 +99,9 @@ public class CollectionService {
 
     // Populate collections on content items
     populateCollectionsOnContent(model);
+
+    // Filter out child collection content that references non-visible collections
+    filterInvisibleChildCollections(model);
 
     return model;
   }
@@ -268,11 +289,16 @@ public class CollectionService {
   @Transactional(readOnly = true)
   public CollectionModel findMetaBySlug(String slug) {
     log.debug("Finding collection metadata by slug: {}", slug);
-    return collectionRepository
-        .findBySlug(slug)
-        .map(collectionProcessingUtil::convertToBasicModel)
-        .orElseThrow(
-            () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+    CollectionEntity entity =
+        collectionRepository
+            .findBySlug(slug)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+
+    // Enforce visibility: invisible collections are not publicly accessible (except "home")
+    enforceVisibility(entity, slug);
+
+    return collectionProcessingUtil.convertToBasicModel(entity);
   }
 
   @Transactional(readOnly = true)
@@ -485,6 +511,22 @@ public class CollectionService {
         collectionRepository.findAllByOrderByCollectionDateDesc(pageable.getPageSize(), offset);
 
     // Convert to models using batch loading
+    List<CollectionModel> models =
+        collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
+
+    return new PageImpl<>(models, pageable, totalElements);
+  }
+
+  @Transactional(readOnly = true)
+  public Page<CollectionModel> getVisibleCollections(Pageable pageable) {
+    log.debug("Getting visible collections with pagination");
+
+    long totalElements = collectionRepository.countVisibleCollections();
+
+    int offset = pageable.getPageNumber() * pageable.getPageSize();
+    List<CollectionEntity> paginatedCollections =
+        collectionRepository.findVisibleByOrderByCollectionDateDesc(pageable.getPageSize(), offset);
+
     List<CollectionModel> models =
         collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
 
@@ -1134,5 +1176,73 @@ public class CollectionService {
             collection, updatedContent, 0, pageSize, totalElements);
     populateCollectionsOnContent(model);
     return model;
+  }
+
+  /**
+   * Enforce visibility on a collection for public read endpoints. The "home" collection is always
+   * accessible regardless of its visible flag. All other collections must have visible=true.
+   *
+   * @param entity The collection entity to check
+   * @param slug The slug used to look up the collection (for "home" exception)
+   * @throws ResourceNotFoundException if the collection is not visible
+   */
+  private void enforceVisibility(CollectionEntity entity, String slug) {
+    if (HOME_SLUG.equals(slug)) {
+      return;
+    }
+    if (!Boolean.TRUE.equals(entity.getVisible())) {
+      log.debug("Blocked access to non-visible collection with slug: {}", slug);
+      throw new ResourceNotFoundException("Collection not found with slug: " + slug);
+    }
+  }
+
+  /**
+   * Remove child collection content items that reference non-visible collections. This prevents
+   * invisible collections from leaking through parent collection responses on public endpoints.
+   */
+  private void filterInvisibleChildCollections(CollectionModel model) {
+    if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
+      return;
+    }
+
+    // Collect referenced collection IDs from collection content items
+    List<Long> referencedIds =
+        model.getContent().stream()
+            .filter(ContentModels.Collection.class::isInstance)
+            .map(ContentModels.Collection.class::cast)
+            .map(ContentModels.Collection::referencedCollectionId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+
+    if (referencedIds.isEmpty()) {
+      return;
+    }
+
+    // Batch-load referenced collections and find invisible ones
+    Set<Long> invisibleIds =
+        collectionRepository.findByIds(referencedIds).stream()
+            .filter(c -> !Boolean.TRUE.equals(c.getVisible()))
+            .map(CollectionEntity::getId)
+            .collect(Collectors.toSet());
+
+    if (invisibleIds.isEmpty()) {
+      return;
+    }
+
+    // Filter out content items that reference invisible collections
+    List<ContentModel> filtered =
+        model.getContent().stream()
+            .filter(
+                content -> {
+                  if (content instanceof ContentModels.Collection col) {
+                    return !invisibleIds.contains(col.referencedCollectionId());
+                  }
+                  return true;
+                })
+            .collect(Collectors.toList());
+
+    model.setContent(filtered);
+    log.debug("Filtered {} invisible child collections from response", invisibleIds.size());
   }
 }

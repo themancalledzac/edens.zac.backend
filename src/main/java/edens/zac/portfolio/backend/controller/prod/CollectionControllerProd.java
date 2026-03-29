@@ -47,7 +47,7 @@ public class CollectionControllerProd {
   public ResponseEntity<Page<CollectionModel>> getAllCollections(
       @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
     Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
-    Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
+    Page<CollectionModel> collections = collectionService.getVisibleCollections(pageable);
     return ResponseEntity.ok(collections);
   }
 

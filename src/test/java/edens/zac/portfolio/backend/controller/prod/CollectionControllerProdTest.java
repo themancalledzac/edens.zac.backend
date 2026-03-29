@@ -155,7 +155,7 @@ class CollectionControllerProdTest {
   void getAllCollections_shouldReturnPaginatedCollections() throws Exception {
     // Arrange
     Page<CollectionModel> page = new PageImpl<>(testCollections, PageRequest.of(0, 10), 3);
-    when(collectionService.getAllCollections(any(Pageable.class))).thenReturn(page);
+    when(collectionService.getVisibleCollections(any(Pageable.class))).thenReturn(page);
 
     // Act & Assert
     mockMvc
@@ -179,7 +179,7 @@ class CollectionControllerProdTest {
   void getAllCollections_withNegativePage_shouldNormalizeToZero() throws Exception {
     // Arrange
     Page<CollectionModel> page = new PageImpl<>(testCollections, PageRequest.of(0, 10), 3);
-    when(collectionService.getAllCollections(any(Pageable.class))).thenReturn(page);
+    when(collectionService.getVisibleCollections(any(Pageable.class))).thenReturn(page);
 
     // Act & Assert - Controller normalizes negative page to 0
     mockMvc
