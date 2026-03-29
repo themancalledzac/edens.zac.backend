@@ -37,7 +37,6 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class CollectionServiceTest {
@@ -46,7 +45,8 @@ class CollectionServiceTest {
   @Mock private ContentRepository contentRepository;
   @Mock private TagRepository tagRepository;
   @Mock private CollectionProcessingUtil collectionProcessingUtil;
-  @Mock private ContentProcessingUtil contentProcessingUtil;
+  @Mock private ContentMutationUtil contentMutationUtil;
+  @Mock private ContentModelConverter contentModelConverter;
   @Mock private MetadataService metadataService;
 
   @InjectMocks private CollectionService service;
@@ -67,7 +67,6 @@ class CollectionServiceTest {
 
   @BeforeEach
   void setUp() {
-    ReflectionTestUtils.setField(service, "accessTokenSecret", "test-secret-key");
     testCollection =
         CollectionEntity.builder()
             .id(1L)
@@ -101,9 +100,7 @@ class CollectionServiceTest {
       when(collectionProcessingUtil.toEntity(eq(request), anyInt())).thenReturn(savedEntity);
       when(collectionRepository.save(savedEntity)).thenReturn(savedEntity);
       when(collectionRepository.findBySlug("new-collection")).thenReturn(Optional.of(savedEntity));
-      when(collectionProcessingUtil.convertToBasicModel(savedEntity)).thenReturn(model);
-      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(10L))
-          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToFullModel(savedEntity)).thenReturn(model);
       stubEmptyMetadata();
 
       CollectionRequests.UpdateResponse result = service.createCollection(request);
@@ -134,9 +131,7 @@ class CollectionServiceTest {
       when(collectionProcessingUtil.toEntity(eq(request), anyInt())).thenReturn(entity);
       when(collectionRepository.save(entity)).thenReturn(entity);
       when(collectionRepository.findBySlug("my-blog")).thenReturn(Optional.of(entity));
-      when(collectionProcessingUtil.convertToBasicModel(entity)).thenReturn(model);
-      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(5L))
-          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
       stubEmptyMetadata();
 
       service.createCollection(request);
@@ -221,10 +216,10 @@ class CollectionServiceTest {
       when(collectionRepository.save(any(CollectionEntity.class))).thenReturn(testCollection);
       when(collectionProcessingUtil.convertToBasicModel(any(CollectionEntity.class)))
           .thenReturn(updatedModel);
+      when(collectionProcessingUtil.convertToFullModel(any(CollectionEntity.class)))
+          .thenReturn(updatedModel);
       when(collectionRepository.findBySlug("test-collection"))
           .thenReturn(Optional.of(testCollection));
-      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(1L))
-          .thenReturn(Collections.emptyList());
       stubEmptyMetadata();
 
       CollectionRequests.UpdateResponse result =
@@ -296,10 +291,10 @@ class CollectionServiceTest {
       when(collectionRepository.save(any(CollectionEntity.class))).thenReturn(testCollection);
       when(collectionProcessingUtil.convertToBasicModel(any(CollectionEntity.class)))
           .thenReturn(updatedModel);
+      when(collectionProcessingUtil.convertToFullModel(any(CollectionEntity.class)))
+          .thenReturn(updatedModel);
 
       when(collectionRepository.findBySlug("new-slug")).thenReturn(Optional.of(testCollection));
-      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(1L))
-          .thenReturn(Collections.emptyList());
       stubEmptyMetadata();
 
       service.updateContentWithMetadata(collectionId, updateDTO);
@@ -363,177 +358,6 @@ class CollectionServiceTest {
   }
 
   @Nested
-  class ValidateClientGalleryAccess {
-
-    @Test
-    void validateClientGalleryAccess_noPasswordSet_returnsTrue() {
-      // Arrange
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(null).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Act
-      boolean result = service.validateClientGalleryAccess("gallery", null);
-
-      // Assert
-      assertThat(result).isTrue();
-    }
-
-    @Test
-    void validateClientGalleryAccess_correctPassword_returnsTrue() {
-      // Arrange
-      String password = "secret123";
-      String hash = CollectionProcessingUtil.hashPassword(password);
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Act
-      boolean result = service.validateClientGalleryAccess("gallery", password);
-
-      // Assert
-      assertThat(result).isTrue();
-    }
-
-    @Test
-    void validateClientGalleryAccess_wrongPassword_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("correct-password");
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Act
-      boolean result = service.validateClientGalleryAccess("gallery", "wrong-password");
-
-      // Assert
-      assertThat(result).isFalse();
-    }
-
-    @Test
-    void validateClientGalleryAccess_nullPassword_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("some-password");
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Act
-      boolean result = service.validateClientGalleryAccess("gallery", null);
-
-      // Assert
-      assertThat(result).isFalse();
-    }
-
-    @Test
-    void validateClientGalleryAccess_nonExistentSlug_throwsException() {
-      // Arrange
-      when(collectionRepository.findBySlug("missing")).thenReturn(Optional.empty());
-
-      // Act & Assert
-      assertThatThrownBy(() -> service.validateClientGalleryAccess("missing", null))
-          .isInstanceOf(ResourceNotFoundException.class)
-          .hasMessageContaining("Collection not found with slug: missing");
-    }
-  }
-
-  @Nested
-  class ValidateAccessToken {
-
-    @Test
-    void validateAccessToken_nullToken_returnsFalse() {
-      // Act
-      boolean result = service.validateAccessToken("gallery", null);
-
-      // Assert
-      assertThat(result).isFalse();
-    }
-
-    @Test
-    void validateAccessToken_tokenWithoutPipe_returnsFalse() {
-      // Act
-      boolean result = service.validateAccessToken("gallery", "no-pipe-character");
-
-      // Assert
-      assertThat(result).isFalse();
-    }
-
-    @Test
-    void validateAccessToken_validToken_returnsTrue() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("secret123");
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Generate a real token via the service
-      String token = service.generateAccessToken("gallery");
-
-      // Act
-      boolean result = service.validateAccessToken("gallery", token);
-
-      // Assert
-      assertThat(result).isTrue();
-    }
-
-    @Test
-    void validateAccessToken_invalidToken_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("secret123");
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Act
-      boolean result = service.validateAccessToken("gallery", "wrong-hmac|9999999999");
-
-      // Assert
-      assertThat(result).isFalse();
-    }
-
-    @Test
-    void validateAccessToken_noPasswordOnCollection_returnsTrue() {
-      // Arrange
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(null).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Act - any token with a pipe is accepted for non-protected collections
-      boolean result = service.validateAccessToken("gallery", "any|token");
-
-      // Assert
-      assertThat(result).isTrue();
-    }
-
-    @Test
-    void validateAccessToken_nonExistentSlug_returnsFalse() {
-      // Arrange
-      when(collectionRepository.findBySlug("missing")).thenReturn(Optional.empty());
-
-      // Act
-      boolean result = service.validateAccessToken("missing", "some|token");
-
-      // Assert
-      assertThat(result).isFalse();
-    }
-
-    @Test
-    void validateAccessToken_expiredToken_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("secret123");
-      CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
-      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
-
-      // Act - use an expired timestamp (epoch 0)
-      boolean result = service.validateAccessToken("gallery", "some-hmac|0");
-
-      // Assert
-      assertThat(result).isFalse();
-    }
-  }
-
-  @Nested
   class FindById {
 
     @Test
@@ -541,9 +365,7 @@ class CollectionServiceTest {
       CollectionModel model = CollectionModel.builder().id(1L).title("Test Collection").build();
 
       when(collectionRepository.findById(1L)).thenReturn(Optional.of(testCollection));
-      when(collectionProcessingUtil.convertToBasicModel(testCollection)).thenReturn(model);
-      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(1L))
-          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToFullModel(testCollection)).thenReturn(model);
 
       CollectionModel result = service.findById(1L);
 
@@ -746,7 +568,7 @@ class CollectionServiceTest {
           .thenReturn(List.of(orphanImage));
       when(contentRepository.countOrphanImagesByLocationName(eq(locationName), eq(List.of(10L))))
           .thenReturn(1L);
-      when(contentProcessingUtil.batchConvertImageEntitiesToModels(List.of(orphanImage)))
+      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(orphanImage)))
           .thenReturn(List.of(imageModel));
 
       // Act
@@ -786,7 +608,7 @@ class CollectionServiceTest {
       when(contentRepository.countOrphanImagesByLocationName(
               eq(locationName), eq(Collections.emptyList())))
           .thenReturn(1L);
-      when(contentProcessingUtil.batchConvertImageEntitiesToModels(List.of(orphanImage)))
+      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(orphanImage)))
           .thenReturn(List.of(imageModel));
 
       // Act

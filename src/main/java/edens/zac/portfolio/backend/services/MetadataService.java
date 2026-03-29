@@ -98,7 +98,7 @@ public class MetadataService {
   @Transactional(readOnly = true)
   public List<Records.Camera> getAllCameras() {
     return equipmentRepository.findAllCamerasOrderByName().stream()
-        .map(ContentProcessingUtil::cameraEntityToCameraModel)
+        .map(ContentModelConverter::cameraEntityToCameraModel)
         .collect(Collectors.toList());
   }
 
@@ -148,7 +148,7 @@ public class MetadataService {
   @Transactional(readOnly = true)
   public List<Records.Lens> getAllLenses() {
     return equipmentRepository.findAllLensesOrderByName().stream()
-        .map(ContentProcessingUtil::lensEntityToLensModel)
+        .map(ContentModelConverter::lensEntityToLensModel)
         .collect(Collectors.toList());
   }
 
