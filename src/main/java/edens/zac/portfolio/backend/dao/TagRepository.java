@@ -282,6 +282,40 @@ public class TagRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
+  public Map<Long, List<TagEntity>> findTagsByContentIds(List<Long> contentIds) {
+    if (contentIds == null || contentIds.isEmpty()) {
+      return Map.of();
+    }
+
+    String sql =
+        """
+        SELECT ct.content_id, t.id, t.tag_name, t.slug, t.created_at
+        FROM content_tags ct
+        JOIN tag t ON ct.tag_id = t.id
+        WHERE ct.content_id IN (:contentIds)
+        ORDER BY t.tag_name ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
+
+    Map<Long, List<TagEntity>> result = new HashMap<>();
+    namedParameterJdbcTemplate.query(
+        sql,
+        params,
+        rs -> {
+          Long contentId = rs.getLong("content_id");
+          TagEntity tag =
+              TagEntity.builder()
+                  .id(rs.getLong("id"))
+                  .tagName(rs.getString("tag_name"))
+                  .slug(rs.getString("slug"))
+                  .createdAt(getLocalDateTime(rs, "created_at"))
+                  .build();
+          result.computeIfAbsent(contentId, k -> new ArrayList<>()).add(tag);
+        });
+    return result;
+  }
+
+  @Transactional(readOnly = true)
   public List<TagEntity> findContentTags(Long contentId) {
     String sql =
         """

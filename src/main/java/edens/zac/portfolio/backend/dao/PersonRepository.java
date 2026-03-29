@@ -2,7 +2,10 @@ package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.services.SlugUtil;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -136,6 +139,40 @@ public class PersonRepository extends BaseDao {
     String sql = "SELECT id, person_name, slug, created_at FROM content_people WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, PERSON_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public Map<Long, List<ContentPersonEntity>> findPeopleByContentIds(List<Long> contentIds) {
+    if (contentIds == null || contentIds.isEmpty()) {
+      return Map.of();
+    }
+
+    String sql =
+        """
+        SELECT cip.image_id AS content_id, p.id, p.person_name, p.slug, p.created_at
+        FROM content_image_people cip
+        JOIN content_people p ON cip.person_id = p.id
+        WHERE cip.image_id IN (:contentIds)
+        ORDER BY p.person_name ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
+
+    Map<Long, List<ContentPersonEntity>> result = new HashMap<>();
+    namedParameterJdbcTemplate.query(
+        sql,
+        params,
+        rs -> {
+          Long contentId = rs.getLong("content_id");
+          ContentPersonEntity person =
+              ContentPersonEntity.builder()
+                  .id(rs.getLong("id"))
+                  .personName(rs.getString("person_name"))
+                  .slug(rs.getString("slug"))
+                  .createdAt(getLocalDateTime(rs, "created_at"))
+                  .build();
+          result.computeIfAbsent(contentId, k -> new ArrayList<>()).add(person);
+        });
+    return result;
   }
 
   @Transactional(readOnly = true)

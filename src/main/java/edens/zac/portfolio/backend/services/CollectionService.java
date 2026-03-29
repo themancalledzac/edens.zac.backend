@@ -238,9 +238,7 @@ public class CollectionService {
         contentRepository.countOrphanImagesByLocationName(locationName, allCollectionIds);
 
     List<ContentModels.Image> images =
-        orphanImageEntities.stream()
-            .map(contentProcessingUtil::convertImageEntityToModel)
-            .collect(Collectors.toList());
+        contentProcessingUtil.batchConvertImageEntitiesToModels(orphanImageEntities);
 
     // Resolve the location record
     Records.Location location =
