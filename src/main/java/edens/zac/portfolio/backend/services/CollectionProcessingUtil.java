@@ -13,11 +13,16 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
-import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +74,7 @@ public class CollectionProcessingUtil {
    */
   public List<CollectionModel> batchConvertToBasicModels(List<CollectionEntity> entities) {
     if (entities == null || entities.isEmpty()) {
-      return new java.util.ArrayList<>();
+      return new ArrayList<>();
     }
 
     // Batch-load all locations referenced by these collections
@@ -95,7 +100,7 @@ public class CollectionProcessingUtil {
     }
 
     // Batch-load tags, people, and locations for all cover images
-    List<Long> coverContentIds = new java.util.ArrayList<>(coverImagesById.keySet());
+    List<Long> coverContentIds = new ArrayList<>(coverImagesById.keySet());
     List<Long> coverLocationIds =
         coverImagesById.values().stream()
             .map(ContentImageEntity::getLocationId)

@@ -253,13 +253,6 @@ public class TagRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<Long> findContentTagIds(Long contentId) {
-    String sql = "SELECT tag_id FROM content_tags WHERE content_id = :contentId";
-    MapSqlParameterSource params = createParameterSource().addValue("contentId", contentId);
-    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
-  }
-
-  @Transactional(readOnly = true)
   public Map<Long, List<Long>> findTagIdsByContentIds(List<Long> contentIds) {
     if (contentIds == null || contentIds.isEmpty()) {
       return Map.of();
