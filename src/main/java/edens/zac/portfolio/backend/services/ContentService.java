@@ -56,6 +56,7 @@ public class ContentService {
   private final ContentRepository contentRepository;
   private final CollectionRepository collectionRepository;
   private final ContentProcessingUtil contentProcessingUtil;
+  private final ImageProcessingService imageProcessingService;
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
   private final MetadataService metadataService;
@@ -305,7 +306,7 @@ public class ContentService {
         // Use helper method - no serial number provided, will generate UUID
         // Pass tracking set so newly created cameras are automatically tracked
         ContentCameraEntity camera =
-            contentProcessingUtil.createCamera(cameraName, null, newCameras);
+            imageProcessingService.createCamera(cameraName, null, newCameras);
         image.setCamera(camera);
       } else if (cameraUpdate.getPrev() != null) {
         image.setCamera(metadataService.findCameraById(cameraUpdate.getPrev()));
@@ -321,7 +322,7 @@ public class ContentService {
         String lensName = lensUpdate.getNewValue().trim();
         // Use helper method - no serial number provided, will generate UUID
         // Pass tracking set so newly created lenses are automatically tracked
-        ContentLensEntity lens = contentProcessingUtil.createLens(lensName, null, newLenses);
+        ContentLensEntity lens = imageProcessingService.createLens(lensName, null, newLenses);
         image.setLens(lens);
       } else if (lensUpdate.getPrev() != null) {
         image.setLens(metadataService.findLensById(lensUpdate.getPrev()));
@@ -522,7 +523,7 @@ public class ContentService {
         ContentImageEntity image = imageOpt.get();
 
         // Delete from S3 before deleting from database
-        contentProcessingUtil.deleteImageFromS3(image);
+        imageProcessingService.deleteImageFromS3(image);
 
         // Delete from database
         contentRepository.deleteImageById(imageId);
@@ -804,8 +805,8 @@ public class ContentService {
       }
 
       // S3 upload + resize + WebP conversion only - NO database calls
-      ContentProcessingUtil.PreparedImageData prepared =
-          contentProcessingUtil.prepareImageForUpload(file);
+      ImageProcessingService.PreparedImageData prepared =
+          imageProcessingService.prepareImageForUpload(file);
 
       return new PreparedImage(prepared, filename);
 
@@ -838,10 +839,10 @@ public class ContentService {
     for (PreparedImage prepared : preparedImages) {
       try {
         // Save to DB with dedupe: CREATE, UPDATE, or SKIP
-        ContentProcessingUtil.DedupeResult dedupeResult =
-            contentProcessingUtil.savePreparedImageWithDedupe(prepared.data(), null);
+        ImageProcessingService.DedupeResult dedupeResult =
+            imageProcessingService.savePreparedImageWithDedupe(prepared.data(), null);
 
-        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.SKIP) {
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.SKIP) {
           skipped.add(
               new ImageUploadResult.SkippedFile(
                   prepared.filename(), "Duplicate with same or older export date"));
@@ -852,13 +853,13 @@ public class ContentService {
         ContentImageEntity entity = dedupeResult.entity();
 
         // Auto-associate tags and people extracted from XMP keywords (only on new images)
-        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.CREATE) {
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE) {
           contentProcessingUtil.associateExtractedKeywords(
               entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
         }
 
         // For UPDATE, check if already in this collection
-        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.UPDATE) {
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
           Optional<CollectionContentEntity> existingJoin =
               collectionRepository.findContentByCollectionIdAndContentId(
                   collectionId, entity.getId());
@@ -908,7 +909,7 @@ public class ContentService {
   }
 
   /** Record to hold prepared image data before database save */
-  private record PreparedImage(ContentProcessingUtil.PreparedImageData data, String filename) {}
+  private record PreparedImage(ImageProcessingService.PreparedImageData data, String filename) {}
 
   @Transactional
   public ContentModels.Text createTextContent(ContentRequests.CreateTextContent request) {
@@ -978,7 +979,7 @@ public class ContentService {
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // Process file: upload to S3 + extract first-frame WebP thumbnail + save entity
-    ContentGifEntity gifEntity = contentProcessingUtil.processGifContent(file, title);
+    ContentGifEntity gifEntity = imageProcessingService.processGifContent(file, title);
 
     // Resolve order index: use provided value or append to end
     int resolvedOrderIndex = orderIndex != null ? orderIndex : nextOrderIndex(collectionId);
