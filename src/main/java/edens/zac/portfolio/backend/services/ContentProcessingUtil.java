@@ -275,6 +275,108 @@ public class ContentProcessingUtil {
   }
 
   /**
+   * Batch-convert a list of ContentImageEntity to models using pre-fetched related data. Eliminates
+   * N+1 queries by batch-loading tags, people, and locations for all images in 3 queries total.
+   *
+   * @param entities The image entities to convert
+   * @return List of converted image models
+   */
+  public List<ContentModels.Image> batchConvertImageEntitiesToModels(
+      List<ContentImageEntity> entities) {
+    if (entities == null || entities.isEmpty()) {
+      return new ArrayList<>();
+    }
+
+    List<Long> contentIds = entities.stream().map(ContentImageEntity::getId).toList();
+
+    List<Long> locationIds =
+        entities.stream()
+            .map(ContentImageEntity::getLocationId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+
+    Map<Long, List<TagEntity>> tagsByContentId = tagRepository.findTagsByContentIds(contentIds);
+    Map<Long, List<ContentPersonEntity>> peopleByContentId =
+        personRepository.findPeopleByContentIds(contentIds);
+    Map<Long, LocationEntity> locationsById = locationRepository.findByIds(locationIds);
+
+    return entities.stream()
+        .map(
+            entity ->
+                buildImageModelWithBatchData(
+                    entity, null, null, tagsByContentId, peopleByContentId, locationsById))
+        .toList();
+  }
+
+  /**
+   * Build an image model using pre-fetched batch data instead of per-image queries.
+   *
+   * @param entity The image entity to convert
+   * @param orderIndex Position within the parent collection (null outside collection context)
+   * @param visible Visibility in the parent collection (null outside collection context)
+   * @param tagsByContentId Pre-loaded tags grouped by content ID
+   * @param peopleByContentId Pre-loaded people grouped by content ID
+   * @param locationsById Pre-loaded locations keyed by location ID
+   * @return The corresponding image content model
+   */
+  ContentModels.Image buildImageModelWithBatchData(
+      ContentImageEntity entity,
+      Integer orderIndex,
+      Boolean visible,
+      Map<Long, List<TagEntity>> tagsByContentId,
+      Map<Long, List<ContentPersonEntity>> peopleByContentId,
+      Map<Long, LocationEntity> locationsById) {
+    if (entity == null) {
+      return null;
+    }
+
+    Records.Location location = null;
+    if (entity.getLocationId() != null) {
+      LocationEntity locationEntity = locationsById.get(entity.getLocationId());
+      if (locationEntity != null) {
+        location =
+            new Records.Location(
+                locationEntity.getId(), locationEntity.getLocationName(), locationEntity.getSlug());
+      }
+    }
+
+    Set<TagEntity> tags = new HashSet<>(tagsByContentId.getOrDefault(entity.getId(), List.of()));
+    Set<ContentPersonEntity> people =
+        new HashSet<>(peopleByContentId.getOrDefault(entity.getId(), List.of()));
+
+    return new ContentModels.Image(
+        entity.getId(),
+        entity.getContentType(),
+        entity.getTitle(),
+        null,
+        entity.getImageUrlWeb(),
+        orderIndex,
+        visible,
+        entity.getCreatedAt(),
+        entity.getUpdatedAt(),
+        entity.getImageWidth(),
+        entity.getImageHeight(),
+        entity.getIso(),
+        entity.getAuthor(),
+        entity.getRating(),
+        entity.getFStop(),
+        entity.getLens() != null ? lensEntityToLensModel(entity.getLens()) : null,
+        entity.getBlackAndWhite(),
+        entity.getIsFilm(),
+        entity.getFilmType() != null ? entity.getFilmType().getDisplayName() : null,
+        entity.getFilmFormat(),
+        entity.getShutterSpeed(),
+        entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null,
+        entity.getFocalLength(),
+        location,
+        entity.getCaptureDate(),
+        convertTagsToModels(tags),
+        convertPeopleToModels(people),
+        new ArrayList<>());
+  }
+
+  /**
    * Convert a ContentImageEntity to a ContentModels.Image record.
    *
    * @param entity The image content entity to convert

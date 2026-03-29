@@ -746,7 +746,8 @@ class CollectionServiceTest {
           .thenReturn(List.of(orphanImage));
       when(contentRepository.countOrphanImagesByLocationName(eq(locationName), eq(List.of(10L))))
           .thenReturn(1L);
-      when(contentProcessingUtil.convertImageEntityToModel(orphanImage)).thenReturn(imageModel);
+      when(contentProcessingUtil.batchConvertImageEntitiesToModels(List.of(orphanImage)))
+          .thenReturn(List.of(imageModel));
 
       // Act
       LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
@@ -784,7 +785,8 @@ class CollectionServiceTest {
       when(contentRepository.countOrphanImagesByLocationName(
               eq(locationName), eq(Collections.emptyList())))
           .thenReturn(1L);
-      when(contentProcessingUtil.convertImageEntityToModel(orphanImage)).thenReturn(imageModel);
+      when(contentProcessingUtil.batchConvertImageEntitiesToModels(List.of(orphanImage)))
+          .thenReturn(List.of(imageModel));
 
       // Act
       LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);

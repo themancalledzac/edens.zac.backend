@@ -5,7 +5,9 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.SlugUtil;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -59,6 +61,19 @@ public class LocationRepository extends BaseDao {
     String sql = "SELECT id, location_name, slug, created_at FROM location WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, LOCATION_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public Map<Long, LocationEntity> findByIds(List<Long> ids) {
+    if (ids == null || ids.isEmpty()) {
+      return Map.of();
+    }
+
+    String sql = "SELECT id, location_name, slug, created_at FROM location WHERE id IN (:ids)";
+    MapSqlParameterSource params = createParameterSource().addValue("ids", ids);
+    List<LocationEntity> locations = query(sql, LOCATION_ROW_MAPPER, params);
+
+    return locations.stream().collect(Collectors.toMap(LocationEntity::getId, loc -> loc));
   }
 
   @Transactional(readOnly = true)

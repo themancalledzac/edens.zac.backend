@@ -4,13 +4,18 @@ import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -32,6 +37,8 @@ public class CollectionProcessingUtil {
   private final ContentRepository contentRepository;
   private final ContentProcessingUtil contentProcessingUtil;
   private final LocationRepository locationRepository;
+  private final TagRepository tagRepository;
+  private final PersonRepository personRepository;
 
   // =============================================================================
   // ENTITY-TO-MODEL CONVERSION
@@ -152,9 +159,26 @@ public class CollectionProcessingUtil {
       contentMap = new HashMap<>();
     }
 
-    // Convert join table entries to content models with collection-specific
-    // metadata
-    // Use the bulk-loaded content entities instead of lazy-loaded ones
+    // Batch-load tags, people, and locations for all IMAGE content to avoid N+1 queries
+    List<Long> imageContentIds =
+        contentMap.values().stream()
+            .filter(c -> c.getContentType() == ContentType.IMAGE)
+            .map(ContentEntity::getId)
+            .toList();
+    List<Long> imageLocationIds =
+        contentMap.values().stream()
+            .filter(c -> c.getContentType() == ContentType.IMAGE)
+            .map(c -> ((ContentImageEntity) c).getLocationId())
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<Long, List<TagEntity>> tagsByContentId =
+        tagRepository.findTagsByContentIds(imageContentIds);
+    Map<Long, List<ContentPersonEntity>> peopleByContentId =
+        personRepository.findPeopleByContentIds(imageContentIds);
+    Map<Long, LocationEntity> locationsById = locationRepository.findByIds(imageLocationIds);
+
+    // Convert join table entries to content models with collection-specific metadata
     List<ContentModel> contents =
         collectionContentList.stream()
             .filter(Objects::nonNull)
@@ -168,7 +192,18 @@ public class CollectionProcessingUtil {
                         entity.getId());
                     return null;
                   }
-                  // Use bulk-loaded conversion method directly (no temporary object needed)
+                  // For IMAGE content, use batch-loaded data to avoid N+1 queries
+                  if (content.getContentType() == ContentType.IMAGE
+                      && content instanceof ContentImageEntity imageEntity) {
+                    return contentProcessingUtil.buildImageModelWithBatchData(
+                        imageEntity,
+                        cc.getOrderIndex(),
+                        cc.getVisible(),
+                        tagsByContentId,
+                        peopleByContentId,
+                        locationsById);
+                  }
+                  // For other content types, use the standard conversion
                   return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
                 })
             .filter(Objects::nonNull)
