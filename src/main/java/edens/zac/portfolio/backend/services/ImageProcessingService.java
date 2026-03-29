@@ -82,6 +82,7 @@ public class ImageProcessingService {
   private static final String PATH_IMAGE_WEB = "Image/Web";
   private static final String PATH_GIF_FULL = "Gif/Full";
   private static final String PATH_GIF_THUMBNAIL = "Gif/Thumbnail";
+  private static final String PATH_IMAGE_RAW = "Image/Raw";
 
   // ============================================================================
   // PUBLIC RECORDS
@@ -95,6 +96,7 @@ public class ImageProcessingService {
       String originalFilename,
       String imageUrlOriginal,
       String imageUrlWeb,
+      String imageUrlRaw,
       Map<String, String> metadata,
       List<String> extractedTags,
       List<String> extractedPeople,
@@ -123,14 +125,25 @@ public class ImageProcessingService {
   // ============================================================================
 
   /**
-   * Prepare an image for upload: extract metadata, upload to S3, resize, convert to WebP. This
-   * method does NO database calls and is safe to run in parallel virtual threads.
+   * Prepare an image for upload without RAW file processing. Delegates to the full method with null
+   * rawFilePath.
+   */
+  public PreparedImageData prepareImageForUpload(MultipartFile file) throws IOException {
+    return prepareImageForUpload(file, null);
+  }
+
+  /**
+   * Prepare an image for upload: extract metadata, upload to S3, resize, convert to WebP.
+   * Optionally uploads the original RAW source file to S3. This method does NO database calls and
+   * is safe to run in parallel virtual threads.
    *
    * @param file The image file to process
+   * @param rawFilePath Optional absolute path to the RAW source file on local disk
    * @return PreparedImageData with S3 URLs and metadata, ready for DB save
    * @throws IOException If there's an error processing the file
    */
-  public PreparedImageData prepareImageForUpload(MultipartFile file) throws IOException {
+  public PreparedImageData prepareImageForUpload(MultipartFile file, String rawFilePath)
+      throws IOException {
     log.info("Preparing image for upload: {}", file.getOriginalFilename());
 
     // Extract metadata from original file (no DB calls)
@@ -186,6 +199,18 @@ public class ImageProcessingService {
             imageYear,
             imageMonth);
 
+    // Upload RAW source file to S3 if path provided
+    String imageUrlRaw = null;
+    if (rawFilePath != null && !rawFilePath.isBlank()) {
+      Path rawPath = Path.of(rawFilePath);
+      byte[] rawBytes = Files.readAllBytes(rawPath);
+      String rawFilename = rawPath.getFileName().toString();
+      String rawMimeType = detectMimeType(rawFilename);
+      imageUrlRaw =
+          uploadToS3(rawBytes, rawFilename, rawMimeType, PATH_IMAGE_RAW, imageYear, imageMonth);
+      log.info("Uploaded RAW file to S3: {}", rawFilename);
+    }
+
     // Parse capture date for deduplication
     LocalDateTime captureDate =
         imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate"));
@@ -198,6 +223,7 @@ public class ImageProcessingService {
         originalFilename,
         imageUrlOriginal,
         imageUrlWeb,
+        imageUrlRaw,
         metadata,
         extraction.extractedTags(),
         extraction.extractedPeople(),
@@ -248,9 +274,11 @@ public class ImageProcessingService {
         // Capture old URLs before overwriting
         final String oldImageUrlWeb = existing.getImageUrlWeb();
         final String oldImageUrlOriginal = existing.getImageUrlOriginal();
+        final String oldImageUrlRaw = existing.getImageUrlRaw();
 
         existing.setImageUrlOriginal(prepared.imageUrlOriginal());
         existing.setImageUrlWeb(prepared.imageUrlWeb());
+        existing.setImageUrlRaw(prepared.imageUrlRaw());
         existing.setLastExportDate(prepared.lastExportDate());
         existing.setImageWidth(
             imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), 0));
@@ -258,11 +286,12 @@ public class ImageProcessingService {
             imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
 
         // Save DB first -- if this fails, old S3 files remain valid
-        ContentImageEntity savedEntity = contentRepository.saveImage(existing);
+        final ContentImageEntity savedEntity = contentRepository.saveImage(existing);
 
         // Now safe to delete old S3 files (DB already points to new URLs)
         deleteS3ObjectByUrl(oldImageUrlWeb);
         deleteS3ObjectByUrl(oldImageUrlOriginal);
+        deleteS3ObjectByUrl(oldImageUrlRaw);
 
         return new DedupeResult(savedEntity, DedupeAction.UPDATE);
       }
@@ -285,6 +314,7 @@ public class ImageProcessingService {
             .isFilm(imageMetadataExtractor.parseBooleanOrDefault(metadata.get("isFilm"), false))
             .shutterSpeed(metadata.get("shutterSpeed"))
             .imageUrlOriginal(prepared.imageUrlOriginal())
+            .imageUrlRaw(prepared.imageUrlRaw())
             .focalLength(metadata.get("focalLength"))
             .locationId(
                 metadata.get("location") != null
@@ -445,6 +475,7 @@ public class ImageProcessingService {
   public void deleteImageFromS3(ContentImageEntity image) {
     deleteS3ObjectByUrl(image.getImageUrlWeb());
     deleteS3ObjectByUrl(image.getImageUrlOriginal());
+    deleteS3ObjectByUrl(image.getImageUrlRaw());
   }
 
   /** Delete a single S3 object by its CloudFront URL. Logs but does not throw on failure. */
@@ -620,6 +651,32 @@ public class ImageProcessingService {
 
     return (contentType != null && contentType.equals("image/webp"))
         || (filename != null && filename.toLowerCase().endsWith(".webp"));
+  }
+
+  /**
+   * Detect MIME type from file extension for RAW and common image formats.
+   *
+   * @param filename The filename with extension
+   * @return The MIME type string
+   */
+  private String detectMimeType(String filename) {
+    if (filename == null) {
+      return "application/octet-stream";
+    }
+    String lower = filename.toLowerCase();
+    if (lower.endsWith(".nef")) return "image/x-nikon-nef";
+    if (lower.endsWith(".cr2")) return "image/x-canon-cr2";
+    if (lower.endsWith(".cr3")) return "image/x-canon-cr3";
+    if (lower.endsWith(".arw")) return "image/x-sony-arw";
+    if (lower.endsWith(".dng")) return "image/x-adobe-dng";
+    if (lower.endsWith(".raf")) return "image/x-fuji-raf";
+    if (lower.endsWith(".orf")) return "image/x-olympus-orf";
+    if (lower.endsWith(".rw2")) return "image/x-panasonic-rw2";
+    if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+    if (lower.endsWith(".tiff") || lower.endsWith(".tif")) return "image/tiff";
+    if (lower.endsWith(".png")) return "image/png";
+    if (lower.endsWith(".webp")) return "image/webp";
+    return "application/octet-stream";
   }
 
   // ============================================================================

@@ -80,6 +80,7 @@ class ContentControllerDevTest {
             null,
             null,
             null,
+            null,
             java.util.List.of());
 
     testImages = List.of(testImage);
@@ -322,7 +323,7 @@ class ContentControllerDevTest {
     // actual upload
     // Full file upload testing would require integration tests with @SpringBootTest
 
-    verify(contentService, never()).createImagesParallel(any(), any());
+    verify(contentService, never()).createImagesParallel(any(), any(), any());
   }
 
   // ============== MEDIUM PRIORITY TESTS - POST /api/admin/content/tags

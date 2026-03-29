@@ -604,12 +604,14 @@ public class ContentService {
    * cover, and links the new collection as a child of the "staging" collection.
    */
   public ImageUploadResult createCollectionWithImages(
-      CollectionRequests.Create createRequest, List<MultipartFile> files) {
+      CollectionRequests.Create createRequest,
+      List<MultipartFile> files,
+      Map<String, String> rawFilePathMap) {
     CollectionRequests.UpdateResponse collectionResponse =
         collectionService.createCollection(createRequest);
     Long newCollectionId = collectionResponse.collection().getId();
 
-    ImageUploadResult result = createImagesParallel(newCollectionId, files);
+    ImageUploadResult result = createImagesParallel(newCollectionId, files, rawFilePathMap);
 
     if (!result.successful().isEmpty()) {
       postUploadProcessing(newCollectionId, createRequest, result.successful());
@@ -720,7 +722,8 @@ public class ContentService {
    * @param files List of image files to upload
    * @return List of successfully created images
    */
-  public ImageUploadResult createImagesParallel(Long collectionId, List<MultipartFile> files) {
+  public ImageUploadResult createImagesParallel(
+      Long collectionId, List<MultipartFile> files, Map<String, String> rawFilePathMap) {
     log.info(
         "Creating {} images for collection {} with parallel processing (batch size: {})",
         files.size(),
@@ -747,9 +750,11 @@ public class ContentService {
       List<CompletableFuture<PreparedImage>> futures =
           batch.stream()
               .map(
-                  file ->
-                      CompletableFuture.supplyAsync(
-                          () -> prepareImageAsync(file), imageProcessingExecutor))
+                  file -> {
+                    String rawPath = rawFilePathMap.getOrDefault(file.getOriginalFilename(), null);
+                    return CompletableFuture.supplyAsync(
+                        () -> prepareImageAsync(file, rawPath), imageProcessingExecutor);
+                  })
               .toList();
 
       // Wait for this batch to complete and track failures
@@ -791,7 +796,7 @@ public class ContentService {
    * @param file The image file to process
    * @return Prepared image data, or null if processing failed
    */
-  private PreparedImage prepareImageAsync(MultipartFile file) {
+  private PreparedImage prepareImageAsync(MultipartFile file, String rawFilePath) {
     String filename = file.getOriginalFilename();
     try {
       log.debug("Preparing image: {}", filename);
@@ -804,9 +809,9 @@ public class ContentService {
         return null;
       }
 
-      // S3 upload + resize + WebP conversion only - NO database calls
+      // S3 upload + resize + WebP conversion + optional RAW upload - NO database calls
       ImageProcessingService.PreparedImageData prepared =
-          imageProcessingService.prepareImageForUpload(file);
+          imageProcessingService.prepareImageForUpload(file, rawFilePath);
 
       return new PreparedImage(prepared, filename);
 

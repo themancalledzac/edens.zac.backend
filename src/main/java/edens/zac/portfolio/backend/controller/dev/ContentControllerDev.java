@@ -59,6 +59,7 @@ public class ContentControllerDev {
   public ResponseEntity<ImageUploadResult> createImages(
       @PathVariable Long collectionId,
       @RequestParam(value = "locationId", required = false) Long locationId,
+      @RequestParam(value = "rawFilePaths", required = false) List<String> rawFilePaths,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
       throw new IllegalArgumentException(
@@ -70,7 +71,9 @@ public class ContentControllerDev {
       contentService.setCollectionLocationIfMissing(collectionId, locationId);
     }
 
-    ImageUploadResult result = contentService.createImagesParallel(collectionId, files);
+    Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
+    ImageUploadResult result =
+        contentService.createImagesParallel(collectionId, files, rawFilePathMap);
     log.info(
         "Created {} image(s) in collection: {} ({} failed)",
         result.successful().size(),
@@ -201,6 +204,7 @@ public class ContentControllerDev {
           @org.springframework.format.annotation.DateTimeFormat(
               iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
           java.time.LocalDate collectionDate,
+      @RequestParam(value = "rawFilePaths", required = false) List<String> rawFilePaths,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
       throw new IllegalArgumentException(
@@ -214,7 +218,9 @@ public class ContentControllerDev {
         new CollectionRequests.Create(
             collectionType, title, description, locationId, locationName, collectionDate);
 
-    ImageUploadResult result = contentService.createCollectionWithImages(createRequest, files);
+    Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
+    ImageUploadResult result =
+        contentService.createCollectionWithImages(createRequest, files, rawFilePathMap);
     log.info(
         "Created collection '{}' with {} image(s) ({} failed)",
         title,
@@ -249,5 +255,25 @@ public class ContentControllerDev {
     String personName = request.personName();
     Map<String, Object> response = contentService.createPerson(personName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * Parse rawFilePaths parameter entries into a map of rendered filename to RAW file path. Each
+   * entry is formatted as "renderedFilename|/absolute/path/to/raw.NEF".
+   *
+   * @param rawFilePaths List of "filename|path" strings, or null
+   * @return Map of rendered filename to RAW path, empty map if input is null
+   */
+  private Map<String, String> parseRawFilePaths(List<String> rawFilePaths) {
+    if (rawFilePaths == null || rawFilePaths.isEmpty()) {
+      return Map.of();
+    }
+    return rawFilePaths.stream()
+        .filter(entry -> entry != null && entry.contains("|"))
+        .collect(
+            java.util.stream.Collectors.toMap(
+                entry -> entry.substring(0, entry.indexOf('|')),
+                entry -> entry.substring(entry.indexOf('|') + 1),
+                (existing, replacement) -> replacement));
   }
 }

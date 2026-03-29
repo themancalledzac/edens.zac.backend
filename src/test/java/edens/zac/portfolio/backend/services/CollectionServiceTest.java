@@ -554,7 +554,8 @@ class CollectionServiceTest {
       ContentModels.Image imageModel =
           new ContentModels.Image(
               20L, null, "Sunset", null, null, null, null, null, null, null, null, null, null, null,
-              null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+              null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null);
 
       when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(1L);
       when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
@@ -594,7 +595,8 @@ class CollectionServiceTest {
       ContentModels.Image imageModel =
           new ContentModels.Image(
               30L, null, "Bridge", null, null, null, null, null, null, null, null, null, null, null,
-              null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+              null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+              null);
 
       when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
       when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))

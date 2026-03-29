@@ -71,6 +71,7 @@ class ImageProcessingServiceTest {
         filename,
         "https://cdn/full/image.jpg",
         "https://cdn/web/image.webp",
+        null,
         metadata,
         List.of(),
         List.of(),

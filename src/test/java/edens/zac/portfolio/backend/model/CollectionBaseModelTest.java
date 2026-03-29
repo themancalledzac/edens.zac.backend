@@ -41,6 +41,7 @@ class CollectionBaseModelTest {
         null,
         null,
         null,
+        null,
         1920,
         1080,
         null,

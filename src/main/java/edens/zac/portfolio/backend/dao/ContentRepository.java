@@ -66,6 +66,7 @@ public class ContentRepository extends BaseDao {
                 .locationId(getLong(rs, "location_id"))
                 .imageUrlWeb(rs.getString("image_url_web"))
                 .imageUrlOriginal(getString(rs, "image_url_original"))
+                .imageUrlRaw(getString(rs, "image_url_raw"))
                 .captureDate(getLocalDateTime(rs, "capture_date"))
                 .lastExportDate(getLocalDateTime(rs, "last_export_date"))
                 .originalFilename(getString(rs, "original_filename"))
@@ -156,7 +157,7 @@ public class ContentRepository extends BaseDao {
              ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
              ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
              ci.location_id,
-             ci.image_url_web, ci.image_url_original,
+             ci.image_url_web, ci.image_url_original, ci.image_url_raw,
              ci.capture_date, ci.last_export_date, ci.original_filename,
              cam.camera_name,
              lens.lens_name,
@@ -396,13 +397,13 @@ public class ContentRepository extends BaseDao {
                                     f_stop, lens_id, black_and_white, is_film, film_type_id,
                                     film_format, shutter_speed, camera_id, focal_length,
                                     location_id,
-                                    image_url_web, image_url_original,
+                                    image_url_web, image_url_original, image_url_raw,
                                     capture_date, last_export_date, original_filename)
           VALUES (:id, :title, :imageWidth, :imageHeight, :iso, :author, :rating,
                   :fStop, :lensId, :blackAndWhite, :isFilm, :filmTypeId,
                   :filmFormat, :shutterSpeed, :cameraId, :focalLength,
                   :locationId,
-                  :imageUrlWeb, :imageUrlOriginal,
+                  :imageUrlWeb, :imageUrlOriginal, :imageUrlRaw,
                   :captureDate, :lastExportDate, :originalFilename)
           """;
 
@@ -437,6 +438,7 @@ public class ContentRepository extends BaseDao {
               film_format = :filmFormat, shutter_speed = :shutterSpeed, camera_id = :cameraId,
               focal_length = :focalLength, location_id = :locationId,
               image_url_web = :imageUrlWeb, image_url_original = :imageUrlOriginal,
+              image_url_raw = :imageUrlRaw,
               capture_date = :captureDate, last_export_date = :lastExportDate,
               original_filename = :originalFilename
           WHERE id = :id
@@ -471,6 +473,7 @@ public class ContentRepository extends BaseDao {
         .addValue("locationId", entity.getLocationId())
         .addValue("imageUrlWeb", entity.getImageUrlWeb())
         .addValue("imageUrlOriginal", entity.getImageUrlOriginal())
+        .addValue("imageUrlRaw", entity.getImageUrlRaw())
         .addValue("captureDate", entity.getCaptureDate())
         .addValue("lastExportDate", entity.getLastExportDate())
         .addValue("originalFilename", entity.getOriginalFilename());
@@ -665,7 +668,7 @@ public class ContentRepository extends BaseDao {
                     ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
                     ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
                     ci.location_id,
-                    ci.image_url_web, ci.image_url_original,
+                    ci.image_url_web, ci.image_url_original, ci.image_url_raw,
                     ci.capture_date, ci.last_export_date, ci.original_filename,
                     cam.camera_name,
                     lens.lens_name,

@@ -114,6 +114,7 @@ class CollectionControllerProdTest {
         title,
         null,
         "https://example.com/stub.jpg",
+        null,
         0,
         true,
         null,
