@@ -737,10 +737,10 @@ class CollectionServiceTest {
       when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(1L);
       when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
           .thenReturn(List.of(collectionEntity));
-      when(collectionRepository.findVisibleIdsByLocationName(locationName))
-          .thenReturn(List.of(10L));
-      when(collectionProcessingUtil.convertToBasicModel(collectionEntity))
-          .thenReturn(collectionModel);
+      // totalCollections (1) <= collectionSize (35), so IDs are extracted from paginated result
+      // — no findVisibleIdsByLocationName call needed
+      when(collectionProcessingUtil.batchConvertToBasicModels(List.of(collectionEntity)))
+          .thenReturn(List.of(collectionModel));
       when(contentRepository.findOrphanImagesByLocationName(
               eq(locationName), eq(List.of(10L)), eq(50), eq(0)))
           .thenReturn(List.of(orphanImage));
@@ -777,7 +777,8 @@ class CollectionServiceTest {
       when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
       when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
           .thenReturn(Collections.emptyList());
-      when(collectionRepository.findVisibleIdsByLocationName(locationName))
+      // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
+      when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
           .thenReturn(Collections.emptyList());
       when(contentRepository.findOrphanImagesByLocationName(
               eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))
@@ -811,7 +812,8 @@ class CollectionServiceTest {
       when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
       when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
           .thenReturn(Collections.emptyList());
-      when(collectionRepository.findVisibleIdsByLocationName(locationName))
+      // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
+      when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
           .thenReturn(Collections.emptyList());
       when(contentRepository.findOrphanImagesByLocationName(
               eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))

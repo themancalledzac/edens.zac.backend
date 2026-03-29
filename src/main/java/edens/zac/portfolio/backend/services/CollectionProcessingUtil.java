@@ -45,24 +45,8 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Helper method to populate coverImage on a model from an entity. Fetches the cover image by ID
-   * and converts to ContentModels.Image with all metadata including imageWidth and imageHeight.
-   */
-  private void populateCoverImage(CollectionModel model, CollectionEntity entity) {
-    if (entity.getCoverImageId() != null) {
-      ContentImageEntity coverImage =
-          contentRepository.findImageById(entity.getCoverImageId()).orElse(null);
-      if (coverImage != null) {
-        ContentModels.Image coverImageModel =
-            contentProcessingUtil.convertImageEntityToModel(coverImage);
-        model.setCoverImage(coverImageModel);
-      }
-    }
-  }
-
-  /**
-   * Convert a CollectionEntity to a CollectionModel with basic information. This does not include
-   * content.
+   * Convert a single CollectionEntity to a CollectionModel with basic information. Delegates to
+   * batch conversion for consistency (same code path, just for a list of 1).
    *
    * @param entity The entity to convert
    * @return The converted model
@@ -71,50 +55,121 @@ public class CollectionProcessingUtil {
     if (entity == null) {
       return null;
     }
+    List<CollectionModel> results = batchConvertToBasicModels(List.of(entity));
+    return results.isEmpty() ? null : results.getFirst();
+  }
 
+  /**
+   * Batch-convert a list of CollectionEntity to basic models. Pre-fetches all locations and cover
+   * images in batch queries to avoid N+1. Each collection with a cover image would otherwise
+   * trigger 5 individual queries (location + cover image + cover's tags/people/location).
+   *
+   * @param entities The collection entities to convert
+   * @return List of converted collection models with locations and cover images populated
+   */
+  public List<CollectionModel> batchConvertToBasicModels(List<CollectionEntity> entities) {
+    if (entities == null || entities.isEmpty()) {
+      return new java.util.ArrayList<>();
+    }
+
+    // Batch-load all locations referenced by these collections
+    List<Long> locationIds =
+        entities.stream()
+            .map(CollectionEntity::getLocationId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<Long, LocationEntity> locationsById = locationRepository.findByIds(locationIds);
+
+    // Batch-load all cover images
+    List<Long> coverImageIds =
+        entities.stream()
+            .map(CollectionEntity::getCoverImageId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<Long, ContentImageEntity> coverImagesById = new HashMap<>();
+    if (!coverImageIds.isEmpty()) {
+      List<ContentImageEntity> coverImages = contentRepository.findImagesByIds(coverImageIds);
+      coverImages.forEach(img -> coverImagesById.put(img.getId(), img));
+    }
+
+    // Batch-load tags, people, and locations for all cover images
+    List<Long> coverContentIds = new java.util.ArrayList<>(coverImagesById.keySet());
+    List<Long> coverLocationIds =
+        coverImagesById.values().stream()
+            .map(ContentImageEntity::getLocationId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<Long, List<TagEntity>> tagsByContentId =
+        tagRepository.findTagsByContentIds(coverContentIds);
+    Map<Long, List<ContentPersonEntity>> peopleByContentId =
+        personRepository.findPeopleByContentIds(coverContentIds);
+    // Merge cover image locations with collection locations
+    Map<Long, LocationEntity> allLocationsById = new HashMap<>(locationsById);
+    if (!coverLocationIds.isEmpty()) {
+      allLocationsById.putAll(locationRepository.findByIds(coverLocationIds));
+    }
+
+    // Convert each entity using pre-loaded data
+    return entities.stream()
+        .map(
+            entity ->
+                buildBasicModel(
+                    entity, allLocationsById, coverImagesById, tagsByContentId, peopleByContentId))
+        .collect(Collectors.toList());
+  }
+
+  /** Build a single CollectionModel from pre-loaded batch data. */
+  private CollectionModel buildBasicModel(
+      CollectionEntity entity,
+      Map<Long, LocationEntity> locationsById,
+      Map<Long, ContentImageEntity> coverImagesById,
+      Map<Long, List<TagEntity>> tagsByContentId,
+      Map<Long, List<ContentPersonEntity>> peopleByContentId) {
     CollectionModel model = new CollectionModel();
     model.setId(entity.getId());
     model.setType(entity.getType());
     model.setTitle(entity.getTitle());
     model.setSlug(entity.getSlug());
     model.setDescription(entity.getDescription());
-    // Convert locationId to LocationModel
+
     if (entity.getLocationId() != null) {
-      LocationEntity locationEntity =
-          locationRepository.findById(entity.getLocationId()).orElse(null);
-      if (locationEntity != null) {
-        model.setLocation(
-            new Records.Location(
-                locationEntity.getId(),
-                locationEntity.getLocationName(),
-                locationEntity.getSlug()));
+      LocationEntity loc = locationsById.get(entity.getLocationId());
+      if (loc != null) {
+        model.setLocation(new Records.Location(loc.getId(), loc.getLocationName(), loc.getSlug()));
       }
     }
+
     model.setCollectionDate(entity.getCollectionDate());
     model.setVisible(entity.getVisible());
 
-    // Populate coverImage using helper method
-    populateCoverImage(model, entity);
+    // Populate cover image from pre-loaded data
+    if (entity.getCoverImageId() != null) {
+      ContentImageEntity coverImage = coverImagesById.get(entity.getCoverImageId());
+      if (coverImage != null) {
+        ContentModels.Image coverImageModel =
+            contentProcessingUtil.buildImageModelWithBatchData(
+                coverImage, null, null, tagsByContentId, peopleByContentId, locationsById);
+        model.setCoverImage(coverImageModel);
+      }
+    }
 
     model.setIsPasswordProtected(entity.getPasswordHash() != null);
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
-    // Use stored displayMode if available, otherwise compute default based on type
     DisplayMode mode = entity.getDisplayMode();
     if (mode == null) {
-      // Fallback to computed default for existing records without displayMode
       mode =
           entity.getType() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED;
     }
     model.setDisplayMode(mode);
-
-    // Set pagination metadata
     model.setContentCount(entity.getTotalContent());
     model.setContentPerPage(entity.getContentPerPage());
     model.setTotalPages(entity.getTotalPages());
     model.setCurrentPage(0);
     model.setRowsWide(entity.getRowsWide());
-
     return model;
   }
 
