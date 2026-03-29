@@ -4,8 +4,27 @@ import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
-import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCameraEntity;
+import edens.zac.portfolio.backend.entity.ContentFilmTypeEntity;
+import edens.zac.portfolio.backend.entity.ContentGifEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentLensEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
+import edens.zac.portfolio.backend.entity.ContentTextEntity;
+import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
+import edens.zac.portfolio.backend.model.ContentImageUpdateResponse;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.ImageSearchRequest;
+import edens.zac.portfolio.backend.model.ImageSearchResponse;
+import edens.zac.portfolio.backend.model.ImageUploadResult;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import java.util.ArrayList;
@@ -36,7 +55,9 @@ public class ContentService {
   private final TagRepository tagRepository;
   private final ContentRepository contentRepository;
   private final CollectionRepository collectionRepository;
-  private final ContentProcessingUtil contentProcessingUtil;
+  private final ContentMutationUtil contentMutationUtil;
+  private final ContentModelConverter contentModelConverter;
+  private final ImageProcessingService imageProcessingService;
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
   private final MetadataService metadataService;
@@ -158,8 +179,7 @@ public class ContentService {
 
           // Update existing collection relationships (visibility, orderIndex)
           if (collectionUpdate.prev() != null && !collectionUpdate.prev().isEmpty()) {
-            contentProcessingUtil.handleContentChildCollectionUpdates(
-                image, collectionUpdate.prev());
+            contentMutationUtil.handleContentChildCollectionUpdates(image, collectionUpdate.prev());
           }
 
           // Add to new collections if specified
@@ -173,7 +193,7 @@ public class ContentService {
 
         // Convert to model and add to results
         ContentModels.Image imageModel =
-            (ContentModels.Image) contentProcessingUtil.convertRegularContentEntityToModel(image);
+            (ContentModels.Image) contentModelConverter.convertRegularContentEntityToModel(image);
         updatedImages.add(imageModel);
 
       } catch (IllegalArgumentException e) {
@@ -215,13 +235,13 @@ public class ContentService {
                 newlyCreatedCameras.isEmpty()
                     ? null
                     : newlyCreatedCameras.stream()
-                        .map(ContentProcessingUtil::cameraEntityToCameraModel)
+                        .map(ContentModelConverter::cameraEntityToCameraModel)
                         .collect(Collectors.toList()))
             .lenses(
                 newlyCreatedLenses.isEmpty()
                     ? null
                     : newlyCreatedLenses.stream()
-                        .map(ContentProcessingUtil::lensEntityToLensModel)
+                        .map(ContentModelConverter::lensEntityToLensModel)
                         .collect(Collectors.toList()))
             .filmTypes(
                 newlyCreatedFilmTypes.isEmpty()
@@ -286,7 +306,7 @@ public class ContentService {
         // Use helper method - no serial number provided, will generate UUID
         // Pass tracking set so newly created cameras are automatically tracked
         ContentCameraEntity camera =
-            contentProcessingUtil.createCamera(cameraName, null, newCameras);
+            imageProcessingService.createCamera(cameraName, null, newCameras);
         image.setCamera(camera);
       } else if (cameraUpdate.getPrev() != null) {
         image.setCamera(metadataService.findCameraById(cameraUpdate.getPrev()));
@@ -302,7 +322,7 @@ public class ContentService {
         String lensName = lensUpdate.getNewValue().trim();
         // Use helper method - no serial number provided, will generate UUID
         // Pass tracking set so newly created lenses are automatically tracked
-        ContentLensEntity lens = contentProcessingUtil.createLens(lensName, null, newLenses);
+        ContentLensEntity lens = imageProcessingService.createLens(lensName, null, newLenses);
         image.setLens(lens);
       } else if (lensUpdate.getPrev() != null) {
         image.setLens(metadataService.findLensById(lensUpdate.getPrev()));
@@ -369,7 +389,7 @@ public class ContentService {
             .collect(Collectors.toSet());
 
     Set<TagEntity> updatedTags =
-        contentProcessingUtil.updateTags(
+        contentMutationUtil.updateTags(
             currentTags, tagUpdate, newTags // Track newly created tags
             // for response
             );
@@ -469,7 +489,7 @@ public class ContentService {
             .collect(Collectors.toSet());
 
     Set<ContentPersonEntity> updatedPeople =
-        contentProcessingUtil.updatePeople(
+        contentMutationUtil.updatePeople(
             currentPeople, personUpdate, newPeople // Track newly
             // created people
             // for response
@@ -503,7 +523,7 @@ public class ContentService {
         ContentImageEntity image = imageOpt.get();
 
         // Delete from S3 before deleting from database
-        contentProcessingUtil.deleteImageFromS3(image);
+        imageProcessingService.deleteImageFromS3(image);
 
         // Delete from database
         contentRepository.deleteImageById(imageId);
@@ -529,7 +549,7 @@ public class ContentService {
 
     List<ContentModels.Image> images =
         entities.stream()
-            .map(contentProcessingUtil::convertImageEntityToModel)
+            .map(contentModelConverter::convertImageEntityToModel)
             .collect(Collectors.toList());
 
     return new ImageSearchResponse(images, totalElements, totalPages);
@@ -552,7 +572,7 @@ public class ContentService {
             .map(
                 entity ->
                     (ContentModels.Image)
-                        contentProcessingUtil.convertRegularContentEntityToModel(entity))
+                        contentModelConverter.convertRegularContentEntityToModel(entity))
             .collect(Collectors.toList());
 
     return new org.springframework.data.domain.PageImpl<>(imageModels, pageable, total);
@@ -785,8 +805,8 @@ public class ContentService {
       }
 
       // S3 upload + resize + WebP conversion only - NO database calls
-      ContentProcessingUtil.PreparedImageData prepared =
-          contentProcessingUtil.prepareImageForUpload(file);
+      ImageProcessingService.PreparedImageData prepared =
+          imageProcessingService.prepareImageForUpload(file);
 
       return new PreparedImage(prepared, filename);
 
@@ -819,10 +839,10 @@ public class ContentService {
     for (PreparedImage prepared : preparedImages) {
       try {
         // Save to DB with dedupe: CREATE, UPDATE, or SKIP
-        ContentProcessingUtil.DedupeResult dedupeResult =
-            contentProcessingUtil.savePreparedImageWithDedupe(prepared.data(), null);
+        ImageProcessingService.DedupeResult dedupeResult =
+            imageProcessingService.savePreparedImageWithDedupe(prepared.data(), null);
 
-        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.SKIP) {
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.SKIP) {
           skipped.add(
               new ImageUploadResult.SkippedFile(
                   prepared.filename(), "Duplicate with same or older export date"));
@@ -833,20 +853,20 @@ public class ContentService {
         ContentImageEntity entity = dedupeResult.entity();
 
         // Auto-associate tags and people extracted from XMP keywords (only on new images)
-        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.CREATE) {
-          contentProcessingUtil.associateExtractedKeywords(
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE) {
+          contentMutationUtil.associateExtractedKeywords(
               entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
         }
 
         // For UPDATE, check if already in this collection
-        if (dedupeResult.action() == ContentProcessingUtil.DedupeAction.UPDATE) {
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
           Optional<CollectionContentEntity> existingJoin =
               collectionRepository.findContentByCollectionIdAndContentId(
                   collectionId, entity.getId());
           if (existingJoin.isPresent()) {
             // Already linked, just convert and add to results
             ContentModel contentModel =
-                contentProcessingUtil.convertEntityToModel(existingJoin.get());
+                contentModelConverter.convertEntityToModel(existingJoin.get());
             if (contentModel instanceof ContentModels.Image imageModel) {
               createdImages.add(imageModel);
             }
@@ -866,7 +886,7 @@ public class ContentService {
         collectionRepository.saveContent(joinEntry);
 
         // Convert to model
-        ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+        ContentModel contentModel = contentModelConverter.convertEntityToModel(joinEntry);
         if (contentModel instanceof ContentModels.Image imageModel) {
           createdImages.add(imageModel);
         }
@@ -889,7 +909,7 @@ public class ContentService {
   }
 
   /** Record to hold prepared image data before database save */
-  private record PreparedImage(ContentProcessingUtil.PreparedImageData data, String filename) {}
+  private record PreparedImage(ImageProcessingService.PreparedImageData data, String filename) {}
 
   @Transactional
   public ContentModels.Text createTextContent(ContentRequests.CreateTextContent request) {
@@ -933,7 +953,7 @@ public class ContentService {
         orderIndex);
 
     // Convert to model and return
-    ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+    ContentModel contentModel = contentModelConverter.convertEntityToModel(joinEntry);
     if (contentModel instanceof ContentModels.Text textModel) {
       return textModel;
     } else {
@@ -959,7 +979,7 @@ public class ContentService {
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // Process file: upload to S3 + extract first-frame WebP thumbnail + save entity
-    ContentGifEntity gifEntity = contentProcessingUtil.processGifContent(file, title);
+    ContentGifEntity gifEntity = imageProcessingService.processGifContent(file, title);
 
     // Resolve order index: use provided value or append to end
     int resolvedOrderIndex = orderIndex != null ? orderIndex : nextOrderIndex(collectionId);
@@ -981,7 +1001,7 @@ public class ContentService {
         collectionId,
         resolvedOrderIndex);
 
-    ContentModel contentModel = contentProcessingUtil.convertEntityToModel(joinEntry);
+    ContentModel contentModel = contentModelConverter.convertEntityToModel(joinEntry);
     if (contentModel instanceof ContentModels.Gif gifModel) {
       return gifModel;
     }

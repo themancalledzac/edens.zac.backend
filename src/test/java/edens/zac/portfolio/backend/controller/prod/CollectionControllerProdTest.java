@@ -19,6 +19,7 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.PasswordRequest;
 import edens.zac.portfolio.backend.model.Records;
+import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ class CollectionControllerProdTest {
 
   private MockMvc mockMvc;
 
+  @Mock private ClientGalleryAuthService clientGalleryAuthService;
   @Mock private CollectionService collectionService;
 
   @InjectMocks private CollectionControllerProd contentCollectionController;
@@ -357,10 +359,10 @@ class CollectionControllerProdTest {
     // Arrange
     PasswordRequest passwordRequest = new PasswordRequest("correct-password");
 
-    when(collectionService.validateClientGalleryAccess(
+    when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("correct-password")))
         .thenReturn(true);
-    when(collectionService.generateAccessToken(eq("test-client-gallery")))
+    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
         .thenReturn("mock-token|12345");
 
     // Act & Assert
@@ -381,7 +383,7 @@ class CollectionControllerProdTest {
     // Arrange
     PasswordRequest passwordRequest = new PasswordRequest("wrong-password");
 
-    when(collectionService.validateClientGalleryAccess(
+    when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("wrong-password")))
         .thenReturn(false);
 
@@ -419,7 +421,7 @@ class CollectionControllerProdTest {
     // Arrange
     PasswordRequest passwordRequest = new PasswordRequest("any-password");
 
-    when(collectionService.validateClientGalleryAccess(eq("non-existent"), anyString()))
+    when(clientGalleryAuthService.validateClientGalleryAccess(eq("non-existent"), anyString()))
         .thenThrow(new ResourceNotFoundException("Collection not found with slug: non-existent"));
 
     // Act & Assert
@@ -541,7 +543,7 @@ class CollectionControllerProdTest {
 
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(protectedCollection);
-    when(collectionService.validateAccessToken(eq("client-gallery"), eq("valid-token")))
+    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("valid-token")))
         .thenReturn(true);
 
     // Act & Assert
@@ -567,7 +569,7 @@ class CollectionControllerProdTest {
 
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(protectedCollection);
-    when(collectionService.validateAccessToken(eq("client-gallery"), eq("wrong-token")))
+    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("wrong-token")))
         .thenReturn(false);
 
     // Act & Assert
@@ -624,10 +626,10 @@ class CollectionControllerProdTest {
     // Arrange
     PasswordRequest passwordRequest = new PasswordRequest("correct-password");
 
-    when(collectionService.validateClientGalleryAccess(
+    when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("correct-password")))
         .thenReturn(true);
-    when(collectionService.generateAccessToken(eq("test-client-gallery")))
+    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
         .thenReturn("hmac-token|1234567890");
 
     // Act & Assert

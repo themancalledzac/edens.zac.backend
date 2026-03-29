@@ -13,11 +13,17 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
-import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +41,7 @@ public class CollectionProcessingUtil {
 
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
-  private final ContentProcessingUtil contentProcessingUtil;
+  private final ContentModelConverter contentModelConverter;
   private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
   private final PersonRepository personRepository;
@@ -69,7 +75,7 @@ public class CollectionProcessingUtil {
    */
   public List<CollectionModel> batchConvertToBasicModels(List<CollectionEntity> entities) {
     if (entities == null || entities.isEmpty()) {
-      return new java.util.ArrayList<>();
+      return new ArrayList<>();
     }
 
     // Batch-load all locations referenced by these collections
@@ -95,7 +101,7 @@ public class CollectionProcessingUtil {
     }
 
     // Batch-load tags, people, and locations for all cover images
-    List<Long> coverContentIds = new java.util.ArrayList<>(coverImagesById.keySet());
+    List<Long> coverContentIds = new ArrayList<>(coverImagesById.keySet());
     List<Long> coverLocationIds =
         coverImagesById.values().stream()
             .map(ContentImageEntity::getLocationId)
@@ -150,7 +156,7 @@ public class CollectionProcessingUtil {
       ContentImageEntity coverImage = coverImagesById.get(entity.getCoverImageId());
       if (coverImage != null) {
         ContentModels.Image coverImageModel =
-            contentProcessingUtil.buildImageModelWithBatchData(
+            contentModelConverter.buildImageModelWithBatchData(
                 coverImage, null, null, tagsByContentId, peopleByContentId, locationsById);
         model.setCoverImage(coverImageModel);
       }
@@ -250,7 +256,7 @@ public class CollectionProcessingUtil {
                   // For IMAGE content, use batch-loaded data to avoid N+1 queries
                   if (content.getContentType() == ContentType.IMAGE
                       && content instanceof ContentImageEntity imageEntity) {
-                    return contentProcessingUtil.buildImageModelWithBatchData(
+                    return contentModelConverter.buildImageModelWithBatchData(
                         imageEntity,
                         cc.getOrderIndex(),
                         cc.getVisible(),
@@ -259,7 +265,7 @@ public class CollectionProcessingUtil {
                         locationsById);
                   }
                   // For other content types, use the standard conversion
-                  return contentProcessingUtil.convertBulkLoadedContentToModel(content, cc);
+                  return contentModelConverter.convertBulkLoadedContentToModel(content, cc);
                 })
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
@@ -273,6 +279,152 @@ public class CollectionProcessingUtil {
     model.setContentCount((int) totalElements);
     model.setContentPerPage(pageSize);
     return model;
+  }
+
+  /**
+   * Convert a CollectionEntity to a fully populated CollectionModel with all content and child
+   * collection metadata. Fetches all join entries (no pagination), batch-loads content, and
+   * populates child collections on image content.
+   *
+   * @param entity The collection entity to convert
+   * @return Fully populated collection model
+   */
+  public CollectionModel convertToFullModel(CollectionEntity entity) {
+    List<CollectionContentEntity> joinEntries =
+        collectionRepository.findContentByCollectionIdOrderByOrderIndex(entity.getId());
+
+    if (joinEntries.isEmpty()) {
+      CollectionModel model = convertToBasicModel(entity);
+      model.setContent(Collections.emptyList());
+      return model;
+    }
+
+    CollectionModel model = convertToModel(entity, joinEntries, 0, 0, joinEntries.size());
+    populateCollectionsOnContent(model);
+    return model;
+  }
+
+  /**
+   * Populate child collection metadata on image content items. For each image in the model, finds
+   * all collections it belongs to and attaches them as ChildCollection records. Uses batch queries
+   * to avoid N+1.
+   *
+   * @param model The CollectionModel with content items to populate
+   */
+  public void populateCollectionsOnContent(CollectionModel model) {
+    if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
+      return;
+    }
+
+    List<Long> contentIds =
+        model.getContent().stream()
+            .map(ContentModel::id)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+
+    if (contentIds.isEmpty()) {
+      return;
+    }
+
+    // Batch-load all collections for all content items
+    List<CollectionContentEntity> allCollections =
+        collectionRepository.findContentByContentIdsIn(contentIds);
+    Map<Long, List<CollectionContentEntity>> collectionsByContentId =
+        allCollections.stream()
+            .collect(Collectors.groupingBy(CollectionContentEntity::getContentId));
+
+    // Batch-load collection entities
+    List<Long> collectionIds =
+        allCollections.stream()
+            .map(CollectionContentEntity::getCollectionId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+
+    Map<Long, CollectionEntity> collectionsById =
+        collectionIds.isEmpty()
+            ? Collections.emptyMap()
+            : collectionRepository.findByIds(collectionIds).stream()
+                .collect(Collectors.toMap(CollectionEntity::getId, c -> c));
+
+    // Batch-load cover image URLs
+    List<Long> coverImageIds =
+        collectionsById.values().stream()
+            .map(CollectionEntity::getCoverImageId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+
+    Map<Long, String> coverImageUrlsById =
+        coverImageIds.isEmpty()
+            ? Collections.emptyMap()
+            : contentRepository.findImagesByIds(coverImageIds).stream()
+                .collect(
+                    Collectors.toMap(
+                        ContentImageEntity::getId, ContentImageEntity::getImageUrlWeb));
+
+    // Populate collections on image content (records are immutable -- use withCollections)
+    List<ContentModel> contents =
+        model.getContent().stream()
+            .map(
+                content -> {
+                  if (content instanceof ContentModels.Image imageModel) {
+                    Long contentId = content.id();
+                    List<CollectionContentEntity> contentCollections =
+                        collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
+                    List<Records.ChildCollection> childCollections =
+                        contentCollections.stream()
+                            .map(
+                                joinEntry ->
+                                    convertToChildCollection(
+                                        joinEntry, collectionsById, coverImageUrlsById))
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+                    return (ContentModel) imageModel.withCollections(childCollections);
+                  }
+                  return content;
+                })
+            .collect(Collectors.toList());
+
+    model.setContent(contents);
+  }
+
+  /**
+   * Convert a join table entry to a ChildCollection record using pre-loaded data.
+   *
+   * @param joinEntry The join table entry
+   * @param collectionsById Map of collection ID to CollectionEntity (pre-loaded)
+   * @param coverImageUrlsById Map of cover image ID to image URL (pre-loaded)
+   * @return The ChildCollection model, or null if collection not found
+   */
+  private Records.ChildCollection convertToChildCollection(
+      CollectionContentEntity joinEntry,
+      Map<Long, CollectionEntity> collectionsById,
+      Map<Long, String> coverImageUrlsById) {
+    if (joinEntry == null || joinEntry.getCollectionId() == null) {
+      return null;
+    }
+
+    CollectionEntity collection = collectionsById.get(joinEntry.getCollectionId());
+    if (collection == null) {
+      log.warn(
+          "Collection {} not found in pre-loaded map for join entry", joinEntry.getCollectionId());
+      return null;
+    }
+
+    final String coverImageUrl =
+        collection.getCoverImageId() != null
+            ? coverImageUrlsById.get(collection.getCoverImageId())
+            : null;
+
+    return new Records.ChildCollection(
+        collection.getId(),
+        collection.getTitle(),
+        collection.getSlug(),
+        coverImageUrl,
+        joinEntry.getVisible(),
+        null);
   }
 
   // =============================================================================

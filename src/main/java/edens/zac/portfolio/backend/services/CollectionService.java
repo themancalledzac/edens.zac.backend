@@ -7,23 +7,35 @@ import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
-import edens.zac.portfolio.backend.entity.*;
-import edens.zac.portfolio.backend.model.*;
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
+import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
+import edens.zac.portfolio.backend.model.LocationPageResponse;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -42,12 +54,10 @@ public class CollectionService {
   private final ContentRepository contentRepository;
   private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
-  private final ContentProcessingUtil contentProcessingUtil;
+  private final ContentMutationUtil contentMutationUtil;
+  private final ContentModelConverter contentModelConverter;
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final MetadataService metadataService;
-
-  @Value("${app.access-token.secret}")
-  private String accessTokenSecret;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
 
@@ -80,96 +90,9 @@ public class CollectionService {
             collection, collectionContentList, normalizedPage, normalizedSize, totalElements);
 
     // Populate collections on content items
-    populateCollectionsOnContent(model);
+    collectionProcessingUtil.populateCollectionsOnContent(model);
 
     return model;
-  }
-
-  @Transactional(readOnly = true)
-  public boolean validateClientGalleryAccess(String slug, String password) {
-    log.debug("Validating access to client gallery: {}", slug);
-
-    CollectionEntity collection =
-        collectionRepository
-            .findBySlug(slug)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
-
-    // Not password-protected — allow access
-    if (collection.getPasswordHash() == null) {
-      return true;
-    }
-
-    // Password required but not provided
-    if (password == null || password.isEmpty()) {
-      return false;
-    }
-
-    // Compare submitted password against stored hash
-    return CollectionProcessingUtil.passwordMatches(password, collection.getPasswordHash());
-  }
-
-  /**
-   * Generate a time-limited HMAC access token for a client gallery.
-   *
-   * @param slug Collection slug
-   * @return HMAC token with embedded expiry
-   */
-  public String generateAccessToken(String slug) {
-    long expiry = Instant.now().plus(Duration.ofHours(24)).getEpochSecond();
-    String payload = slug + "|" + expiry;
-    String hmac = computeHmac(payload, accessTokenSecret);
-    return hmac + "|" + expiry;
-  }
-
-  /**
-   * Validate a time-limited HMAC access token for a client gallery.
-   *
-   * @param slug Collection slug
-   * @param accessToken The token to validate
-   * @return true if valid and not expired
-   */
-  @Transactional(readOnly = true)
-  public boolean validateAccessToken(String slug, String accessToken) {
-    if (accessToken == null || !accessToken.contains("|")) {
-      return false;
-    }
-    // Look up the collection; if it doesn't exist, deny access
-    Optional<CollectionEntity> optCollection = collectionRepository.findBySlug(slug);
-    if (optCollection.isEmpty()) {
-      return false;
-    }
-    // Non-protected collections are always accessible
-    if (optCollection.get().getPasswordHash() == null) {
-      return true;
-    }
-
-    String[] parts = accessToken.split("\\|");
-    if (parts.length != 2) {
-      return false;
-    }
-    try {
-      long expiry = Long.parseLong(parts[1]);
-      if (Instant.now().getEpochSecond() > expiry) {
-        return false;
-      }
-      String expectedHmac = computeHmac(slug + "|" + expiry, accessTokenSecret);
-      return MessageDigest.isEqual(
-          expectedHmac.getBytes(StandardCharsets.UTF_8), parts[0].getBytes(StandardCharsets.UTF_8));
-    } catch (NumberFormatException e) {
-      return false;
-    }
-  }
-
-  private String computeHmac(String data, String secret) {
-    try {
-      Mac mac = Mac.getInstance("HmacSHA256");
-      mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-      byte[] hmacBytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-      return Base64.getUrlEncoder().withoutPadding().encodeToString(hmacBytes);
-    } catch (Exception e) {
-      throw new RuntimeException("HMAC computation failed", e);
-    }
   }
 
   @Transactional(readOnly = true)
@@ -239,7 +162,7 @@ public class CollectionService {
         contentRepository.countOrphanImagesByLocationName(locationName, allCollectionIds);
 
     List<ContentModels.Image> images =
-        contentProcessingUtil.batchConvertImageEntitiesToModels(orphanImageEntities);
+        contentModelConverter.batchConvertImageEntitiesToModels(orphanImageEntities);
 
     // Resolve the location record from already-converted collections
     Records.Location location =
@@ -281,7 +204,7 @@ public class CollectionService {
 
     // Get collection metadata only - content is fetched via join table in
     // convertToFullModel
-    return collectionRepository.findBySlug(slug).map(this::convertToFullModel);
+    return collectionRepository.findBySlug(slug).map(collectionProcessingUtil::convertToFullModel);
   }
 
   @Transactional
@@ -387,7 +310,7 @@ public class CollectionService {
                 () -> new ResourceNotFoundException("Collection not found with ID: " + id));
 
     // Convert to full model (includes content blocks)
-    return convertToFullModel(entity);
+    return collectionProcessingUtil.convertToFullModel(entity);
   }
 
   @Transactional
@@ -502,201 +425,6 @@ public class CollectionService {
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
-  /**
-   * Convert a CollectionEntity to a CollectionModel with all content. Efficiently batch-loads
-   * collections for all content items to avoid N+1 queries.
-   *
-   * @param entity The entity to convert
-   * @return The converted model
-   */
-  private CollectionModel convertToFullModel(CollectionEntity entity) {
-    CollectionModel model = collectionProcessingUtil.convertToBasicModel(entity);
-    if (model == null) {
-      // Defensive: mocked util may return null in tests; ensure non-null model to
-      // avoid NPE
-      model = new CollectionModel();
-    }
-
-    // Fetch join table entries explicitly to get content with collection-specific
-    // metadata
-    List<CollectionContentEntity> joinEntries =
-        collectionRepository.findContentByCollectionIdOrderByOrderIndex(entity.getId());
-
-    if (joinEntries.isEmpty()) {
-      model.setContent(Collections.emptyList());
-      return model;
-    }
-
-    // Extract content IDs and bulk load content entities
-    List<Long> contentIds =
-        joinEntries.stream()
-            .map(CollectionContentEntity::getContentId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
-
-    // Bulk load all content entities
-    final Map<Long, ContentEntity> contentMap;
-    if (!contentIds.isEmpty()) {
-      List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
-      contentMap =
-          contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
-    } else {
-      contentMap = new HashMap<>();
-    }
-
-    // Convert join table entries to content models using bulk-loaded entities
-    List<ContentModel> contents =
-        joinEntries.stream()
-            .map(
-                joinEntry -> {
-                  ContentEntity content = contentMap.get(joinEntry.getContentId());
-                  if (content == null) {
-                    log.warn(
-                        "Content entity {} not found for collection {}",
-                        joinEntry.getContentId(),
-                        entity.getId());
-                    return null;
-                  }
-                  return contentProcessingUtil.convertBulkLoadedContentToModel(content, joinEntry);
-                })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-
-    model.setContent(contents);
-
-    // Populate collections on content items
-    populateCollectionsOnContent(model);
-
-    return model;
-  }
-
-  /**
-   * Populate collections on content items in a CollectionModel. Batch-loads all collections for all
-   * content items and populates the collections field on ContentModels.Image instances. This avoids
-   * N+1 queries by pre-loading all collections and cover images upfront.
-   *
-   * @param model The CollectionModel with content items to populate
-   */
-  private void populateCollectionsOnContent(CollectionModel model) {
-    if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
-      return;
-    }
-
-    // Extract all content IDs for batch loading
-    List<Long> contentIds =
-        model.getContent().stream()
-            .map(ContentModel::id)
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
-
-    if (contentIds.isEmpty()) {
-      return;
-    }
-
-    // Batch-load all collections for all content items in one query
-    List<CollectionContentEntity> allCollections =
-        collectionRepository.findContentByContentIdsIn(contentIds);
-    Map<Long, List<CollectionContentEntity>> collectionsByContentId =
-        allCollections.stream()
-            .collect(Collectors.groupingBy(CollectionContentEntity::getContentId));
-
-    // Extract all unique collection IDs and batch-load them
-    List<Long> collectionIds =
-        allCollections.stream()
-            .map(CollectionContentEntity::getCollectionId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
-
-    Map<Long, CollectionEntity> collectionsById =
-        collectionIds.isEmpty()
-            ? Collections.emptyMap()
-            : collectionRepository.findByIds(collectionIds).stream()
-                .collect(Collectors.toMap(CollectionEntity::getId, c -> c));
-
-    // Extract all unique cover image IDs and batch-load them
-    List<Long> coverImageIds =
-        collectionsById.values().stream()
-            .map(CollectionEntity::getCoverImageId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
-
-    Map<Long, String> coverImageUrlsById =
-        coverImageIds.isEmpty()
-            ? Collections.emptyMap()
-            : contentRepository.findImagesByIds(coverImageIds).stream()
-                .collect(
-                    Collectors.toMap(
-                        ContentImageEntity::getId, ContentImageEntity::getImageUrlWeb));
-
-    // Populate collections for image content (records are immutable -- use withCollections)
-    List<ContentModel> contents =
-        model.getContent().stream()
-            .map(
-                content -> {
-                  if (content instanceof ContentModels.Image imageModel) {
-                    Long contentId = content.id();
-                    List<CollectionContentEntity> contentCollections =
-                        collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
-                    List<Records.ChildCollection> childCollections =
-                        contentCollections.stream()
-                            .map(
-                                joinEntry ->
-                                    convertToChildCollection(
-                                        joinEntry, collectionsById, coverImageUrlsById))
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toList());
-                    return (ContentModel) imageModel.withCollections(childCollections);
-                  }
-                  return content;
-                })
-            .collect(Collectors.toList());
-
-    model.setContent(contents);
-  }
-
-  /**
-   * Convert a CollectionContentEntity to a ChildCollection model using pre-loaded collections and
-   * cover images. Used for populating the collections field in ContentModels.Image. This avoids N+1
-   * queries by using maps instead of individual database lookups.
-   *
-   * @param joinEntry The join table entry
-   * @param collectionsById Map of collection ID to CollectionEntity (pre-loaded)
-   * @param coverImageUrlsById Map of cover image ID to image URL (pre-loaded)
-   * @return The ChildCollection model, or null if collection not found
-   */
-  private Records.ChildCollection convertToChildCollection(
-      CollectionContentEntity joinEntry,
-      Map<Long, CollectionEntity> collectionsById,
-      Map<Long, String> coverImageUrlsById) {
-    if (joinEntry == null || joinEntry.getCollectionId() == null) {
-      return null;
-    }
-
-    CollectionEntity collection = collectionsById.get(joinEntry.getCollectionId());
-    if (collection == null) {
-      log.warn(
-          "Collection {} not found in pre-loaded map for join entry", joinEntry.getCollectionId());
-      return null;
-    }
-
-    final String coverImageUrl =
-        collection.getCoverImageId() != null
-            ? coverImageUrlsById.get(collection.getCoverImageId())
-            : null;
-
-    return new Records.ChildCollection(
-        collection.getId(),
-        collection.getTitle(),
-        collection.getSlug(),
-        coverImageUrl,
-        joinEntry.getVisible(),
-        null);
-  }
-
   @Transactional(readOnly = true)
   public CollectionRequests.UpdateResponse getUpdateCollectionData(String slug) {
     log.debug("Getting update collection data for slug: {}", slug);
@@ -744,7 +472,7 @@ public class CollectionService {
 
   /**
    * Update collection tags using prev/new/remove pattern. Uses shared utility method from
-   * ContentProcessingUtil.
+   * ContentMutationUtil.
    *
    * @param collection The collection to update
    * @param tagUpdate The tag update containing remove/prev/newValue operations
@@ -765,7 +493,7 @@ public class CollectionService {
             .collect(Collectors.toSet());
 
     Set<TagEntity> updatedTags =
-        contentProcessingUtil.updateTags(
+        contentMutationUtil.updateTags(
             currentTags, tagUpdate, null // No tracking needed for collection updates
             );
 
@@ -781,7 +509,7 @@ public class CollectionService {
 
   /**
    * Update collection people using prev/new/remove pattern. Uses shared utility method from
-   * ContentProcessingUtil.
+   * ContentMutationUtil.
    *
    * @param collection The collection to update
    * @param personUpdate The person update containing remove/prev/newValue operations
@@ -803,7 +531,7 @@ public class CollectionService {
             .collect(Collectors.toSet());
 
     Set<ContentPersonEntity> updatedPeople =
-        contentProcessingUtil.updatePeople(
+        contentMutationUtil.updatePeople(
             currentPeople, personUpdate, null // No tracking needed for collection updates
             );
 
@@ -1132,7 +860,7 @@ public class CollectionService {
     CollectionModel model =
         collectionProcessingUtil.convertToModel(
             collection, updatedContent, 0, pageSize, totalElements);
-    populateCollectionsOnContent(model);
+    collectionProcessingUtil.populateCollectionsOnContent(model);
     return model;
   }
 }
