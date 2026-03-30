@@ -145,7 +145,7 @@ public class ImageProcessingService {
    */
   public PreparedImageData prepareImageForUpload(MultipartFile file, String rawFilePath)
       throws IOException {
-    log.info("Preparing image for upload: {}", file.getOriginalFilename());
+    log.trace("Preparing image for upload: {}", file.getOriginalFilename());
 
     // Extract metadata from original file (no DB calls)
     ImageMetadataExtractor.MetadataExtractionResult extraction =
@@ -158,7 +158,6 @@ public class ImageProcessingService {
             metadata.get("createDate"), metadata.get("modifyDate"));
     int imageYear = dateComponents[0];
     int imageMonth = dateComponents[1];
-    log.info("Image capture date: {}/{}", imageYear, String.format("%02d", imageMonth));
 
     // Upload original full-size image to S3
     String originalFilename = file.getOriginalFilename();
@@ -210,7 +209,78 @@ public class ImageProcessingService {
     // Use file last-modified as export date (approximation for dedupe)
     LocalDateTime lastExportDate = LocalDateTime.now();
 
-    log.info("Image prepared successfully: {}", originalFilename);
+    log.info(
+        "Prepared: {} ({}/{})", originalFilename, imageYear, String.format("%02d", imageMonth));
+    return new PreparedImageData(
+        originalFilename,
+        imageUrlOriginal,
+        imageUrlWeb,
+        null,
+        rawFilePath,
+        metadata,
+        extraction.extractedTags(),
+        extraction.extractedPeople(),
+        imageYear,
+        imageMonth,
+        captureDate,
+        lastExportDate);
+  }
+
+  /**
+   * Prepare an image for upload by reading JPEG from disk. Processes both JPEG and RAW in the same
+   * call (no background RAW phase needed when caller is not waiting).
+   *
+   * @param jpegPath Absolute path to the exported JPEG file on local disk
+   * @param rawFilePath Optional absolute path to the RAW source file
+   * @return PreparedImageData with S3 URLs and metadata
+   * @throws IOException If there's an error reading or processing the files
+   */
+  public PreparedImageData prepareImageFromDisk(Path jpegPath, String rawFilePath)
+      throws IOException {
+    log.trace("Preparing image from disk: {}", jpegPath.getFileName());
+
+    // Extract metadata from JPEG on disk
+    ImageMetadataExtractor.MetadataExtractionResult extraction =
+        imageMetadataExtractor.extractImageMetadata(jpegPath);
+    Map<String, String> metadata = extraction.metadata();
+
+    // Parse image capture date for S3 path organization
+    int[] dateComponents =
+        imageMetadataExtractor.parseImageDate(
+            metadata.get("createDate"), metadata.get("modifyDate"));
+    int imageYear = dateComponents[0];
+    int imageMonth = dateComponents[1];
+
+    // Upload original full-size JPEG to S3 (stream from disk, zero heap copy)
+    String originalFilename = jpegPath.getFileName().toString();
+    String contentType = detectMimeType(originalFilename);
+    final String imageUrlOriginal =
+        streamFileToS3(
+            jpegPath, originalFilename, contentType, PATH_IMAGE_FULL, imageYear, imageMonth);
+
+    // Read image for resize + WebP conversion
+    BufferedImage originalImage = ImageIO.read(jpegPath.toFile());
+    if (originalImage == null) {
+      throw new IOException("Failed to read image: " + originalFilename);
+    }
+    BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+
+    // Convert to WebP
+    byte[] processedImageBytes = convertToWebP(resizedImage);
+    String webFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+    String imageUrlWeb =
+        uploadToS3(
+            processedImageBytes, webFilename, "image/webp", PATH_IMAGE_WEB, imageYear, imageMonth);
+
+    LocalDateTime captureDate =
+        imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate"));
+    LocalDateTime lastExportDate = LocalDateTime.now();
+
+    log.info(
+        "Prepared from disk: {} ({}/{})",
+        originalFilename,
+        imageYear,
+        String.format("%02d", imageMonth));
     return new PreparedImageData(
         originalFilename,
         imageUrlOriginal,
@@ -282,13 +352,31 @@ public class ImageProcessingService {
         existing.setImageHeight(
             imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
 
+        // Update metadata that may change between exports
+        existing.setRating(
+            imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
+        existing.setIsFilm(
+            imageMetadataExtractor.parseBooleanOrDefault(metadata.get("isFilm"), false));
+        // Only update location if the new export has one — never clear user-curated location data.
+        // Location is often set manually via the UI when EXIF lacks GPS data.
+        if (metadata.get("location") != null) {
+          existing.setLocationId(locationRepository.findOrCreate(metadata.get("location")).getId());
+        }
+
+        // Tags and people are handled via associateExtractedKeywords in ContentService
+
         // Save DB first -- if this fails, old S3 files remain valid
         final ContentImageEntity savedEntity = contentRepository.saveImage(existing);
 
-        // Now safe to delete old S3 files (DB already points to new URLs)
-        // Don't delete old RAW — background thread will overwrite the same S3 key.
-        deleteS3ObjectByUrl(oldImageUrlWeb);
-        deleteS3ObjectByUrl(oldImageUrlOriginal);
+        // Only delete old S3 files if the URLs actually changed (different key).
+        // Re-exporting the same image produces the same S3 key — deleting would
+        // destroy the file we just uploaded.
+        if (!prepared.imageUrlWeb().equals(oldImageUrlWeb)) {
+          deleteS3ObjectByUrl(oldImageUrlWeb);
+        }
+        if (!prepared.imageUrlOriginal().equals(oldImageUrlOriginal)) {
+          deleteS3ObjectByUrl(oldImageUrlOriginal);
+        }
 
         return new DedupeResult(savedEntity, DedupeAction.UPDATE);
       }
@@ -365,10 +453,8 @@ public class ImageProcessingService {
       String rawMimeType = detectMimeType(rawFilename);
       String imageUrlRaw =
           streamFileToS3(rawPath, rawFilename, rawMimeType, PATH_IMAGE_RAW, imageYear, imageMonth);
-      log.info("Background RAW upload complete: {}", rawFilename);
-
       contentRepository.updateImageRawUrl(imageId, imageUrlRaw);
-      log.info("Updated image {} with RAW URL: {}", imageId, imageUrlRaw);
+      log.info("RAW uploaded: {} (image {})", rawFilename, imageId);
     } catch (Exception e) {
       log.error("Background RAW upload failed for image {}: {}", imageId, e.getMessage(), e);
     }
@@ -476,7 +562,7 @@ public class ImageProcessingService {
       int month) {
     String s3Key = String.format("%s/%d/%02d/%s", basePath, year, month, filename);
 
-    log.info("Uploading to S3: {}", s3Key);
+    log.trace("Uploading to S3: {}", s3Key);
 
     PutObjectRequest putRequest =
         PutObjectRequest.builder()
@@ -489,7 +575,6 @@ public class ImageProcessingService {
     s3Client.putObject(putRequest, RequestBody.fromBytes(imageBytes));
 
     String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
-    log.info("Successfully uploaded: {}", cloudfrontUrl);
 
     return cloudfrontUrl;
   }
@@ -501,7 +586,7 @@ public class ImageProcessingService {
     String s3Key = String.format("%s/%d/%02d/%s", basePath, year, month, filename);
     long fileSize = Files.size(filePath);
 
-    log.info("Streaming to S3: {} ({} MB)", s3Key, fileSize / (1024 * 1024));
+    log.trace("Streaming to S3: {} ({} MB)", s3Key, fileSize / (1024 * 1024));
 
     PutObjectRequest putRequest =
         PutObjectRequest.builder()
@@ -514,7 +599,6 @@ public class ImageProcessingService {
     s3Client.putObject(putRequest, RequestBody.fromFile(filePath));
 
     String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
-    log.info("Successfully uploaded: {}", cloudfrontUrl);
 
     return cloudfrontUrl;
   }
@@ -538,9 +622,8 @@ public class ImageProcessingService {
     try {
       String s3Key = extractS3KeyFromUrl(url);
       if (s3Key != null) {
-        log.info("Deleting from S3: {}", s3Key);
+        log.trace("Deleting from S3: {}", s3Key);
         s3Client.deleteObject(builder -> builder.bucket(bucketName).key(s3Key));
-        log.info("Successfully deleted from S3: {}", s3Key);
       }
     } catch (Exception e) {
       log.error("Failed to delete S3 object {}: {}", url, e.getMessage());
@@ -610,12 +693,12 @@ public class ImageProcessingService {
     }
 
     if (!needsResize) {
-      log.info(
+      log.trace(
           "Image is within size limits ({}x{}), no resize needed", originalWidth, originalHeight);
       return originalImage;
     }
 
-    log.info(
+    log.trace(
         "Resizing image from {}x{} to {}x{}", originalWidth, originalHeight, newWidth, newHeight);
 
     BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
@@ -641,10 +724,7 @@ public class ImageProcessingService {
    * @throws IOException If there's an error during conversion
    */
   private byte[] convertToWebP(BufferedImage bufferedImage) throws IOException {
-    log.info(
-        "Converting BufferedImage to WebP: {}x{}",
-        bufferedImage.getWidth(),
-        bufferedImage.getHeight());
+    log.trace("Converting to WebP: {}x{}", bufferedImage.getWidth(), bufferedImage.getHeight());
 
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
@@ -654,7 +734,7 @@ public class ImageProcessingService {
     }
 
     ImageWriter writer = writers.next();
-    log.info("Using WebP writer: {}", writer.getClass().getName());
+    log.trace("Using WebP writer: {}", writer.getClass().getName());
 
     ImageWriteParam writeParam = writer.getDefaultWriteParam();
 
@@ -665,7 +745,7 @@ public class ImageProcessingService {
         writeParam.setCompressionType(compressionTypes[0]);
       }
       writeParam.setCompressionQuality(0.85f);
-      log.info("Set WebP compression quality to 85%");
+      log.trace("Set WebP compression quality to 85%");
     } else {
       log.warn("WebP writer does not support compression settings");
     }
@@ -677,7 +757,7 @@ public class ImageProcessingService {
     }
 
     byte[] webpBytes = outputStream.toByteArray();
-    log.info("Successfully converted BufferedImage to WebP. WebP size: {} bytes", webpBytes.length);
+    log.trace("WebP conversion complete: {} bytes", webpBytes.length);
 
     return webpBytes;
   }

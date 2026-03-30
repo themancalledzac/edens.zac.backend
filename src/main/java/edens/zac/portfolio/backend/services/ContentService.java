@@ -21,6 +21,7 @@ import edens.zac.portfolio.backend.model.ContentImageUpdateResponse;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
 import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
@@ -28,6 +29,7 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import jakarta.annotation.PreDestroy;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -66,6 +68,7 @@ public class ContentService {
   private final MetadataService metadataService;
   private final CollectionService collectionService;
   private final TransactionTemplate transactionTemplate;
+  private final JobTrackingService jobTrackingService;
 
   // Virtual thread executor for parallel image processing (Java 21+)
   // Virtual threads are lightweight and don't consume OS threads while waiting on
@@ -649,6 +652,149 @@ public class ContentService {
   }
 
   /**
+   * Accept file paths and process images from local disk in background. Returns a JobStatus
+   * immediately for the caller to return 202.
+   *
+   * @param collectionId Target collection
+   * @param request File paths and optional locationId
+   * @return JobStatus with jobId for polling
+   */
+  public JobTrackingService.JobStatus processFilesFromDisk(
+      Long collectionId, DiskUploadRequest request) {
+    // Verify collection exists before starting
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
+
+    // Optionally set collection location if provided and not already set
+    if (request.locationId() != null) {
+      setCollectionLocationIfMissing(collectionId, request.locationId());
+    }
+
+    var job = jobTrackingService.createJob(request.files().size());
+
+    // Submit background processing on a virtual thread
+    rawUploadExecutor.submit(() -> processFilesFromDiskBackground(collectionId, request, job));
+
+    return job;
+  }
+
+  private void processFilesFromDiskBackground(
+      Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    try {
+      processFilesFromDiskLoop(collectionId, request, job);
+    } catch (Exception e) {
+      log.error("Disk upload job {} failed unexpectedly: {}", job.jobId(), e.getMessage(), e);
+      job.errors().add("Job failed: " + e.getMessage());
+      job.markCompleted();
+    }
+  }
+
+  private void processFilesFromDiskLoop(
+      Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    job.markProcessing();
+    log.info(
+        "Starting disk upload job {} for {} files in collection {}",
+        job.jobId(),
+        job.totalFiles(),
+        collectionId);
+
+    for (var fileEntry : request.files()) {
+      try {
+        var prepared =
+            imageProcessingService.prepareImageFromDisk(
+                Path.of(fileEntry.jpegPath()), fileEntry.rawPath());
+
+        // Save to DB with dedupe (reuses existing logic)
+        ImageProcessingService.DedupeResult dedupeResult =
+            imageProcessingService.savePreparedImageWithDedupe(prepared, null);
+
+        // Update job counters based on dedupeResult action
+        job.processed().incrementAndGet();
+        switch (dedupeResult.action()) {
+          case CREATE -> {
+            job.created().incrementAndGet();
+            // Auto-associate tags and people extracted from XMP keywords
+            contentMutationUtil.associateExtractedKeywords(
+                dedupeResult.entity().getId(),
+                prepared.extractedTags(),
+                prepared.extractedPeople());
+            // Link to collection
+            linkImageToCollection(collectionId, dedupeResult.entity());
+            // Schedule RAW upload in background
+            String rawFilePath = prepared.rawFilePath();
+            if (rawFilePath != null && !rawFilePath.isBlank()) {
+              Long imageId = dedupeResult.entity().getId();
+              int year = prepared.imageYear();
+              int month = prepared.imageMonth();
+              rawUploadExecutor.submit(
+                  () ->
+                      imageProcessingService.uploadRawAndUpdateDb(
+                          imageId, rawFilePath, year, month));
+            }
+          }
+          case UPDATE -> {
+            job.updated().incrementAndGet();
+            // Re-associate tags/people in case they changed between exports
+            contentMutationUtil.associateExtractedKeywords(
+                dedupeResult.entity().getId(),
+                prepared.extractedTags(),
+                prepared.extractedPeople());
+            // For UPDATE, only link if not already in this collection
+            Optional<CollectionContentEntity> existingJoin =
+                collectionRepository.findContentByCollectionIdAndContentId(
+                    collectionId, dedupeResult.entity().getId());
+            if (existingJoin.isEmpty()) {
+              linkImageToCollection(collectionId, dedupeResult.entity());
+            }
+            // Schedule RAW upload only if no RAW exists yet — RAW files don't change between
+            // exports
+            String rawFilePath = prepared.rawFilePath();
+            if (rawFilePath != null
+                && !rawFilePath.isBlank()
+                && dedupeResult.entity().getImageUrlRaw() == null) {
+              Long imageId = dedupeResult.entity().getId();
+              int year = prepared.imageYear();
+              int month = prepared.imageMonth();
+              rawUploadExecutor.submit(
+                  () ->
+                      imageProcessingService.uploadRawAndUpdateDb(
+                          imageId, rawFilePath, year, month));
+            }
+          }
+          case SKIP -> job.skipped().incrementAndGet();
+          default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
+        }
+      } catch (Exception e) {
+        log.error("Failed to process file {}: {}", fileEntry.jpegPath(), e.getMessage(), e);
+        job.errors().add(fileEntry.jpegPath() + ": " + e.getMessage());
+        job.processed().incrementAndGet();
+      }
+    }
+
+    job.markCompleted();
+    log.info(
+        "Disk upload job {} complete: {} created, {} updated, {} skipped, {} errors",
+        job.jobId(),
+        job.created().get(),
+        job.updated().get(),
+        job.skipped().get(),
+        job.errors().size());
+  }
+
+  private void linkImageToCollection(Long collectionId, ContentImageEntity entity) {
+    int orderIndex = nextOrderIndex(collectionId);
+    CollectionContentEntity joinEntry =
+        CollectionContentEntity.builder()
+            .collectionId(collectionId)
+            .contentId(entity.getId())
+            .orderIndex(orderIndex)
+            .visible(true)
+            .build();
+    collectionRepository.saveContent(joinEntry);
+  }
+
+  /**
    * Post-upload processing: derive collection date from images if not provided, set highest-rated
    * image as cover, and link to staging collection. Each step is independent and errors are logged
    * without failing the upload.
@@ -782,7 +928,7 @@ public class ContentService {
       for (int i = 0; i < files.size(); i += PARALLEL_BATCH_SIZE) {
         int end = Math.min(i + PARALLEL_BATCH_SIZE, files.size());
         List<MultipartFile> batch = files.subList(i, end);
-        log.info("Processing batch {}-{} of {} files", i + 1, end, files.size());
+        log.debug("Processing batch {}-{} of {} files", i + 1, end, files.size());
 
         List<CompletableFuture<PreparedImage>> futures =
             batch.stream()
@@ -809,7 +955,7 @@ public class ContentService {
           }
         }
 
-        log.info(
+        log.debug(
             "Batch complete: {}/{} images prepared successfully so far",
             allPrepared.size(),
             files.size());
@@ -840,13 +986,13 @@ public class ContentService {
   private PreparedImage prepareImageAsync(MultipartFile file, String rawFilePath) {
     String filename = file.getOriginalFilename();
     try {
-      log.debug("Preparing image: {}", filename);
+      log.trace("Preparing image: {}", filename);
 
       // Skip non-images and GIFs
       if (file.getContentType() == null
           || !file.getContentType().startsWith("image/")
           || file.getContentType().equals("image/gif")) {
-        log.debug("Skipping non-image or GIF: {}", filename);
+        log.trace("Skipping non-image or GIF: {}", filename);
         return null;
       }
 
@@ -875,7 +1021,7 @@ public class ContentService {
       Long collectionId,
       List<PreparedImage> preparedImages,
       List<ImageUploadResult.FileError> previousFailures) {
-    log.debug("Saving {} prepared images to database", preparedImages.size());
+    log.trace("Saving {} prepared images to database", preparedImages.size());
 
     List<ContentModels.Image> createdImages = new ArrayList<>();
     List<ImageUploadResult.FileError> failures = new ArrayList<>(previousFailures);
@@ -898,15 +1044,24 @@ public class ContentService {
 
         ContentImageEntity entity = dedupeResult.entity();
 
-        // Auto-associate tags and people extracted from XMP keywords (only on new images)
-        if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE) {
+        // Auto-associate tags and people extracted from XMP keywords
+        // On CREATE: initial association. On UPDATE: re-associate in case new tags/people were
+        // added.
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE
+            || dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
           contentMutationUtil.associateExtractedKeywords(
               entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
         }
 
-        // Schedule background RAW upload if a rawFilePath was provided
+        // Schedule background RAW upload if a rawFilePath was provided.
+        // On UPDATE, skip if RAW already exists — RAW files don't change between exports.
         String rawFilePath = prepared.data().rawFilePath();
-        if (rawFilePath != null && !rawFilePath.isBlank()) {
+        boolean shouldUploadRaw =
+            rawFilePath != null
+                && !rawFilePath.isBlank()
+                && (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE
+                    || entity.getImageUrlRaw() == null);
+        if (shouldUploadRaw) {
           Long imageId = entity.getId();
           int year = prepared.data().imageYear();
           int month = prepared.data().imageMonth();

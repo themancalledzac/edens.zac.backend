@@ -12,6 +12,8 @@ import com.drew.metadata.xmp.XmpDirectory;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -61,10 +63,49 @@ public class ImageMetadataExtractor {
    * @throws IOException If there's an error reading the file
    */
   public MetadataExtractionResult extractImageMetadata(MultipartFile file) throws IOException {
+    String filename = file.getOriginalFilename();
+    MetadataExtractionResult result;
+    try (InputStream inputStream = file.getInputStream()) {
+      result = extractFromStream(inputStream, filename);
+    }
+
+    // Fallback: Get dimensions from BufferedImage if not found
+    if (!result.metadata().containsKey("imageWidth")
+        || !result.metadata().containsKey("imageHeight")) {
+      ensureDimensions(file, result.metadata());
+    }
+
+    return result;
+  }
+
+  /**
+   * Extract all EXIF and XMP metadata from an image file on disk.
+   *
+   * @param filePath Path to the image file
+   * @return MetadataExtractionResult with technical metadata map plus extracted tags/people
+   * @throws IOException If there's an error reading the file
+   */
+  public MetadataExtractionResult extractImageMetadata(Path filePath) throws IOException {
+    String filename = filePath.getFileName().toString();
+    MetadataExtractionResult result;
+    try (InputStream inputStream = Files.newInputStream(filePath)) {
+      result = extractFromStream(inputStream, filename);
+    }
+
+    // Fallback: Get dimensions from BufferedImage if not found
+    if (!result.metadata().containsKey("imageWidth")
+        || !result.metadata().containsKey("imageHeight")) {
+      ensureDimensionsFromPath(filePath, result.metadata());
+    }
+
+    return result;
+  }
+
+  private MetadataExtractionResult extractFromStream(InputStream inputStream, String filename) {
     Map<String, String> metadata = new HashMap<>();
     ExtractedKeywords keywords = ExtractedKeywords.EMPTY;
 
-    try (InputStream inputStream = file.getInputStream()) {
+    try {
       Metadata imageMetadata = ImageMetadataReader.readMetadata(inputStream);
 
       // Extract EXIF metadata for all defined fields
@@ -86,37 +127,24 @@ public class ImageMetadataExtractor {
               keywords = extractTagsAndPeopleFromXmp(xmpMeta);
             }
           } catch (Exception e) {
-            log.warn(
-                "Failed to extract keywords from XMP for {}: {}",
-                file.getOriginalFilename(),
-                e.getMessage());
+            log.warn("Failed to extract keywords from XMP for {}: {}", filename, e.getMessage());
           }
         }
       }
 
       if (!metadata.containsKey("createDate")) {
-        log.warn("No capture date found in EXIF or XMP for file: {}", file.getOriginalFilename());
+        log.warn("No capture date found in EXIF or XMP for file: {}", filename);
       }
 
-      // Fallback: Get dimensions from BufferedImage if not found
-      ensureDimensions(file, metadata);
-
-      log.info("Extracted metadata: {} fields", metadata.size());
-      log.info("Final rating value: {}", metadata.getOrDefault("rating", "NULL"));
-      if (!keywords.tags().isEmpty() || !keywords.people().isEmpty()) {
-        log.info(
-            "Extracted {} tags and {} people from XMP keywords",
-            keywords.tags().size(),
-            keywords.people().size());
-      }
+      log.trace(
+          "Extracted metadata: {} fields, rating: {}, tags: {}, people: {}",
+          metadata.size(),
+          metadata.getOrDefault("rating", "NULL"),
+          keywords.tags().size(),
+          keywords.people().size());
 
     } catch (Exception e) {
-      log.error(
-          "Failed to extract full metadata for {}: {}",
-          file.getOriginalFilename(),
-          e.getMessage(),
-          e);
-      ensureDimensions(file, metadata);
+      log.error("Failed to extract full metadata for {}: {}", filename, e.getMessage(), e);
     }
 
     return new MetadataExtractionResult(metadata, keywords.tags(), keywords.people());
@@ -183,7 +211,7 @@ public class ImageMetadataExtractor {
             }
           }
         } catch (XMPException e) {
-          log.debug(
+          log.trace(
               "XMP extraction failed for {}/{} (code {}): {}",
               entry.namespace(),
               entry.propertyName(),
@@ -214,7 +242,7 @@ public class ImageMetadataExtractor {
         }
       }
     } catch (XMPException e) {
-      log.debug(
+      log.trace(
           "XMP array extraction failed for {}/{}: {}", namespace, propertyName, e.getMessage());
     }
     return items;
@@ -279,16 +307,26 @@ public class ImageMetadataExtractor {
    * @param metadata The metadata map to populate
    */
   private void ensureDimensions(MultipartFile file, Map<String, String> metadata) {
-    if (!metadata.containsKey("imageWidth") || !metadata.containsKey("imageHeight")) {
-      try (InputStream is = file.getInputStream()) {
-        BufferedImage img = ImageIO.read(is);
-        if (img != null) {
-          metadata.put("imageWidth", String.valueOf(img.getWidth()));
-          metadata.put("imageHeight", String.valueOf(img.getHeight()));
-        }
-      } catch (IOException e) {
-        log.warn("Failed to read image dimensions from BufferedImage: {}", e.getMessage());
+    try (InputStream is = file.getInputStream()) {
+      BufferedImage img = ImageIO.read(is);
+      if (img != null) {
+        metadata.put("imageWidth", String.valueOf(img.getWidth()));
+        metadata.put("imageHeight", String.valueOf(img.getHeight()));
       }
+    } catch (IOException e) {
+      log.warn("Failed to read image dimensions from BufferedImage: {}", e.getMessage());
+    }
+  }
+
+  private void ensureDimensionsFromPath(Path filePath, Map<String, String> metadata) {
+    try (InputStream is = Files.newInputStream(filePath)) {
+      BufferedImage img = ImageIO.read(is);
+      if (img != null) {
+        metadata.put("imageWidth", String.valueOf(img.getWidth()));
+        metadata.put("imageHeight", String.valueOf(img.getHeight()));
+      }
+    } catch (IOException e) {
+      log.warn("Failed to read image dimensions from path: {}", e.getMessage());
     }
   }
 

@@ -5,11 +5,14 @@ import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.JobTrackingService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -42,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ContentControllerDev {
 
   private final ContentService contentService;
+  private final JobTrackingService jobTrackingService;
 
   /**
    * Create and upload images to a collection POST /api/admin/content/images/{collectionId}
@@ -255,6 +259,41 @@ public class ContentControllerDev {
     String personName = request.personName();
     Map<String, Object> response = contentService.createPerson(personName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * Accept file paths from Lightroom and process images from disk in background. Returns 202
+   * Accepted immediately with a job ID for status polling.
+   *
+   * @param collectionId ID of the collection to add images to
+   * @param request File paths and optional locationId
+   * @return 202 Accepted with jobId and totalFiles
+   */
+  @PostMapping("/images/{collectionId}/from-disk")
+  public ResponseEntity<Map<String, Object>> createImagesFromDisk(
+      @PathVariable Long collectionId, @RequestBody @Valid DiskUploadRequest request) {
+    var jobStatus = contentService.processFilesFromDisk(collectionId, request);
+    return ResponseEntity.status(HttpStatus.ACCEPTED)
+        .body(
+            Map.of(
+                "jobId", jobStatus.jobId().toString(),
+                "totalFiles", jobStatus.totalFiles(),
+                "message", "Processing started"));
+  }
+
+  /**
+   * Poll for background job status.
+   *
+   * @param jobId The job ID returned from the /from-disk endpoint
+   * @return Job status with progress counters, or 404 if not found
+   */
+  @GetMapping("/images/jobs/{jobId}")
+  public ResponseEntity<JobTrackingService.JobStatusResponse> getJobStatus(
+      @PathVariable UUID jobId) {
+    return jobTrackingService
+        .getJob(jobId)
+        .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.notFound().build());
   }
 
   /**
