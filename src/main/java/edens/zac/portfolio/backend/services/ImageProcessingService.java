@@ -97,6 +97,7 @@ public class ImageProcessingService {
       String imageUrlOriginal,
       String imageUrlWeb,
       String imageUrlRaw,
+      String rawFilePath,
       Map<String, String> metadata,
       List<String> extractedTags,
       List<String> extractedPeople,
@@ -199,17 +200,8 @@ public class ImageProcessingService {
             imageYear,
             imageMonth);
 
-    // Upload RAW source file to S3 if path provided
-    String imageUrlRaw = null;
-    if (rawFilePath != null && !rawFilePath.isBlank()) {
-      Path rawPath = Path.of(rawFilePath);
-      byte[] rawBytes = Files.readAllBytes(rawPath);
-      String rawFilename = rawPath.getFileName().toString();
-      String rawMimeType = detectMimeType(rawFilename);
-      imageUrlRaw =
-          uploadToS3(rawBytes, rawFilename, rawMimeType, PATH_IMAGE_RAW, imageYear, imageMonth);
-      log.info("Uploaded RAW file to S3: {}", rawFilename);
-    }
+    // RAW upload is deferred to a background thread after DB save — not done here.
+    // rawFilePath is carried through PreparedImageData so ContentService can schedule it.
 
     // Parse capture date for deduplication
     LocalDateTime captureDate =
@@ -223,7 +215,8 @@ public class ImageProcessingService {
         originalFilename,
         imageUrlOriginal,
         imageUrlWeb,
-        imageUrlRaw,
+        null,
+        rawFilePath,
         metadata,
         extraction.extractedTags(),
         extraction.extractedPeople(),
@@ -254,10 +247,13 @@ public class ImageProcessingService {
       if (existingOpt.isPresent()) {
         ContentImageEntity existing = existingOpt.get();
 
-        // Compare export dates: if existing has no export date, or same/older, skip
-        if (existing.getLastExportDate() == null
-            || (prepared.lastExportDate() != null
-                && !prepared.lastExportDate().isAfter(existing.getLastExportDate()))) {
+        // Compare export dates: skip only if we have BOTH dates and new is not newer
+        // Null existing export date = "unknown/old" = always update (e.g. pre-V4 records)
+        boolean existingIsNewerOrEqual =
+            existing.getLastExportDate() != null
+                && prepared.lastExportDate() != null
+                && !prepared.lastExportDate().isAfter(existing.getLastExportDate());
+        if (existingIsNewerOrEqual) {
           log.info(
               "Skipping duplicate image (id={}) for {}: same or older export",
               existing.getId(),
@@ -274,12 +270,13 @@ public class ImageProcessingService {
         // Capture old URLs before overwriting
         final String oldImageUrlWeb = existing.getImageUrlWeb();
         final String oldImageUrlOriginal = existing.getImageUrlOriginal();
-        final String oldImageUrlRaw = existing.getImageUrlRaw();
 
         existing.setImageUrlOriginal(prepared.imageUrlOriginal());
         existing.setImageUrlWeb(prepared.imageUrlWeb());
-        existing.setImageUrlRaw(prepared.imageUrlRaw());
+        // Don't null out imageUrlRaw — RAW uploads are deferred to background threads.
+        // The background thread will overwrite the same S3 key and update the DB URL.
         existing.setLastExportDate(prepared.lastExportDate());
+        existing.setCaptureDate(prepared.captureDate());
         existing.setImageWidth(
             imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), 0));
         existing.setImageHeight(
@@ -289,9 +286,9 @@ public class ImageProcessingService {
         final ContentImageEntity savedEntity = contentRepository.saveImage(existing);
 
         // Now safe to delete old S3 files (DB already points to new URLs)
+        // Don't delete old RAW — background thread will overwrite the same S3 key.
         deleteS3ObjectByUrl(oldImageUrlWeb);
         deleteS3ObjectByUrl(oldImageUrlOriginal);
-        deleteS3ObjectByUrl(oldImageUrlRaw);
 
         return new DedupeResult(savedEntity, DedupeAction.UPDATE);
       }
@@ -345,6 +342,36 @@ public class ImageProcessingService {
     ContentImageEntity savedEntity = contentRepository.saveImage(entity);
     log.info("Created new image entity with ID: {}", savedEntity.getId());
     return new DedupeResult(savedEntity, DedupeAction.CREATE);
+  }
+
+  /**
+   * Upload a RAW file to S3 and update the database record with the URL. Designed to run in a
+   * background thread after the HTTP response has been sent.
+   *
+   * @param imageId The database ID of the image to update
+   * @param rawFilePath Absolute path to the RAW file on local disk
+   * @param imageYear Year for S3 path organization
+   * @param imageMonth Month for S3 path organization
+   */
+  public void uploadRawAndUpdateDb(
+      Long imageId, String rawFilePath, int imageYear, int imageMonth) {
+    try {
+      Path rawPath = Path.of(rawFilePath);
+      if (!Files.exists(rawPath)) {
+        log.warn("RAW file not found, skipping background upload: {}", rawFilePath);
+        return;
+      }
+      String rawFilename = rawPath.getFileName().toString();
+      String rawMimeType = detectMimeType(rawFilename);
+      String imageUrlRaw =
+          streamFileToS3(rawPath, rawFilename, rawMimeType, PATH_IMAGE_RAW, imageYear, imageMonth);
+      log.info("Background RAW upload complete: {}", rawFilename);
+
+      contentRepository.updateImageRawUrl(imageId, imageUrlRaw);
+      log.info("Updated image {} with RAW URL: {}", imageId, imageUrlRaw);
+    } catch (Exception e) {
+      log.error("Background RAW upload failed for image {}: {}", imageId, e.getMessage(), e);
+    }
   }
 
   // ============================================================================
@@ -460,6 +487,31 @@ public class ImageProcessingService {
             .build();
 
     s3Client.putObject(putRequest, RequestBody.fromBytes(imageBytes));
+
+    String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
+    log.info("Successfully uploaded: {}", cloudfrontUrl);
+
+    return cloudfrontUrl;
+  }
+
+  /** Stream a file directly from disk to S3 without loading into heap. */
+  private String streamFileToS3(
+      Path filePath, String filename, String contentType, String basePath, int year, int month)
+      throws IOException {
+    String s3Key = String.format("%s/%d/%02d/%s", basePath, year, month, filename);
+    long fileSize = Files.size(filePath);
+
+    log.info("Streaming to S3: {} ({} MB)", s3Key, fileSize / (1024 * 1024));
+
+    PutObjectRequest putRequest =
+        PutObjectRequest.builder()
+            .bucket(bucketName)
+            .key(s3Key)
+            .contentType(contentType)
+            .contentLength(fileSize)
+            .build();
+
+    s3Client.putObject(putRequest, RequestBody.fromFile(filePath));
 
     String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
     log.info("Successfully uploaded: {}", cloudfrontUrl);

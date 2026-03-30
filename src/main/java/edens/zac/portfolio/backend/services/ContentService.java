@@ -27,6 +27,7 @@ import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
+import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -37,6 +38,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +72,29 @@ public class ContentService {
   // I/O
   private final ExecutorService imageProcessingExecutor =
       Executors.newVirtualThreadPerTaskExecutor();
+
+  // Background executor for RAW file uploads — runs after HTTP response is sent
+  private final ExecutorService rawUploadExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
+  // Prevents concurrent upload requests from competing for heap during JPEG decode.
+  // Each request uses PARALLEL_BATCH_SIZE threads for image processing; two concurrent
+  // requests would double memory usage and risk OOM.
+  private final Semaphore uploadSemaphore = new Semaphore(1);
+
+  @PreDestroy
+  void shutdown() {
+    imageProcessingExecutor.shutdown();
+    rawUploadExecutor.shutdown();
+    try {
+      if (!rawUploadExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
+        log.warn("Background RAW uploads did not complete within 60s, forcing shutdown");
+        rawUploadExecutor.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      rawUploadExecutor.shutdownNow();
+    }
+  }
 
   public Map<String, Object> createTag(String tagName) {
     return metadataService.createTag(tagName);
@@ -707,7 +733,7 @@ public class ContentService {
   }
 
   /** Batch size for parallel image processing to avoid overwhelming resources */
-  private static final int PARALLEL_BATCH_SIZE = 10;
+  private static final int PARALLEL_BATCH_SIZE = 3;
 
   /**
    * OPTIMIZED: Create and upload images with parallel processing.
@@ -737,56 +763,71 @@ public class ContentService {
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
-    // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
-    // NO database calls happen here - only S3 I/O and CPU work
-    List<PreparedImage> allPrepared = new ArrayList<>();
-    List<ImageUploadResult.FileError> allFailures = new ArrayList<>();
+    // Acquire semaphore to prevent concurrent upload requests from OOM-ing.
+    // If another upload is in progress, this request blocks until it finishes.
+    try {
+      uploadSemaphore.acquire();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Upload interrupted while waiting for semaphore", e);
+    }
 
-    for (int i = 0; i < files.size(); i += PARALLEL_BATCH_SIZE) {
-      int end = Math.min(i + PARALLEL_BATCH_SIZE, files.size());
-      List<MultipartFile> batch = files.subList(i, end);
-      log.info("Processing batch {}-{} of {} files", i + 1, end, files.size());
+    try {
+      // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
+      // NO database calls happen here - only S3 I/O and CPU work
+      // RAW uploads are deferred to background threads after the response is sent.
+      List<PreparedImage> allPrepared = new ArrayList<>();
+      List<ImageUploadResult.FileError> allFailures = new ArrayList<>();
 
-      List<CompletableFuture<PreparedImage>> futures =
-          batch.stream()
-              .map(
-                  file -> {
-                    String rawPath = rawFilePathMap.getOrDefault(file.getOriginalFilename(), null);
-                    return CompletableFuture.supplyAsync(
-                        () -> prepareImageAsync(file, rawPath), imageProcessingExecutor);
-                  })
-              .toList();
+      for (int i = 0; i < files.size(); i += PARALLEL_BATCH_SIZE) {
+        int end = Math.min(i + PARALLEL_BATCH_SIZE, files.size());
+        List<MultipartFile> batch = files.subList(i, end);
+        log.info("Processing batch {}-{} of {} files", i + 1, end, files.size());
 
-      // Wait for this batch to complete and track failures
-      for (int j = 0; j < futures.size(); j++) {
-        PreparedImage result = futures.get(j).join();
-        if (result != null) {
-          allPrepared.add(result);
-        } else {
-          String filename = batch.get(j).getOriginalFilename();
-          allFailures.add(
-              new ImageUploadResult.FileError(
-                  filename != null ? filename : "unknown",
-                  "Image preparation failed (S3 upload or processing error)"));
+        List<CompletableFuture<PreparedImage>> futures =
+            batch.stream()
+                .map(
+                    file -> {
+                      String rawPath =
+                          rawFilePathMap.getOrDefault(file.getOriginalFilename(), null);
+                      return CompletableFuture.supplyAsync(
+                          () -> prepareImageAsync(file, rawPath), imageProcessingExecutor);
+                    })
+                .toList();
+
+        // Wait for this batch to complete and track failures
+        for (int j = 0; j < futures.size(); j++) {
+          PreparedImage result = futures.get(j).join();
+          if (result != null) {
+            allPrepared.add(result);
+          } else {
+            String filename = batch.get(j).getOriginalFilename();
+            allFailures.add(
+                new ImageUploadResult.FileError(
+                    filename != null ? filename : "unknown",
+                    "Image preparation failed (S3 upload or processing error)"));
+          }
         }
+
+        log.info(
+            "Batch complete: {}/{} images prepared successfully so far",
+            allPrepared.size(),
+            files.size());
       }
 
       log.info(
-          "Batch complete: {}/{} images prepared successfully so far",
+          "All parallel processing complete: {}/{} images prepared, {} failed",
           allPrepared.size(),
-          files.size());
+          files.size(),
+          allFailures.size());
+
+      // PHASE 2: Save images to database individually
+      // Each image saves in its own transaction (via @Transactional repository methods)
+      // so that one failure doesn't cascade and kill the entire batch
+      return saveProcessedImages(collectionId, allPrepared, allFailures);
+    } finally {
+      uploadSemaphore.release();
     }
-
-    log.info(
-        "All parallel processing complete: {}/{} images prepared, {} failed",
-        allPrepared.size(),
-        files.size(),
-        allFailures.size());
-
-    // PHASE 2: Save to database in a SINGLE SHORT TRANSACTION
-    // Uses TransactionTemplate to avoid self-invocation proxy bypass
-    return transactionTemplate.execute(
-        status -> saveProcessedImages(collectionId, allPrepared, allFailures));
   }
 
   /**
@@ -861,6 +902,16 @@ public class ContentService {
         if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE) {
           contentMutationUtil.associateExtractedKeywords(
               entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
+        }
+
+        // Schedule background RAW upload if a rawFilePath was provided
+        String rawFilePath = prepared.data().rawFilePath();
+        if (rawFilePath != null && !rawFilePath.isBlank()) {
+          Long imageId = entity.getId();
+          int year = prepared.data().imageYear();
+          int month = prepared.data().imageMonth();
+          rawUploadExecutor.submit(
+              () -> imageProcessingService.uploadRawAndUpdateDb(imageId, rawFilePath, year, month));
         }
 
         // For UPDATE, check if already in this collection

@@ -201,9 +201,12 @@ public class ContentRepository extends BaseDao {
   @Transactional(readOnly = true)
   public Optional<ContentImageEntity> findByOriginalFilenameAndCaptureDate(
       String originalFilename, LocalDateTime captureDate) {
+    // Use DATE() truncation to match regardless of time component — old records may have midnight
+    // timestamps from the V4→V7 migration, while new EXIF parsing includes the full time.
     String sql =
         SELECT_CONTENT_IMAGE
-            + " WHERE ci.original_filename = :originalFilename AND ci.capture_date = :captureDate";
+            + " WHERE ci.original_filename = :originalFilename"
+            + " AND CAST(ci.capture_date AS DATE) = CAST(:captureDate AS DATE)";
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("originalFilename", originalFilename)
@@ -477,6 +480,14 @@ public class ContentRepository extends BaseDao {
         .addValue("captureDate", entity.getCaptureDate())
         .addValue("lastExportDate", entity.getLastExportDate())
         .addValue("originalFilename", entity.getOriginalFilename());
+  }
+
+  @Transactional
+  public void updateImageRawUrl(Long imageId, String imageUrlRaw) {
+    String sql = "UPDATE content_image SET image_url_raw = :imageUrlRaw WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("id", imageId).addValue("imageUrlRaw", imageUrlRaw);
+    update(sql, params);
   }
 
   @Transactional

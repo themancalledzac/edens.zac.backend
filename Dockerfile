@@ -33,4 +33,7 @@ COPY --from=build /app/target/portfolio.backend-0.0.1-SNAPSHOT.jar ./app.jar
 EXPOSE 8080
 
 # Run the jar file
-ENTRYPOINT ["java", "-Xmx512m", "-Xms256m", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+# JVM heap is configured via JAVA_OPTS env var (see docker-compose.yml)
+# MaxRAMPercentage is a safety fallback if JAVA_OPTS is misconfigured
+# exec ensures java is PID 1 and receives Docker stop signals correctly
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -jar app.jar"]
