@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +70,7 @@ public class ContentService {
   private final CollectionService collectionService;
   private final TransactionTemplate transactionTemplate;
   private final JobTrackingService jobTrackingService;
+  private final CacheManager cacheManager;
 
   // Virtual thread executor for parallel image processing (Java 21+)
   // Virtual threads are lightweight and don't consume OS threads while waiting on
@@ -705,6 +707,13 @@ public class ContentService {
             imageProcessingService.prepareImageFromDisk(
                 Path.of(fileEntry.jpegPath()), fileEntry.rawPath());
 
+        // People: prefer plugin-provided list (from Lightroom keyword hierarchy),
+        // fall back to XMP-extracted people if plugin didn't send any
+        List<String> peopleNames =
+            (fileEntry.people() != null && !fileEntry.people().isEmpty())
+                ? fileEntry.people()
+                : prepared.extractedPeople();
+
         // Save to DB with dedupe (reuses existing logic)
         ImageProcessingService.DedupeResult dedupeResult =
             imageProcessingService.savePreparedImageWithDedupe(prepared, null);
@@ -714,11 +723,9 @@ public class ContentService {
         switch (dedupeResult.action()) {
           case CREATE -> {
             job.created().incrementAndGet();
-            // Auto-associate tags and people extracted from XMP keywords
+            // Auto-associate tags (from XMP) and people (from plugin or XMP fallback)
             contentMutationUtil.associateExtractedKeywords(
-                dedupeResult.entity().getId(),
-                prepared.extractedTags(),
-                prepared.extractedPeople());
+                dedupeResult.entity().getId(), prepared.extractedTags(), peopleNames);
             // Link to collection
             linkImageToCollection(collectionId, dedupeResult.entity());
             // Schedule RAW upload in background
@@ -735,11 +742,9 @@ public class ContentService {
           }
           case UPDATE -> {
             job.updated().incrementAndGet();
-            // Re-associate tags/people in case they changed between exports
+            // Re-associate tags (from XMP) and people (from plugin or XMP fallback)
             contentMutationUtil.associateExtractedKeywords(
-                dedupeResult.entity().getId(),
-                prepared.extractedTags(),
-                prepared.extractedPeople());
+                dedupeResult.entity().getId(), prepared.extractedTags(), peopleNames);
             // For UPDATE, only link if not already in this collection
             Optional<CollectionContentEntity> existingJoin =
                 collectionRepository.findContentByCollectionIdAndContentId(
@@ -772,6 +777,9 @@ public class ContentService {
       }
     }
 
+    // Evict generalMetadata cache — new tags/people may have been created during upload
+    evictGeneralMetadataCache();
+
     job.markCompleted();
     log.info(
         "Disk upload job {} complete: {} created, {} updated, {} skipped, {} errors",
@@ -780,6 +788,18 @@ public class ContentService {
         job.updated().get(),
         job.skipped().get(),
         job.errors().size());
+  }
+
+  /**
+   * Manually evict the generalMetadata cache. Used by background methods where Spring's
+   * proxy-based @CacheEvict cannot intercept (private/self-invoked methods).
+   */
+  private void evictGeneralMetadataCache() {
+    var cache = cacheManager.getCache("generalMetadata");
+    if (cache != null) {
+      cache.clear();
+      log.debug("Evicted generalMetadata cache after disk upload");
+    }
   }
 
   private void linkImageToCollection(Long collectionId, ContentImageEntity entity) {

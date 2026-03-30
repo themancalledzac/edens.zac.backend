@@ -14,9 +14,12 @@ public record DiskUploadRequest(
     Long locationId) {
 
   /**
-   * A single file pair: the exported JPEG path and optional RAW source path. Both paths must be
-   * absolute paths on the local filesystem.
+   * A single file pair: the exported JPEG path, optional RAW source path, and optional people
+   * names. Both paths must be absolute paths on the local filesystem. People names come from
+   * Lightroom's keyword hierarchy (keywords under the "People" parent).
    */
   public record FileEntry(
-      @NotBlank(message = "jpegPath must not be blank") String jpegPath, String rawPath) {}
+      @NotBlank(message = "jpegPath must not be blank") String jpegPath,
+      String rawPath,
+      List<String> people) {}
 }
