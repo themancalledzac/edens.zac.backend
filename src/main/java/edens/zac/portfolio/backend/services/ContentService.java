@@ -527,11 +527,12 @@ public class ContentService {
             );
     image.setPeople(updatedPeople);
 
-    // Save updated people to database
+    // Save updated people to database (deduplicate by ID since equals/hashCode is name-based)
     List<Long> updatedPersonIds =
         updatedPeople.stream()
             .map(ContentPersonEntity::getId)
             .filter(Objects::nonNull)
+            .distinct()
             .collect(Collectors.toList());
     contentRepository.saveImagePeople(image.getId(), updatedPersonIds);
   }
