@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -282,6 +283,16 @@ public class ImageMetadataExtractor {
             tags.add(leaf);
           }
         }
+      }
+
+      // Filter out any tag that matches a person name — Lightroom adds people keywords
+      // both under "People|Name" hierarchy AND as standalone keywords
+      if (!people.isEmpty()) {
+        Set<String> peopleNamesLower = new HashSet<>();
+        for (String name : people) {
+          peopleNamesLower.add(name.toLowerCase());
+        }
+        tags.removeIf(tag -> peopleNamesLower.contains(tag.toLowerCase()));
       }
 
       return new ExtractedKeywords(tags, people);

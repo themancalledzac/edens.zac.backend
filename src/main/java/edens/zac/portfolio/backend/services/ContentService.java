@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
@@ -61,6 +62,7 @@ public class ContentService {
   private final TagRepository tagRepository;
   private final ContentRepository contentRepository;
   private final CollectionRepository collectionRepository;
+  private final PersonRepository personRepository;
   private final ContentMutationUtil contentMutationUtil;
   private final ContentModelConverter contentModelConverter;
   private final ImageProcessingService imageProcessingService;
@@ -155,9 +157,9 @@ public class ContentService {
     }
 
     // OPTIMIZED: Pre-fetch all current tags and people for all images (avoids N+1)
-    Map<Long, List<Long>> currentTagsByImage = tagRepository.findTagIdsByContentIds(imageIds);
-    Map<Long, List<Long>> currentPeopleByImage =
-        contentRepository.findPersonIdsByImageIds(imageIds);
+    Map<Long, List<TagEntity>> currentTagsByImage = tagRepository.findTagsByContentIds(imageIds);
+    Map<Long, List<ContentPersonEntity>> currentPeopleByImage =
+        personRepository.findPeopleByContentIds(imageIds);
 
     // Track successfully updated images for batch save
     List<ContentImageEntity> imagesToSave = new ArrayList<>();
@@ -182,16 +184,17 @@ public class ContentService {
             image, update, newlyCreatedCameras, newlyCreatedLenses, newlyCreatedFilmTypes);
 
         // Update tags using prev/new/remove pattern (with tracking)
-        // Use pre-fetched tag IDs to avoid N+1 query
+        // Use pre-fetched full entities to avoid N+1 query
         if (update.getTags() != null) {
-          List<Long> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
+          List<TagEntity> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
           updateImageTagsOptimized(image, update.getTags(), currentTags, newlyCreatedTags);
         }
 
         // Update people using prev/new/remove pattern (with tracking)
-        // Use pre-fetched person IDs to avoid N+1 query
+        // Use pre-fetched full entities to avoid N+1 query
         if (update.getPeople() != null) {
-          List<Long> currentPeople = currentPeopleByImage.getOrDefault(imageId, List.of());
+          List<ContentPersonEntity> currentPeople =
+              currentPeopleByImage.getOrDefault(imageId, List.of());
           updateImagePeopleOptimized(image, update.getPeople(), currentPeople, newlyCreatedPeople);
         }
 
@@ -406,31 +409,19 @@ public class ContentService {
   private void updateImageTagsOptimized(
       ContentImageEntity image,
       CollectionRequests.TagUpdate tagUpdate,
-      List<Long> currentTagIds,
+      List<TagEntity> currentTagEntities,
       Set<TagEntity> newTags) {
-    // Convert pre-fetched IDs to entities
-    Set<TagEntity> currentTags =
-        currentTagIds.stream()
-            .map(
-                tagId -> {
-                  TagEntity tag = new TagEntity();
-                  tag.setId(tagId);
-                  return tag;
-                })
-            .collect(Collectors.toSet());
+    Set<TagEntity> currentTags = new HashSet<>(currentTagEntities);
 
-    Set<TagEntity> updatedTags =
-        contentMutationUtil.updateTags(
-            currentTags, tagUpdate, newTags // Track newly created tags
-            // for response
-            );
+    Set<TagEntity> updatedTags = contentMutationUtil.updateTags(currentTags, tagUpdate, newTags);
     image.setTags(updatedTags);
 
-    // Save updated tags to database
+    // Save updated tags to database (deduplicate by ID since equals/hashCode is name-based)
     List<Long> updatedTagIds =
         updatedTags.stream()
             .map(TagEntity::getId)
             .filter(Objects::nonNull)
+            .distinct()
             .collect(Collectors.toList());
     tagRepository.saveContentTags(image.getId(), updatedTagIds);
   }
@@ -506,25 +497,12 @@ public class ContentService {
   private void updateImagePeopleOptimized(
       ContentImageEntity image,
       CollectionRequests.PersonUpdate personUpdate,
-      List<Long> currentPersonIds,
+      List<ContentPersonEntity> currentPeopleEntities,
       Set<ContentPersonEntity> newPeople) {
-    // Convert pre-fetched IDs to entities
-    Set<ContentPersonEntity> currentPeople =
-        currentPersonIds.stream()
-            .map(
-                personId -> {
-                  ContentPersonEntity person = new ContentPersonEntity();
-                  person.setId(personId);
-                  return person;
-                })
-            .collect(Collectors.toSet());
+    Set<ContentPersonEntity> currentPeople = new HashSet<>(currentPeopleEntities);
 
     Set<ContentPersonEntity> updatedPeople =
-        contentMutationUtil.updatePeople(
-            currentPeople, personUpdate, newPeople // Track newly
-            // created people
-            // for response
-            );
+        contentMutationUtil.updatePeople(currentPeople, personUpdate, newPeople);
     image.setPeople(updatedPeople);
 
     // Save updated people to database (deduplicate by ID since equals/hashCode is name-based)
