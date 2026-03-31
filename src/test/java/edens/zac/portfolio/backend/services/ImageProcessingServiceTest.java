@@ -71,6 +71,8 @@ class ImageProcessingServiceTest {
         filename,
         "https://cdn/full/image.jpg",
         "https://cdn/web/image.webp",
+        null,
+        null,
         metadata,
         List.of(),
         List.of(),
@@ -128,25 +130,26 @@ class ImageProcessingServiceTest {
   }
 
   @Test
-  void savePreparedImageWithDedupe_skip_whenExistingHasNullExportDate() {
-    // Arrange: migrated rows have null lastExportDate -- should SKIP, not UPDATE
+  void savePreparedImageWithDedupe_update_whenExistingHasNullExportDate() {
+    // Arrange: migrated rows have null lastExportDate -- should UPDATE (null = "unknown/old")
     LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
     LocalDateTime exportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
     ImageProcessingService.PreparedImageData prepared =
         createPreparedImageData("photo.jpg", captureDate, exportDate);
 
     ContentImageEntity existing = createContentImageEntity();
-    existing.setLastExportDate(null); // migrated row
+    existing.setLastExportDate(null); // migrated row — treat as old
     when(contentRepository.findByOriginalFilenameAndCaptureDate("photo.jpg", captureDate))
         .thenReturn(Optional.of(existing));
+    when(contentRepository.saveImage(any())).thenReturn(existing);
 
     // Act
     ImageProcessingService.DedupeResult result =
         imageProcessingService.savePreparedImageWithDedupe(prepared, null);
 
-    // Assert
-    assertEquals(ImageProcessingService.DedupeAction.SKIP, result.action());
-    verify(contentRepository, never()).saveImage(any());
+    // Assert: null export date = always update
+    assertEquals(ImageProcessingService.DedupeAction.UPDATE, result.action());
+    verify(contentRepository).saveImage(any());
   }
 
   @Test

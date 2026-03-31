@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
@@ -21,12 +22,15 @@ import edens.zac.portfolio.backend.model.ContentImageUpdateResponse;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
 import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
+import jakarta.annotation.PreDestroy;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -37,9 +41,12 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +62,7 @@ public class ContentService {
   private final TagRepository tagRepository;
   private final ContentRepository contentRepository;
   private final CollectionRepository collectionRepository;
+  private final PersonRepository personRepository;
   private final ContentMutationUtil contentMutationUtil;
   private final ContentModelConverter contentModelConverter;
   private final ImageProcessingService imageProcessingService;
@@ -63,12 +71,37 @@ public class ContentService {
   private final MetadataService metadataService;
   private final CollectionService collectionService;
   private final TransactionTemplate transactionTemplate;
+  private final JobTrackingService jobTrackingService;
+  private final CacheManager cacheManager;
 
   // Virtual thread executor for parallel image processing (Java 21+)
   // Virtual threads are lightweight and don't consume OS threads while waiting on
   // I/O
   private final ExecutorService imageProcessingExecutor =
       Executors.newVirtualThreadPerTaskExecutor();
+
+  // Background executor for RAW file uploads — runs after HTTP response is sent
+  private final ExecutorService rawUploadExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
+  // Prevents concurrent upload requests from competing for heap during JPEG decode.
+  // Each request uses PARALLEL_BATCH_SIZE threads for image processing; two concurrent
+  // requests would double memory usage and risk OOM.
+  private final Semaphore uploadSemaphore = new Semaphore(1);
+
+  @PreDestroy
+  void shutdown() {
+    imageProcessingExecutor.shutdown();
+    rawUploadExecutor.shutdown();
+    try {
+      if (!rawUploadExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
+        log.warn("Background RAW uploads did not complete within 60s, forcing shutdown");
+        rawUploadExecutor.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      rawUploadExecutor.shutdownNow();
+    }
+  }
 
   public Map<String, Object> createTag(String tagName) {
     return metadataService.createTag(tagName);
@@ -124,9 +157,9 @@ public class ContentService {
     }
 
     // OPTIMIZED: Pre-fetch all current tags and people for all images (avoids N+1)
-    Map<Long, List<Long>> currentTagsByImage = tagRepository.findTagIdsByContentIds(imageIds);
-    Map<Long, List<Long>> currentPeopleByImage =
-        contentRepository.findPersonIdsByImageIds(imageIds);
+    Map<Long, List<TagEntity>> currentTagsByImage = tagRepository.findTagsByContentIds(imageIds);
+    Map<Long, List<ContentPersonEntity>> currentPeopleByImage =
+        personRepository.findPeopleByContentIds(imageIds);
 
     // Track successfully updated images for batch save
     List<ContentImageEntity> imagesToSave = new ArrayList<>();
@@ -151,16 +184,17 @@ public class ContentService {
             image, update, newlyCreatedCameras, newlyCreatedLenses, newlyCreatedFilmTypes);
 
         // Update tags using prev/new/remove pattern (with tracking)
-        // Use pre-fetched tag IDs to avoid N+1 query
+        // Use pre-fetched full entities to avoid N+1 query
         if (update.getTags() != null) {
-          List<Long> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
+          List<TagEntity> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
           updateImageTagsOptimized(image, update.getTags(), currentTags, newlyCreatedTags);
         }
 
         // Update people using prev/new/remove pattern (with tracking)
-        // Use pre-fetched person IDs to avoid N+1 query
+        // Use pre-fetched full entities to avoid N+1 query
         if (update.getPeople() != null) {
-          List<Long> currentPeople = currentPeopleByImage.getOrDefault(imageId, List.of());
+          List<ContentPersonEntity> currentPeople =
+              currentPeopleByImage.getOrDefault(imageId, List.of());
           updateImagePeopleOptimized(image, update.getPeople(), currentPeople, newlyCreatedPeople);
         }
 
@@ -375,31 +409,19 @@ public class ContentService {
   private void updateImageTagsOptimized(
       ContentImageEntity image,
       CollectionRequests.TagUpdate tagUpdate,
-      List<Long> currentTagIds,
+      List<TagEntity> currentTagEntities,
       Set<TagEntity> newTags) {
-    // Convert pre-fetched IDs to entities
-    Set<TagEntity> currentTags =
-        currentTagIds.stream()
-            .map(
-                tagId -> {
-                  TagEntity tag = new TagEntity();
-                  tag.setId(tagId);
-                  return tag;
-                })
-            .collect(Collectors.toSet());
+    Set<TagEntity> currentTags = new HashSet<>(currentTagEntities);
 
-    Set<TagEntity> updatedTags =
-        contentMutationUtil.updateTags(
-            currentTags, tagUpdate, newTags // Track newly created tags
-            // for response
-            );
+    Set<TagEntity> updatedTags = contentMutationUtil.updateTags(currentTags, tagUpdate, newTags);
     image.setTags(updatedTags);
 
-    // Save updated tags to database
+    // Save updated tags to database (deduplicate by ID since equals/hashCode is name-based)
     List<Long> updatedTagIds =
         updatedTags.stream()
             .map(TagEntity::getId)
             .filter(Objects::nonNull)
+            .distinct()
             .collect(Collectors.toList());
     tagRepository.saveContentTags(image.getId(), updatedTagIds);
   }
@@ -475,32 +497,20 @@ public class ContentService {
   private void updateImagePeopleOptimized(
       ContentImageEntity image,
       CollectionRequests.PersonUpdate personUpdate,
-      List<Long> currentPersonIds,
+      List<ContentPersonEntity> currentPeopleEntities,
       Set<ContentPersonEntity> newPeople) {
-    // Convert pre-fetched IDs to entities
-    Set<ContentPersonEntity> currentPeople =
-        currentPersonIds.stream()
-            .map(
-                personId -> {
-                  ContentPersonEntity person = new ContentPersonEntity();
-                  person.setId(personId);
-                  return person;
-                })
-            .collect(Collectors.toSet());
+    Set<ContentPersonEntity> currentPeople = new HashSet<>(currentPeopleEntities);
 
     Set<ContentPersonEntity> updatedPeople =
-        contentMutationUtil.updatePeople(
-            currentPeople, personUpdate, newPeople // Track newly
-            // created people
-            // for response
-            );
+        contentMutationUtil.updatePeople(currentPeople, personUpdate, newPeople);
     image.setPeople(updatedPeople);
 
-    // Save updated people to database
+    // Save updated people to database (deduplicate by ID since equals/hashCode is name-based)
     List<Long> updatedPersonIds =
         updatedPeople.stream()
             .map(ContentPersonEntity::getId)
             .filter(Objects::nonNull)
+            .distinct()
             .collect(Collectors.toList());
     contentRepository.saveImagePeople(image.getId(), updatedPersonIds);
   }
@@ -604,12 +614,14 @@ public class ContentService {
    * cover, and links the new collection as a child of the "staging" collection.
    */
   public ImageUploadResult createCollectionWithImages(
-      CollectionRequests.Create createRequest, List<MultipartFile> files) {
+      CollectionRequests.Create createRequest,
+      List<MultipartFile> files,
+      Map<String, String> rawFilePathMap) {
     CollectionRequests.UpdateResponse collectionResponse =
         collectionService.createCollection(createRequest);
     Long newCollectionId = collectionResponse.collection().getId();
 
-    ImageUploadResult result = createImagesParallel(newCollectionId, files);
+    ImageUploadResult result = createImagesParallel(newCollectionId, files, rawFilePathMap);
 
     if (!result.successful().isEmpty()) {
       postUploadProcessing(newCollectionId, createRequest, result.successful());
@@ -618,6 +630,167 @@ public class ContentService {
     // Return result with collectionId so callers (e.g. Lightroom plugin) can send follow-up batches
     return new ImageUploadResult(
         newCollectionId, result.successful(), result.failed(), result.skipped());
+  }
+
+  /**
+   * Accept file paths and process images from local disk in background. Returns a JobStatus
+   * immediately for the caller to return 202.
+   *
+   * @param collectionId Target collection
+   * @param request File paths and optional locationId
+   * @return JobStatus with jobId for polling
+   */
+  public JobTrackingService.JobStatus processFilesFromDisk(
+      Long collectionId, DiskUploadRequest request) {
+    // Verify collection exists before starting
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
+
+    // Optionally set collection location if provided and not already set
+    if (request.locationId() != null) {
+      setCollectionLocationIfMissing(collectionId, request.locationId());
+    }
+
+    var job = jobTrackingService.createJob(request.files().size());
+
+    // Submit background processing on a virtual thread
+    rawUploadExecutor.submit(() -> processFilesFromDiskBackground(collectionId, request, job));
+
+    return job;
+  }
+
+  private void processFilesFromDiskBackground(
+      Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    try {
+      processFilesFromDiskLoop(collectionId, request, job);
+    } catch (Exception e) {
+      log.error("Disk upload job {} failed unexpectedly: {}", job.jobId(), e.getMessage(), e);
+      job.errors().add("Job failed: " + e.getMessage());
+      job.markCompleted();
+    }
+  }
+
+  private void processFilesFromDiskLoop(
+      Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    job.markProcessing();
+    log.info(
+        "Starting disk upload job {} for {} files in collection {}",
+        job.jobId(),
+        job.totalFiles(),
+        collectionId);
+
+    for (var fileEntry : request.files()) {
+      try {
+        var prepared =
+            imageProcessingService.prepareImageFromDisk(
+                Path.of(fileEntry.jpegPath()), fileEntry.rawPath());
+
+        // People: prefer plugin-provided list (from Lightroom keyword hierarchy),
+        // fall back to XMP-extracted people if plugin didn't send any
+        List<String> peopleNames =
+            (fileEntry.people() != null && !fileEntry.people().isEmpty())
+                ? fileEntry.people()
+                : prepared.extractedPeople();
+
+        // Save to DB with dedupe (reuses existing logic)
+        ImageProcessingService.DedupeResult dedupeResult =
+            imageProcessingService.savePreparedImageWithDedupe(prepared, null);
+
+        // Update job counters based on dedupeResult action
+        job.processed().incrementAndGet();
+        switch (dedupeResult.action()) {
+          case CREATE -> {
+            job.created().incrementAndGet();
+            // Auto-associate tags (from XMP) and people (from plugin or XMP fallback)
+            contentMutationUtil.associateExtractedKeywords(
+                dedupeResult.entity().getId(), prepared.extractedTags(), peopleNames);
+            // Link to collection
+            linkImageToCollection(collectionId, dedupeResult.entity());
+            // Schedule RAW upload in background
+            String rawFilePath = prepared.rawFilePath();
+            if (rawFilePath != null && !rawFilePath.isBlank()) {
+              Long imageId = dedupeResult.entity().getId();
+              int year = prepared.imageYear();
+              int month = prepared.imageMonth();
+              rawUploadExecutor.submit(
+                  () ->
+                      imageProcessingService.uploadRawAndUpdateDb(
+                          imageId, rawFilePath, year, month));
+            }
+          }
+          case UPDATE -> {
+            job.updated().incrementAndGet();
+            // Re-associate tags (from XMP) and people (from plugin or XMP fallback)
+            contentMutationUtil.associateExtractedKeywords(
+                dedupeResult.entity().getId(), prepared.extractedTags(), peopleNames);
+            // For UPDATE, only link if not already in this collection
+            Optional<CollectionContentEntity> existingJoin =
+                collectionRepository.findContentByCollectionIdAndContentId(
+                    collectionId, dedupeResult.entity().getId());
+            if (existingJoin.isEmpty()) {
+              linkImageToCollection(collectionId, dedupeResult.entity());
+            }
+            // Schedule RAW upload only if no RAW exists yet — RAW files don't change between
+            // exports
+            String rawFilePath = prepared.rawFilePath();
+            if (rawFilePath != null
+                && !rawFilePath.isBlank()
+                && dedupeResult.entity().getImageUrlRaw() == null) {
+              Long imageId = dedupeResult.entity().getId();
+              int year = prepared.imageYear();
+              int month = prepared.imageMonth();
+              rawUploadExecutor.submit(
+                  () ->
+                      imageProcessingService.uploadRawAndUpdateDb(
+                          imageId, rawFilePath, year, month));
+            }
+          }
+          case SKIP -> job.skipped().incrementAndGet();
+          default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
+        }
+      } catch (Exception e) {
+        log.error("Failed to process file {}: {}", fileEntry.jpegPath(), e.getMessage(), e);
+        job.errors().add(fileEntry.jpegPath() + ": " + e.getMessage());
+        job.processed().incrementAndGet();
+      }
+    }
+
+    // Evict generalMetadata cache — new tags/people may have been created during upload
+    evictGeneralMetadataCache();
+
+    job.markCompleted();
+    log.info(
+        "Disk upload job {} complete: {} created, {} updated, {} skipped, {} errors",
+        job.jobId(),
+        job.created().get(),
+        job.updated().get(),
+        job.skipped().get(),
+        job.errors().size());
+  }
+
+  /**
+   * Manually evict the generalMetadata cache. Used by background methods where Spring's
+   * proxy-based @CacheEvict cannot intercept (private/self-invoked methods).
+   */
+  private void evictGeneralMetadataCache() {
+    var cache = cacheManager.getCache("generalMetadata");
+    if (cache != null) {
+      cache.clear();
+      log.debug("Evicted generalMetadata cache after disk upload");
+    }
+  }
+
+  private void linkImageToCollection(Long collectionId, ContentImageEntity entity) {
+    int orderIndex = nextOrderIndex(collectionId);
+    CollectionContentEntity joinEntry =
+        CollectionContentEntity.builder()
+            .collectionId(collectionId)
+            .contentId(entity.getId())
+            .orderIndex(orderIndex)
+            .visible(true)
+            .build();
+    collectionRepository.saveContent(joinEntry);
   }
 
   /**
@@ -705,7 +878,7 @@ public class ContentService {
   }
 
   /** Batch size for parallel image processing to avoid overwhelming resources */
-  private static final int PARALLEL_BATCH_SIZE = 10;
+  private static final int PARALLEL_BATCH_SIZE = 3;
 
   /**
    * OPTIMIZED: Create and upload images with parallel processing.
@@ -720,7 +893,8 @@ public class ContentService {
    * @param files List of image files to upload
    * @return List of successfully created images
    */
-  public ImageUploadResult createImagesParallel(Long collectionId, List<MultipartFile> files) {
+  public ImageUploadResult createImagesParallel(
+      Long collectionId, List<MultipartFile> files, Map<String, String> rawFilePathMap) {
     log.info(
         "Creating {} images for collection {} with parallel processing (batch size: {})",
         files.size(),
@@ -734,54 +908,71 @@ public class ContentService {
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
-    // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
-    // NO database calls happen here - only S3 I/O and CPU work
-    List<PreparedImage> allPrepared = new ArrayList<>();
-    List<ImageUploadResult.FileError> allFailures = new ArrayList<>();
+    // Acquire semaphore to prevent concurrent upload requests from OOM-ing.
+    // If another upload is in progress, this request blocks until it finishes.
+    try {
+      uploadSemaphore.acquire();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Upload interrupted while waiting for semaphore", e);
+    }
 
-    for (int i = 0; i < files.size(); i += PARALLEL_BATCH_SIZE) {
-      int end = Math.min(i + PARALLEL_BATCH_SIZE, files.size());
-      List<MultipartFile> batch = files.subList(i, end);
-      log.info("Processing batch {}-{} of {} files", i + 1, end, files.size());
+    try {
+      // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
+      // NO database calls happen here - only S3 I/O and CPU work
+      // RAW uploads are deferred to background threads after the response is sent.
+      List<PreparedImage> allPrepared = new ArrayList<>();
+      List<ImageUploadResult.FileError> allFailures = new ArrayList<>();
 
-      List<CompletableFuture<PreparedImage>> futures =
-          batch.stream()
-              .map(
-                  file ->
-                      CompletableFuture.supplyAsync(
-                          () -> prepareImageAsync(file), imageProcessingExecutor))
-              .toList();
+      for (int i = 0; i < files.size(); i += PARALLEL_BATCH_SIZE) {
+        int end = Math.min(i + PARALLEL_BATCH_SIZE, files.size());
+        List<MultipartFile> batch = files.subList(i, end);
+        log.debug("Processing batch {}-{} of {} files", i + 1, end, files.size());
 
-      // Wait for this batch to complete and track failures
-      for (int j = 0; j < futures.size(); j++) {
-        PreparedImage result = futures.get(j).join();
-        if (result != null) {
-          allPrepared.add(result);
-        } else {
-          String filename = batch.get(j).getOriginalFilename();
-          allFailures.add(
-              new ImageUploadResult.FileError(
-                  filename != null ? filename : "unknown",
-                  "Image preparation failed (S3 upload or processing error)"));
+        List<CompletableFuture<PreparedImage>> futures =
+            batch.stream()
+                .map(
+                    file -> {
+                      String rawPath =
+                          rawFilePathMap.getOrDefault(file.getOriginalFilename(), null);
+                      return CompletableFuture.supplyAsync(
+                          () -> prepareImageAsync(file, rawPath), imageProcessingExecutor);
+                    })
+                .toList();
+
+        // Wait for this batch to complete and track failures
+        for (int j = 0; j < futures.size(); j++) {
+          PreparedImage result = futures.get(j).join();
+          if (result != null) {
+            allPrepared.add(result);
+          } else {
+            String filename = batch.get(j).getOriginalFilename();
+            allFailures.add(
+                new ImageUploadResult.FileError(
+                    filename != null ? filename : "unknown",
+                    "Image preparation failed (S3 upload or processing error)"));
+          }
         }
+
+        log.debug(
+            "Batch complete: {}/{} images prepared successfully so far",
+            allPrepared.size(),
+            files.size());
       }
 
       log.info(
-          "Batch complete: {}/{} images prepared successfully so far",
+          "All parallel processing complete: {}/{} images prepared, {} failed",
           allPrepared.size(),
-          files.size());
+          files.size(),
+          allFailures.size());
+
+      // PHASE 2: Save images to database individually
+      // Each image saves in its own transaction (via @Transactional repository methods)
+      // so that one failure doesn't cascade and kill the entire batch
+      return saveProcessedImages(collectionId, allPrepared, allFailures);
+    } finally {
+      uploadSemaphore.release();
     }
-
-    log.info(
-        "All parallel processing complete: {}/{} images prepared, {} failed",
-        allPrepared.size(),
-        files.size(),
-        allFailures.size());
-
-    // PHASE 2: Save to database in a SINGLE SHORT TRANSACTION
-    // Uses TransactionTemplate to avoid self-invocation proxy bypass
-    return transactionTemplate.execute(
-        status -> saveProcessedImages(collectionId, allPrepared, allFailures));
   }
 
   /**
@@ -791,22 +982,22 @@ public class ContentService {
    * @param file The image file to process
    * @return Prepared image data, or null if processing failed
    */
-  private PreparedImage prepareImageAsync(MultipartFile file) {
+  private PreparedImage prepareImageAsync(MultipartFile file, String rawFilePath) {
     String filename = file.getOriginalFilename();
     try {
-      log.debug("Preparing image: {}", filename);
+      log.trace("Preparing image: {}", filename);
 
       // Skip non-images and GIFs
       if (file.getContentType() == null
           || !file.getContentType().startsWith("image/")
           || file.getContentType().equals("image/gif")) {
-        log.debug("Skipping non-image or GIF: {}", filename);
+        log.trace("Skipping non-image or GIF: {}", filename);
         return null;
       }
 
-      // S3 upload + resize + WebP conversion only - NO database calls
+      // S3 upload + resize + WebP conversion + optional RAW upload - NO database calls
       ImageProcessingService.PreparedImageData prepared =
-          imageProcessingService.prepareImageForUpload(file);
+          imageProcessingService.prepareImageForUpload(file, rawFilePath);
 
       return new PreparedImage(prepared, filename);
 
@@ -829,7 +1020,7 @@ public class ContentService {
       Long collectionId,
       List<PreparedImage> preparedImages,
       List<ImageUploadResult.FileError> previousFailures) {
-    log.debug("Saving {} prepared images to database", preparedImages.size());
+    log.trace("Saving {} prepared images to database", preparedImages.size());
 
     List<ContentModels.Image> createdImages = new ArrayList<>();
     List<ImageUploadResult.FileError> failures = new ArrayList<>(previousFailures);
@@ -852,10 +1043,29 @@ public class ContentService {
 
         ContentImageEntity entity = dedupeResult.entity();
 
-        // Auto-associate tags and people extracted from XMP keywords (only on new images)
-        if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE) {
+        // Auto-associate tags and people extracted from XMP keywords
+        // On CREATE: initial association. On UPDATE: re-associate in case new tags/people were
+        // added.
+        if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE
+            || dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
           contentMutationUtil.associateExtractedKeywords(
               entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
+        }
+
+        // Schedule background RAW upload if a rawFilePath was provided.
+        // On UPDATE, skip if RAW already exists — RAW files don't change between exports.
+        String rawFilePath = prepared.data().rawFilePath();
+        boolean shouldUploadRaw =
+            rawFilePath != null
+                && !rawFilePath.isBlank()
+                && (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE
+                    || entity.getImageUrlRaw() == null);
+        if (shouldUploadRaw) {
+          Long imageId = entity.getId();
+          int year = prepared.data().imageYear();
+          int month = prepared.data().imageMonth();
+          rawUploadExecutor.submit(
+              () -> imageProcessingService.uploadRawAndUpdateDb(imageId, rawFilePath, year, month));
         }
 
         // For UPDATE, check if already in this collection

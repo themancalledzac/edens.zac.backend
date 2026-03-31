@@ -175,6 +175,20 @@ public class PersonRepository extends BaseDao {
     return result;
   }
 
+  @Transactional
+  public void deleteById(Long id) {
+    String sql = "DELETE FROM content_people WHERE id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    update(sql, params);
+  }
+
+  @Transactional
+  public void deleteAllAssociationsByPersonId(Long personId) {
+    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
+    update("DELETE FROM content_image_people WHERE person_id = :personId", params);
+    update("DELETE FROM collection_people WHERE person_id = :personId", params);
+  }
+
   @Transactional(readOnly = true)
   public List<ContentPersonEntity> findContentPeople(Long contentId) {
     String sql =

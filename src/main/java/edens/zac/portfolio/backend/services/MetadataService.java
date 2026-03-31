@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.EquipmentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
@@ -65,6 +66,17 @@ public class MetadataService {
         "createdAt", savedTag.getCreatedAt());
   }
 
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
+  public void deleteTag(Long id) {
+    tagRepository
+        .findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Tag not found with ID: " + id));
+    tagRepository.deleteAllAssociationsByTagId(id);
+    tagRepository.deleteById(id);
+    log.info("Deleted tag with ID: {}", id);
+  }
+
   // ========== Person Operations ==========
 
   @Transactional(readOnly = true)
@@ -91,6 +103,17 @@ public class MetadataService {
         "id", savedPerson.getId(),
         "personName", savedPerson.getPersonName(),
         "createdAt", savedPerson.getCreatedAt());
+  }
+
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
+  public void deletePerson(Long id) {
+    personRepository
+        .findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Person not found with ID: " + id));
+    personRepository.deleteAllAssociationsByPersonId(id);
+    personRepository.deleteById(id);
+    log.info("Deleted person with ID: {}", id);
   }
 
   // ========== Camera Operations ==========
@@ -270,6 +293,17 @@ public class MetadataService {
   @Transactional(readOnly = true)
   public List<Records.LocationWithCounts> getLocationsWithCounts() {
     return locationRepository.findLocationsWithVisibleContent();
+  }
+
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
+  public void deleteLocation(Long id) {
+    locationRepository
+        .findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Location not found with ID: " + id));
+    locationRepository.clearAllAssociationsByLocationId(id);
+    locationRepository.deleteById(id);
+    log.info("Deleted location with ID: {}", id);
   }
 
   @Transactional

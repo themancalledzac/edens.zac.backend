@@ -12,10 +12,15 @@ import com.drew.metadata.xmp.XmpDirectory;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,10 +66,49 @@ public class ImageMetadataExtractor {
    * @throws IOException If there's an error reading the file
    */
   public MetadataExtractionResult extractImageMetadata(MultipartFile file) throws IOException {
+    String filename = file.getOriginalFilename();
+    MetadataExtractionResult result;
+    try (InputStream inputStream = file.getInputStream()) {
+      result = extractFromStream(inputStream, filename);
+    }
+
+    // Fallback: Get dimensions from BufferedImage if not found
+    if (!result.metadata().containsKey("imageWidth")
+        || !result.metadata().containsKey("imageHeight")) {
+      ensureDimensions(file, result.metadata());
+    }
+
+    return result;
+  }
+
+  /**
+   * Extract all EXIF and XMP metadata from an image file on disk.
+   *
+   * @param filePath Path to the image file
+   * @return MetadataExtractionResult with technical metadata map plus extracted tags/people
+   * @throws IOException If there's an error reading the file
+   */
+  public MetadataExtractionResult extractImageMetadata(Path filePath) throws IOException {
+    String filename = filePath.getFileName().toString();
+    MetadataExtractionResult result;
+    try (InputStream inputStream = Files.newInputStream(filePath)) {
+      result = extractFromStream(inputStream, filename);
+    }
+
+    // Fallback: Get dimensions from BufferedImage if not found
+    if (!result.metadata().containsKey("imageWidth")
+        || !result.metadata().containsKey("imageHeight")) {
+      ensureDimensionsFromPath(filePath, result.metadata());
+    }
+
+    return result;
+  }
+
+  private MetadataExtractionResult extractFromStream(InputStream inputStream, String filename) {
     Map<String, String> metadata = new HashMap<>();
     ExtractedKeywords keywords = ExtractedKeywords.EMPTY;
 
-    try (InputStream inputStream = file.getInputStream()) {
+    try {
       Metadata imageMetadata = ImageMetadataReader.readMetadata(inputStream);
 
       // Extract EXIF metadata for all defined fields
@@ -86,37 +130,24 @@ public class ImageMetadataExtractor {
               keywords = extractTagsAndPeopleFromXmp(xmpMeta);
             }
           } catch (Exception e) {
-            log.warn(
-                "Failed to extract keywords from XMP for {}: {}",
-                file.getOriginalFilename(),
-                e.getMessage());
+            log.warn("Failed to extract keywords from XMP for {}: {}", filename, e.getMessage());
           }
         }
       }
 
       if (!metadata.containsKey("createDate")) {
-        log.warn("No capture date found in EXIF or XMP for file: {}", file.getOriginalFilename());
+        log.warn("No capture date found in EXIF or XMP for file: {}", filename);
       }
 
-      // Fallback: Get dimensions from BufferedImage if not found
-      ensureDimensions(file, metadata);
-
-      log.info("Extracted metadata: {} fields", metadata.size());
-      log.info("Final rating value: {}", metadata.getOrDefault("rating", "NULL"));
-      if (!keywords.tags().isEmpty() || !keywords.people().isEmpty()) {
-        log.info(
-            "Extracted {} tags and {} people from XMP keywords",
-            keywords.tags().size(),
-            keywords.people().size());
-      }
+      log.trace(
+          "Extracted metadata: {} fields, rating: {}, tags: {}, people: {}",
+          metadata.size(),
+          metadata.getOrDefault("rating", "NULL"),
+          keywords.tags().size(),
+          keywords.people().size());
 
     } catch (Exception e) {
-      log.error(
-          "Failed to extract full metadata for {}: {}",
-          file.getOriginalFilename(),
-          e.getMessage(),
-          e);
-      ensureDimensions(file, metadata);
+      log.error("Failed to extract full metadata for {}: {}", filename, e.getMessage(), e);
     }
 
     return new MetadataExtractionResult(metadata, keywords.tags(), keywords.people());
@@ -183,7 +214,7 @@ public class ImageMetadataExtractor {
             }
           }
         } catch (XMPException e) {
-          log.debug(
+          log.trace(
               "XMP extraction failed for {}/{} (code {}): {}",
               entry.namespace(),
               entry.propertyName(),
@@ -214,7 +245,7 @@ public class ImageMetadataExtractor {
         }
       }
     } catch (XMPException e) {
-      log.debug(
+      log.trace(
           "XMP array extraction failed for {}/{}: {}", namespace, propertyName, e.getMessage());
     }
     return items;
@@ -256,6 +287,16 @@ public class ImageMetadataExtractor {
         }
       }
 
+      // Filter out any tag that matches a person name — Lightroom adds people keywords
+      // both under "People|Name" hierarchy AND as standalone keywords
+      if (!people.isEmpty()) {
+        Set<String> peopleNamesLower = new HashSet<>();
+        for (String name : people) {
+          peopleNamesLower.add(name.toLowerCase());
+        }
+        tags.removeIf(tag -> peopleNamesLower.contains(tag.toLowerCase()));
+      }
+
       return new ExtractedKeywords(tags, people);
     }
 
@@ -279,16 +320,26 @@ public class ImageMetadataExtractor {
    * @param metadata The metadata map to populate
    */
   private void ensureDimensions(MultipartFile file, Map<String, String> metadata) {
-    if (!metadata.containsKey("imageWidth") || !metadata.containsKey("imageHeight")) {
-      try (InputStream is = file.getInputStream()) {
-        BufferedImage img = ImageIO.read(is);
-        if (img != null) {
-          metadata.put("imageWidth", String.valueOf(img.getWidth()));
-          metadata.put("imageHeight", String.valueOf(img.getHeight()));
-        }
-      } catch (IOException e) {
-        log.warn("Failed to read image dimensions from BufferedImage: {}", e.getMessage());
+    try (InputStream is = file.getInputStream()) {
+      BufferedImage img = ImageIO.read(is);
+      if (img != null) {
+        metadata.put("imageWidth", String.valueOf(img.getWidth()));
+        metadata.put("imageHeight", String.valueOf(img.getHeight()));
       }
+    } catch (IOException e) {
+      log.warn("Failed to read image dimensions from BufferedImage: {}", e.getMessage());
+    }
+  }
+
+  private void ensureDimensionsFromPath(Path filePath, Map<String, String> metadata) {
+    try (InputStream is = Files.newInputStream(filePath)) {
+      BufferedImage img = ImageIO.read(is);
+      if (img != null) {
+        metadata.put("imageWidth", String.valueOf(img.getWidth()));
+        metadata.put("imageHeight", String.valueOf(img.getHeight()));
+      }
+    } catch (IOException e) {
+      log.warn("Failed to read image dimensions from path: {}", e.getMessage());
     }
   }
 
@@ -325,23 +376,59 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Parse an EXIF date string to a LocalDateTime.
+   * Parse an EXIF or XMP date string to a LocalDateTime.
    *
-   * @param createDate The EXIF date string (e.g., "2026:01:26 17:48:38")
+   * <p>Handles multiple date formats:
+   *
+   * <ul>
+   *   <li>EXIF: "2020:09:27 08:42:51"
+   *   <li>ISO with time: "2020-09-27T08:42:51"
+   *   <li>ISO with timezone offset: "2020-09-27T08:42:51-07:00"
+   *   <li>Date only (EXIF): "2020:09:27" -> midnight
+   *   <li>Date only (ISO): "2020-09-27" -> midnight
+   * </ul>
+   *
+   * @param createDate The date string from EXIF or XMP metadata
    * @return The parsed LocalDateTime, or null if parsing fails
    */
   public LocalDateTime parseExifDateToLocalDateTime(String createDate) {
     if (createDate == null || createDate.trim().isEmpty()) {
       return null;
     }
+
+    String trimmed = createDate.trim();
+
+    // Detect format: EXIF dates start with "YYYY:" while ISO dates start with "YYYY-"
+    boolean isExifFormat = trimmed.length() > 4 && trimmed.charAt(4) == ':';
+
     try {
-      // EXIF format: "2026:01:26 17:48:38" -> convert to "2026-01-26T17:48:38"
-      // Replace first two colons (in date part) with dashes, then space with T
-      String normalized =
-          createDate.replaceFirst(":", "-").replaceFirst(":", "-").replace(" ", "T");
-      return LocalDateTime.parse(normalized);
-    } catch (Exception e) {
-      log.warn("Failed to parse EXIF date '{}' to LocalDateTime, date will be null", createDate);
+      if (isExifFormat) {
+        // EXIF format: "2020:09:27 08:42:51" -> "2020-09-27T08:42:51"
+        String normalized = trimmed.replaceFirst(":", "-").replaceFirst(":", "-").replace(" ", "T");
+        if (normalized.length() == 10) {
+          return LocalDate.parse(normalized).atStartOfDay();
+        }
+        return LocalDateTime.parse(normalized);
+      }
+
+      // ISO format from XMP: "2020-09-27T08:42:51" or "2020-09-27T08:42:51-07:00"
+      if (trimmed.length() == 10) {
+        // Date only: "2020-09-27"
+        return LocalDate.parse(trimmed).atStartOfDay();
+      }
+
+      // Try ISO with timezone offset first (e.g. "2020-09-27T08:42:51-07:00")
+      if (trimmed.length() > 19 && (trimmed.contains("+") || trimmed.lastIndexOf('-') > 10)) {
+        return OffsetDateTime.parse(trimmed).toLocalDateTime();
+      }
+
+      // Standard ISO: "2020-09-27T08:42:51"
+      return LocalDateTime.parse(trimmed);
+    } catch (DateTimeParseException e) {
+      log.warn(
+          "Failed to parse date '{}' to LocalDateTime: {}, date will be null",
+          createDate,
+          e.getMessage());
       return null;
     }
   }

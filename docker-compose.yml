@@ -31,10 +31,18 @@ services:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret}
       # Access token secret for client gallery HMAC tokens
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-dev-access-token-secret}
+
+      # JVM memory: local dev uses 1g (48GB machine), EC2 prod uses 384m (1GB instance)
+      # EC2 prod override: JAVA_OPTS=-Xmx384m -Xms256m
+      JAVA_OPTS: ${JAVA_OPTS:--Xmx1g -Xms512m}
+    volumes:
+      # Local dev only: mount Photography dir so backend can stream RAW files to S3.
+      # On EC2 prod, omit PHOTOGRAPHY_PATH or leave empty (RAW uploads only happen locally).
+      - ${PHOTOGRAPHY_PATH:-/dev/null}:${PHOTOGRAPHY_PATH:-/dev/null}:ro
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: ${DOCKER_MEMORY_LIMIT:-1536M}
     restart: unless-stopped
     healthcheck:
       test:

@@ -5,11 +5,14 @@ import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.JobTrackingService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -42,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ContentControllerDev {
 
   private final ContentService contentService;
+  private final JobTrackingService jobTrackingService;
 
   /**
    * Create and upload images to a collection POST /api/admin/content/images/{collectionId}
@@ -59,6 +63,7 @@ public class ContentControllerDev {
   public ResponseEntity<ImageUploadResult> createImages(
       @PathVariable Long collectionId,
       @RequestParam(value = "locationId", required = false) Long locationId,
+      @RequestParam(value = "rawFilePaths", required = false) List<String> rawFilePaths,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
       throw new IllegalArgumentException(
@@ -70,7 +75,9 @@ public class ContentControllerDev {
       contentService.setCollectionLocationIfMissing(collectionId, locationId);
     }
 
-    ImageUploadResult result = contentService.createImagesParallel(collectionId, files);
+    Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
+    ImageUploadResult result =
+        contentService.createImagesParallel(collectionId, files, rawFilePathMap);
     log.info(
         "Created {} image(s) in collection: {} ({} failed)",
         result.successful().size(),
@@ -201,6 +208,7 @@ public class ContentControllerDev {
           @org.springframework.format.annotation.DateTimeFormat(
               iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
           java.time.LocalDate collectionDate,
+      @RequestParam(value = "rawFilePaths", required = false) List<String> rawFilePaths,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
       throw new IllegalArgumentException(
@@ -214,7 +222,9 @@ public class ContentControllerDev {
         new CollectionRequests.Create(
             collectionType, title, description, locationId, locationName, collectionDate);
 
-    ImageUploadResult result = contentService.createCollectionWithImages(createRequest, files);
+    Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
+    ImageUploadResult result =
+        contentService.createCollectionWithImages(createRequest, files, rawFilePathMap);
     log.info(
         "Created collection '{}' with {} image(s) ({} failed)",
         title,
@@ -249,5 +259,60 @@ public class ContentControllerDev {
     String personName = request.personName();
     Map<String, Object> response = contentService.createPerson(personName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * Accept file paths from Lightroom and process images from disk in background. Returns 202
+   * Accepted immediately with a job ID for status polling.
+   *
+   * @param collectionId ID of the collection to add images to
+   * @param request File paths and optional locationId
+   * @return 202 Accepted with jobId and totalFiles
+   */
+  @PostMapping("/images/{collectionId}/from-disk")
+  public ResponseEntity<Map<String, Object>> createImagesFromDisk(
+      @PathVariable Long collectionId, @RequestBody @Valid DiskUploadRequest request) {
+    var jobStatus = contentService.processFilesFromDisk(collectionId, request);
+    return ResponseEntity.status(HttpStatus.ACCEPTED)
+        .body(
+            Map.of(
+                "jobId", jobStatus.jobId().toString(),
+                "totalFiles", jobStatus.totalFiles(),
+                "message", "Processing started"));
+  }
+
+  /**
+   * Poll for background job status.
+   *
+   * @param jobId The job ID returned from the /from-disk endpoint
+   * @return Job status with progress counters, or 404 if not found
+   */
+  @GetMapping("/images/jobs/{jobId}")
+  public ResponseEntity<JobTrackingService.JobStatusResponse> getJobStatus(
+      @PathVariable UUID jobId) {
+    return jobTrackingService
+        .getJob(jobId)
+        .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.notFound().build());
+  }
+
+  /**
+   * Parse rawFilePaths parameter entries into a map of rendered filename to RAW file path. Each
+   * entry is formatted as "renderedFilename|/absolute/path/to/raw.NEF".
+   *
+   * @param rawFilePaths List of "filename|path" strings, or null
+   * @return Map of rendered filename to RAW path, empty map if input is null
+   */
+  private Map<String, String> parseRawFilePaths(List<String> rawFilePaths) {
+    if (rawFilePaths == null || rawFilePaths.isEmpty()) {
+      return Map.of();
+    }
+    return rawFilePaths.stream()
+        .filter(entry -> entry != null && entry.contains("|"))
+        .collect(
+            java.util.stream.Collectors.toMap(
+                entry -> entry.substring(0, entry.indexOf('|')),
+                entry -> entry.substring(entry.indexOf('|') + 1),
+                (existing, replacement) -> replacement));
   }
 }

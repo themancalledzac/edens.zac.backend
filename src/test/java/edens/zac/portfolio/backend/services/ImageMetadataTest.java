@@ -10,6 +10,7 @@ import edens.zac.portfolio.backend.services.ImageMetadata.BooleanExtractor;
 import edens.zac.portfolio.backend.services.ImageMetadata.ExifTags;
 import edens.zac.portfolio.backend.services.ImageMetadata.MetadataField;
 import edens.zac.portfolio.backend.services.ImageMetadata.NumericExtractor;
+import edens.zac.portfolio.backend.services.ImageMetadata.ShutterSpeedExtractor;
 import edens.zac.portfolio.backend.services.ImageMetadata.SimpleStringExtractor;
 import edens.zac.portfolio.backend.services.ImageMetadata.XmpProperty;
 import org.junit.jupiter.api.Test;
@@ -178,6 +179,79 @@ class ImageMetadataTest {
     var extractor = new NumericExtractor();
 
     assertEquals("100", extractor.extract("100"));
+  }
+
+  // ==================== ShutterSpeedExtractor ====================
+
+  @Test
+  void shutterSpeedExtractor_passesThroughFractionFormat() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertEquals("1/100 sec", extractor.extract("1/100 sec"));
+  }
+
+  @Test
+  void shutterSpeedExtractor_passesThroughFractionWithoutSuffix() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertEquals("1/100", extractor.extract("1/100"));
+  }
+
+  @Test
+  void shutterSpeedExtractor_convertsDecimalToFraction() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertEquals("1/100 sec", extractor.extract("0.01"));
+  }
+
+  @Test
+  void shutterSpeedExtractor_convertsDecimalOneEightieth() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertEquals("1/80 sec", extractor.extract("0.0125"));
+  }
+
+  @Test
+  void shutterSpeedExtractor_convertsDecimalOneFiveHundredth() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertEquals("1/500 sec", extractor.extract("0.002"));
+  }
+
+  @Test
+  void shutterSpeedExtractor_handlesWholeSeconds() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertEquals("2 sec", extractor.extract("2.0"));
+    assertEquals("30 sec", extractor.extract("30"));
+  }
+
+  @Test
+  void shutterSpeedExtractor_returnsNullForNull() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertNull(extractor.extract(null));
+  }
+
+  @Test
+  void shutterSpeedExtractor_returnsNullForEmpty() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertNull(extractor.extract(""));
+  }
+
+  @Test
+  void shutterSpeedExtractor_returnsNullForBlank() {
+    var extractor = new ShutterSpeedExtractor();
+
+    assertNull(extractor.extract("   "));
+  }
+
+  @Test
+  void shutterSpeedExtractor_usedByShutterSpeedField() {
+    var extractor = MetadataField.SHUTTER_SPEED.getExtractor();
+
+    assertTrue(extractor instanceof ShutterSpeedExtractor);
   }
 
   // ==================== BooleanExtractor ====================

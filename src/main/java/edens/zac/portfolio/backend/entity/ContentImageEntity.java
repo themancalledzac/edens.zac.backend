@@ -87,6 +87,9 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: image_url_original (VARCHAR) - S3 URL for original full-size image */
   private String imageUrlOriginal;
 
+  /** Column: image_url_raw (VARCHAR) - S3 URL for original RAW source file */
+  private String imageUrlRaw;
+
   /** Column: capture_date (TIMESTAMP) - parsed EXIF capture datetime */
   private LocalDateTime captureDate;
 
