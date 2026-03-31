@@ -54,7 +54,7 @@ public class ImageMetadata {
         "shutterSpeed",
         ExifTags.of("Exposure Time", "Shutter Speed Value"),
         XmpProperty.of(XMPConst.NS_EXIF, "ExposureTime"),
-        new SimpleStringExtractor()),
+        new ShutterSpeedExtractor()),
 
     LENS(
         "lens",
@@ -250,6 +250,47 @@ public class ImageMetadata {
       }
 
       return numeric;
+    }
+  }
+
+  /**
+   * Shutter speed extractor that normalizes decimal values to fractional format. EXIF "Exposure
+   * Time" tags from metadata-extractor already come formatted as "1/100 sec", but XMP ExposureTime
+   * stores the raw decimal (e.g., "0.01"). This extractor converts decimals to fractions so the
+   * display is consistent regardless of source.
+   */
+  public static class ShutterSpeedExtractor implements ValueExtractor {
+    @Override
+    public String extract(String rawValue) {
+      if (rawValue == null || rawValue.trim().isEmpty()) {
+        return null;
+      }
+      String trimmed = rawValue.trim();
+
+      // Already in fraction or human-readable format (e.g., "1/100 sec") — pass through
+      if (trimmed.contains("/")) {
+        return trimmed;
+      }
+
+      // Try to parse as a decimal and convert to fraction
+      try {
+        double value = Double.parseDouble(trimmed.replaceAll("[^0-9.]", ""));
+        if (value <= 0) {
+          return trimmed;
+        }
+
+        // Values >= 1 second: display as-is with "sec" suffix (e.g., "2 sec", "30 sec")
+        if (value >= 1.0) {
+          long whole = Math.round(value);
+          return whole + " sec";
+        }
+
+        // Values < 1 second: convert to 1/N fraction
+        long denominator = Math.round(1.0 / value);
+        return "1/" + denominator + " sec";
+      } catch (NumberFormatException e) {
+        return trimmed;
+      }
     }
   }
 
