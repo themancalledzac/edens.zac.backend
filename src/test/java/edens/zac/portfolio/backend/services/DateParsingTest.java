@@ -87,13 +87,24 @@ class DateParsingTest {
     }
 
     @Test
-    void isoFormat_returnsNullBecauseMethodOnlyHandlesExifFormat() {
-      // parseExifDateToLocalDateTime replaces the first two colons with dashes,
-      // which mangles ISO-8601 dates (time colons get replaced instead of date colons).
-      // This is expected -- the method is designed for EXIF format only.
+    void isoFormat_parsesCorrectly() {
       LocalDateTime result = extractor.parseExifDateToLocalDateTime("2026-01-26T17:48:38");
 
-      assertThat(result).isNull();
+      assertThat(result).isEqualTo(LocalDateTime.of(2026, 1, 26, 17, 48, 38));
+    }
+
+    @Test
+    void isoFormatWithTimezoneOffset_parsesCorrectly() {
+      LocalDateTime result = extractor.parseExifDateToLocalDateTime("2020-09-27T08:42:51-07:00");
+
+      assertThat(result).isEqualTo(LocalDateTime.of(2020, 9, 27, 8, 42, 51));
+    }
+
+    @Test
+    void isoDateOnly_returnsMidnight() {
+      LocalDateTime result = extractor.parseExifDateToLocalDateTime("2020-09-27");
+
+      assertThat(result).isEqualTo(LocalDateTime.of(2020, 9, 27, 0, 0, 0));
     }
 
     @Test

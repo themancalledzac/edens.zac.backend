@@ -16,6 +16,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -374,23 +376,59 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Parse an EXIF date string to a LocalDateTime.
+   * Parse an EXIF or XMP date string to a LocalDateTime.
    *
-   * @param createDate The EXIF date string (e.g., "2026:01:26 17:48:38")
+   * <p>Handles multiple date formats:
+   *
+   * <ul>
+   *   <li>EXIF: "2020:09:27 08:42:51"
+   *   <li>ISO with time: "2020-09-27T08:42:51"
+   *   <li>ISO with timezone offset: "2020-09-27T08:42:51-07:00"
+   *   <li>Date only (EXIF): "2020:09:27" -> midnight
+   *   <li>Date only (ISO): "2020-09-27" -> midnight
+   * </ul>
+   *
+   * @param createDate The date string from EXIF or XMP metadata
    * @return The parsed LocalDateTime, or null if parsing fails
    */
   public LocalDateTime parseExifDateToLocalDateTime(String createDate) {
     if (createDate == null || createDate.trim().isEmpty()) {
       return null;
     }
+
+    String trimmed = createDate.trim();
+
+    // Detect format: EXIF dates start with "YYYY:" while ISO dates start with "YYYY-"
+    boolean isExifFormat = trimmed.length() > 4 && trimmed.charAt(4) == ':';
+
     try {
-      // EXIF format: "2026:01:26 17:48:38" -> convert to "2026-01-26T17:48:38"
-      // Replace first two colons (in date part) with dashes, then space with T
-      String normalized =
-          createDate.replaceFirst(":", "-").replaceFirst(":", "-").replace(" ", "T");
-      return LocalDateTime.parse(normalized);
-    } catch (Exception e) {
-      log.warn("Failed to parse EXIF date '{}' to LocalDateTime, date will be null", createDate);
+      if (isExifFormat) {
+        // EXIF format: "2020:09:27 08:42:51" -> "2020-09-27T08:42:51"
+        String normalized = trimmed.replaceFirst(":", "-").replaceFirst(":", "-").replace(" ", "T");
+        if (normalized.length() == 10) {
+          return LocalDate.parse(normalized).atStartOfDay();
+        }
+        return LocalDateTime.parse(normalized);
+      }
+
+      // ISO format from XMP: "2020-09-27T08:42:51" or "2020-09-27T08:42:51-07:00"
+      if (trimmed.length() == 10) {
+        // Date only: "2020-09-27"
+        return LocalDate.parse(trimmed).atStartOfDay();
+      }
+
+      // Try ISO with timezone offset first (e.g. "2020-09-27T08:42:51-07:00")
+      if (trimmed.length() > 19 && (trimmed.contains("+") || trimmed.lastIndexOf('-') > 10)) {
+        return OffsetDateTime.parse(trimmed).toLocalDateTime();
+      }
+
+      // Standard ISO: "2020-09-27T08:42:51"
+      return LocalDateTime.parse(trimmed);
+    } catch (DateTimeParseException e) {
+      log.warn(
+          "Failed to parse date '{}' to LocalDateTime: {}, date will be null",
+          createDate,
+          e.getMessage());
       return null;
     }
   }

@@ -201,11 +201,14 @@ public class ContentRepository extends BaseDao {
   @Transactional(readOnly = true)
   public Optional<ContentImageEntity> findByOriginalFilenameAndCaptureDate(
       String originalFilename, LocalDateTime captureDate) {
-    // Use DATE() truncation to match regardless of time component — old records may have midnight
-    // timestamps from the V4→V7 migration, while new EXIF parsing includes the full time.
+    // Match on base filename without extension — V4 migration stored webp filenames in
+    // original_filename, but disk re-uploads send the source jpeg filename. Strip extension
+    // from both sides so "DSC_6247.jpg" matches "DSC_6247.webp".
+    // Use DATE() truncation for capture_date — old records have midnight from the V4→V7 migration.
     String sql =
         SELECT_CONTENT_IMAGE
-            + " WHERE ci.original_filename = :originalFilename"
+            + " WHERE REGEXP_REPLACE(ci.original_filename, '\\.[^.]+$', '')"
+            + "     = REGEXP_REPLACE(:originalFilename, '\\.[^.]+$', '')"
             + " AND CAST(ci.capture_date AS DATE) = CAST(:captureDate AS DATE)";
     MapSqlParameterSource params =
         createParameterSource()

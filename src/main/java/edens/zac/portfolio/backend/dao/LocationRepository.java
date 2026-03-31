@@ -184,6 +184,13 @@ public class LocationRepository extends BaseDao {
   }
 
   @Transactional
+  public void clearAllAssociationsByLocationId(Long locationId) {
+    MapSqlParameterSource params = createParameterSource().addValue("locationId", locationId);
+    update("UPDATE collection SET location_id = NULL WHERE location_id = :locationId", params);
+    update("UPDATE content_image SET location_id = NULL WHERE location_id = :locationId", params);
+  }
+
+  @Transactional
   public void deleteById(Long id) {
     String sql = "DELETE FROM location WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);

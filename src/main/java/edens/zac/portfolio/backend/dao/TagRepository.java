@@ -155,6 +155,13 @@ public class TagRepository extends BaseDao {
     update(sql, params);
   }
 
+  @Transactional
+  public void deleteAllAssociationsByTagId(Long tagId) {
+    MapSqlParameterSource params = createParameterSource().addValue("tagId", tagId);
+    update("DELETE FROM content_tags WHERE tag_id = :tagId", params);
+    update("DELETE FROM collection_tags WHERE tag_id = :tagId", params);
+  }
+
   // ============================================================
   // Collection Tags Operations
   // ============================================================

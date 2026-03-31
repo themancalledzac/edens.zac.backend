@@ -210,7 +210,12 @@ public class ImageProcessingService {
     LocalDateTime lastExportDate = LocalDateTime.now();
 
     log.info(
-        "Prepared: {} ({}/{})", originalFilename, imageYear, String.format("%02d", imageMonth));
+        "Prepared: {} ({}/{}), createDate='{}', captureDate={}",
+        originalFilename,
+        imageYear,
+        String.format("%02d", imageMonth),
+        metadata.get("createDate"),
+        captureDate);
     return new PreparedImageData(
         originalFilename,
         imageUrlOriginal,
@@ -277,10 +282,12 @@ public class ImageProcessingService {
     LocalDateTime lastExportDate = LocalDateTime.now();
 
     log.info(
-        "Prepared from disk: {} ({}/{})",
+        "Prepared from disk: {} ({}/{}), createDate='{}', captureDate={}",
         originalFilename,
         imageYear,
-        String.format("%02d", imageMonth));
+        String.format("%02d", imageMonth),
+        metadata.get("createDate"),
+        captureDate);
     return new PreparedImageData(
         originalFilename,
         imageUrlOriginal,
@@ -347,6 +354,7 @@ public class ImageProcessingService {
         // The background thread will overwrite the same S3 key and update the DB URL.
         existing.setLastExportDate(prepared.lastExportDate());
         existing.setCaptureDate(prepared.captureDate());
+        existing.setOriginalFilename(prepared.originalFilename());
         existing.setImageWidth(
             imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), 0));
         existing.setImageHeight(
