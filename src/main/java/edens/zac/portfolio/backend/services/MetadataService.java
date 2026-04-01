@@ -68,6 +68,29 @@ public class MetadataService {
 
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
+  public Records.Tag updateTag(Long id, String tagName) {
+    metadataValidator.validateTagName(tagName);
+    tagName = tagName.trim();
+
+    TagEntity tag =
+        tagRepository
+            .findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Tag not found with ID: " + id));
+
+    Optional<TagEntity> existing = tagRepository.findByTagNameIgnoreCase(tagName);
+    if (existing.isPresent() && !existing.get().getId().equals(id)) {
+      throw new DataIntegrityViolationException("Tag already exists: " + tagName);
+    }
+
+    tag.setTagName(tagName);
+    tag.setSlug(SlugUtil.generateSlug(tagName));
+    TagEntity saved = tagRepository.save(tag);
+    log.info("Updated tag with ID: {} to name: {}", id, tagName);
+    return toTagModel(saved);
+  }
+
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteTag(Long id) {
     tagRepository
         .findById(id)
@@ -103,6 +126,30 @@ public class MetadataService {
         "id", savedPerson.getId(),
         "personName", savedPerson.getPersonName(),
         "createdAt", savedPerson.getCreatedAt());
+  }
+
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
+  public Records.Person updatePerson(Long id, String personName) {
+    metadataValidator.validatePersonName(personName);
+    personName = personName.trim();
+
+    ContentPersonEntity person =
+        personRepository
+            .findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Person not found with ID: " + id));
+
+    Optional<ContentPersonEntity> existing =
+        personRepository.findByPersonNameIgnoreCase(personName);
+    if (existing.isPresent() && !existing.get().getId().equals(id)) {
+      throw new DataIntegrityViolationException("Person already exists: " + personName);
+    }
+
+    person.setPersonName(personName);
+    person.setSlug(SlugUtil.generateSlug(personName));
+    ContentPersonEntity saved = personRepository.save(person);
+    log.info("Updated person with ID: {} to name: {}", id, personName);
+    return toPersonModel(saved);
   }
 
   @Transactional
@@ -293,6 +340,30 @@ public class MetadataService {
   @Transactional(readOnly = true)
   public List<Records.LocationWithCounts> getLocationsWithCounts() {
     return locationRepository.findLocationsWithVisibleContent();
+  }
+
+  @Transactional
+  @CacheEvict(value = "generalMetadata", allEntries = true)
+  public Records.Location updateLocation(Long id, String locationName) {
+    metadataValidator.validateLocationName(locationName);
+    locationName = locationName.trim();
+
+    LocationEntity location =
+        locationRepository
+            .findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Location not found with ID: " + id));
+
+    Optional<LocationEntity> existing =
+        locationRepository.findByLocationNameIgnoreCase(locationName);
+    if (existing.isPresent() && !existing.get().getId().equals(id)) {
+      throw new DataIntegrityViolationException("Location already exists: " + locationName);
+    }
+
+    location.setLocationName(locationName);
+    location.setSlug(SlugUtil.generateSlug(locationName));
+    LocationEntity saved = locationRepository.save(location);
+    log.info("Updated location with ID: {} to name: {}", id, locationName);
+    return toLocationModel(saved);
   }
 
   @Transactional

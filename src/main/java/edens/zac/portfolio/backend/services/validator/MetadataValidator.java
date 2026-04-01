@@ -36,6 +36,18 @@ public class MetadataValidator {
   }
 
   /**
+   * Validate a location name.
+   *
+   * @param locationName The location name to validate
+   * @throws IllegalArgumentException if validation fails
+   */
+  public void validateLocationName(String locationName) {
+    if (locationName == null || locationName.trim().isEmpty()) {
+      throw new IllegalArgumentException("locationName is required");
+    }
+  }
+
+  /**
    * Validate film type creation parameters.
    *
    * @param filmTypeName The technical film type name (e.g., "KODAK_PORTRA_400")
