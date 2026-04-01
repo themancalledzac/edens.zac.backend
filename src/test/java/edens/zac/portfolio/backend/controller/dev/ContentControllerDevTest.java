@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,8 @@ class ContentControllerDevTest {
   private MockMvc mockMvc;
 
   @Mock private ContentService contentService;
+
+  @Mock private ImageUploadPipelineService imageUploadPipelineService;
 
   @InjectMocks private ContentControllerDev contentController;
 
@@ -323,7 +326,7 @@ class ContentControllerDevTest {
     // actual upload
     // Full file upload testing would require integration tests with @SpringBootTest
 
-    verify(contentService, never()).createImagesParallel(any(), any(), any());
+    verify(imageUploadPipelineService, never()).createImagesParallel(any(), any(), any());
   }
 
   // ============== MEDIUM PRIORITY TESTS - POST /api/admin/content/tags
