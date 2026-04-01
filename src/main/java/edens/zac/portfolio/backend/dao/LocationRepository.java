@@ -121,7 +121,8 @@ public class LocationRepository extends BaseDao {
 
     String trimmedName = locationName.trim();
 
-    Optional<LocationEntity> existing = findByLocationNameIgnoreCase(trimmedName);
+    String slug = SlugUtil.generateSlug(trimmedName);
+    Optional<LocationEntity> existing = findBySlug(slug);
     if (existing.isPresent()) {
       return existing.get();
     }

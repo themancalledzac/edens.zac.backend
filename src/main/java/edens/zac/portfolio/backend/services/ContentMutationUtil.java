@@ -128,7 +128,8 @@ public class ContentMutationUtil {
           if (!seenTags.add(tagName.toLowerCase())) {
             continue;
           }
-          var existing = tagRepository.findByTagNameIgnoreCase(tagName);
+          String slug = SlugUtil.generateSlug(tagName);
+          var existing = tagRepository.findBySlug(slug);
           if (existing.isPresent()) {
             tagIds.add(existing.get().getId());
           } else {
@@ -148,7 +149,8 @@ public class ContentMutationUtil {
           if (!seenPeople.add(personName.toLowerCase())) {
             continue;
           }
-          var existing = personRepository.findByPersonNameIgnoreCase(personName);
+          String personSlug = SlugUtil.generateSlug(personName);
+          var existing = personRepository.findBySlug(personSlug);
           if (existing.isPresent()) {
             personIds.add(existing.get().getId());
           } else {

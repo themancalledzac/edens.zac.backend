@@ -138,7 +138,8 @@ public class TagRepository extends BaseDao {
 
     String trimmedName = tagName.trim();
 
-    Optional<TagEntity> existing = findByTagNameIgnoreCase(trimmedName);
+    String slug = SlugUtil.generateSlug(trimmedName);
+    Optional<TagEntity> existing = findBySlug(slug);
     if (existing.isPresent()) {
       return existing.get();
     }
