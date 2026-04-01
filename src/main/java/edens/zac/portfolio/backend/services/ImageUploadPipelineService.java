@@ -5,7 +5,6 @@ import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
-import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentModel;
@@ -15,6 +14,7 @@ import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import jakarta.annotation.PreDestroy;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -475,55 +475,21 @@ public class ImageUploadPipelineService {
           continue;
         }
 
-        ContentImageEntity entity = dedupeResult.entity();
-
-        // Auto-associate tags and people extracted from XMP keywords
-        // On CREATE: initial association. On UPDATE: re-associate in case new tags/people were
-        // added.
-        if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE
-            || dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
-          contentMutationUtil.associateExtractedKeywords(
-              entity.getId(), prepared.data().extractedTags(), prepared.data().extractedPeople());
-        }
-
-        // Schedule background RAW upload if a rawFilePath was provided.
-        scheduleRawUploadIfNeeded(
+        // Wire up keywords, RAW upload, and collection link (same as disk upload path)
+        wireImageAfterDedupe(
             dedupeResult,
+            prepared.data().extractedTags(),
+            prepared.data().extractedPeople(),
             prepared.data().rawFilePath(),
             prepared.data().imageYear(),
-            prepared.data().imageMonth());
+            prepared.data().imageMonth(),
+            collectionId,
+            orderIndex);
 
-        // For UPDATE, check if already in this collection
-        if (dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
-          Optional<CollectionContentEntity> existingJoin =
-              collectionRepository.findContentByCollectionIdAndContentId(
-                  collectionId, entity.getId());
-          if (existingJoin.isPresent()) {
-            // Already linked, just convert and add to results
-            ContentModel contentModel =
-                contentModelConverter.convertEntityToModel(existingJoin.get());
-            if (contentModel instanceof ContentModels.Image imageModel) {
-              createdImages.add(imageModel);
-            }
-            continue;
-          }
-        }
-
-        // Create join table entry linking content to collection
-        contentService.linkContentToCollection(collectionId, entity.getId(), orderIndex);
-
-        // Convert to model
+        // Convert entity to model for the result list
         ContentModel contentModel =
-            contentModelConverter.convertEntityToModel(
-                CollectionContentEntity.builder()
-                    .collectionId(collectionId)
-                    .contentId(entity.getId())
-                    .orderIndex(orderIndex)
-                    .visible(true)
-                    .build());
-        if (contentModel instanceof ContentModels.Image imageModel) {
-          createdImages.add(imageModel);
-        }
+            contentModelConverter.convertRegularContentEntityToModel(dedupeResult.entity());
+        createdImages.add(ContentService.castContentModel(contentModel, ContentModels.Image.class));
 
         orderIndex++;
 
@@ -587,7 +553,7 @@ public class ImageUploadPipelineService {
 
   private void deriveCollectionDate(
       CollectionEntity entity, List<ContentModels.Image> uploadedImages) {
-    java.time.LocalDateTime earliest = null;
+    LocalDateTime earliest = null;
     for (ContentModels.Image img : uploadedImages) {
       if (img.captureDate() != null) {
         if (earliest == null || img.captureDate().isBefore(earliest)) {

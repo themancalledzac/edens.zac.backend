@@ -34,10 +34,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -143,7 +147,8 @@ public class ContentService {
         // Use pre-fetched full entities to avoid N+1 query
         if (update.getTags() != null) {
           List<TagEntity> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
-          updateImageTagsOptimized(image, update.getTags(), currentTags, newlyCreatedTags);
+          contentMutationUtil.updateImageTagsOptimized(
+              image, update.getTags(), currentTags, newlyCreatedTags);
         }
 
         // Update people using prev/new/remove pattern (with tracking)
@@ -151,7 +156,8 @@ public class ContentService {
         if (update.getPeople() != null) {
           List<ContentPersonEntity> currentPeople =
               currentPeopleByImage.getOrDefault(imageId, List.of());
-          updateImagePeopleOptimized(image, update.getPeople(), currentPeople, newlyCreatedPeople);
+          contentMutationUtil.updateImagePeopleOptimized(
+              image, update.getPeople(), currentPeople, newlyCreatedPeople);
         }
 
         // Handle collection updates using prev/new/remove pattern
@@ -174,7 +180,7 @@ public class ContentService {
 
           // Add to new collections if specified
           if (collectionUpdate.newValue() != null && !collectionUpdate.newValue().isEmpty()) {
-            handleAddToCollections(image, collectionUpdate.newValue());
+            contentMutationUtil.handleAddToCollections(image, collectionUpdate.newValue());
           }
         }
 
@@ -316,110 +322,6 @@ public class ContentService {
     }
   }
 
-  /**
-   * OPTIMIZED: Update image tags with pre-fetched current tag IDs (avoids N+1 query). Used in batch
-   * update operations.
-   */
-  private void updateImageTagsOptimized(
-      ContentImageEntity image,
-      CollectionRequests.TagUpdate tagUpdate,
-      List<TagEntity> currentTagEntities,
-      Set<TagEntity> newTags) {
-    Set<TagEntity> currentTags = new HashSet<>(currentTagEntities);
-
-    Set<TagEntity> updatedTags = contentMutationUtil.updateTags(currentTags, tagUpdate, newTags);
-    image.setTags(updatedTags);
-
-    // Save updated tags to database (deduplicate by ID since equals/hashCode is name-based)
-    List<Long> updatedTagIds =
-        updatedTags.stream()
-            .map(TagEntity::getId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-    tagRepository.saveContentTags(image.getId(), updatedTagIds);
-  }
-
-  /**
-   * Add content (image) to new collections with specified visibility and orderIndex. Creates join
-   * table entries for the content in the specified collections.
-   *
-   * @param image The image to add to collections
-   * @param collections List of ChildCollection objects containing collectionId, visible, and
-   *     orderIndex
-   */
-  private void handleAddToCollections(
-      ContentImageEntity image, List<Records.ChildCollection> collections) {
-    for (Records.ChildCollection childCollection : collections) {
-      if (childCollection.collectionId() == null) {
-        log.warn("Skipping collection addition: collectionId is null");
-        continue;
-      }
-
-      // Verify collection exists
-      collectionRepository
-          .findById(childCollection.collectionId())
-          .orElseThrow(
-              () ->
-                  new ResourceNotFoundException(
-                      "Collection not found: " + childCollection.collectionId()));
-
-      // Check if this content is already in the collection
-      Optional<CollectionContentEntity> existingOpt =
-          collectionRepository.findContentByCollectionIdAndContentId(
-              childCollection.collectionId(), image.getId());
-
-      if (existingOpt.isPresent()) {
-        log.warn(
-            "Image {} is already in collection {}. Skipping duplicate add.",
-            image.getId(),
-            childCollection.collectionId());
-        continue;
-      }
-
-      // Determine orderIndex: use provided value or append to end
-      int orderIndex =
-          childCollection.orderIndex() != null
-              ? childCollection.orderIndex()
-              : nextOrderIndex(childCollection.collectionId());
-
-      boolean visible = childCollection.visible() != null ? childCollection.visible() : true;
-
-      linkContentToCollection(childCollection.collectionId(), image.getId(), orderIndex, visible);
-      log.info(
-          "Added image {} to collection {} at orderIndex {} with visible={}",
-          image.getId(),
-          childCollection.collectionId(),
-          orderIndex,
-          visible);
-    }
-  }
-
-  /**
-   * OPTIMIZED: Update image people with pre-fetched current person IDs (avoids N+1 query). Used in
-   * batch update operations.
-   */
-  private void updateImagePeopleOptimized(
-      ContentImageEntity image,
-      CollectionRequests.PersonUpdate personUpdate,
-      List<ContentPersonEntity> currentPeopleEntities,
-      Set<ContentPersonEntity> newPeople) {
-    Set<ContentPersonEntity> currentPeople = new HashSet<>(currentPeopleEntities);
-
-    Set<ContentPersonEntity> updatedPeople =
-        contentMutationUtil.updatePeople(currentPeople, personUpdate, newPeople);
-    image.setPeople(updatedPeople);
-
-    // Save updated people to database (deduplicate by ID since equals/hashCode is name-based)
-    List<Long> updatedPersonIds =
-        updatedPeople.stream()
-            .map(ContentPersonEntity::getId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-    contentRepository.saveImagePeople(image.getId(), updatedPersonIds);
-  }
-
   @Transactional
   public Map<String, Object> deleteImages(List<Long> imageIds) {
     contentValidator.validateImageIds(imageIds);
@@ -471,8 +373,7 @@ public class ContentService {
   }
 
   @Transactional(readOnly = true)
-  public org.springframework.data.domain.Page<ContentModels.Image> getAllImages(
-      org.springframework.data.domain.Pageable pageable) {
+  public Page<ContentModels.Image> getAllImages(Pageable pageable) {
     // Get total count for pagination
     int total = contentRepository.countImages();
 
@@ -490,7 +391,7 @@ public class ContentService {
                         contentModelConverter.convertRegularContentEntityToModel(entity))
             .collect(Collectors.toList());
 
-    return new org.springframework.data.domain.PageImpl<>(imageModels, pageable, total);
+    return new PageImpl<>(imageModels, pageable, total);
   }
 
   /**
@@ -659,53 +560,29 @@ public class ContentService {
       Set<ContentCameraEntity> newlyCreatedCameras,
       Set<ContentLensEntity> newlyCreatedLenses,
       Set<ContentFilmTypeEntity> newlyCreatedFilmTypes) {
-    ContentImageUpdateResponse.NewMetadata newMetadata =
+    var newMetadata =
         ContentImageUpdateResponse.NewMetadata.builder()
             .tags(
-                newlyCreatedTags.isEmpty()
-                    ? null
-                    : newlyCreatedTags.stream()
-                        .map(e -> new Records.Tag(e.getId(), e.getTagName(), e.getSlug()))
-                        .collect(Collectors.toList()))
+                mapOrNull(
+                    newlyCreatedTags, e -> new Records.Tag(e.getId(), e.getTagName(), e.getSlug())))
             .people(
-                newlyCreatedPeople.isEmpty()
-                    ? null
-                    : newlyCreatedPeople.stream()
-                        .map(e -> new Records.Person(e.getId(), e.getPersonName(), e.getSlug()))
-                        .collect(Collectors.toList()))
+                mapOrNull(
+                    newlyCreatedPeople,
+                    e -> new Records.Person(e.getId(), e.getPersonName(), e.getSlug())))
             .cameras(
-                newlyCreatedCameras.isEmpty()
-                    ? null
-                    : newlyCreatedCameras.stream()
-                        .map(ContentModelConverter::cameraEntityToCameraModel)
-                        .collect(Collectors.toList()))
-            .lenses(
-                newlyCreatedLenses.isEmpty()
-                    ? null
-                    : newlyCreatedLenses.stream()
-                        .map(ContentModelConverter::lensEntityToLensModel)
-                        .collect(Collectors.toList()))
-            .filmTypes(
-                newlyCreatedFilmTypes.isEmpty()
-                    ? null
-                    : newlyCreatedFilmTypes.stream()
-                        .map(metadataService::toFilmTypeModel)
-                        .collect(Collectors.toList()))
-            .build();
-
-    ContentImageUpdateResponse response =
-        ContentImageUpdateResponse.builder()
-            .updatedImages(updatedImages)
-            .newMetadata(newMetadata)
-            .errors(errors.isEmpty() ? null : errors)
+                mapOrNull(newlyCreatedCameras, ContentModelConverter::cameraEntityToCameraModel))
+            .lenses(mapOrNull(newlyCreatedLenses, ContentModelConverter::lensEntityToLensModel))
+            .filmTypes(mapOrNull(newlyCreatedFilmTypes, metadataService::toFilmTypeModel))
             .build();
 
     return Map.of(
-        "updatedImages",
-        response.getUpdatedImages(),
-        "newMetadata",
-        response.getNewMetadata(),
-        "errors",
-        response.getErrors() != null ? response.getErrors() : List.of());
+        "updatedImages", updatedImages,
+        "newMetadata", newMetadata,
+        "errors", errors.isEmpty() ? List.of() : errors);
+  }
+
+  /** Map a set to a list using the given mapper, returning null if the set is empty. */
+  private static <T, R> List<R> mapOrNull(Set<T> set, Function<T, R> mapper) {
+    return set.isEmpty() ? null : set.stream().map(mapper).collect(Collectors.toList());
   }
 }

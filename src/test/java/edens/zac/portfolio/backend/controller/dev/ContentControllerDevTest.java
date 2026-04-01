@@ -3,16 +3,20 @@ package edens.zac.portfolio.backend.controller.dev;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
+import edens.zac.portfolio.backend.services.JobTrackingService;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +26,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -35,6 +44,8 @@ class ContentControllerDevTest {
 
   @Mock private ImageUploadPipelineService imageUploadPipelineService;
 
+  @Mock private JobTrackingService jobTrackingService;
+
   @InjectMocks private ContentControllerDev contentController;
 
   private ObjectMapper objectMapper;
@@ -43,17 +54,14 @@ class ContentControllerDevTest {
 
   @BeforeEach
   void setUp() {
-    // Initialize ObjectMapper
     objectMapper = new ObjectMapper();
     objectMapper.findAndRegisterModules();
 
-    // Set up MockMvc with GlobalExceptionHandler
     mockMvc =
         MockMvcBuilders.standaloneSetup(contentController)
-            .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
-    // Create test image model
     ContentModels.Image testImage =
         new ContentModels.Image(
             1L,
@@ -84,13 +92,12 @@ class ContentControllerDevTest {
             null,
             null,
             null,
-            java.util.List.of());
+            List.of());
 
     testImages = List.of(testImage);
   }
 
-  // ============== HIGH PRIORITY TESTS - PATCH /api/admin/content/images
-  // ==============
+  // ============== PATCH /api/admin/content/images ==============
 
   @Test
   @DisplayName("PATCH /content/images should update images with tags")
@@ -175,12 +182,7 @@ class ContentControllerDevTest {
         ContentImageUpdateRequest.LensUpdate.builder().newValue("50mm f/1.8").build();
 
     ContentImageUpdateRequest.FilmTypeUpdate filmTypeUpdate =
-        ContentImageUpdateRequest.FilmTypeUpdate.builder()
-            .prev(1L) // Use
-            // existing
-            // film
-            // type
-            .build();
+        ContentImageUpdateRequest.FilmTypeUpdate.builder().prev(1L).build();
 
     ContentImageUpdateRequest updateRequest =
         ContentImageUpdateRequest.builder()
@@ -230,12 +232,7 @@ class ContentControllerDevTest {
         ContentImageUpdateRequest.LensUpdate.builder().newValue("85mm f/1.4").build();
 
     ContentImageUpdateRequest.FilmTypeUpdate filmTypeUpdate =
-        ContentImageUpdateRequest.FilmTypeUpdate.builder()
-            .prev(2L) // Use
-            // existing
-            // film
-            // type
-            .build();
+        ContentImageUpdateRequest.FilmTypeUpdate.builder().prev(2L).build();
 
     ContentImageUpdateRequest updateRequest =
         ContentImageUpdateRequest.builder()
@@ -314,23 +311,141 @@ class ContentControllerDevTest {
     verify(contentService).updateImages(anyList());
   }
 
-  // ============== MEDIUM PRIORITY TESTS - POST
-  // /api/admin/content/images/{collectionId}
-  // ==============
+  // ============== POST /api/admin/content/images/{collectionId} ==============
 
   @Test
   @DisplayName("POST /content/images/{collectionId} should create images in collection")
   void createImages_shouldCreateImagesInCollection() throws Exception {
-    // Note: Testing multipart file uploads with MockMvc requires special handling
-    // This test placeholder verifies that the service method is not called without
-    // actual upload
-    // Full file upload testing would require integration tests with @SpringBootTest
+    // Arrange
+    MockMultipartFile file1 =
+        new MockMultipartFile("files", "photo1.jpg", MediaType.IMAGE_JPEG_VALUE, "img1".getBytes());
+    MockMultipartFile file2 =
+        new MockMultipartFile("files", "photo2.jpg", MediaType.IMAGE_JPEG_VALUE, "img2".getBytes());
 
-    verify(imageUploadPipelineService, never()).createImagesParallel(any(), any(), any());
+    ImageUploadResult uploadResult = new ImageUploadResult(testImages, List.of(), List.of());
+
+    when(imageUploadPipelineService.createImagesParallel(eq(1L), anyList(), anyMap()))
+        .thenReturn(uploadResult);
+
+    // Act & Assert
+    mockMvc
+        .perform(multipart("/api/admin/content/images/{collectionId}", 1L).file(file1).file(file2))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.successful", hasSize(1)))
+        .andExpect(jsonPath("$.successful[0].id", is(1)))
+        .andExpect(jsonPath("$.failed", hasSize(0)));
+
+    verify(imageUploadPipelineService).createImagesParallel(eq(1L), anyList(), anyMap());
+    verify(contentService, never()).setCollectionLocationIfMissing(any(), any());
   }
 
-  // ============== MEDIUM PRIORITY TESTS - POST /api/admin/content/tags
-  // ==============
+  // ============== POST /api/admin/content/images/create-collection ==============
+
+  @Test
+  @DisplayName("POST /content/images/create-collection should create collection and upload images")
+  void createCollectionWithImages_shouldCreateCollectionAndUploadImages() throws Exception {
+    // Arrange
+    MockMultipartFile file =
+        new MockMultipartFile("files", "photo.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes());
+
+    ImageUploadResult uploadResult = new ImageUploadResult(42L, testImages, List.of(), List.of());
+
+    when(imageUploadPipelineService.createCollectionWithImages(
+            any(CollectionRequests.Create.class), anyList(), anyMap()))
+        .thenReturn(uploadResult);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            multipart("/api/admin/content/images/create-collection")
+                .file(file)
+                .param("title", "Test Collection")
+                .param("type", "BLOG"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.collectionId", is(42)))
+        .andExpect(jsonPath("$.successful", hasSize(1)))
+        .andExpect(jsonPath("$.successful[0].id", is(1)));
+
+    verify(imageUploadPipelineService)
+        .createCollectionWithImages(any(CollectionRequests.Create.class), anyList(), anyMap());
+  }
+
+  // ============== POST /api/admin/content/images/{collectionId}/from-disk ==============
+
+  @Test
+  @DisplayName("POST /content/images/{collectionId}/from-disk should accept and return job ID")
+  void createImagesFromDisk_shouldAcceptAndReturnJobId() throws Exception {
+    // Arrange
+    UUID jobId = UUID.randomUUID();
+    JobTrackingService.JobStatus jobStatus = mock(JobTrackingService.JobStatus.class);
+    when(jobStatus.jobId()).thenReturn(jobId);
+    when(jobStatus.totalFiles()).thenReturn(3);
+
+    when(imageUploadPipelineService.processFilesFromDisk(eq(5L), any(DiskUploadRequest.class)))
+        .thenReturn(jobStatus);
+
+    DiskUploadRequest request =
+        new DiskUploadRequest(
+            List.of(
+                new DiskUploadRequest.FileEntry("/tmp/photo1.jpg", null, null),
+                new DiskUploadRequest.FileEntry("/tmp/photo2.jpg", null, null),
+                new DiskUploadRequest.FileEntry("/tmp/photo3.jpg", "/tmp/photo3.nef", null)),
+            null);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            post("/api/admin/content/images/{collectionId}/from-disk", 5L)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isAccepted())
+        .andExpect(jsonPath("$.jobId", is(jobId.toString())))
+        .andExpect(jsonPath("$.totalFiles", is(3)))
+        .andExpect(jsonPath("$.message", is("Processing started")));
+
+    verify(imageUploadPipelineService).processFilesFromDisk(eq(5L), any(DiskUploadRequest.class));
+  }
+
+  // ============== GET /api/admin/content/images/jobs/{jobId} ==============
+
+  @Test
+  @DisplayName("GET /content/images/jobs/{jobId} should return job status")
+  void getJobStatus_shouldReturnJobStatus() throws Exception {
+    // Arrange
+    UUID jobId = UUID.randomUUID();
+    JobTrackingService.JobStatusResponse response =
+        new JobTrackingService.JobStatusResponse(jobId, "PROCESSING", 5, 3, 2, 1, 0, List.of());
+
+    when(jobTrackingService.getJob(jobId)).thenReturn(Optional.of(response));
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/admin/content/images/jobs/{jobId}", jobId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.jobId", is(jobId.toString())))
+        .andExpect(jsonPath("$.status", is("PROCESSING")))
+        .andExpect(jsonPath("$.totalFiles", is(5)))
+        .andExpect(jsonPath("$.processed", is(3)));
+
+    verify(jobTrackingService).getJob(jobId);
+  }
+
+  @Test
+  @DisplayName("GET /content/images/jobs/{jobId} should return 404 when not found")
+  void getJobStatus_shouldReturn404WhenNotFound() throws Exception {
+    // Arrange
+    UUID jobId = UUID.randomUUID();
+    when(jobTrackingService.getJob(jobId)).thenReturn(Optional.empty());
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/admin/content/images/jobs/{jobId}", jobId))
+        .andExpect(status().isNotFound());
+
+    verify(jobTrackingService).getJob(jobId);
+  }
+
+  // ============== POST /api/admin/content/tags ==============
 
   @Test
   @DisplayName("POST /content/tags should create a new tag")
@@ -398,8 +513,7 @@ class ContentControllerDevTest {
     verify(contentService).createTag("landscape");
   }
 
-  // ============== LOW PRIORITY TESTS - POST /api/admin/content/people
-  // ==============
+  // ============== POST /api/admin/content/people ==============
 
   @Test
   @DisplayName("POST /content/people should create a new person")
@@ -467,18 +581,15 @@ class ContentControllerDevTest {
     verify(contentService).createPerson("John Doe");
   }
 
-  // ============== ADDITIONAL TESTS - GET and DELETE endpoints ==============
+  // ============== GET and DELETE endpoints ==============
 
   @Test
   @DisplayName("GET /content/images should return all images")
   void getAllImages_shouldReturnAllImages() throws Exception {
     // Arrange
-    org.springframework.data.domain.Pageable pageable =
-        org.springframework.data.domain.PageRequest.of(0, 50);
-    org.springframework.data.domain.Page<ContentModels.Image> page =
-        new org.springframework.data.domain.PageImpl<>(testImages, pageable, testImages.size());
-    when(contentService.getAllImages(any(org.springframework.data.domain.Pageable.class)))
-        .thenReturn(page);
+    Pageable pageable = PageRequest.of(0, 50);
+    Page<ContentModels.Image> page = new PageImpl<>(testImages, pageable, testImages.size());
+    when(contentService.getAllImages(any(Pageable.class))).thenReturn(page);
 
     // Act & Assert
     mockMvc
@@ -488,20 +599,20 @@ class ContentControllerDevTest {
         .andExpect(jsonPath("$.content[0].id", is(1)))
         .andExpect(jsonPath("$.content[0].title", is("Test Image")));
 
-    verify(contentService).getAllImages(any(org.springframework.data.domain.Pageable.class));
+    verify(contentService).getAllImages(any(Pageable.class));
   }
 
   @Test
   @DisplayName("GET /content/images should handle errors")
   void getAllImages_shouldHandleErrors() throws Exception {
     // Arrange
-    when(contentService.getAllImages(any(org.springframework.data.domain.Pageable.class)))
+    when(contentService.getAllImages(any(Pageable.class)))
         .thenThrow(new RuntimeException("Database error"));
 
     // Act & Assert
     mockMvc.perform(get("/api/admin/content/images")).andExpect(status().isInternalServerError());
 
-    verify(contentService).getAllImages(any(org.springframework.data.domain.Pageable.class));
+    verify(contentService).getAllImages(any(Pageable.class));
   }
 
   @Test
