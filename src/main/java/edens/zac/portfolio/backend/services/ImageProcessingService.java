@@ -348,29 +348,12 @@ public class ImageProcessingService {
         final String oldImageUrlWeb = existing.getImageUrlWeb();
         final String oldImageUrlOriginal = existing.getImageUrlOriginal();
 
-        existing.setImageUrlOriginal(prepared.imageUrlOriginal());
-        existing.setImageUrlWeb(prepared.imageUrlWeb());
+        applyMetadataToEntity(existing, metadata, prepared);
         // Don't null out imageUrlRaw — RAW uploads are deferred to background threads.
-        // The background thread will overwrite the same S3 key and update the DB URL.
-        existing.setLastExportDate(prepared.lastExportDate());
-        existing.setCaptureDate(prepared.captureDate());
-        existing.setOriginalFilename(prepared.originalFilename());
-        existing.setImageWidth(
-            imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), 0));
-        existing.setImageHeight(
-            imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
-
-        // Update metadata that may change between exports
-        existing.setRating(
-            imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
-        existing.setIsFilm(
-            imageMetadataExtractor.parseBooleanOrDefault(metadata.get("isFilm"), false));
-        // Only update location if the new export has one — never clear user-curated location data.
-        // Location is often set manually via the UI when EXIF lacks GPS data.
+        // Only update location if new export has one — never clear user-curated location data.
         if (metadata.get("location") != null) {
           existing.setLocationId(locationRepository.findOrCreate(metadata.get("location")).getId());
         }
-
         // Tags and people are handled via associateExtractedKeywords in ContentService
 
         // Save DB first -- if this fails, old S3 files remain valid
@@ -395,49 +378,54 @@ public class ImageProcessingService {
         ContentImageEntity.builder()
             .contentType(ContentType.IMAGE)
             .title(title != null ? title : metadata.getOrDefault("title", webFilename))
-            .imageWidth(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), 0))
-            .imageHeight(
-                imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0))
-            .iso(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("iso"), null))
-            .author(metadata.getOrDefault("author", ImageMetadataExtractor.DEFAULT.AUTHOR))
-            .rating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null))
-            .fStop(metadata.get("fStop"))
-            .blackAndWhite(
-                imageMetadataExtractor.parseBooleanOrDefault(metadata.get("blackAndWhite"), false))
-            .isFilm(imageMetadataExtractor.parseBooleanOrDefault(metadata.get("isFilm"), false))
-            .shutterSpeed(metadata.get("shutterSpeed"))
-            .imageUrlOriginal(prepared.imageUrlOriginal())
-            .imageUrlRaw(prepared.imageUrlRaw())
-            .focalLength(metadata.get("focalLength"))
-            .locationId(
-                metadata.get("location") != null
-                    ? locationRepository.findOrCreate(metadata.get("location")).getId()
-                    : null)
-            .imageUrlWeb(prepared.imageUrlWeb())
-            .captureDate(prepared.captureDate())
-            .lastExportDate(prepared.lastExportDate())
-            .originalFilename(prepared.originalFilename())
             .createdAt(
                 imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate")))
             .build();
-
-    // Handle camera
-    String cameraName = metadata.get("camera");
-    String bodySerialNumber = metadata.get("bodySerialNumber");
-    if (cameraName != null && !cameraName.trim().isEmpty()) {
-      entity.setCamera(createCamera(cameraName, bodySerialNumber, null));
-    }
-
-    // Handle lens
-    String lensName = metadata.get("lens");
-    String lensSerialNumber = metadata.get("lensSerialNumber");
-    if (lensName != null && !lensName.trim().isEmpty()) {
-      entity.setLens(createLens(lensName, lensSerialNumber, null));
+    applyMetadataToEntity(entity, metadata, prepared);
+    if (metadata.get("location") != null) {
+      entity.setLocationId(locationRepository.findOrCreate(metadata.get("location")).getId());
     }
 
     ContentImageEntity savedEntity = contentRepository.saveImage(entity);
     log.info("Created new image entity with ID: {}", savedEntity.getId());
     return new DedupeResult(savedEntity, DedupeAction.CREATE);
+  }
+
+  /**
+   * Apply all EXIF/XMP metadata and prepared image data to an entity. Used by both create and
+   * update paths so field mappings stay in sync.
+   */
+  private void applyMetadataToEntity(
+      ContentImageEntity entity, Map<String, String> metadata, PreparedImageData prepared) {
+    entity.setImageUrlOriginal(prepared.imageUrlOriginal());
+    entity.setImageUrlWeb(prepared.imageUrlWeb());
+    entity.setCaptureDate(prepared.captureDate());
+    entity.setLastExportDate(prepared.lastExportDate());
+    entity.setOriginalFilename(prepared.originalFilename());
+    entity.setImageWidth(
+        imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), 0));
+    entity.setImageHeight(
+        imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
+    entity.setIso(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("iso"), null));
+    entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
+    entity.setFStop(metadata.get("fStop"));
+    entity.setShutterSpeed(metadata.get("shutterSpeed"));
+    entity.setFocalLength(metadata.get("focalLength"));
+    entity.setAuthor(metadata.getOrDefault("author", ImageMetadataExtractor.DEFAULT.AUTHOR));
+    entity.setBlackAndWhite(
+        imageMetadataExtractor.parseBooleanOrDefault(metadata.get("blackAndWhite"), false));
+    entity.setIsFilm(imageMetadataExtractor.parseBooleanOrDefault(metadata.get("isFilm"), false));
+
+    String cameraName = metadata.get("camera");
+    String bodySerialNumber = metadata.get("bodySerialNumber");
+    if (cameraName != null && !cameraName.trim().isEmpty()) {
+      entity.setCamera(createCamera(cameraName, bodySerialNumber, null));
+    }
+    String lensName = metadata.get("lens");
+    String lensSerialNumber = metadata.get("lensSerialNumber");
+    if (lensName != null && !lensName.trim().isEmpty()) {
+      entity.setLens(createLens(lensName, lensSerialNumber, null));
+    }
   }
 
   /**

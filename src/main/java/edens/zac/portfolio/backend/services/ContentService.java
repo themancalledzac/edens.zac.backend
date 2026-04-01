@@ -680,18 +680,51 @@ public class ContentService {
         job.totalFiles(),
         collectionId);
 
+    // Load all known people once — used for both slug-existence checks and tag filtering
+    List<ContentPersonEntity> existingPeople = personRepository.findAllByOrderByPersonNameAsc();
+    Set<String> existingSlugs =
+        existingPeople.stream().map(ContentPersonEntity::getSlug).collect(Collectors.toSet());
+
+    // Ensure all plugin-provided people exist in DB before processing images
+    request.files().stream()
+        .filter(f -> f.people() != null)
+        .flatMap(f -> f.people().stream())
+        .filter(name -> existingSlugs.add(SlugUtil.generateSlug(name)))
+        .forEach(
+            name -> {
+              personRepository.save(new ContentPersonEntity(name));
+              log.info("Created new person from plugin: {}", name);
+            });
+
+    // Build set of all known people names for filtering them out of tags.
+    // Lightroom writes people to dc:subject as flat keywords, so without this they become Tags too.
+    Set<String> allKnownPeople =
+        existingPeople.stream()
+            .map(p -> p.getPersonName().toLowerCase())
+            .collect(Collectors.toCollection(HashSet::new));
+    // Include any newly created people in the filter set
+    request.files().stream()
+        .filter(f -> f.people() != null)
+        .flatMap(f -> f.people().stream())
+        .forEach(name -> allKnownPeople.add(name.toLowerCase()));
+
     for (var fileEntry : request.files()) {
       try {
         var prepared =
             imageProcessingService.prepareImageFromDisk(
                 Path.of(fileEntry.jpegPath()), fileEntry.rawPath());
 
-        // People: prefer plugin-provided list (from Lightroom keyword hierarchy),
-        // fall back to XMP-extracted people if plugin didn't send any
-        List<String> peopleNames =
+        // People: prefer plugin-provided, fall back to XMP-extracted
+        List<String> people =
             (fileEntry.people() != null && !fileEntry.people().isEmpty())
                 ? fileEntry.people()
                 : prepared.extractedPeople();
+
+        // Filter tags against all known people names
+        List<String> tags =
+            prepared.extractedTags().stream()
+                .filter(tag -> !allKnownPeople.contains(tag.toLowerCase()))
+                .toList();
 
         // Save to DB with dedupe (reuses existing logic)
         ImageProcessingService.DedupeResult dedupeResult =
@@ -702,9 +735,8 @@ public class ContentService {
         switch (dedupeResult.action()) {
           case CREATE -> {
             job.created().incrementAndGet();
-            // Auto-associate tags (from XMP) and people (from plugin or XMP fallback)
             contentMutationUtil.associateExtractedKeywords(
-                dedupeResult.entity().getId(), prepared.extractedTags(), peopleNames);
+                dedupeResult.entity().getId(), tags, people);
             // Link to collection
             linkImageToCollection(collectionId, dedupeResult.entity());
             // Schedule RAW upload in background
@@ -721,9 +753,8 @@ public class ContentService {
           }
           case UPDATE -> {
             job.updated().incrementAndGet();
-            // Re-associate tags (from XMP) and people (from plugin or XMP fallback)
             contentMutationUtil.associateExtractedKeywords(
-                dedupeResult.entity().getId(), prepared.extractedTags(), peopleNames);
+                dedupeResult.entity().getId(), tags, people);
             // For UPDATE, only link if not already in this collection
             Optional<CollectionContentEntity> existingJoin =
                 collectionRepository.findContentByCollectionIdAndContentId(
