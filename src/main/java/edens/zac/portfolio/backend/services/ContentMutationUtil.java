@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -98,6 +100,115 @@ public class ContentMutationUtil {
         }
       }
     }
+  }
+
+  /**
+   * Add content (image) to new collections with specified visibility and orderIndex. Creates join
+   * table entries for the content in the specified collections.
+   */
+  public void handleAddToCollections(
+      ContentImageEntity image, List<Records.ChildCollection> collections) {
+    for (Records.ChildCollection childCollection : collections) {
+      if (childCollection.collectionId() == null) {
+        log.warn("Skipping collection addition: collectionId is null");
+        continue;
+      }
+
+      collectionRepository
+          .findById(childCollection.collectionId())
+          .orElseThrow(
+              () ->
+                  new ResourceNotFoundException(
+                      "Collection not found: " + childCollection.collectionId()));
+
+      Optional<CollectionContentEntity> existingOpt =
+          collectionRepository.findContentByCollectionIdAndContentId(
+              childCollection.collectionId(), image.getId());
+
+      if (existingOpt.isPresent()) {
+        log.warn(
+            "Image {} is already in collection {}. Skipping duplicate add.",
+            image.getId(),
+            childCollection.collectionId());
+        continue;
+      }
+
+      int orderIndex =
+          childCollection.orderIndex() != null
+              ? childCollection.orderIndex()
+              : nextOrderIndex(childCollection.collectionId());
+
+      boolean visible = childCollection.visible() != null ? childCollection.visible() : true;
+
+      CollectionContentEntity joinEntry =
+          CollectionContentEntity.builder()
+              .collectionId(childCollection.collectionId())
+              .contentId(image.getId())
+              .orderIndex(orderIndex)
+              .visible(visible)
+              .build();
+      collectionRepository.saveContent(joinEntry);
+      log.info(
+          "Added image {} to collection {} at orderIndex {} with visible={}",
+          image.getId(),
+          childCollection.collectionId(),
+          orderIndex,
+          visible);
+    }
+  }
+
+  /** Returns the next available orderIndex for a collection (max + 1, or 0 if empty). */
+  private int nextOrderIndex(Long collectionId) {
+    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
+    return maxOrder != null ? maxOrder + 1 : 0;
+  }
+
+  // =============================================================================
+  // OPTIMIZED BATCH UPDATE HELPERS (pre-fetched entities to avoid N+1)
+  // =============================================================================
+
+  /**
+   * Update image tags with pre-fetched current tags (avoids N+1 query). Applies the prev/new/remove
+   * pattern, sets updated tags on the entity, and persists to DB.
+   */
+  public void updateImageTagsOptimized(
+      ContentImageEntity image,
+      CollectionRequests.TagUpdate tagUpdate,
+      List<TagEntity> currentTagEntities,
+      Set<TagEntity> newTags) {
+    Set<TagEntity> currentTags = new HashSet<>(currentTagEntities);
+    Set<TagEntity> updatedTags = updateTags(currentTags, tagUpdate, newTags);
+    image.setTags(updatedTags);
+
+    List<Long> updatedTagIds =
+        updatedTags.stream()
+            .map(TagEntity::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+    tagRepository.saveContentTags(image.getId(), updatedTagIds);
+  }
+
+  /**
+   * Update image people with pre-fetched current people (avoids N+1 query). Applies the
+   * prev/new/remove pattern, sets updated people on the entity, and persists to DB.
+   */
+  public void updateImagePeopleOptimized(
+      ContentImageEntity image,
+      CollectionRequests.PersonUpdate personUpdate,
+      List<ContentPersonEntity> currentPeopleEntities,
+      Set<ContentPersonEntity> newPeople) {
+    Set<ContentPersonEntity> currentPeople = new HashSet<>(currentPeopleEntities);
+    Set<ContentPersonEntity> updatedPeople = updatePeople(currentPeople, personUpdate, newPeople);
+    image.setPeople(updatedPeople);
+
+    List<Long> updatedPersonIds =
+        updatedPeople.stream()
+            .map(ContentPersonEntity::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+    contentRepository.saveImagePeople(image.getId(), updatedPersonIds);
   }
 
   // =============================================================================

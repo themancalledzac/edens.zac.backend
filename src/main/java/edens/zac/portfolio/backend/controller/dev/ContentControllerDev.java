@@ -8,6 +8,7 @@ import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
 import edens.zac.portfolio.backend.services.JobTrackingService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -45,6 +46,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ContentControllerDev {
 
   private final ContentService contentService;
+  private final ImageUploadPipelineService imageUploadPipelineService;
   private final JobTrackingService jobTrackingService;
 
   /**
@@ -77,7 +79,7 @@ public class ContentControllerDev {
 
     Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
     ImageUploadResult result =
-        contentService.createImagesParallel(collectionId, files, rawFilePathMap);
+        imageUploadPipelineService.createImagesParallel(collectionId, files, rawFilePathMap);
     log.info(
         "Created {} image(s) in collection: {} ({} failed)",
         result.successful().size(),
@@ -224,7 +226,7 @@ public class ContentControllerDev {
 
     Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
     ImageUploadResult result =
-        contentService.createCollectionWithImages(createRequest, files, rawFilePathMap);
+        imageUploadPipelineService.createCollectionWithImages(createRequest, files, rawFilePathMap);
     log.info(
         "Created collection '{}' with {} image(s) ({} failed)",
         title,
@@ -272,7 +274,7 @@ public class ContentControllerDev {
   @PostMapping("/images/{collectionId}/from-disk")
   public ResponseEntity<Map<String, Object>> createImagesFromDisk(
       @PathVariable Long collectionId, @RequestBody @Valid DiskUploadRequest request) {
-    var jobStatus = contentService.processFilesFromDisk(collectionId, request);
+    var jobStatus = imageUploadPipelineService.processFilesFromDisk(collectionId, request);
     return ResponseEntity.status(HttpStatus.ACCEPTED)
         .body(
             Map.of(
