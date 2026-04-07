@@ -350,14 +350,16 @@ public class ImageProcessingService {
 
         applyMetadataToEntity(existing, metadata, prepared);
         // Don't null out imageUrlRaw — RAW uploads are deferred to background threads.
-        // Only update location if new export has one — never clear user-curated location data.
-        if (metadata.get("location") != null) {
-          existing.setLocationId(locationRepository.findOrCreate(metadata.get("location")).getId());
-        }
         // Tags and people are handled via associateExtractedKeywords in ContentService
 
         // Save DB first -- if this fails, old S3 files remain valid
         final ContentImageEntity savedEntity = contentRepository.saveImage(existing);
+
+        // Only update location if new export has one — never clear user-curated location data.
+        if (metadata.get("location") != null) {
+          Long locId = locationRepository.findOrCreate(metadata.get("location")).getId();
+          locationRepository.saveImageLocations(savedEntity.getId(), List.of(locId));
+        }
 
         // Only delete old S3 files if the URLs actually changed (different key).
         // Re-exporting the same image produces the same S3 key — deleting would
@@ -382,11 +384,13 @@ public class ImageProcessingService {
                 imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate")))
             .build();
     applyMetadataToEntity(entity, metadata, prepared);
-    if (metadata.get("location") != null) {
-      entity.setLocationId(locationRepository.findOrCreate(metadata.get("location")).getId());
-    }
 
     ContentImageEntity savedEntity = contentRepository.saveImage(entity);
+
+    if (metadata.get("location") != null) {
+      Long locId = locationRepository.findOrCreate(metadata.get("location")).getId();
+      locationRepository.saveImageLocations(savedEntity.getId(), List.of(locId));
+    }
     log.info("Created new image entity with ID: {}", savedEntity.getId());
     return new DedupeResult(savedEntity, DedupeAction.CREATE);
   }

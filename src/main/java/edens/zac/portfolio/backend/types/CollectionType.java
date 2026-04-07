@@ -13,12 +13,18 @@ public enum CollectionType {
   ART_GALLERY("Art Gallery"),
   CLIENT_GALLERY("Client Gallery"),
   HOME("Home"),
+  PARENT("Parent"),
   MISC("Misc");
 
   @NotNull @Getter private final String displayName;
 
   CollectionType(String displayName) {
     this.displayName = displayName;
+  }
+
+  /** Returns true if this collection type only allows child collections as content. */
+  public boolean isParentType() {
+    return this == PARENT || this == HOME;
   }
 
   @JsonValue
@@ -47,7 +53,7 @@ public enum CollectionType {
       throw new IllegalArgumentException(
           "Invalid CollectionType value: "
               + value
-              + ". Valid values are: BLOG, ART_GALLERY, CLIENT_GALLERY, PORTFOLIO, HOME, MISC, or their display names.");
+              + ". Valid values are: BLOG, ART_GALLERY, CLIENT_GALLERY, PORTFOLIO, HOME, PARENT, MISC, or their display names.");
     }
   }
 }

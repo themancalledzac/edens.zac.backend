@@ -222,7 +222,6 @@ class ImageProcessingServiceTest {
     entity.setShutterSpeed("1/125");
     entity.setCamera(new ContentCameraEntity("Test Camera"));
     entity.setFocalLength("50mm");
-    entity.setLocationId(1L);
     entity.setImageUrlWeb("https://example.com/image.jpg");
     entity.setCaptureDate(LocalDateTime.of(2023, 1, 1, 0, 0));
     entity.setOriginalFilename("test-image.jpg");

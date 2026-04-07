@@ -25,9 +25,11 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,7 @@ public class CollectionProcessingUtil {
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
   private final ContentModelConverter contentModelConverter;
+  private final ContentMutationUtil contentMutationUtil;
   private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
   private final PersonRepository personRepository;
@@ -78,14 +81,10 @@ public class CollectionProcessingUtil {
       return new ArrayList<>();
     }
 
-    // Batch-load all locations referenced by these collections
-    List<Long> locationIds =
-        entities.stream()
-            .map(CollectionEntity::getLocationId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
-    Map<Long, LocationEntity> locationsById = locationRepository.findByIds(locationIds);
+    // Batch-load all locations referenced by these collections (many-to-many)
+    List<Long> collectionIds = entities.stream().map(CollectionEntity::getId).toList();
+    Map<Long, List<LocationEntity>> locationsByCollectionId =
+        locationRepository.findLocationsByCollectionIds(collectionIds);
 
     // Batch-load all cover images
     List<Long> coverImageIds =
@@ -102,38 +101,35 @@ public class CollectionProcessingUtil {
 
     // Batch-load tags, people, and locations for all cover images
     List<Long> coverContentIds = new ArrayList<>(coverImagesById.keySet());
-    List<Long> coverLocationIds =
-        coverImagesById.values().stream()
-            .map(ContentImageEntity::getLocationId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
     Map<Long, List<TagEntity>> tagsByContentId =
         tagRepository.findTagsByContentIds(coverContentIds);
     Map<Long, List<ContentPersonEntity>> peopleByContentId =
         personRepository.findPeopleByContentIds(coverContentIds);
-    // Merge cover image locations with collection locations
-    Map<Long, LocationEntity> allLocationsById = new HashMap<>(locationsById);
-    if (!coverLocationIds.isEmpty()) {
-      allLocationsById.putAll(locationRepository.findByIds(coverLocationIds));
-    }
+    Map<Long, List<LocationEntity>> coverLocationsByContentId =
+        locationRepository.findLocationsByContentIds(coverContentIds);
 
     // Convert each entity using pre-loaded data
     return entities.stream()
         .map(
             entity ->
                 buildBasicModel(
-                    entity, allLocationsById, coverImagesById, tagsByContentId, peopleByContentId))
+                    entity,
+                    locationsByCollectionId,
+                    coverImagesById,
+                    tagsByContentId,
+                    peopleByContentId,
+                    coverLocationsByContentId))
         .collect(Collectors.toList());
   }
 
   /** Build a single CollectionModel from pre-loaded batch data. */
   private CollectionModel buildBasicModel(
       CollectionEntity entity,
-      Map<Long, LocationEntity> locationsById,
+      Map<Long, List<LocationEntity>> locationsByCollectionId,
       Map<Long, ContentImageEntity> coverImagesById,
       Map<Long, List<TagEntity>> tagsByContentId,
-      Map<Long, List<ContentPersonEntity>> peopleByContentId) {
+      Map<Long, List<ContentPersonEntity>> peopleByContentId,
+      Map<Long, List<LocationEntity>> coverLocationsByContentId) {
     CollectionModel model = new CollectionModel();
     model.setId(entity.getId());
     model.setType(entity.getType());
@@ -141,12 +137,13 @@ public class CollectionProcessingUtil {
     model.setSlug(entity.getSlug());
     model.setDescription(entity.getDescription());
 
-    if (entity.getLocationId() != null) {
-      LocationEntity loc = locationsById.get(entity.getLocationId());
-      if (loc != null) {
-        model.setLocation(new Records.Location(loc.getId(), loc.getLocationName(), loc.getSlug()));
-      }
-    }
+    List<LocationEntity> collectionLocations =
+        locationsByCollectionId.getOrDefault(entity.getId(), List.of());
+    model.setLocations(
+        collectionLocations.stream()
+            .map(loc -> new Records.Location(loc.getId(), loc.getLocationName(), loc.getSlug()))
+            .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
+            .collect(Collectors.toList()));
 
     model.setCollectionDate(entity.getCollectionDate());
     model.setVisible(entity.getVisible());
@@ -157,7 +154,12 @@ public class CollectionProcessingUtil {
       if (coverImage != null) {
         ContentModels.Image coverImageModel =
             contentModelConverter.buildImageModelWithBatchData(
-                coverImage, null, null, tagsByContentId, peopleByContentId, locationsById);
+                coverImage,
+                null,
+                null,
+                tagsByContentId,
+                peopleByContentId,
+                coverLocationsByContentId);
         model.setCoverImage(coverImageModel);
       }
     }
@@ -226,18 +228,12 @@ public class CollectionProcessingUtil {
             .filter(c -> c.getContentType() == ContentType.IMAGE)
             .map(ContentEntity::getId)
             .toList();
-    List<Long> imageLocationIds =
-        contentMap.values().stream()
-            .filter(c -> c.getContentType() == ContentType.IMAGE)
-            .map(c -> ((ContentImageEntity) c).getLocationId())
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
     Map<Long, List<TagEntity>> tagsByContentId =
         tagRepository.findTagsByContentIds(imageContentIds);
     Map<Long, List<ContentPersonEntity>> peopleByContentId =
         personRepository.findPeopleByContentIds(imageContentIds);
-    Map<Long, LocationEntity> locationsById = locationRepository.findByIds(imageLocationIds);
+    Map<Long, List<LocationEntity>> locationsByContentId =
+        locationRepository.findLocationsByContentIds(imageContentIds);
 
     // Convert join table entries to content models with collection-specific metadata
     List<ContentModel> contents =
@@ -262,7 +258,7 @@ public class CollectionProcessingUtil {
                         cc.getVisible(),
                         tagsByContentId,
                         peopleByContentId,
-                        locationsById);
+                        locationsByContentId);
                   }
                   // For other content types, use the standard conversion
                   return contentModelConverter.convertBulkLoadedContentToModel(content, cc);
@@ -446,15 +442,21 @@ public class CollectionProcessingUtil {
     String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
     entity.setSlug(uniqueSlug);
     entity.setDescription(request.description() != null ? request.description() : "");
-    entity.setLocationId(resolveLocationId(request.locationId(), request.locationName()));
     entity.setCollectionDate(
         request.collectionDate() != null ? request.collectionDate() : LocalDate.now());
     entity.setVisible(false);
-    entity.setContentPerPage(defaultPageSize);
     entity.setTotalContent(0);
-    // Set default displayMode based on type
-    entity.setDisplayMode(
-        request.type() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED);
+    if (request.type().isParentType()) {
+      // Parent-type collections don't use pagination or row layout
+      entity.setContentPerPage(null);
+      entity.setRowsWide(null);
+      entity.setDisplayMode(DisplayMode.ORDERED);
+    } else {
+      entity.setContentPerPage(defaultPageSize);
+      // Set default displayMode based on type
+      entity.setDisplayMode(
+          request.type() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED);
+    }
     // Apply type-specific defaults (may adjust visibility etc.)
     return applyTypeSpecificDefaults(entity);
   }
@@ -486,31 +488,22 @@ public class CollectionProcessingUtil {
     if (updateDTO.type() != null) {
       entity.setType(updateDTO.type());
     }
-    // Handle location update using prev/new/remove pattern
+    // Handle location update using prev/new/remove pattern (many-to-many)
     if (updateDTO.location() != null) {
       CollectionRequests.LocationUpdate locationUpdate = updateDTO.location();
-
-      if (Boolean.TRUE.equals(locationUpdate.remove())) {
-        // Remove location association
-        entity.setLocationId(null);
-        log.info("Removed location association from collection {}", entity.getId());
-      } else if (locationUpdate.newValue() != null && !locationUpdate.newValue().trim().isEmpty()) {
-        // Create new location by name
-        String locationName = locationUpdate.newValue().trim();
-        LocationEntity location = locationRepository.findOrCreate(locationName);
-        entity.setLocationId(location.getId());
-        log.info("Set location to: {} (ID: {})", locationName, location.getId());
-      } else if (locationUpdate.prev() != null) {
-        // Use existing location by ID
-        LocationEntity location =
-            locationRepository
-                .findById(locationUpdate.prev())
-                .orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "Location not found with ID: " + locationUpdate.prev()));
-        entity.setLocationId(location.getId());
-      }
+      List<LocationEntity> currentLocations =
+          locationRepository.findCollectionLocations(entity.getId());
+      Set<LocationEntity> updatedLocations =
+          contentMutationUtil.updateLocations(
+              new HashSet<>(currentLocations), locationUpdate, null);
+      List<Long> updatedLocationIds =
+          updatedLocations.stream()
+              .map(LocationEntity::getId)
+              .filter(Objects::nonNull)
+              .distinct()
+              .collect(Collectors.toList());
+      locationRepository.saveCollectionLocations(entity.getId(), updatedLocationIds);
+      log.info("Updated locations for collection {}: {}", entity.getId(), updatedLocationIds);
     }
     if (Boolean.TRUE.equals(updateDTO.clearCollectionDate())) {
       entity.setCollectionDate(null);
@@ -524,14 +517,17 @@ public class CollectionProcessingUtil {
       String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());
       entity.setSlug(uniqueSlug);
     }
-    if (updateDTO.contentPerPage() != null && updateDTO.contentPerPage() >= 1) {
-      entity.setContentPerPage(updateDTO.contentPerPage());
+    // Parent-type collections don't use pagination or row layout
+    if (!entity.getType().isParentType()) {
+      if (updateDTO.contentPerPage() != null && updateDTO.contentPerPage() >= 1) {
+        entity.setContentPerPage(updateDTO.contentPerPage());
+      }
+      if (updateDTO.rowsWide() != null) {
+        entity.setRowsWide(updateDTO.rowsWide());
+      }
     }
     if (updateDTO.displayMode() != null) {
       entity.setDisplayMode(updateDTO.displayMode());
-    }
-    if (updateDTO.rowsWide() != null) {
-      entity.setRowsWide(updateDTO.rowsWide());
     }
 
     // Handle coverImageId updates - load ContentImageEntity by ID
@@ -623,27 +619,107 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Resolve a location ID from either an explicit ID or a location name. If locationId is provided,
-   * validates it exists. If locationName is provided, finds or creates the location. Returns null
-   * if neither is provided.
+   * Resolve location IDs from explicit IDs and/or location names. Validates each ID exists and
+   * finds or creates each named location. Returns an empty list if neither is provided.
    */
-  public Long resolveLocationId(Long locationId, String locationName) {
-    if (locationId != null) {
-      LocationEntity location =
-          locationRepository
-              .findById(locationId)
-              .orElseThrow(
-                  () -> new IllegalArgumentException("Location not found with ID: " + locationId));
-      return location.getId();
-    } else if (locationName != null && !locationName.trim().isEmpty()) {
-      LocationEntity location = locationRepository.findOrCreate(locationName.trim());
-      if (location == null) {
-        throw new IllegalStateException(
-            "Failed to find or create location with name: " + locationName);
+  public List<Long> resolveLocationIds(List<Long> locationIds, List<String> locationNames) {
+    Set<Long> resolvedIds = new java.util.LinkedHashSet<>();
+
+    if (locationIds != null) {
+      for (Long locationId : locationIds) {
+        LocationEntity location =
+            locationRepository
+                .findById(locationId)
+                .orElseThrow(
+                    () ->
+                        new IllegalArgumentException("Location not found with ID: " + locationId));
+        resolvedIds.add(location.getId());
       }
-      return location.getId();
     }
-    return null;
+
+    if (locationNames != null) {
+      for (String locationName : locationNames) {
+        if (locationName != null && !locationName.trim().isEmpty()) {
+          LocationEntity location = locationRepository.findOrCreate(locationName.trim());
+          if (location == null) {
+            throw new IllegalStateException(
+                "Failed to find or create location with name: " + locationName);
+          }
+          resolvedIds.add(location.getId());
+        }
+      }
+    }
+
+    return new ArrayList<>(resolvedIds);
+  }
+
+  // =============================================================================
+  // PARENT COLLECTION HELPERS
+  // =============================================================================
+
+  /**
+   * Batch-load all images from the given child collection IDs. Used by the manage page for
+   * parent-type collections to aggregate images across child collections for cover image selection
+   * and content management.
+   *
+   * @param childCollectionIds IDs of child collections to aggregate images from
+   * @return List of image models from all child collections
+   */
+  public List<ContentModels.Image> loadImagesFromChildCollections(List<Long> childCollectionIds) {
+    if (childCollectionIds == null || childCollectionIds.isEmpty()) {
+      return List.of();
+    }
+
+    // Batch-fetch all IMAGE content join entries across child collections
+    List<CollectionContentEntity> imageJoinEntries =
+        collectionRepository.findImageContentByCollectionIds(childCollectionIds);
+
+    if (imageJoinEntries.isEmpty()) {
+      return List.of();
+    }
+
+    // Extract content IDs and bulk-fetch all image entities
+    List<Long> contentIds =
+        imageJoinEntries.stream().map(CollectionContentEntity::getContentId).distinct().toList();
+
+    List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
+    Map<Long, ContentEntity> contentMap =
+        contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
+
+    // Batch-load tags, people, and locations for all images
+    List<Long> imageContentIds =
+        contentMap.values().stream()
+            .filter(c -> c.getContentType() == ContentType.IMAGE)
+            .map(ContentEntity::getId)
+            .toList();
+    Map<Long, List<TagEntity>> tagsByContentId =
+        tagRepository.findTagsByContentIds(imageContentIds);
+    Map<Long, List<ContentPersonEntity>> peopleByContentId =
+        personRepository.findPeopleByContentIds(imageContentIds);
+    Map<Long, List<LocationEntity>> locationsByContentId =
+        locationRepository.findLocationsByContentIds(imageContentIds);
+
+    // Convert to image models, deduplicating by content ID (same image may appear in multiple
+    // child collections)
+    Set<Long> seen = new HashSet<>();
+    return imageJoinEntries.stream()
+        .filter(cc -> seen.add(cc.getContentId()))
+        .map(
+            cc -> {
+              ContentEntity content = contentMap.get(cc.getContentId());
+              if (content instanceof ContentImageEntity imageEntity) {
+                return contentModelConverter.buildImageModelWithBatchData(
+                    imageEntity,
+                    cc.getOrderIndex(),
+                    cc.getVisible(),
+                    tagsByContentId,
+                    peopleByContentId,
+                    locationsByContentId);
+              }
+              return null;
+            })
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
   }
 
   // =============================================================================
@@ -661,9 +737,11 @@ public class CollectionProcessingUtil {
       return entity;
     }
 
-    // Set default blocks per page if not set
-    if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
-      entity.setContentPerPage(DefaultValues.default_content_per_page); // Default page size
+    // Parent-type collections don't use pagination
+    if (!entity.getType().isParentType()) {
+      if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
+        entity.setContentPerPage(DefaultValues.default_content_per_page);
+      }
     }
 
     // Set type-specific visibility defaults
@@ -687,11 +765,6 @@ public class CollectionProcessingUtil {
   // return model.getIsPasswordProtected() != null &&
   // model.getIsPasswordProtected();
   // }
-
-  /** Check if an UpdateDTO includes password changes. */
-  public static boolean hasPasswordUpdate(CollectionRequests.Update dto) {
-    return dto.password() != null && !dto.password().trim().isEmpty();
-  }
 
   private static final BCryptPasswordEncoder BCRYPT_ENCODER = new BCryptPasswordEncoder();
 

@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
@@ -27,6 +28,7 @@ import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
+import edens.zac.portfolio.backend.types.ContentType;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +58,7 @@ public class ContentService {
   private final ContentRepository contentRepository;
   private final CollectionRepository collectionRepository;
   private final PersonRepository personRepository;
+  private final LocationRepository locationRepository;
   private final ContentMutationUtil contentMutationUtil;
   private final ContentModelConverter contentModelConverter;
   private final ImageProcessingService imageProcessingService;
@@ -116,10 +119,13 @@ public class ContentService {
       }
     }
 
-    // OPTIMIZED: Pre-fetch all current tags and people for all images (avoids N+1)
+    // OPTIMIZED: Pre-fetch all current tags, people, and locations for all images (avoids N+1)
     Map<Long, List<TagEntity>> currentTagsByImage = tagRepository.findTagsByContentIds(imageIds);
     Map<Long, List<ContentPersonEntity>> currentPeopleByImage =
         personRepository.findPeopleByContentIds(imageIds);
+    Map<Long, List<LocationEntity>> currentLocationsByImage =
+        locationRepository.findLocationsByContentIds(imageIds);
+    Set<LocationEntity> newlyCreatedLocations = new HashSet<>();
 
     // Track successfully updated images for batch save
     List<ContentImageEntity> imagesToSave = new ArrayList<>();
@@ -158,6 +164,14 @@ public class ContentService {
               currentPeopleByImage.getOrDefault(imageId, List.of());
           contentMutationUtil.updateImagePeopleOptimized(
               image, update.getPeople(), currentPeople, newlyCreatedPeople);
+        }
+
+        // Update locations using prev/new/remove pattern (with tracking)
+        if (update.getLocations() != null) {
+          List<LocationEntity> currentLocations =
+              currentLocationsByImage.getOrDefault(imageId, List.of());
+          contentMutationUtil.updateImageLocationsOptimized(
+              image, update.getLocations(), currentLocations, newlyCreatedLocations);
         }
 
         // Handle collection updates using prev/new/remove pattern
@@ -299,27 +313,8 @@ public class ContentService {
       }
     }
 
-    // Handle location update using prev/new/remove pattern
-    if (updateRequest.getLocation() != null) {
-      CollectionRequests.LocationUpdate locationUpdate = updateRequest.getLocation();
-
-      if (Boolean.TRUE.equals(locationUpdate.remove())) {
-        // Remove location association
-        image.setLocationId(null);
-        log.info("Removed location association from image {}", image.getId());
-      } else if (locationUpdate.newValue() != null && !locationUpdate.newValue().trim().isEmpty()) {
-        // Create new location by name
-        String locationName = locationUpdate.newValue().trim();
-        LocationEntity location = metadataService.findOrCreateLocation(locationName);
-        image.setLocationId(location.getId());
-        log.info("Set location to: {} (ID: {})", locationName, location.getId());
-      } else if (locationUpdate.prev() != null) {
-        // Use existing location by ID
-        LocationEntity location = metadataService.findLocationById(locationUpdate.prev());
-        image.setLocationId(location.getId());
-        log.info("Set location to existing location ID: {}", location.getId());
-      }
-    }
+    // Location updates are now handled in updateImages() via
+    // contentMutationUtil.updateImageLocationsOptimized
   }
 
   @Transactional
@@ -395,20 +390,21 @@ public class ContentService {
   }
 
   /**
-   * Set a collection's location if it doesn't already have one. Used when uploading to an existing
-   * collection that is missing location metadata.
+   * Set locations on a collection if it doesn't already have any. Used when uploading to an
+   * existing collection that is missing location metadata.
    */
   @Transactional
-  public void setCollectionLocationIfMissing(Long collectionId, Long locationId) {
-    CollectionEntity entity =
-        collectionRepository
-            .findById(collectionId)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
-    if (entity.getLocationId() == null) {
-      entity.setLocationId(locationId);
-      collectionRepository.save(entity);
-      log.info("Set location {} on collection {}", locationId, collectionId);
+  public void setCollectionLocationsIfMissing(Long collectionId, List<Long> locationIds) {
+    if (locationIds == null || locationIds.isEmpty()) {
+      return;
+    }
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
+    List<Long> existing = locationRepository.findCollectionLocationIds(collectionId);
+    if (existing.isEmpty()) {
+      locationRepository.saveCollectionLocations(collectionId, locationIds);
+      log.info("Set locations {} on collection {}", locationIds, collectionId);
     }
   }
 
@@ -522,6 +518,25 @@ public class ContentService {
    * @param visible Whether the content is visible in the collection
    */
   void linkContentToCollection(Long collectionId, Long contentId, int orderIndex, boolean visible) {
+    CollectionEntity collection =
+        collectionRepository
+            .findById(collectionId)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
+
+    if (collection.getType().isParentType()) {
+      ContentType contentType =
+          contentRepository
+              .findContentTypeById(contentId)
+              .orElseThrow(() -> new ResourceNotFoundException("Content not found: " + contentId));
+      if (contentType != ContentType.COLLECTION) {
+        throw new IllegalArgumentException(
+            "Parent-type collections can only contain child collections, not "
+                + contentType
+                + " content");
+      }
+    }
+
     CollectionContentEntity joinEntry =
         CollectionContentEntity.builder()
             .collectionId(collectionId)

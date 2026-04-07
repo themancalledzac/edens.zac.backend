@@ -30,8 +30,8 @@ public class ContentImageUpdateRequest {
   /** Image rating (1-5) */
   private Integer rating;
 
-  /** Location update using prev/new/remove pattern */
-  private CollectionRequests.LocationUpdate location;
+  /** Location updates using prev/new/remove pattern */
+  private CollectionRequests.LocationUpdate locations;
 
   /** Author/photographer name */
   private String author;

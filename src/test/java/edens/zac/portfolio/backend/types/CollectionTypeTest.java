@@ -15,13 +15,14 @@ class CollectionTypeTest {
   void enum_ShouldHaveCorrectValues() {
     // Test the existence and order of enum values
     CollectionType[] values = CollectionType.values();
-    assertEquals(6, values.length);
+    assertEquals(7, values.length);
     assertEquals(CollectionType.BLOG, values[0]);
     assertEquals(CollectionType.PORTFOLIO, values[1]);
     assertEquals(CollectionType.ART_GALLERY, values[2]);
     assertEquals(CollectionType.CLIENT_GALLERY, values[3]);
     assertEquals(CollectionType.HOME, values[4]);
-    assertEquals(CollectionType.MISC, values[5]);
+    assertEquals(CollectionType.PARENT, values[5]);
+    assertEquals(CollectionType.MISC, values[6]);
   }
 
   @ParameterizedTest
@@ -64,6 +65,22 @@ class CollectionTypeTest {
     assertEquals(CollectionType.ART_GALLERY, CollectionType.forValue("Art Gallery"));
     assertEquals(CollectionType.CLIENT_GALLERY, CollectionType.forValue("Client Gallery"));
     assertEquals(CollectionType.PORTFOLIO, CollectionType.forValue("Portfolio"));
+    assertEquals(CollectionType.PARENT, CollectionType.forValue("Parent"));
+  }
+
+  @Test
+  void isParentType_ShouldReturnTrueForParentAndHome() {
+    assertTrue(CollectionType.PARENT.isParentType());
+    assertTrue(CollectionType.HOME.isParentType());
+  }
+
+  @Test
+  void isParentType_ShouldReturnFalseForNonParentTypes() {
+    assertFalse(CollectionType.BLOG.isParentType());
+    assertFalse(CollectionType.PORTFOLIO.isParentType());
+    assertFalse(CollectionType.ART_GALLERY.isParentType());
+    assertFalse(CollectionType.CLIENT_GALLERY.isParentType());
+    assertFalse(CollectionType.MISC.isParentType());
   }
 
   // Test data providers
@@ -72,7 +89,10 @@ class CollectionTypeTest {
         Arguments.of(CollectionType.BLOG, "Blog"),
         Arguments.of(CollectionType.ART_GALLERY, "Art Gallery"),
         Arguments.of(CollectionType.CLIENT_GALLERY, "Client Gallery"),
-        Arguments.of(CollectionType.PORTFOLIO, "Portfolio"));
+        Arguments.of(CollectionType.PORTFOLIO, "Portfolio"),
+        Arguments.of(CollectionType.HOME, "Home"),
+        Arguments.of(CollectionType.PARENT, "Parent"),
+        Arguments.of(CollectionType.MISC, "Misc"));
   }
 
   static Stream<Arguments> provideEnumAndName() {
@@ -80,7 +100,10 @@ class CollectionTypeTest {
         Arguments.of(CollectionType.BLOG, "BLOG"),
         Arguments.of(CollectionType.ART_GALLERY, "ART_GALLERY"),
         Arguments.of(CollectionType.CLIENT_GALLERY, "CLIENT_GALLERY"),
-        Arguments.of(CollectionType.PORTFOLIO, "PORTFOLIO"));
+        Arguments.of(CollectionType.PORTFOLIO, "PORTFOLIO"),
+        Arguments.of(CollectionType.HOME, "HOME"),
+        Arguments.of(CollectionType.PARENT, "PARENT"),
+        Arguments.of(CollectionType.MISC, "MISC"));
   }
 
   static Stream<Arguments> provideNameAndEnum() {
@@ -88,6 +111,9 @@ class CollectionTypeTest {
         Arguments.of("BLOG", CollectionType.BLOG),
         Arguments.of("ART_GALLERY", CollectionType.ART_GALLERY),
         Arguments.of("CLIENT_GALLERY", CollectionType.CLIENT_GALLERY),
-        Arguments.of("PORTFOLIO", CollectionType.PORTFOLIO));
+        Arguments.of("PORTFOLIO", CollectionType.PORTFOLIO),
+        Arguments.of("HOME", CollectionType.HOME),
+        Arguments.of("PARENT", CollectionType.PARENT),
+        Arguments.of("MISC", CollectionType.MISC));
   }
 }

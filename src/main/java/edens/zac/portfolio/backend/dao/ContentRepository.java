@@ -63,7 +63,6 @@ public class ContentRepository extends BaseDao {
                         : null)
                 .shutterSpeed(getString(rs, "shutter_speed"))
                 .focalLength(getString(rs, "focal_length"))
-                .locationId(getLong(rs, "location_id"))
                 .imageUrlWeb(rs.getString("image_url_web"))
                 .imageUrlOriginal(getString(rs, "image_url_original"))
                 .imageUrlRaw(getString(rs, "image_url_raw"))
@@ -156,7 +155,6 @@ public class ContentRepository extends BaseDao {
              ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
              ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
              ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
-             ci.location_id,
              ci.image_url_web, ci.image_url_original, ci.image_url_raw,
              ci.capture_date, ci.last_export_date, ci.original_filename,
              cam.camera_name,
@@ -264,7 +262,8 @@ public class ContentRepository extends BaseDao {
     String sql =
         SELECT_CONTENT_IMAGE
             + """
-             JOIN location l ON ci.location_id = l.id
+             JOIN content_image_locations cil ON ci.id = cil.image_id
+             JOIN location l ON cil.location_id = l.id
              WHERE l.location_name = :locationName
             """;
     MapSqlParameterSource params =
@@ -298,7 +297,8 @@ public class ContentRepository extends BaseDao {
             """
             SELECT COUNT(DISTINCT c.id) FROM content c
             JOIN content_image ci ON c.id = ci.id
-            JOIN location l ON ci.location_id = l.id
+            JOIN content_image_locations cil ON ci.id = cil.image_id
+            JOIN location l ON cil.location_id = l.id
             WHERE l.location_name = :locationName
             """);
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
@@ -318,6 +318,14 @@ public class ContentRepository extends BaseDao {
 
     Long count = namedParameterJdbcTemplate.queryForObject(sql.toString(), params, Long.class);
     return count != null ? count : 0L;
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<ContentType> findContentTypeById(Long id) {
+    String sql = "SELECT content_type FROM content WHERE id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    List<String> results = namedParameterJdbcTemplate.queryForList(sql, params, String.class);
+    return results.isEmpty() ? Optional.empty() : Optional.of(ContentType.valueOf(results.get(0)));
   }
 
   @Transactional(readOnly = true)
@@ -402,13 +410,11 @@ public class ContentRepository extends BaseDao {
           INSERT INTO content_image (id, title, image_width, image_height, iso, author, rating,
                                     f_stop, lens_id, black_and_white, is_film, film_type_id,
                                     film_format, shutter_speed, camera_id, focal_length,
-                                    location_id,
                                     image_url_web, image_url_original, image_url_raw,
                                     capture_date, last_export_date, original_filename)
           VALUES (:id, :title, :imageWidth, :imageHeight, :iso, :author, :rating,
                   :fStop, :lensId, :blackAndWhite, :isFilm, :filmTypeId,
                   :filmFormat, :shutterSpeed, :cameraId, :focalLength,
-                  :locationId,
                   :imageUrlWeb, :imageUrlOriginal, :imageUrlRaw,
                   :captureDate, :lastExportDate, :originalFilename)
           """;
@@ -442,7 +448,7 @@ public class ContentRepository extends BaseDao {
               author = :author, rating = :rating, f_stop = :fStop, lens_id = :lensId,
               black_and_white = :blackAndWhite, is_film = :isFilm, film_type_id = :filmTypeId,
               film_format = :filmFormat, shutter_speed = :shutterSpeed, camera_id = :cameraId,
-              focal_length = :focalLength, location_id = :locationId,
+              focal_length = :focalLength,
               image_url_web = :imageUrlWeb, image_url_original = :imageUrlOriginal,
               image_url_raw = :imageUrlRaw,
               capture_date = :captureDate, last_export_date = :lastExportDate,
@@ -476,7 +482,6 @@ public class ContentRepository extends BaseDao {
         .addValue("shutterSpeed", entity.getShutterSpeed())
         .addValue("cameraId", entity.getCamera() != null ? entity.getCamera().getId() : null)
         .addValue("focalLength", entity.getFocalLength())
-        .addValue("locationId", entity.getLocationId())
         .addValue("imageUrlWeb", entity.getImageUrlWeb())
         .addValue("imageUrlOriginal", entity.getImageUrlOriginal())
         .addValue("imageUrlRaw", entity.getImageUrlRaw())
@@ -561,6 +566,9 @@ public class ContentRepository extends BaseDao {
     String deletePeopleSql = "DELETE FROM content_image_people WHERE image_id = :id";
     update(deletePeopleSql, params);
 
+    String deleteLocationsSql = "DELETE FROM content_image_locations WHERE image_id = :id";
+    update(deleteLocationsSql, params);
+
     String deleteImageSql = "DELETE FROM content_image WHERE id = :id";
     update(deleteImageSql, params);
 
@@ -639,7 +647,8 @@ public class ContentRepository extends BaseDao {
       params.addValue("lensId", request.lensId());
     }
     if (request.locationId() != null) {
-      conditions.add("ci.location_id = :locationId");
+      conditions.add(
+          "EXISTS (SELECT 1 FROM content_image_locations cil WHERE cil.image_id = c.id AND cil.location_id = :locationId)");
       params.addValue("locationId", request.locationId());
     }
     if (request.minRating() != null) {
@@ -681,7 +690,6 @@ public class ContentRepository extends BaseDao {
                     ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
                     ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
                     ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
-                    ci.location_id,
                     ci.image_url_web, ci.image_url_original, ci.image_url_raw,
                     ci.capture_date, ci.last_export_date, ci.original_filename,
                     cam.camera_name,

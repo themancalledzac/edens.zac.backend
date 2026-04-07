@@ -336,7 +336,7 @@ class ContentControllerDevTest {
         .andExpect(jsonPath("$.failed", hasSize(0)));
 
     verify(imageUploadPipelineService).createImagesParallel(eq(1L), anyList(), anyMap());
-    verify(contentService, never()).setCollectionLocationIfMissing(any(), any());
+    verify(contentService, never()).setCollectionLocationsIfMissing(any(), any());
   }
 
   // ============== POST /api/admin/content/images/create-collection ==============

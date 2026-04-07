@@ -36,7 +36,7 @@ public class CollectionModel {
 
   @Size(max = 500, message = "Description cannot exceed 500 characters") private String description;
 
-  @Valid private Records.Location location;
+  @Valid private List<Records.Location> locations;
 
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;
