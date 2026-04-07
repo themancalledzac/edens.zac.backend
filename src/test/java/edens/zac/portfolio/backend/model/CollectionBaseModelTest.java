@@ -9,6 +9,7 @@ import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -80,7 +81,7 @@ class CollectionBaseModelTest {
               .title("Valid Title")
               .slug("valid-slug")
               .description("Valid description")
-              .location(new Records.Location(1L, "Valid location", "valid-location"))
+              .locations(List.of(new Records.Location(1L, "Valid location", "valid-location")))
               .collectionDate(today)
               .visible(true)
               .coverImage(createTestContentImage("https://example.com/cover.jpg"))
@@ -94,8 +95,9 @@ class CollectionBaseModelTest {
       assertEquals("Valid Title", model.getTitle());
       assertEquals("valid-slug", model.getSlug());
       assertEquals("Valid description", model.getDescription());
-      assertNotNull(model.getLocation());
-      assertEquals("Valid location", model.getLocation().name());
+      assertNotNull(model.getLocations());
+      assertEquals(1, model.getLocations().size());
+      assertEquals("Valid location", model.getLocations().get(0).name());
       assertEquals(today, model.getCollectionDate());
       assertTrue(model.getVisible());
       assertNotNull(model.getCoverImage());
@@ -116,7 +118,7 @@ class CollectionBaseModelTest {
       assertEquals("min", model.getSlug());
       assertNull(model.getId());
       assertNull(model.getDescription());
-      assertNull(model.getLocation());
+      assertNull(model.getLocations());
     }
 
     @Test
@@ -384,9 +386,10 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(
-                  new Records.Location(
-                      1L, "Arches National Park, Utah", "arches-national-park-utah"))
+              .locations(
+                  List.of(
+                      new Records.Location(
+                          1L, "Arches National Park, Utah", "arches-national-park-utah")))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -401,7 +404,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(null)
+              .locations(null)
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
@@ -418,7 +421,7 @@ class CollectionBaseModelTest {
               .type(CollectionType.PORTFOLIO)
               .title("Valid Title")
               .slug("valid-slug")
-              .location(new Records.Location(1L, longLocation, "long-location"))
+              .locations(List.of(new Records.Location(1L, longLocation, "long-location")))
               .build();
 
       Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);

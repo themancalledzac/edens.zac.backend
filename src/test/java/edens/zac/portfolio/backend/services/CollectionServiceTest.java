@@ -13,10 +13,12 @@ import static org.mockito.Mockito.when;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -43,6 +45,7 @@ class CollectionServiceTest {
 
   @Mock private CollectionRepository collectionRepository;
   @Mock private ContentRepository contentRepository;
+  @Mock private LocationRepository locationRepository;
   @Mock private TagRepository tagRepository;
   @Mock private CollectionProcessingUtil collectionProcessingUtil;
   @Mock private ContentMutationUtil contentMutationUtil;
@@ -532,6 +535,11 @@ class CollectionServiceTest {
       // Arrange
       String locationName = "Seattle";
 
+      LocationEntity seattleLocation =
+          LocationEntity.builder().id(1L).locationName("Seattle").slug("seattle").build();
+      when(locationRepository.findByLocationName(locationName))
+          .thenReturn(Optional.of(seattleLocation));
+
       CollectionEntity collectionEntity =
           CollectionEntity.builder()
               .id(10L)
@@ -546,7 +554,7 @@ class CollectionServiceTest {
               .id(10L)
               .title("Seattle Trip")
               .slug("seattle-trip")
-              .location(new Records.Location(1L, "Seattle", "seattle"))
+              .locations(List.of(new Records.Location(1L, "Seattle", "seattle")))
               .build();
 
       ContentImageEntity orphanImage = ContentImageEntity.builder().id(20L).title("Sunset").build();
@@ -590,6 +598,8 @@ class CollectionServiceTest {
       // Arrange
       String locationName = "Portland";
 
+      when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
+
       ContentImageEntity orphanImage = ContentImageEntity.builder().id(30L).title("Bridge").build();
 
       ContentModels.Image imageModel =
@@ -632,6 +642,8 @@ class CollectionServiceTest {
     void getLocationPage_noResults_shouldReturnEmptyResponse() {
       // Arrange
       String locationName = "Nowhere";
+
+      when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
 
       when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
       when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
@@ -700,6 +712,145 @@ class CollectionServiceTest {
       assertThatThrownBy(() -> service.findMetaBySlug(slug))
           .isInstanceOf(ResourceNotFoundException.class)
           .hasMessageContaining("Collection not found with slug: non-existent");
+    }
+  }
+
+  @Nested
+  class ParentTypeCollections {
+
+    @Test
+    void getCollectionWithPagination_parentType_filtersToCollectionContentOnly() {
+      String slug = "photography";
+      CollectionEntity parentCollection =
+          CollectionEntity.builder()
+              .id(10L)
+              .title("Photography")
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .visible(true)
+              .build();
+
+      List<CollectionContentEntity> collectionContent =
+          List.of(
+              CollectionContentEntity.builder()
+                  .id(1L)
+                  .collectionId(10L)
+                  .contentId(100L)
+                  .orderIndex(0)
+                  .visible(true)
+                  .build());
+
+      CollectionModel model = CollectionModel.builder().id(10L).title("Photography").build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parentCollection));
+      when(collectionRepository.findContentByCollectionIdAndContentType(10L, "COLLECTION"))
+          .thenReturn(collectionContent);
+      when(collectionProcessingUtil.convertToModel(
+              eq(parentCollection), eq(collectionContent), anyInt(), anyInt(), eq(1L)))
+          .thenReturn(model);
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result).isNotNull();
+      // Should use content-type filtered query, not the generic one
+      verify(collectionRepository).findContentByCollectionIdAndContentType(10L, "COLLECTION");
+      verify(collectionRepository, never()).countContentByCollectionId(anyLong());
+      verify(collectionRepository, never())
+          .findContentByCollectionId(anyLong(), anyInt(), anyInt());
+    }
+
+    @Test
+    void getCollectionWithPagination_homeType_alsoFiltersToCollectionContent() {
+      String slug = "home";
+      CollectionEntity homeCollection =
+          CollectionEntity.builder()
+              .id(1L)
+              .title("Home")
+              .slug(slug)
+              .type(CollectionType.HOME)
+              .visible(true)
+              .build();
+
+      CollectionModel model = CollectionModel.builder().id(1L).title("Home").build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(homeCollection));
+      when(collectionRepository.findContentByCollectionIdAndContentType(1L, "COLLECTION"))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToModel(
+              eq(homeCollection), any(), anyInt(), anyInt(), eq(0L)))
+          .thenReturn(model);
+
+      service.getCollectionWithPagination(slug, 0, 10);
+
+      verify(collectionRepository).findContentByCollectionIdAndContentType(1L, "COLLECTION");
+      verify(collectionRepository, never()).countContentByCollectionId(anyLong());
+    }
+
+    @Test
+    void getUpdateCollectionData_parentType_aggregatesChildCollectionImages() {
+      String slug = "photography";
+      CollectionEntity parentEntity =
+          CollectionEntity.builder()
+              .id(10L)
+              .title("Photography")
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .visible(true)
+              .build();
+
+      ContentModels.Collection childContent =
+          new ContentModels.Collection(
+              100L,
+              edens.zac.portfolio.backend.types.ContentType.COLLECTION,
+              "Portfolio",
+              null,
+              null,
+              0,
+              true,
+              null,
+              null,
+              20L,
+              "portfolio",
+              CollectionType.PORTFOLIO,
+              null);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(10L)
+              .title("Photography")
+              .slug(slug)
+              .content(List.of(childContent))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parentEntity));
+      when(collectionProcessingUtil.convertToFullModel(parentEntity)).thenReturn(model);
+      stubEmptyMetadata();
+      when(collectionProcessingUtil.loadImagesFromChildCollections(List.of(20L)))
+          .thenReturn(List.of());
+
+      CollectionRequests.UpdateResponse result = service.getUpdateCollectionData(slug);
+
+      assertThat(result).isNotNull();
+      assertThat(result.childCollectionImages()).isNotNull();
+      verify(collectionProcessingUtil).loadImagesFromChildCollections(List.of(20L));
+    }
+
+    @Test
+    void getUpdateCollectionData_nonParentType_doesNotAggregateChildImages() {
+      String slug = "test-collection";
+
+      CollectionModel model =
+          CollectionModel.builder().id(1L).title("Test Collection").slug(slug).build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
+      when(collectionProcessingUtil.convertToFullModel(testCollection)).thenReturn(model);
+      stubEmptyMetadata();
+
+      CollectionRequests.UpdateResponse result = service.getUpdateCollectionData(slug);
+
+      assertThat(result).isNotNull();
+      assertThat(result.childCollectionImages()).isNull();
+      verify(collectionProcessingUtil, never()).loadImagesFromChildCollections(any());
     }
   }
 }

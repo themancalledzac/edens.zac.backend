@@ -24,8 +24,8 @@ public final class CollectionRequests {
       @NotNull(message = "Type is required") CollectionType type,
       @NotNull(message = "Title is required") @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,
       @Size(max = 500, message = "Description cannot exceed 500 characters") String description,
-      Long locationId,
-      @Size(max = 255, message = "Location name cannot exceed 255 characters") String locationName,
+      List<Long> locationIds,
+      List<String> locationNames,
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate) {
 
     /** Backwards-compatible constructor for callers that only provide type and title. */
@@ -112,7 +112,19 @@ public final class CollectionRequests {
        * collections. This is unwrapped during JSON serialization to maintain backwards
        * compatibility with the API.
        */
-      @JsonUnwrapped GeneralMetadataDTO metadata) {}
+      @JsonUnwrapped GeneralMetadataDTO metadata,
+      /**
+       * Aggregated images from all child collections. Only populated for parent-type collections
+       * (PARENT, HOME) to enable cover image selection and child content management. Null for
+       * non-parent collections.
+       */
+      List<ContentModels.Image> childCollectionImages) {
+
+    /** Constructor for non-parent collections (backwards compatible). */
+    public UpdateResponse(CollectionModel collection, GeneralMetadataDTO metadata) {
+      this(collection, metadata, null);
+    }
+  }
 
   // ===========================================================================================
   // NESTED UPDATE HELPERS - prev/new/remove pattern
@@ -122,16 +134,14 @@ public final class CollectionRequests {
    * Location update wrapper using prev/new/remove pattern. All fields are optional to support
    * partial updates.
    *
-   * <p>- prev: ID of existing location to use - newValue: Name of new location to create - remove:
-   * true to remove location association
+   * <p>- prev: List of existing location IDs to keep/add - newValue: List of new location names to
+   * create and add - remove: List of location IDs to remove
    *
-   * <p>Examples: - {prev: 5} = Use existing location ID 5 - {newValue: "New York"} = Create new
-   * location "New York" - {remove: true} = Remove location association
+   * <p>Examples: - {prev: [5, 6]} = Add existing locations 5 and 6 - {newValue: ["New York",
+   * "Paris"]} = Create and add new locations - {remove: [3]} = Remove location ID 3 - {prev: [5],
+   * newValue: ["Paris"], remove: [3]} = All operations at once
    */
-  public record LocationUpdate(
-      Long prev,
-      @Size(max = 255, message = "Location cannot exceed 255 characters") String newValue,
-      Boolean remove) {}
+  public record LocationUpdate(List<Long> prev, List<String> newValue, List<Long> remove) {}
 
   /**
    * Tag update wrapper using prev/new/remove pattern. All fields are optional to support partial

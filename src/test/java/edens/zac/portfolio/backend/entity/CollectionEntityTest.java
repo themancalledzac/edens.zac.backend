@@ -226,7 +226,6 @@ class CollectionEntityTest {
     collection.setTitle("Complete Portfolio");
     collection.setSlug("complete-portfolio");
     collection.setDescription("A portfolio with all fields populated");
-    collection.setLocationId(1L);
     collection.setCollectionDate(today);
     collection.setContentPerPage(20);
     collection.setTotalContent(100);
@@ -240,7 +239,6 @@ class CollectionEntityTest {
     assertEquals("Complete Portfolio", collection.getTitle());
     assertEquals("complete-portfolio", collection.getSlug());
     assertEquals("A portfolio with all fields populated", collection.getDescription());
-    assertEquals(1L, collection.getLocationId());
     assertEquals(today, collection.getCollectionDate());
     assertTrue(collection.getVisible());
     assertEquals(20, collection.getContentPerPage());

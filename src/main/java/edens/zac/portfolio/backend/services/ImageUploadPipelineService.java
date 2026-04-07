@@ -98,6 +98,10 @@ public class ImageUploadPipelineService {
       CollectionRequests.Create createRequest,
       List<MultipartFile> files,
       Map<String, String> rawFilePathMap) {
+    if (createRequest.type() != null && createRequest.type().isParentType()) {
+      throw new IllegalArgumentException("Cannot upload images to parent-type collection");
+    }
+
     CollectionRequests.UpdateResponse collectionResponse =
         collectionService.createCollection(createRequest);
     Long newCollectionId = collectionResponse.collection().getId();
@@ -124,13 +128,20 @@ public class ImageUploadPipelineService {
   public JobTrackingService.JobStatus processFilesFromDisk(
       Long collectionId, DiskUploadRequest request) {
     // Verify collection exists before starting
-    collectionRepository
-        .findById(collectionId)
-        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
+    CollectionEntity collection =
+        collectionRepository
+            .findById(collectionId)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
-    // Optionally set collection location if provided and not already set
-    if (request.locationId() != null) {
-      contentService.setCollectionLocationIfMissing(collectionId, request.locationId());
+    if (collection.getType() != null && collection.getType().isParentType()) {
+      throw new IllegalArgumentException(
+          "Cannot upload images to parent-type collection: " + collection.getTitle());
+    }
+
+    // Optionally set collection locations if provided and not already set
+    if (request.locationIds() != null && !request.locationIds().isEmpty()) {
+      contentService.setCollectionLocationsIfMissing(collectionId, request.locationIds());
     }
 
     var job = jobTrackingService.createJob(request.files().size());
@@ -166,9 +177,16 @@ public class ImageUploadPipelineService {
     contentValidator.validateFiles(files);
 
     // Verify collection exists (outside transaction)
-    collectionRepository
-        .findById(collectionId)
-        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
+    CollectionEntity collection =
+        collectionRepository
+            .findById(collectionId)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
+
+    if (collection.getType() != null && collection.getType().isParentType()) {
+      throw new IllegalArgumentException(
+          "Cannot upload images to parent-type collection: " + collection.getTitle());
+    }
 
     // Acquire semaphore to prevent concurrent upload requests from OOM-ing.
     // If another upload is in progress, this request blocks until it finishes.
@@ -281,6 +299,8 @@ public class ImageUploadPipelineService {
         .flatMap(f -> f.people().stream())
         .forEach(name -> allKnownPeople.add(name.toLowerCase()));
 
+    int orderIndex = contentService.nextOrderIndex(collectionId);
+
     for (var fileEntry : request.files()) {
       try {
         var prepared =
@@ -316,7 +336,7 @@ public class ImageUploadPipelineService {
                 prepared.imageYear(),
                 prepared.imageMonth(),
                 collectionId,
-                contentService.nextOrderIndex(collectionId));
+                orderIndex++);
           }
           case UPDATE -> {
             job.updated().incrementAndGet();
@@ -328,7 +348,7 @@ public class ImageUploadPipelineService {
                 prepared.imageYear(),
                 prepared.imageMonth(),
                 collectionId,
-                contentService.nextOrderIndex(collectionId));
+                orderIndex++);
           }
           case SKIP -> job.skipped().incrementAndGet();
           default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());

@@ -41,7 +41,6 @@ class ContentImageEntityTest {
             .shutterSpeed("1/125")
             .camera(new ContentCameraEntity("Canon EOS R5"))
             .focalLength("50mm")
-            .locationId(1L)
             .captureDate(java.time.LocalDateTime.of(2023, 5, 15, 14, 23, 5))
             .build();
 
@@ -92,7 +91,6 @@ class ContentImageEntityTest {
             .shutterSpeed("1/125")
             .camera(new ContentCameraEntity("Canon EOS R5"))
             .focalLength("50mm")
-            .locationId(1L)
             .captureDate(java.time.LocalDateTime.of(2023, 5, 15, 14, 23, 5))
             .build();
 
@@ -112,7 +110,6 @@ class ContentImageEntityTest {
     assertEquals("1/125", imageBlock.getShutterSpeed());
     assertEquals("Canon EOS R5", imageBlock.getCamera().getCameraName());
     assertEquals("50mm", imageBlock.getFocalLength());
-    assertEquals(1L, imageBlock.getLocationId());
     assertEquals(java.time.LocalDateTime.of(2023, 5, 15, 14, 23, 5), imageBlock.getCaptureDate());
   }
 

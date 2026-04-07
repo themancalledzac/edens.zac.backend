@@ -82,12 +82,21 @@ public class CollectionService {
     int normalizedSize = size <= 0 ? DEFAULT_PAGE_SIZE : size;
     int offset = normalizedPage * normalizedSize;
 
-    // Get total count for pagination
-    long totalElements = collectionRepository.countContentByCollectionId(collection.getId());
+    List<CollectionContentEntity> collectionContentList;
+    long totalElements;
 
-    // Get paginated join table entries (collection-content associations)
-    List<CollectionContentEntity> collectionContentList =
-        collectionRepository.findContentByCollectionId(collection.getId(), normalizedSize, offset);
+    if (collection.getType().isParentType()) {
+      // Parent-type collections only show child collection content
+      collectionContentList =
+          collectionRepository.findContentByCollectionIdAndContentType(
+              collection.getId(), "COLLECTION");
+      totalElements = collectionContentList.size();
+    } else {
+      totalElements = collectionRepository.countContentByCollectionId(collection.getId());
+      collectionContentList =
+          collectionRepository.findContentByCollectionId(
+              collection.getId(), normalizedSize, offset);
+    }
 
     // Convert to model (now using join table data)
     CollectionModel model =
@@ -172,11 +181,14 @@ public class CollectionService {
     List<ContentModels.Image> images =
         contentModelConverter.batchConvertImageEntitiesToModels(orphanImageEntities);
 
-    // Resolve the location record from already-converted collections
+    // Resolve the location record from the location entity (looked up by name)
+    LocationEntity locationEntity =
+        locationRepository.findByLocationName(locationName).orElse(null);
     Records.Location location =
-        collections.isEmpty()
-            ? new Records.Location(null, locationName, SlugUtil.generateSlug(locationName))
-            : collections.getFirst().getLocation();
+        locationEntity != null
+            ? new Records.Location(
+                locationEntity.getId(), locationEntity.getLocationName(), locationEntity.getSlug())
+            : new Records.Location(null, locationName, SlugUtil.generateSlug(locationName));
 
     return new LocationPageResponse(location, collections, images, totalCollections, totalImages);
   }
@@ -232,6 +244,14 @@ public class CollectionService {
     // Save entity
     CollectionEntity savedEntity = collectionRepository.save(entity);
 
+    // Save locations via join table (after entity has an ID)
+    List<Long> locationIds =
+        collectionProcessingUtil.resolveLocationIds(
+            createRequest.locationIds(), createRequest.locationNames());
+    if (!locationIds.isEmpty()) {
+      locationRepository.saveCollectionLocations(savedEntity.getId(), locationIds);
+    }
+
     // Return full update response with all metadata (tags, people, cameras, etc.)
     return getUpdateCollectionData(savedEntity.getSlug());
   }
@@ -248,6 +268,14 @@ public class CollectionService {
         collectionProcessingUtil.toEntity(createRequest, DEFAULT_PAGE_SIZE);
     CollectionEntity savedChildEntity = collectionRepository.save(childEntity);
     log.info("Created child collection with ID: {}", savedChildEntity.getId());
+
+    // Save locations via join table
+    List<Long> childLocationIds =
+        collectionProcessingUtil.resolveLocationIds(
+            createRequest.locationIds(), createRequest.locationNames());
+    if (!childLocationIds.isEmpty()) {
+      locationRepository.saveCollectionLocations(savedChildEntity.getId(), childLocationIds);
+    }
 
     // Link to parent
     linkCollectionToParent(parentId, savedChildEntity.getId());
@@ -467,8 +495,32 @@ public class CollectionService {
     // Get all general metadata using helper method
     GeneralMetadataDTO metadata = getGeneralMetadata();
 
-    // Build and return response DTO with collection and metadata
-    return new CollectionRequests.UpdateResponse(collection, metadata);
+    // For parent-type collections, aggregate images from child collections
+    List<ContentModels.Image> childCollectionImages = null;
+    CollectionEntity entity =
+        collectionRepository
+            .findBySlug(slug)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+
+    if (entity.getType().isParentType() && collection.getContent() != null) {
+      List<Long> childCollectionIds =
+          collection.getContent().stream()
+              .filter(c -> c instanceof ContentModels.Collection)
+              .map(c -> ((ContentModels.Collection) c).referencedCollectionId())
+              .filter(Objects::nonNull)
+              .toList();
+
+      childCollectionImages =
+          collectionProcessingUtil.loadImagesFromChildCollections(childCollectionIds);
+      log.debug(
+          "Aggregated {} images from {} child collections for parent collection '{}'",
+          childCollectionImages.size(),
+          childCollectionIds.size(),
+          slug);
+    }
+
+    return new CollectionRequests.UpdateResponse(collection, metadata, childCollectionImages);
   }
 
   @Transactional(readOnly = true)

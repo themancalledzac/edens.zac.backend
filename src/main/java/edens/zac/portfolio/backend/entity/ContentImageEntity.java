@@ -78,8 +78,8 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: focal_length (VARCHAR) */
   private String focalLength;
 
-  /** Column: location_id (BIGINT, FK to location.id) */
-  private Long locationId;
+  /** Relationship: Many-to-many with LocationEntity (via content_image_locations table) */
+  @Builder.Default private Set<LocationEntity> locations = new HashSet<>();
 
   /** Column: image_url_web (VARCHAR, NOT NULL) - S3 URL for web-optimized image */
   @NotNull private String imageUrlWeb;

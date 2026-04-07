@@ -32,9 +32,6 @@ public class CollectionEntity {
   /** Column: description (VARCHAR(500)) */
   @Size(max = 500) private String description;
 
-  /** Column: location_id (BIGINT, FK to location.id) */
-  private Long locationId;
-
   /** Column: collection_date (DATE) */
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;

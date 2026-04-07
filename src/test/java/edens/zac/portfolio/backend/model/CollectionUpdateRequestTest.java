@@ -11,6 +11,7 @@ import jakarta.validation.ValidatorFactory;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -90,7 +91,7 @@ class CollectionUpdateRequestTest {
               "Updated Client Gallery",
               "updated-client-gallery",
               "Updated professional client gallery",
-              new CollectionRequests.LocationUpdate(null, "Updated Location", null),
+              new CollectionRequests.LocationUpdate(null, List.of("Updated Location"), null),
               today,
               null,
               true,
@@ -110,7 +111,7 @@ class CollectionUpdateRequestTest {
       assertEquals("updated-client-gallery", dto.slug());
       assertEquals("Updated professional client gallery", dto.description());
       assertNotNull(dto.location());
-      assertEquals("Updated Location", dto.location().newValue());
+      assertEquals(List.of("Updated Location"), dto.location().newValue());
       assertEquals(today, dto.collectionDate());
       assertTrue(dto.visible());
       assertEquals(25, dto.contentPerPage());
@@ -1144,9 +1145,8 @@ class CollectionUpdateRequestTest {
     }
 
     @Test
-    @DisplayName("Should validate location length constraint")
-    void shouldValidateLocationLengthConstraint() {
-      String longLocation = "A".repeat(256);
+    @DisplayName("Should accept location update with multiple values")
+    void shouldAcceptLocationUpdateWithMultipleValues() {
       CollectionRequests.Update dto =
           update(
               1L,
@@ -1154,7 +1154,7 @@ class CollectionUpdateRequestTest {
               null,
               null,
               null,
-              new CollectionRequests.LocationUpdate(null, longLocation, null),
+              new CollectionRequests.LocationUpdate(null, List.of("Seattle", "Portland"), null),
               null,
               null,
               null,
@@ -1168,10 +1168,9 @@ class CollectionUpdateRequestTest {
               null);
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertFalse(violations.isEmpty());
-      assertTrue(
-          violations.stream()
-              .anyMatch(v -> v.getMessage().contains("Location cannot exceed 255 characters")));
+      assertTrue(violations.isEmpty());
+      assertNotNull(dto.location());
+      assertEquals(2, dto.location().newValue().size());
     }
   }
 }

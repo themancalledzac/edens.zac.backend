@@ -3,11 +3,14 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
+import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
+import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.Records;
@@ -37,6 +40,7 @@ public class ContentMutationUtil {
   private final CollectionRepository collectionRepository;
   private final TagRepository tagRepository;
   private final PersonRepository personRepository;
+  private final LocationRepository locationRepository;
 
   // =============================================================================
   // IMAGE UPDATE HELPERS
@@ -96,7 +100,10 @@ public class ContentMutationUtil {
         }
 
         if (updated) {
-          break;
+          log.debug(
+              "Updated collection membership for image {} in collection {}",
+              image.getId(),
+              collectionId);
         }
       }
     }
@@ -114,12 +121,18 @@ public class ContentMutationUtil {
         continue;
       }
 
-      collectionRepository
-          .findById(childCollection.collectionId())
-          .orElseThrow(
-              () ->
-                  new ResourceNotFoundException(
-                      "Collection not found: " + childCollection.collectionId()));
+      CollectionEntity collection =
+          collectionRepository
+              .findById(childCollection.collectionId())
+              .orElseThrow(
+                  () ->
+                      new ResourceNotFoundException(
+                          "Collection not found: " + childCollection.collectionId()));
+
+      if (collection.getType().isParentType()) {
+        throw new IllegalArgumentException(
+            "Cannot add images to parent-type collection: " + collection.getTitle());
+      }
 
       Optional<CollectionContentEntity> existingOpt =
           collectionRepository.findContentByCollectionIdAndContentId(
@@ -211,8 +224,30 @@ public class ContentMutationUtil {
     contentRepository.saveImagePeople(image.getId(), updatedPersonIds);
   }
 
+  /**
+   * Update image locations with pre-fetched current locations (avoids N+1 query). Applies the
+   * prev/new/remove pattern, sets updated locations on the entity, and persists to DB.
+   */
+  public void updateImageLocationsOptimized(
+      ContentImageEntity image,
+      CollectionRequests.LocationUpdate locationUpdate,
+      List<LocationEntity> currentLocationEntities,
+      Set<LocationEntity> newLocations) {
+    Set<LocationEntity> currentLocs = new HashSet<>(currentLocationEntities);
+    Set<LocationEntity> updatedLocs = updateLocations(currentLocs, locationUpdate, newLocations);
+    image.setLocations(updatedLocs);
+
+    List<Long> updatedLocationIds =
+        updatedLocs.stream()
+            .map(LocationEntity::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+    locationRepository.saveImageLocations(image.getId(), updatedLocationIds);
+  }
+
   // =============================================================================
-  // TAG AND PEOPLE UPDATE HELPERS
+  // TAG, PEOPLE, AND LOCATION UPDATE HELPERS
   // =============================================================================
 
   /**
@@ -392,5 +427,56 @@ public class ContentMutationUtil {
     }
 
     return people;
+  }
+
+  /**
+   * Update locations on an entity using the prev/new/remove pattern.
+   *
+   * @param currentLocations Current set of locations on the entity
+   * @param locationUpdate The location update containing remove/prev/newValue operations
+   * @param newLocations Optional set to track newly created locations (for response metadata)
+   * @return Updated set of locations
+   */
+  public Set<LocationEntity> updateLocations(
+      Set<LocationEntity> currentLocations,
+      CollectionRequests.LocationUpdate locationUpdate,
+      Set<LocationEntity> newLocations) {
+    if (locationUpdate == null) {
+      return currentLocations;
+    }
+
+    Set<LocationEntity> locations = new HashSet<>(currentLocations);
+
+    if (locationUpdate.remove() != null && !locationUpdate.remove().isEmpty()) {
+      locations.removeIf(loc -> locationUpdate.remove().contains(loc.getId()));
+    }
+
+    if (locationUpdate.prev() != null && !locationUpdate.prev().isEmpty()) {
+      Set<LocationEntity> existingLocations =
+          locationUpdate.prev().stream()
+              .map(
+                  locId ->
+                      locationRepository
+                          .findById(locId)
+                          .orElseThrow(
+                              () -> new IllegalArgumentException("Location not found: " + locId)))
+              .collect(Collectors.toSet());
+      locations.addAll(existingLocations);
+    }
+
+    if (locationUpdate.newValue() != null && !locationUpdate.newValue().isEmpty()) {
+      for (String locationName : locationUpdate.newValue()) {
+        if (locationName != null && !locationName.trim().isEmpty()) {
+          String trimmedName = locationName.trim();
+          LocationEntity location = locationRepository.findOrCreate(trimmedName);
+          locations.add(location);
+          if (newLocations != null) {
+            newLocations.add(location);
+          }
+        }
+      }
+    }
+
+    return locations;
   }
 }

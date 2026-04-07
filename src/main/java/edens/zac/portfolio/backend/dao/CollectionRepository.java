@@ -35,7 +35,7 @@ public class CollectionRepository extends BaseDao {
 
   private static final String SELECT_COLLECTION =
       """
-      SELECT id, type, title, slug, description, location_id, collection_date,
+      SELECT id, type, title, slug, description, collection_date,
              visible, display_mode, cover_image_id, content_per_page, total_content,
              rows_wide, password_hash, created_at, updated_at
       FROM collection
@@ -49,7 +49,6 @@ public class CollectionRepository extends BaseDao {
         entity.setTitle(rs.getString("title"));
         entity.setSlug(rs.getString("slug"));
         entity.setDescription(rs.getString("description"));
-        entity.setLocationId(getLong(rs, "location_id"));
         entity.setCollectionDate(getLocalDate(rs, "collection_date"));
         entity.setVisible(rs.getBoolean("visible"));
 
@@ -150,11 +149,12 @@ public class CollectionRepository extends BaseDao {
       String locationName, int limit, int offset) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.location_id, c.collection_date,
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
                c.visible, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.password_hash, c.created_at, c.updated_at
         FROM collection c
-        JOIN location l ON c.location_id = l.id
+        JOIN collection_locations cl ON c.id = cl.collection_id
+        JOIN location l ON cl.location_id = l.id
         WHERE l.location_name = :locationName AND c.visible = true
         ORDER BY c.collection_date DESC NULLS LAST
         LIMIT :limit OFFSET :offset
@@ -171,7 +171,8 @@ public class CollectionRepository extends BaseDao {
   public List<Long> findVisibleIdsByLocationName(String locationName) {
     String sql =
         "SELECT c.id FROM collection c "
-            + "JOIN location l ON c.location_id = l.id "
+            + "JOIN collection_locations cl ON c.id = cl.collection_id "
+            + "JOIN location l ON cl.location_id = l.id "
             + "WHERE l.location_name = :locationName AND c.visible = true";
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
@@ -182,7 +183,8 @@ public class CollectionRepository extends BaseDao {
     String sql =
         """
         SELECT COUNT(*) FROM collection c
-        JOIN location l ON c.location_id = l.id
+        JOIN collection_locations cl ON c.id = cl.collection_id
+        JOIN location l ON cl.location_id = l.id
         WHERE l.location_name = :locationName AND c.visible = true
         """;
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
@@ -247,10 +249,10 @@ public class CollectionRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           """
-          INSERT INTO collection (type, title, slug, description, location_id, collection_date,
+          INSERT INTO collection (type, title, slug, description, collection_date,
                                  visible, display_mode, cover_image_id, content_per_page, total_content,
                                  rows_wide, password_hash, created_at, updated_at)
-          VALUES (:type, :title, :slug, :description, :locationId, :collectionDate,
+          VALUES (:type, :title, :slug, :description, :collectionDate,
                   :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
                   :rowsWide, :passwordHash, :createdAt, :updatedAt)
           """;
@@ -261,7 +263,6 @@ public class CollectionRepository extends BaseDao {
               .addValue("title", entity.getTitle())
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
-              .addValue("locationId", entity.getLocationId())
               .addValue("collectionDate", entity.getCollectionDate())
               .addValue("visible", entity.getVisible())
               .addValue(
@@ -287,7 +288,6 @@ public class CollectionRepository extends BaseDao {
           """
           UPDATE collection
           SET type = :type, title = :title, slug = :slug, description = :description,
-              location_id = :locationId,
               collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
               rows_wide = :rowsWide, password_hash = :passwordHash, updated_at = :updatedAt
@@ -301,7 +301,6 @@ public class CollectionRepository extends BaseDao {
               .addValue("title", entity.getTitle())
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
-              .addValue("locationId", entity.getLocationId())
               .addValue("collectionDate", entity.getCollectionDate())
               .addValue("visible", entity.getVisible())
               .addValue(
@@ -427,6 +426,24 @@ public class CollectionRepository extends BaseDao {
         createParameterSource()
             .addValue("collectionId", collectionId)
             .addValue("contentType", contentType);
+    return query(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public List<CollectionContentEntity> findImageContentByCollectionIds(List<Long> collectionIds) {
+    if (collectionIds == null || collectionIds.isEmpty()) {
+      return List.of();
+    }
+    String sql =
+        """
+        SELECT cc.id, cc.collection_id, cc.content_id, cc.order_index, cc.visible,
+               cc.created_at, cc.updated_at
+        FROM collection_content cc
+        JOIN content c ON cc.content_id = c.id
+        WHERE cc.collection_id IN (:collectionIds) AND c.content_type = 'IMAGE'
+        ORDER BY cc.collection_id, cc.order_index ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("collectionIds", collectionIds);
     return query(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
   }
 

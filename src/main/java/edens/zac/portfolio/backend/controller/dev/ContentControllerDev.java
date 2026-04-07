@@ -10,10 +10,13 @@ import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
 import edens.zac.portfolio.backend.services.JobTrackingService;
+import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -64,7 +67,7 @@ public class ContentControllerDev {
       consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
   public ResponseEntity<ImageUploadResult> createImages(
       @PathVariable Long collectionId,
-      @RequestParam(value = "locationId", required = false) Long locationId,
+      @RequestParam(value = "locationIds", required = false) List<Long> locationIds,
       @RequestParam(value = "rawFilePaths", required = false) List<String> rawFilePaths,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
@@ -72,9 +75,9 @@ public class ContentControllerDev {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    // Optionally set collection location if provided and not already set
-    if (locationId != null) {
-      contentService.setCollectionLocationIfMissing(collectionId, locationId);
+    // Optionally set collection locations if provided and not already set
+    if (locationIds != null && !locationIds.isEmpty()) {
+      contentService.setCollectionLocationsIfMissing(collectionId, locationIds);
     }
 
     Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
@@ -204,12 +207,12 @@ public class ContentControllerDev {
       @RequestParam("title") String title,
       @RequestParam("type") String type,
       @RequestParam(value = "description", required = false) String description,
-      @RequestParam(value = "locationId", required = false) Long locationId,
-      @RequestParam(value = "locationName", required = false) String locationName,
+      @RequestParam(value = "locationIds", required = false) List<Long> locationIds,
+      @RequestParam(value = "locationNames", required = false) List<String> locationNames,
       @RequestParam(value = "collectionDate", required = false)
           @org.springframework.format.annotation.DateTimeFormat(
               iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
-          java.time.LocalDate collectionDate,
+          LocalDate collectionDate,
       @RequestParam(value = "rawFilePaths", required = false) List<String> rawFilePaths,
       @RequestPart(value = "files", required = true) List<MultipartFile> files) {
     if (files == null || files.isEmpty()) {
@@ -217,12 +220,11 @@ public class ContentControllerDev {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    edens.zac.portfolio.backend.types.CollectionType collectionType =
-        edens.zac.portfolio.backend.types.CollectionType.valueOf(type);
+    CollectionType collectionType = CollectionType.forValue(type);
 
     CollectionRequests.Create createRequest =
         new CollectionRequests.Create(
-            collectionType, title, description, locationId, locationName, collectionDate);
+            collectionType, title, description, locationIds, locationNames, collectionDate);
 
     Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
     ImageUploadResult result =
@@ -312,7 +314,7 @@ public class ContentControllerDev {
     return rawFilePaths.stream()
         .filter(entry -> entry != null && entry.contains("|"))
         .collect(
-            java.util.stream.Collectors.toMap(
+            Collectors.toMap(
                 entry -> entry.substring(0, entry.indexOf('|')),
                 entry -> entry.substring(entry.indexOf('|') + 1),
                 (existing, replacement) -> replacement));

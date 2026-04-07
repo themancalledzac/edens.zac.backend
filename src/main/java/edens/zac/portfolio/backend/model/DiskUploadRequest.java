@@ -11,7 +11,7 @@ import java.util.List;
  */
 public record DiskUploadRequest(
     @NotEmpty(message = "files list must not be empty") @Valid List<FileEntry> files,
-    Long locationId) {
+    List<Long> locationIds) {
 
   /**
    * A single file pair: the exported JPEG path, optional RAW source path, and optional people

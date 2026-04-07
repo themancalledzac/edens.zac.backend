@@ -243,7 +243,7 @@ class ImageUploadPipelineServiceTest {
       // Arrange
       Long collectionId = 1L;
       var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null);
-      var request = new DiskUploadRequest(List.of(fileEntry), 42L);
+      var request = new DiskUploadRequest(List.of(fileEntry), List.of(42L));
       var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
@@ -253,7 +253,7 @@ class ImageUploadPipelineServiceTest {
       service.processFilesFromDisk(collectionId, request);
 
       // Assert
-      verify(contentService).setCollectionLocationIfMissing(collectionId, 42L);
+      verify(contentService).setCollectionLocationsIfMissing(collectionId, List.of(42L));
     }
 
     @Test
@@ -271,7 +271,7 @@ class ImageUploadPipelineServiceTest {
       service.processFilesFromDisk(collectionId, request);
 
       // Assert
-      verify(contentService, never()).setCollectionLocationIfMissing(anyLong(), anyLong());
+      verify(contentService, never()).setCollectionLocationsIfMissing(anyLong(), any());
     }
   }
 

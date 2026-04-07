@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -220,23 +219,17 @@ class ContentModelConverter {
 
     List<Long> contentIds = entities.stream().map(ContentImageEntity::getId).toList();
 
-    List<Long> locationIds =
-        entities.stream()
-            .map(ContentImageEntity::getLocationId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
-
     Map<Long, List<TagEntity>> tagsByContentId = tagRepository.findTagsByContentIds(contentIds);
     Map<Long, List<ContentPersonEntity>> peopleByContentId =
         personRepository.findPeopleByContentIds(contentIds);
-    Map<Long, LocationEntity> locationsById = locationRepository.findByIds(locationIds);
+    Map<Long, List<LocationEntity>> locationsByContentId =
+        locationRepository.findLocationsByContentIds(contentIds);
 
     return entities.stream()
         .map(
             entity ->
                 buildImageModelWithBatchData(
-                    entity, null, null, tagsByContentId, peopleByContentId, locationsById))
+                    entity, null, null, tagsByContentId, peopleByContentId, locationsByContentId))
         .toList();
   }
 
@@ -249,7 +242,7 @@ class ContentModelConverter {
    * @param visible Visibility in the parent collection (null outside collection context)
    * @param tagsByContentId Pre-loaded tags grouped by content ID
    * @param peopleByContentId Pre-loaded people grouped by content ID
-   * @param locationsById Pre-loaded locations keyed by location ID
+   * @param locationsByContentId Pre-loaded locations grouped by content ID
    * @return The corresponding image content model
    */
   public ContentModels.Image buildImageModelWithBatchData(
@@ -258,18 +251,19 @@ class ContentModelConverter {
       Boolean visible,
       Map<Long, List<TagEntity>> tagsByContentId,
       Map<Long, List<ContentPersonEntity>> peopleByContentId,
-      Map<Long, LocationEntity> locationsById) {
+      Map<Long, List<LocationEntity>> locationsByContentId) {
     if (entity == null) {
       return null;
     }
 
-    Records.Location location = resolveLocation(entity.getLocationId(), locationsById);
+    List<Records.Location> locations =
+        resolveLocations(locationsByContentId.getOrDefault(entity.getId(), List.of()));
 
     Set<TagEntity> tags = new HashSet<>(tagsByContentId.getOrDefault(entity.getId(), List.of()));
     Set<ContentPersonEntity> people =
         new HashSet<>(peopleByContentId.getOrDefault(entity.getId(), List.of()));
 
-    return buildImageRecord(entity, orderIndex, visible, location, tags, people);
+    return buildImageRecord(entity, orderIndex, visible, locations, tags, people);
   }
 
   // =============================================================================
@@ -338,18 +332,12 @@ class ContentModelConverter {
       people = new HashSet<>(personEntities);
     }
 
-    Records.Location location = null;
-    if (entity.getLocationId() != null) {
-      LocationEntity locationEntity =
-          locationRepository.findById(entity.getLocationId()).orElse(null);
-      if (locationEntity != null) {
-        location =
-            new Records.Location(
-                locationEntity.getId(), locationEntity.getLocationName(), locationEntity.getSlug());
-      }
-    }
+    Map<Long, List<LocationEntity>> locMap =
+        locationRepository.findLocationsByContentIds(List.of(entity.getId()));
+    List<Records.Location> locations =
+        resolveLocations(locMap.getOrDefault(entity.getId(), List.of()));
 
-    return buildImageRecord(entity, orderIndex, visible, location, tags, people);
+    return buildImageRecord(entity, orderIndex, visible, locations, tags, people);
   }
 
   /**
@@ -359,7 +347,7 @@ class ContentModelConverter {
       ContentImageEntity entity,
       Integer orderIndex,
       Boolean visible,
-      Records.Location location,
+      List<Records.Location> locations,
       Set<TagEntity> tags,
       Set<ContentPersonEntity> people) {
     return new ContentModels.Image(
@@ -387,7 +375,7 @@ class ContentModelConverter {
         entity.getShutterSpeed(),
         entity.getCamera() != null ? cameraEntityToCameraModel(entity.getCamera()) : null,
         entity.getFocalLength(),
-        location,
+        locations,
         entity.getCaptureDate(),
         convertTagsToModels(tags),
         convertPeopleToModels(people),
@@ -501,17 +489,14 @@ class ContentModelConverter {
   // PRIVATE HELPERS
   // =============================================================================
 
-  /** Resolve a location from a pre-loaded map, returning null if not found. */
-  private Records.Location resolveLocation(
-      Long locationId, Map<Long, LocationEntity> locationsById) {
-    if (locationId == null) {
-      return null;
+  /** Convert a list of LocationEntity to a sorted list of Records.Location. */
+  private List<Records.Location> resolveLocations(List<LocationEntity> locationEntities) {
+    if (locationEntities == null || locationEntities.isEmpty()) {
+      return new ArrayList<>();
     }
-    LocationEntity locationEntity = locationsById.get(locationId);
-    if (locationEntity == null) {
-      return null;
-    }
-    return new Records.Location(
-        locationEntity.getId(), locationEntity.getLocationName(), locationEntity.getSlug());
+    return locationEntities.stream()
+        .map(loc -> new Records.Location(loc.getId(), loc.getLocationName(), loc.getSlug()))
+        .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
+        .collect(Collectors.toList());
   }
 }

@@ -24,6 +24,7 @@ import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,10 +56,11 @@ public class ContentModelConverterTest {
   void convertImageModel() {
     // Arrange
     ContentImageEntity entity = createContentImageEntity();
-    // Mock location lookup
+    // Mock location lookup via batch method
     LocationEntity locationEntity =
         LocationEntity.builder().id(1L).locationName("Test Location").build();
-    when(locationRepository.findById(1L)).thenReturn(java.util.Optional.of(locationEntity));
+    when(locationRepository.findLocationsByContentIds(List.of(1L)))
+        .thenReturn(Map.of(1L, List.of(locationEntity)));
 
     // Act
     ContentModel result = contentModelConverter.convertRegularContentEntityToModel(entity);
@@ -81,9 +83,10 @@ public class ContentModelConverterTest {
     assertEquals(entity.getShutterSpeed(), imageModel.shutterSpeed());
     assertEquals(entity.getCamera().getCameraName(), imageModel.camera().name());
     assertEquals(entity.getFocalLength(), imageModel.focalLength());
-    assertNotNull(imageModel.location());
-    assertEquals("Test Location", imageModel.location().name());
-    assertEquals(1L, imageModel.location().id());
+    assertNotNull(imageModel.locations());
+    assertEquals(1, imageModel.locations().size());
+    assertEquals("Test Location", imageModel.locations().get(0).name());
+    assertEquals(1L, imageModel.locations().get(0).id());
     assertEquals(entity.getCaptureDate(), imageModel.captureDate());
   }
 
@@ -173,12 +176,14 @@ public class ContentModelConverterTest {
     ContentImageEntity entity1 = createContentImageEntity();
     entity1.setId(10L);
     entity1.setTitle("Image One");
-    entity1.setLocationId(100L);
+    LocationEntity loc100 = LocationEntity.builder().id(100L).locationName("Seattle").build();
+    entity1.setLocations(Set.of(loc100));
 
     ContentImageEntity entity2 = createContentImageEntity();
     entity2.setId(20L);
     entity2.setTitle("Image Two");
-    entity2.setLocationId(200L);
+    LocationEntity loc200 = LocationEntity.builder().id(200L).locationName("Portland").build();
+    entity2.setLocations(Set.of(loc200));
 
     List<Long> contentIds = List.of(10L, 20L);
 
@@ -190,14 +195,12 @@ public class ContentModelConverterTest {
     ContentPersonEntity person1 = new ContentPersonEntity("Alice");
     person1.setId(1L);
 
-    LocationEntity loc100 = LocationEntity.builder().id(100L).locationName("Seattle").build();
-    LocationEntity loc200 = LocationEntity.builder().id(200L).locationName("Portland").build();
-
     when(tagRepository.findTagsByContentIds(contentIds))
         .thenReturn(Map.of(10L, List.of(tag1), 20L, List.of(tag2)));
     when(personRepository.findPeopleByContentIds(contentIds))
         .thenReturn(Map.of(10L, List.of(person1)));
-    when(locationRepository.findByIds(anyList())).thenReturn(Map.of(100L, loc100, 200L, loc200));
+    when(locationRepository.findLocationsByContentIds(contentIds))
+        .thenReturn(Map.of(10L, List.of(loc100), 20L, List.of(loc200)));
 
     // Act
     List<ContentModels.Image> result =
@@ -209,7 +212,8 @@ public class ContentModelConverterTest {
     ContentModels.Image model1 = result.get(0);
     assertEquals(10L, model1.id());
     assertEquals("Image One", model1.title());
-    assertEquals("Seattle", model1.location().name());
+    assertEquals(1, model1.locations().size());
+    assertEquals("Seattle", model1.locations().get(0).name());
     assertEquals(1, model1.tags().size());
     assertEquals("landscape", model1.tags().get(0).name());
     assertEquals(1, model1.people().size());
@@ -218,7 +222,8 @@ public class ContentModelConverterTest {
     ContentModels.Image model2 = result.get(1);
     assertEquals(20L, model2.id());
     assertEquals("Image Two", model2.title());
-    assertEquals("Portland", model2.location().name());
+    assertEquals(1, model2.locations().size());
+    assertEquals("Portland", model2.locations().get(0).name());
     assertEquals(1, model2.tags().size());
     assertEquals("portrait", model2.tags().get(0).name());
     assertTrue(model2.people().isEmpty());
@@ -226,7 +231,7 @@ public class ContentModelConverterTest {
     // Verify batch queries were used (one call each, not per-entity)
     verify(tagRepository).findTagsByContentIds(contentIds);
     verify(personRepository).findPeopleByContentIds(contentIds);
-    verify(locationRepository).findByIds(anyList());
+    verify(locationRepository).findLocationsByContentIds(contentIds);
   }
 
   // =============================================================================
@@ -248,7 +253,7 @@ public class ContentModelConverterTest {
   void buildImageModelWithBatchData_withOrderIndexAndVisible_populatesFields() {
     // Arrange
     ContentImageEntity entity = createContentImageEntity();
-    entity.setLocationId(null); // no location
+    entity.setLocations(Set.of()); // no locations
 
     TagEntity tag = new TagEntity("nature");
     tag.setId(1L);
@@ -266,7 +271,7 @@ public class ContentModelConverterTest {
     // Assert
     assertEquals(3, result.orderIndex());
     assertEquals(true, result.visible());
-    assertNull(result.location());
+    assertTrue(result.locations().isEmpty());
     assertEquals(1, result.tags().size());
     assertEquals("nature", result.tags().get(0).name());
     assertEquals(1, result.people().size());
@@ -278,7 +283,7 @@ public class ContentModelConverterTest {
     // Arrange
     ContentImageEntity entity = createContentImageEntity();
     entity.setId(99L);
-    entity.setLocationId(null);
+    entity.setLocations(Set.of());
 
     // Act - maps don't contain entity's ID
     ContentModels.Image result =
@@ -288,7 +293,7 @@ public class ContentModelConverterTest {
     // Assert
     assertTrue(result.tags().isEmpty());
     assertTrue(result.people().isEmpty());
-    assertNull(result.location());
+    assertTrue(result.locations().isEmpty());
   }
 
   // Helper methods to create test entities
@@ -312,7 +317,8 @@ public class ContentModelConverterTest {
     entity.setShutterSpeed("1/125");
     entity.setCamera(new ContentCameraEntity("Test Camera"));
     entity.setFocalLength("50mm");
-    entity.setLocationId(1L);
+    entity.setLocations(
+        Set.of(LocationEntity.builder().id(1L).locationName("Test Location").build()));
     entity.setImageUrlWeb("https://example.com/image.jpg");
     entity.setCaptureDate(LocalDateTime.of(2023, 1, 1, 0, 0));
     entity.setOriginalFilename("test-image.jpg");
