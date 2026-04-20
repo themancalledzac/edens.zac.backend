@@ -5,7 +5,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.entity.MessageEntity;
 import edens.zac.portfolio.backend.services.MessageService;
@@ -30,12 +29,8 @@ class MessagesControllerPublicTest {
 
   @InjectMocks private MessagesControllerPublic controller;
 
-  private ObjectMapper objectMapper;
-
   @BeforeEach
   void setUp() {
-    objectMapper = new ObjectMapper();
-    objectMapper.findAndRegisterModules();
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())
