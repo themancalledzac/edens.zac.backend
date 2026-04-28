@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import edens.zac.portfolio.backend.config.EmailRateLimiter;
+import edens.zac.portfolio.backend.config.ContactMessageLimiter;
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.entity.MessageEntity;
 import edens.zac.portfolio.backend.services.MessageService;
@@ -28,7 +28,7 @@ class MessagesControllerPublicTest {
   private MockMvc mockMvc;
 
   @Mock private MessageService messageService;
-  @Mock private EmailRateLimiter emailRateLimiter;
+  @Mock private ContactMessageLimiter contactMessageLimiter;
 
   @InjectMocks private MessagesControllerPublic controller;
 
@@ -51,7 +51,7 @@ class MessagesControllerPublicTest {
       entity.setMessage("Hello");
       entity.setCreatedAt(LocalDateTime.of(2026, 4, 19, 12, 0));
 
-      when(emailRateLimiter.tryConsume(anyString())).thenReturn(true);
+      when(contactMessageLimiter.tryConsume(anyString())).thenReturn(true);
       when(messageService.create("user@example.com", "Hello")).thenReturn(entity);
 
       mockMvc
@@ -95,7 +95,7 @@ class MessagesControllerPublicTest {
 
     @Test
     void perEmailRateLimitExceeded_returns429() throws Exception {
-      when(emailRateLimiter.tryConsume(anyString())).thenReturn(false);
+      when(contactMessageLimiter.tryConsume(anyString())).thenReturn(false);
 
       mockMvc
           .perform(

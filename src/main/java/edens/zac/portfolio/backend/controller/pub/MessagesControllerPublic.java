@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.controller.pub;
 
-import edens.zac.portfolio.backend.config.EmailRateLimiter;
+import edens.zac.portfolio.backend.config.ContactMessageLimiter;
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.MessageRequests;
 import edens.zac.portfolio.backend.services.MessageService;
@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MessagesControllerPublic {
 
   private final MessageService messageService;
-  private final EmailRateLimiter emailRateLimiter;
+  private final ContactMessageLimiter contactMessageLimiter;
 
   /**
    * Create a new contact message.
@@ -43,7 +43,7 @@ public class MessagesControllerPublic {
   public ResponseEntity<?> createMessage(
       @Valid @RequestBody MessageRequests.CreateMessage request) {
     log.debug("Received contact message");
-    if (!emailRateLimiter.tryConsume(request.email())) {
+    if (!contactMessageLimiter.tryConsume(request.email())) {
       log.warn("Per-email rate limit exceeded");
       return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
           .body(

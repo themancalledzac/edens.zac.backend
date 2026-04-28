@@ -15,13 +15,14 @@ import org.springframework.stereotype.Component;
  * endpoint. Per-IP limiting is handled separately by {@link RateLimitFilter}.
  */
 @Component
-public class EmailRateLimiter {
+public class ContactMessageLimiter {
 
   private final int perHour;
   private final Cache<String, Bucket> buckets =
       Caffeine.newBuilder().expireAfterAccess(Duration.ofHours(2)).maximumSize(10_000).build();
 
-  public EmailRateLimiter(@Value("${app.contact.rate-limit-per-email-per-hour:5}") int perHour) {
+  public ContactMessageLimiter(
+      @Value("${app.contact.rate-limit-per-email-per-hour:5}") int perHour) {
     this.perHour = perHour;
   }
 
