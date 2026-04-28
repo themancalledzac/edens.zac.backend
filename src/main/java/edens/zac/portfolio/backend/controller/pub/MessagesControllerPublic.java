@@ -1,5 +1,7 @@
 package edens.zac.portfolio.backend.controller.pub;
 
+import edens.zac.portfolio.backend.config.EmailRateLimiter;
+import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.MessageRequests;
 import edens.zac.portfolio.backend.services.MessageService;
 import jakarta.validation.Valid;
@@ -25,20 +27,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class MessagesControllerPublic {
 
   private final MessageService messageService;
+  private final EmailRateLimiter emailRateLimiter;
 
   /**
    * Create a new contact message.
    *
-   * <p>Validates the request body, delegates persistence and email notification to {@link
+   * <p>Validates the request body, enforces a per-email rate limit, delegates persistence to {@link
    * MessageService}, and returns the saved message id and timestamp.
    *
    * @param request validated contact form payload containing email and message body
-   * @return 201 Created with {@link MessageRequests.CreatedResponse} containing id and createdAt
+   * @return 201 Created with {@link MessageRequests.CreatedResponse}, or 429 Too Many Requests when
+   *     the per-email limit is exceeded
    */
   @PostMapping
-  public ResponseEntity<MessageRequests.CreatedResponse> createMessage(
+  public ResponseEntity<?> createMessage(
       @Valid @RequestBody MessageRequests.CreateMessage request) {
-    log.info("Received contact message from email={}", request.email());
+    log.debug("Received contact message");
+    if (!emailRateLimiter.tryConsume(request.email())) {
+      log.warn("Per-email rate limit exceeded");
+      return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+          .body(
+              GlobalExceptionHandler.ErrorResponse.of(
+                  HttpStatus.TOO_MANY_REQUESTS,
+                  "Rate limit exceeded for this email. Please try again later."));
+    }
     var entity = messageService.create(request.email(), request.message());
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new MessageRequests.CreatedResponse(entity.getId(), entity.getCreatedAt()));

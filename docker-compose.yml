@@ -17,8 +17,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST:-localhost}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-edens_zac}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-zedens}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      # Spring profile: defaults to dev locally, set to prod on EC2
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # Spring profile: must be explicitly set to dev or prod (no silent default).
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?must be set to dev or prod}
 
       # AWS Config
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -29,13 +29,10 @@ services:
 
       # Shared secret for BFF proxy authentication
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret}
+      # Optional rotation candidate: set during quarterly rotation only.
+      INTERNAL_API_SECRET_NEXT: ${INTERNAL_API_SECRET_NEXT:-}
       # Access token secret for client gallery HMAC tokens
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-dev-access-token-secret}
-
-      # Contact form mail (Gmail SMTP)
-      MAIL_USERNAME: ${MAIL_USERNAME:}
-      MAIL_APP_PASSWORD: ${MAIL_APP_PASSWORD:}
-      CONTACT_NOTIFY_TO: ${CONTACT_NOTIFY_TO:}
 
       # JVM memory: local dev uses 1g (48GB machine), EC2 prod uses 384m (1GB instance)
       # EC2 prod override: JAVA_OPTS=-Xmx384m -Xms256m
@@ -59,29 +56,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: portfolio-caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-    profiles:
-      - production
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-volumes:
-  caddy_data:
-  caddy_config:

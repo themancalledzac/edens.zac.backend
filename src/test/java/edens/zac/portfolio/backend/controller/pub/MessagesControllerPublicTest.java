@@ -1,10 +1,12 @@
 package edens.zac.portfolio.backend.controller.pub;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import edens.zac.portfolio.backend.config.EmailRateLimiter;
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.entity.MessageEntity;
 import edens.zac.portfolio.backend.services.MessageService;
@@ -26,6 +28,7 @@ class MessagesControllerPublicTest {
   private MockMvc mockMvc;
 
   @Mock private MessageService messageService;
+  @Mock private EmailRateLimiter emailRateLimiter;
 
   @InjectMocks private MessagesControllerPublic controller;
 
@@ -48,6 +51,7 @@ class MessagesControllerPublicTest {
       entity.setMessage("Hello");
       entity.setCreatedAt(LocalDateTime.of(2026, 4, 19, 12, 0));
 
+      when(emailRateLimiter.tryConsume(anyString())).thenReturn(true);
       when(messageService.create("user@example.com", "Hello")).thenReturn(entity);
 
       mockMvc
@@ -87,6 +91,20 @@ class MessagesControllerPublicTest {
           .perform(
               post("/api/public/messages").contentType(MediaType.APPLICATION_JSON).content("{}"))
           .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void perEmailRateLimitExceeded_returns429() throws Exception {
+      when(emailRateLimiter.tryConsume(anyString())).thenReturn(false);
+
+      mockMvc
+          .perform(
+              post("/api/public/messages")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"user@example.com\",\"message\":\"Hello\"}"))
+          .andExpect(status().isTooManyRequests())
+          .andExpect(jsonPath("$.status").value(429))
+          .andExpect(jsonPath("$.error").value("Too Many Requests"));
     }
   }
 }

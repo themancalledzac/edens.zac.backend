@@ -16,6 +16,13 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+/**
+ * Verifies that incoming requests carry a valid {@code X-Internal-Secret} header. Active in the
+ * {@code prod} profile only.
+ *
+ * <p>Supports a quarterly secret rotation by accepting either {@code internal.api.secret} (current)
+ * or {@code internal.api.secret.next} (the rotation candidate). Both are compared in constant time.
+ */
 @Component
 @Order(1)
 @Profile("prod")
@@ -23,9 +30,13 @@ import org.springframework.stereotype.Component;
 public class InternalSecretFilter implements Filter {
 
   private final String expectedSecret;
+  private final String nextSecret;
 
-  public InternalSecretFilter(@Value("${internal.api.secret}") String expectedSecret) {
+  public InternalSecretFilter(
+      @Value("${internal.api.secret}") String expectedSecret,
+      @Value("${internal.api.secret.next:}") String nextSecret) {
     this.expectedSecret = expectedSecret;
+    this.nextSecret = nextSecret == null ? "" : nextSecret;
   }
 
   @Override
@@ -43,7 +54,9 @@ public class InternalSecretFilter implements Filter {
     }
 
     String secret = request.getHeader("X-Internal-Secret");
-    if (secret == null || !constantTimeEquals(expectedSecret, secret)) {
+    if (secret == null
+        || (!constantTimeEquals(expectedSecret, secret)
+            && (nextSecret.isBlank() || !constantTimeEquals(nextSecret, secret)))) {
       log.warn("Rejected request missing or invalid X-Internal-Secret: {}", uri);
       response.setStatus(HttpServletResponse.SC_FORBIDDEN);
       return;
