@@ -375,7 +375,9 @@ public class ImageProcessingService {
       }
     }
 
-    // No duplicate found: create new entity
+    // No duplicate found: create new entity.
+    // createdAt is sourced from EXIF createDate when present; ContentRepository.saveImage
+    // falls back to upload time when EXIF createDate is absent (e.g. film scans).
     ContentImageEntity entity =
         ContentImageEntity.builder()
             .contentType(ContentType.IMAGE)
