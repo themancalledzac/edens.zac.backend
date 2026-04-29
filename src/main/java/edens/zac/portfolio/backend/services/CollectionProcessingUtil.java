@@ -165,6 +165,15 @@ public class CollectionProcessingUtil {
     }
 
     model.setIsPasswordProtected(entity.getPasswordHash() != null);
+
+    // Strip cover image for password-protected CLIENT_GALLERY collections so it cannot
+    // leak through list endpoints (getAllCollections, getCollectionsByType). The per-slug
+    // endpoint in CollectionControllerProd also strips it as defense-in-depth.
+    if (entity.getType() == CollectionType.CLIENT_GALLERY
+        && Boolean.TRUE.equals(model.getIsPasswordProtected())) {
+      model.setCoverImage(null);
+    }
+
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
     DisplayMode mode = entity.getDisplayMode();
@@ -547,18 +556,24 @@ public class CollectionProcessingUtil {
       }
     }
 
-    // TODO: Re-implement password protection after migration
-    // Handle password updates for client galleries
-    // if (entity.getType() == CollectionType.CLIENT_GALLERY) {
-    // if (updateDTO.HasAccess() != null && updateDTO.HasAccess()) {
-    // entity.setPasswordProtected(false);
-    // entity.setPasswordHash(null);
-    // }
-    // if (hasPasswordUpdate(updateDTO)) {
-    // entity.setPasswordProtected(true);
-    // entity.setPasswordHash(hashPassword(updateDTO.Password()));
-    // }
-    // }
+    // Handle password updates for client galleries.
+    // - null         -> no change (partial-update semantics)
+    // - empty string -> clear the password (passwordHash = null)
+    // - non-empty    -> hash via BCrypt and store
+    // Note: the @Size(min = 8) constraint on CollectionRequests.Update#password() means an
+    // empty string will be rejected by Bean Validation at the controller boundary; the
+    // empty-string branch below covers programmatic/service-layer callers and keeps the
+    // contract symmetric with frontend "clear password" intent.
+    if (entity.getType() == CollectionType.CLIENT_GALLERY) {
+      String newPassword = updateDTO.password();
+      if (newPassword != null) {
+        if (newPassword.isEmpty()) {
+          entity.setPasswordHash(null);
+        } else {
+          entity.setPasswordHash(hashPassword(newPassword));
+        }
+      }
+    }
   }
 
   // =============================================================================
@@ -757,14 +772,10 @@ public class CollectionProcessingUtil {
   // PASSWORD PROTECTION HELPERS
   // =============================================================================
 
-  // TODO: Re-implement password protection after migration
-  // /**
-  // * Check if a collection (any type) is password-protected.
-  // */
-  // public static boolean isPasswordProtected(CollectionBaseModel model) {
-  // return model.getIsPasswordProtected() != null &&
-  // model.getIsPasswordProtected();
-  // }
+  /** Check if a collection model is password-protected based on the boolean flag. */
+  public static boolean isPasswordProtected(CollectionModel model) {
+    return model.getIsPasswordProtected() != null && model.getIsPasswordProtected();
+  }
 
   private static final BCryptPasswordEncoder BCRYPT_ENCODER = new BCryptPasswordEncoder();
 

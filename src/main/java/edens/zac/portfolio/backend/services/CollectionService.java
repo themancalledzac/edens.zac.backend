@@ -354,6 +354,41 @@ public class CollectionService {
     return collectionProcessingUtil.convertToFullModel(entity);
   }
 
+  /**
+   * Find the raw {@link CollectionEntity} by ID. Used by admin/download flows that need direct
+   * entity access (e.g. mutating {@code passwordHash}, reading bucket-relative S3 keys). Throws
+   * {@link ResourceNotFoundException} when no row matches.
+   */
+  @Transactional(readOnly = true)
+  public CollectionEntity findEntityById(Long id) {
+    log.debug("Finding collection entity by ID: {}", id);
+    return collectionRepository
+        .findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found with ID: " + id));
+  }
+
+  /**
+   * Find the raw {@link CollectionEntity} by slug. Used by download endpoints that key off the
+   * public slug. Throws {@link ResourceNotFoundException} when no row matches.
+   */
+  @Transactional(readOnly = true)
+  public CollectionEntity findEntityBySlug(String slug) {
+    log.debug("Finding collection entity by slug: {}", slug);
+    return collectionRepository
+        .findBySlug(slug)
+        .orElseThrow(
+            () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+  }
+
+  /**
+   * Persist a CollectionEntity and return the saved instance. Thin pass-through to the repository
+   * layer so callers don't reach across the service boundary directly.
+   */
+  @Transactional
+  public CollectionEntity saveEntity(CollectionEntity entity) {
+    return collectionRepository.save(entity);
+  }
+
   @Transactional
   @CacheEvict(
       value = "generalMetadata",

@@ -8,11 +8,16 @@ import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.sesv2.SesV2Client;
 
+/**
+ * Builds the {@link SesV2Client} bean used by {@link
+ * edens.zac.portfolio.backend.services.EmailService} for transactional gallery emails. Mirrors
+ * {@link S3Config} so SES inherits the same region and the same static AWS credentials.
+ */
 @Slf4j
 @Configuration
-public class S3Config {
+public class SesConfig {
 
   @Value("${aws.access.key.id}")
   private String accessKeyId;
@@ -25,24 +30,21 @@ public class S3Config {
 
   @PostConstruct
   public void logConfig() {
-    log.info("S3Config initialized");
+    log.info("SesConfig initialized");
     log.info("Region: {}", region);
-    log.info("Access key length: {}", accessKeyId != null ? accessKeyId.length() : "null");
-    log.info("Secret key length: {}", secretAccessKey != null ? secretAccessKey.length() : "null");
   }
 
   @Bean(destroyMethod = "close")
-  public S3Client s3Client() {
-    log.info("Creating S3Client");
+  public SesV2Client sesV2Client() {
+    log.info("Creating SesV2Client (region={})", region);
     try {
       AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
-
-      return S3Client.builder()
-          .credentialsProvider(StaticCredentialsProvider.create(credentials))
+      return SesV2Client.builder()
           .region(Region.of(region))
+          .credentialsProvider(StaticCredentialsProvider.create(credentials))
           .build();
     } catch (Exception e) {
-      log.error("Failed to create S3Client", e);
+      log.error("Failed to create SesV2Client", e);
       throw e;
     }
   }

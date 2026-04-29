@@ -495,6 +495,71 @@ public class ContentService {
   }
 
   // ---------------------------------------------------------------------------
+  //  Read helpers for download endpoints
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Find a single {@link ContentImageEntity} by ID. Throws {@link ResourceNotFoundException} when
+   * no row matches.
+   */
+  @Transactional(readOnly = true)
+  public ContentImageEntity findImageById(Long id) {
+    log.debug("Finding image by ID: {}", id);
+    return contentRepository
+        .findImageById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Image not found with ID: " + id));
+  }
+
+  /**
+   * Find all images that belong to a collection, in the collection's display order.
+   *
+   * <p>Walks the {@code collection_content} join table for the collection, filters to entries whose
+   * underlying content row is an IMAGE, and returns the image entities in {@code order_index}
+   * order. Used by the per-collection ZIP download to assemble the archive.
+   */
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> findImagesForCollection(Long collectionId) {
+    log.debug("Finding images for collection ID: {}", collectionId);
+    List<CollectionContentEntity> joinEntries =
+        collectionRepository.findContentByCollectionIdOrderByOrderIndex(collectionId);
+    if (joinEntries.isEmpty()) {
+      return List.of();
+    }
+    List<Long> contentIds =
+        joinEntries.stream().map(CollectionContentEntity::getContentId).distinct().toList();
+    List<ContentImageEntity> images = contentRepository.findImagesByIds(contentIds);
+    Map<Long, ContentImageEntity> imagesById =
+        images.stream().collect(Collectors.toMap(ContentImageEntity::getId, img -> img));
+
+    return joinEntries.stream()
+        .map(entry -> imagesById.get(entry.getContentId()))
+        .filter(Objects::nonNull)
+        .toList();
+  }
+
+  /**
+   * Resolve a parent {@link CollectionEntity} for an image, used by the per-image download endpoint
+   * to decide whether to enforce a {@code passwordHash}-gated cookie. Images can belong to multiple
+   * collections (many-to-many via {@code collection_content}); this returns any matching parent
+   * (deterministic via {@code findContentByContentIdsIn} ordering). Returns empty when the image is
+   * orphaned.
+   */
+  @Transactional(readOnly = true)
+  public Optional<CollectionEntity> findCollectionForImage(Long imageId) {
+    log.debug("Finding parent collection for image ID: {}", imageId);
+    List<CollectionContentEntity> joinEntries =
+        collectionRepository.findContentByContentIdsIn(List.of(imageId));
+    if (joinEntries.isEmpty()) {
+      return Optional.empty();
+    }
+    Long collectionId = joinEntries.getFirst().getCollectionId();
+    if (collectionId == null) {
+      return Optional.empty();
+    }
+    return collectionRepository.findById(collectionId);
+  }
+
+  // ---------------------------------------------------------------------------
   //  Shared helpers (package-private for ImageUploadPipelineService)
   // ---------------------------------------------------------------------------
 

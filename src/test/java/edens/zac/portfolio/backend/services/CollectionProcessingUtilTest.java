@@ -12,6 +12,7 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDateTime;
@@ -197,5 +198,107 @@ class CollectionProcessingUtilTest {
   @Test
   void passwordMatches_bothNull_returnsFalse() {
     assertFalse(CollectionProcessingUtil.passwordMatches(null, null));
+  }
+
+  // ======================================
+  // isPasswordProtected static helper tests
+  // ======================================
+
+  @Test
+  void isPasswordProtected_returnsTrue_whenFlagIsTrue() {
+    CollectionModel model = new CollectionModel();
+    model.setIsPasswordProtected(true);
+    assertTrue(CollectionProcessingUtil.isPasswordProtected(model));
+  }
+
+  @Test
+  void isPasswordProtected_returnsFalse_whenFlagIsFalse() {
+    CollectionModel model = new CollectionModel();
+    model.setIsPasswordProtected(false);
+    assertFalse(CollectionProcessingUtil.isPasswordProtected(model));
+  }
+
+  @Test
+  void isPasswordProtected_returnsFalse_whenFlagIsNull() {
+    CollectionModel model = new CollectionModel();
+    model.setIsPasswordProtected(null);
+    assertFalse(CollectionProcessingUtil.isPasswordProtected(model));
+  }
+
+  // ======================================
+  // applyBasicUpdates password handling (A1)
+  // ======================================
+
+  /** Build an Update DTO populating only the id and password fields. */
+  private static CollectionRequests.Update updateWithPassword(String password) {
+    return new CollectionRequests.Update(
+        1L, // id
+        null, // type
+        null, // title
+        null, // slug
+        null, // description
+        null, // location
+        null, // collectionDate
+        null, // clearCollectionDate
+        null, // visible
+        null, // displayMode
+        password, null, // contentPerPage
+        null, // rowsWide
+        null, // coverImageId
+        null, // tags
+        null, // people
+        null); // collections
+  }
+
+  @Test
+  void applyBasicUpdates_clientGalleryWithNewPassword_setsHashedPassword() {
+    CollectionEntity entity = new CollectionEntity();
+    entity.setId(1L);
+    entity.setType(CollectionType.CLIENT_GALLERY);
+    entity.setPasswordHash(null);
+
+    util.applyBasicUpdates(entity, updateWithPassword("brand-new-password"));
+
+    assertNotNull(entity.getPasswordHash());
+    assertTrue(
+        CollectionProcessingUtil.passwordMatches("brand-new-password", entity.getPasswordHash()));
+  }
+
+  @Test
+  void applyBasicUpdates_clientGalleryWithEmptyPassword_clearsHash() {
+    CollectionEntity entity = new CollectionEntity();
+    entity.setId(1L);
+    entity.setType(CollectionType.CLIENT_GALLERY);
+    entity.setPasswordHash("$2a$10$someExistingHash");
+
+    util.applyBasicUpdates(entity, updateWithPassword(""));
+
+    assertNull(entity.getPasswordHash());
+  }
+
+  @Test
+  void applyBasicUpdates_clientGalleryWithNullPassword_leavesHashUnchanged() {
+    String existingHash = CollectionProcessingUtil.hashPassword("existing-pw");
+    CollectionEntity entity = new CollectionEntity();
+    entity.setId(1L);
+    entity.setType(CollectionType.CLIENT_GALLERY);
+    entity.setPasswordHash(existingHash);
+
+    util.applyBasicUpdates(entity, updateWithPassword(null));
+
+    assertEquals(existingHash, entity.getPasswordHash());
+  }
+
+  @Test
+  void applyBasicUpdates_nonClientGalleryWithPassword_isNoOp() {
+    CollectionEntity entity = new CollectionEntity();
+    entity.setId(1L);
+    entity.setType(CollectionType.BLOG);
+    entity.setPasswordHash(null);
+
+    util.applyBasicUpdates(entity, updateWithPassword("would-be-ignored"));
+
+    // Only CLIENT_GALLERY updates touch passwordHash; other types are no-op for this field.
+    assertNull(entity.getPasswordHash());
   }
 }

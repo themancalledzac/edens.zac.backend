@@ -34,6 +34,11 @@ services:
       # Access token secret for client gallery HMAC tokens
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-dev-access-token-secret}
 
+      # Email (AWS SES v2) — disabled by default; flip EMAIL_ENABLED=true once SES domain + from-address are verified.
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@edens.zac}
+      EMAIL_FRONTEND_BASE_URL: ${EMAIL_FRONTEND_BASE_URL:-https://edens.zac}
+
       # JVM memory: local dev uses 1g (48GB machine), EC2 prod uses 384m (1GB instance)
       # EC2 prod override: JAVA_OPTS=-Xmx384m -Xms256m
       JAVA_OPTS: ${JAVA_OPTS:--Xmx1g -Xms512m}
