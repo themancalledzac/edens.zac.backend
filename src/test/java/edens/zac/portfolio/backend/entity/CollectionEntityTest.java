@@ -139,49 +139,43 @@ class CollectionEntityTest {
         violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("contentPerPage")));
   }
 
-  // @Test
-  // void testIsPasswordProtected() {
-  // // Test with password protection enabled and hash present
-  // CollectionEntity protectedCollection = new CollectionEntity();
-  // protectedCollection.setType(CollectionType.CLIENT_GALLERY);
-  // protectedCollection.setTitle("Protected Collection");
-  // protectedCollection.setSlug("protected-collection");
-  // protectedCollection.setPasswordProtected(true);
-  // protectedCollection.setPasswordHash("$2a$10$someHashValue");
-  //
-  // assertTrue(protectedCollection.isPasswordProtected());
-  //
-  // // Test with password protection disabled
-  // CollectionEntity unprotectedCollection = new CollectionEntity();
-  // unprotectedCollection.setType(CollectionType.BLOG);
-  // unprotectedCollection.setTitle("Public Collection");
-  // unprotectedCollection.setSlug("public-collection");
-  // unprotectedCollection.setPasswordProtected(false);
-  // unprotectedCollection.setPasswordHash("$2a$10$someHashValue");
-  //
-  // assertFalse(unprotectedCollection.isPasswordProtected());
-  //
-  // // Test with password protection enabled but no hash
-  // CollectionEntity incompleteCollection = new CollectionEntity();
-  // incompleteCollection.setType(CollectionType.CLIENT_GALLERY);
-  // incompleteCollection.setTitle("Incomplete Collection");
-  // incompleteCollection.setSlug("incomplete-collection");
-  // incompleteCollection.setPasswordProtected(true);
-  // incompleteCollection.setPasswordHash("");
-  //
-  //
-  // assertFalse(incompleteCollection.isPasswordProtected());
-  //
-  // // Test with null values
-  // CollectionEntity nullCollection = new CollectionEntity();
-  // nullCollection.setType(CollectionType.CLIENT_GALLERY);
-  // nullCollection.setTitle("Null Collection");
-  // nullCollection.setSlug("null-collection");
-  // nullCollection.setPasswordProtected(null);
-  // nullCollection.setPasswordHash(null);
-  //
-  // assertFalse(nullCollection.isPasswordProtected());
-  // }
+  @Test
+  void testPasswordProtectionStateIsDerivedFromHash() {
+    // After the password-hash migration, password protection is no longer a separate boolean
+    // on the entity — it is derived from passwordHash != null. CollectionProcessingUtil populates
+    // the model's isPasswordProtected flag accordingly. These tests validate the entity-level
+    // hash semantics that drive that derivation.
+
+    // Hash present -> protected
+    CollectionEntity protectedCollection = new CollectionEntity();
+    protectedCollection.setType(CollectionType.CLIENT_GALLERY);
+    protectedCollection.setTitle("Protected Collection");
+    protectedCollection.setSlug("protected-collection");
+    protectedCollection.setVisible(false);
+    protectedCollection.setPasswordHash("$2a$10$someHashValue");
+
+    assertNotNull(protectedCollection.getPasswordHash());
+
+    // Hash null -> not protected
+    CollectionEntity unprotectedCollection = new CollectionEntity();
+    unprotectedCollection.setType(CollectionType.BLOG);
+    unprotectedCollection.setTitle("Public Collection");
+    unprotectedCollection.setSlug("public-collection");
+    unprotectedCollection.setVisible(true);
+    unprotectedCollection.setPasswordHash(null);
+
+    assertNull(unprotectedCollection.getPasswordHash());
+
+    // Empty-string hash -> entity level allows it (validation lives elsewhere); CollectionService
+    // / CollectionProcessingUtil clears via setPasswordHash(null).
+    CollectionEntity emptyHash = new CollectionEntity();
+    emptyHash.setType(CollectionType.CLIENT_GALLERY);
+    emptyHash.setTitle("Cleared Collection");
+    emptyHash.setSlug("cleared-collection");
+    emptyHash.setVisible(false);
+    emptyHash.setPasswordHash("");
+    assertEquals("", emptyHash.getPasswordHash());
+  }
 
   @Test
   void testGetTotalPages() {

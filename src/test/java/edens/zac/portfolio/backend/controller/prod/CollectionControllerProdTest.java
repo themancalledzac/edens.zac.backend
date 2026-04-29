@@ -8,10 +8,13 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.ClientGalleryAccessLimiter;
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -22,6 +25,7 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
+import jakarta.servlet.http.Cookie;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +50,7 @@ class CollectionControllerProdTest {
 
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
   @Mock private CollectionService collectionService;
+  @Mock private ClientGalleryAccessLimiter accessLimiter;
 
   @InjectMocks private CollectionControllerProd contentCollectionController;
 
@@ -354,17 +359,18 @@ class CollectionControllerProdTest {
   }
 
   @Test
-  @DisplayName("POST /collections/{slug}/access with correct password should return access granted")
-  void validateClientGalleryAccess_withCorrectPassword_shouldReturnAccessGranted()
-      throws Exception {
+  @DisplayName(
+      "POST /collections/{slug}/access with correct password should set HttpOnly access cookie")
+  void validateClientGalleryAccess_withCorrectPassword_shouldSetCookie() throws Exception {
     // Arrange
     PasswordRequest passwordRequest = new PasswordRequest("correct-password");
 
+    when(accessLimiter.allow(anyString(), eq("test-client-gallery"))).thenReturn(true);
     when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("correct-password")))
         .thenReturn(true);
     when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
-        .thenReturn("mock-token|12345");
+        .thenReturn("hmac-token|1234567890");
 
     // Act & Assert
     mockMvc
@@ -373,17 +379,29 @@ class CollectionControllerProdTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(passwordRequest)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.hasAccess", is(true)));
+        .andExpect(jsonPath("$.hasAccess", is(true)))
+        // The token must NOT be returned in the JSON body — it lives only in the cookie now.
+        .andExpect(jsonPath("$.accessToken").doesNotExist())
+        // Cookie attributes
+        .andExpect(cookie().exists("gallery_access_test-client-gallery"))
+        .andExpect(cookie().value("gallery_access_test-client-gallery", "hmac-token|1234567890"))
+        .andExpect(cookie().httpOnly("gallery_access_test-client-gallery", true))
+        .andExpect(cookie().secure("gallery_access_test-client-gallery", true))
+        .andExpect(cookie().path("gallery_access_test-client-gallery", "/"))
+        .andExpect(cookie().maxAge("gallery_access_test-client-gallery", 24 * 60 * 60))
+        // SameSite is not exposed via cookie() matchers; check the raw header
+        .andExpect(header().string("Set-Cookie", containsString("SameSite=Strict")));
   }
 
   @Test
   @DisplayName(
-      "POST /collections/{slug}/access with incorrect password should return access denied")
-  void validateClientGalleryAccess_withIncorrectPassword_shouldReturnAccessDenied()
+      "POST /collections/{slug}/access with incorrect password should return access denied without cookie")
+  void validateClientGalleryAccess_withIncorrectPassword_shouldReturnAccessDeniedNoCookie()
       throws Exception {
     // Arrange
     PasswordRequest passwordRequest = new PasswordRequest("wrong-password");
 
+    when(accessLimiter.allow(anyString(), eq("test-client-gallery"))).thenReturn(true);
     when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("wrong-password")))
         .thenReturn(false);
@@ -395,7 +413,8 @@ class CollectionControllerProdTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(passwordRequest)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.hasAccess", is(false)));
+        .andExpect(jsonPath("$.hasAccess", is(false)))
+        .andExpect(cookie().doesNotExist("gallery_access_test-client-gallery"));
   }
 
   @Test
@@ -422,6 +441,7 @@ class CollectionControllerProdTest {
     // Arrange
     PasswordRequest passwordRequest = new PasswordRequest("any-password");
 
+    when(accessLimiter.allow(anyString(), eq("non-existent"))).thenReturn(true);
     when(clientGalleryAuthService.validateClientGalleryAccess(eq("non-existent"), anyString()))
         .thenThrow(new ResourceNotFoundException("Collection not found with slug: non-existent"));
 
@@ -433,6 +453,26 @@ class CollectionControllerProdTest {
                 .content(objectMapper.writeValueAsString(passwordRequest)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message", containsString("not found")));
+  }
+
+  @Test
+  @DisplayName("POST /collections/{slug}/access exceeding rate limit should return 429")
+  void validateClientGalleryAccess_rateLimited_shouldReturn429() throws Exception {
+    // Arrange
+    PasswordRequest passwordRequest = new PasswordRequest("any-password");
+
+    when(accessLimiter.allow(anyString(), eq("test-client-gallery"))).thenReturn(false);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            post("/api/read/collections/test-client-gallery/access")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(passwordRequest)))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(jsonPath("$.hasAccess", is(false)))
+        .andExpect(jsonPath("$.reason", is("rate-limited")))
+        .andExpect(cookie().doesNotExist("gallery_access_test-client-gallery"));
   }
 
   @Test
@@ -537,34 +577,8 @@ class CollectionControllerProdTest {
   }
 
   @Test
-  @DisplayName("GET /collections/{slug} password protected with valid token should include content")
-  void getCollectionBySlug_passwordProtected_validToken_shouldIncludeContent() throws Exception {
-    // Arrange
-    CollectionModel protectedCollection = createPasswordProtectedCollection();
-
-    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
-        .thenReturn(protectedCollection);
-    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("valid-token")))
-        .thenReturn(true);
-
-    // Act & Assert
-    mockMvc
-        .perform(
-            get("/api/read/collections/client-gallery")
-                .param("page", "0")
-                .param("size", "30")
-                .param("accessToken", "valid-token")
-                .contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.title", is("Client Gallery")))
-        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
-        .andExpect(jsonPath("$.content", hasSize(1)))
-        .andExpect(jsonPath("$.contentCount", is(5)));
-  }
-
-  @Test
-  @DisplayName("GET /collections/{slug} password protected with invalid token should omit content")
-  void getCollectionBySlug_passwordProtected_invalidToken_shouldOmitContent() throws Exception {
+  @DisplayName("GET /collections/{slug} password protected with invalid cookie should omit content")
+  void getCollectionBySlug_passwordProtected_invalidCookie_shouldOmitContent() throws Exception {
     // Arrange
     CollectionModel protectedCollection = createPasswordProtectedCollection();
 
@@ -579,7 +593,7 @@ class CollectionControllerProdTest {
             get("/api/read/collections/client-gallery")
                 .param("page", "0")
                 .param("size", "30")
-                .param("accessToken", "wrong-token")
+                .cookie(new Cookie("gallery_access_client-gallery", "wrong-token"))
                 .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.title", is("Client Gallery")))
@@ -622,25 +636,225 @@ class CollectionControllerProdTest {
   }
 
   @Test
-  @DisplayName("POST /collections/{slug}/access with correct password should return access token")
-  void validateClientGalleryAccess_success_shouldReturnAccessToken() throws Exception {
+  @DisplayName(
+      "GET /collections/{slug} password protected with valid cookie should include content")
+  void getCollectionBySlug_passwordProtected_validCookie_shouldIncludeContent() throws Exception {
     // Arrange
-    PasswordRequest passwordRequest = new PasswordRequest("correct-password");
+    CollectionModel protectedCollection = createPasswordProtectedCollection();
 
-    when(clientGalleryAuthService.validateClientGalleryAccess(
-            eq("test-client-gallery"), eq("correct-password")))
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(protectedCollection);
+    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("cookie-token")))
         .thenReturn(true);
-    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
-        .thenReturn("hmac-token|1234567890");
 
     // Act & Assert
     mockMvc
         .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .cookie(new Cookie("gallery_access_client-gallery", "cookie-token"))
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title", is("Client Gallery")))
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.contentCount", is(5)));
+  }
+
+  @Test
+  @DisplayName("GET /collections/{slug} password protected with no cookie strips content")
+  void getCollectionBySlug_passwordProtected_noCookie_stripsContent() throws Exception {
+    // Arrange
+    CollectionModel protectedCollection = createPasswordProtectedCollection();
+
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(protectedCollection);
+
+    // Act & Assert — no cookie attached
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title", is("Client Gallery")))
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.content").doesNotExist())
+        .andExpect(jsonPath("$.contentCount").doesNotExist());
+  }
+
+  // ============================================================================
+  // BE-H5: coverImage must be stripped for protected galleries without a valid cookie
+  // ============================================================================
+
+  private CollectionModel createPasswordProtectedCollectionWithCover() {
+    CollectionModel model = createPasswordProtectedCollection();
+    model.setCoverImage(createStubImage(42L, "cover"));
+    return model;
+  }
+
+  @Test
+  @DisplayName("BE-H5: GET /collections/{slug} protected, no cookie, strips coverImage")
+  void getCollectionBySlug_protectedNoCookie_stripsCoverImage() throws Exception {
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(createPasswordProtectedCollectionWithCover());
+
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.coverImage").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("BE-H5: GET /collections/{slug} protected, invalid cookie, strips coverImage")
+  void getCollectionBySlug_protectedInvalidCookie_stripsCoverImage() throws Exception {
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(createPasswordProtectedCollectionWithCover());
+    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("bad")))
+        .thenReturn(false);
+
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .cookie(new Cookie("gallery_access_client-gallery", "bad"))
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.coverImage").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("BE-H5: GET /collections/{slug} protected, valid cookie, retains coverImage")
+  void getCollectionBySlug_protectedValidCookie_retainsCoverImage() throws Exception {
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(createPasswordProtectedCollectionWithCover());
+    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("good")))
+        .thenReturn(true);
+
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .cookie(new Cookie("gallery_access_client-gallery", "good"))
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.coverImage.id", is(42)))
+        .andExpect(jsonPath("$.coverImage.title", is("cover")));
+  }
+
+  // ============================================================================
+  // Fix 2: resolveClientIp - X-Forwarded-For without X-Real-IP uses getRemoteAddr
+  // ============================================================================
+
+  @Test
+  @DisplayName(
+      "POST /collections/{slug}/access with X-Forwarded-For but no X-Real-IP uses remote addr for rate limiting")
+  void resolveClientIp_xForwardedForWithoutXRealIP_returnsRemoteAddr() throws Exception {
+    // Arrange: set up rate limiter to always allow, then accept password
+    PasswordRequest passwordRequest = new PasswordRequest("correct-password");
+    when(accessLimiter.allow(anyString(), eq("test-client-gallery"))).thenReturn(true);
+    when(clientGalleryAuthService.validateClientGalleryAccess(
+            eq("test-client-gallery"), eq("correct-password")))
+        .thenReturn(true);
+    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
+        .thenReturn("some-token");
+
+    // Act: send with only X-Forwarded-For, no X-Real-IP
+    // The controller must fall through to getRemoteAddr() ("127.0.0.1" in MockMvc)
+    // and the rate limiter must receive that address, not the spoofed "1.2.3.4"
+    mockMvc
+        .perform(
             post("/api/read/collections/test-client-gallery/access")
+                .header("X-Forwarded-For", "1.2.3.4")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(passwordRequest)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.hasAccess", is(true)))
-        .andExpect(jsonPath("$.accessToken", is("hmac-token|1234567890")));
+        .andExpect(jsonPath("$.hasAccess", is(true)));
+
+    // Verify the rate limiter was called with the actual remote address (not the spoofed header)
+    // MockMvc uses "127.0.0.1" as the remote address
+    org.mockito.Mockito.verify(accessLimiter).allow("127.0.0.1", "test-client-gallery");
+  }
+
+  // ============================================================================
+  // Fix 1: coverImage stripped for protected CLIENT_GALLERY on list endpoints
+  // The central fix is in CollectionProcessingUtil.buildBasicModel; these tests
+  // verify the controller passes through the already-stripped model unchanged.
+  // ============================================================================
+
+  @Test
+  @DisplayName(
+      "GET /collections - password-protected CLIENT_GALLERY returned by service has null coverImage")
+  void getAllCollections_protectedClientGallery_returnNullCoverImage() throws Exception {
+    // Service returns a model whose coverImage was already stripped by buildBasicModel
+    CollectionModel protectedGallery =
+        CollectionModel.builder()
+            .id(10L)
+            .type(CollectionType.CLIENT_GALLERY)
+            .title("Protected Gallery")
+            .slug("protected-gallery")
+            .visible(true)
+            .isPasswordProtected(true)
+            .coverImage(null) // stripped by CollectionProcessingUtil.buildBasicModel
+            .contentCount(5)
+            .totalPages(1)
+            .currentPage(0)
+            .build();
+
+    Page<CollectionModel> page =
+        new PageImpl<>(List.of(protectedGallery), PageRequest.of(0, 50), 1);
+    when(collectionService.getVisibleCollections(any(Pageable.class))).thenReturn(page);
+
+    mockMvc
+        .perform(get("/api/read/collections").contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].type", is("CLIENT_GALLERY")))
+        .andExpect(jsonPath("$.content[0].isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$.content[0].coverImage").doesNotExist());
+  }
+
+  @Test
+  @DisplayName(
+      "GET /collections/type/CLIENT_GALLERY - password-protected gallery has null coverImage")
+  void getCollectionsByType_protectedClientGallery_returnNullCoverImage() throws Exception {
+    // Service returns a model whose coverImage was already stripped by buildBasicModel
+    CollectionModel protectedGallery =
+        CollectionModel.builder()
+            .id(10L)
+            .type(CollectionType.CLIENT_GALLERY)
+            .title("Protected Gallery")
+            .slug("protected-gallery")
+            .visible(true)
+            .isPasswordProtected(true)
+            .coverImage(null) // stripped by CollectionProcessingUtil.buildBasicModel
+            .contentCount(5)
+            .totalPages(1)
+            .currentPage(0)
+            .build();
+
+    when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.CLIENT_GALLERY)))
+        .thenReturn(List.of(protectedGallery));
+
+    mockMvc
+        .perform(
+            get("/api/read/collections/type/CLIENT_GALLERY")
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].type", is("CLIENT_GALLERY")))
+        .andExpect(jsonPath("$[0].isPasswordProtected", is(true)))
+        .andExpect(jsonPath("$[0].coverImage").doesNotExist());
   }
 }
