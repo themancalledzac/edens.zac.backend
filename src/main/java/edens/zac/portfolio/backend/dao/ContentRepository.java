@@ -400,7 +400,7 @@ public class ContentRepository extends BaseDao {
       MapSqlParameterSource contentParams =
           createParameterSource()
               .addValue("contentType", ContentType.IMAGE.name())
-              .addValue("createdAt", entity.getCreatedAt())
+              .addValue("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt() : now)
               .addValue("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt() : now);
 
       Long contentId = insertAndReturnId(contentSql, "id", contentParams);

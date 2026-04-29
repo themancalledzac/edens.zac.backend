@@ -19,6 +19,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -199,6 +200,30 @@ class ImageProcessingServiceTest {
     assertEquals(ImageProcessingService.DedupeAction.CREATE, result.action());
     // Should never attempt dedupe lookup
     verify(contentRepository, never()).findByOriginalFilenameAndCaptureDate(any(), any());
+  }
+
+  @Test
+  void savePreparedImageWithDedupe_create_passesNullCreatedAtToDao_whenExifCreateDateAbsent() {
+    // Regression for film scans: no EXIF DateTimeOriginal means
+    // parseExifDateToLocalDateTime(null) returns null. The service hands a null createdAt
+    // to ContentRepository.saveImage, which is responsible for falling back to upload time
+    // so the NOT NULL constraint on content.created_at is satisfied.
+    ImageProcessingService.PreparedImageData prepared =
+        createPreparedImageData("film_scan.jpg", null, LocalDateTime.now());
+    when(imageMetadataExtractor.parseExifDateToLocalDateTime(null)).thenReturn(null);
+
+    ContentImageEntity savedEntity = createContentImageEntity();
+    when(contentRepository.saveImage(any(ContentImageEntity.class))).thenReturn(savedEntity);
+
+    ImageProcessingService.DedupeResult result =
+        imageProcessingService.savePreparedImageWithDedupe(prepared, "Film Scan");
+
+    ArgumentCaptor<ContentImageEntity> captor = ArgumentCaptor.forClass(ContentImageEntity.class);
+    verify(contentRepository).saveImage(captor.capture());
+    assertNull(
+        captor.getValue().getCreatedAt(),
+        "absent EXIF createDate -> null entity.createdAt -> DAO fills with upload time");
+    assertEquals(ImageProcessingService.DedupeAction.CREATE, result.action());
   }
 
   // Helper methods
