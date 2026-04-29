@@ -64,4 +64,11 @@ public class MessageRepository extends BaseDao {
         namedParameterJdbcTemplate.queryForObject(sql, createParameterSource(), Long.class);
     return count != null ? count : 0L;
   }
+
+  @Transactional
+  public int deleteById(long id) {
+    String sql = "DELETE FROM messages WHERE id = :id";
+    var params = createParameterSource().addValue("id", id);
+    return update(sql, params);
+  }
 }

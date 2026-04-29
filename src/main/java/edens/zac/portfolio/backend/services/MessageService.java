@@ -17,4 +17,8 @@ public class MessageService {
   public MessageEntity create(String email, String message) {
     return messageRepository.insert(email, message);
   }
+
+  public int delete(long id) {
+    return messageRepository.deleteById(id);
+  }
 }
