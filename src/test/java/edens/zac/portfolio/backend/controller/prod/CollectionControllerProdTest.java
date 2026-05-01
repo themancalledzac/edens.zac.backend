@@ -40,6 +40,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -63,6 +64,11 @@ class CollectionControllerProdTest {
   void setUp() {
     objectMapper = new ObjectMapper();
     objectMapper.findAndRegisterModules();
+
+    // @Value-injected fields are not populated by Mockito's @InjectMocks. Mirror the
+    // production default (Secure=true) so the existing cookie().secure(true) assertion
+    // covers the prod profile; a separate test below pins the dev-profile path.
+    ReflectionTestUtils.setField(contentCollectionController, "galleryCookieSecure", true);
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(contentCollectionController)
@@ -390,6 +396,38 @@ class CollectionControllerProdTest {
         .andExpect(cookie().path("gallery_access_test-client-gallery", "/"))
         .andExpect(cookie().maxAge("gallery_access_test-client-gallery", 24 * 60 * 60))
         // SameSite is not exposed via cookie() matchers; check the raw header
+        .andExpect(header().string("Set-Cookie", containsString("SameSite=Strict")));
+  }
+
+  @Test
+  @DisplayName(
+      "POST /collections/{slug}/access in dev profile (cookie-secure=false) should omit Secure attr")
+  void validateClientGalleryAccess_devProfile_shouldOmitSecureCookieAttribute() throws Exception {
+    // Localhost runs over plain http; browsers silently reject Secure cookies on
+    // insecure origins, which would lock the gate after a successful submit. The
+    // dev profile flips app.gallery-access.cookie-secure to false to keep the
+    // cookie storable. Production must keep Secure on (covered by the test above).
+    ReflectionTestUtils.setField(contentCollectionController, "galleryCookieSecure", false);
+
+    PasswordRequest passwordRequest = new PasswordRequest("correct-password");
+    when(accessLimiter.allow(anyString(), eq("test-client-gallery"))).thenReturn(true);
+    when(clientGalleryAuthService.validateClientGalleryAccess(
+            eq("test-client-gallery"), eq("correct-password")))
+        .thenReturn(true);
+    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
+        .thenReturn("hmac-token|1234567890");
+
+    mockMvc
+        .perform(
+            post("/api/read/collections/test-client-gallery/access")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(passwordRequest)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.hasAccess", is(true)))
+        .andExpect(cookie().exists("gallery_access_test-client-gallery"))
+        .andExpect(cookie().httpOnly("gallery_access_test-client-gallery", true))
+        .andExpect(cookie().secure("gallery_access_test-client-gallery", false))
+        .andExpect(header().string("Set-Cookie", not(containsString("Secure"))))
         .andExpect(header().string("Set-Cookie", containsString("SameSite=Strict")));
   }
 

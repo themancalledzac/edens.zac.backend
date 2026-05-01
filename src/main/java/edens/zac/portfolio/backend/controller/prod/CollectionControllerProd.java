@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -49,6 +50,15 @@ public class CollectionControllerProd {
   private final ClientGalleryAuthService clientGalleryAuthService;
   private final CollectionService collectionService;
   private final ClientGalleryAccessLimiter accessLimiter;
+
+  /**
+   * Whether the per-gallery access cookie is set with the {@code Secure} attribute. Always {@code
+   * true} in production; the {@code dev} profile overrides this to {@code false} so the gate is
+   * unlockable over plain {@code http://localhost} (browsers refuse Secure cookies on insecure
+   * origins, which silently breaks the cookie-driven gate).
+   */
+  @Value("${app.gallery-access.cookie-secure:true}")
+  private boolean galleryCookieSecure;
 
   /**
    * Get all collections with basic info (paginated).
@@ -173,9 +183,12 @@ public class CollectionControllerProd {
   /**
    * Validate client gallery access with password.
    *
-   * <p>On success, sets a {@code gallery_access_<slug>} HttpOnly+Secure+SameSite=Strict cookie
-   * carrying the HMAC access token. The cookie is sent automatically by the browser on subsequent
-   * GET /collections/{slug} requests, so the access token never needs to be exposed to JavaScript.
+   * <p>On success, sets a {@code gallery_access_<slug>} HttpOnly+SameSite=Strict cookie carrying
+   * the HMAC access token. The {@code Secure} attribute is governed by {@code
+   * app.gallery-access.cookie-secure} (default {@code true}; overridden to {@code false} by the
+   * {@code dev} profile to support plain-http localhost). The cookie is sent automatically by the
+   * browser on subsequent GET /collections/{slug} requests, so the access token never needs to be
+   * exposed to JavaScript.
    *
    * <p>Rate-limited per {@code (ip, slug)} pair via {@link ClientGalleryAccessLimiter} (default 5
    * attempts / 15 min). Returns 429 once the limit is exceeded.
@@ -212,7 +225,7 @@ public class CollectionControllerProd {
     ResponseCookie cookie =
         ResponseCookie.from(cookieName(slug), token)
             .httpOnly(true)
-            .secure(true)
+            .secure(galleryCookieSecure)
             .sameSite("Strict")
             .path("/")
             .maxAge(GALLERY_COOKIE_MAX_AGE)
