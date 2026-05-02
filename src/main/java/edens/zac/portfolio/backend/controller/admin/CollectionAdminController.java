@@ -14,15 +14,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Admin endpoint for managing client gallery password and recipient emails.
+ * Admin endpoints for managing client galleries (password, recipient emails, future operations).
  *
- * <p>Delegates all business logic to {@link CollectionService#updateGalleryAccess}.
+ * <p>Delegates all business logic to {@link CollectionService}.
  */
 @Slf4j
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/admin/collections")
-public class CollectionAdminEmailController {
+public class CollectionAdminController {
 
   private final CollectionService collectionService;
 
