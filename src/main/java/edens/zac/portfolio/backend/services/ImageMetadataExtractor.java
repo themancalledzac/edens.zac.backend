@@ -135,10 +135,6 @@ public class ImageMetadataExtractor {
         }
       }
 
-      if (!metadata.containsKey("createDate")) {
-        log.warn("No capture date found in EXIF or XMP for file: {}", filename);
-      }
-
       log.trace(
           "Extracted metadata: {} fields, rating: {}, tags: {}, people: {}",
           metadata.size(),
@@ -364,7 +360,6 @@ public class ImageMetadataExtractor {
     if (modifyDate != null && !modifyDate.isEmpty()) {
       try {
         String[] parts = modifyDate.split("[: T-]");
-        log.info("Using modify date for S3 path: {}/{}", parts[0], parts[1]);
         return new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
       } catch (Exception e) {
         log.warn("Failed to parse modify date '{}', using current date", modifyDate);

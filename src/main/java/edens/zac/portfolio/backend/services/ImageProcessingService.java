@@ -202,19 +202,24 @@ public class ImageProcessingService {
     // RAW upload is deferred to a background thread after DB save — not done here.
     // rawFilePath is carried through PreparedImageData so ContentService can schedule it.
 
-    // Parse capture date for deduplication
+    String createDateStr = metadata.get("createDate");
+    String modifyDateStr = metadata.get("modifyDate");
+
+    // Parse capture date for deduplication; fall back to modifyDate for film scans
     LocalDateTime captureDate =
-        imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate"));
+        imageMetadataExtractor.parseExifDateToLocalDateTime(
+            createDateStr != null ? createDateStr : modifyDateStr);
 
     // Use file last-modified as export date (approximation for dedupe)
     LocalDateTime lastExportDate = LocalDateTime.now();
 
     log.info(
-        "Prepared: {} ({}/{}), createDate='{}', captureDate={}",
+        "Prepared: {} ({}/{}), createDate='{}', modifyDate='{}', captureDate={}",
         originalFilename,
         imageYear,
         String.format("%02d", imageMonth),
-        metadata.get("createDate"),
+        createDateStr,
+        modifyDateStr,
         captureDate);
     return new PreparedImageData(
         originalFilename,
@@ -277,16 +282,21 @@ public class ImageProcessingService {
         uploadToS3(
             processedImageBytes, webFilename, "image/webp", PATH_IMAGE_WEB, imageYear, imageMonth);
 
+    String createDateStr = metadata.get("createDate");
+    String modifyDateStr = metadata.get("modifyDate");
+
     LocalDateTime captureDate =
-        imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate"));
+        imageMetadataExtractor.parseExifDateToLocalDateTime(
+            createDateStr != null ? createDateStr : modifyDateStr);
     LocalDateTime lastExportDate = LocalDateTime.now();
 
     log.info(
-        "Prepared from disk: {} ({}/{}), createDate='{}', captureDate={}",
+        "Prepared from disk: {} ({}/{}), createDate='{}', modifyDate='{}', captureDate={}",
         originalFilename,
         imageYear,
         String.format("%02d", imageMonth),
-        metadata.get("createDate"),
+        createDateStr,
+        modifyDateStr,
         captureDate);
     return new PreparedImageData(
         originalFilename,
