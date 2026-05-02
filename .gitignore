@@ -99,3 +99,6 @@ todo
 .terraform/
 *.tfvars
 !terraform.tfvars.example
+
+# Superpowers planning artifacts (local-only)
+docs/superpowers/
