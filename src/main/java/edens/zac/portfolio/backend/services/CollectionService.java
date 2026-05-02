@@ -359,7 +359,7 @@ public class CollectionService {
 
   /**
    * Find the raw {@link CollectionEntity} by ID. Used by admin/download flows that need direct
-   * entity access (e.g. mutating {@code passwordHash}, reading bucket-relative S3 keys). Throws
+   * entity access (e.g. updating {@code galleryPassword}, reading bucket-relative S3 keys). Throws
    * {@link ResourceNotFoundException} when no row matches.
    */
   @Transactional(readOnly = true)
@@ -1057,10 +1057,8 @@ public class CollectionService {
    *   <li>password set, emails non-empty: set password and send one email per recipient
    * </ul>
    *
-   * // TODO: we should NEVER import items inline like this, fix
-   *
-   * @throws edens.zac.portfolio.backend.config.IllegalArgumentException when the collection is not
-   *     a CLIENT_GALLERY
+   * <p>Returns {@code GalleryAccessResponse(saved=false, reason="not-client-gallery")} when the
+   * target collection is not a {@link CollectionType#CLIENT_GALLERY}.
    */
   @Transactional
   public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
