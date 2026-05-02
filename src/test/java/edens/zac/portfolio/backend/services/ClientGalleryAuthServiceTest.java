@@ -33,71 +33,61 @@ class ClientGalleryAuthServiceTest {
 
     @Test
     void validateClientGalleryAccess_noPasswordSet_returnsTrue() {
-      // Arrange
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(null).build();
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword(null).build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Act
       boolean result = clientGalleryAuthService.validateClientGalleryAccess("gallery", null);
 
-      // Assert
       assertThat(result).isTrue();
     }
 
     @Test
     void validateClientGalleryAccess_correctPassword_returnsTrue() {
-      // Arrange
-      String password = "secret123";
-      String hash = CollectionProcessingUtil.hashPassword(password);
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("secret123").build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Act
-      boolean result = clientGalleryAuthService.validateClientGalleryAccess("gallery", password);
+      boolean result = clientGalleryAuthService.validateClientGalleryAccess("gallery", "secret123");
 
-      // Assert
       assertThat(result).isTrue();
     }
 
     @Test
     void validateClientGalleryAccess_wrongPassword_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("correct-password");
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("gallery")
+              .galleryPassword("correct-password")
+              .build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Act
       boolean result =
           clientGalleryAuthService.validateClientGalleryAccess("gallery", "wrong-password");
 
-      // Assert
       assertThat(result).isFalse();
     }
 
     @Test
     void validateClientGalleryAccess_nullPassword_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("some-password");
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("gallery")
+              .galleryPassword("some-password")
+              .build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Act
       boolean result = clientGalleryAuthService.validateClientGalleryAccess("gallery", null);
 
-      // Assert
       assertThat(result).isFalse();
     }
 
     @Test
     void validateClientGalleryAccess_nonExistentSlug_throwsException() {
-      // Arrange
       when(collectionRepository.findBySlug("missing")).thenReturn(Optional.empty());
 
-      // Act & Assert
       assertThatThrownBy(
               () -> clientGalleryAuthService.validateClientGalleryAccess("missing", null))
           .isInstanceOf(ResourceNotFoundException.class)
@@ -110,94 +100,71 @@ class ClientGalleryAuthServiceTest {
 
     @Test
     void validateAccessToken_nullToken_returnsFalse() {
-      // Act
       boolean result = clientGalleryAuthService.validateAccessToken("gallery", null);
 
-      // Assert
       assertThat(result).isFalse();
     }
 
     @Test
     void validateAccessToken_tokenWithoutPipe_returnsFalse() {
-      // Act
       boolean result = clientGalleryAuthService.validateAccessToken("gallery", "no-pipe-character");
 
-      // Assert
       assertThat(result).isFalse();
     }
 
     @Test
     void validateAccessToken_validToken_returnsTrue() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("secret123");
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("secret123").build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Generate a real token via the service
       String token = clientGalleryAuthService.generateAccessToken("gallery");
 
-      // Act
       boolean result = clientGalleryAuthService.validateAccessToken("gallery", token);
 
-      // Assert
       assertThat(result).isTrue();
     }
 
     @Test
     void validateAccessToken_invalidToken_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("secret123");
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("secret123").build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Act
       boolean result =
           clientGalleryAuthService.validateAccessToken("gallery", "wrong-hmac|9999999999");
 
-      // Assert
       assertThat(result).isFalse();
     }
 
     @Test
     void validateAccessToken_noPasswordOnCollection_returnsTrue() {
-      // Arrange
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(null).build();
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword(null).build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Act - any token with a pipe is accepted for non-protected collections
       boolean result = clientGalleryAuthService.validateAccessToken("gallery", "any|token");
 
-      // Assert
       assertThat(result).isTrue();
     }
 
     @Test
     void validateAccessToken_nonExistentSlug_returnsFalse() {
-      // Arrange
       when(collectionRepository.findBySlug("missing")).thenReturn(Optional.empty());
 
-      // Act
       boolean result = clientGalleryAuthService.validateAccessToken("missing", "some|token");
 
-      // Assert
       assertThat(result).isFalse();
     }
 
     @Test
     void validateAccessToken_expiredToken_returnsFalse() {
-      // Arrange
-      String hash = CollectionProcessingUtil.hashPassword("secret123");
       CollectionEntity collection =
-          CollectionEntity.builder().id(1L).slug("gallery").passwordHash(hash).build();
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("secret123").build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      // Act - use an expired timestamp (epoch 0)
       boolean result = clientGalleryAuthService.validateAccessToken("gallery", "some-hmac|0");
 
-      // Assert
       assertThat(result).isFalse();
     }
   }

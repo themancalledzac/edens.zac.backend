@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -164,15 +163,7 @@ public class CollectionProcessingUtil {
       }
     }
 
-    model.setIsPasswordProtected(entity.getPasswordHash() != null);
-
-    // Strip cover image for password-protected CLIENT_GALLERY collections so it cannot
-    // leak through list endpoints (getAllCollections, getCollectionsByType). The per-slug
-    // endpoint in CollectionControllerProd also strips it as defense-in-depth.
-    if (entity.getType() == CollectionType.CLIENT_GALLERY
-        && Boolean.TRUE.equals(model.getIsPasswordProtected())) {
-      model.setCoverImage(null);
-    }
+    model.setIsPasswordProtected(entity.getGalleryPassword() != null);
 
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
@@ -555,25 +546,6 @@ public class CollectionProcessingUtil {
         entity.setCoverImageId(updateDTO.coverImageId());
       }
     }
-
-    // Handle password updates for client galleries.
-    // - null         -> no change (partial-update semantics)
-    // - empty string -> clear the password (passwordHash = null)
-    // - non-empty    -> hash via BCrypt and store
-    // Note: the @Size(min = 8) constraint on CollectionRequests.Update#password() means an
-    // empty string will be rejected by Bean Validation at the controller boundary; the
-    // empty-string branch below covers programmatic/service-layer callers and keeps the
-    // contract symmetric with frontend "clear password" intent.
-    if (entity.getType() == CollectionType.CLIENT_GALLERY) {
-      String newPassword = updateDTO.password();
-      if (newPassword != null) {
-        if (newPassword.isEmpty()) {
-          entity.setPasswordHash(null);
-        } else {
-          entity.setPasswordHash(hashPassword(newPassword));
-        }
-      }
-    }
   }
 
   // =============================================================================
@@ -766,45 +738,5 @@ public class CollectionProcessingUtil {
     }
 
     return entity;
-  }
-
-  // =============================================================================
-  // PASSWORD PROTECTION HELPERS
-  // =============================================================================
-
-  /** Check if a collection model is password-protected based on the boolean flag. */
-  public static boolean isPasswordProtected(CollectionModel model) {
-    return model.getIsPasswordProtected() != null && model.getIsPasswordProtected();
-  }
-
-  private static final BCryptPasswordEncoder BCRYPT_ENCODER = new BCryptPasswordEncoder();
-
-  /** Hash a password using BCrypt. */
-  public static String hashPassword(String password) {
-    return BCRYPT_ENCODER.encode(password);
-  }
-
-  /** Check if a raw password matches a stored BCrypt hash. */
-  public static boolean passwordMatches(String rawPassword, String storedHash) {
-    if (rawPassword == null || storedHash == null) return false;
-    return BCRYPT_ENCODER.matches(rawPassword, storedHash);
-  }
-
-  // =============================================================================
-  // VISIBILITY HELPERS
-  // =============================================================================
-
-  /** Check if a collection is publicly visible. */
-  public static boolean isVisible(CollectionModel model) {
-    return model.getVisible() != null && model.getVisible();
-  }
-
-  // =============================================================================
-  // PAGINATION HELPERS
-  // =============================================================================
-
-  /** Check if a collection model is empty. */
-  public static boolean isEmpty(CollectionModel model) {
-    return model.getContentCount() == null || model.getContentCount() == 0;
   }
 }

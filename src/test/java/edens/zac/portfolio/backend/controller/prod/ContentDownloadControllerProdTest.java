@@ -91,7 +91,7 @@ class ContentDownloadControllerProdTest {
         .title("Smith Wedding")
         .slug("smith-wedding")
         .visible(false)
-        .passwordHash("$2a$10$fakehashfakehashfakehashfakeha")
+        .galleryPassword("sunshine")
         .build();
   }
 
@@ -102,7 +102,7 @@ class ContentDownloadControllerProdTest {
         .title("Open Portfolio")
         .slug("open-portfolio")
         .visible(true)
-        .passwordHash(null)
+        .galleryPassword(null)
         .build();
   }
 

@@ -734,8 +734,8 @@ class CollectionControllerProdTest {
   }
 
   @Test
-  @DisplayName("BE-H5: GET /collections/{slug} protected, no cookie, strips coverImage")
-  void getCollectionBySlug_protectedNoCookie_stripsCoverImage() throws Exception {
+  @DisplayName("BE-H5: GET /collections/{slug} protected, no cookie, retains coverImage")
+  void getCollectionBySlug_protectedNoCookie_retainsCoverImage() throws Exception {
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(createPasswordProtectedCollectionWithCover());
 
@@ -747,12 +747,12 @@ class CollectionControllerProdTest {
                 .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.isPasswordProtected", is(true)))
-        .andExpect(jsonPath("$.coverImage").doesNotExist());
+        .andExpect(jsonPath("$.coverImage.id", is(42)));
   }
 
   @Test
-  @DisplayName("BE-H5: GET /collections/{slug} protected, invalid cookie, strips coverImage")
-  void getCollectionBySlug_protectedInvalidCookie_stripsCoverImage() throws Exception {
+  @DisplayName("BE-H5: GET /collections/{slug} protected, invalid cookie, retains coverImage")
+  void getCollectionBySlug_protectedInvalidCookie_retainsCoverImage() throws Exception {
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(createPasswordProtectedCollectionWithCover());
     when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("bad")))
@@ -767,7 +767,7 @@ class CollectionControllerProdTest {
                 .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.isPasswordProtected", is(true)))
-        .andExpect(jsonPath("$.coverImage").doesNotExist());
+        .andExpect(jsonPath("$.coverImage.id", is(42)));
   }
 
   @Test

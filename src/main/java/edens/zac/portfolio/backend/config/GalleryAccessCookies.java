@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.config;
 
+import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
@@ -54,5 +55,15 @@ public final class GalleryAccessCookies {
         .map(Cookie::getValue)
         .findFirst()
         .orElse(null);
+  }
+
+  /**
+   * True iff the request carries a valid per-slug access cookie. Combines {@link #cookieName},
+   * {@link #readCookie}, and {@link ClientGalleryAuthService#validateAccessToken} so callers don't
+   * re-derive the trio at every gate.
+   */
+  public static boolean hasValidAccess(
+      HttpServletRequest request, String slug, ClientGalleryAuthService auth) {
+    return auth.validateAccessToken(slug, readCookie(request, cookieName(slug)));
   }
 }

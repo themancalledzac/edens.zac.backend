@@ -208,7 +208,6 @@ class CollectionServiceTest {
               null,
               null,
               null,
-              null,
               null);
 
       CollectionModel updatedModel =
@@ -253,7 +252,6 @@ class CollectionServiceTest {
               null,
               null,
               null,
-              null,
               null);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.empty());
@@ -273,7 +271,6 @@ class CollectionServiceTest {
               "New Title",
               "new-slug",
               "New desc",
-              null,
               null,
               null,
               null,

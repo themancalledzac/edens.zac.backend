@@ -1,7 +1,14 @@
 package edens.zac.portfolio.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
@@ -57,5 +64,37 @@ class GalleryAccessCookiesTest {
               new Cookie("gallery_access_bar", "tokenB"),
             });
     assertThat(GalleryAccessCookies.readCookie(request, "gallery_access_foo")).isEqualTo("tokenA");
+  }
+
+  @Test
+  void hasValidAccess_returnsTrue_whenCookiePresentAndTokenValid() {
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    Cookie cookie = new Cookie("gallery_access_my-gallery", "valid-token");
+    when(request.getCookies()).thenReturn(new Cookie[] {cookie});
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+    when(auth.validateAccessToken("my-gallery", "valid-token")).thenReturn(true);
+
+    assertTrue(GalleryAccessCookies.hasValidAccess(request, "my-gallery", auth));
+  }
+
+  @Test
+  void hasValidAccess_returnsFalse_whenNoCookies() {
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    when(request.getCookies()).thenReturn(null);
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+    when(auth.validateAccessToken(anyString(), isNull())).thenReturn(false);
+
+    assertFalse(GalleryAccessCookies.hasValidAccess(request, "my-gallery", auth));
+  }
+
+  @Test
+  void hasValidAccess_returnsFalse_whenTokenInvalid() {
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    Cookie cookie = new Cookie("gallery_access_my-gallery", "tampered");
+    when(request.getCookies()).thenReturn(new Cookie[] {cookie});
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+    when(auth.validateAccessToken("my-gallery", "tampered")).thenReturn(false);
+
+    assertFalse(GalleryAccessCookies.hasValidAccess(request, "my-gallery", auth));
   }
 }

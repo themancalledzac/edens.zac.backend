@@ -1,8 +1,6 @@
 package edens.zac.portfolio.backend.controller.prod;
 
-import static edens.zac.portfolio.backend.config.GalleryAccessCookies.cookieName;
-import static edens.zac.portfolio.backend.config.GalleryAccessCookies.readCookie;
-
+import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
@@ -49,7 +47,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
  * </ul>
  *
  * <p>Both endpoints check the per-slug access cookie when the parent collection has a {@code
- * passwordHash}. The cookie helpers live in {@link
+ * galleryPassword}. The cookie helpers live in {@link
  * edens.zac.portfolio.backend.config.GalleryAccessCookies} so cookie identity stays in lockstep
  * with the rate-limiter key.
  *
@@ -78,24 +76,23 @@ public class ContentDownloadControllerProd {
   // ---------------------------------------------------------------------------
 
   @GetMapping("/content/images/{id}/download")
-  public ResponseEntity<?> downloadImage(
+  public ResponseEntity<InputStreamResource> downloadImage(
       @PathVariable Long id,
       @RequestParam(defaultValue = "web") String format,
       HttpServletRequest request) {
     if (!"web".equalsIgnoreCase(format)) {
       log.debug("Rejecting image download (id={}) with unsupported format={}", id, format);
-      return ResponseEntity.badRequest().body("Unsupported format. Only 'web' is supported in v1.");
+      return ResponseEntity.badRequest().build();
     }
 
     ContentImageEntity image = contentService.findImageById(id);
 
     // Auth gate: enforce only when a parent collection is password-protected.
     Optional<CollectionEntity> parentCollection = contentService.findCollectionForImage(id);
-    if (parentCollection.isPresent() && parentCollection.get().getPasswordHash() != null) {
-      CollectionEntity parent = parentCollection.get();
-      String token = readCookie(request, cookieName(parent.getSlug()));
-      if (token == null || !clientGalleryAuthService.validateAccessToken(parent.getSlug(), token)) {
-        log.warn("Unauthorized image download (id={}, slug={})", id, parent.getSlug());
+    if (parentCollection.isPresent() && parentCollection.get().getGalleryPassword() != null) {
+      String parentSlug = parentCollection.get().getSlug();
+      if (!GalleryAccessCookies.hasValidAccess(request, parentSlug, clientGalleryAuthService)) {
+        log.warn("Unauthorized image download (id={}, slug={})", id, parentSlug);
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
       }
     }
@@ -141,13 +138,11 @@ public class ContentDownloadControllerProd {
 
     CollectionEntity collection = collectionService.findEntityBySlug(slug);
 
-    if (collection.getPasswordHash() != null) {
-      String token = readCookie(request, cookieName(slug));
-      if (token == null || !clientGalleryAuthService.validateAccessToken(slug, token)) {
-        log.warn("Unauthorized collection ZIP download (slug={})", slug);
-        response.sendError(HttpStatus.UNAUTHORIZED.value());
-        return;
-      }
+    if (collection.getGalleryPassword() != null
+        && !GalleryAccessCookies.hasValidAccess(request, slug, clientGalleryAuthService)) {
+      log.warn("Unauthorized collection ZIP download (slug={})", slug);
+      response.sendError(HttpStatus.UNAUTHORIZED.value());
+      return;
     }
 
     List<ContentImageEntity> images = contentService.findImagesForCollection(collection.getId());

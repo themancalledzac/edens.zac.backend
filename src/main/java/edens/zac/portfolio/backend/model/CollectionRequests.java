@@ -60,8 +60,6 @@ public final class CollectionRequests {
       Boolean visible,
       /** Display mode for ordering content in the collection */
       DisplayMode displayMode,
-      /** Password for client galleries (raw password, will be hashed) null = no change */
-      @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters") String password,
       /** Number of content items per page */
       @Min(value = 1, message = "Content per page must be 1 or greater") Integer contentPerPage,
       /** Number of items per row (chunk size for layout). Null uses default (4). */
@@ -191,4 +189,27 @@ public final class CollectionRequests {
       List<Records.ChildCollection> prev,
       List<Records.ChildCollection> newValue,
       List<Long> remove) {}
+
+  /**
+   * Request body for {@code POST /api/admin/collections/{id}/gallery-access}.
+   *
+   * <ul>
+   *   <li>password present + emails non-empty: set password and send one email per recipient
+   *   <li>password present + emails null/empty: set password only
+   *   <li>password null: clear password and recipient list
+   * </ul>
+   */
+  public record GalleryAccessRequest(
+      @Size(min = 4, max = 100, message = "Password must be between 4 and 100 characters") String password,
+      List<@Email @NotBlank String> emails) {}
+
+  /**
+   * Response body for the gallery-access endpoint. Echoes the saved password and recipient list so
+   * the admin manage page can update its local state without an extra GET. Status fields ({@code
+   * saved}, {@code emailsSent}, {@code reason}) cover the not-client-gallery 400 path and email
+   * delivery diagnostics. When {@code saved} is false, {@code password} is null and {@code emails}
+   * is empty (nothing was persisted).
+   */
+  public record GalleryAccessResponse(
+      boolean saved, boolean emailsSent, String reason, String password, List<String> emails) {}
 }

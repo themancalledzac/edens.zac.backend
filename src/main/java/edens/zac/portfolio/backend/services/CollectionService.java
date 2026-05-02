@@ -16,6 +16,8 @@ import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessRequest;
+import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessResponse;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -59,6 +61,7 @@ public class CollectionService {
   private final ContentModelConverter contentModelConverter;
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final MetadataService metadataService;
+  private final EmailService emailService;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
   private static final String HOME_SLUG = "home";
@@ -356,7 +359,7 @@ public class CollectionService {
 
   /**
    * Find the raw {@link CollectionEntity} by ID. Used by admin/download flows that need direct
-   * entity access (e.g. mutating {@code passwordHash}, reading bucket-relative S3 keys). Throws
+   * entity access (e.g. updating {@code galleryPassword}, reading bucket-relative S3 keys). Throws
    * {@link ResourceNotFoundException} when no row matches.
    */
   @Transactional(readOnly = true)
@@ -378,15 +381,6 @@ public class CollectionService {
         .findBySlug(slug)
         .orElseThrow(
             () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
-  }
-
-  /**
-   * Persist a CollectionEntity and return the saved instance. Thin pass-through to the repository
-   * layer so callers don't reach across the service boundary directly.
-   */
-  @Transactional
-  public CollectionEntity saveEntity(CollectionEntity entity) {
-    return collectionRepository.save(entity);
   }
 
   @Transactional
@@ -528,7 +522,7 @@ public class CollectionService {
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Get all general metadata using helper method
-    GeneralMetadataDTO metadata = getGeneralMetadata();
+    final GeneralMetadataDTO metadata = getGeneralMetadata();
 
     // For parent-type collections, aggregate images from child collections
     List<ContentModels.Image> childCollectionImages = null;
@@ -554,6 +548,10 @@ public class CollectionService {
           childCollectionIds.size(),
           slug);
     }
+
+    // Populate admin-only fields so the manage page can display/edit them.
+    collection.setGalleryPassword(entity.getGalleryPassword());
+    collection.setRecipientEmails(entity.getRecipientEmails());
 
     return new CollectionRequests.UpdateResponse(collection, metadata, childCollectionImages);
   }
@@ -1046,5 +1044,67 @@ public class CollectionService {
 
     model.setContent(filtered);
     log.debug("Filtered {} invisible child collections from response", invisibleIds.size());
+  }
+
+  /**
+   * Persists gallery password and recipient list, then sends emails when requested.
+   *
+   * <p>Three modes, driven by the request:
+   *
+   * <ul>
+   *   <li>password null: clear password and recipients
+   *   <li>password set, emails empty: set password, no email
+   *   <li>password set, emails non-empty: set password and send one email per recipient
+   * </ul>
+   *
+   * <p>Returns {@code GalleryAccessResponse(saved=false, reason="not-client-gallery")} when the
+   * target collection is not a {@link CollectionType#CLIENT_GALLERY}.
+   */
+  @Transactional
+  public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
+    CollectionEntity entity = findEntityById(id);
+
+    if (entity.getType() != CollectionType.CLIENT_GALLERY) {
+      log.warn(
+          "Refusing gallery-access update on non-CLIENT_GALLERY collection (id={}, type={})",
+          id,
+          entity.getType());
+      return new GalleryAccessResponse(false, false, "not-client-gallery", null, List.of());
+    }
+
+    List<String> emails =
+        request.emails() != null && !request.emails().isEmpty() ? request.emails() : List.of();
+
+    if (request.password() == null) {
+      collectionRepository.saveGalleryAccess(id, null, List.of());
+      log.info("Cleared gallery password and recipients (id={}, slug={})", id, entity.getSlug());
+      return new GalleryAccessResponse(true, false, null, null, List.of());
+    }
+
+    collectionRepository.saveGalleryAccess(id, request.password(), emails);
+    log.info(
+        "Set gallery password (id={}, slug={}, recipients={})",
+        id,
+        entity.getSlug(),
+        emails.size());
+
+    if (emails.isEmpty()) {
+      return new GalleryAccessResponse(true, false, null, request.password(), List.of());
+    }
+
+    boolean allSent = true;
+    String firstFailureReason = null;
+    for (String email : emails) {
+      EmailService.SendResult result =
+          emailService.sendGalleryPasswordEmail(
+              email, entity.getTitle(), entity.getSlug(), request.password());
+      if (!result.sent() && allSent) {
+        allSent = false;
+        firstFailureReason = result.reason();
+      }
+    }
+
+    return new GalleryAccessResponse(
+        true, allSent, allSent ? null : firstFailureReason, request.password(), emails);
   }
 }
