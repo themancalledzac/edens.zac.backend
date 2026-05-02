@@ -52,7 +52,7 @@ public class ClientGalleryAuthService {
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Not password-protected -- allow access
-    if (collection.getPasswordHash() == null) {
+    if (collection.getGalleryPassword() == null) {
       return true;
     }
 
@@ -61,7 +61,7 @@ public class ClientGalleryAuthService {
       return false;
     }
 
-    return CollectionProcessingUtil.passwordMatches(password, collection.getPasswordHash());
+    return collection.getGalleryPassword().equals(password);
   }
 
   /**
@@ -96,7 +96,7 @@ public class ClientGalleryAuthService {
     }
 
     // Non-protected collections are always accessible
-    if (optCollection.get().getPasswordHash() == null) {
+    if (optCollection.get().getGalleryPassword() == null) {
       return true;
     }
 

@@ -555,6 +555,10 @@ public class CollectionService {
           slug);
     }
 
+    // Populate admin-only fields so the manage page can display/edit them.
+    collection.setGalleryPassword(entity.getGalleryPassword());
+    collection.setRecipientEmails(entity.getRecipientEmails());
+
     return new CollectionRequests.UpdateResponse(collection, metadata, childCollectionImages);
   }
 

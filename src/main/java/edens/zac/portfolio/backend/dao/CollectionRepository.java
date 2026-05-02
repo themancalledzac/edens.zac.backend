@@ -5,8 +5,10 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.DisplayMode;
+import java.sql.Array;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,7 +39,7 @@ public class CollectionRepository extends BaseDao {
       """
       SELECT id, type, title, slug, description, collection_date,
              visible, display_mode, cover_image_id, content_per_page, total_content,
-             rows_wide, password_hash, created_at, updated_at
+             rows_wide, gallery_password, recipient_emails, created_at, updated_at
       FROM collection
       """;
 
@@ -69,7 +71,12 @@ public class CollectionRepository extends BaseDao {
         entity.setContentPerPage(getInteger(rs, "content_per_page"));
         entity.setTotalContent(getInteger(rs, "total_content"));
         entity.setRowsWide(getInteger(rs, "rows_wide"));
-        entity.setPasswordHash(rs.getString("password_hash"));
+        entity.setGalleryPassword(rs.getString("gallery_password"));
+        Array emailsArray = rs.getArray("recipient_emails");
+        entity.setRecipientEmails(
+            emailsArray != null
+                ? new ArrayList<>(Arrays.asList((String[]) emailsArray.getArray()))
+                : new ArrayList<>());
         entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
         entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
 
@@ -151,7 +158,7 @@ public class CollectionRepository extends BaseDao {
         """
         SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
                c.visible, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.password_hash, c.created_at, c.updated_at
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.created_at, c.updated_at
         FROM collection c
         JOIN collection_locations cl ON c.id = cl.collection_id
         JOIN location l ON cl.location_id = l.id
@@ -251,10 +258,10 @@ public class CollectionRepository extends BaseDao {
           """
           INSERT INTO collection (type, title, slug, description, collection_date,
                                  visible, display_mode, cover_image_id, content_per_page, total_content,
-                                 rows_wide, password_hash, created_at, updated_at)
+                                 rows_wide, gallery_password, created_at, updated_at)
           VALUES (:type, :title, :slug, :description, :collectionDate,
                   :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
-                  :rowsWide, :passwordHash, :createdAt, :updatedAt)
+                  :rowsWide, :galleryPassword, :createdAt, :updatedAt)
           """;
 
       MapSqlParameterSource params =
@@ -272,7 +279,7 @@ public class CollectionRepository extends BaseDao {
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
-              .addValue("passwordHash", entity.getPasswordHash())
+              .addValue("galleryPassword", entity.getGalleryPassword())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now())
@@ -290,7 +297,7 @@ public class CollectionRepository extends BaseDao {
           SET type = :type, title = :title, slug = :slug, description = :description,
               collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-              rows_wide = :rowsWide, password_hash = :passwordHash, updated_at = :updatedAt
+              rows_wide = :rowsWide, gallery_password = :galleryPassword, updated_at = :updatedAt
           WHERE id = :id
           """;
 
@@ -310,12 +317,29 @@ public class CollectionRepository extends BaseDao {
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
-              .addValue("passwordHash", entity.getPasswordHash())
+              .addValue("galleryPassword", entity.getGalleryPassword())
               .addValue("updatedAt", LocalDateTime.now());
 
       update(sql, params);
       return entity;
     }
+  }
+
+  /** Update gallery_password and recipient_emails atomically for a CLIENT_GALLERY. */
+  @Transactional
+  public void saveGalleryAccess(Long collectionId, String password, List<String> emails) {
+    String[] emailArray = emails != null ? emails.toArray(new String[0]) : new String[0];
+    jdbcTemplate.update(
+        conn -> {
+          var ps =
+              conn.prepareStatement(
+                  "UPDATE collection SET gallery_password = ?, recipient_emails = ?, updated_at = ? WHERE id = ?");
+          ps.setString(1, password);
+          ps.setArray(2, conn.createArrayOf("text", emailArray));
+          ps.setTimestamp(3, java.sql.Timestamp.valueOf(LocalDateTime.now()));
+          ps.setLong(4, collectionId);
+          return ps;
+        });
   }
 
   @Transactional(readOnly = true)

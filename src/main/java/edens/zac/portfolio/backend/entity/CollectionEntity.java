@@ -6,6 +6,7 @@ import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -54,8 +55,11 @@ public class CollectionEntity {
   /** Column: rows_wide (INTEGER) - Number of items per row (chunk size for layout) */
   @Min(1) private Integer rowsWide;
 
-  /** Column: password_hash (VARCHAR(255)) - SHA-256 hash for client gallery access */
-  private String passwordHash;
+  /** Column: gallery_password (VARCHAR(255)) - plaintext password for client gallery access */
+  private String galleryPassword;
+
+  /** Column: recipient_emails (TEXT[]) - email addresses to notify when gallery access is sent */
+  private List<String> recipientEmails;
 
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;

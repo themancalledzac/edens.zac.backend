@@ -72,6 +72,12 @@ public class CollectionModel {
 
   private Boolean isPasswordProtected;
 
+  /** Admin-only: plaintext gallery password. Populated only in admin/manage responses. */
+  private String galleryPassword;
+
+  /** Admin-only: recipient email addresses. Populated only in admin/manage responses. */
+  private List<String> recipientEmails;
+
   // === Timestamps ===
 
   private LocalDateTime createdAt;

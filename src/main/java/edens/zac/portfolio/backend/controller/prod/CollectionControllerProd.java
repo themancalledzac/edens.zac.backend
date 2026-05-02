@@ -100,20 +100,12 @@ public class CollectionControllerProd {
     CollectionModel collection =
         collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
 
-    // For password-protected galleries, omit content (and the cover image) unless a valid cookie
-    // is supplied. The cover image is treated as private metadata for protected galleries; it
-    // would otherwise leak in the SSR HTML, the OpenGraph meta tags, and any pre-rendered
-    // children of the frontend's ClientGalleryGate.
-    //
-    // Note: coverImage is also stripped centrally in CollectionProcessingUtil.buildBasicModel
-    // for all list endpoints (getAllCollections, getCollectionsByType). The setCoverImage(null)
-    // call below is intentional defense-in-depth (belt + suspenders).
+    // For password-protected galleries, omit content unless a valid cookie is supplied.
     if (Boolean.TRUE.equals(collection.getIsPasswordProtected())) {
       String cookieToken = readCookie(request, cookieName(slug));
       if (cookieToken == null || !clientGalleryAuthService.validateAccessToken(slug, cookieToken)) {
         collection.setContent(null);
         collection.setContentCount(null);
-        collection.setCoverImage(null);
       }
     }
 
