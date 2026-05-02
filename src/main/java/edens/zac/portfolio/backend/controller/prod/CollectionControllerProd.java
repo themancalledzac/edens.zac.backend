@@ -1,10 +1,10 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import static edens.zac.portfolio.backend.config.GalleryAccessCookies.cookieName;
-import static edens.zac.portfolio.backend.config.GalleryAccessCookies.readCookie;
 
 import edens.zac.portfolio.backend.config.ClientGalleryAccessLimiter;
 import edens.zac.portfolio.backend.config.DefaultValues;
+import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.PasswordRequest;
@@ -101,12 +101,10 @@ public class CollectionControllerProd {
         collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
 
     // For password-protected galleries, omit content unless a valid cookie is supplied.
-    if (Boolean.TRUE.equals(collection.getIsPasswordProtected())) {
-      String cookieToken = readCookie(request, cookieName(slug));
-      if (cookieToken == null || !clientGalleryAuthService.validateAccessToken(slug, cookieToken)) {
-        collection.setContent(null);
-        collection.setContentCount(null);
-      }
+    if (Boolean.TRUE.equals(collection.getIsPasswordProtected())
+        && !GalleryAccessCookies.hasValidAccess(request, slug, clientGalleryAuthService)) {
+      collection.setContent(null);
+      collection.setContentCount(null);
     }
 
     return ResponseEntity.ok(collection);
