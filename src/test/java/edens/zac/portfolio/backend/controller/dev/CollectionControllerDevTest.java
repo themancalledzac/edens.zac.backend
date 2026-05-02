@@ -106,7 +106,6 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
-            null,
             null);
   }
 
@@ -180,7 +179,6 @@ class CollectionControllerDevTest {
             999L,
             null,
             "Updated Test Blog",
-            null,
             null,
             null,
             null,
@@ -370,7 +368,6 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
-            null,
             tagUpdate,
             null,
             null);
@@ -417,7 +414,6 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
-            null,
             personUpdate,
             null);
 
@@ -453,7 +449,6 @@ class CollectionControllerDevTest {
             1L,
             null,
             "Updated Blog with Tags and People",
-            null,
             null,
             null,
             null,

@@ -140,41 +140,29 @@ class CollectionEntityTest {
   }
 
   @Test
-  void testPasswordProtectionStateIsDerivedFromHash() {
-    // After the password-hash migration, password protection is no longer a separate boolean
-    // on the entity — it is derived from passwordHash != null. CollectionProcessingUtil populates
-    // the model's isPasswordProtected flag accordingly. These tests validate the entity-level
-    // hash semantics that drive that derivation.
+  void testPasswordProtectionStateIsDerivedFromGalleryPassword() {
+    // Password protection is derived from galleryPassword != null.
+    // CollectionProcessingUtil populates the model's isPasswordProtected flag accordingly.
 
-    // Hash present -> protected
+    // Password present -> protected
     CollectionEntity protectedCollection = new CollectionEntity();
     protectedCollection.setType(CollectionType.CLIENT_GALLERY);
     protectedCollection.setTitle("Protected Collection");
     protectedCollection.setSlug("protected-collection");
     protectedCollection.setVisible(false);
-    protectedCollection.setPasswordHash("$2a$10$someHashValue");
+    protectedCollection.setGalleryPassword("sunshine");
 
-    assertNotNull(protectedCollection.getPasswordHash());
+    assertNotNull(protectedCollection.getGalleryPassword());
 
-    // Hash null -> not protected
+    // Password null -> not protected
     CollectionEntity unprotectedCollection = new CollectionEntity();
     unprotectedCollection.setType(CollectionType.BLOG);
     unprotectedCollection.setTitle("Public Collection");
     unprotectedCollection.setSlug("public-collection");
     unprotectedCollection.setVisible(true);
-    unprotectedCollection.setPasswordHash(null);
+    unprotectedCollection.setGalleryPassword(null);
 
-    assertNull(unprotectedCollection.getPasswordHash());
-
-    // Empty-string hash -> entity level allows it (validation lives elsewhere); CollectionService
-    // / CollectionProcessingUtil clears via setPasswordHash(null).
-    CollectionEntity emptyHash = new CollectionEntity();
-    emptyHash.setType(CollectionType.CLIENT_GALLERY);
-    emptyHash.setTitle("Cleared Collection");
-    emptyHash.setSlug("cleared-collection");
-    emptyHash.setVisible(false);
-    emptyHash.setPasswordHash("");
-    assertEquals("", emptyHash.getPasswordHash());
+    assertNull(unprotectedCollection.getGalleryPassword());
   }
 
   @Test
