@@ -251,6 +251,11 @@ public class CollectionRepository extends BaseDao {
                 CollectionType.valueOf(rs.getString("type"))));
   }
 
+  /**
+   * Persist a CollectionEntity. INSERT writes all columns; UPDATE intentionally omits {@code
+   * gallery_password} and {@code recipient_emails} — those are owned exclusively by {@link
+   * #saveGalleryAccess}, which writes them atomically as a pair.
+   */
   @Transactional
   public CollectionEntity save(CollectionEntity entity) {
     if (entity.getId() == null) {
@@ -297,7 +302,7 @@ public class CollectionRepository extends BaseDao {
           SET type = :type, title = :title, slug = :slug, description = :description,
               collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-              rows_wide = :rowsWide, gallery_password = :galleryPassword, updated_at = :updatedAt
+              rows_wide = :rowsWide, updated_at = :updatedAt
           WHERE id = :id
           """;
 
@@ -317,7 +322,6 @@ public class CollectionRepository extends BaseDao {
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
-              .addValue("galleryPassword", entity.getGalleryPassword())
               .addValue("updatedAt", LocalDateTime.now());
 
       update(sql, params);
