@@ -11,6 +11,7 @@ import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessRequest;
 import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessResponse;
 import edens.zac.portfolio.backend.services.CollectionService;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,9 @@ class CollectionAdminControllerTest {
     @Test
     void savesPasswordAndSendsEmailPerRecipient() throws Exception {
       when(collectionService.updateGalleryAccess(eq(42L), any(GalleryAccessRequest.class)))
-          .thenReturn(new GalleryAccessResponse(true, true, null));
+          .thenReturn(
+              new GalleryAccessResponse(
+                  true, true, null, "sunshine", List.of("a@example.com", "b@example.com")));
 
       mockMvc
           .perform(
@@ -55,13 +58,18 @@ class CollectionAdminControllerTest {
                       "{\"password\":\"sunshine\",\"emails\":[\"a@example.com\",\"b@example.com\"]}"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.saved").value(true))
-          .andExpect(jsonPath("$.emailsSent").value(true));
+          .andExpect(jsonPath("$.emailsSent").value(true))
+          .andExpect(jsonPath("$.password").value("sunshine"))
+          .andExpect(jsonPath("$.emails[0]").value("a@example.com"))
+          .andExpect(jsonPath("$.emails[1]").value("b@example.com"));
     }
 
     @Test
     void emailDisabledReturnsSavedTrueEmailsSentFalse() throws Exception {
       when(collectionService.updateGalleryAccess(eq(42L), any(GalleryAccessRequest.class)))
-          .thenReturn(new GalleryAccessResponse(true, false, "email-disabled"));
+          .thenReturn(
+              new GalleryAccessResponse(
+                  true, false, "email-disabled", "sunshine", List.of("a@example.com")));
 
       mockMvc
           .perform(
@@ -71,7 +79,9 @@ class CollectionAdminControllerTest {
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.saved").value(true))
           .andExpect(jsonPath("$.emailsSent").value(false))
-          .andExpect(jsonPath("$.reason").value("email-disabled"));
+          .andExpect(jsonPath("$.reason").value("email-disabled"))
+          .andExpect(jsonPath("$.password").value("sunshine"))
+          .andExpect(jsonPath("$.emails[0]").value("a@example.com"));
     }
   }
 
@@ -81,7 +91,7 @@ class CollectionAdminControllerTest {
     @Test
     void nullEmailsStoresPasswordWithoutSendingEmail() throws Exception {
       when(collectionService.updateGalleryAccess(eq(42L), any(GalleryAccessRequest.class)))
-          .thenReturn(new GalleryAccessResponse(true, false, null));
+          .thenReturn(new GalleryAccessResponse(true, false, null, "sunshine", List.of()));
 
       mockMvc
           .perform(
@@ -90,13 +100,15 @@ class CollectionAdminControllerTest {
                   .content("{\"password\":\"sunshine\"}"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.saved").value(true))
-          .andExpect(jsonPath("$.emailsSent").value(false));
+          .andExpect(jsonPath("$.emailsSent").value(false))
+          .andExpect(jsonPath("$.password").value("sunshine"))
+          .andExpect(jsonPath("$.emails").isEmpty());
     }
 
     @Test
     void emptyEmailListStoresPasswordWithoutSendingEmail() throws Exception {
       when(collectionService.updateGalleryAccess(eq(42L), any(GalleryAccessRequest.class)))
-          .thenReturn(new GalleryAccessResponse(true, false, null));
+          .thenReturn(new GalleryAccessResponse(true, false, null, "sunshine", List.of()));
 
       mockMvc
           .perform(
@@ -105,7 +117,8 @@ class CollectionAdminControllerTest {
                   .content("{\"password\":\"sunshine\",\"emails\":[]}"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.saved").value(true))
-          .andExpect(jsonPath("$.emailsSent").value(false));
+          .andExpect(jsonPath("$.emailsSent").value(false))
+          .andExpect(jsonPath("$.password").value("sunshine"));
     }
   }
 
@@ -115,7 +128,7 @@ class CollectionAdminControllerTest {
     @Test
     void nullPasswordClearsGalleryAccess() throws Exception {
       when(collectionService.updateGalleryAccess(eq(42L), any(GalleryAccessRequest.class)))
-          .thenReturn(new GalleryAccessResponse(true, false, null));
+          .thenReturn(new GalleryAccessResponse(true, false, null, null, List.of()));
 
       mockMvc
           .perform(
@@ -124,7 +137,9 @@ class CollectionAdminControllerTest {
                   .content("{}"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.saved").value(true))
-          .andExpect(jsonPath("$.emailsSent").value(false));
+          .andExpect(jsonPath("$.emailsSent").value(false))
+          .andExpect(jsonPath("$.password").doesNotExist())
+          .andExpect(jsonPath("$.emails").isEmpty());
     }
   }
 
@@ -134,7 +149,8 @@ class CollectionAdminControllerTest {
     @Test
     void nonClientGalleryReturns400() throws Exception {
       when(collectionService.updateGalleryAccess(eq(7L), any(GalleryAccessRequest.class)))
-          .thenReturn(new GalleryAccessResponse(false, false, "not-client-gallery"));
+          .thenReturn(
+              new GalleryAccessResponse(false, false, "not-client-gallery", null, List.of()));
 
       mockMvc
           .perform(
@@ -143,7 +159,9 @@ class CollectionAdminControllerTest {
                   .content("{\"password\":\"sunshine\",\"emails\":[\"a@example.com\"]}"))
           .andExpect(status().isBadRequest())
           .andExpect(jsonPath("$.saved").value(false))
-          .andExpect(jsonPath("$.reason").value("not-client-gallery"));
+          .andExpect(jsonPath("$.reason").value("not-client-gallery"))
+          .andExpect(jsonPath("$.password").doesNotExist())
+          .andExpect(jsonPath("$.emails").isEmpty());
     }
 
     @Test

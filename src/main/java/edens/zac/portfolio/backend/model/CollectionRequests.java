@@ -203,6 +203,13 @@ public final class CollectionRequests {
       @Size(min = 4, max = 100, message = "Password must be between 4 and 100 characters") String password,
       List<@Email @NotBlank String> emails) {}
 
-  /** Response body for the gallery-access endpoint. */
-  public record GalleryAccessResponse(boolean saved, boolean emailsSent, String reason) {}
+  /**
+   * Response body for the gallery-access endpoint. Echoes the saved password and recipient list so
+   * the admin manage page can update its local state without an extra GET. Status fields ({@code
+   * saved}, {@code emailsSent}, {@code reason}) cover the not-client-gallery 400 path and email
+   * delivery diagnostics. When {@code saved} is false, {@code password} is null and {@code emails}
+   * is empty (nothing was persisted).
+   */
+  public record GalleryAccessResponse(
+      boolean saved, boolean emailsSent, String reason, String password, List<String> emails) {}
 }

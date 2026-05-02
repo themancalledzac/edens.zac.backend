@@ -1069,7 +1069,7 @@ public class CollectionService {
           "Refusing gallery-access update on non-CLIENT_GALLERY collection (id={}, type={})",
           id,
           entity.getType());
-      return new GalleryAccessResponse(false, false, "not-client-gallery");
+      return new GalleryAccessResponse(false, false, "not-client-gallery", null, List.of());
     }
 
     List<String> emails =
@@ -1078,7 +1078,7 @@ public class CollectionService {
     if (request.password() == null) {
       collectionRepository.saveGalleryAccess(id, null, List.of());
       log.info("Cleared gallery password and recipients (id={}, slug={})", id, entity.getSlug());
-      return new GalleryAccessResponse(true, false, null);
+      return new GalleryAccessResponse(true, false, null, null, List.of());
     }
 
     collectionRepository.saveGalleryAccess(id, request.password(), emails);
@@ -1089,7 +1089,7 @@ public class CollectionService {
         emails.size());
 
     if (emails.isEmpty()) {
-      return new GalleryAccessResponse(true, false, null);
+      return new GalleryAccessResponse(true, false, null, request.password(), List.of());
     }
 
     boolean allSent = true;
@@ -1104,6 +1104,7 @@ public class CollectionService {
       }
     }
 
-    return new GalleryAccessResponse(true, allSent, allSent ? null : firstFailureReason);
+    return new GalleryAccessResponse(
+        true, allSent, allSent ? null : firstFailureReason, request.password(), emails);
   }
 }
