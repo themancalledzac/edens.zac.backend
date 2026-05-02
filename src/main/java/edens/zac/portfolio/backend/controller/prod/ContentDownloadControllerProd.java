@@ -76,13 +76,13 @@ public class ContentDownloadControllerProd {
   // ---------------------------------------------------------------------------
 
   @GetMapping("/content/images/{id}/download")
-  public ResponseEntity<?> downloadImage(
+  public ResponseEntity<InputStreamResource> downloadImage(
       @PathVariable Long id,
       @RequestParam(defaultValue = "web") String format,
       HttpServletRequest request) {
     if (!"web".equalsIgnoreCase(format)) {
       log.debug("Rejecting image download (id={}) with unsupported format={}", id, format);
-      return ResponseEntity.badRequest().body("Unsupported format. Only 'web' is supported in v1.");
+      return ResponseEntity.badRequest().build();
     }
 
     ContentImageEntity image = contentService.findImageById(id);
