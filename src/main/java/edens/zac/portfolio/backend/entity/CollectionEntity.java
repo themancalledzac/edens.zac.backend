@@ -6,6 +6,7 @@ import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -59,7 +60,7 @@ public class CollectionEntity {
   private String galleryPassword;
 
   /** Column: recipient_emails (TEXT[]) - email addresses to notify when gallery access is sent */
-  private List<String> recipientEmails;
+  @Builder.Default private List<String> recipientEmails = new ArrayList<>();
 
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;
