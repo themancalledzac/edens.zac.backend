@@ -183,26 +183,6 @@ public class CollectionService {
     return collectionProcessingUtil.batchConvertToBasicModels(entities);
   }
 
-  /**
-   * Return all collections (optionally filtered by type) for synthetic-slug list views, ordered by
-   * rating then collection_date. Visibility scope is environment-aware: local includes LISTED +
-   * UNLISTED + HIDDEN, prod includes only LISTED.
-   */
-  @Transactional(readOnly = true)
-  public List<CollectionModel> findAllOrderedForSyntheticView(
-      CollectionType typeFilter, boolean isLocalEnvironment) {
-    List<CollectionVisibility> allowed =
-        isLocalEnvironment
-            ? List.of(
-                CollectionVisibility.LISTED,
-                CollectionVisibility.UNLISTED,
-                CollectionVisibility.HIDDEN)
-            : List.of(CollectionVisibility.LISTED);
-    List<CollectionEntity> rows =
-        collectionRepository.findOrderedByVisibilityIn(allowed, typeFilter);
-    return collectionProcessingUtil.batchConvertToBasicModels(rows);
-  }
-
   @Transactional(readOnly = true)
   public LocationPageResponse getLocationPage(
       String locationName, int collectionPage, int collectionSize, int imagePage, int imageSize) {

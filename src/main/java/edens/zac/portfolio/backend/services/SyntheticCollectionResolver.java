@@ -1,5 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -10,12 +12,17 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Recognizes the synthetic admin/list slugs ("all-collections", "all-blogs", etc.) and synthesizes
  * a PARENT-shaped {@link CollectionModel} populated with {@link ContentModels.Collection} content
  * blocks pointing to each child. Bypasses the regular DB lookup in {@code
  * CollectionService.getCollectionWithPagination}.
+ *
+ * <p>Depends on {@link CollectionRepository} + {@link CollectionProcessingUtil} directly (NOT on
+ * {@link CollectionService}) to avoid a circular bean dependency: CollectionService injects this
+ * resolver to dispatch synthetic slugs.
  */
 @Service
 @RequiredArgsConstructor
@@ -30,7 +37,8 @@ public class SyntheticCollectionResolver {
           "all-art-galleries", new Synthetic("Art Galleries", CollectionType.ART_GALLERY),
           "all-misc", new Synthetic("Misc", CollectionType.MISC));
 
-  private final CollectionService collectionService;
+  private final CollectionRepository collectionRepository;
+  private final CollectionProcessingUtil collectionProcessingUtil;
 
   /** Returns true if the slug matches a synthetic-list catalog entry. */
   public boolean isSyntheticSlug(String slug) {
@@ -41,13 +49,23 @@ public class SyntheticCollectionResolver {
    * Resolve a synthetic slug into a PARENT-shaped {@link CollectionModel}. Caller is responsible
    * for verifying the slug via {@link #isSyntheticSlug(String)} first.
    */
+  @Transactional(readOnly = true)
   public CollectionModel resolve(String slug, boolean isLocalEnvironment) {
     Synthetic spec = CATALOG.get(slug);
     if (spec == null) {
       throw new IllegalArgumentException("Not a synthetic slug: " + slug);
     }
-    List<CollectionModel> children =
-        collectionService.findAllOrderedForSyntheticView(spec.typeFilter(), isLocalEnvironment);
+
+    List<CollectionVisibility> allowed =
+        isLocalEnvironment
+            ? List.of(
+                CollectionVisibility.LISTED,
+                CollectionVisibility.UNLISTED,
+                CollectionVisibility.HIDDEN)
+            : List.of(CollectionVisibility.LISTED);
+    List<CollectionEntity> rows =
+        collectionRepository.findOrderedByVisibilityIn(allowed, spec.typeFilter());
+    List<CollectionModel> children = collectionProcessingUtil.batchConvertToBasicModels(rows);
 
     List<ContentModel> content =
         children.stream()

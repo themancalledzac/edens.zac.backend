@@ -3,9 +3,11 @@ package edens.zac.portfolio.backend.services;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -21,7 +23,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SyntheticCollectionResolverTest {
 
-  @Mock private CollectionService collectionService;
+  @Mock private CollectionRepository collectionRepository;
+  @Mock private CollectionProcessingUtil collectionProcessingUtil;
 
   @InjectMocks private SyntheticCollectionResolver resolver;
 
@@ -44,8 +47,16 @@ class SyntheticCollectionResolverTest {
   }
 
   @Test
-  void resolveAllCollectionsInDevReturnsAllChildrenAsContent() {
-    when(collectionService.findAllOrderedForSyntheticView(any(), anyBoolean()))
+  void resolveAllCollectionsInDevAllowsAllVisibilitiesAndReturnsChildrenAsContent() {
+    when(collectionRepository.findOrderedByVisibilityIn(
+            eq(
+                List.of(
+                    CollectionVisibility.LISTED,
+                    CollectionVisibility.UNLISTED,
+                    CollectionVisibility.HIDDEN)),
+            eq(null)))
+        .thenReturn(List.of(new CollectionEntity(), new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
             List.of(
                 CollectionModel.builder().id(1L).slug("a").type(CollectionType.PORTFOLIO).build(),
@@ -67,8 +78,11 @@ class SyntheticCollectionResolverTest {
   }
 
   @Test
-  void resolveAllBlogsFiltersToBlogTypeAndPropagatesEnvFlag() {
-    when(collectionService.findAllOrderedForSyntheticView(CollectionType.BLOG, false))
+  void resolveAllBlogsInProdFiltersToBlogTypeAndListedOnly() {
+    when(collectionRepository.findOrderedByVisibilityIn(
+            eq(List.of(CollectionVisibility.LISTED)), eq(CollectionType.BLOG)))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
             List.of(
                 CollectionModel.builder().id(11L).slug("trip").type(CollectionType.BLOG).build()));
