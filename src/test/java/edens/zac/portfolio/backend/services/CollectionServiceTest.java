@@ -850,4 +850,48 @@ class CollectionServiceTest {
       verify(collectionProcessingUtil, never()).loadImagesFromChildCollections(any());
     }
   }
+
+  @Nested
+  class FindChildCollectionsForHome {
+
+    @Test
+    void returnsEmptyWhenHomeMissing() {
+      when(collectionRepository.findBySlug("home")).thenReturn(Optional.empty());
+
+      assertThat(service.findChildCollectionsForHome()).isEmpty();
+    }
+
+    @Test
+    void returnsBatchConvertedChildrenForVisibleHomeReferences() {
+      CollectionEntity home =
+          CollectionEntity.builder().id(1L).slug("home").type(CollectionType.HOME).build();
+      when(collectionRepository.findBySlug("home")).thenReturn(Optional.of(home));
+
+      CollectionEntity child = CollectionEntity.builder().id(11L).visible(true).build();
+      when(collectionRepository.findReferencedCollectionsByParentId(1L)).thenReturn(List.of(child));
+
+      CollectionModel childModel = CollectionModel.builder().id(11L).build();
+      when(collectionProcessingUtil.batchConvertToBasicModels(List.of(child)))
+          .thenReturn(List.of(childModel));
+
+      assertThat(service.findChildCollectionsForHome())
+          .singleElement()
+          .satisfies(m -> assertThat(m.getId()).isEqualTo(11L));
+    }
+  }
+
+  @Nested
+  class FindAllVisibleWithCovers {
+
+    @Test
+    void delegatesToRepositoryAndConverts() {
+      CollectionEntity entity = CollectionEntity.builder().id(1L).build();
+      when(collectionRepository.findAllVisibleWithCovers()).thenReturn(List.of(entity));
+      CollectionModel model = CollectionModel.builder().id(1L).build();
+      when(collectionProcessingUtil.batchConvertToBasicModels(List.of(entity)))
+          .thenReturn(List.of(model));
+
+      assertThat(service.findAllVisibleWithCovers()).containsExactly(model);
+    }
+  }
 }

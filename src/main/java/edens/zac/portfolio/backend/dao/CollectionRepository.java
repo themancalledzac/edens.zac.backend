@@ -143,6 +143,40 @@ public class CollectionRepository extends BaseDao {
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
+  /**
+   * Find visible child collections referenced by a parent collection. Walks the join chain: parent
+   * -> collection_content -> content_collection -> referenced collection. Filters out hidden
+   * link-table rows and hidden child collections so callers only see what is publicly visible.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findReferencedCollectionsByParentId(Long parentId) {
+    String sql =
+        """
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+               c.visible, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.created_at, c.updated_at
+        FROM collection c
+        JOIN content_collection cct ON cct.referenced_collection_id = c.id
+        JOIN collection_content cc ON cc.content_id = cct.id
+        WHERE cc.collection_id = :parentId
+          AND cc.visible = true
+          AND c.visible = true
+        ORDER BY cc.order_index ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /** Find every visible collection that has a cover image, newest first. */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findAllVisibleWithCovers() {
+    String sql =
+        SELECT_COLLECTION
+            + " WHERE visible = true AND cover_image_id IS NOT NULL "
+            + "ORDER BY collection_date DESC NULLS LAST";
+    return query(sql, COLLECTION_ROW_MAPPER);
+  }
+
   @Transactional(readOnly = true)
   public long countByType(CollectionType type) {
     String sql = "SELECT COUNT(*) FROM collection WHERE type = :type AND visible = true";

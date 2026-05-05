@@ -150,28 +150,26 @@ public class CollectionService {
 
   /**
    * Return child collections referenced by the "home" parent collection. Used by AdminHomeService
-   * to pick a cover image for the home tile.
-   *
-   * <p>STUB - real implementation lands in Task A4. Returning empty list keeps callers safe and
-   * tests honest until then.
+   * to pick a cover image for the home tile. Returns an empty list if the home collection does not
+   * exist.
    */
   @Transactional(readOnly = true)
   public List<CollectionModel> findChildCollectionsForHome() {
-    log.debug("findChildCollectionsForHome stub - returning empty list (A4 will implement)");
-    return List.of();
+    return collectionRepository
+        .findBySlug(HOME_SLUG)
+        .map(home -> collectionRepository.findReferencedCollectionsByParentId(home.getId()))
+        .map(collectionProcessingUtil::batchConvertToBasicModels)
+        .orElseGet(List::of);
   }
 
   /**
    * Return all visible collections that have a cover image set. Used by AdminHomeService to pick a
    * cover for the all-collections tile.
-   *
-   * <p>STUB - real implementation lands in Task A4. Returning empty list keeps callers safe and
-   * tests honest until then.
    */
   @Transactional(readOnly = true)
   public List<CollectionModel> findAllVisibleWithCovers() {
-    log.debug("findAllVisibleWithCovers stub - returning empty list (A4 will implement)");
-    return List.of();
+    List<CollectionEntity> entities = collectionRepository.findAllVisibleWithCovers();
+    return collectionProcessingUtil.batchConvertToBasicModels(entities);
   }
 
   @Transactional(readOnly = true)
