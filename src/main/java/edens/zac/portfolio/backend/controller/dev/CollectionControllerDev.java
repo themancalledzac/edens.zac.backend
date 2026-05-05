@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/collections")
 @Configuration
 @Profile("dev")
-public class CollectionControllerDev {
+class CollectionControllerDev {
 
   private final CollectionService collectionService;
 
