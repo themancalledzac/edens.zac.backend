@@ -201,10 +201,23 @@ public final class CollectionRequests {
    *   <li>password present + emails null/empty: set password only
    *   <li>password null: clear password and recipient list
    * </ul>
+   *
+   * <p>{@code propagateToChildren} only applies when the target collection is a {@link
+   * CollectionType#PARENT}. When {@code true}, the same password is also written to every {@link
+   * CollectionType#CLIENT_GALLERY} child referenced by the PARENT. Defaults to {@code false} (treat
+   * null as false) so existing callers do not accidentally cascade. The frontend opts in explicitly
+   * after a confirm dialog.
    */
   public record GalleryAccessRequest(
       @Size(min = 4, max = 100, message = "Password must be between 4 and 100 characters") String password,
-      List<@Email @NotBlank String> emails) {}
+      List<@Email @NotBlank String> emails,
+      Boolean propagateToChildren) {
+
+    /** Backwards-compatible constructor for callers that omit the propagation flag. */
+    public GalleryAccessRequest(String password, List<String> emails) {
+      this(password, emails, null);
+    }
+  }
 
   /**
    * Response body for the gallery-access endpoint. Echoes the saved password and recipient list so

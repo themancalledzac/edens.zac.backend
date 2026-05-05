@@ -402,6 +402,20 @@ public class CollectionRepository extends BaseDao {
     return update(sql, params);
   }
 
+  /**
+   * Update only the gallery_password column for a collection. Used by the parent-password
+   * trickle-down path (which writes the password to each CLIENT_GALLERY child without touching
+   * recipient_emails). Returns affected row count.
+   */
+  @Transactional
+  public int updateGalleryPassword(Long id, String password) {
+    String sql =
+        "UPDATE collection SET gallery_password = :password, updated_at = NOW() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("id", id).addValue("password", password);
+    return update(sql, params);
+  }
+
   /** Update gallery_password and recipient_emails atomically for a CLIENT_GALLERY. */
   @Transactional
   public void saveGalleryAccess(Long collectionId, String password, List<String> emails) {

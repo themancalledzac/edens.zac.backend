@@ -1134,19 +1134,24 @@ public class CollectionService {
    *   <li>password set, emails non-empty: set password and send one email per recipient
    * </ul>
    *
-   * <p>Returns {@code GalleryAccessResponse(saved=false, reason="not-client-gallery")} when the
-   * target collection is not a {@link CollectionType#CLIENT_GALLERY}.
+   * <p>Accepted target types are {@link CollectionType#CLIENT_GALLERY} and {@link
+   * CollectionType#PARENT}. For PARENT targets, when {@link
+   * GalleryAccessRequest#propagateToChildren()} is {@code true}, the same password is batch-written
+   * to every {@link CollectionType#CLIENT_GALLERY} child referenced by the PARENT (other child
+   * types are skipped). Recipient emails are NOT propagated. Returns {@code
+   * GalleryAccessResponse(saved=false, reason="not-eligible-type")} for any other type.
    */
   @Transactional
   public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
     CollectionEntity entity = findEntityById(id);
 
-    if (entity.getType() != CollectionType.CLIENT_GALLERY) {
+    if (entity.getType() != CollectionType.CLIENT_GALLERY
+        && entity.getType() != CollectionType.PARENT) {
       log.warn(
-          "Refusing gallery-access update on non-CLIENT_GALLERY collection (id={}, type={})",
+          "Refusing gallery-access update on ineligible collection (id={}, type={})",
           id,
           entity.getType());
-      return new GalleryAccessResponse(false, false, "not-client-gallery", null, List.of());
+      return new GalleryAccessResponse(false, false, "not-eligible-type", null, List.of());
     }
 
     List<String> emails =
@@ -1164,6 +1169,8 @@ public class CollectionService {
         id,
         entity.getSlug(),
         emails.size());
+
+    propagatePasswordToChildrenIfRequested(entity, request);
 
     if (emails.isEmpty()) {
       return new GalleryAccessResponse(true, false, null, request.password(), List.of());
@@ -1183,5 +1190,31 @@ public class CollectionService {
 
     return new GalleryAccessResponse(
         true, allSent, allSent ? null : firstFailureReason, request.password(), emails);
+  }
+
+  /**
+   * When {@code request.propagateToChildren()} is {@code true} AND {@code parent} is of type {@link
+   * CollectionType#PARENT}, batch-update the same password on every {@link
+   * CollectionType#CLIENT_GALLERY} child referenced by that PARENT. Other child types (other
+   * PARENTs, PORTFOLIOs, BLOGs, etc.) are skipped.
+   */
+  private void propagatePasswordToChildrenIfRequested(
+      CollectionEntity parent, GalleryAccessRequest request) {
+    if (!Boolean.TRUE.equals(request.propagateToChildren())
+        || parent.getType() != CollectionType.PARENT) {
+      return;
+    }
+    List<CollectionEntity> children =
+        collectionRepository.findReferencedCollectionsByParentId(parent.getId());
+    for (CollectionEntity child : children) {
+      if (child.getType() == CollectionType.CLIENT_GALLERY) {
+        collectionRepository.updateGalleryPassword(child.getId(), request.password());
+        log.info(
+            "Propagated parent (id={}) gallery password to CLIENT_GALLERY child (id={}, slug={})",
+            parent.getId(),
+            child.getId(),
+            child.getSlug());
+      }
+    }
   }
 }

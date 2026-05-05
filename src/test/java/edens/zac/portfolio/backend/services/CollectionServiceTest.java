@@ -971,4 +971,142 @@ class CollectionServiceTest {
       assertThat(service.findMetaBySlug("private-gallery")).isNotNull();
     }
   }
+
+  @Nested
+  class SaveGalleryAccessParentPropagation {
+
+    @Test
+    void parentTypeWithPropagateTrue_updatesPasswordOnChildClientGalleries() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionEntity child1 =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("smith-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .build();
+      CollectionEntity child2 =
+          CollectionEntity.builder()
+              .id(102L)
+              .slug("jones-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .build();
+
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findReferencedCollectionsByParentId(100L))
+          .thenReturn(List.of(child1, child2));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository).saveGalleryAccess(100L, "secretpw", List.of());
+      verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
+      verify(collectionRepository).updateGalleryPassword(102L, "secretpw");
+    }
+
+    @Test
+    void parentTypeWithPropagateFalse_skipsChildPropagation() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), false);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository, never()).findReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+
+    @Test
+    void parentTypeWithPropagateNull_skipsChildPropagation() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), null);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository, never()).findReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+
+    @Test
+    void clientGalleryTypeWithPropagateTrue_skipsChildPropagation() {
+      CollectionEntity gallery =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("smith-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(gallery));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository, never()).findReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+
+    @Test
+    void parentTypeWithPropagateTrue_skipsNonClientGalleryChildren() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("mixed-parent")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionEntity clientChild =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("smith-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .build();
+      CollectionEntity portfolioChild =
+          CollectionEntity.builder()
+              .id(102L)
+              .slug("studio-portfolio")
+              .type(CollectionType.PORTFOLIO)
+              .build();
+      CollectionEntity blogChild =
+          CollectionEntity.builder().id(103L).slug("studio-blog").type(CollectionType.BLOG).build();
+
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findReferencedCollectionsByParentId(100L))
+          .thenReturn(List.of(clientChild, portfolioChild, blogChild));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
+      verify(collectionRepository, never()).updateGalleryPassword(eq(102L), anyString());
+      verify(collectionRepository, never()).updateGalleryPassword(eq(103L), anyString());
+    }
+  }
 }
