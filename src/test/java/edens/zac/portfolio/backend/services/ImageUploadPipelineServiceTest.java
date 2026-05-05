@@ -22,6 +22,7 @@ import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +66,7 @@ class ImageUploadPipelineServiceTest {
             .title("Test Collection")
             .slug("test-collection")
             .type(CollectionType.PORTFOLIO)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
   }
 

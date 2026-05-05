@@ -16,6 +16,7 @@ import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -90,7 +91,7 @@ class ContentDownloadControllerProdTest {
         .type(CollectionType.CLIENT_GALLERY)
         .title("Smith Wedding")
         .slug("smith-wedding")
-        .visible(false)
+        .visibility(CollectionVisibility.UNLISTED)
         .galleryPassword("sunshine")
         .build();
   }
@@ -101,7 +102,7 @@ class ContentDownloadControllerProdTest {
         .type(CollectionType.PORTFOLIO)
         .title("Open Portfolio")
         .slug("open-portfolio")
-        .visible(true)
+        .visibility(CollectionVisibility.LISTED)
         .galleryPassword(null)
         .build();
   }

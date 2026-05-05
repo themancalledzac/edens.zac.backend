@@ -25,6 +25,7 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -76,7 +77,7 @@ class CollectionServiceTest {
             .title("Test Collection")
             .slug("test-collection")
             .type(CollectionType.PORTFOLIO)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
   }
 
@@ -94,7 +95,7 @@ class CollectionServiceTest {
               .title("New Collection")
               .slug("new-collection")
               .type(CollectionType.PORTFOLIO)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel model =
@@ -125,7 +126,7 @@ class CollectionServiceTest {
               .title("My Blog")
               .slug("my-blog")
               .type(CollectionType.BLOG)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel model =
@@ -543,7 +544,7 @@ class CollectionServiceTest {
               .title("Seattle Trip")
               .slug("seattle-trip")
               .type(CollectionType.PORTFOLIO)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel collectionModel =
@@ -724,7 +725,7 @@ class CollectionServiceTest {
               .title("Photography")
               .slug(slug)
               .type(CollectionType.PARENT)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       List<CollectionContentEntity> collectionContent =
@@ -765,7 +766,7 @@ class CollectionServiceTest {
               .title("Home")
               .slug(slug)
               .type(CollectionType.HOME)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel model = CollectionModel.builder().id(1L).title("Home").build();
@@ -792,7 +793,7 @@ class CollectionServiceTest {
               .title("Photography")
               .slug(slug)
               .type(CollectionType.PARENT)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       ContentModels.Collection childContent =
@@ -867,7 +868,8 @@ class CollectionServiceTest {
           CollectionEntity.builder().id(1L).slug("home").type(CollectionType.HOME).build();
       when(collectionRepository.findBySlug("home")).thenReturn(Optional.of(home));
 
-      CollectionEntity child = CollectionEntity.builder().id(11L).visible(true).build();
+      CollectionEntity child =
+          CollectionEntity.builder().id(11L).visibility(CollectionVisibility.LISTED).build();
       when(collectionRepository.findReferencedCollectionsByParentId(1L)).thenReturn(List.of(child));
 
       CollectionModel childModel = CollectionModel.builder().id(11L).build();
