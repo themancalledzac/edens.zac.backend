@@ -147,6 +147,7 @@ public class CollectionProcessingUtil {
 
     model.setCollectionDate(entity.getCollectionDate());
     model.setVisibility(entity.getVisibility());
+    model.setRating(entity.getRating());
 
     // Populate cover image from pre-loaded data
     if (entity.getCoverImageId() != null) {
@@ -513,6 +514,9 @@ public class CollectionProcessingUtil {
     }
     if (updateDTO.visibility() != null) {
       entity.setVisibility(updateDTO.visibility());
+    }
+    if (updateDTO.rating() != null) {
+      entity.setRating(updateDTO.rating());
     }
     if (updateDTO.slug() != null && !updateDTO.slug().isBlank()) {
       String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());

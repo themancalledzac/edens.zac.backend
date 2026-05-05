@@ -7,7 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -18,6 +20,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -141,6 +144,47 @@ class CollectionRepositoryTest {
       assertThat(result).isZero();
       verify(namedParameterJdbcTemplate, never())
           .update(anyString(), any(MapSqlParameterSource.class));
+    }
+  }
+
+  @Nested
+  class FindByTypeAndListedOrdered {
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void findByTypeAndListedOrderedSqlOrdersByRatingThenDate() {
+      when(namedParameterJdbcTemplate.query(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(List.of());
+
+      collectionRepository.findByTypeAndListedOrdered(CollectionType.BLOG);
+
+      verify(namedParameterJdbcTemplate)
+          .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+      String sql = sqlCaptor.getValue();
+      assertThat(sql).containsIgnoringCase("ORDER BY rating DESC NULLS LAST, collection_date DESC");
+      assertThat(sql).containsIgnoringCase("WHERE type = :type AND visibility = 'LISTED'");
+    }
+  }
+
+  @Nested
+  class UpdateRating {
+
+    @Test
+    void updateRatingExecutesParameterizedSqlAndReturnsRowCount() {
+      when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
+          .thenReturn(1);
+
+      int rows = collectionRepository.updateRating(7L, 4);
+
+      assertThat(rows).isEqualTo(1);
+      verify(namedParameterJdbcTemplate).update(sqlCaptor.capture(), paramsCaptor.capture());
+      String sql = sqlCaptor.getValue();
+      assertThat(sql).containsIgnoringCase("UPDATE collection SET rating = :rating");
+      assertThat(sql).containsIgnoringCase("WHERE id = :id");
+      MapSqlParameterSource params = paramsCaptor.getValue();
+      assertThat(params.getValue("id")).isEqualTo(7L);
+      assertThat(params.getValue("rating")).isEqualTo(4);
     }
   }
 }

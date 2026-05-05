@@ -107,6 +107,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             null);
   }
 
@@ -180,6 +181,7 @@ class CollectionControllerDevTest {
             999L,
             null,
             "Updated Test Blog",
+            null,
             null,
             null,
             null,
@@ -369,6 +371,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             tagUpdate,
             null,
             null);
@@ -415,6 +418,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             personUpdate,
             null);
 
@@ -450,6 +454,7 @@ class CollectionControllerDevTest {
             1L,
             null,
             "Updated Blog with Tags and People",
+            null,
             null,
             null,
             null,
@@ -617,5 +622,29 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
     verify(collectionService).reorderContent(eq(1L), any(CollectionRequests.Reorder.class));
+  }
+
+  @Test
+  void patchRating_returns204AndUpdates() throws Exception {
+    when(collectionService.updateRating(eq(7L), eq(4))).thenReturn(true);
+
+    mockMvc
+        .perform(
+            patch("/api/admin/collections/7/rating")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rating\":4}"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).updateRating(7L, 4);
+  }
+
+  @Test
+  void patchRating_rejectsOutOfRange() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/admin/collections/7/rating")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rating\":7}"))
+        .andExpect(status().isBadRequest());
   }
 }

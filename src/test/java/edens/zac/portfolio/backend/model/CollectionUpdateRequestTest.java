@@ -27,7 +27,8 @@ class CollectionUpdateRequestTest {
   /**
    * Build Update with only non-null args; order: id, type, title, slug, description, location,
    * collectionDate, clearCollectionDate, visibility, displayMode, contentPerPage, rowsWide,
-   * coverImageId, tags, people, collections
+   * coverImageId, tags, people, collections. Rating is always passed as null here -- the field is
+   * exercised separately where needed.
    */
   private static CollectionRequests.Update update(
       Long id,
@@ -56,6 +57,7 @@ class CollectionUpdateRequestTest {
         collectionDate,
         clearCollectionDate,
         visibility,
+        null,
         displayMode,
         contentPerPage,
         rowsWide,

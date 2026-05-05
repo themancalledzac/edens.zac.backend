@@ -44,6 +44,9 @@ public class CollectionModel {
 
   private CollectionVisibility visibility;
 
+  /** Rating 0-5, nullable. Used for ordering multi-collection list views. */
+  @Min(0) @Max(5) private Integer rating;
+
   private DisplayMode displayMode;
 
   @Min(1) private Integer rowsWide;

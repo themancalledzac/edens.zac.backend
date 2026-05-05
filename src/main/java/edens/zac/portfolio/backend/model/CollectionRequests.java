@@ -59,6 +59,8 @@ public final class CollectionRequests {
       Boolean clearCollectionDate,
       /** Visibility state of the collection (LISTED / UNLISTED / HIDDEN). */
       CollectionVisibility visibility,
+      /** Rating 0-5 (null leaves rating untouched). Used to order multi-collection list views. */
+      @Min(value = 0, message = "Rating must be 0 or greater") @Max(value = 5, message = "Rating must be 5 or less") Integer rating,
       /** Display mode for ordering content in the collection */
       DisplayMode displayMode,
       /** Number of content items per page */

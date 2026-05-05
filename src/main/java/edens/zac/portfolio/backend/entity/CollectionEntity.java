@@ -44,6 +44,9 @@ public class CollectionEntity {
    */
   @NotNull @Builder.Default private CollectionVisibility visibility = CollectionVisibility.HIDDEN;
 
+  /** Column: rating (INTEGER, 0-5, nullable) - mirrors content_image.rating. */
+  @Min(0) @Max(5) private Integer rating;
+
   /** Column: display_mode (VARCHAR) - enum: GRID, LIST, etc. */
   private DisplayMode displayMode;
 

@@ -145,8 +145,7 @@ public class CollectionService {
 
     // Get visible collections by type, ordered by collection date descending
     // (newest first)
-    List<CollectionEntity> collections =
-        collectionRepository.findByTypeAndListedOrderByCollectionDateDesc(type);
+    List<CollectionEntity> collections = collectionRepository.findByTypeAndListedOrdered(type);
 
     // Convert to basic CollectionModel objects (no content blocks) using batch loading
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
@@ -473,6 +472,22 @@ public class CollectionService {
     return getUpdateCollectionData(updatedCollection.getSlug());
   }
 
+  /**
+   * Set the rating for a collection. Throws ResourceNotFoundException if no row matched.
+   *
+   * @param id collection id
+   * @param rating 0-5 (nullable to clear)
+   * @return true on success
+   */
+  @Transactional
+  public boolean updateRating(Long id, Integer rating) {
+    int rows = collectionRepository.updateRating(id, rating);
+    if (rows == 0) {
+      throw new ResourceNotFoundException("Collection not found: " + id);
+    }
+    return true;
+  }
+
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteCollection(Long id) {
@@ -520,7 +535,7 @@ public class CollectionService {
 
     int offset = pageable.getPageNumber() * pageable.getPageSize();
     List<CollectionEntity> paginatedCollections =
-        collectionRepository.findAllListedOrderedByDate(pageable.getPageSize(), offset);
+        collectionRepository.findAllListedOrdered(pageable.getPageSize(), offset);
 
     List<CollectionModel> models =
         collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);

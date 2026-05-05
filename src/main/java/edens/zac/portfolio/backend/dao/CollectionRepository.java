@@ -40,7 +40,7 @@ public class CollectionRepository extends BaseDao {
       """
       SELECT id, type, title, slug, description, collection_date,
              visibility, display_mode, cover_image_id, content_per_page, total_content,
-             rows_wide, gallery_password, recipient_emails, created_at, updated_at
+             rows_wide, gallery_password, recipient_emails, rating, created_at, updated_at
       FROM collection
       """;
 
@@ -78,6 +78,7 @@ public class CollectionRepository extends BaseDao {
             emailsArray != null
                 ? new ArrayList<>(Arrays.asList((String[]) emailsArray.getArray()))
                 : new ArrayList<>());
+        entity.setRating(getInteger(rs, "rating"));
         entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
         entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
 
@@ -118,11 +119,11 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findByTypeAndListedOrderByCollectionDateDesc(CollectionType type) {
+  public List<CollectionEntity> findByTypeAndListedOrdered(CollectionType type) {
     String sql =
         SELECT_COLLECTION
             + " WHERE type = :type AND visibility = 'LISTED' "
-            + "ORDER BY collection_date DESC NULLS LAST";
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST";
     MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
@@ -133,7 +134,7 @@ public class CollectionRepository extends BaseDao {
     String sql =
         SELECT_COLLECTION
             + " WHERE type = :type AND visibility = 'LISTED' "
-            + "ORDER BY collection_date DESC NULLS LAST "
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST "
             + "LIMIT :limit OFFSET :offset";
     MapSqlParameterSource params =
         createParameterSource()
@@ -154,7 +155,7 @@ public class CollectionRepository extends BaseDao {
         """
         SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.created_at, c.updated_at
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
         JOIN content_collection cct ON cct.referenced_collection_id = c.id
         JOIN collection_content cc ON cc.content_id = cct.id
@@ -167,13 +168,13 @@ public class CollectionRepository extends BaseDao {
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
-  /** Find every listed collection that has a cover image, newest first. */
+  /** Find every listed collection that has a cover image, ordered by rating then date. */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findAllListedWithCovers() {
     String sql =
         SELECT_COLLECTION
             + " WHERE visibility = 'LISTED' AND cover_image_id IS NOT NULL "
-            + "ORDER BY collection_date DESC NULLS LAST";
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST";
     return query(sql, COLLECTION_ROW_MAPPER);
   }
 
@@ -192,12 +193,12 @@ public class CollectionRepository extends BaseDao {
         """
         SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.created_at, c.updated_at
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
         JOIN collection_locations cl ON c.id = cl.collection_id
         JOIN location l ON cl.location_id = l.id
         WHERE l.location_name = :locationName AND c.visibility = 'LISTED'
-        ORDER BY c.collection_date DESC NULLS LAST
+        ORDER BY c.rating DESC NULLS LAST, c.collection_date DESC NULLS LAST
         LIMIT :limit OFFSET :offset
         """;
     MapSqlParameterSource params =
@@ -249,10 +250,12 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findAllListedOrderedByDate(int limit, int offset) {
+  public List<CollectionEntity> findAllListedOrdered(int limit, int offset) {
     String sql =
         SELECT_COLLECTION
-            + " WHERE visibility = 'LISTED' ORDER BY collection_date DESC NULLS LAST LIMIT :limit OFFSET :offset";
+            + " WHERE visibility = 'LISTED' "
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST "
+            + "LIMIT :limit OFFSET :offset";
     MapSqlParameterSource params =
         createParameterSource().addValue("limit", limit).addValue("offset", offset);
     return query(sql, COLLECTION_ROW_MAPPER, params);
@@ -297,10 +300,10 @@ public class CollectionRepository extends BaseDao {
           """
           INSERT INTO collection (type, title, slug, description, collection_date,
                                  visibility, display_mode, cover_image_id, content_per_page, total_content,
-                                 rows_wide, gallery_password, created_at, updated_at)
+                                 rows_wide, gallery_password, rating, created_at, updated_at)
           VALUES (:type, :title, :slug, :description, :collectionDate,
                   :visibility, :displayMode, :coverImageId, :contentPerPage, :totalContent,
-                  :rowsWide, :galleryPassword, :createdAt, :updatedAt)
+                  :rowsWide, :galleryPassword, :rating, :createdAt, :updatedAt)
           """;
 
       MapSqlParameterSource params =
@@ -321,6 +324,7 @@ public class CollectionRepository extends BaseDao {
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
               .addValue("galleryPassword", entity.getGalleryPassword())
+              .addValue("rating", entity.getRating())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now())
@@ -338,7 +342,7 @@ public class CollectionRepository extends BaseDao {
           SET type = :type, title = :title, slug = :slug, description = :description,
               collection_date = :collectionDate, visibility = :visibility, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-              rows_wide = :rowsWide, updated_at = :updatedAt
+              rows_wide = :rowsWide, rating = :rating, updated_at = :updatedAt
           WHERE id = :id
           """;
 
@@ -360,11 +364,21 @@ public class CollectionRepository extends BaseDao {
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
+              .addValue("rating", entity.getRating())
               .addValue("updatedAt", LocalDateTime.now());
 
       update(sql, params);
       return entity;
     }
+  }
+
+  /** Update only the rating column for a collection. Returns affected row count. */
+  @Transactional
+  public int updateRating(Long id, Integer rating) {
+    String sql = "UPDATE collection SET rating = :rating, updated_at = NOW() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("id", id).addValue("rating", rating);
+    return update(sql, params);
   }
 
   /** Update gallery_password and recipient_emails atomically for a CLIENT_GALLERY. */
