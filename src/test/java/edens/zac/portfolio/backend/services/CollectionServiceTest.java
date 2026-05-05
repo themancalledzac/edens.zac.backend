@@ -998,7 +998,7 @@ class CollectionServiceTest {
               .build();
 
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
-      when(collectionRepository.findReferencedCollectionsByParentId(100L))
+      when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
           .thenReturn(List.of(child1, child2));
 
       CollectionRequests.GalleryAccessRequest request =
@@ -1027,7 +1027,7 @@ class CollectionServiceTest {
 
       service.updateGalleryAccess(100L, request);
 
-      verify(collectionRepository, never()).findReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
       verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
     }
 
@@ -1047,7 +1047,7 @@ class CollectionServiceTest {
 
       service.updateGalleryAccess(100L, request);
 
-      verify(collectionRepository, never()).findReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
       verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
     }
 
@@ -1067,7 +1067,7 @@ class CollectionServiceTest {
 
       service.updateGalleryAccess(100L, request);
 
-      verify(collectionRepository, never()).findReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
       verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
     }
 
@@ -1096,7 +1096,7 @@ class CollectionServiceTest {
           CollectionEntity.builder().id(103L).slug("studio-blog").type(CollectionType.BLOG).build();
 
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
-      when(collectionRepository.findReferencedCollectionsByParentId(100L))
+      when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
           .thenReturn(List.of(clientChild, portfolioChild, blogChild));
 
       CollectionRequests.GalleryAccessRequest request =
@@ -1107,6 +1107,35 @@ class CollectionServiceTest {
       verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
       verify(collectionRepository, never()).updateGalleryPassword(eq(102L), anyString());
       verify(collectionRepository, never()).updateGalleryPassword(eq(103L), anyString());
+    }
+
+    @Test
+    void parentTypeWithPropagateTrue_propagatesToUnlistedChildren() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionEntity unlistedChild =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("private-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
+          .thenReturn(List.of(unlistedChild));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
     }
   }
 }

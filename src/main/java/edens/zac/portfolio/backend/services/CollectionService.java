@@ -1205,7 +1205,7 @@ public class CollectionService {
       return;
     }
     List<CollectionEntity> children =
-        collectionRepository.findReferencedCollectionsByParentId(parent.getId());
+        collectionRepository.findAllReferencedCollectionsByParentId(parent.getId());
     for (CollectionEntity child : children) {
       if (child.getType() == CollectionType.CLIENT_GALLERY) {
         collectionRepository.updateGalleryPassword(child.getId(), request.password());
