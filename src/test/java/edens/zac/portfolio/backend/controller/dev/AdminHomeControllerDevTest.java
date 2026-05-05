@@ -3,11 +3,13 @@ package edens.zac.portfolio.backend.controller.dev;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.AdminHomeService;
 import java.util.List;
@@ -32,7 +34,7 @@ class AdminHomeControllerDevTest {
   void setUp() {
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
-            .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
 
@@ -53,6 +55,7 @@ class AdminHomeControllerDevTest {
         .andExpect(jsonPath("$[0].displayOrder", is(0)))
         .andExpect(jsonPath("$[1].tileKey", is("all-collections")))
         .andExpect(jsonPath("$[1].coverImageUrl", nullValue()));
+    verify(adminHomeService).getTiles();
   }
 
   @Test
@@ -63,5 +66,6 @@ class AdminHomeControllerDevTest {
         .perform(get("/api/admin/admin-home/tiles"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(0)));
+    verify(adminHomeService).getTiles();
   }
 }
