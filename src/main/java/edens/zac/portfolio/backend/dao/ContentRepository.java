@@ -192,6 +192,15 @@ public class ContentRepository extends BaseDao {
       JOIN content_collection cc ON c.id = cc.id
       """;
 
+  private static final String FIND_RANDOM_IMAGE_WEB_URL_SQL =
+      """
+      SELECT image_url_web
+      FROM content_image
+      WHERE image_url_web IS NOT NULL
+      ORDER BY RANDOM()
+      LIMIT 1
+      """;
+
   // ============================================================
   // Image Operations
   // ============================================================
@@ -250,6 +259,13 @@ public class ContentRepository extends BaseDao {
     MapSqlParameterSource params =
         createParameterSource().addValue("limit", limit).addValue("offset", offset);
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<String> findRandomImageWebUrl() {
+    List<String> result =
+        query(FIND_RANDOM_IMAGE_WEB_URL_SQL, (rs, rowNum) -> rs.getString("image_url_web"));
+    return result.isEmpty() ? Optional.empty() : Optional.ofNullable(result.get(0));
   }
 
   /**
