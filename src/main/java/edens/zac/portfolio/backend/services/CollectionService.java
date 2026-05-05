@@ -148,6 +148,32 @@ public class CollectionService {
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
+  /**
+   * Return child collections referenced by the "home" parent collection. Used by AdminHomeService
+   * to pick a cover image for the home tile.
+   *
+   * <p>STUB - real implementation lands in Task A4. Returning empty list keeps callers safe and
+   * tests honest until then.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionModel> findChildCollectionsForHome() {
+    log.debug("findChildCollectionsForHome stub - returning empty list (A4 will implement)");
+    return List.of();
+  }
+
+  /**
+   * Return all visible collections that have a cover image set. Used by AdminHomeService to pick a
+   * cover for the all-collections tile.
+   *
+   * <p>STUB - real implementation lands in Task A4. Returning empty list keeps callers safe and
+   * tests honest until then.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionModel> findAllVisibleWithCovers() {
+    log.debug("findAllVisibleWithCovers stub - returning empty list (A4 will implement)");
+    return List.of();
+  }
+
   @Transactional(readOnly = true)
   public LocationPageResponse getLocationPage(
       String locationName, int collectionPage, int collectionSize, int imagePage, int imageSize) {
