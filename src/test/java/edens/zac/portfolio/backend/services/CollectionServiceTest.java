@@ -3,8 +3,10 @@ package edens.zac.portfolio.backend.services;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -52,6 +54,7 @@ class CollectionServiceTest {
   @Mock private ContentMutationUtil contentMutationUtil;
   @Mock private ContentModelConverter contentModelConverter;
   @Mock private MetadataService metadataService;
+  @Mock private SyntheticCollectionResolver syntheticResolver;
   @Mock private org.springframework.core.env.Environment springEnv;
 
   @InjectMocks private CollectionService service;
@@ -359,6 +362,19 @@ class CollectionServiceTest {
       assertThat(result).isNotNull();
       // Negative page normalized to 0, so offset = 0
       verify(collectionRepository).findContentByCollectionId(1L, 10, 0);
+    }
+
+    @Test
+    void getCollectionWithPagination_syntheticSlug_delegatesToResolver() {
+      CollectionModel synthetic =
+          CollectionModel.builder().slug("all-collections").type(CollectionType.PARENT).build();
+      when(syntheticResolver.isSyntheticSlug("all-collections")).thenReturn(true);
+      when(syntheticResolver.resolve(eq("all-collections"), anyBoolean())).thenReturn(synthetic);
+
+      CollectionModel out = service.getCollectionWithPagination("all-collections", 0, 10);
+
+      assertThat(out).isSameAs(synthetic);
+      verify(collectionRepository, never()).findBySlug(anyString());
     }
   }
 

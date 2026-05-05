@@ -1,0 +1,89 @@
+package edens.zac.portfolio.backend.services;
+
+import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.ContentModel;
+import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
+import edens.zac.portfolio.backend.types.ContentType;
+import java.util.List;
+import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+/**
+ * Recognizes the synthetic admin/list slugs ("all-collections", "all-blogs", etc.) and synthesizes
+ * a PARENT-shaped {@link CollectionModel} populated with {@link ContentModels.Collection} content
+ * blocks pointing to each child. Bypasses the regular DB lookup in {@code
+ * CollectionService.getCollectionWithPagination}.
+ */
+@Service
+@RequiredArgsConstructor
+public class SyntheticCollectionResolver {
+
+  private static final Map<String, Synthetic> CATALOG =
+      Map.of(
+          "all-collections", new Synthetic("All Collections", null),
+          "all-blogs", new Synthetic("Blogs", CollectionType.BLOG),
+          "all-portfolios", new Synthetic("Portfolios", CollectionType.PORTFOLIO),
+          "all-client-galleries", new Synthetic("Client Galleries", CollectionType.CLIENT_GALLERY),
+          "all-art-galleries", new Synthetic("Art Galleries", CollectionType.ART_GALLERY),
+          "all-misc", new Synthetic("Misc", CollectionType.MISC));
+
+  private final CollectionService collectionService;
+
+  /** Returns true if the slug matches a synthetic-list catalog entry. */
+  public boolean isSyntheticSlug(String slug) {
+    return slug != null && CATALOG.containsKey(slug);
+  }
+
+  /**
+   * Resolve a synthetic slug into a PARENT-shaped {@link CollectionModel}. Caller is responsible
+   * for verifying the slug via {@link #isSyntheticSlug(String)} first.
+   */
+  public CollectionModel resolve(String slug, boolean isLocalEnvironment) {
+    Synthetic spec = CATALOG.get(slug);
+    if (spec == null) {
+      throw new IllegalArgumentException("Not a synthetic slug: " + slug);
+    }
+    List<CollectionModel> children =
+        collectionService.findAllOrderedForSyntheticView(spec.typeFilter(), isLocalEnvironment);
+
+    List<ContentModel> content =
+        children.stream()
+            .map(SyntheticCollectionResolver::toCollectionContent)
+            .map(ContentModel.class::cast)
+            .toList();
+
+    return CollectionModel.builder()
+        .slug(slug)
+        .title(spec.title())
+        .type(CollectionType.PARENT)
+        .visibility(CollectionVisibility.LISTED)
+        .content(content)
+        .contentCount(content.size())
+        .contentPerPage(content.size())
+        .currentPage(0)
+        .totalPages(1)
+        .build();
+  }
+
+  private static ContentModels.Collection toCollectionContent(CollectionModel c) {
+    return new ContentModels.Collection(
+        null,
+        ContentType.COLLECTION,
+        c.getTitle(),
+        c.getDescription(),
+        null,
+        0,
+        true,
+        c.getCreatedAt(),
+        c.getUpdatedAt(),
+        c.getId(),
+        c.getSlug(),
+        c.getType(),
+        c.getCoverImage());
+  }
+
+  private record Synthetic(String title, CollectionType typeFilter) {}
+}

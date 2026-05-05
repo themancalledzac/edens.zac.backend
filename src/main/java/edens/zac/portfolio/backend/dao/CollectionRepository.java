@@ -261,6 +261,27 @@ public class CollectionRepository extends BaseDao {
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
+  /**
+   * Find collections whose visibility is in the supplied set, optionally filtered by type, ordered
+   * by rating then collection_date. Used by synthetic-slug list views (env-aware visibility scope:
+   * dev includes all, prod includes only LISTED).
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findOrderedByVisibilityIn(
+      List<CollectionVisibility> allowed, CollectionType typeFilter) {
+    StringBuilder sql =
+        new StringBuilder(SELECT_COLLECTION).append(" WHERE visibility IN (:visibilities) ");
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
+    if (typeFilter != null) {
+      sql.append(" AND type = :type ");
+      params.addValue("type", typeFilter.name());
+    }
+    sql.append(" ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST");
+    return query(sql.toString(), COLLECTION_ROW_MAPPER, params);
+  }
+
   @Transactional(readOnly = true)
   public long countAllCollections() {
     String sql = "SELECT COUNT(*) FROM collection";

@@ -65,6 +65,7 @@ public class CollectionService {
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final MetadataService metadataService;
   private final EmailService emailService;
+  private final SyntheticCollectionResolver syntheticResolver;
   private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -73,6 +74,12 @@ public class CollectionService {
   @Transactional(readOnly = true)
   public CollectionModel getCollectionWithPagination(String slug, int page, int size) {
     log.debug("Getting collection with slug: {} (page: {}, size: {})", slug, page, size);
+
+    // Synthetic list slugs (e.g. "all-collections", "all-blogs") bypass the DB lookup
+    // and are resolved into a PARENT-shaped CollectionModel populated with children.
+    if (syntheticResolver.isSyntheticSlug(slug)) {
+      return syntheticResolver.resolve(slug, isLocalEnvironment());
+    }
 
     // Get collection metadata
     CollectionEntity collection =
@@ -173,6 +180,26 @@ public class CollectionService {
   public List<CollectionModel> findAllListedWithCovers() {
     List<CollectionEntity> entities = collectionRepository.findAllListedWithCovers();
     return collectionProcessingUtil.batchConvertToBasicModels(entities);
+  }
+
+  /**
+   * Return all collections (optionally filtered by type) for synthetic-slug list views, ordered by
+   * rating then collection_date. Visibility scope is environment-aware: local includes LISTED +
+   * UNLISTED + HIDDEN, prod includes only LISTED.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionModel> findAllOrderedForSyntheticView(
+      CollectionType typeFilter, boolean isLocalEnvironment) {
+    List<CollectionVisibility> allowed =
+        isLocalEnvironment
+            ? List.of(
+                CollectionVisibility.LISTED,
+                CollectionVisibility.UNLISTED,
+                CollectionVisibility.HIDDEN)
+            : List.of(CollectionVisibility.LISTED);
+    List<CollectionEntity> rows =
+        collectionRepository.findOrderedByVisibilityIn(allowed, typeFilter);
+    return collectionProcessingUtil.batchConvertToBasicModels(rows);
   }
 
   @Transactional(readOnly = true)
