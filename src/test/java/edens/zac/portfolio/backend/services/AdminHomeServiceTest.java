@@ -99,7 +99,7 @@ class AdminHomeServiceTest {
       when(collectionService.findChildCollectionsForHome()).thenReturn(List.of(homeChild));
 
       var anyVisible = collectionWithCoverUrl(21L, "any", "https://cdn/example/any.webp");
-      when(collectionService.findAllVisibleWithCovers()).thenReturn(List.of(anyVisible));
+      when(collectionService.findAllListedWithCovers()).thenReturn(List.of(anyVisible));
 
       when(contentRepository.findRandomImageWebUrl())
           .thenReturn(Optional.of("https://cdn/example/random-image.webp"));

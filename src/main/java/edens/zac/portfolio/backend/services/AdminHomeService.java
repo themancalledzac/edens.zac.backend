@@ -69,7 +69,7 @@ public class AdminHomeService {
     return switch (tileKey) {
       case "home" -> randomCoverUrlFromCollections(collectionService.findChildCollectionsForHome());
       case "all-collections" ->
-          randomCoverUrlFromCollections(collectionService.findAllVisibleWithCovers());
+          randomCoverUrlFromCollections(collectionService.findAllListedWithCovers());
       case "all-images" -> contentRepository.findRandomImageWebUrl().orElse(null);
       case "blogs" ->
           randomCoverUrlFromCollections(

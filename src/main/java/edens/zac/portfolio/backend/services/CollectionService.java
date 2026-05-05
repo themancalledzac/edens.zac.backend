@@ -25,6 +25,7 @@ import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
@@ -142,7 +143,7 @@ public class CollectionService {
     // Get visible collections by type, ordered by collection date descending
     // (newest first)
     List<CollectionEntity> collections =
-        collectionRepository.findByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
+        collectionRepository.findByTypeAndListedOrderByCollectionDateDesc(type);
 
     // Convert to basic CollectionModel objects (no content blocks) using batch loading
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
@@ -167,8 +168,8 @@ public class CollectionService {
    * cover for the all-collections tile.
    */
   @Transactional(readOnly = true)
-  public List<CollectionModel> findAllVisibleWithCovers() {
-    List<CollectionEntity> entities = collectionRepository.findAllVisibleWithCovers();
+  public List<CollectionModel> findAllListedWithCovers() {
+    List<CollectionEntity> entities = collectionRepository.findAllListedWithCovers();
     return collectionProcessingUtil.batchConvertToBasicModels(entities);
   }
 
@@ -178,10 +179,10 @@ public class CollectionService {
     log.debug("Getting location page for: {}", locationName);
 
     // Get visible collections at this location
-    long totalCollections = collectionRepository.countVisibleByLocationName(locationName);
+    long totalCollections = collectionRepository.countListedByLocationName(locationName);
     int collectionOffset = collectionPage * collectionSize;
     List<CollectionEntity> collectionEntities =
-        collectionRepository.findVisibleByLocationName(
+        collectionRepository.findListedByLocationName(
             locationName, collectionSize, collectionOffset);
 
     List<CollectionModel> collections =
@@ -194,7 +195,7 @@ public class CollectionService {
     if (totalCollections <= collectionSize) {
       allCollectionIds = collectionEntities.stream().map(CollectionEntity::getId).toList();
     } else {
-      allCollectionIds = collectionRepository.findVisibleIdsByLocationName(locationName);
+      allCollectionIds = collectionRepository.findListedIdsByLocationName(locationName);
     }
 
     // Get orphan images (at this location but not in any of those collections)
@@ -516,7 +517,7 @@ public class CollectionService {
 
     int offset = pageable.getPageNumber() * pageable.getPageSize();
     List<CollectionEntity> paginatedCollections =
-        collectionRepository.findVisibleByOrderByCollectionDateDesc(pageable.getPageSize(), offset);
+        collectionRepository.findAllListedOrderedByDate(pageable.getPageSize(), offset);
 
     List<CollectionModel> models =
         collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
@@ -1014,7 +1015,8 @@ public class CollectionService {
     if (HOME_SLUG.equals(slug)) {
       return;
     }
-    if (!Boolean.TRUE.equals(entity.getVisible())) {
+    // TODO Task 1.5: switch to env-aware 3-state enforcement (HIDDEN dev-only, UNLISTED slug-only).
+    if (entity.getVisibility() == CollectionVisibility.HIDDEN) {
       log.debug("Blocked access to non-visible collection with slug: {}", slug);
       throw new ResourceNotFoundException("Collection not found with slug: " + slug);
     }
@@ -1046,7 +1048,9 @@ public class CollectionService {
     // Batch-load referenced collections and find invisible ones
     Set<Long> invisibleIds =
         collectionRepository.findByIds(referencedIds).stream()
-            .filter(c -> !Boolean.TRUE.equals(c.getVisible()))
+            // TODO Task 1.5: rename helper to filterNonListedChildCollections and use
+            // appearsInLists().
+            .filter(c -> !c.getVisibility().appearsInLists())
             .map(CollectionEntity::getId)
             .collect(Collectors.toSet());
 

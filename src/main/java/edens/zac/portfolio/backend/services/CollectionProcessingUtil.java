@@ -19,6 +19,7 @@ import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.time.LocalDate;
@@ -145,7 +146,8 @@ public class CollectionProcessingUtil {
             .collect(Collectors.toList()));
 
     model.setCollectionDate(entity.getCollectionDate());
-    model.setVisible(entity.getVisible());
+    // TODO Task 1.6: replace boolean model.visible with CollectionVisibility.
+    model.setVisible(entity.getVisibility() != CollectionVisibility.HIDDEN);
 
     // Populate cover image from pre-loaded data
     if (entity.getCoverImageId() != null) {
@@ -444,7 +446,7 @@ public class CollectionProcessingUtil {
     entity.setDescription(request.description() != null ? request.description() : "");
     entity.setCollectionDate(
         request.collectionDate() != null ? request.collectionDate() : LocalDate.now());
-    entity.setVisible(false);
+    entity.setVisibility(CollectionVisibility.HIDDEN);
     entity.setTotalContent(0);
     if (request.type().isParentType()) {
       // Parent-type collections don't use pagination or row layout
@@ -511,7 +513,9 @@ public class CollectionProcessingUtil {
       entity.setCollectionDate(updateDTO.collectionDate());
     }
     if (updateDTO.visible() != null) {
-      entity.setVisible(updateDTO.visible());
+      // TODO Task 1.6: replace boolean updateDTO.visible() with CollectionVisibility.
+      entity.setVisibility(
+          updateDTO.visible() ? CollectionVisibility.LISTED : CollectionVisibility.HIDDEN);
     }
     if (updateDTO.slug() != null && !updateDTO.slug().isBlank()) {
       String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());
@@ -731,10 +735,13 @@ public class CollectionProcessingUtil {
       }
     }
 
-    // Set type-specific visibility defaults
-    if (entity.getVisible() == null) {
-      // Client galleries are private by default
-      entity.setVisible(entity.getType() != CollectionType.CLIENT_GALLERY);
+    // Set type-specific visibility defaults (only when entity still at HIDDEN default)
+    if (entity.getVisibility() == CollectionVisibility.HIDDEN) {
+      // Client galleries are private (UNLISTED) by default; everything else surfaces as LISTED.
+      entity.setVisibility(
+          entity.getType() == CollectionType.CLIENT_GALLERY
+              ? CollectionVisibility.UNLISTED
+              : CollectionVisibility.LISTED);
     }
 
     return entity;
