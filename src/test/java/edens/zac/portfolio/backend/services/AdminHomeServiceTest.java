@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.dao.AdminHomeTileRepository;
@@ -37,6 +38,7 @@ class AdminHomeServiceTest {
 
       List<Records.AdminHomeTileResponse> result = adminHomeService.getTiles();
 
+      verify(adminHomeTileRepository).findAllWithCover();
       assertThat(result).isSameAs(tiles);
     }
 
