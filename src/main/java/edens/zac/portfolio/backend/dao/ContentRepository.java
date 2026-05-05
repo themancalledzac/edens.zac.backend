@@ -263,9 +263,9 @@ public class ContentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<String> findRandomImageWebUrl() {
-    List<String> result =
-        query(FIND_RANDOM_IMAGE_WEB_URL_SQL, (rs, rowNum) -> rs.getString("image_url_web"));
-    return result.isEmpty() ? Optional.empty() : Optional.ofNullable(result.get(0));
+    return query(FIND_RANDOM_IMAGE_WEB_URL_SQL, (rs, rowNum) -> rs.getString("image_url_web"))
+        .stream()
+        .findFirst();
   }
 
   /**
