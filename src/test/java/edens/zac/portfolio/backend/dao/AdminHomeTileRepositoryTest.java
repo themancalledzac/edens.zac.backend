@@ -64,6 +64,7 @@ class AdminHomeTileRepositoryTest {
       String sql = sqlCaptor.getValue();
       assertThat(sql).containsIgnoringCase("LEFT JOIN content_image");
       assertThat(sql).containsIgnoringCase("ORDER BY t.display_order ASC");
+      assertThat(sql).containsIgnoringCase("image_url_web");
       assertThat(result).hasSize(2);
       assertThat(result.get(0).tileKey()).isEqualTo("home");
       assertThat(result.get(0).coverImageUrl()).isEqualTo("https://cdn.example.com/home.jpg");
