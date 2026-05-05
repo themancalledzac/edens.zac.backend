@@ -64,6 +64,9 @@ public final class Records {
    */
   public record CollectionList(Long id, String name, String slug, CollectionType type) {}
 
+  /** DTO for admin hub tile configuration. coverImageUrl is null when no image is assigned. */
+  public record AdminHomeTileResponse(String tileKey, String coverImageUrl, int displayOrder) {}
+
   /**
    * DTO representing the relationship between a child entity (content or collection) and a parent
    * collection. Used in update requests to manage collection associations using the prev/new/remove
