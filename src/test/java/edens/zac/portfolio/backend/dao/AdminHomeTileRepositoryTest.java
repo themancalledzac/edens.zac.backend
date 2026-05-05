@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import edens.zac.portfolio.backend.model.Records;
 import java.lang.reflect.Field;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,28 +47,26 @@ class AdminHomeTileRepositoryTest {
   }
 
   @Nested
-  class FindAllWithCover {
+  class FindAllOrderedByDisplay {
 
     @SuppressWarnings("unchecked")
     @Test
-    void returnsProjectionOrderedByDisplayOrder() {
-      var tile0 = new Records.AdminHomeTileResponse("home", "https://cdn.example.com/home.jpg", 0);
-      var tile1 = new Records.AdminHomeTileResponse("all-collections", null, 1);
+    void returnsTileCatalogOrderedByDisplayOrder() {
+      var t0 = new AdminHomeTileRepository.TileRow("home", 0);
+      var t1 = new AdminHomeTileRepository.TileRow("all-collections", 1);
       when(namedParameterJdbcTemplate.query(anyString(), any(RowMapper.class)))
-          .thenReturn(List.of(tile0, tile1));
+          .thenReturn(List.of(t0, t1));
 
-      List<Records.AdminHomeTileResponse> result = repository.findAllWithCover();
+      List<AdminHomeTileRepository.TileRow> result = repository.findAllOrderedByDisplay();
 
       verify(namedParameterJdbcTemplate).query(sqlCaptor.capture(), any(RowMapper.class));
       String sql = sqlCaptor.getValue();
-      assertThat(sql).containsIgnoringCase("LEFT JOIN content_image");
-      assertThat(sql).containsIgnoringCase("ORDER BY t.display_order ASC");
-      assertThat(sql).containsIgnoringCase("image_url_web");
+      assertThat(sql).containsIgnoringCase("FROM admin_home_tile");
+      assertThat(sql).containsIgnoringCase("ORDER BY display_order ASC");
+      assertThat(sql).doesNotContainIgnoringCase("JOIN content_image");
       assertThat(result).hasSize(2);
       assertThat(result.get(0).tileKey()).isEqualTo("home");
-      assertThat(result.get(0).coverImageUrl()).isEqualTo("https://cdn.example.com/home.jpg");
-      assertThat(result.get(1).tileKey()).isEqualTo("all-collections");
-      assertThat(result.get(1).coverImageUrl()).isNull();
+      assertThat(result.get(0).displayOrder()).isZero();
     }
 
     @SuppressWarnings("unchecked")
@@ -77,8 +74,7 @@ class AdminHomeTileRepositoryTest {
     void emptyTableReturnsEmptyList() {
       when(namedParameterJdbcTemplate.query(anyString(), any(RowMapper.class)))
           .thenReturn(List.of());
-
-      assertThat(repository.findAllWithCover()).isEmpty();
+      assertThat(repository.findAllOrderedByDisplay()).isEmpty();
     }
   }
 }
