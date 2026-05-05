@@ -542,6 +542,28 @@ public class ContentRepository extends BaseDao {
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
+  /**
+   * Distinct person IDs across all visible images contained in a collection. Used by
+   * CollectionService.regeneratePeopleFromContents to auto-fill collection_people from per-image
+   * tagging.
+   */
+  @Transactional(readOnly = true)
+  public List<Long> findDistinctPersonIdsInCollection(Long collectionId) {
+    String sql =
+        """
+        SELECT DISTINCT cip.person_id
+        FROM collection_content cc
+        JOIN content_image_people cip ON cip.image_id = cc.content_id
+        WHERE cc.collection_id = :collectionId
+          AND cc.visible = true
+        ORDER BY cip.person_id
+        """;
+    return query(
+        sql,
+        (rs, rowNum) -> rs.getLong("person_id"),
+        createParameterSource().addValue("collectionId", collectionId));
+  }
+
   @Transactional(readOnly = true)
   public Map<Long, List<Long>> findPersonIdsByImageIds(List<Long> imageIds) {
     if (imageIds == null || imageIds.isEmpty()) {

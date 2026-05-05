@@ -8,6 +8,7 @@ import edens.zac.portfolio.backend.services.PaginationUtil;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
@@ -163,6 +164,33 @@ class CollectionControllerDev {
   }
 
   public record RatingPatch(@Min(0) @Max(5) Integer rating) {}
+
+  /**
+   * Replace the entire People list for a collection. Manual edit from the admin manage page.
+   *
+   * @param id Collection ID
+   * @param personIds Full set of person IDs to associate (DELETE-then-INSERT semantics)
+   * @return 204 No Content on success
+   */
+  @PutMapping("/{id}/people")
+  ResponseEntity<Void> setPeople(@PathVariable Long id, @RequestBody List<Long> personIds) {
+    collectionService.setCollectionPeople(id, personIds);
+    log.info("Set {} people on collection {}", personIds == null ? 0 : personIds.size(), id);
+    return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Auto-fill the collection's People list from the distinct people tagged on its visible images.
+   *
+   * @param id Collection ID
+   * @return 204 No Content on success
+   */
+  @PostMapping("/{id}/people/regenerate")
+  ResponseEntity<Void> regeneratePeople(@PathVariable Long id) {
+    collectionService.regeneratePeopleFromContents(id);
+    log.info("Regenerated people from contents for collection {}", id);
+    return ResponseEntity.noContent().build();
+  }
 
   /**
    * Create a new child collection under a parent collection. Creates the collection and links it as

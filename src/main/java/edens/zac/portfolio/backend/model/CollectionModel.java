@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,6 +39,9 @@ public class CollectionModel {
   @Size(max = 500, message = "Description cannot exceed 500 characters") private String description;
 
   @Valid private List<Records.Location> locations;
+
+  /** People associated with this collection (independent from per-image people). */
+  @Builder.Default @Valid private List<Records.Person> people = new ArrayList<>();
 
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;

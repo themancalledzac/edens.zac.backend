@@ -647,4 +647,37 @@ class CollectionControllerDevTest {
                 .content("{\"rating\":7}"))
         .andExpect(status().isBadRequest());
   }
+
+  @Test
+  void putPeople_returns204AndDelegatesToService() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/admin/collections/7/people")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[101, 102, 103]"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of(101L, 102L, 103L)));
+  }
+
+  @Test
+  void putPeople_acceptsEmptyList() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/admin/collections/7/people")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[]"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of()));
+  }
+
+  @Test
+  void postRegeneratePeople_returns204AndDelegatesToService() throws Exception {
+    mockMvc
+        .perform(post("/api/admin/collections/7/people/regenerate"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).regeneratePeopleFromContents(7L);
+  }
 }

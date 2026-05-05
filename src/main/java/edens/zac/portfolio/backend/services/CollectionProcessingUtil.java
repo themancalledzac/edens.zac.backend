@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.config.DefaultValues;
+import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
@@ -42,6 +43,7 @@ import org.springframework.stereotype.Component;
 public class CollectionProcessingUtil {
 
   private final CollectionRepository collectionRepository;
+  private final CollectionPeopleRepository collectionPeopleRepository;
   private final ContentRepository contentRepository;
   private final ContentModelConverter contentModelConverter;
   private final ContentMutationUtil contentMutationUtil;
@@ -86,6 +88,11 @@ public class CollectionProcessingUtil {
     Map<Long, List<LocationEntity>> locationsByCollectionId =
         locationRepository.findLocationsByCollectionIds(collectionIds);
 
+    // Batch-load all people associated to these collections (many-to-many) — single query,
+    // no N+1 even when called per collection via convertToBasicModel.
+    Map<Long, List<Records.Person>> peopleByCollectionId =
+        collectionPeopleRepository.findPeopleForCollections(collectionIds);
+
     // Batch-load all cover images
     List<Long> coverImageIds =
         entities.stream()
@@ -115,6 +122,7 @@ public class CollectionProcessingUtil {
                 buildBasicModel(
                     entity,
                     locationsByCollectionId,
+                    peopleByCollectionId,
                     coverImagesById,
                     tagsByContentId,
                     peopleByContentId,
@@ -126,6 +134,7 @@ public class CollectionProcessingUtil {
   private CollectionModel buildBasicModel(
       CollectionEntity entity,
       Map<Long, List<LocationEntity>> locationsByCollectionId,
+      Map<Long, List<Records.Person>> peopleByCollectionId,
       Map<Long, ContentImageEntity> coverImagesById,
       Map<Long, List<TagEntity>> tagsByContentId,
       Map<Long, List<ContentPersonEntity>> peopleByContentId,
@@ -144,6 +153,9 @@ public class CollectionProcessingUtil {
             .map(loc -> new Records.Location(loc.getId(), loc.getLocationName(), loc.getSlug()))
             .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
             .collect(Collectors.toList()));
+
+    // People on the collection itself (collection_people join)
+    model.setPeople(new ArrayList<>(peopleByCollectionId.getOrDefault(entity.getId(), List.of())));
 
     model.setCollectionDate(entity.getCollectionDate());
     model.setVisibility(entity.getVisibility());

@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import static edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page;
 
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
+import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
@@ -57,6 +58,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CollectionService {
 
   private final CollectionRepository collectionRepository;
+  private final CollectionPeopleRepository collectionPeopleRepository;
   private final ContentRepository contentRepository;
   private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
@@ -512,6 +514,26 @@ public class CollectionService {
       throw new ResourceNotFoundException("Collection not found: " + id);
     }
     return true;
+  }
+
+  /**
+   * Replace the entire {@code collection_people} list for a collection. Manual edits from the admin
+   * manage page route through here.
+   */
+  @Transactional
+  public void setCollectionPeople(Long collectionId, List<Long> personIds) {
+    collectionPeopleRepository.setPeopleForCollection(collectionId, personIds);
+  }
+
+  /**
+   * Auto-fill {@code collection_people} from the distinct people tagged on the collection's visible
+   * images. Manual {@link #setCollectionPeople} can still overwrite this afterwards.
+   */
+  @Transactional
+  public void regeneratePeopleFromContents(Long collectionId) {
+    List<Long> distinctPersonIds =
+        contentRepository.findDistinctPersonIdsInCollection(collectionId);
+    collectionPeopleRepository.setPeopleForCollection(collectionId, distinctPersonIds);
   }
 
   @Transactional

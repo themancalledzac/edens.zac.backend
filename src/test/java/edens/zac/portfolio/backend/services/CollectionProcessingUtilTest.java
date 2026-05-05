@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
@@ -30,6 +31,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CollectionProcessingUtilTest {
 
   @Mock private CollectionRepository collectionRepository;
+
+  @Mock private CollectionPeopleRepository collectionPeopleRepository;
 
   @Mock private ContentRepository contentRepository;
 
