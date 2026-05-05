@@ -146,15 +146,14 @@ public class CollectionService {
     return new PageImpl<>(models, pageable, totalElements);
   }
 
+  /**
+   * Find LISTED collections of a given type, ordered by rating then collection_date. Used by
+   * AdminHomeService to pick cover images for type-specific admin home tiles.
+   */
   @Transactional(readOnly = true)
   public List<CollectionModel> findVisibleByTypeOrderByDate(CollectionType type) {
     log.debug("Finding visible collections by type ordered by date: {}", type);
-
-    // Get visible collections by type, ordered by collection date descending
-    // (newest first)
     List<CollectionEntity> collections = collectionRepository.findByTypeAndListedOrdered(type);
-
-    // Convert to basic CollectionModel objects (no content blocks) using batch loading
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 

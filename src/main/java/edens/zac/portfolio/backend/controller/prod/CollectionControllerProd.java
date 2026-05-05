@@ -11,12 +11,10 @@ import edens.zac.portfolio.backend.model.PasswordRequest;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
-import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -108,26 +106,6 @@ public class CollectionControllerProd {
     }
 
     return ResponseEntity.ok(collection);
-  }
-
-  /**
-   * Get visible collections by type ordered by collection date (newest first).
-   *
-   * @param type Collection type (e.g., BLOG, PORTFOLIO, CLIENT_GALLERY, ART_GALLERY)
-   * @return ResponseEntity with list of visible collections of the specified type
-   */
-  @GetMapping("/type/{type}")
-  public ResponseEntity<List<CollectionModel>> getCollectionsByType(@PathVariable String type) {
-    CollectionType collectionType;
-    try {
-      collectionType = CollectionType.valueOf(type.toUpperCase());
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("Invalid collection type: " + type);
-    }
-
-    List<CollectionModel> collections =
-        collectionService.findVisibleByTypeOrderByDate(collectionType);
-    return ResponseEntity.ok(collections);
   }
 
   /**
