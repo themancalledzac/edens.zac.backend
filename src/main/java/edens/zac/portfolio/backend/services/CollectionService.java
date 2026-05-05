@@ -42,6 +42,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -63,6 +65,7 @@ public class CollectionService {
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final MetadataService metadataService;
   private final EmailService emailService;
+  private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
   private static final String HOME_SLUG = "home";
@@ -79,7 +82,7 @@ public class CollectionService {
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Enforce visibility: invisible collections are not publicly accessible (except "home")
-    enforceVisibility(collection, slug);
+    enforceVisibility(collection, slug, isLocalEnvironment());
 
     // Normalize pagination parameters
     int normalizedPage = Math.max(0, page);
@@ -110,8 +113,8 @@ public class CollectionService {
     // Populate collections on content items
     collectionProcessingUtil.populateCollectionsOnContent(model);
 
-    // Filter out child collection content that references non-visible collections
-    filterInvisibleChildCollections(model);
+    // Filter out child collection content that references non-LISTED collections
+    filterNonListedChildCollections(model);
 
     return model;
   }
@@ -246,7 +249,7 @@ public class CollectionService {
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Enforce visibility: invisible collections are not publicly accessible (except "home")
-    enforceVisibility(entity, slug);
+    enforceVisibility(entity, slug, isLocalEnvironment());
 
     return collectionProcessingUtil.convertToBasicModel(entity);
   }
@@ -1004,29 +1007,36 @@ public class CollectionService {
   }
 
   /**
-   * Enforce visibility on a collection for public read endpoints. The "home" collection is always
-   * accessible regardless of its visible flag. All other collections must have visible=true.
+   * Enforce visibility on a collection for read endpoints.
    *
-   * @param entity The collection entity to check
-   * @param slug The slug used to look up the collection (for "home" exception)
-   * @throws ResourceNotFoundException if the collection is not visible
+   * <ul>
+   *   <li>HOME slug always passes (existing exception).
+   *   <li>LISTED + UNLISTED both pass for direct slug access.
+   *   <li>HIDDEN passes only when {@code isLocalEnvironment} is true; otherwise NotFound.
+   * </ul>
    */
-  private void enforceVisibility(CollectionEntity entity, String slug) {
+  private void enforceVisibility(CollectionEntity entity, String slug, boolean isLocalEnvironment) {
     if (HOME_SLUG.equals(slug)) {
       return;
     }
-    // TODO Task 1.5: switch to env-aware 3-state enforcement (HIDDEN dev-only, UNLISTED slug-only).
-    if (entity.getVisibility() == CollectionVisibility.HIDDEN) {
-      log.debug("Blocked access to non-visible collection with slug: {}", slug);
+    CollectionVisibility v = entity.getVisibility();
+    if (v == CollectionVisibility.HIDDEN && !isLocalEnvironment) {
+      log.debug("Blocked HIDDEN collection {} from non-local request", slug);
       throw new ResourceNotFoundException("Collection not found with slug: " + slug);
     }
+    // LISTED and UNLISTED both allow direct slug access.
+  }
+
+  private boolean isLocalEnvironment() {
+    return springEnv.acceptsProfiles(Profiles.of("dev"));
   }
 
   /**
-   * Remove child collection content items that reference non-visible collections. This prevents
-   * invisible collections from leaking through parent collection responses on public endpoints.
+   * Remove child collection content items that reference non-LISTED collections. This prevents
+   * UNLISTED and HIDDEN collections from leaking through parent collection responses on public
+   * endpoints.
    */
-  private void filterInvisibleChildCollections(CollectionModel model) {
+  private void filterNonListedChildCollections(CollectionModel model) {
     if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
       return;
     }
@@ -1045,33 +1055,31 @@ public class CollectionService {
       return;
     }
 
-    // Batch-load referenced collections and find invisible ones
-    Set<Long> invisibleIds =
+    // Batch-load referenced collections and find non-LISTED ones (UNLISTED + HIDDEN)
+    Set<Long> nonListedIds =
         collectionRepository.findByIds(referencedIds).stream()
-            // TODO Task 1.5: rename helper to filterNonListedChildCollections and use
-            // appearsInLists().
             .filter(c -> !c.getVisibility().appearsInLists())
             .map(CollectionEntity::getId)
             .collect(Collectors.toSet());
 
-    if (invisibleIds.isEmpty()) {
+    if (nonListedIds.isEmpty()) {
       return;
     }
 
-    // Filter out content items that reference invisible collections
+    // Filter out content items that reference non-LISTED collections
     List<ContentModel> filtered =
         model.getContent().stream()
             .filter(
                 content -> {
                   if (content instanceof ContentModels.Collection col) {
-                    return !invisibleIds.contains(col.referencedCollectionId());
+                    return !nonListedIds.contains(col.referencedCollectionId());
                   }
                   return true;
                 })
             .collect(Collectors.toList());
 
     model.setContent(filtered);
-    log.debug("Filtered {} invisible child collections from response", invisibleIds.size());
+    log.debug("Filtered {} non-LISTED child collections from response", nonListedIds.size());
   }
 
   /**

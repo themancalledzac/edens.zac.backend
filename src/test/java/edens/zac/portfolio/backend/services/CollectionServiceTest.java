@@ -52,6 +52,7 @@ class CollectionServiceTest {
   @Mock private ContentMutationUtil contentMutationUtil;
   @Mock private ContentModelConverter contentModelConverter;
   @Mock private MetadataService metadataService;
+  @Mock private org.springframework.core.env.Environment springEnv;
 
   @InjectMocks private CollectionService service;
 
@@ -894,6 +895,61 @@ class CollectionServiceTest {
           .thenReturn(List.of(model));
 
       assertThat(service.findAllListedWithCovers()).containsExactly(model);
+    }
+  }
+
+  @Nested
+  class EnforceVisibilityVisibilityRules {
+
+    @Test
+    void enforceVisibilityHIDDENBlocksProd() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("secret")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.HIDDEN)
+              .build();
+      when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
+      when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
+          .thenReturn(false);
+
+      assertThatThrownBy(() -> service.findMetaBySlug("secret"))
+          .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void enforceVisibilityHIDDENPassesInDev() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("secret")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.HIDDEN)
+              .build();
+      when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
+      when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
+          .thenReturn(true);
+      when(collectionProcessingUtil.convertToBasicModel(entity))
+          .thenReturn(CollectionModel.builder().id(1L).slug("secret").build());
+
+      assertThat(service.findMetaBySlug("secret")).isNotNull();
+    }
+
+    @Test
+    void enforceVisibilityUNLISTEDPassesInProd() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("private-gallery")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findBySlug("private-gallery")).thenReturn(Optional.of(entity));
+      when(collectionProcessingUtil.convertToBasicModel(entity))
+          .thenReturn(CollectionModel.builder().id(1L).slug("private-gallery").build());
+
+      assertThat(service.findMetaBySlug("private-gallery")).isNotNull();
     }
   }
 }
