@@ -25,6 +25,7 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +82,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.BLOG)
             .title("Test Blog")
             .slug("test-blog")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .contentCount(5)
             .totalPages(1)
             .currentPage(0)
@@ -94,7 +95,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.ART_GALLERY)
             .title("Test Art Gallery")
             .slug("test-art-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .contentCount(10)
             .totalPages(1)
             .currentPage(0)
@@ -107,7 +108,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.CLIENT_GALLERY)
             .title("Test Client Gallery")
             .slug("test-client-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .contentCount(100)
             .totalPages(2)
             .currentPage(0)
@@ -157,7 +158,7 @@ class CollectionControllerProdTest {
         .title("Client Gallery")
         .slug("client-gallery")
         .type(CollectionType.CLIENT_GALLERY)
-        .visible(true)
+        .visibility(CollectionVisibility.LISTED)
         .isPasswordProtected(true)
         .contentCount(5)
         .content(new ArrayList<>(List.of(createStubImage(99L, "Gallery Image"))))
@@ -278,7 +279,7 @@ class CollectionControllerProdTest {
             .title("Test Blog")
             .type(CollectionType.BLOG)
             .slug("test-blog")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
 
     List<CollectionModel> collections = List.of(blogCollection);
@@ -305,7 +306,7 @@ class CollectionControllerProdTest {
             .title("Test Portfolio")
             .type(CollectionType.PORTFOLIO)
             .slug("test-portfolio")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
 
     when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.PORTFOLIO)))
@@ -332,7 +333,7 @@ class CollectionControllerProdTest {
             .title("Wedding Gallery")
             .type(CollectionType.CLIENT_GALLERY)
             .slug("wedding-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .isPasswordProtected(false)
             .build();
 
@@ -525,7 +526,7 @@ class CollectionControllerProdTest {
             .title("Seattle Trip")
             .slug("seattle-trip")
             .type(CollectionType.PORTFOLIO)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
 
     ContentModels.Image image = createStubImage(10L, "Sunset");
@@ -561,7 +562,7 @@ class CollectionControllerProdTest {
             .title("Test Blog")
             .slug("test-blog")
             .type(CollectionType.BLOG)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
 
     when(collectionService.findMetaBySlug("test-blog")).thenReturn(metaModel);
@@ -651,7 +652,7 @@ class CollectionControllerProdTest {
             .title("Public Gallery")
             .slug("public-gallery")
             .type(CollectionType.PORTFOLIO)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .isPasswordProtected(false)
             .content(new ArrayList<>(List.of(createStubImage(99L, "Stub"))))
             .contentCount(5)
@@ -842,7 +843,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.CLIENT_GALLERY)
             .title("Protected Gallery")
             .slug("protected-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .isPasswordProtected(true)
             .coverImage(null) // stripped by CollectionProcessingUtil.buildBasicModel
             .contentCount(5)
@@ -874,7 +875,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.CLIENT_GALLERY)
             .title("Protected Gallery")
             .slug("protected-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .isPasswordProtected(true)
             .coverImage(null) // stripped by CollectionProcessingUtil.buildBasicModel
             .contentCount(5)

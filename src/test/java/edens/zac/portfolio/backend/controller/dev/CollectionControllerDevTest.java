@@ -15,6 +15,7 @@ import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDateTime;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +64,7 @@ class CollectionControllerDevTest {
     testCollection.setTitle("Test Blog");
     testCollection.setSlug("test-blog");
     testCollection.setDescription("A test blog collection");
-    testCollection.setVisible(true);
+    testCollection.setVisibility(CollectionVisibility.LISTED);
     testCollection.setContentPerPage(30);
     testCollection.setContentCount(5);
     testCollection.setTotalPages(1);

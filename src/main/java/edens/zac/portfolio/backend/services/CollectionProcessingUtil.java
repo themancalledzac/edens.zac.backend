@@ -146,8 +146,7 @@ public class CollectionProcessingUtil {
             .collect(Collectors.toList()));
 
     model.setCollectionDate(entity.getCollectionDate());
-    // TODO Task 1.6: replace boolean model.visible with CollectionVisibility.
-    model.setVisible(entity.getVisibility() != CollectionVisibility.HIDDEN);
+    model.setVisibility(entity.getVisibility());
 
     // Populate cover image from pre-loaded data
     if (entity.getCoverImageId() != null) {
@@ -512,10 +511,8 @@ public class CollectionProcessingUtil {
     } else if (updateDTO.collectionDate() != null) {
       entity.setCollectionDate(updateDTO.collectionDate());
     }
-    if (updateDTO.visible() != null) {
-      // TODO Task 1.6: replace boolean updateDTO.visible() with CollectionVisibility.
-      entity.setVisibility(
-          updateDTO.visible() ? CollectionVisibility.LISTED : CollectionVisibility.HIDDEN);
+    if (updateDTO.visibility() != null) {
+      entity.setVisibility(updateDTO.visibility());
     }
     if (updateDTO.slug() != null && !updateDTO.slug().isBlank()) {
       String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());

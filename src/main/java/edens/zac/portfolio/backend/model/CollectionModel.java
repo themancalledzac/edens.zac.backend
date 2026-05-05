@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -41,7 +42,7 @@ public class CollectionModel {
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;
 
-  private Boolean visible;
+  private CollectionVisibility visibility;
 
   private DisplayMode displayMode;
 

@@ -95,9 +95,7 @@ class CollectionProcessingUtilTest {
     assertEquals(testEntity.getTitle(), model.getTitle());
     assertEquals(testEntity.getSlug(), model.getSlug());
     assertEquals(testEntity.getDescription(), model.getDescription());
-    // Model.visible (Boolean) is derived from entity.visibility (enum): non-HIDDEN -> true.
-    // T1.6 will swap model.visible for the enum directly.
-    assertEquals(testEntity.getVisibility() != CollectionVisibility.HIDDEN, model.getVisible());
+    assertEquals(testEntity.getVisibility(), model.getVisibility());
     assertEquals(testEntity.getContentPerPage(), model.getContentPerPage());
     assertEquals(testEntity.getTotalContent(), model.getContentCount());
     assertEquals(testEntity.getTotalPages(), model.getTotalPages());

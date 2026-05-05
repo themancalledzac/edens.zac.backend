@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -56,8 +57,8 @@ public final class CollectionRequests {
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
       /** Set to true to explicitly clear the collection date (set it to null) */
       Boolean clearCollectionDate,
-      /** Whether the collection is visible */
-      Boolean visible,
+      /** Visibility state of the collection (LISTED / UNLISTED / HIDDEN). */
+      CollectionVisibility visibility,
       /** Display mode for ordering content in the collection */
       DisplayMode displayMode,
       /** Number of content items per page */
