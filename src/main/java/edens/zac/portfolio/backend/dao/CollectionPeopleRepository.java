@@ -18,10 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>The actual person table is {@code content_people} with column {@code person_name}; columns are
  * aliased as {@code name} so they map cleanly into {@link Records.Person}.
- *
- * <p>Note: {@link CollectionRepository#saveCollectionPeople(Long, java.util.List)} predates this
- * class and is still wired into {@code CollectionService.updateCollectionPeople}. Both write paths
- * produce equivalent rows; this repository is the canonical home for new code.
  */
 @Component
 public class CollectionPeopleRepository extends BaseDao {

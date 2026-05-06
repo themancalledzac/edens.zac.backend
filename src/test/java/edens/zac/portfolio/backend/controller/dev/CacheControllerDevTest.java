@@ -21,7 +21,7 @@ class CacheControllerDevTest {
   private MockMvc mockMvc;
 
   @Mock private AdminHomeService adminHomeService;
-  @InjectMocks private CacheControllerDev controller;
+  @InjectMocks private AdminController controller;
 
   @BeforeEach
   void setUp() {

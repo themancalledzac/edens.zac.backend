@@ -482,28 +482,6 @@ public class CollectionRepository extends BaseDao {
     update(sql, params);
   }
 
-  @Transactional
-  public void saveCollectionPeople(Long collectionId, List<Long> personIds) {
-    String deleteSql = "DELETE FROM collection_people WHERE collection_id = :collectionId";
-    MapSqlParameterSource deleteParams =
-        createParameterSource().addValue("collectionId", collectionId);
-    update(deleteSql, deleteParams);
-
-    if (personIds != null && !personIds.isEmpty()) {
-      String insertSql =
-          "INSERT INTO collection_people (collection_id, person_id) VALUES (:collectionId, :personId)";
-      MapSqlParameterSource[] batchParams =
-          personIds.stream()
-              .map(
-                  personId ->
-                      createParameterSource()
-                          .addValue("collectionId", collectionId)
-                          .addValue("personId", personId))
-              .toArray(MapSqlParameterSource[]::new);
-      batchUpdate(insertSql, batchParams);
-    }
-  }
-
   @Transactional(readOnly = true)
   public List<Long> findCollectionPersonIds(Long collectionId) {
     String sql = "SELECT person_id FROM collection_people WHERE collection_id = :collectionId";

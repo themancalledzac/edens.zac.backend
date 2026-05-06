@@ -726,7 +726,7 @@ public class CollectionService {
             .map(ContentPersonEntity::getId)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-    collectionRepository.saveCollectionPeople(collection.getId(), updatedPersonIds);
+    collectionPeopleRepository.setPeopleForCollection(collection.getId(), updatedPersonIds);
     log.info("Updated people for collection {}", collection.getId());
   }
 

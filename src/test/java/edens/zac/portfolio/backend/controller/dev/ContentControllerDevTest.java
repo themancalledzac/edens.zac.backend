@@ -42,7 +42,7 @@ class ContentControllerDevTest {
 
   @Mock private JobTrackingService jobTrackingService;
 
-  @InjectMocks private ContentControllerDev contentController;
+  @InjectMocks private AdminController contentController;
 
   private ObjectMapper objectMapper;
 

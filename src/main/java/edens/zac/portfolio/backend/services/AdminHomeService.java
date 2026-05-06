@@ -10,7 +10,7 @@ import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,6 @@ public class AdminHomeService {
 
   private final AtomicReference<List<Records.AdminHomeTileResponse>> cache =
       new AtomicReference<>();
-  private final Random random = new Random();
 
   /**
    * Return the ordered list of admin home tiles with cover URLs resolved per tile-key strategy.
@@ -97,6 +96,6 @@ public class AdminHomeService {
     if (urls.isEmpty()) {
       return null;
     }
-    return urls.get(random.nextInt(urls.size()));
+    return urls.get(ThreadLocalRandom.current().nextInt(urls.size()));
   }
 }

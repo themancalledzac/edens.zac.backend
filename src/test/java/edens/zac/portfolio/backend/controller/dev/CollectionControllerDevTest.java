@@ -36,7 +36,7 @@ class CollectionControllerDevTest {
 
   @Mock private CollectionService collectionService;
 
-  @InjectMocks private CollectionControllerDev contentCollectionController;
+  @InjectMocks private AdminController contentCollectionController;
 
   private ObjectMapper objectMapper;
 

@@ -28,7 +28,7 @@ class AdminHomeControllerDevTest {
   private MockMvc mockMvc;
 
   @Mock private AdminHomeService adminHomeService;
-  @InjectMocks private AdminHomeControllerDev controller;
+  @InjectMocks private AdminController controller;
 
   @BeforeEach
   void setUp() {

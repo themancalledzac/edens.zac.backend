@@ -252,16 +252,6 @@ public class ContentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc(int limit, int offset) {
-    String sql =
-        SELECT_CONTENT_IMAGE
-            + " ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC LIMIT :limit OFFSET :offset";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("limit", limit).addValue("offset", offset);
-    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<String> findRandomImageWebUrl() {
     return query(FIND_RANDOM_IMAGE_WEB_URL_SQL, (rs, rowNum) -> rs.getString("image_url_web"))
         .stream()
@@ -342,13 +332,6 @@ public class ContentRepository extends BaseDao {
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     List<String> results = namedParameterJdbcTemplate.queryForList(sql, params, String.class);
     return results.isEmpty() ? Optional.empty() : Optional.of(ContentType.valueOf(results.get(0)));
-  }
-
-  @Transactional(readOnly = true)
-  public int countImages() {
-    String sql = "SELECT COUNT(*) FROM content WHERE content_type = 'IMAGE'";
-    Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
-    return count != null ? count : 0;
   }
 
   @Transactional(readOnly = true)
