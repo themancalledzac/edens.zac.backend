@@ -23,6 +23,7 @@ import edens.zac.portfolio.backend.model.ContentImageUpdateResponse;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
+import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
 import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.Records;
@@ -36,10 +37,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +50,6 @@ import org.springframework.web.multipart.MultipartFile;
 /** Service for managing content, tags, and people. */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ContentService {
 
   private final TagRepository tagRepository;
@@ -62,6 +63,37 @@ public class ContentService {
   private final ContentImageUpdateValidator contentImageUpdateValidator;
   private final ContentValidator contentValidator;
   private final MetadataService metadataService;
+  private final String cloudfrontDomain;
+
+  private static final String FORMAT_WEB = "web";
+  private static final String FORMAT_ORIGINAL = "original";
+
+  public ContentService(
+      TagRepository tagRepository,
+      ContentRepository contentRepository,
+      CollectionRepository collectionRepository,
+      PersonRepository personRepository,
+      LocationRepository locationRepository,
+      ContentMutationUtil contentMutationUtil,
+      ContentModelConverter contentModelConverter,
+      ImageProcessingService imageProcessingService,
+      ContentImageUpdateValidator contentImageUpdateValidator,
+      ContentValidator contentValidator,
+      MetadataService metadataService,
+      @Value("${cloudfront.domain}") String cloudfrontDomain) {
+    this.tagRepository = tagRepository;
+    this.contentRepository = contentRepository;
+    this.collectionRepository = collectionRepository;
+    this.personRepository = personRepository;
+    this.locationRepository = locationRepository;
+    this.contentMutationUtil = contentMutationUtil;
+    this.contentModelConverter = contentModelConverter;
+    this.imageProcessingService = imageProcessingService;
+    this.contentImageUpdateValidator = contentImageUpdateValidator;
+    this.contentValidator = contentValidator;
+    this.metadataService = metadataService;
+    this.cloudfrontDomain = cloudfrontDomain;
+  }
 
   public Map<String, Object> createTag(String tagName) {
     return metadataService.createTag(tagName);
@@ -532,6 +564,156 @@ public class ContentService {
       return Optional.empty();
     }
     return collectionRepository.findById(collectionId);
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Download resolution
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resolve which S3 object to serve for a single-image download. Throws {@link
+   * IllegalArgumentException} for unsupported formats and {@link ResourceNotFoundException} when
+   * {@code format=original} is requested but the image has no stored original.
+   *
+   * <p>The controller is responsible only for HTTP concerns (auth, streaming) -- all
+   * format-vs-field, extension, and MIME selection lives here.
+   */
+  @Transactional(readOnly = true)
+  public DownloadResolution resolveImageDownload(Long imageId, String format) {
+    requireSupportedFormat(format);
+    ContentImageEntity image = findImageById(imageId);
+    boolean isOriginal = FORMAT_ORIGINAL.equalsIgnoreCase(format);
+
+    String url;
+    String extension;
+    String contentType;
+    if (isOriginal) {
+      url = image.getImageUrlOriginal();
+      if (url == null) {
+        throw new ResourceNotFoundException("No original available for image " + imageId);
+      }
+      extension = ".jpg";
+      contentType = "image/jpeg";
+    } else {
+      url = image.getImageUrlWeb();
+      extension = ".webp";
+      contentType = "image/webp";
+    }
+
+    String s3Key = extractS3Key(url);
+    if (s3Key == null) {
+      throw new ResourceNotFoundException(
+          "Image " + imageId + " has no resolvable S3 key (url=" + url + ")");
+    }
+    String filename = sanitizeFilename(image.getOriginalFilename(), imageId, extension);
+    return new DownloadResolution(s3Key, extension, contentType, filename);
+  }
+
+  /**
+   * Resolve the per-image download targets for a collection ZIP. For {@code format=original},
+   * prefers {@code imageUrlOriginal} per image but transparently falls back to {@code imageUrlWeb}
+   * (and the {@code .webp} extension) when an original is not stored, so the ZIP is always
+   * complete. Images whose configured CloudFront URL cannot be parsed into an S3 key are skipped
+   * with a WARN log.
+   *
+   * <p>Throws {@link IllegalArgumentException} for unsupported formats.
+   */
+  @Transactional(readOnly = true)
+  public List<DownloadResolution> resolveCollectionDownloadEntries(
+      Long collectionId, String format) {
+    requireSupportedFormat(format);
+    boolean isOriginal = FORMAT_ORIGINAL.equalsIgnoreCase(format);
+    List<ContentImageEntity> images = findImagesForCollection(collectionId);
+    List<DownloadResolution> resolutions = new ArrayList<>(images.size());
+    for (ContentImageEntity image : images) {
+      String url = image.getImageUrlWeb();
+      String extension = ".webp";
+      String contentType = "image/webp";
+      if (isOriginal) {
+        String origUrl = image.getImageUrlOriginal();
+        if (origUrl != null) {
+          url = origUrl;
+          extension = ".jpg";
+          contentType = "image/jpeg";
+        } else {
+          log.warn(
+              "No original for image {} in ZIP (collectionId={}); using web version",
+              image.getId(),
+              collectionId);
+        }
+      }
+      String s3Key = extractS3Key(url);
+      if (s3Key == null) {
+        log.warn("Skipping image {} in ZIP (no resolvable S3 key, url={})", image.getId(), url);
+        continue;
+      }
+      String filename = sanitizeFilename(image.getOriginalFilename(), image.getId(), extension);
+      resolutions.add(new DownloadResolution(s3Key, extension, contentType, filename));
+    }
+    return resolutions;
+  }
+
+  private void requireSupportedFormat(String format) {
+    if (!FORMAT_WEB.equalsIgnoreCase(format) && !FORMAT_ORIGINAL.equalsIgnoreCase(format)) {
+      throw new IllegalArgumentException(
+          "Unsupported download format: " + format + " (supported: web, original)");
+    }
+  }
+
+  /**
+   * Build a sanitized {@code Content-Disposition} filename for a collection ZIP. Same sanitization
+   * rules as per-image entries -- strips path components, control characters, and quotes so the
+   * value is safe to embed in an HTTP header. The slug is already constrained at write time, but
+   * routing it through here keeps the ZIP filename consistent with the per-entry names and adds
+   * defense-in-depth against any legacy slug that slipped past validation.
+   */
+  public String collectionZipFilename(String slug, Long collectionId) {
+    String base = slug + "-" + collectionId;
+    return sanitizeFilename(base, collectionId, ".zip");
+  }
+
+  /**
+   * Translate a CloudFront URL stored on the entity (e.g. {@code
+   * https://{cloudfront-domain}/Image/Web/2025/01/foo.webp}) back to the underlying S3 key. Returns
+   * {@code null} when the URL is empty or doesn't match the configured CloudFront domain.
+   */
+  private String extractS3Key(String cloudfrontUrl) {
+    if (cloudfrontUrl == null || cloudfrontUrl.isEmpty()) {
+      return null;
+    }
+    String prefix = "https://" + cloudfrontDomain + "/";
+    if (cloudfrontUrl.startsWith(prefix)) {
+      return cloudfrontUrl.substring(prefix.length());
+    }
+    log.warn("Cloudfront URL doesn't match configured domain: {}", cloudfrontUrl);
+    return null;
+  }
+
+  /**
+   * Sanitize a filename for use in {@code Content-Disposition} or as a ZIP entry. Strips path
+   * traversal and control characters, normalises the extension, falls back to a uuid if the input
+   * is unusable.
+   */
+  private String sanitizeFilename(String original, Object idForFallback, String extension) {
+    String base = original;
+    if (base != null) {
+      // Drop any path component to prevent traversal (`/`, `\`).
+      int slashIdx = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'));
+      if (slashIdx >= 0) {
+        base = base.substring(slashIdx + 1);
+      }
+      base = base.replaceAll("[\\p{Cntrl}\"\\\\]", "");
+      // Strip any existing image extension, we'll reapply the canonical one.
+      base = base.replaceAll("(?i)\\.(jpg|jpeg|webp|png|tif|tiff)$", "");
+      base = base.trim();
+    }
+    if (base == null || base.isEmpty()) {
+      base =
+          (idForFallback != null ? idForFallback.toString() : "download")
+              + "-"
+              + UUID.randomUUID().toString().substring(0, 8);
+    }
+    return base + extension;
   }
 
   // ---------------------------------------------------------------------------

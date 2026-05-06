@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,8 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
-import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
@@ -42,10 +44,16 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+/**
+ * Controller-level tests. The controller is intentionally thin -- format-vs-field, MIME, and
+ * extension decisions all live in {@link ContentService}, so these tests stub the high-level
+ * service methods ({@code resolveImageDownload}, {@code resolveCollectionDownloadEntries}) and
+ * focus on auth gating, S3 streaming, and exception-to-HTTP-status mapping. Resolution logic is
+ * exercised separately in {@code ContentServiceDownloadTest}.
+ */
 @ExtendWith(MockitoExtension.class)
 class ContentDownloadControllerProdTest {
 
-  private static final String CLOUDFRONT_DOMAIN = "cdn.example.com";
   private static final String BUCKET = "test-bucket";
 
   private MockMvc mockMvc;
@@ -60,7 +68,6 @@ class ContentDownloadControllerProdTest {
   @BeforeEach
   void setUp() {
     ReflectionTestUtils.setField(controller, "bucketName", BUCKET);
-    ReflectionTestUtils.setField(controller, "cloudfrontDomain", CLOUDFRONT_DOMAIN);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())
@@ -77,12 +84,13 @@ class ContentDownloadControllerProdTest {
         meta, AbortableInputStream.create(new ByteArrayInputStream(bytes)));
   }
 
-  private static ContentImageEntity image(Long id, String filename, String suffix) {
-    return ContentImageEntity.builder()
-        .id(id)
-        .imageUrlWeb("https://" + CLOUDFRONT_DOMAIN + "/Image/Web/2025/01/" + suffix)
-        .originalFilename(filename)
-        .build();
+  private static DownloadResolution webResolution(String filename) {
+    return new DownloadResolution("Image/Web/2025/01/" + filename, ".webp", "image/webp", filename);
+  }
+
+  private static DownloadResolution jpegResolution(String filename) {
+    return new DownloadResolution(
+        "Image/Original/2025/01/" + filename, ".jpg", "image/jpeg", filename);
   }
 
   private static CollectionEntity protectedGallery() {
@@ -116,12 +124,12 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void protectedCollection_validCookie_returns200WithBytes() throws Exception {
-      ContentImageEntity img = image(10L, "smith-001.jpg", "smith-001.webp");
       byte[] body = new byte[] {0x52, 0x49, 0x46, 0x46}; // RIFF magic, just a fake stub
-      when(contentService.findImageById(10L)).thenReturn(img);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
           .thenReturn(true);
+      when(contentService.resolveImageDownload(10L, "web"))
+          .thenReturn(webResolution("smith-001.webp"));
       when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeS3Stream(body));
 
       MvcResult result =
@@ -143,23 +151,22 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void protectedCollection_noCookie_returns401() throws Exception {
-      ContentImageEntity img = image(10L, "smith-001.jpg", "smith-001.webp");
-      when(contentService.findImageById(10L)).thenReturn(img);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
 
       mockMvc
           .perform(get("/api/read/content/images/10/download"))
           .andExpect(status().isUnauthorized());
 
+      verify(contentService, never()).resolveImageDownload(any(), any());
       verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
 
     @Test
     void unprotectedCollection_noCookie_returns200() throws Exception {
-      ContentImageEntity img = image(11L, "open-001.jpg", "open-001.webp");
       byte[] body = new byte[] {0x01, 0x02, 0x03, 0x04};
-      when(contentService.findImageById(11L)).thenReturn(img);
       when(contentService.findCollectionForImage(11L)).thenReturn(Optional.of(openCollection()));
+      when(contentService.resolveImageDownload(11L, "web"))
+          .thenReturn(webResolution("open-001.webp"));
       when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeS3Stream(body));
 
       MvcResult result =
@@ -176,29 +183,64 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void orphanImage_noCollection_returns200() throws Exception {
-      ContentImageEntity img = image(12L, "orphan.jpg", "orphan.webp");
       byte[] body = new byte[] {0x42};
-      when(contentService.findImageById(12L)).thenReturn(img);
       when(contentService.findCollectionForImage(12L)).thenReturn(Optional.empty());
+      when(contentService.resolveImageDownload(12L, "web"))
+          .thenReturn(webResolution("orphan.webp"));
       when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeS3Stream(body));
 
       mockMvc.perform(get("/api/read/content/images/12/download")).andExpect(status().isOk());
     }
 
     @Test
-    void formatOriginal_returns400() throws Exception {
+    void formatOriginal_returns200WithJpeg() throws Exception {
+      byte[] body = new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}; // JPEG magic bytes
+      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
+          .thenReturn(true);
+      when(contentService.resolveImageDownload(10L, "original"))
+          .thenReturn(jpegResolution("smith-001.jpg"));
+      when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeS3Stream(body));
+
+      mockMvc
+          .perform(
+              get("/api/read/content/images/10/download")
+                  .param("format", "original")
+                  .cookie(new Cookie("gallery_access_smith-wedding", "tok-123")))
+          .andExpect(status().isOk())
+          .andExpect(header().string("Content-Type", "image/jpeg"))
+          .andExpect(
+              header().string("Content-Disposition", org.hamcrest.Matchers.containsString(".jpg")));
+    }
+
+    @Test
+    void formatOriginal_serviceThrowsNotFound_returns404() throws Exception {
+      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.empty());
+      when(contentService.resolveImageDownload(10L, "original"))
+          .thenThrow(new ResourceNotFoundException("No original available for image 10"));
+
       mockMvc
           .perform(get("/api/read/content/images/10/download").param("format", "original"))
+          .andExpect(status().isNotFound());
+
+      verify(s3Client, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    @Test
+    void formatUnsupported_serviceThrowsIllegalArgument_returns400() throws Exception {
+      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.empty());
+      when(contentService.resolveImageDownload(10L, "raw"))
+          .thenThrow(new IllegalArgumentException("Unsupported download format: raw"));
+
+      mockMvc
+          .perform(get("/api/read/content/images/10/download").param("format", "raw"))
           .andExpect(status().isBadRequest());
 
-      verify(contentService, never()).findImageById(org.mockito.ArgumentMatchers.anyLong());
       verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
 
     @Test
     void invalidCookie_returns401() throws Exception {
-      ContentImageEntity img = image(10L, "smith-001.jpg", "smith-001.webp");
-      when(contentService.findImageById(10L)).thenReturn(img);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "garbage"))
           .thenReturn(false);
@@ -209,6 +251,7 @@ class ContentDownloadControllerProdTest {
                   .cookie(new Cookie("gallery_access_smith-wedding", "garbage")))
           .andExpect(status().isUnauthorized());
 
+      verify(contentService, never()).resolveImageDownload(any(), any());
       verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
   }
@@ -223,14 +266,11 @@ class ContentDownloadControllerProdTest {
     @Test
     void protectedCollection_validCookie_returnsZipWithEntries() throws Exception {
       CollectionEntity gallery = protectedGallery();
-      ContentImageEntity img1 = image(10L, "first.jpg", "first.webp");
-      ContentImageEntity img2 = image(11L, "second.jpg", "second.webp");
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(gallery);
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
           .thenReturn(true);
-      when(contentService.findImagesForCollection(1L)).thenReturn(List.of(img1, img2));
-
-      // Each S3 fetch returns a fresh stream (the controller reads them sequentially).
+      when(contentService.resolveCollectionDownloadEntries(1L, "web"))
+          .thenReturn(List.of(webResolution("first.webp"), webResolution("second.webp")));
       when(s3Client.getObject(any(GetObjectRequest.class)))
           .thenReturn(fakeS3Stream("aaaa".getBytes()))
           .thenReturn(fakeS3Stream("bbbb".getBytes()));
@@ -244,7 +284,6 @@ class ContentDownloadControllerProdTest {
               .andExpect(header().string("Content-Type", "application/zip"))
               .andReturn();
 
-      // Verify ZIP contents
       byte[] zipBytes = result.getResponse().getContentAsByteArray();
       try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
         ZipEntry entry;
@@ -253,7 +292,6 @@ class ContentDownloadControllerProdTest {
         boolean sawSecond = false;
         while ((entry = zis.getNextEntry()) != null) {
           count++;
-          // Each entry name is "{seq}_{base}.webp"
           if (entry.getName().contains("first")) {
             sawFirst = true;
             assertThat(entry.getName()).endsWith(".webp");
@@ -283,15 +321,15 @@ class ContentDownloadControllerProdTest {
           .perform(get("/api/read/collections/smith-wedding/download"))
           .andExpect(status().isUnauthorized());
 
+      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any());
       verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
 
     @Test
     void unprotectedCollection_noCookie_returns200() throws Exception {
-      CollectionEntity open = openCollection();
-      ContentImageEntity img = image(10L, "open.jpg", "open.webp");
-      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(open);
-      when(contentService.findImagesForCollection(2L)).thenReturn(List.of(img));
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.resolveCollectionDownloadEntries(2L, "web"))
+          .thenReturn(List.of(webResolution("open.webp")));
       when(s3Client.getObject(any(GetObjectRequest.class)))
           .thenReturn(fakeS3Stream("zzzz".getBytes()));
 
@@ -302,26 +340,59 @@ class ContentDownloadControllerProdTest {
     }
 
     @Test
-    void formatOriginal_returns400() throws Exception {
+    void formatOriginal_returnsZipWithJpgEntries() throws Exception {
+      when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
+      when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
+          .thenReturn(true);
+      when(contentService.resolveCollectionDownloadEntries(1L, "original"))
+          .thenReturn(List.of(jpegResolution("first.jpg"), jpegResolution("second.jpg")));
+      when(s3Client.getObject(any(GetObjectRequest.class)))
+          .thenReturn(fakeS3Stream("JPEG1".getBytes()))
+          .thenReturn(fakeS3Stream("JPEG2".getBytes()));
+
+      MvcResult result =
+          mockMvc
+              .perform(
+                  get("/api/read/collections/smith-wedding/download")
+                      .param("format", "original")
+                      .cookie(new Cookie("gallery_access_smith-wedding", "tok-123")))
+              .andExpect(status().isOk())
+              .andReturn();
+
+      byte[] zipBytes = result.getResponse().getContentAsByteArray();
+      try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+        ZipEntry entry;
+        int count = 0;
+        while ((entry = zis.getNextEntry()) != null) {
+          count++;
+          assertThat(entry.getName()).endsWith(".jpg");
+        }
+        assertThat(count).isEqualTo(2);
+      }
+    }
+
+    @Test
+    void formatUnsupported_serviceThrowsIllegalArgument_returns400() throws Exception {
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.resolveCollectionDownloadEntries(eq(2L), eq("raw")))
+          .thenThrow(new IllegalArgumentException("Unsupported download format: raw"));
+
       mockMvc
-          .perform(get("/api/read/collections/smith-wedding/download").param("format", "original"))
+          .perform(get("/api/read/collections/open-portfolio/download").param("format", "raw"))
           .andExpect(status().isBadRequest());
 
-      verify(collectionService, never()).findEntityBySlug(org.mockito.ArgumentMatchers.anyString());
+      verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
 
     @Test
     void zipsRemainingImagesWhenOneS3FetchFails() throws Exception {
-      // BE-H2: a per-image S3 failure must not corrupt the rest of the ZIP. The controller
-      // writes a placeholder error entry for the failed image and continues with the others.
-      CollectionEntity gallery = openCollection();
-      ContentImageEntity img1 = image(10L, "first.jpg", "first.webp");
-      ContentImageEntity img2 = image(11L, "second.jpg", "second.webp");
-      ContentImageEntity img3 = image(12L, "third.jpg", "third.webp");
-      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(gallery);
-      when(contentService.findImagesForCollection(2L)).thenReturn(List.of(img1, img2, img3));
-
-      // First image succeeds, second fails with SdkClientException, third succeeds.
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.resolveCollectionDownloadEntries(2L, "web"))
+          .thenReturn(
+              List.of(
+                  webResolution("first.webp"),
+                  webResolution("second.webp"),
+                  webResolution("third.webp")));
       when(s3Client.getObject(any(GetObjectRequest.class)))
           .thenReturn(fakeS3Stream("aaaa".getBytes()))
           .thenThrow(SdkClientException.builder().message("connection reset").build())
@@ -362,9 +433,8 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void emptyCollection_returnsEmptyZip() throws Exception {
-      CollectionEntity gallery = openCollection();
-      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(gallery);
-      when(contentService.findImagesForCollection(2L)).thenReturn(List.of());
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.resolveCollectionDownloadEntries(2L, "web")).thenReturn(List.of());
 
       MvcResult result =
           mockMvc
@@ -372,7 +442,6 @@ class ContentDownloadControllerProdTest {
               .andExpect(status().isOk())
               .andReturn();
 
-      // ZIP is non-empty (header bytes) but contains no entries.
       byte[] zipBytes = result.getResponse().getContentAsByteArray();
       try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
         assertThat(zis.getNextEntry()).isNull();
