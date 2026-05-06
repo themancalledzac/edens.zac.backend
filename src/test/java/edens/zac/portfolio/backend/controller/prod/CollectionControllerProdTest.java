@@ -25,6 +25,7 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +82,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.BLOG)
             .title("Test Blog")
             .slug("test-blog")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .contentCount(5)
             .totalPages(1)
             .currentPage(0)
@@ -94,7 +95,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.ART_GALLERY)
             .title("Test Art Gallery")
             .slug("test-art-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .contentCount(10)
             .totalPages(1)
             .currentPage(0)
@@ -107,7 +108,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.CLIENT_GALLERY)
             .title("Test Client Gallery")
             .slug("test-client-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .contentCount(100)
             .totalPages(2)
             .currentPage(0)
@@ -157,7 +158,7 @@ class CollectionControllerProdTest {
         .title("Client Gallery")
         .slug("client-gallery")
         .type(CollectionType.CLIENT_GALLERY)
-        .visible(true)
+        .visibility(CollectionVisibility.LISTED)
         .isPasswordProtected(true)
         .contentCount(5)
         .content(new ArrayList<>(List.of(createStubImage(99L, "Gallery Image"))))
@@ -266,102 +267,6 @@ class CollectionControllerProdTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.slug", is("test-blog")))
         .andExpect(jsonPath("$.currentPage", is(0)));
-  }
-
-  @Test
-  @DisplayName("GET /collections/type/{type} should return collections of specified type")
-  void getCollectionsByType_shouldReturnCollectionsOfSpecifiedType() throws Exception {
-    // Arrange
-    CollectionModel blogCollection =
-        CollectionModel.builder()
-            .id(1L)
-            .title("Test Blog")
-            .type(CollectionType.BLOG)
-            .slug("test-blog")
-            .visible(true)
-            .build();
-
-    List<CollectionModel> collections = List.of(blogCollection);
-
-    when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.BLOG)))
-        .thenReturn(collections);
-
-    // Act & Assert
-    mockMvc
-        .perform(get("/api/read/collections/type/BLOG").contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(1)))
-        .andExpect(jsonPath("$[0].title", is("Test Blog")))
-        .andExpect(jsonPath("$[0].type", is("BLOG")));
-  }
-
-  @Test
-  @DisplayName("GET /collections/type/PORTFOLIO should return portfolio collections")
-  void getCollectionsByType_withPortfolioType_shouldReturnPortfolioCollections() throws Exception {
-    // Arrange
-    CollectionModel portfolio =
-        CollectionModel.builder()
-            .id(1L)
-            .title("Test Portfolio")
-            .type(CollectionType.PORTFOLIO)
-            .slug("test-portfolio")
-            .visible(true)
-            .build();
-
-    when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.PORTFOLIO)))
-        .thenReturn(List.of(portfolio));
-
-    // Act & Assert
-    mockMvc
-        .perform(
-            get("/api/read/collections/type/PORTFOLIO").contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(1)))
-        .andExpect(jsonPath("$[0].title", is("Test Portfolio")))
-        .andExpect(jsonPath("$[0].type", is("PORTFOLIO")));
-  }
-
-  @Test
-  @DisplayName("GET /collections/type/CLIENT_GALLERY should return client gallery collections")
-  void getCollectionsByType_withClientGalleryType_shouldReturnClientGalleryCollections()
-      throws Exception {
-    // Arrange
-    CollectionModel gallery =
-        CollectionModel.builder()
-            .id(1L)
-            .title("Wedding Gallery")
-            .type(CollectionType.CLIENT_GALLERY)
-            .slug("wedding-gallery")
-            .visible(true)
-            .isPasswordProtected(false)
-            .build();
-
-    when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.CLIENT_GALLERY)))
-        .thenReturn(List.of(gallery));
-
-    // Act & Assert
-    mockMvc
-        .perform(
-            get("/api/read/collections/type/CLIENT_GALLERY")
-                .contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(1)))
-        .andExpect(jsonPath("$[0].type", is("CLIENT_GALLERY")))
-        .andExpect(jsonPath("$[0].isPasswordProtected", is(false)));
-  }
-
-  @Test
-  @DisplayName("GET /collections/type/{type} with invalid type should return bad request")
-  void getCollectionsByType_withInvalidType_shouldReturnBadRequest() throws Exception {
-    // Act & Assert
-    mockMvc
-        .perform(
-            get("/api/read/collections/type/INVALID_TYPE")
-                .param("page", "0")
-                .param("size", "10")
-                .contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.message", containsString("Invalid collection type")));
   }
 
   @Test
@@ -525,7 +430,7 @@ class CollectionControllerProdTest {
             .title("Seattle Trip")
             .slug("seattle-trip")
             .type(CollectionType.PORTFOLIO)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
 
     ContentModels.Image image = createStubImage(10L, "Sunset");
@@ -561,7 +466,7 @@ class CollectionControllerProdTest {
             .title("Test Blog")
             .slug("test-blog")
             .type(CollectionType.BLOG)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
 
     when(collectionService.findMetaBySlug("test-blog")).thenReturn(metaModel);
@@ -651,7 +556,7 @@ class CollectionControllerProdTest {
             .title("Public Gallery")
             .slug("public-gallery")
             .type(CollectionType.PORTFOLIO)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .isPasswordProtected(false)
             .content(new ArrayList<>(List.of(createStubImage(99L, "Stub"))))
             .contentCount(5)
@@ -842,7 +747,7 @@ class CollectionControllerProdTest {
             .type(CollectionType.CLIENT_GALLERY)
             .title("Protected Gallery")
             .slug("protected-gallery")
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .isPasswordProtected(true)
             .coverImage(null) // stripped by CollectionProcessingUtil.buildBasicModel
             .contentCount(5)
@@ -861,38 +766,5 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.content[0].type", is("CLIENT_GALLERY")))
         .andExpect(jsonPath("$.content[0].isPasswordProtected", is(true)))
         .andExpect(jsonPath("$.content[0].coverImage").doesNotExist());
-  }
-
-  @Test
-  @DisplayName(
-      "GET /collections/type/CLIENT_GALLERY - password-protected gallery has null coverImage")
-  void getCollectionsByType_protectedClientGallery_returnNullCoverImage() throws Exception {
-    // Service returns a model whose coverImage was already stripped by buildBasicModel
-    CollectionModel protectedGallery =
-        CollectionModel.builder()
-            .id(10L)
-            .type(CollectionType.CLIENT_GALLERY)
-            .title("Protected Gallery")
-            .slug("protected-gallery")
-            .visible(true)
-            .isPasswordProtected(true)
-            .coverImage(null) // stripped by CollectionProcessingUtil.buildBasicModel
-            .contentCount(5)
-            .totalPages(1)
-            .currentPage(0)
-            .build();
-
-    when(collectionService.findVisibleByTypeOrderByDate(eq(CollectionType.CLIENT_GALLERY)))
-        .thenReturn(List.of(protectedGallery));
-
-    mockMvc
-        .perform(
-            get("/api/read/collections/type/CLIENT_GALLERY")
-                .contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(1)))
-        .andExpect(jsonPath("$[0].type", is("CLIENT_GALLERY")))
-        .andExpect(jsonPath("$[0].isPasswordProtected", is(true)))
-        .andExpect(jsonPath("$[0].coverImage").doesNotExist());
   }
 }

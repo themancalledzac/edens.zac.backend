@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.entity;
 import static org.junit.jupiter.api.Assertions.*;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -29,7 +30,7 @@ class CollectionEntityTest {
     collection.setType(CollectionType.BLOG);
     collection.setTitle("Test Collection");
     collection.setSlug("test-collection");
-    collection.setVisible(true);
+    collection.setVisibility(CollectionVisibility.LISTED);
 
     Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(collection);
     assertTrue(violations.isEmpty());
@@ -37,17 +38,18 @@ class CollectionEntityTest {
 
   @Test
   void testInvalidCollectionMissingRequiredFields() {
-    // Create an invalid collection (missing required fields)
+    // Create an invalid collection (missing required fields).
+    // visibility has a field initializer (= HIDDEN) so the no-arg constructor populates it,
+    // leaving only type/title/slug as @NotNull violations.
     CollectionEntity collection = new CollectionEntity();
 
     Set<ConstraintViolation<CollectionEntity>> violations = validator.validate(collection);
     assertFalse(violations.isEmpty());
-    assertEquals(4, violations.size()); // type, title, slug, and visible are required
+    assertEquals(3, violations.size()); // type, title, and slug are required
 
     assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("type")));
     assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("title")));
     assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("slug")));
-    assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("visible")));
   }
 
   @Test
@@ -149,7 +151,7 @@ class CollectionEntityTest {
     protectedCollection.setType(CollectionType.CLIENT_GALLERY);
     protectedCollection.setTitle("Protected Collection");
     protectedCollection.setSlug("protected-collection");
-    protectedCollection.setVisible(false);
+    protectedCollection.setVisibility(CollectionVisibility.UNLISTED);
     protectedCollection.setGalleryPassword("sunshine");
 
     assertNotNull(protectedCollection.getGalleryPassword());
@@ -159,7 +161,7 @@ class CollectionEntityTest {
     unprotectedCollection.setType(CollectionType.BLOG);
     unprotectedCollection.setTitle("Public Collection");
     unprotectedCollection.setSlug("public-collection");
-    unprotectedCollection.setVisible(true);
+    unprotectedCollection.setVisibility(CollectionVisibility.LISTED);
     unprotectedCollection.setGalleryPassword(null);
 
     assertNull(unprotectedCollection.getGalleryPassword());
@@ -214,7 +216,7 @@ class CollectionEntityTest {
 
     // Set cover image ID (entity now uses ID reference instead of entity reference)
     collection.setCoverImageId(123L);
-    collection.setVisible(true);
+    collection.setVisibility(CollectionVisibility.LISTED);
 
     // Verify all fields were set correctly
     assertEquals(CollectionType.PORTFOLIO, collection.getType());
@@ -222,7 +224,7 @@ class CollectionEntityTest {
     assertEquals("complete-portfolio", collection.getSlug());
     assertEquals("A portfolio with all fields populated", collection.getDescription());
     assertEquals(today, collection.getCollectionDate());
-    assertTrue(collection.getVisible());
+    assertEquals(CollectionVisibility.LISTED, collection.getVisibility());
     assertEquals(20, collection.getContentPerPage());
     assertEquals(100, collection.getTotalContent());
     assertNotNull(collection.getCoverImageId());
@@ -259,25 +261,25 @@ class CollectionEntityTest {
     blogCollection.setType(CollectionType.BLOG);
     blogCollection.setTitle("Blog Collection");
     blogCollection.setSlug("blog-collection");
-    blogCollection.setVisible(true);
+    blogCollection.setVisibility(CollectionVisibility.LISTED);
 
     CollectionEntity artGalleryCollection = new CollectionEntity();
     artGalleryCollection.setType(CollectionType.ART_GALLERY);
     artGalleryCollection.setTitle("Art Gallery Collection");
     artGalleryCollection.setSlug("art-gallery-collection");
-    artGalleryCollection.setVisible(true);
+    artGalleryCollection.setVisibility(CollectionVisibility.LISTED);
 
     CollectionEntity clientGalleryCollection = new CollectionEntity();
     clientGalleryCollection.setType(CollectionType.CLIENT_GALLERY);
     clientGalleryCollection.setTitle("Client Gallery Collection");
     clientGalleryCollection.setSlug("client-gallery-collection");
-    clientGalleryCollection.setVisible(true);
+    clientGalleryCollection.setVisibility(CollectionVisibility.LISTED);
 
     CollectionEntity portfolioCollection = new CollectionEntity();
     portfolioCollection.setType(CollectionType.PORTFOLIO);
     portfolioCollection.setTitle("Portfolio Collection");
     portfolioCollection.setSlug("portfolio-collection");
-    portfolioCollection.setVisible(true);
+    portfolioCollection.setVisibility(CollectionVisibility.LISTED);
 
     // Verify types were set correctly
     assertEquals(CollectionType.BLOG, blogCollection.getType());

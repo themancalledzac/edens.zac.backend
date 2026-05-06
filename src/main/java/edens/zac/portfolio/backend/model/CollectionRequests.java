@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -56,8 +57,10 @@ public final class CollectionRequests {
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
       /** Set to true to explicitly clear the collection date (set it to null) */
       Boolean clearCollectionDate,
-      /** Whether the collection is visible */
-      Boolean visible,
+      /** Visibility state of the collection (LISTED / UNLISTED / HIDDEN). */
+      CollectionVisibility visibility,
+      /** Rating 0-5 (null leaves rating untouched). Used to order multi-collection list views. */
+      @Min(value = 0, message = "Rating must be 0 or greater") @Max(value = 5, message = "Rating must be 5 or less") Integer rating,
       /** Display mode for ordering content in the collection */
       DisplayMode displayMode,
       /** Number of content items per page */
@@ -198,10 +201,23 @@ public final class CollectionRequests {
    *   <li>password present + emails null/empty: set password only
    *   <li>password null: clear password and recipient list
    * </ul>
+   *
+   * <p>{@code propagateToChildren} only applies when the target collection is a {@link
+   * CollectionType#PARENT}. When {@code true}, the same password is also written to every {@link
+   * CollectionType#CLIENT_GALLERY} child referenced by the PARENT. Defaults to {@code false} (treat
+   * null as false) so existing callers do not accidentally cascade. The frontend opts in explicitly
+   * after a confirm dialog.
    */
   public record GalleryAccessRequest(
       @Size(min = 4, max = 100, message = "Password must be between 4 and 100 characters") String password,
-      List<@Email @NotBlank String> emails) {}
+      List<@Email @NotBlank String> emails,
+      Boolean propagateToChildren) {
+
+    /** Backwards-compatible constructor for callers that omit the propagation flag. */
+    public GalleryAccessRequest(String password, List<String> emails) {
+      this(password, emails, null);
+    }
+  }
 
   /**
    * Response body for the gallery-access endpoint. Echoes the saved password and recipient list so

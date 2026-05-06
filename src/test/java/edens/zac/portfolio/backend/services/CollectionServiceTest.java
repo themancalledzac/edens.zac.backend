@@ -3,8 +3,10 @@ package edens.zac.portfolio.backend.services;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,6 +27,7 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -51,6 +54,8 @@ class CollectionServiceTest {
   @Mock private ContentMutationUtil contentMutationUtil;
   @Mock private ContentModelConverter contentModelConverter;
   @Mock private MetadataService metadataService;
+  @Mock private SyntheticCollectionResolver syntheticResolver;
+  @Mock private org.springframework.core.env.Environment springEnv;
 
   @InjectMocks private CollectionService service;
 
@@ -76,7 +81,7 @@ class CollectionServiceTest {
             .title("Test Collection")
             .slug("test-collection")
             .type(CollectionType.PORTFOLIO)
-            .visible(true)
+            .visibility(CollectionVisibility.LISTED)
             .build();
   }
 
@@ -94,7 +99,7 @@ class CollectionServiceTest {
               .title("New Collection")
               .slug("new-collection")
               .type(CollectionType.PORTFOLIO)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel model =
@@ -125,7 +130,7 @@ class CollectionServiceTest {
               .title("My Blog")
               .slug("my-blog")
               .type(CollectionType.BLOG)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel model =
@@ -208,6 +213,7 @@ class CollectionServiceTest {
               null,
               null,
               null,
+              null,
               null);
 
       CollectionModel updatedModel =
@@ -252,6 +258,7 @@ class CollectionServiceTest {
               null,
               null,
               null,
+              null,
               null);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.empty());
@@ -271,6 +278,7 @@ class CollectionServiceTest {
               "New Title",
               "new-slug",
               "New desc",
+              null,
               null,
               null,
               null,
@@ -354,6 +362,19 @@ class CollectionServiceTest {
       assertThat(result).isNotNull();
       // Negative page normalized to 0, so offset = 0
       verify(collectionRepository).findContentByCollectionId(1L, 10, 0);
+    }
+
+    @Test
+    void getCollectionWithPagination_syntheticSlug_delegatesToResolver() {
+      CollectionModel synthetic =
+          CollectionModel.builder().slug("all-collections").type(CollectionType.PARENT).build();
+      when(syntheticResolver.isSyntheticSlug("all-collections")).thenReturn(true);
+      when(syntheticResolver.resolve(eq("all-collections"), anyBoolean())).thenReturn(synthetic);
+
+      CollectionModel out = service.getCollectionWithPagination("all-collections", 0, 10);
+
+      assertThat(out).isSameAs(synthetic);
+      verify(collectionRepository, never()).findBySlug(anyString());
     }
   }
 
@@ -543,7 +564,7 @@ class CollectionServiceTest {
               .title("Seattle Trip")
               .slug("seattle-trip")
               .type(CollectionType.PORTFOLIO)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel collectionModel =
@@ -562,11 +583,11 @@ class CollectionServiceTest {
               null, null, null, null, null, null, null, null, null, null, null, null, null, null,
               null);
 
-      when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(1L);
-      when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
+      when(collectionRepository.countListedByLocationName(locationName)).thenReturn(1L);
+      when(collectionRepository.findListedByLocationName(locationName, 35, 0))
           .thenReturn(List.of(collectionEntity));
       // totalCollections (1) <= collectionSize (35), so IDs are extracted from paginated result
-      // — no findVisibleIdsByLocationName call needed
+      // — no findListedIdsByLocationName call needed
       when(collectionProcessingUtil.batchConvertToBasicModels(List.of(collectionEntity)))
           .thenReturn(List.of(collectionModel));
       when(contentRepository.findOrphanImagesByLocationName(
@@ -605,8 +626,8 @@ class CollectionServiceTest {
               null, null, null, null, null, null, null, null, null, null, null, null, null, null,
               null);
 
-      when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
-      when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
+      when(collectionRepository.countListedByLocationName(locationName)).thenReturn(0L);
+      when(collectionRepository.findListedByLocationName(locationName, 35, 0))
           .thenReturn(Collections.emptyList());
       // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
       when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
@@ -642,8 +663,8 @@ class CollectionServiceTest {
 
       when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
 
-      when(collectionRepository.countVisibleByLocationName(locationName)).thenReturn(0L);
-      when(collectionRepository.findVisibleByLocationName(locationName, 35, 0))
+      when(collectionRepository.countListedByLocationName(locationName)).thenReturn(0L);
+      when(collectionRepository.findListedByLocationName(locationName, 35, 0))
           .thenReturn(Collections.emptyList());
       // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
       when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
@@ -724,7 +745,7 @@ class CollectionServiceTest {
               .title("Photography")
               .slug(slug)
               .type(CollectionType.PARENT)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       List<CollectionContentEntity> collectionContent =
@@ -765,7 +786,7 @@ class CollectionServiceTest {
               .title("Home")
               .slug(slug)
               .type(CollectionType.HOME)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       CollectionModel model = CollectionModel.builder().id(1L).title("Home").build();
@@ -792,7 +813,7 @@ class CollectionServiceTest {
               .title("Photography")
               .slug(slug)
               .type(CollectionType.PARENT)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .build();
 
       ContentModels.Collection childContent =
@@ -848,6 +869,273 @@ class CollectionServiceTest {
       assertThat(result).isNotNull();
       assertThat(result.childCollectionImages()).isNull();
       verify(collectionProcessingUtil, never()).loadImagesFromChildCollections(any());
+    }
+  }
+
+  @Nested
+  class FindChildCollectionsForHome {
+
+    @Test
+    void returnsEmptyWhenHomeMissing() {
+      when(collectionRepository.findBySlug("home")).thenReturn(Optional.empty());
+
+      assertThat(service.findChildCollectionsForHome()).isEmpty();
+    }
+
+    @Test
+    void returnsBatchConvertedChildrenForVisibleHomeReferences() {
+      CollectionEntity home =
+          CollectionEntity.builder().id(1L).slug("home").type(CollectionType.HOME).build();
+      when(collectionRepository.findBySlug("home")).thenReturn(Optional.of(home));
+
+      CollectionEntity child =
+          CollectionEntity.builder().id(11L).visibility(CollectionVisibility.LISTED).build();
+      when(collectionRepository.findReferencedCollectionsByParentId(1L)).thenReturn(List.of(child));
+
+      CollectionModel childModel = CollectionModel.builder().id(11L).build();
+      when(collectionProcessingUtil.batchConvertToBasicModels(List.of(child)))
+          .thenReturn(List.of(childModel));
+
+      assertThat(service.findChildCollectionsForHome())
+          .singleElement()
+          .satisfies(m -> assertThat(m.getId()).isEqualTo(11L));
+    }
+  }
+
+  @Nested
+  class FindAllVisibleWithCovers {
+
+    @Test
+    void delegatesToRepositoryAndConverts() {
+      CollectionEntity entity = CollectionEntity.builder().id(1L).build();
+      when(collectionRepository.findAllListedWithCovers()).thenReturn(List.of(entity));
+      CollectionModel model = CollectionModel.builder().id(1L).build();
+      when(collectionProcessingUtil.batchConvertToBasicModels(List.of(entity)))
+          .thenReturn(List.of(model));
+
+      assertThat(service.findAllListedWithCovers()).containsExactly(model);
+    }
+  }
+
+  @Nested
+  class EnforceVisibilityVisibilityRules {
+
+    @Test
+    void enforceVisibilityHIDDENBlocksProd() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("secret")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.HIDDEN)
+              .build();
+      when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
+      when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
+          .thenReturn(false);
+
+      assertThatThrownBy(() -> service.findMetaBySlug("secret"))
+          .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void enforceVisibilityHIDDENPassesInDev() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("secret")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.HIDDEN)
+              .build();
+      when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
+      when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
+          .thenReturn(true);
+      when(collectionProcessingUtil.convertToBasicModel(entity))
+          .thenReturn(CollectionModel.builder().id(1L).slug("secret").build());
+
+      assertThat(service.findMetaBySlug("secret")).isNotNull();
+    }
+
+    @Test
+    void enforceVisibilityUNLISTEDPassesInProd() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("private-gallery")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findBySlug("private-gallery")).thenReturn(Optional.of(entity));
+      when(collectionProcessingUtil.convertToBasicModel(entity))
+          .thenReturn(CollectionModel.builder().id(1L).slug("private-gallery").build());
+
+      assertThat(service.findMetaBySlug("private-gallery")).isNotNull();
+    }
+  }
+
+  @Nested
+  class SaveGalleryAccessParentPropagation {
+
+    @Test
+    void parentTypeWithPropagateTrue_updatesPasswordOnChildClientGalleries() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionEntity child1 =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("smith-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .build();
+      CollectionEntity child2 =
+          CollectionEntity.builder()
+              .id(102L)
+              .slug("jones-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .build();
+
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
+          .thenReturn(List.of(child1, child2));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository).saveGalleryAccess(100L, "secretpw", List.of());
+      verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
+      verify(collectionRepository).updateGalleryPassword(102L, "secretpw");
+    }
+
+    @Test
+    void parentTypeWithPropagateFalse_skipsChildPropagation() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), false);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+
+    @Test
+    void parentTypeWithPropagateNull_skipsChildPropagation() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), null);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+
+    @Test
+    void clientGalleryTypeWithPropagateTrue_skipsChildPropagation() {
+      CollectionEntity gallery =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("smith-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(gallery));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+
+    @Test
+    void parentTypeWithPropagateTrue_skipsNonClientGalleryChildren() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("mixed-parent")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionEntity clientChild =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("smith-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .build();
+      CollectionEntity portfolioChild =
+          CollectionEntity.builder()
+              .id(102L)
+              .slug("studio-portfolio")
+              .type(CollectionType.PORTFOLIO)
+              .build();
+      CollectionEntity blogChild =
+          CollectionEntity.builder().id(103L).slug("studio-blog").type(CollectionType.BLOG).build();
+
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
+          .thenReturn(List.of(clientChild, portfolioChild, blogChild));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
+      verify(collectionRepository, never()).updateGalleryPassword(eq(102L), anyString());
+      verify(collectionRepository, never()).updateGalleryPassword(eq(103L), anyString());
+    }
+
+    @Test
+    void parentTypeWithPropagateTrue_propagatesToUnlistedChildren() {
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("company-a")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionEntity unlistedChild =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("private-wedding")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
+          .thenReturn(List.of(unlistedChild));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
     }
   }
 }

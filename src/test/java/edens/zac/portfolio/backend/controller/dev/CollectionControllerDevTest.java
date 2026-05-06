@@ -15,6 +15,7 @@ import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDateTime;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +36,7 @@ class CollectionControllerDevTest {
 
   @Mock private CollectionService collectionService;
 
-  @InjectMocks private CollectionControllerDev contentCollectionController;
+  @InjectMocks private AdminController contentCollectionController;
 
   private ObjectMapper objectMapper;
 
@@ -63,7 +64,7 @@ class CollectionControllerDevTest {
     testCollection.setTitle("Test Blog");
     testCollection.setSlug("test-blog");
     testCollection.setDescription("A test blog collection");
-    testCollection.setVisible(true);
+    testCollection.setVisibility(CollectionVisibility.LISTED);
     testCollection.setContentPerPage(30);
     testCollection.setContentCount(5);
     testCollection.setTotalPages(1);
@@ -96,6 +97,7 @@ class CollectionControllerDevTest {
             "Updated Test Blog",
             null,
             "An updated test blog collection",
+            null,
             null,
             null,
             null,
@@ -179,6 +181,7 @@ class CollectionControllerDevTest {
             999L,
             null,
             "Updated Test Blog",
+            null,
             null,
             null,
             null,
@@ -368,6 +371,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             tagUpdate,
             null,
             null);
@@ -414,6 +418,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             personUpdate,
             null);
 
@@ -449,6 +454,7 @@ class CollectionControllerDevTest {
             1L,
             null,
             "Updated Blog with Tags and People",
+            null,
             null,
             null,
             null,
@@ -616,5 +622,62 @@ class CollectionControllerDevTest {
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
     verify(collectionService).reorderContent(eq(1L), any(CollectionRequests.Reorder.class));
+  }
+
+  @Test
+  void patchRating_returns204AndUpdates() throws Exception {
+    when(collectionService.updateRating(eq(7L), eq(4))).thenReturn(true);
+
+    mockMvc
+        .perform(
+            patch("/api/admin/collections/7/rating")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rating\":4}"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).updateRating(7L, 4);
+  }
+
+  @Test
+  void patchRating_rejectsOutOfRange() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/admin/collections/7/rating")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rating\":7}"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void putPeople_returns204AndDelegatesToService() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/admin/collections/7/people")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[101, 102, 103]"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of(101L, 102L, 103L)));
+  }
+
+  @Test
+  void putPeople_acceptsEmptyList() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/admin/collections/7/people")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[]"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of()));
+  }
+
+  @Test
+  void postRegeneratePeople_returns204AndDelegatesToService() throws Exception {
+    mockMvc
+        .perform(post("/api/admin/collections/7/people/regenerate"))
+        .andExpect(status().isNoContent());
+
+    verify(collectionService).regeneratePeopleFromContents(7L);
   }
 }

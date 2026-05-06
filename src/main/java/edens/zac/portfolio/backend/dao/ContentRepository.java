@@ -192,6 +192,15 @@ public class ContentRepository extends BaseDao {
       JOIN content_collection cc ON c.id = cc.id
       """;
 
+  private static final String FIND_RANDOM_IMAGE_WEB_URL_SQL =
+      """
+      SELECT image_url_web
+      FROM content_image
+      WHERE image_url_web IS NOT NULL
+      ORDER BY RANDOM()
+      LIMIT 1
+      """;
+
   // ============================================================
   // Image Operations
   // ============================================================
@@ -243,13 +252,10 @@ public class ContentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentImageEntity> findAllImagesOrderByCreateDateDesc(int limit, int offset) {
-    String sql =
-        SELECT_CONTENT_IMAGE
-            + " ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC LIMIT :limit OFFSET :offset";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("limit", limit).addValue("offset", offset);
-    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  public Optional<String> findRandomImageWebUrl() {
+    return query(FIND_RANDOM_IMAGE_WEB_URL_SQL, (rs, rowNum) -> rs.getString("image_url_web"))
+        .stream()
+        .findFirst();
   }
 
   /**
@@ -326,13 +332,6 @@ public class ContentRepository extends BaseDao {
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     List<String> results = namedParameterJdbcTemplate.queryForList(sql, params, String.class);
     return results.isEmpty() ? Optional.empty() : Optional.of(ContentType.valueOf(results.get(0)));
-  }
-
-  @Transactional(readOnly = true)
-  public int countImages() {
-    String sql = "SELECT COUNT(*) FROM content WHERE content_type = 'IMAGE'";
-    Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
-    return count != null ? count : 0;
   }
 
   @Transactional(readOnly = true)
@@ -526,6 +525,28 @@ public class ContentRepository extends BaseDao {
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
+  /**
+   * Distinct person IDs across all visible images contained in a collection. Used by
+   * CollectionService.regeneratePeopleFromContents to auto-fill collection_people from per-image
+   * tagging.
+   */
+  @Transactional(readOnly = true)
+  public List<Long> findDistinctPersonIdsInCollection(Long collectionId) {
+    String sql =
+        """
+        SELECT DISTINCT cip.person_id
+        FROM collection_content cc
+        JOIN content_image_people cip ON cip.image_id = cc.content_id
+        WHERE cc.collection_id = :collectionId
+          AND cc.visible = true
+        ORDER BY cip.person_id
+        """;
+    return query(
+        sql,
+        (rs, rowNum) -> rs.getLong("person_id"),
+        createParameterSource().addValue("collectionId", collectionId));
+  }
+
   @Transactional(readOnly = true)
   public Map<Long, List<Long>> findPersonIdsByImageIds(List<Long> imageIds) {
     if (imageIds == null || imageIds.isEmpty()) {
@@ -589,7 +610,10 @@ public class ContentRepository extends BaseDao {
     appendSearchConditions(sql, params, request);
     appendSearchGroupBy(sql, request);
 
-    sql.append(" ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC");
+    // Oldest-first chronological order matches the FE's CHRONOLOGICAL displayMode
+    // (sorts by createdAt ASC). Aligning the BE order avoids cross-page layout
+    // shifts when results are paginated and FE re-sorts the growing array.
+    sql.append(" ORDER BY ci.capture_date ASC NULLS LAST, c.created_at ASC");
     sql.append(" LIMIT :limit OFFSET :offset");
     params.addValue("limit", limit);
     params.addValue("offset", offset);

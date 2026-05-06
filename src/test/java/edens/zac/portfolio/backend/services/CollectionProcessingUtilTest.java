@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
@@ -13,6 +14,7 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -29,6 +31,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CollectionProcessingUtilTest {
 
   @Mock private CollectionRepository collectionRepository;
+
+  @Mock private CollectionPeopleRepository collectionPeopleRepository;
 
   @Mock private ContentRepository contentRepository;
 
@@ -54,7 +58,7 @@ class CollectionProcessingUtilTest {
     testEntity.setTitle("Test Blog");
     testEntity.setSlug("test-blog");
     testEntity.setDescription("Test description");
-    testEntity.setVisible(true);
+    testEntity.setVisibility(CollectionVisibility.LISTED);
     testEntity.setContentPerPage(30);
     testEntity.setTotalContent(2);
     testEntity.setCreatedAt(LocalDateTime.now());
@@ -94,7 +98,7 @@ class CollectionProcessingUtilTest {
     assertEquals(testEntity.getTitle(), model.getTitle());
     assertEquals(testEntity.getSlug(), model.getSlug());
     assertEquals(testEntity.getDescription(), model.getDescription());
-    assertEquals(testEntity.getVisible(), model.getVisible());
+    assertEquals(testEntity.getVisibility(), model.getVisibility());
     assertEquals(testEntity.getContentPerPage(), model.getContentPerPage());
     assertEquals(testEntity.getTotalContent(), model.getContentCount());
     assertEquals(testEntity.getTotalPages(), model.getTotalPages());
@@ -134,7 +138,8 @@ class CollectionProcessingUtilTest {
     // Arrange
     CollectionEntity entity = new CollectionEntity();
     entity.setType(CollectionType.CLIENT_GALLERY);
-    entity.setVisible(null); // Reset to null to test default behavior
+    // Reset to HIDDEN (the field default) so the type-specific override applies.
+    entity.setVisibility(CollectionVisibility.HIDDEN);
 
     // Act
     CollectionEntity result = util.applyTypeSpecificDefaults(entity);
@@ -142,6 +147,7 @@ class CollectionProcessingUtilTest {
     // Assert
     // Config JSON removed; ensure other defaults still apply
     assertEquals(30, result.getContentPerPage());
-    assertFalse(result.getVisible()); // Client galleries are private by default
+    // Client galleries are private by default -> UNLISTED (direct slug access only).
+    assertEquals(CollectionVisibility.UNLISTED, result.getVisibility());
   }
 }

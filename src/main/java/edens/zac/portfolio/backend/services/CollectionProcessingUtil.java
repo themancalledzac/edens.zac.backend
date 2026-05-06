@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.config.DefaultValues;
+import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
@@ -19,6 +20,7 @@ import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.time.LocalDate;
@@ -41,6 +43,7 @@ import org.springframework.stereotype.Component;
 public class CollectionProcessingUtil {
 
   private final CollectionRepository collectionRepository;
+  private final CollectionPeopleRepository collectionPeopleRepository;
   private final ContentRepository contentRepository;
   private final ContentModelConverter contentModelConverter;
   private final ContentMutationUtil contentMutationUtil;
@@ -85,6 +88,11 @@ public class CollectionProcessingUtil {
     Map<Long, List<LocationEntity>> locationsByCollectionId =
         locationRepository.findLocationsByCollectionIds(collectionIds);
 
+    // Batch-load all people associated to these collections (many-to-many) — single query,
+    // no N+1 even when called per collection via convertToBasicModel.
+    Map<Long, List<Records.Person>> peopleByCollectionId =
+        collectionPeopleRepository.findPeopleForCollections(collectionIds);
+
     // Batch-load all cover images
     List<Long> coverImageIds =
         entities.stream()
@@ -114,6 +122,7 @@ public class CollectionProcessingUtil {
                 buildBasicModel(
                     entity,
                     locationsByCollectionId,
+                    peopleByCollectionId,
                     coverImagesById,
                     tagsByContentId,
                     peopleByContentId,
@@ -125,6 +134,7 @@ public class CollectionProcessingUtil {
   private CollectionModel buildBasicModel(
       CollectionEntity entity,
       Map<Long, List<LocationEntity>> locationsByCollectionId,
+      Map<Long, List<Records.Person>> peopleByCollectionId,
       Map<Long, ContentImageEntity> coverImagesById,
       Map<Long, List<TagEntity>> tagsByContentId,
       Map<Long, List<ContentPersonEntity>> peopleByContentId,
@@ -144,8 +154,12 @@ public class CollectionProcessingUtil {
             .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
             .collect(Collectors.toList()));
 
+    // People on the collection itself (collection_people join)
+    model.setPeople(new ArrayList<>(peopleByCollectionId.getOrDefault(entity.getId(), List.of())));
+
     model.setCollectionDate(entity.getCollectionDate());
-    model.setVisible(entity.getVisible());
+    model.setVisibility(entity.getVisibility());
+    model.setRating(entity.getRating());
 
     // Populate cover image from pre-loaded data
     if (entity.getCoverImageId() != null) {
@@ -444,7 +458,7 @@ public class CollectionProcessingUtil {
     entity.setDescription(request.description() != null ? request.description() : "");
     entity.setCollectionDate(
         request.collectionDate() != null ? request.collectionDate() : LocalDate.now());
-    entity.setVisible(false);
+    entity.setVisibility(CollectionVisibility.HIDDEN);
     entity.setTotalContent(0);
     if (request.type().isParentType()) {
       // Parent-type collections don't use pagination or row layout
@@ -510,8 +524,11 @@ public class CollectionProcessingUtil {
     } else if (updateDTO.collectionDate() != null) {
       entity.setCollectionDate(updateDTO.collectionDate());
     }
-    if (updateDTO.visible() != null) {
-      entity.setVisible(updateDTO.visible());
+    if (updateDTO.visibility() != null) {
+      entity.setVisibility(updateDTO.visibility());
+    }
+    if (updateDTO.rating() != null) {
+      entity.setRating(updateDTO.rating());
     }
     if (updateDTO.slug() != null && !updateDTO.slug().isBlank()) {
       String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());
@@ -731,10 +748,13 @@ public class CollectionProcessingUtil {
       }
     }
 
-    // Set type-specific visibility defaults
-    if (entity.getVisible() == null) {
-      // Client galleries are private by default
-      entity.setVisible(entity.getType() != CollectionType.CLIENT_GALLERY);
+    // Set type-specific visibility defaults (only when entity still at HIDDEN default)
+    if (entity.getVisibility() == CollectionVisibility.HIDDEN) {
+      // Client galleries are private (UNLISTED) by default; everything else surfaces as LISTED.
+      entity.setVisibility(
+          entity.getType() == CollectionType.CLIENT_GALLERY
+              ? CollectionVisibility.UNLISTED
+              : CollectionVisibility.LISTED);
     }
 
     return entity;

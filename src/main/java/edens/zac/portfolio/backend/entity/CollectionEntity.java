@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
@@ -38,8 +39,13 @@ public class CollectionEntity {
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;
 
-  /** Column: visible (BOOLEAN, NOT NULL, default: true) */
-  @NotNull private Boolean visible;
+  /**
+   * Column: visibility (VARCHAR, NOT NULL) - LISTED, UNLISTED, or HIDDEN. New rows default HIDDEN.
+   */
+  @NotNull @Builder.Default private CollectionVisibility visibility = CollectionVisibility.HIDDEN;
+
+  /** Column: rating (INTEGER, 0-5, nullable) - mirrors content_image.rating. */
+  @Min(0) @Max(5) private Integer rating;
 
   /** Column: display_mode (VARCHAR) - enum: GRID, LIST, etc. */
   private DisplayMode displayMode;

@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.sql.Array;
 import java.time.LocalDateTime;
@@ -38,8 +39,8 @@ public class CollectionRepository extends BaseDao {
   private static final String SELECT_COLLECTION =
       """
       SELECT id, type, title, slug, description, collection_date,
-             visible, display_mode, cover_image_id, content_per_page, total_content,
-             rows_wide, gallery_password, recipient_emails, created_at, updated_at
+             visibility, display_mode, cover_image_id, content_per_page, total_content,
+             rows_wide, gallery_password, recipient_emails, rating, created_at, updated_at
       FROM collection
       """;
 
@@ -52,7 +53,7 @@ public class CollectionRepository extends BaseDao {
         entity.setSlug(rs.getString("slug"));
         entity.setDescription(rs.getString("description"));
         entity.setCollectionDate(getLocalDate(rs, "collection_date"));
-        entity.setVisible(rs.getBoolean("visible"));
+        entity.setVisibility(CollectionVisibility.valueOf(rs.getString("visibility")));
 
         String displayMode = rs.getString("display_mode");
         if (displayMode != null) {
@@ -77,6 +78,7 @@ public class CollectionRepository extends BaseDao {
             emailsArray != null
                 ? new ArrayList<>(Arrays.asList((String[]) emailsArray.getArray()))
                 : new ArrayList<>());
+        entity.setRating(getInteger(rs, "rating"));
         entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
         entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
 
@@ -117,12 +119,11 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findByTypeAndVisibleTrueOrderByCollectionDateDesc(
-      CollectionType type) {
+  public List<CollectionEntity> findByTypeAndListedOrdered(CollectionType type) {
     String sql =
         SELECT_COLLECTION
-            + " WHERE type = :type AND visible = true "
-            + "ORDER BY collection_date DESC NULLS LAST";
+            + " WHERE type = :type AND visibility = 'LISTED' "
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST";
     MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
@@ -132,8 +133,8 @@ public class CollectionRepository extends BaseDao {
       CollectionType type, int limit, int offset) {
     String sql =
         SELECT_COLLECTION
-            + " WHERE type = :type AND visible = true "
-            + "ORDER BY collection_date DESC NULLS LAST "
+            + " WHERE type = :type AND visibility = 'LISTED' "
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST "
             + "LIMIT :limit OFFSET :offset";
     MapSqlParameterSource params =
         createParameterSource()
@@ -143,27 +144,86 @@ public class CollectionRepository extends BaseDao {
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
+  /**
+   * Find visible child collections referenced by a parent collection. Walks the join chain: parent
+   * -> collection_content -> content_collection -> referenced collection. Filters out hidden
+   * link-table rows and hidden child collections so callers only see what is publicly visible.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findReferencedCollectionsByParentId(Long parentId) {
+    String sql =
+        """
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        FROM collection c
+        JOIN content_collection cct ON cct.referenced_collection_id = c.id
+        JOIN collection_content cc ON cc.content_id = cct.id
+        WHERE cc.collection_id = :parentId
+          AND cc.visible = true
+          AND c.visibility = 'LISTED'
+        ORDER BY cc.order_index ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
+   * Same join chain as {@link #findReferencedCollectionsByParentId} but returns ALL referenced
+   * children regardless of {@code c.visibility}. Per-membership {@code cc.visible = true} is still
+   * enforced so soft-removed memberships are excluded. Used by admin-context flows like PARENT
+   * password propagation, where the admin must reach UNLISTED/HIDDEN children (CLIENT_GALLERY
+   * default visibility is UNLISTED per V20 migration).
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findAllReferencedCollectionsByParentId(Long parentId) {
+    String sql =
+        """
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        FROM collection c
+        JOIN content_collection cct ON cct.referenced_collection_id = c.id
+        JOIN collection_content cc ON cc.content_id = cct.id
+        WHERE cc.collection_id = :parentId
+          AND cc.visible = true
+        ORDER BY cc.order_index ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /** Find every listed collection that has a cover image, ordered by rating then date. */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findAllListedWithCovers() {
+    String sql =
+        SELECT_COLLECTION
+            + " WHERE visibility = 'LISTED' AND cover_image_id IS NOT NULL "
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST";
+    return query(sql, COLLECTION_ROW_MAPPER);
+  }
+
   @Transactional(readOnly = true)
   public long countByType(CollectionType type) {
-    String sql = "SELECT COUNT(*) FROM collection WHERE type = :type AND visible = true";
+    String sql = "SELECT COUNT(*) FROM collection WHERE type = :type AND visibility = 'LISTED'";
     MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
     Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
     return count != null ? count : 0L;
   }
 
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findVisibleByLocationName(
+  public List<CollectionEntity> findListedByLocationName(
       String locationName, int limit, int offset) {
     String sql =
         """
         SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
-               c.visible, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.created_at, c.updated_at
+               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
         JOIN collection_locations cl ON c.id = cl.collection_id
         JOIN location l ON cl.location_id = l.id
-        WHERE l.location_name = :locationName AND c.visible = true
-        ORDER BY c.collection_date DESC NULLS LAST
+        WHERE l.location_name = :locationName AND c.visibility = 'LISTED'
+        ORDER BY c.rating DESC NULLS LAST, c.collection_date DESC NULLS LAST
         LIMIT :limit OFFSET :offset
         """;
     MapSqlParameterSource params =
@@ -175,24 +235,24 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<Long> findVisibleIdsByLocationName(String locationName) {
+  public List<Long> findListedIdsByLocationName(String locationName) {
     String sql =
         "SELECT c.id FROM collection c "
             + "JOIN collection_locations cl ON c.id = cl.collection_id "
             + "JOIN location l ON cl.location_id = l.id "
-            + "WHERE l.location_name = :locationName AND c.visible = true";
+            + "WHERE l.location_name = :locationName AND c.visibility = 'LISTED'";
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
   @Transactional(readOnly = true)
-  public long countVisibleByLocationName(String locationName) {
+  public long countListedByLocationName(String locationName) {
     String sql =
         """
         SELECT COUNT(*) FROM collection c
         JOIN collection_locations cl ON c.id = cl.collection_id
         JOIN location l ON cl.location_id = l.id
-        WHERE l.location_name = :locationName AND c.visible = true
+        WHERE l.location_name = :locationName AND c.visibility = 'LISTED'
         """;
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
     Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
@@ -215,13 +275,36 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findVisibleByOrderByCollectionDateDesc(int limit, int offset) {
+  public List<CollectionEntity> findAllListedOrdered(int limit, int offset) {
     String sql =
         SELECT_COLLECTION
-            + " WHERE visible = true ORDER BY collection_date DESC NULLS LAST LIMIT :limit OFFSET :offset";
+            + " WHERE visibility = 'LISTED' "
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST "
+            + "LIMIT :limit OFFSET :offset";
     MapSqlParameterSource params =
         createParameterSource().addValue("limit", limit).addValue("offset", offset);
     return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
+   * Find collections whose visibility is in the supplied set, optionally filtered by type, ordered
+   * by rating then collection_date. Used by synthetic-slug list views (env-aware visibility scope:
+   * dev includes all, prod includes only LISTED).
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findOrderedByVisibilityIn(
+      List<CollectionVisibility> allowed, CollectionType typeFilter) {
+    StringBuilder sql =
+        new StringBuilder(SELECT_COLLECTION).append(" WHERE visibility IN (:visibilities) ");
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
+    if (typeFilter != null) {
+      sql.append(" AND type = :type ");
+      params.addValue("type", typeFilter.name());
+    }
+    sql.append(" ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST");
+    return query(sql.toString(), COLLECTION_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
@@ -233,7 +316,7 @@ public class CollectionRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public long countVisibleCollections() {
-    String sql = "SELECT COUNT(*) FROM collection WHERE visible = true";
+    String sql = "SELECT COUNT(*) FROM collection WHERE visibility = 'LISTED'";
     Long count = jdbcTemplate.queryForObject(sql, Long.class);
     return count != null ? count : 0L;
   }
@@ -262,11 +345,11 @@ public class CollectionRepository extends BaseDao {
       String sql =
           """
           INSERT INTO collection (type, title, slug, description, collection_date,
-                                 visible, display_mode, cover_image_id, content_per_page, total_content,
-                                 rows_wide, gallery_password, created_at, updated_at)
+                                 visibility, display_mode, cover_image_id, content_per_page, total_content,
+                                 rows_wide, gallery_password, rating, created_at, updated_at)
           VALUES (:type, :title, :slug, :description, :collectionDate,
-                  :visible, :displayMode, :coverImageId, :contentPerPage, :totalContent,
-                  :rowsWide, :galleryPassword, :createdAt, :updatedAt)
+                  :visibility, :displayMode, :coverImageId, :contentPerPage, :totalContent,
+                  :rowsWide, :galleryPassword, :rating, :createdAt, :updatedAt)
           """;
 
       MapSqlParameterSource params =
@@ -276,7 +359,9 @@ public class CollectionRepository extends BaseDao {
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
               .addValue("collectionDate", entity.getCollectionDate())
-              .addValue("visible", entity.getVisible())
+              .addValue(
+                  "visibility",
+                  entity.getVisibility() != null ? entity.getVisibility().name() : "HIDDEN")
               .addValue(
                   "displayMode",
                   entity.getDisplayMode() != null ? entity.getDisplayMode().name() : null)
@@ -285,6 +370,7 @@ public class CollectionRepository extends BaseDao {
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
               .addValue("galleryPassword", entity.getGalleryPassword())
+              .addValue("rating", entity.getRating())
               .addValue(
                   "createdAt",
                   entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now())
@@ -300,9 +386,9 @@ public class CollectionRepository extends BaseDao {
           """
           UPDATE collection
           SET type = :type, title = :title, slug = :slug, description = :description,
-              collection_date = :collectionDate, visible = :visible, display_mode = :displayMode,
+              collection_date = :collectionDate, visibility = :visibility, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
-              rows_wide = :rowsWide, updated_at = :updatedAt
+              rows_wide = :rowsWide, rating = :rating, updated_at = :updatedAt
           WHERE id = :id
           """;
 
@@ -314,7 +400,9 @@ public class CollectionRepository extends BaseDao {
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
               .addValue("collectionDate", entity.getCollectionDate())
-              .addValue("visible", entity.getVisible())
+              .addValue(
+                  "visibility",
+                  entity.getVisibility() != null ? entity.getVisibility().name() : "HIDDEN")
               .addValue(
                   "displayMode",
                   entity.getDisplayMode() != null ? entity.getDisplayMode().name() : null)
@@ -322,11 +410,35 @@ public class CollectionRepository extends BaseDao {
               .addValue("contentPerPage", entity.getContentPerPage())
               .addValue("totalContent", entity.getTotalContent())
               .addValue("rowsWide", entity.getRowsWide())
+              .addValue("rating", entity.getRating())
               .addValue("updatedAt", LocalDateTime.now());
 
       update(sql, params);
       return entity;
     }
+  }
+
+  /** Update only the rating column for a collection. Returns affected row count. */
+  @Transactional
+  public int updateRating(Long id, Integer rating) {
+    String sql = "UPDATE collection SET rating = :rating, updated_at = NOW() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("id", id).addValue("rating", rating);
+    return update(sql, params);
+  }
+
+  /**
+   * Update only the gallery_password column for a collection. Used by the parent-password
+   * trickle-down path (which writes the password to each CLIENT_GALLERY child without touching
+   * recipient_emails). Returns affected row count.
+   */
+  @Transactional
+  public int updateGalleryPassword(Long id, String password) {
+    String sql =
+        "UPDATE collection SET gallery_password = :password, updated_at = NOW() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("id", id).addValue("password", password);
+    return update(sql, params);
   }
 
   /** Update gallery_password and recipient_emails atomically for a CLIENT_GALLERY. */
@@ -368,28 +480,6 @@ public class CollectionRepository extends BaseDao {
     String sql = "DELETE FROM collection WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     update(sql, params);
-  }
-
-  @Transactional
-  public void saveCollectionPeople(Long collectionId, List<Long> personIds) {
-    String deleteSql = "DELETE FROM collection_people WHERE collection_id = :collectionId";
-    MapSqlParameterSource deleteParams =
-        createParameterSource().addValue("collectionId", collectionId);
-    update(deleteSql, deleteParams);
-
-    if (personIds != null && !personIds.isEmpty()) {
-      String insertSql =
-          "INSERT INTO collection_people (collection_id, person_id) VALUES (:collectionId, :personId)";
-      MapSqlParameterSource[] batchParams =
-          personIds.stream()
-              .map(
-                  personId ->
-                      createParameterSource()
-                          .addValue("collectionId", collectionId)
-                          .addValue("personId", personId))
-              .toArray(MapSqlParameterSource[]::new);
-      batchUpdate(insertSql, batchParams);
-    }
   }
 
   @Transactional(readOnly = true)

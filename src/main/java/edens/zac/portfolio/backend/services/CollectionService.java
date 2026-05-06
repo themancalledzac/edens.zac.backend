@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import static edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page;
 
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
+import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
@@ -25,6 +26,7 @@ import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
@@ -41,6 +43,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -54,6 +58,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CollectionService {
 
   private final CollectionRepository collectionRepository;
+  private final CollectionPeopleRepository collectionPeopleRepository;
   private final ContentRepository contentRepository;
   private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
@@ -62,6 +67,8 @@ public class CollectionService {
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final MetadataService metadataService;
   private final EmailService emailService;
+  private final SyntheticCollectionResolver syntheticResolver;
+  private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
   private static final String HOME_SLUG = "home";
@@ -69,6 +76,12 @@ public class CollectionService {
   @Transactional(readOnly = true)
   public CollectionModel getCollectionWithPagination(String slug, int page, int size) {
     log.debug("Getting collection with slug: {} (page: {}, size: {})", slug, page, size);
+
+    // Synthetic list slugs (e.g. "all-collections", "all-blogs") bypass the DB lookup
+    // and are resolved into a PARENT-shaped CollectionModel populated with children.
+    if (syntheticResolver.isSyntheticSlug(slug)) {
+      return syntheticResolver.resolve(slug, isLocalEnvironment());
+    }
 
     // Get collection metadata
     CollectionEntity collection =
@@ -78,7 +91,7 @@ public class CollectionService {
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Enforce visibility: invisible collections are not publicly accessible (except "home")
-    enforceVisibility(collection, slug);
+    enforceVisibility(collection, slug, isLocalEnvironment());
 
     // Normalize pagination parameters
     int normalizedPage = Math.max(0, page);
@@ -109,8 +122,8 @@ public class CollectionService {
     // Populate collections on content items
     collectionProcessingUtil.populateCollectionsOnContent(model);
 
-    // Filter out child collection content that references non-visible collections
-    filterInvisibleChildCollections(model);
+    // Filter out child collection content that references non-LISTED collections
+    filterNonListedChildCollections(model);
 
     return model;
   }
@@ -135,17 +148,39 @@ public class CollectionService {
     return new PageImpl<>(models, pageable, totalElements);
   }
 
+  /**
+   * Find LISTED collections of a given type, ordered by rating then collection_date. Used by
+   * AdminHomeService to pick cover images for type-specific admin home tiles.
+   */
   @Transactional(readOnly = true)
   public List<CollectionModel> findVisibleByTypeOrderByDate(CollectionType type) {
     log.debug("Finding visible collections by type ordered by date: {}", type);
-
-    // Get visible collections by type, ordered by collection date descending
-    // (newest first)
-    List<CollectionEntity> collections =
-        collectionRepository.findByTypeAndVisibleTrueOrderByCollectionDateDesc(type);
-
-    // Convert to basic CollectionModel objects (no content blocks) using batch loading
+    List<CollectionEntity> collections = collectionRepository.findByTypeAndListedOrdered(type);
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
+  }
+
+  /**
+   * Return child collections referenced by the "home" parent collection. Used by AdminHomeService
+   * to pick a cover image for the home tile. Returns an empty list if the home collection does not
+   * exist.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionModel> findChildCollectionsForHome() {
+    return collectionRepository
+        .findBySlug(HOME_SLUG)
+        .map(home -> collectionRepository.findReferencedCollectionsByParentId(home.getId()))
+        .map(collectionProcessingUtil::batchConvertToBasicModels)
+        .orElseGet(List::of);
+  }
+
+  /**
+   * Return all visible collections that have a cover image set. Used by AdminHomeService to pick a
+   * cover for the all-collections tile.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionModel> findAllListedWithCovers() {
+    List<CollectionEntity> entities = collectionRepository.findAllListedWithCovers();
+    return collectionProcessingUtil.batchConvertToBasicModels(entities);
   }
 
   @Transactional(readOnly = true)
@@ -154,10 +189,10 @@ public class CollectionService {
     log.debug("Getting location page for: {}", locationName);
 
     // Get visible collections at this location
-    long totalCollections = collectionRepository.countVisibleByLocationName(locationName);
+    long totalCollections = collectionRepository.countListedByLocationName(locationName);
     int collectionOffset = collectionPage * collectionSize;
     List<CollectionEntity> collectionEntities =
-        collectionRepository.findVisibleByLocationName(
+        collectionRepository.findListedByLocationName(
             locationName, collectionSize, collectionOffset);
 
     List<CollectionModel> collections =
@@ -170,7 +205,7 @@ public class CollectionService {
     if (totalCollections <= collectionSize) {
       allCollectionIds = collectionEntities.stream().map(CollectionEntity::getId).toList();
     } else {
-      allCollectionIds = collectionRepository.findVisibleIdsByLocationName(locationName);
+      allCollectionIds = collectionRepository.findListedIdsByLocationName(locationName);
     }
 
     // Get orphan images (at this location but not in any of those collections)
@@ -221,7 +256,7 @@ public class CollectionService {
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
     // Enforce visibility: invisible collections are not publicly accessible (except "home")
-    enforceVisibility(entity, slug);
+    enforceVisibility(entity, slug, isLocalEnvironment());
 
     return collectionProcessingUtil.convertToBasicModel(entity);
   }
@@ -445,6 +480,42 @@ public class CollectionService {
     return getUpdateCollectionData(updatedCollection.getSlug());
   }
 
+  /**
+   * Set the rating for a collection. Throws ResourceNotFoundException if no row matched.
+   *
+   * @param id collection id
+   * @param rating 0-5 (nullable to clear)
+   * @return true on success
+   */
+  @Transactional
+  public boolean updateRating(Long id, Integer rating) {
+    int rows = collectionRepository.updateRating(id, rating);
+    if (rows == 0) {
+      throw new ResourceNotFoundException("Collection not found: " + id);
+    }
+    return true;
+  }
+
+  /**
+   * Replace the entire {@code collection_people} list for a collection. Manual edits from the admin
+   * manage page route through here.
+   */
+  @Transactional
+  public void setCollectionPeople(Long collectionId, List<Long> personIds) {
+    collectionPeopleRepository.setPeopleForCollection(collectionId, personIds);
+  }
+
+  /**
+   * Auto-fill {@code collection_people} from the distinct people tagged on the collection's visible
+   * images. Manual {@link #setCollectionPeople} can still overwrite this afterwards.
+   */
+  @Transactional
+  public void regeneratePeopleFromContents(Long collectionId) {
+    List<Long> distinctPersonIds =
+        contentRepository.findDistinctPersonIdsInCollection(collectionId);
+    collectionPeopleRepository.setPeopleForCollection(collectionId, distinctPersonIds);
+  }
+
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteCollection(Long id) {
@@ -492,7 +563,7 @@ public class CollectionService {
 
     int offset = pageable.getPageNumber() * pageable.getPageSize();
     List<CollectionEntity> paginatedCollections =
-        collectionRepository.findVisibleByOrderByCollectionDateDesc(pageable.getPageSize(), offset);
+        collectionRepository.findAllListedOrdered(pageable.getPageSize(), offset);
 
     List<CollectionModel> models =
         collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
@@ -655,7 +726,7 @@ public class CollectionService {
             .map(ContentPersonEntity::getId)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-    collectionRepository.saveCollectionPeople(collection.getId(), updatedPersonIds);
+    collectionPeopleRepository.setPeopleForCollection(collection.getId(), updatedPersonIds);
     log.info("Updated people for collection {}", collection.getId());
   }
 
@@ -979,28 +1050,36 @@ public class CollectionService {
   }
 
   /**
-   * Enforce visibility on a collection for public read endpoints. The "home" collection is always
-   * accessible regardless of its visible flag. All other collections must have visible=true.
+   * Enforce visibility on a collection for read endpoints.
    *
-   * @param entity The collection entity to check
-   * @param slug The slug used to look up the collection (for "home" exception)
-   * @throws ResourceNotFoundException if the collection is not visible
+   * <ul>
+   *   <li>HOME slug always passes (existing exception).
+   *   <li>LISTED + UNLISTED both pass for direct slug access.
+   *   <li>HIDDEN passes only when {@code isLocalEnvironment} is true; otherwise NotFound.
+   * </ul>
    */
-  private void enforceVisibility(CollectionEntity entity, String slug) {
+  private void enforceVisibility(CollectionEntity entity, String slug, boolean isLocalEnvironment) {
     if (HOME_SLUG.equals(slug)) {
       return;
     }
-    if (!Boolean.TRUE.equals(entity.getVisible())) {
-      log.debug("Blocked access to non-visible collection with slug: {}", slug);
+    CollectionVisibility v = entity.getVisibility();
+    if (v == CollectionVisibility.HIDDEN && !isLocalEnvironment) {
+      log.debug("Blocked HIDDEN collection {} from non-local request", slug);
       throw new ResourceNotFoundException("Collection not found with slug: " + slug);
     }
+    // LISTED and UNLISTED both allow direct slug access.
+  }
+
+  private boolean isLocalEnvironment() {
+    return springEnv.acceptsProfiles(Profiles.of("dev"));
   }
 
   /**
-   * Remove child collection content items that reference non-visible collections. This prevents
-   * invisible collections from leaking through parent collection responses on public endpoints.
+   * Remove child collection content items that reference non-LISTED collections. This prevents
+   * UNLISTED and HIDDEN collections from leaking through parent collection responses on public
+   * endpoints.
    */
-  private void filterInvisibleChildCollections(CollectionModel model) {
+  private void filterNonListedChildCollections(CollectionModel model) {
     if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
       return;
     }
@@ -1019,31 +1098,31 @@ public class CollectionService {
       return;
     }
 
-    // Batch-load referenced collections and find invisible ones
-    Set<Long> invisibleIds =
+    // Batch-load referenced collections and find non-LISTED ones (UNLISTED + HIDDEN)
+    Set<Long> nonListedIds =
         collectionRepository.findByIds(referencedIds).stream()
-            .filter(c -> !Boolean.TRUE.equals(c.getVisible()))
+            .filter(c -> !c.getVisibility().appearsInLists())
             .map(CollectionEntity::getId)
             .collect(Collectors.toSet());
 
-    if (invisibleIds.isEmpty()) {
+    if (nonListedIds.isEmpty()) {
       return;
     }
 
-    // Filter out content items that reference invisible collections
+    // Filter out content items that reference non-LISTED collections
     List<ContentModel> filtered =
         model.getContent().stream()
             .filter(
                 content -> {
                   if (content instanceof ContentModels.Collection col) {
-                    return !invisibleIds.contains(col.referencedCollectionId());
+                    return !nonListedIds.contains(col.referencedCollectionId());
                   }
                   return true;
                 })
             .collect(Collectors.toList());
 
     model.setContent(filtered);
-    log.debug("Filtered {} invisible child collections from response", invisibleIds.size());
+    log.debug("Filtered {} non-LISTED child collections from response", nonListedIds.size());
   }
 
   /**
@@ -1057,19 +1136,24 @@ public class CollectionService {
    *   <li>password set, emails non-empty: set password and send one email per recipient
    * </ul>
    *
-   * <p>Returns {@code GalleryAccessResponse(saved=false, reason="not-client-gallery")} when the
-   * target collection is not a {@link CollectionType#CLIENT_GALLERY}.
+   * <p>Accepted target types are {@link CollectionType#CLIENT_GALLERY} and {@link
+   * CollectionType#PARENT}. For PARENT targets, when {@link
+   * GalleryAccessRequest#propagateToChildren()} is {@code true}, the same password is batch-written
+   * to every {@link CollectionType#CLIENT_GALLERY} child referenced by the PARENT (other child
+   * types are skipped). Recipient emails are NOT propagated. Returns {@code
+   * GalleryAccessResponse(saved=false, reason="not-eligible-type")} for any other type.
    */
   @Transactional
   public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
     CollectionEntity entity = findEntityById(id);
 
-    if (entity.getType() != CollectionType.CLIENT_GALLERY) {
+    if (entity.getType() != CollectionType.CLIENT_GALLERY
+        && entity.getType() != CollectionType.PARENT) {
       log.warn(
-          "Refusing gallery-access update on non-CLIENT_GALLERY collection (id={}, type={})",
+          "Refusing gallery-access update on ineligible collection (id={}, type={})",
           id,
           entity.getType());
-      return new GalleryAccessResponse(false, false, "not-client-gallery", null, List.of());
+      return new GalleryAccessResponse(false, false, "not-eligible-type", null, List.of());
     }
 
     List<String> emails =
@@ -1087,6 +1171,8 @@ public class CollectionService {
         id,
         entity.getSlug(),
         emails.size());
+
+    propagatePasswordToChildrenIfRequested(entity, request);
 
     if (emails.isEmpty()) {
       return new GalleryAccessResponse(true, false, null, request.password(), List.of());
@@ -1106,5 +1192,31 @@ public class CollectionService {
 
     return new GalleryAccessResponse(
         true, allSent, allSent ? null : firstFailureReason, request.password(), emails);
+  }
+
+  /**
+   * When {@code request.propagateToChildren()} is {@code true} AND {@code parent} is of type {@link
+   * CollectionType#PARENT}, batch-update the same password on every {@link
+   * CollectionType#CLIENT_GALLERY} child referenced by that PARENT. Other child types (other
+   * PARENTs, PORTFOLIOs, BLOGs, etc.) are skipped.
+   */
+  private void propagatePasswordToChildrenIfRequested(
+      CollectionEntity parent, GalleryAccessRequest request) {
+    if (!Boolean.TRUE.equals(request.propagateToChildren())
+        || parent.getType() != CollectionType.PARENT) {
+      return;
+    }
+    List<CollectionEntity> children =
+        collectionRepository.findAllReferencedCollectionsByParentId(parent.getId());
+    for (CollectionEntity child : children) {
+      if (child.getType() == CollectionType.CLIENT_GALLERY) {
+        collectionRepository.updateGalleryPassword(child.getId(), request.password());
+        log.info(
+            "Propagated parent (id={}) gallery password to CLIENT_GALLERY child (id={}, slug={})",
+            parent.getId(),
+            child.getId(),
+            child.getSlug());
+      }
+    }
   }
 }

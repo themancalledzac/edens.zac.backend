@@ -3,11 +3,13 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,10 +40,16 @@ public class CollectionModel {
 
   @Valid private List<Records.Location> locations;
 
+  /** People associated with this collection (independent from per-image people). */
+  @Builder.Default @Valid private List<Records.Person> people = new ArrayList<>();
+
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;
 
-  private Boolean visible;
+  private CollectionVisibility visibility;
+
+  /** Rating 0-5, nullable. Used for ordering multi-collection list views. */
+  @Min(0) @Max(5) private Integer rating;
 
   private DisplayMode displayMode;
 

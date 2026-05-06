@@ -288,8 +288,14 @@ public class LocationRepository extends BaseDao {
   // ============================================================
 
   /**
-   * Find all locations that have at least one visible collection or at least one image, with counts
-   * of collections and orphan images (images not in any visible collection at this location).
+   * Find all locations that have at least one publicly-listed collection or at least one image,
+   * with counts of collections and orphan images (images not in any listed collection at this
+   * location).
+   *
+   * <p>Migrated from the V20 boolean {@code collection.visible} to the 3-state {@code
+   * collection.visibility} enum: only LISTED collections are counted (UNLISTED stay direct-link
+   * only and HIDDEN are dev-only). The per-membership {@code collection_content.visible} boolean is
+   * unchanged by V20 and continues to gate per-collection content visibility.
    */
   @Transactional(readOnly = true)
   public List<Records.LocationWithCounts> findLocationsWithVisibleContent() {
@@ -305,14 +311,14 @@ public class LocationRepository extends BaseDao {
                 JOIN collection_locations cl2 ON c2.id = cl2.collection_id
                 WHERE cc2.content_id = cil.image_id
                   AND cl2.location_id = l.id
-                  AND c2.visible = true
+                  AND c2.visibility = 'LISTED'
                   AND cc2.visible = true
               )
             THEN cil.image_id
           END) AS orphan_image_count
         FROM location l
         LEFT JOIN collection_locations cl ON cl.location_id = l.id
-        LEFT JOIN collection c ON c.id = cl.collection_id AND c.visible = true
+        LEFT JOIN collection c ON c.id = cl.collection_id AND c.visibility = 'LISTED'
         LEFT JOIN content_image_locations cil ON cil.location_id = l.id
         GROUP BY l.id, l.location_name, l.slug
         HAVING COUNT(DISTINCT c.id) > 0
@@ -324,7 +330,7 @@ public class LocationRepository extends BaseDao {
                      JOIN collection_locations cl2 ON c2.id = cl2.collection_id
                      WHERE cc2.content_id = cil.image_id
                        AND cl2.location_id = l.id
-                       AND c2.visible = true
+                       AND c2.visibility = 'LISTED'
                        AND cc2.visible = true
                    )
                  THEN cil.image_id

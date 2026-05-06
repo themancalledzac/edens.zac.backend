@@ -41,9 +41,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -365,28 +362,6 @@ public class ContentService {
             .collect(Collectors.toList());
 
     return new ImageSearchResponse(images, totalElements, totalPages);
-  }
-
-  @Transactional(readOnly = true)
-  public Page<ContentModels.Image> getAllImages(Pageable pageable) {
-    // Get total count for pagination
-    int total = contentRepository.countImages();
-
-    // Fetch paginated results from database
-    List<ContentImageEntity> imageEntities =
-        contentRepository.findAllImagesOrderByCreateDateDesc(
-            pageable.getPageSize(), (int) pageable.getOffset());
-
-    // Convert to models
-    List<ContentModels.Image> imageModels =
-        imageEntities.stream()
-            .map(
-                entity ->
-                    (ContentModels.Image)
-                        contentModelConverter.convertRegularContentEntityToModel(entity))
-            .collect(Collectors.toList());
-
-    return new PageImpl<>(imageModels, pageable, total);
   }
 
   /**

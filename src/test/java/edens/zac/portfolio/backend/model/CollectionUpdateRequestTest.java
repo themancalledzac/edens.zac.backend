@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import static org.junit.jupiter.api.Assertions.*;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -25,8 +26,9 @@ class CollectionUpdateRequestTest {
 
   /**
    * Build Update with only non-null args; order: id, type, title, slug, description, location,
-   * collectionDate, clearCollectionDate, visible, displayMode, contentPerPage, rowsWide,
-   * coverImageId, tags, people, collections
+   * collectionDate, clearCollectionDate, visibility, displayMode, contentPerPage, rowsWide,
+   * coverImageId, tags, people, collections. Rating is always passed as null here -- the field is
+   * exercised separately where needed.
    */
   private static CollectionRequests.Update update(
       Long id,
@@ -37,7 +39,7 @@ class CollectionUpdateRequestTest {
       CollectionRequests.LocationUpdate location,
       LocalDate collectionDate,
       Boolean clearCollectionDate,
-      Boolean visible,
+      CollectionVisibility visibility,
       DisplayMode displayMode,
       Integer contentPerPage,
       Integer rowsWide,
@@ -54,7 +56,8 @@ class CollectionUpdateRequestTest {
         location,
         collectionDate,
         clearCollectionDate,
-        visible,
+        visibility,
+        null,
         displayMode,
         contentPerPage,
         rowsWide,
@@ -89,7 +92,7 @@ class CollectionUpdateRequestTest {
               new CollectionRequests.LocationUpdate(null, List.of("Updated Location"), null),
               today,
               null,
-              true,
+              CollectionVisibility.LISTED,
               null,
               25,
               null,
@@ -107,7 +110,7 @@ class CollectionUpdateRequestTest {
       assertNotNull(dto.location());
       assertEquals(List.of("Updated Location"), dto.location().newValue());
       assertEquals(today, dto.collectionDate());
-      assertTrue(dto.visible());
+      assertEquals(CollectionVisibility.LISTED, dto.visibility());
       assertEquals(25, dto.contentPerPage());
     }
 

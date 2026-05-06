@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.model;
 import static org.junit.jupiter.api.Assertions.*;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -51,7 +52,7 @@ class CollectionModelTest {
               .description("Test description")
               .locations(List.of(new Records.Location(1L, "Test location", "test-location")))
               .collectionDate(today)
-              .visible(true)
+              .visibility(CollectionVisibility.LISTED)
               .createdAt(now)
               .updatedAt(now)
               .contentPerPage(30)
@@ -71,7 +72,7 @@ class CollectionModelTest {
       assertEquals(1, model.getLocations().size());
       assertEquals("Test location", model.getLocations().get(0).name());
       assertEquals(today, model.getCollectionDate());
-      assertTrue(model.getVisible());
+      assertEquals(CollectionVisibility.LISTED, model.getVisibility());
       assertNull(model.getCoverImage());
       assertEquals(now, model.getCreatedAt());
       assertEquals(now, model.getUpdatedAt());
