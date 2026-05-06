@@ -26,10 +26,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -586,10 +582,9 @@ class ContentControllerDevTest {
   @Test
   @DisplayName("GET /content/images should return all images")
   void getAllImages_shouldReturnAllImages() throws Exception {
-    // Arrange
-    Pageable pageable = PageRequest.of(0, 50);
-    Page<ContentModels.Image> page = new PageImpl<>(testImages, pageable, testImages.size());
-    when(contentService.getAllImages(any(Pageable.class))).thenReturn(page);
+    // Arrange — admin endpoint now routes through searchImages (filterable)
+    ImageSearchResponse response = new ImageSearchResponse(testImages, testImages.size(), 1);
+    when(contentService.searchImages(any(ImageSearchRequest.class))).thenReturn(response);
 
     // Act & Assert
     mockMvc
@@ -599,20 +594,20 @@ class ContentControllerDevTest {
         .andExpect(jsonPath("$.content[0].id", is(1)))
         .andExpect(jsonPath("$.content[0].title", is("Test Image")));
 
-    verify(contentService).getAllImages(any(Pageable.class));
+    verify(contentService).searchImages(any(ImageSearchRequest.class));
   }
 
   @Test
   @DisplayName("GET /content/images should handle errors")
   void getAllImages_shouldHandleErrors() throws Exception {
     // Arrange
-    when(contentService.getAllImages(any(Pageable.class)))
+    when(contentService.searchImages(any(ImageSearchRequest.class)))
         .thenThrow(new RuntimeException("Database error"));
 
     // Act & Assert
     mockMvc.perform(get("/api/admin/content/images")).andExpect(status().isInternalServerError());
 
-    verify(contentService).getAllImages(any(Pageable.class));
+    verify(contentService).searchImages(any(ImageSearchRequest.class));
   }
 
   @Test

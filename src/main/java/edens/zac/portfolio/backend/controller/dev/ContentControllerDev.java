@@ -6,6 +6,8 @@ import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
+import edens.zac.portfolio.backend.model.ImageSearchRequest;
+import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
@@ -20,8 +22,10 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -130,20 +134,55 @@ public class ContentControllerDev {
   }
 
   /**
-   * Get all images ordered by date descending (newest first) GET /api/admin/content/images
+   * Get images ordered by capture date descending with optional filters. GET
+   * /api/admin/content/images
    *
-   * <p>OPTIMIZED: Uses database-level pagination to prevent loading all images at once.
+   * <p>Routes through {@link ContentService#searchImages} so the same filter+pagination plumbing
+   * the read endpoint uses applies here. With all filter params null, behaves identically to an
+   * unfiltered all-images fetch (returns every image, paginated). Admin-tier visibility is implicit
+   * — {@code searchImages} queries the content_image table directly and does not apply
+   * collection-level visibility filtering.
    *
    * @param page Page number (0-indexed, default: 0)
-   * @param size Page size (default: 50)
-   * @return ResponseEntity with paginated list of images sorted by createDate descending
+   * @param size Page size (default: 50, max 200)
+   * @return ResponseEntity with paginated list of (filtered) images
    */
   @GetMapping("/images")
   public ResponseEntity<Page<ContentModels.Image>> getAllImages(
-      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-    Pageable pageable = PageRequest.of(page, size);
-    Page<ContentModels.Image> images = contentService.getAllImages(pageable);
-    return ResponseEntity.ok(images);
+      @RequestParam(required = false) List<Long> personIds,
+      @RequestParam(required = false) List<Long> tagIds,
+      @RequestParam(required = false) Long cameraId,
+      @RequestParam(required = false) Long locationId,
+      @RequestParam(required = false) Long lensId,
+      @RequestParam(required = false) Integer minRating,
+      @RequestParam(required = false) Boolean isFilm,
+      @RequestParam(required = false) Boolean blackAndWhite,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+          LocalDate captureStartDate,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+          LocalDate captureEndDate,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "50") int size) {
+    int safeSize = Math.min(Math.max(size, 1), 200);
+    ImageSearchRequest request =
+        new ImageSearchRequest(
+            personIds,
+            tagIds,
+            cameraId,
+            locationId,
+            lensId,
+            minRating,
+            isFilm,
+            blackAndWhite,
+            captureStartDate,
+            captureEndDate,
+            page,
+            safeSize);
+    ImageSearchResponse response = contentService.searchImages(request);
+    Pageable pageable = PageRequest.of(page, safeSize);
+    Page<ContentModels.Image> wrapped =
+        new PageImpl<>(response.content(), pageable, response.totalElements());
+    return ResponseEntity.ok(wrapped);
   }
 
   /**
