@@ -88,7 +88,7 @@ public class SyntheticCollectionResolver {
 
   private static ContentModels.Collection toCollectionContent(CollectionModel c) {
     return new ContentModels.Collection(
-        null,
+        c.getId(),
         ContentType.COLLECTION,
         c.getTitle(),
         c.getDescription(),

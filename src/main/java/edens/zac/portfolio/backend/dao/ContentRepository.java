@@ -627,7 +627,10 @@ public class ContentRepository extends BaseDao {
     appendSearchConditions(sql, params, request);
     appendSearchGroupBy(sql, request);
 
-    sql.append(" ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC");
+    // Oldest-first chronological order matches the FE's CHRONOLOGICAL displayMode
+    // (sorts by createdAt ASC). Aligning the BE order avoids cross-page layout
+    // shifts when results are paginated and FE re-sorts the growing array.
+    sql.append(" ORDER BY ci.capture_date ASC NULLS LAST, c.created_at ASC");
     sql.append(" LIMIT :limit OFFSET :offset");
     params.addValue("limit", limit);
     params.addValue("offset", offset);
