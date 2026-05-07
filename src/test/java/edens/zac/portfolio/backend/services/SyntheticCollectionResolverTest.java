@@ -48,7 +48,7 @@ class SyntheticCollectionResolverTest {
 
   @Test
   void resolveAllCollectionsInDevAllowsAllVisibilitiesAndReturnsChildrenAsContent() {
-    when(collectionRepository.findOrderedByVisibilityIn(
+    when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
             eq(
                 List.of(
                     CollectionVisibility.LISTED,
@@ -79,7 +79,7 @@ class SyntheticCollectionResolverTest {
 
   @Test
   void resolveAllBlogsInProdFiltersToBlogTypeAndListedOnly() {
-    when(collectionRepository.findOrderedByVisibilityIn(
+    when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
             eq(List.of(CollectionVisibility.LISTED)), eq(CollectionType.BLOG)))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
@@ -93,6 +93,62 @@ class SyntheticCollectionResolverTest {
     assertThat(out.getTitle()).isEqualTo("Blogs");
     assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getContent()).hasSize(1);
+  }
+
+  @Test
+  void resolveAllClientGalleriesUsesParentInclusiveQueryAndMixesParentAndGalleryTiles() {
+    // Standalone gallery + a wedding PARENT that has CLIENT_GALLERY children — the inclusive
+    // repo query returns both rows and the resolver must pass each through unchanged so PARENT
+    // tiles render alongside CLIENT_GALLERY tiles on the listing.
+    when(collectionRepository.findClientGalleriesAndQualifyingParents(
+            eq(List.of(CollectionVisibility.LISTED))))
+        .thenReturn(List.of(new CollectionEntity(), new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder()
+                    .id(50L)
+                    .slug("smith-wedding")
+                    .title("Smith Wedding")
+                    .type(CollectionType.PARENT)
+                    .build(),
+                CollectionModel.builder()
+                    .id(51L)
+                    .slug("jones-engagement")
+                    .title("Jones Engagement")
+                    .type(CollectionType.CLIENT_GALLERY)
+                    .build()));
+
+    CollectionModel out = resolver.resolve("all-client-galleries", false);
+
+    assertThat(out.getSlug()).isEqualTo("all-client-galleries");
+    assertThat(out.getTitle()).isEqualTo("Client Galleries");
+    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
+    assertThat(out.getContent()).hasSize(2);
+
+    ContentModels.Collection parentTile = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(parentTile.slug()).isEqualTo("smith-wedding");
+    assertThat(parentTile.collectionType()).isEqualTo(CollectionType.PARENT);
+
+    ContentModels.Collection galleryTile = (ContentModels.Collection) out.getContent().get(1);
+    assertThat(galleryTile.slug()).isEqualTo("jones-engagement");
+    assertThat(galleryTile.collectionType()).isEqualTo(CollectionType.CLIENT_GALLERY);
+  }
+
+  @Test
+  void resolveAllClientGalleriesInDevPassesAllVisibilitiesToInclusiveQuery() {
+    when(collectionRepository.findClientGalleriesAndQualifyingParents(
+            eq(
+                List.of(
+                    CollectionVisibility.LISTED,
+                    CollectionVisibility.UNLISTED,
+                    CollectionVisibility.HIDDEN))))
+        .thenReturn(List.of());
+    when(collectionProcessingUtil.batchConvertToBasicModels(any())).thenReturn(List.of());
+
+    CollectionModel out = resolver.resolve("all-client-galleries", true);
+
+    assertThat(out.getContent()).isEmpty();
   }
 
   @Test

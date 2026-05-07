@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,6 +165,58 @@ class CollectionRepositoryTest {
       String sql = sqlCaptor.getValue();
       assertThat(sql).containsIgnoringCase("ORDER BY rating DESC NULLS LAST, collection_date DESC");
       assertThat(sql).containsIgnoringCase("WHERE type = :type AND visibility = 'LISTED'");
+    }
+  }
+
+  @Nested
+  class FindNonEmptyOrderedByVisibilityIn {
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void sqlGatesOnExistsCollectionContentRowsAndPassesVisibilities() {
+      // Pin the SQL: caller relies on the EXISTS gate to drop empty collections from
+      // synthetic listings (/all-collections, /all-blogs, etc.). Soft-removed memberships
+      // (cc.visible=false) must NOT count as content — must mirror the gate used by
+      // findReferencedCollectionsByParentId.
+      when(namedParameterJdbcTemplate.query(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(List.of());
+
+      collectionRepository.findNonEmptyOrderedByVisibilityIn(
+          List.of(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED),
+          CollectionType.PORTFOLIO);
+
+      verify(namedParameterJdbcTemplate)
+          .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+      String sql = sqlCaptor.getValue();
+      assertThat(sql).containsIgnoringCase("EXISTS");
+      assertThat(sql).containsIgnoringCase("collection_content cc");
+      assertThat(sql).containsIgnoringCase("cc.collection_id = collection.id");
+      assertThat(sql).containsIgnoringCase("cc.visible = true");
+      assertThat(sql).containsIgnoringCase("WHERE visibility IN (:visibilities)");
+      assertThat(sql).containsIgnoringCase("AND type = :type");
+      assertThat(sql).containsIgnoringCase("ORDER BY rating DESC NULLS LAST, collection_date DESC");
+      MapSqlParameterSource params = paramsCaptor.getValue();
+      assertThat((List<String>) params.getValue("visibilities"))
+          .containsExactly("LISTED", "UNLISTED");
+      assertThat(params.getValue("type")).isEqualTo("PORTFOLIO");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void sqlOmitsTypePredicateWhenTypeFilterIsNull() {
+      when(namedParameterJdbcTemplate.query(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(List.of());
+
+      collectionRepository.findNonEmptyOrderedByVisibilityIn(
+          List.of(CollectionVisibility.LISTED), null);
+
+      verify(namedParameterJdbcTemplate)
+          .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+      String sql = sqlCaptor.getValue();
+      assertThat(sql).containsIgnoringCase("EXISTS");
+      assertThat(sql).doesNotContainIgnoringCase("type = :type");
     }
   }
 

@@ -28,14 +28,22 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SyntheticCollectionResolver {
 
+  static final String ALL_CLIENT_GALLERIES = "all-client-galleries";
+
   private static final Map<String, Synthetic> CATALOG =
       Map.of(
-          "all-collections", new Synthetic("All Collections", null),
-          "all-blogs", new Synthetic("Blogs", CollectionType.BLOG),
-          "all-portfolios", new Synthetic("Portfolios", CollectionType.PORTFOLIO),
-          "all-client-galleries", new Synthetic("Client Galleries", CollectionType.CLIENT_GALLERY),
-          "all-art-galleries", new Synthetic("Art Galleries", CollectionType.ART_GALLERY),
-          "all-misc", new Synthetic("Misc", CollectionType.MISC));
+          "all-collections",
+          new Synthetic("All Collections", null),
+          "all-blogs",
+          new Synthetic("Blogs", CollectionType.BLOG),
+          "all-portfolios",
+          new Synthetic("Portfolios", CollectionType.PORTFOLIO),
+          ALL_CLIENT_GALLERIES,
+          new Synthetic("Client Galleries", CollectionType.CLIENT_GALLERY),
+          "all-art-galleries",
+          new Synthetic("Art Galleries", CollectionType.ART_GALLERY),
+          "all-misc",
+          new Synthetic("Misc", CollectionType.MISC));
 
   private final CollectionRepository collectionRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
@@ -63,8 +71,15 @@ public class SyntheticCollectionResolver {
                 CollectionVisibility.UNLISTED,
                 CollectionVisibility.HIDDEN)
             : List.of(CollectionVisibility.LISTED);
+
+    // "all-client-galleries" includes PARENT collections that have ≥1 CLIENT_GALLERY child
+    // (e.g. wedding wrappers with ceremony/reception sub-galleries) so they appear alongside
+    // standalone CLIENT_GALLERYs. Other synthetic slugs use the simple type filter, and exclude
+    // collections that have zero content rows so the listing never shows empty tiles.
     List<CollectionEntity> rows =
-        collectionRepository.findOrderedByVisibilityIn(allowed, spec.typeFilter());
+        ALL_CLIENT_GALLERIES.equals(slug)
+            ? collectionRepository.findClientGalleriesAndQualifyingParents(allowed)
+            : collectionRepository.findNonEmptyOrderedByVisibilityIn(allowed, spec.typeFilter());
     List<CollectionModel> children = collectionProcessingUtil.batchConvertToBasicModels(rows);
 
     List<ContentModel> content =

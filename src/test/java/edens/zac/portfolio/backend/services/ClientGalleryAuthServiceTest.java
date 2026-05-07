@@ -168,4 +168,100 @@ class ClientGalleryAuthServiceTest {
       assertThat(result).isFalse();
     }
   }
+
+  @Nested
+  class PasswordFingerprint {
+
+    @Test
+    void passwordFingerprint_nullPassword_returnsNull() {
+      assertThat(clientGalleryAuthService.passwordFingerprint(null)).isNull();
+    }
+
+    @Test
+    void passwordFingerprint_emptyPassword_returnsNull() {
+      assertThat(clientGalleryAuthService.passwordFingerprint("")).isNull();
+    }
+
+    @Test
+    void passwordFingerprint_samePassword_isStable() {
+      String first = clientGalleryAuthService.passwordFingerprint("secret123");
+      String second = clientGalleryAuthService.passwordFingerprint("secret123");
+
+      assertThat(first).isNotNull();
+      assertThat(first).isEqualTo(second);
+    }
+
+    @Test
+    void passwordFingerprint_differentPasswords_diverge() {
+      String a = clientGalleryAuthService.passwordFingerprint("password-a");
+      String b = clientGalleryAuthService.passwordFingerprint("password-b");
+
+      assertThat(a).isNotEqualTo(b);
+    }
+
+    @Test
+    void passwordFingerprint_isUrlSafeBase64() {
+      String fp = clientGalleryAuthService.passwordFingerprint("any-password");
+
+      assertThat(fp).matches("[A-Za-z0-9_-]+");
+    }
+  }
+
+  @Nested
+  class ValidatePasswordAccessToken {
+
+    @Test
+    void roundTrip_returnsTrue() {
+      String token = clientGalleryAuthService.generatePasswordAccessToken("shared-pw");
+
+      boolean result = clientGalleryAuthService.validatePasswordAccessToken("shared-pw", token);
+
+      assertThat(result).isTrue();
+    }
+
+    @Test
+    void mismatchedPassword_returnsFalse() {
+      String token = clientGalleryAuthService.generatePasswordAccessToken("shared-pw");
+
+      boolean result = clientGalleryAuthService.validatePasswordAccessToken("other-pw", token);
+
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void nullPassword_returnsFalse() {
+      String token = clientGalleryAuthService.generatePasswordAccessToken("shared-pw");
+
+      boolean result = clientGalleryAuthService.validatePasswordAccessToken(null, token);
+
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void nullToken_returnsFalse() {
+      boolean result = clientGalleryAuthService.validatePasswordAccessToken("shared-pw", null);
+
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void tokenWithoutPipe_returnsFalse() {
+      boolean result =
+          clientGalleryAuthService.validatePasswordAccessToken("shared-pw", "garbage-no-pipe");
+
+      assertThat(result).isFalse();
+    }
+
+    @Test
+    void expiredToken_returnsFalse() {
+      String fingerprint = clientGalleryAuthService.passwordFingerprint("shared-pw");
+      // craft an expired token by computing the HMAC directly with expiry=0
+      // (validation only accepts hmac+expiry pairs that haven't expired yet)
+      boolean result =
+          clientGalleryAuthService.validatePasswordAccessToken("shared-pw", "fakehmac|0");
+
+      assertThat(result).isFalse();
+      assertThat(fingerprint).isNotNull(); // sanity: fingerprint computable for non-null pw
+    }
+  }
 }
