@@ -97,4 +97,84 @@ class GalleryAccessCookiesTest {
 
     assertFalse(GalleryAccessCookies.hasValidAccess(request, "my-gallery", auth));
   }
+
+  @Test
+  void passwordCookieName_appliesPrefix() {
+    assertThat(GalleryAccessCookies.passwordCookieName("abc123_-"))
+        .isEqualTo("gallery_access_pw_abc123_-");
+  }
+
+  @Test
+  void passwordCookieName_sanitizesUnsafeChars() {
+    assertThat(GalleryAccessCookies.passwordCookieName("abc/=+xyz"))
+        .isEqualTo("gallery_access_pw_abc___xyz");
+  }
+
+  @Test
+  void passwordCookieName_handlesNullAndBlank() {
+    assertThat(GalleryAccessCookies.passwordCookieName(null)).isEqualTo("gallery_access_pw_");
+    assertThat(GalleryAccessCookies.passwordCookieName("")).isEqualTo("gallery_access_pw_");
+  }
+
+  @Test
+  void passwordAwareHasValidAccess_returnsTrue_forUnprotectedGallery() {
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    when(request.getCookies()).thenReturn(null);
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+
+    assertTrue(GalleryAccessCookies.hasValidAccess(request, "any-slug", null, auth));
+    assertTrue(GalleryAccessCookies.hasValidAccess(request, "any-slug", "", auth));
+  }
+
+  @Test
+  void passwordAwareHasValidAccess_acceptsSlugCookie() {
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    Cookie slugCookie = new Cookie("gallery_access_my-gallery", "slug-token");
+    when(request.getCookies()).thenReturn(new Cookie[] {slugCookie});
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+    when(auth.validateAccessToken("my-gallery", "slug-token")).thenReturn(true);
+
+    assertTrue(GalleryAccessCookies.hasValidAccess(request, "my-gallery", "secret", auth));
+  }
+
+  @Test
+  void passwordAwareHasValidAccess_acceptsFingerprintCookie() {
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    Cookie fpCookie = new Cookie("gallery_access_pw_FINGER", "group-token");
+    when(request.getCookies()).thenReturn(new Cookie[] {fpCookie});
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+    when(auth.validateAccessToken("sibling-gallery", null)).thenReturn(false);
+    when(auth.passwordFingerprint("shared-pw")).thenReturn("FINGER");
+    when(auth.validatePasswordAccessToken("shared-pw", "group-token")).thenReturn(true);
+
+    assertTrue(GalleryAccessCookies.hasValidAccess(request, "sibling-gallery", "shared-pw", auth));
+  }
+
+  @Test
+  void passwordAwareHasValidAccess_rejectsWhenBothCookiesInvalid() {
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    Cookie fpCookie = new Cookie("gallery_access_pw_FINGER", "stale-token");
+    when(request.getCookies()).thenReturn(new Cookie[] {fpCookie});
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+    when(auth.validateAccessToken("sibling-gallery", null)).thenReturn(false);
+    when(auth.passwordFingerprint("shared-pw")).thenReturn("FINGER");
+    when(auth.validatePasswordAccessToken("shared-pw", "stale-token")).thenReturn(false);
+
+    assertFalse(GalleryAccessCookies.hasValidAccess(request, "sibling-gallery", "shared-pw", auth));
+  }
+
+  @Test
+  void passwordAwareHasValidAccess_rejectsWhenFingerprintMismatch() {
+    // The user has a valid group cookie for password-A, but the gallery they're requesting
+    // has password-B. The fingerprint cookie name doesn't match → effectively no group cookie.
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    Cookie fpCookie = new Cookie("gallery_access_pw_FINGER_A", "good-token-for-A");
+    when(request.getCookies()).thenReturn(new Cookie[] {fpCookie});
+    ClientGalleryAuthService auth = mock(ClientGalleryAuthService.class);
+    when(auth.validateAccessToken("solo-gallery", null)).thenReturn(false);
+    when(auth.passwordFingerprint("password-B")).thenReturn("FINGER_B");
+    when(auth.validatePasswordAccessToken("password-B", null)).thenReturn(false);
+
+    assertFalse(GalleryAccessCookies.hasValidAccess(request, "solo-gallery", "password-B", auth));
+  }
 }

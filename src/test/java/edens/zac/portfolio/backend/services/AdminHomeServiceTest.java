@@ -109,7 +109,7 @@ class AdminHomeServiceTest {
           .thenReturn(List.of(blog));
 
       var gallery = collectionWithCoverUrl(41L, "smith", "https://cdn/example/gallery.webp");
-      when(collectionService.findVisibleByTypeOrderByDate(CollectionType.CLIENT_GALLERY))
+      when(collectionService.findByTypeForAdminCovers(CollectionType.CLIENT_GALLERY))
           .thenReturn(List.of(gallery));
 
       List<Records.AdminHomeTileResponse> tiles = service.getTiles();

@@ -27,6 +27,7 @@ import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +42,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -186,7 +188,14 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.content[2].title", is("Test Client Gallery")))
         .andExpect(jsonPath("$.totalElements", is(3)))
         .andExpect(jsonPath("$.totalPages", is(1)))
-        .andExpect(jsonPath("$.number", is(0)));
+        .andExpect(jsonPath("$.number", is(0)))
+        .andExpect(jsonPath("$.last", is(true)))
+        // Pin the wire shape: response uses our PagedResponse DTO, NOT Spring's PageImpl, which
+        // would also leak pageable/sort/numberOfElements/empty and which Spring's
+        // PageModule$WarningLoggingModifier warns about as unstable across versions.
+        .andExpect(jsonPath("$.pageable").doesNotExist())
+        .andExpect(jsonPath("$.sort").doesNotExist())
+        .andExpect(jsonPath("$.numberOfElements").doesNotExist());
   }
 
   @Test
@@ -280,8 +289,17 @@ class CollectionControllerProdTest {
     when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("correct-password")))
         .thenReturn(true);
-    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
-        .thenReturn("hmac-token|1234567890");
+    when(clientGalleryAuthService.buildAccessCookies(
+            eq("test-client-gallery"), eq("correct-password"), eq(true), any(Duration.class)))
+        .thenReturn(
+            List.of(
+                ResponseCookie.from("gallery_access_test-client-gallery", "hmac-token|1234567890")
+                    .httpOnly(true)
+                    .secure(true)
+                    .sameSite("Strict")
+                    .path("/")
+                    .maxAge(Duration.ofHours(24))
+                    .build()));
 
     // Act & Assert
     mockMvc
@@ -306,6 +324,50 @@ class CollectionControllerProdTest {
 
   @Test
   @DisplayName(
+      "POST /collections/{slug}/access also sets the shared password-fingerprint cookie for group unlock")
+  void validateClientGalleryAccess_alsoSetsFingerprintCookie() throws Exception {
+    PasswordRequest passwordRequest = new PasswordRequest("shared-pw");
+    when(accessLimiter.allow(anyString(), eq("test-client-gallery"))).thenReturn(true);
+    when(clientGalleryAuthService.validateClientGalleryAccess(
+            eq("test-client-gallery"), eq("shared-pw")))
+        .thenReturn(true);
+    when(clientGalleryAuthService.buildAccessCookies(
+            eq("test-client-gallery"), eq("shared-pw"), eq(true), any(Duration.class)))
+        .thenReturn(
+            List.of(
+                ResponseCookie.from("gallery_access_test-client-gallery", "slug-token")
+                    .httpOnly(true)
+                    .secure(true)
+                    .sameSite("Strict")
+                    .path("/")
+                    .maxAge(Duration.ofHours(24))
+                    .build(),
+                ResponseCookie.from("gallery_access_pw_FINGERPRINT", "group-token")
+                    .httpOnly(true)
+                    .secure(true)
+                    .sameSite("Strict")
+                    .path("/")
+                    .maxAge(Duration.ofHours(24))
+                    .build()));
+
+    mockMvc
+        .perform(
+            post("/api/read/collections/test-client-gallery/access")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(passwordRequest)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.hasAccess", is(true)))
+        .andExpect(cookie().exists("gallery_access_test-client-gallery"))
+        .andExpect(cookie().exists("gallery_access_pw_FINGERPRINT"))
+        .andExpect(cookie().value("gallery_access_pw_FINGERPRINT", "group-token"))
+        .andExpect(cookie().httpOnly("gallery_access_pw_FINGERPRINT", true))
+        .andExpect(cookie().secure("gallery_access_pw_FINGERPRINT", true))
+        .andExpect(cookie().path("gallery_access_pw_FINGERPRINT", "/"))
+        .andExpect(cookie().maxAge("gallery_access_pw_FINGERPRINT", 24 * 60 * 60));
+  }
+
+  @Test
+  @DisplayName(
       "POST /collections/{slug}/access in dev profile (cookie-secure=false) should omit Secure attr")
   void validateClientGalleryAccess_devProfile_shouldOmitSecureCookieAttribute() throws Exception {
     // Localhost runs over plain http; browsers silently reject Secure cookies on
@@ -319,8 +381,17 @@ class CollectionControllerProdTest {
     when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("correct-password")))
         .thenReturn(true);
-    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
-        .thenReturn("hmac-token|1234567890");
+    when(clientGalleryAuthService.buildAccessCookies(
+            eq("test-client-gallery"), eq("correct-password"), eq(false), any(Duration.class)))
+        .thenReturn(
+            List.of(
+                ResponseCookie.from("gallery_access_test-client-gallery", "hmac-token|1234567890")
+                    .httpOnly(true)
+                    .secure(false)
+                    .sameSite("Strict")
+                    .path("/")
+                    .maxAge(Duration.ofHours(24))
+                    .build()));
 
     mockMvc
         .perform(
@@ -504,6 +575,8 @@ class CollectionControllerProdTest {
 
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(protectedCollection);
+    when(collectionService.isGalleryAccessAuthorized(eq("client-gallery"), any()))
+        .thenReturn(false);
 
     // Act & Assert
     mockMvc
@@ -527,7 +600,7 @@ class CollectionControllerProdTest {
 
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(protectedCollection);
-    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("wrong-token")))
+    when(collectionService.isGalleryAccessAuthorized(eq("client-gallery"), any()))
         .thenReturn(false);
 
     // Act & Assert
@@ -587,8 +660,7 @@ class CollectionControllerProdTest {
 
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(protectedCollection);
-    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("cookie-token")))
-        .thenReturn(true);
+    when(collectionService.isGalleryAccessAuthorized(eq("client-gallery"), any())).thenReturn(true);
 
     // Act & Assert
     mockMvc
@@ -606,6 +678,30 @@ class CollectionControllerProdTest {
   }
 
   @Test
+  @DisplayName(
+      "GET /collections/{slug} password-protected, group cookie via shared password, includes content")
+  void getCollectionBySlug_passwordProtected_groupCookie_shouldIncludeContent() throws Exception {
+    // Sibling gallery scenario: viewer unlocked the parent (or another sibling) and now visits
+    // this gallery directly. Per the gated-yard model, isGalleryAccessAuthorized returns true
+    // because the fingerprint cookie matches this gallery's password.
+    CollectionModel protectedCollection = createPasswordProtectedCollection();
+    when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
+        .thenReturn(protectedCollection);
+    when(collectionService.isGalleryAccessAuthorized(eq("client-gallery"), any())).thenReturn(true);
+
+    mockMvc
+        .perform(
+            get("/api/read/collections/client-gallery")
+                .param("page", "0")
+                .param("size", "30")
+                .cookie(new Cookie("gallery_access_pw_FINGERPRINT", "group-token"))
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.contentCount", is(5)));
+  }
+
+  @Test
   @DisplayName("GET /collections/{slug} password protected with no cookie strips content")
   void getCollectionBySlug_passwordProtected_noCookie_stripsContent() throws Exception {
     // Arrange
@@ -613,6 +709,8 @@ class CollectionControllerProdTest {
 
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(protectedCollection);
+    when(collectionService.isGalleryAccessAuthorized(eq("client-gallery"), any()))
+        .thenReturn(false);
 
     // Act & Assert — no cookie attached
     mockMvc
@@ -660,7 +758,7 @@ class CollectionControllerProdTest {
   void getCollectionBySlug_protectedInvalidCookie_retainsCoverImage() throws Exception {
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(createPasswordProtectedCollectionWithCover());
-    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("bad")))
+    when(collectionService.isGalleryAccessAuthorized(eq("client-gallery"), any()))
         .thenReturn(false);
 
     mockMvc
@@ -680,8 +778,7 @@ class CollectionControllerProdTest {
   void getCollectionBySlug_protectedValidCookie_retainsCoverImage() throws Exception {
     when(collectionService.getCollectionWithPagination(eq("client-gallery"), anyInt(), anyInt()))
         .thenReturn(createPasswordProtectedCollectionWithCover());
-    when(clientGalleryAuthService.validateAccessToken(eq("client-gallery"), eq("good")))
-        .thenReturn(true);
+    when(collectionService.isGalleryAccessAuthorized(eq("client-gallery"), any())).thenReturn(true);
 
     mockMvc
         .perform(
@@ -710,8 +807,17 @@ class CollectionControllerProdTest {
     when(clientGalleryAuthService.validateClientGalleryAccess(
             eq("test-client-gallery"), eq("correct-password")))
         .thenReturn(true);
-    when(clientGalleryAuthService.generateAccessToken(eq("test-client-gallery")))
-        .thenReturn("some-token");
+    when(clientGalleryAuthService.buildAccessCookies(
+            eq("test-client-gallery"), eq("correct-password"), eq(true), any(Duration.class)))
+        .thenReturn(
+            List.of(
+                ResponseCookie.from("gallery_access_test-client-gallery", "some-token")
+                    .httpOnly(true)
+                    .secure(true)
+                    .sameSite("Strict")
+                    .path("/")
+                    .maxAge(Duration.ofHours(24))
+                    .build()));
 
     // Act: send with only X-Forwarded-For, no X-Real-IP
     // The controller must fall through to getRemoteAddr() ("127.0.0.1" in MockMvc)

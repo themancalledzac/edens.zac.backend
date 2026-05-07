@@ -74,8 +74,11 @@ public class AdminHomeService {
           randomCoverUrlFromCollections(
               collectionService.findVisibleByTypeOrderByDate(CollectionType.BLOG));
       case "client-galleries" ->
+          // Client galleries are typically UNLISTED (their listing is private by design), so the
+          // LISTED-only lookup would yield no candidates and the tile would render with no cover.
+          // Admin-context lookup includes UNLISTED.
           randomCoverUrlFromCollections(
-              collectionService.findVisibleByTypeOrderByDate(CollectionType.CLIENT_GALLERY));
+              collectionService.findByTypeForAdminCovers(CollectionType.CLIENT_GALLERY));
       // metadata, comments, create, manage, about: no cover (rendered as plain entries elsewhere)
       default -> null;
     };

@@ -55,6 +55,7 @@ class CollectionServiceTest {
   @Mock private ContentModelConverter contentModelConverter;
   @Mock private MetadataService metadataService;
   @Mock private SyntheticCollectionResolver syntheticResolver;
+  @Mock private ClientGalleryAuthService clientGalleryAuthService;
   @Mock private org.springframework.core.env.Environment springEnv;
 
   @InjectMocks private CollectionService service;
@@ -870,6 +871,180 @@ class CollectionServiceTest {
       assertThat(result.childCollectionImages()).isNull();
       verify(collectionProcessingUtil, never()).loadImagesFromChildCollections(any());
     }
+
+    @Test
+    void parentOfClientGalleries_keepsUnlistedChildren_dropsHidden() {
+      // PARENT containing CLIENT_GALLERY children: viewer is already inside the password-gated
+      // parent context, so UNLISTED galleries (the typical visibility for client work) must
+      // remain visible. HIDDEN is still excluded.
+      String slug = "smith-wedding";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(50L)
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection unlistedGallery =
+          childCollectionContent(101L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection hiddenGallery =
+          childCollectionContent(102L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection listedGallery =
+          childCollectionContent(103L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(50L)
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .content(
+                  new java.util.ArrayList<>(List.of(unlistedGallery, hiddenGallery, listedGallery)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findContentByCollectionIdAndContentType(50L, "COLLECTION"))
+          .thenReturn(List.of());
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(101L, 102L, 103L)))
+          .thenReturn(
+              List.of(
+                  childEntity(101L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED),
+                  childEntity(102L, CollectionType.CLIENT_GALLERY, CollectionVisibility.HIDDEN),
+                  childEntity(103L, CollectionType.CLIENT_GALLERY, CollectionVisibility.LISTED)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(101L, 103L); // UNLISTED kept, HIDDEN dropped
+    }
+
+    @Test
+    void parentOfPortfolios_keepsListedOnly_dropsUnlistedAndHidden() {
+      // PARENT containing non-CLIENT_GALLERY children (e.g. portfolio rollup): public listing
+      // semantics apply — only LISTED children appear, UNLISTED is excluded.
+      String slug = "photography";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(60L)
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection listed = childCollectionContent(201L, CollectionType.PORTFOLIO);
+      ContentModels.Collection unlisted = childCollectionContent(202L, CollectionType.PORTFOLIO);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(60L)
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .content(new java.util.ArrayList<>(List.of(listed, unlisted)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findContentByCollectionIdAndContentType(60L, "COLLECTION"))
+          .thenReturn(List.of());
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(201L, 202L)))
+          .thenReturn(
+              List.of(
+                  childEntity(201L, CollectionType.PORTFOLIO, CollectionVisibility.LISTED),
+                  childEntity(202L, CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(201L); // LISTED kept, UNLISTED dropped (current behavior preserved)
+    }
+
+    @Test
+    void parentOfMixedClientGalleryAndPortfolio_appliesClientGalleryContextToAllChildren() {
+      // Pinning current behavior: a PARENT with at least one CLIENT_GALLERY child flips the entire
+      // response into "client gallery context" — only HIDDEN children are dropped, regardless of
+      // the sibling child's type. So an UNLISTED PORTFOLIO sibling stays visible because the viewer
+      // is already inside the password-gated parent. The alternative (per-child context) is much
+      // more complex; this test pins the simpler whole-PARENT rule so a future refactor has to
+      // consciously change it.
+      String slug = "smith-wedding";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(70L)
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection unlistedGallery =
+          childCollectionContent(301L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection unlistedPortfolio =
+          childCollectionContent(302L, CollectionType.PORTFOLIO);
+      ContentModels.Collection listedPortfolio =
+          childCollectionContent(303L, CollectionType.PORTFOLIO);
+      ContentModels.Collection hiddenPortfolio =
+          childCollectionContent(304L, CollectionType.PORTFOLIO);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(70L)
+              .slug(slug)
+              .type(CollectionType.PARENT)
+              .content(
+                  new java.util.ArrayList<>(
+                      List.of(
+                          unlistedGallery, unlistedPortfolio, listedPortfolio, hiddenPortfolio)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionRepository.findContentByCollectionIdAndContentType(70L, "COLLECTION"))
+          .thenReturn(List.of());
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(301L, 302L, 303L, 304L)))
+          .thenReturn(
+              List.of(
+                  childEntity(301L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED),
+                  childEntity(302L, CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED),
+                  childEntity(303L, CollectionType.PORTFOLIO, CollectionVisibility.LISTED),
+                  childEntity(304L, CollectionType.PORTFOLIO, CollectionVisibility.HIDDEN)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(
+              301L, 302L, 303L); // gallery + both non-hidden portfolios kept; HIDDEN dropped
+    }
+
+    private ContentModels.Collection childCollectionContent(Long childId, CollectionType type) {
+      return new ContentModels.Collection(
+          childId,
+          edens.zac.portfolio.backend.types.ContentType.COLLECTION,
+          "Child " + childId,
+          null,
+          null,
+          0,
+          true,
+          null,
+          null,
+          childId,
+          "child-" + childId,
+          type,
+          null);
+    }
+
+    private CollectionEntity childEntity(
+        Long id, CollectionType type, CollectionVisibility visibility) {
+      return CollectionEntity.builder().id(id).type(type).visibility(visibility).build();
+    }
   }
 
   @Nested
@@ -1136,6 +1311,103 @@ class CollectionServiceTest {
       service.updateGalleryAccess(100L, request);
 
       verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
+    }
+  }
+
+  @Nested
+  class IsGalleryAccessAuthorized {
+
+    @Test
+    void unprotectedCollection_returnsTrue() {
+      CollectionEntity entity =
+          CollectionEntity.builder().id(1L).slug("public-gallery").galleryPassword(null).build();
+      when(collectionRepository.findBySlug("public-gallery")).thenReturn(Optional.of(entity));
+      // Null password short-circuits in hasValidAccess before any cookie is read,
+      // so we don't need to stub request.getCookies().
+      jakarta.servlet.http.HttpServletRequest request =
+          org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
+
+      assertThat(service.isGalleryAccessAuthorized("public-gallery", request)).isTrue();
+    }
+
+    @Test
+    void missingCollection_returnsTrue() {
+      when(collectionRepository.findBySlug("missing")).thenReturn(Optional.empty());
+      jakarta.servlet.http.HttpServletRequest request =
+          org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
+
+      assertThat(service.isGalleryAccessAuthorized("missing", request)).isTrue();
+    }
+
+    @Test
+    void protectedCollection_validSlugCookie_returnsTrue() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("protected-gallery")
+              .galleryPassword("secret123")
+              .build();
+      when(collectionRepository.findBySlug("protected-gallery")).thenReturn(Optional.of(entity));
+      jakarta.servlet.http.HttpServletRequest request =
+          org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
+      when(request.getCookies())
+          .thenReturn(
+              new jakarta.servlet.http.Cookie[] {
+                new jakarta.servlet.http.Cookie("gallery_access_protected-gallery", "valid-token")
+              });
+      when(clientGalleryAuthService.validateAccessToken("protected-gallery", "valid-token"))
+          .thenReturn(true);
+
+      assertThat(service.isGalleryAccessAuthorized("protected-gallery", request)).isTrue();
+    }
+
+    @Test
+    void protectedCollection_validFingerprintCookie_returnsTrue() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("sibling-gallery")
+              .galleryPassword("shared-pw")
+              .build();
+      when(collectionRepository.findBySlug("sibling-gallery")).thenReturn(Optional.of(entity));
+      jakarta.servlet.http.HttpServletRequest request =
+          org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
+      when(request.getCookies())
+          .thenReturn(
+              new jakarta.servlet.http.Cookie[] {
+                new jakarta.servlet.http.Cookie("gallery_access_pw_FP", "group-token")
+              });
+      when(clientGalleryAuthService.validateAccessToken(
+              eq("sibling-gallery"), org.mockito.Mockito.any()))
+          .thenReturn(false);
+      when(clientGalleryAuthService.passwordFingerprint("shared-pw")).thenReturn("FP");
+      when(clientGalleryAuthService.validatePasswordAccessToken("shared-pw", "group-token"))
+          .thenReturn(true);
+
+      assertThat(service.isGalleryAccessAuthorized("sibling-gallery", request)).isTrue();
+    }
+
+    @Test
+    void protectedCollection_noCookies_returnsFalse() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("protected-gallery")
+              .galleryPassword("secret123")
+              .build();
+      when(collectionRepository.findBySlug("protected-gallery")).thenReturn(Optional.of(entity));
+      jakarta.servlet.http.HttpServletRequest request =
+          org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
+      when(request.getCookies()).thenReturn(null);
+      when(clientGalleryAuthService.validateAccessToken(
+              eq("protected-gallery"), org.mockito.Mockito.any()))
+          .thenReturn(false);
+      when(clientGalleryAuthService.passwordFingerprint("secret123")).thenReturn("FP");
+      when(clientGalleryAuthService.validatePasswordAccessToken(
+              eq("secret123"), org.mockito.Mockito.any()))
+          .thenReturn(false);
+
+      assertThat(service.isGalleryAccessAuthorized("protected-gallery", request)).isFalse();
     }
   }
 }

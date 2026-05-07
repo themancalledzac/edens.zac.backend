@@ -1,12 +1,10 @@
 package edens.zac.portfolio.backend.controller.prod;
 
-import static edens.zac.portfolio.backend.config.GalleryAccessCookies.cookieName;
-
 import edens.zac.portfolio.backend.config.ClientGalleryAccessLimiter;
 import edens.zac.portfolio.backend.config.DefaultValues;
-import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
+import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.PasswordRequest;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
@@ -23,7 +21,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,11 +63,11 @@ public class CollectionControllerProd {
    * @return ResponseEntity with paginated collections
    */
   @GetMapping
-  public ResponseEntity<Page<CollectionModel>> getAllCollections(
+  public ResponseEntity<PagedResponse<CollectionModel>> getAllCollections(
       @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
     Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
     Page<CollectionModel> collections = collectionService.getVisibleCollections(pageable);
-    return ResponseEntity.ok(collections);
+    return ResponseEntity.ok(PagedResponse.from(collections));
   }
 
   /**
@@ -98,9 +95,8 @@ public class CollectionControllerProd {
     CollectionModel collection =
         collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
 
-    // For password-protected galleries, omit content unless a valid cookie is supplied.
     if (Boolean.TRUE.equals(collection.getIsPasswordProtected())
-        && !GalleryAccessCookies.hasValidAccess(request, slug, clientGalleryAuthService)) {
+        && !collectionService.isGalleryAccessAuthorized(slug, request)) {
       collection.setContent(null);
       collection.setContentCount(null);
     }
@@ -189,16 +185,10 @@ public class CollectionControllerProd {
       return ResponseEntity.ok(Map.of("hasAccess", false));
     }
 
-    String token = clientGalleryAuthService.generateAccessToken(slug);
-    ResponseCookie cookie =
-        ResponseCookie.from(cookieName(slug), token)
-            .httpOnly(true)
-            .secure(galleryCookieSecure)
-            .sameSite("Strict")
-            .path("/")
-            .maxAge(GALLERY_COOKIE_MAX_AGE)
-            .build();
-    response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    clientGalleryAuthService
+        .buildAccessCookies(
+            slug, passwordRequest.password(), galleryCookieSecure, GALLERY_COOKIE_MAX_AGE)
+        .forEach(c -> response.addHeader(HttpHeaders.SET_COOKIE, c.toString()));
 
     return ResponseEntity.ok(Map.of("hasAccess", true));
   }

@@ -12,6 +12,7 @@ import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
 import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
+import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.AdminHomeService;
 import edens.zac.portfolio.backend.services.CollectionService;
@@ -127,12 +128,12 @@ class AdminController {
 
   /** All collections paginated, ordered by collection date DESC. Visibility is not filtered. */
   @GetMapping("/collections/all")
-  public ResponseEntity<Page<CollectionModel>> getAllCollectionsOrderedByDate(
+  public ResponseEntity<PagedResponse<CollectionModel>> getAllCollectionsOrderedByDate(
       @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
     Pageable pageable = PaginationUtil.normalizeCollectionPageable(page, size);
     Page<CollectionModel> collections = collectionService.getAllCollections(pageable);
     log.debug("Retrieved {} collections ordered by date", collections.getNumberOfElements());
-    return ResponseEntity.ok(collections);
+    return ResponseEntity.ok(PagedResponse.from(collections));
   }
 
   /** Manage-page payload: collection plus all metadata (tags, people, cameras, films, etc.). */
@@ -269,7 +270,7 @@ class AdminController {
    * visibility filtering.
    */
   @GetMapping("/content/images")
-  public ResponseEntity<Page<ContentModels.Image>> getAllImages(
+  public ResponseEntity<PagedResponse<ContentModels.Image>> getAllImages(
       @RequestParam(required = false) List<Long> personIds,
       @RequestParam(required = false) List<Long> tagIds,
       @RequestParam(required = false) Long cameraId,
@@ -303,7 +304,7 @@ class AdminController {
     Pageable pageable = PageRequest.of(page, safeSize);
     Page<ContentModels.Image> wrapped =
         new PageImpl<>(response.content(), pageable, response.totalElements());
-    return ResponseEntity.ok(wrapped);
+    return ResponseEntity.ok(PagedResponse.from(wrapped));
   }
 
   /** Delete one or more images. */

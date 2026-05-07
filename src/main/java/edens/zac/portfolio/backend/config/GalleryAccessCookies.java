@@ -18,6 +18,21 @@ public final class GalleryAccessCookies {
 
   public static final String COOKIE_PREFIX = "gallery_access_";
 
+  /**
+   * Cookie-name prefix for the password-fingerprint shared-unlock cookie. Issued alongside the
+   * per-slug cookie when a gallery is unlocked, so any other gallery whose password produces the
+   * same fingerprint also passes the gate without re-prompting (e.g. PARENT + propagated children).
+   */
+  public static final String PASSWORD_COOKIE_PREFIX = "gallery_access_pw_";
+
+  /**
+   * Sanitizer for the fingerprint segment of {@link #PASSWORD_COOKIE_PREFIX} cookies. The
+   * fingerprint is URL-safe base64 ({@code A-Za-z0-9_-}); any unexpected character is replaced with
+   * '_' as defense in depth against malformed input.
+   */
+  private static final java.util.regex.Pattern UNSAFE_FINGERPRINT_CHARS =
+      java.util.regex.Pattern.compile("[^A-Za-z0-9_-]");
+
   private GalleryAccessCookies() {}
 
   /**
@@ -44,6 +59,18 @@ public final class GalleryAccessCookies {
     return COOKIE_PREFIX + normalizeSlug(slug);
   }
 
+  /**
+   * Per-fingerprint cookie name for the shared-unlock path. The fingerprint comes from {@link
+   * ClientGalleryAuthService#passwordFingerprint(String)} and is already URL-safe base64; the
+   * sanitizer is a defense-in-depth no-op for valid input.
+   */
+  public static String passwordCookieName(String fingerprint) {
+    if (fingerprint == null || fingerprint.isEmpty()) {
+      return PASSWORD_COOKIE_PREFIX;
+    }
+    return PASSWORD_COOKIE_PREFIX + UNSAFE_FINGERPRINT_CHARS.matcher(fingerprint).replaceAll("_");
+  }
+
   /** Read a single cookie value by name; {@code null} if absent. */
   public static String readCookie(HttpServletRequest request, String name) {
     Cookie[] cookies = request.getCookies();
@@ -65,5 +92,33 @@ public final class GalleryAccessCookies {
   public static boolean hasValidAccess(
       HttpServletRequest request, String slug, ClientGalleryAuthService auth) {
     return auth.validateAccessToken(slug, readCookie(request, cookieName(slug)));
+  }
+
+  /**
+   * True iff the request carries either (a) a valid per-slug access cookie or (b) a valid
+   * password-fingerprint cookie matching the gallery's current password. The fingerprint variant is
+   * what makes a PARENT password unlock its propagated CLIENT_GALLERY children (and vice versa)
+   * without re-prompting — they share the password, so they share the cookie.
+   *
+   * @param request Servlet request
+   * @param slug Collection slug for the per-slug cookie lookup
+   * @param password Current plaintext password on the gallery being read; null/blank treats the
+   *     gallery as unprotected and short-circuits to {@code true}
+   * @param auth Auth service for HMAC validation
+   */
+  public static boolean hasValidAccess(
+      HttpServletRequest request, String slug, String password, ClientGalleryAuthService auth) {
+    if (password == null || password.isEmpty()) {
+      return true;
+    }
+    if (auth.validateAccessToken(slug, readCookie(request, cookieName(slug)))) {
+      return true;
+    }
+    String fingerprint = auth.passwordFingerprint(password);
+    if (fingerprint == null) {
+      return false;
+    }
+    return auth.validatePasswordAccessToken(
+        password, readCookie(request, passwordCookieName(fingerprint)));
   }
 }

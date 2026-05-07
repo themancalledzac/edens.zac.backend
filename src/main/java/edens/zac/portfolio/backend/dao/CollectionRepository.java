@@ -169,11 +169,10 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
-   * Same join chain as {@link #findReferencedCollectionsByParentId} but returns ALL referenced
-   * children regardless of {@code c.visibility}. Per-membership {@code cc.visible = true} is still
-   * enforced so soft-removed memberships are excluded. Used by admin-context flows like PARENT
-   * password propagation, where the admin must reach UNLISTED/HIDDEN children (CLIENT_GALLERY
-   * default visibility is UNLISTED per V20 migration).
+   * Same join chain as {@link #findReferencedCollectionsByParentId} but returns every referenced
+   * child regardless of either {@code c.visibility} or per-membership {@code cc.visible}. Used by
+   * admin-context flows (e.g. PARENT password propagation) where the admin must reach every linked
+   * child — UI/membership visibility does not gate admin operations.
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findAllReferencedCollectionsByParentId(Long parentId) {
@@ -186,7 +185,6 @@ public class CollectionRepository extends BaseDao {
         JOIN content_collection cct ON cct.referenced_collection_id = c.id
         JOIN collection_content cc ON cc.content_id = cct.id
         WHERE cc.collection_id = :parentId
-          AND cc.visible = true
         ORDER BY cc.order_index ASC
         """;
     MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
@@ -305,6 +303,76 @@ public class CollectionRepository extends BaseDao {
     }
     sql.append(" ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST");
     return query(sql.toString(), COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
+   * Same as {@link #findOrderedByVisibilityIn} but additionally drops collections that have zero
+   * non-soft-removed entries in {@code collection_content}. Used by synthetic-list endpoints (e.g.
+   * {@code /all-collections}, {@code /all-blogs}) so the listing never renders empty tiles.
+   * Admin-only flows that need empty collections (e.g. cover-image picking) should keep using
+   * {@link #findOrderedByVisibilityIn}.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findNonEmptyOrderedByVisibilityIn(
+      List<CollectionVisibility> allowed, CollectionType typeFilter) {
+    StringBuilder sql =
+        new StringBuilder(SELECT_COLLECTION).append(" WHERE visibility IN (:visibilities) ");
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
+    if (typeFilter != null) {
+      sql.append(" AND type = :type ");
+      params.addValue("type", typeFilter.name());
+    }
+    sql.append(
+        """
+         AND EXISTS (
+           SELECT 1 FROM collection_content cc
+           WHERE cc.collection_id = collection.id
+             AND cc.visible = true
+         )
+         ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST
+        """);
+    return query(sql.toString(), COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
+   * Find every CLIENT_GALLERY plus every PARENT that has at least one CLIENT_GALLERY child, all
+   * within the supplied visibility set, ordered by rating then collection_date. The PARENT branch
+   * walks the same join chain as {@link #findReferencedCollectionsByParentId} (parent ->
+   * collection_content -> content_collection -> child) and applies the same visibility scope to the
+   * child rows so PARENTs whose only matching child is HIDDEN do not appear. Used by the
+   * "all-client-galleries" synthetic listing where PARENT-of-galleries (e.g. wedding wrappers)
+   * should appear alongside standalone CLIENT_GALLERYs.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findClientGalleriesAndQualifyingParents(
+      List<CollectionVisibility> allowed) {
+    String sql =
+        SELECT_COLLECTION
+            + """
+             WHERE visibility IN (:visibilities)
+               AND (
+                 type = 'CLIENT_GALLERY'
+                 OR (
+                   type = 'PARENT'
+                   AND id IN (
+                     SELECT cc.collection_id
+                     FROM collection_content cc
+                     JOIN content_collection cct ON cct.id = cc.content_id
+                     JOIN collection child ON child.id = cct.referenced_collection_id
+                     WHERE child.type = 'CLIENT_GALLERY'
+                       AND child.visibility IN (:visibilities)
+                       AND cc.visible = true
+                   )
+                 )
+               )
+             ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST
+             """;
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
+    return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)

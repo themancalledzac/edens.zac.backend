@@ -68,6 +68,7 @@ public class CollectionService {
   private final MetadataService metadataService;
   private final EmailService emailService;
   private final SyntheticCollectionResolver syntheticResolver;
+  private final ClientGalleryAuthService clientGalleryAuthService;
   private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -156,6 +157,21 @@ public class CollectionService {
   public List<CollectionModel> findVisibleByTypeOrderByDate(CollectionType type) {
     log.debug("Finding visible collections by type ordered by date: {}", type);
     List<CollectionEntity> collections = collectionRepository.findByTypeAndListedOrdered(type);
+    return collectionProcessingUtil.batchConvertToBasicModels(collections);
+  }
+
+  /**
+   * Find non-HIDDEN collections of a given type (LISTED + UNLISTED) for admin-only contexts where
+   * UNLISTED is acceptable to surface. Used by {@link AdminHomeService} to pick cover images for
+   * tiles like {@code client-galleries}, where the typical visibility is UNLISTED — the regular
+   * "visible" lookup would return no candidates and the tile would render with no cover.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionModel> findByTypeForAdminCovers(CollectionType type) {
+    log.debug("Finding admin-cover candidates by type: {}", type);
+    List<CollectionEntity> collections =
+        collectionRepository.findOrderedByVisibilityIn(
+            List.of(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED), type);
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
@@ -416,6 +432,25 @@ public class CollectionService {
         .findBySlug(slug)
         .orElseThrow(
             () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+  }
+
+  /**
+   * Decide whether an incoming request is authorized to read the gated content of a gallery.
+   * Encapsulates both the per-slug cookie check and the shared password-fingerprint cookie check
+   * (the latter is what makes a PARENT password also unlock its propagated CLIENT_GALLERY children,
+   * and vice versa, without re-prompting). Returns {@code true} for unprotected or missing
+   * collections — the GET handler still returns 200 with the stripped/empty model.
+   */
+  @Transactional(readOnly = true)
+  public boolean isGalleryAccessAuthorized(
+      String slug, jakarta.servlet.http.HttpServletRequest request) {
+    return collectionRepository
+        .findBySlug(slug)
+        .map(
+            entity ->
+                edens.zac.portfolio.backend.config.GalleryAccessCookies.hasValidAccess(
+                    request, slug, entity.getGalleryPassword(), clientGalleryAuthService))
+        .orElse(true);
   }
 
   @Transactional
@@ -803,7 +838,7 @@ public class CollectionService {
                   .collectionId(parentCollection.getId())
                   .contentId(existingContentCollection.getId())
                   .orderIndex(orderIndex)
-                  .visible(childCollection.visible() != null ? childCollection.visible() : false)
+                  .visible(childCollection.visible() != null ? childCollection.visible() : true)
                   .createdAt(LocalDateTime.now())
                   .updatedAt(LocalDateTime.now())
                   .build();
@@ -1075,9 +1110,13 @@ public class CollectionService {
   }
 
   /**
-   * Remove child collection content items that reference non-LISTED collections. This prevents
-   * UNLISTED and HIDDEN collections from leaking through parent collection responses on public
-   * endpoints.
+   * Remove child collection content items that reference children the viewer should not see in this
+   * context. Default scope (e.g. PARENT-of-portfolios) drops UNLISTED + HIDDEN children so
+   * directories don't leak unlisted work. Client-gallery context — viewing a CLIENT_GALLERY
+   * directly, or a PARENT that contains at least one CLIENT_GALLERY child — drops only HIDDEN, so
+   * UNLISTED client galleries (the typical visibility for password-protected work) remain visible
+   * to viewers who have already navigated into the parent. Authentication is enforced upstream;
+   * this method runs only for already-authorized responses.
    */
   private void filterNonListedChildCollections(CollectionModel model) {
     if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
@@ -1098,31 +1137,45 @@ public class CollectionService {
       return;
     }
 
-    // Batch-load referenced collections and find non-LISTED ones (UNLISTED + HIDDEN)
-    Set<Long> nonListedIds =
-        collectionRepository.findByIds(referencedIds).stream()
-            .filter(c -> !c.getVisibility().appearsInLists())
+    // Batch-load referenced children once — used for both context detection and visibility filter
+    List<CollectionEntity> children = collectionRepository.findByIds(referencedIds);
+
+    boolean isClientGalleryContext =
+        model.getType() == CollectionType.CLIENT_GALLERY
+            || (model.getType() == CollectionType.PARENT
+                && children.stream().anyMatch(c -> c.getType() == CollectionType.CLIENT_GALLERY));
+
+    Set<Long> excludedIds =
+        children.stream()
+            .filter(
+                c ->
+                    isClientGalleryContext
+                        ? c.getVisibility() == CollectionVisibility.HIDDEN
+                        : !c.getVisibility().appearsInLists())
             .map(CollectionEntity::getId)
             .collect(Collectors.toSet());
 
-    if (nonListedIds.isEmpty()) {
+    if (excludedIds.isEmpty()) {
       return;
     }
 
-    // Filter out content items that reference non-LISTED collections
     List<ContentModel> filtered =
         model.getContent().stream()
             .filter(
                 content -> {
                   if (content instanceof ContentModels.Collection col) {
-                    return !nonListedIds.contains(col.referencedCollectionId());
+                    return !excludedIds.contains(col.referencedCollectionId());
                   }
                   return true;
                 })
             .collect(Collectors.toList());
 
     model.setContent(filtered);
-    log.debug("Filtered {} non-LISTED child collections from response", nonListedIds.size());
+    log.debug(
+        "Filtered {} child collections from response (parent={}, clientGalleryContext={})",
+        excludedIds.size(),
+        model.getSlug(),
+        isClientGalleryContext);
   }
 
   /**
@@ -1204,10 +1257,23 @@ public class CollectionService {
       CollectionEntity parent, GalleryAccessRequest request) {
     if (!Boolean.TRUE.equals(request.propagateToChildren())
         || parent.getType() != CollectionType.PARENT) {
+      log.debug(
+          "Skipping password propagation (parentId={}, propagate={}, type={})",
+          parent.getId(),
+          request.propagateToChildren(),
+          parent.getType());
       return;
     }
     List<CollectionEntity> children =
         collectionRepository.findAllReferencedCollectionsByParentId(parent.getId());
+    long clientGalleryCount =
+        children.stream().filter(c -> c.getType() == CollectionType.CLIENT_GALLERY).count();
+    log.info(
+        "Propagating password from parent (id={}, slug={}): {} children found, {} are CLIENT_GALLERY",
+        parent.getId(),
+        parent.getSlug(),
+        children.size(),
+        clientGalleryCount);
     for (CollectionEntity child : children) {
       if (child.getType() == CollectionType.CLIENT_GALLERY) {
         collectionRepository.updateGalleryPassword(child.getId(), request.password());
