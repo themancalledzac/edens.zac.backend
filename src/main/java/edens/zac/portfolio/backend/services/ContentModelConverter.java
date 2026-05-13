@@ -177,7 +177,11 @@ class ContentModelConverter {
 
   /** Convert a ContentCameraEntity to a Records.Camera model. */
   public static Records.Camera cameraEntityToCameraModel(ContentCameraEntity entity) {
-    return new Records.Camera(entity.getId(), entity.getCameraName());
+    return new Records.Camera(
+        entity.getId(),
+        entity.getCameraName(),
+        entity.getIsFilm() != null ? entity.getIsFilm() : Boolean.FALSE,
+        entity.getDefaultFilmFormat());
   }
 
   /** Convert a ContentLensEntity to a Records.Lens model. */
