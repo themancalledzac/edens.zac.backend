@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 
 /**
  * Simple immutable data transfer objects implemented as Java records. These replace the verbose
@@ -15,7 +16,7 @@ public final class Records {
   // Equipment records
 
   /** Model representing a camera for API responses. Contains the camera's ID and name. */
-  public record Camera(Long id, String name) {}
+  public record Camera(Long id, String name, Boolean isFilm, FilmFormat defaultFilmFormat) {}
 
   /** Model representing a lens for API responses. Contains the lens's ID and name. */
   public record Lens(Long id, String name) {}
