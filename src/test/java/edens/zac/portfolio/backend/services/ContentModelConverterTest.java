@@ -20,12 +20,15 @@ import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.ContentType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -143,6 +146,45 @@ public class ContentModelConverterTest {
               contentModelConverter.convertRegularContentEntityToModel(entity);
             });
     assertTrue(exception.getMessage().contains("Unknown content type"));
+  }
+
+  @Test
+  @DisplayName("cameraEntityToCameraModel propagates isFilm and defaultFilmFormat for film cameras")
+  void cameraEntityToCameraModel_filmCamera_propagatesFilmFields() {
+    // Arrange
+    ContentCameraEntity filmCamera =
+        ContentCameraEntity.builder()
+            .id(10L)
+            .cameraName("Hasselblad 500cm")
+            .isFilm(true)
+            .defaultFilmFormat(FilmFormat.MM_120)
+            .build();
+
+    // Act
+    Records.Camera result = ContentModelConverter.cameraEntityToCameraModel(filmCamera);
+
+    // Assert
+    assertEquals(10L, result.id());
+    assertEquals("Hasselblad 500cm", result.name());
+    assertTrue(result.isFilm());
+    assertEquals(FilmFormat.MM_120, result.defaultFilmFormat());
+  }
+
+  @Test
+  @DisplayName("cameraEntityToCameraModel defaults isFilm to false for digital cameras")
+  void cameraEntityToCameraModel_digitalCamera_defaultsFilmFieldsCorrectly() {
+    // Arrange
+    ContentCameraEntity digitalCamera =
+        ContentCameraEntity.builder().id(20L).cameraName("Canon EOS R5").build();
+
+    // Act
+    Records.Camera result = ContentModelConverter.cameraEntityToCameraModel(digitalCamera);
+
+    // Assert
+    assertEquals(20L, result.id());
+    assertEquals("Canon EOS R5", result.name());
+    assertFalse(result.isFilm());
+    assertNull(result.defaultFilmFormat());
   }
 
   // =============================================================================

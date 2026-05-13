@@ -143,11 +143,15 @@ class ContentControllerProdTest {
   }
 
   @Test
-  @DisplayName("GET /content/cameras should return all cameras")
+  @DisplayName(
+      "GET /content/cameras should return all cameras including film cameras with metadata")
   void getAllCameras_shouldReturnAllCameras() throws Exception {
     // Arrange
     List<Records.Camera> cameras =
-        List.of(new Records.Camera(1L, "Canon EOS R5"), new Records.Camera(2L, "Sony A7 IV"));
+        List.of(
+            new Records.Camera(1L, "Canon EOS R5", false, null),
+            new Records.Camera(2L, "Sony A7 IV", false, null),
+            new Records.Camera(3L, "Hasselblad 500cm", true, FilmFormat.MM_120));
 
     when(metadataService.getAllCameras()).thenReturn(cameras);
 
@@ -155,8 +159,13 @@ class ContentControllerProdTest {
     mockMvc
         .perform(get("/api/read/content/cameras").contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(2)))
-        .andExpect(jsonPath("$[0].name", is("Canon EOS R5")));
+        .andExpect(jsonPath("$", hasSize(3)))
+        .andExpect(jsonPath("$[0].name", is("Canon EOS R5")))
+        .andExpect(jsonPath("$[0].isFilm", is(false)))
+        .andExpect(jsonPath("$[0].defaultFilmFormat").doesNotExist())
+        .andExpect(jsonPath("$[2].name", is("Hasselblad 500cm")))
+        .andExpect(jsonPath("$[2].isFilm", is(true)))
+        .andExpect(jsonPath("$[2].defaultFilmFormat", is("MM_120")));
   }
 
   @Test
