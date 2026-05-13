@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
 import edens.zac.portfolio.backend.model.Records;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import edens.zac.portfolio.backend.services.validator.MetadataValidator;
 import java.util.List;
 import java.util.Map;
@@ -174,7 +175,8 @@ public class MetadataService {
 
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
-  public Map<String, Object> createCamera(String cameraName, String bodySerialNumber) {
+  public Map<String, Object> createCamera(
+      String cameraName, String bodySerialNumber, Boolean isFilm, FilmFormat defaultFilmFormat) {
     if (cameraName == null || cameraName.trim().isEmpty()) {
       throw new IllegalArgumentException("cameraName is required");
     }
@@ -197,12 +199,15 @@ public class MetadataService {
         ContentCameraEntity.builder()
             .cameraName(cameraName)
             .bodySerialNumber(bodySerialNumber != null ? bodySerialNumber.trim() : null)
+            .isFilm(isFilm != null ? isFilm : Boolean.FALSE)
+            .defaultFilmFormat(defaultFilmFormat)
             .build();
     ContentCameraEntity savedCamera = equipmentRepository.saveCamera(camera);
 
     return Map.of(
         "id", savedCamera.getId(),
         "cameraName", savedCamera.getCameraName(),
+        "isFilm", savedCamera.getIsFilm(),
         "createdAt", savedCamera.getCreatedAt());
   }
 

@@ -424,8 +424,21 @@ class AdminController {
   }
 
   // ============================================================================
-  // Metadata edits — tags, people, locations
+  // Metadata edits — cameras, tags, people, locations
   // ============================================================================
+
+  /** Create a new camera with optional film metadata. */
+  @PostMapping("/metadata/cameras")
+  public ResponseEntity<Map<String, Object>> createCamera(
+      @RequestBody @Valid ContentRequests.CreateCamera request) {
+    Map<String, Object> response =
+        metadataService.createCamera(
+            request.cameraName(),
+            request.bodySerialNumber(),
+            request.isFilm(),
+            request.defaultFilmFormat());
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
 
   @PutMapping("/metadata/tags/{id}")
   ResponseEntity<Records.Tag> updateTag(
