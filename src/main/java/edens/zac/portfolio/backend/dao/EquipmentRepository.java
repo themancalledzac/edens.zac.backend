@@ -134,7 +134,8 @@ public class EquipmentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public List<ContentCameraEntity> findAllCamerasOrderByName() {
-    String sql = "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras ORDER BY camera_name ASC";
+    String sql =
+        "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras ORDER BY camera_name ASC";
     return query(sql, CAMERA_ROW_MAPPER);
   }
 
@@ -212,7 +213,8 @@ public class EquipmentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentCameraEntity> findCameraById(Long id) {
-    String sql = "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras WHERE id = :id";
+    String sql =
+        "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, CAMERA_ROW_MAPPER, params);
   }
