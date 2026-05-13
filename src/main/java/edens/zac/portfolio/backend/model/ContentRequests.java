@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import edens.zac.portfolio.backend.types.FilmFormat;
 import edens.zac.portfolio.backend.types.TextFormType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,6 +14,13 @@ public final class ContentRequests {
   /** Request for creating a new tag. */
   public record CreateTag(
       @NotBlank(message = "Tag name is required") @Size(min = 1, max = 50, message = "Tag name must be between 1 and 50 characters") String tagName) {}
+
+  /** Request for creating a new camera. */
+  public record CreateCamera(
+      @NotBlank(message = "Camera name is required") @Size(min = 1, max = 100, message = "Camera name must be between 1 and 100 characters") String cameraName,
+      String bodySerialNumber,
+      Boolean isFilm,
+      FilmFormat defaultFilmFormat) {}
 
   /** Request for creating a new person. */
   public record CreatePerson(

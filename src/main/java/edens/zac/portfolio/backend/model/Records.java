@@ -15,7 +15,11 @@ public final class Records {
   // Equipment records
 
   /** Model representing a camera for API responses. Contains the camera's ID and name. */
-  public record Camera(Long id, String name) {}
+  public record Camera(
+      Long id,
+      String name,
+      Boolean isFilm,
+      edens.zac.portfolio.backend.types.FilmFormat defaultFilmFormat) {}
 
   /** Model representing a lens for API responses. Contains the lens's ID and name. */
   public record Lens(Long id, String name) {}

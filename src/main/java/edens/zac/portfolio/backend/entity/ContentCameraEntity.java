@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
+import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
@@ -42,6 +43,12 @@ public class ContentCameraEntity {
 
   /** Column: body_serial_number (VARCHAR) - Camera body serial number */
   private String bodySerialNumber;
+
+  /** Column: is_film (BOOLEAN, NOT NULL, DEFAULT FALSE) - Whether this camera shoots film */
+  private Boolean isFilm;
+
+  /** Column: default_film_format (VARCHAR(20), nullable) - FilmFormat enum name, e.g. "MM_120" */
+  private FilmFormat defaultFilmFormat;
 
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;
