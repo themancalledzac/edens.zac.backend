@@ -26,6 +26,7 @@ services:
       AWS_REGION: us-west-2
       AWS_PORTFOLIO_S3_BUCKET: ${AWS_PORTFOLIO_S3_BUCKET}
       AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN}
+      AWS_CLOUDFRONT_DISTRIBUTION_ID: ${AWS_CLOUDFRONT_DISTRIBUTION_ID:-}
 
       # Shared secret for BFF proxy authentication
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret}

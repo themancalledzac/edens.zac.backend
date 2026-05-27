@@ -117,8 +117,34 @@ public final class ContentModels {
       Integer height,
       String author,
       String createDate,
-      List<Records.Tag> tags)
-      implements ContentModel {}
+      Integer rating,
+      List<Records.Tag> tags,
+      List<Records.ChildCollection> collections)
+      implements ContentModel {
+
+    /** Returns a new Gif with the collections field replaced (records are immutable). */
+    public Gif withCollections(List<Records.ChildCollection> collections) {
+      return new Gif(
+          id,
+          contentType,
+          title,
+          description,
+          imageUrl,
+          orderIndex,
+          visible,
+          createdAt,
+          updatedAt,
+          gifUrl,
+          thumbnailUrl,
+          width,
+          height,
+          author,
+          createDate,
+          rating,
+          tags,
+          collections);
+    }
+  }
 
   /**
    * Collection reference content block. The {@code id} field is the content-table ID used for

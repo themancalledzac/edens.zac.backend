@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.cloudfront.CloudFrontClient;
+import software.amazon.awssdk.services.cloudfront.model.CreateInvalidationResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -49,6 +52,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public class ImageProcessingService {
 
   private final S3Client s3Client;
+  private final CloudFrontClient cloudFrontClient;
   private final ContentRepository contentRepository;
   private final EquipmentRepository equipmentRepository;
   private final LocationRepository locationRepository;
@@ -56,17 +60,21 @@ public class ImageProcessingService {
   private final ContentValidator contentValidator;
   private final String bucketName;
   private final String cloudfrontDomain;
+  private final String cloudFrontDistributionId;
 
   ImageProcessingService(
       S3Client s3Client,
+      CloudFrontClient cloudFrontClient,
       ContentRepository contentRepository,
       EquipmentRepository equipmentRepository,
       LocationRepository locationRepository,
       ImageMetadataExtractor imageMetadataExtractor,
       ContentValidator contentValidator,
       @Value("${aws.portfolio.s3.bucket}") String bucketName,
-      @Value("${cloudfront.domain}") String cloudfrontDomain) {
+      @Value("${cloudfront.domain}") String cloudfrontDomain,
+      @Value("${cloudfront.distribution-id:}") String cloudFrontDistributionId) {
     this.s3Client = s3Client;
+    this.cloudFrontClient = cloudFrontClient;
     this.contentRepository = contentRepository;
     this.equipmentRepository = equipmentRepository;
     this.locationRepository = locationRepository;
@@ -74,6 +82,7 @@ public class ImageProcessingService {
     this.contentValidator = contentValidator;
     this.bucketName = bucketName;
     this.cloudfrontDomain = cloudfrontDomain;
+    this.cloudFrontDistributionId = cloudFrontDistributionId;
   }
 
   // S3 path constants for content type hierarchy:
@@ -527,7 +536,9 @@ public class ImageProcessingService {
         log.warn("Could not extract first frame from: {}", originalFilename);
       }
 
-      // Build and save entity
+      // Build and save entity. Default rating to 4 so a new GIF/MP4 reads as
+      // feature media in the row grid — horizontal gets a full row, vertical
+      // gets half. Admins can downgrade later.
       ContentGifEntity entity =
           ContentGifEntity.builder()
               .contentType(ContentType.GIF)
@@ -538,6 +549,7 @@ public class ImageProcessingService {
               .height(height)
               .author(ImageMetadataExtractor.DEFAULT.AUTHOR)
               .createDate(now.toString())
+              .rating(4)
               .build();
 
       return contentRepository.saveGif(entity);
@@ -616,29 +628,91 @@ public class ImageProcessingService {
   }
 
   /**
-   * Delete an image and its variants from S3.
+   * Delete an image and its variants from S3, then invalidate the CloudFront cache for the same
+   * paths so re-uploads at identical S3 keys (which is the norm — keys are deterministic from
+   * filename/year/month) are served fresh instead of from CDN cache.
    *
    * @param image The ContentImageEntity containing S3 URLs to delete
    */
   public void deleteImageFromS3(ContentImageEntity image) {
-    deleteS3ObjectByUrl(image.getImageUrlWeb());
-    deleteS3ObjectByUrl(image.getImageUrlOriginal());
-    deleteS3ObjectByUrl(image.getImageUrlRaw());
+    List<String> deletedKeys = new ArrayList<>();
+    String webKey = deleteS3ObjectByUrl(image.getImageUrlWeb());
+    if (webKey != null) deletedKeys.add(webKey);
+    String originalKey = deleteS3ObjectByUrl(image.getImageUrlOriginal());
+    if (originalKey != null) deletedKeys.add(originalKey);
+    String rawKey = deleteS3ObjectByUrl(image.getImageUrlRaw());
+    if (rawKey != null) deletedKeys.add(rawKey);
+    invalidateCloudFrontPaths(deletedKeys);
   }
 
-  /** Delete a single S3 object by its CloudFront URL. Logs but does not throw on failure. */
-  private void deleteS3ObjectByUrl(String url) {
+  /**
+   * Delete S3 objects backing a GIF/MP4 entity: the full-resolution media plus the WebP first-frame
+   * thumbnail. Mirrors {@link #deleteImageFromS3} — failures are logged, not thrown, and we still
+   * issue a single CloudFront invalidation for the keys we attempted.
+   *
+   * @param gif The ContentGifEntity containing S3 URLs to delete
+   */
+  public void deleteGifFromS3(ContentGifEntity gif) {
+    List<String> deletedKeys = new ArrayList<>();
+    String gifKey = deleteS3ObjectByUrl(gif.getGifUrl());
+    if (gifKey != null) deletedKeys.add(gifKey);
+    String thumbKey = deleteS3ObjectByUrl(gif.getThumbnailUrl());
+    if (thumbKey != null) deletedKeys.add(thumbKey);
+    invalidateCloudFrontPaths(deletedKeys);
+  }
+
+  /**
+   * Delete a single S3 object by its CloudFront URL. Logs but does not throw on failure.
+   *
+   * @return the S3 key that was targeted (whether or not the delete succeeded), or null if no
+   *     attempt was made (url was null or did not match the configured CloudFront domain).
+   */
+  private String deleteS3ObjectByUrl(String url) {
     if (url == null) {
+      return null;
+    }
+    String s3Key = extractS3KeyFromUrl(url);
+    if (s3Key == null) {
+      return null;
+    }
+    try {
+      log.trace("Deleting from S3: {}", s3Key);
+      s3Client.deleteObject(builder -> builder.bucket(bucketName).key(s3Key));
+    } catch (Exception e) {
+      log.error("Failed to delete S3 object {}: {}", url, e.getMessage());
+    }
+    return s3Key;
+  }
+
+  /**
+   * Issue a single CloudFront invalidation covering the given S3 keys. Skipped silently when no
+   * keys are provided or when {@code cloudfront.distribution-id} is unset (deletes still work, the
+   * CDN just keeps serving stale-cached bytes until its own TTL expires).
+   */
+  private void invalidateCloudFrontPaths(List<String> s3Keys) {
+    if (s3Keys.isEmpty()) {
+      return;
+    }
+    if (cloudFrontDistributionId == null || cloudFrontDistributionId.isBlank()) {
+      log.debug("Skipping CloudFront invalidation: cloudfront.distribution-id is not configured");
       return;
     }
     try {
-      String s3Key = extractS3KeyFromUrl(url);
-      if (s3Key != null) {
-        log.trace("Deleting from S3: {}", s3Key);
-        s3Client.deleteObject(builder -> builder.bucket(bucketName).key(s3Key));
-      }
+      List<String> paths = s3Keys.stream().map(k -> "/" + k).toList();
+      CreateInvalidationResponse res =
+          cloudFrontClient.createInvalidation(
+              req ->
+                  req.distributionId(cloudFrontDistributionId)
+                      .invalidationBatch(
+                          b ->
+                              b.paths(p -> p.quantity(paths.size()).items(paths))
+                                  .callerReference(UUID.randomUUID().toString())));
+      log.info(
+          "Created CloudFront invalidation {} for {} path(s)",
+          res.invalidation().id(),
+          paths.size());
     } catch (Exception e) {
-      log.error("Failed to delete S3 object {}: {}", url, e.getMessage());
+      log.error("Failed to invalidate CloudFront paths {}: {}", s3Keys, e.getMessage());
     }
   }
 

@@ -47,14 +47,15 @@ public class ContentMutationUtil {
   // =============================================================================
 
   /**
-   * Handle collection visibility and orderIndex updates for an image. Updates the 'visible' flag
-   * and 'orderIndex' for the content entry in the current collection.
+   * Handle collection visibility and orderIndex updates for a content block. Updates the 'visible'
+   * flag and 'orderIndex' for the content entry in each referenced collection. Works for any
+   * content type (image, gif, text, ...) — only the polymorphic content id is needed.
    *
-   * @param image The image entity being updated
+   * @param contentId The content id being updated
    * @param collectionUpdates List of collection updates containing visibility and orderIndex
    */
   public void handleContentChildCollectionUpdates(
-      ContentImageEntity image, List<Records.ChildCollection> collectionUpdates) {
+      Long contentId, List<Records.ChildCollection> collectionUpdates) {
     if (collectionUpdates == null || collectionUpdates.isEmpty()) {
       return;
     }
@@ -66,12 +67,12 @@ public class ContentMutationUtil {
         Boolean visible = collectionUpdate.visible();
 
         Optional<CollectionContentEntity> joinEntryOpt =
-            collectionRepository.findContentByCollectionIdAndContentId(collectionId, image.getId());
+            collectionRepository.findContentByCollectionIdAndContentId(collectionId, contentId);
 
         if (joinEntryOpt.isEmpty()) {
           log.warn(
               "No join table entry found for content {} in collection {}. Skipping update.",
-              image.getId(),
+              contentId,
               collectionId);
           continue;
         }
@@ -82,8 +83,8 @@ public class ContentMutationUtil {
         if (orderIndex != null) {
           collectionRepository.updateContentOrderIndex(joinEntry.getId(), orderIndex);
           log.info(
-              "Updated orderIndex for image {} in collection {} to {}",
-              image.getId(),
+              "Updated orderIndex for content {} in collection {} to {}",
+              contentId,
               collectionId,
               orderIndex);
           updated = true;
@@ -92,8 +93,8 @@ public class ContentMutationUtil {
         if (visible != null) {
           collectionRepository.updateContentVisible(joinEntry.getId(), visible);
           log.info(
-              "Updated visibility for image {} in collection {} to {}",
-              image.getId(),
+              "Updated visibility for content {} in collection {} to {}",
+              contentId,
               collectionId,
               visible);
           updated = true;
@@ -101,8 +102,8 @@ public class ContentMutationUtil {
 
         if (updated) {
           log.debug(
-              "Updated collection membership for image {} in collection {}",
-              image.getId(),
+              "Updated collection membership for content {} in collection {}",
+              contentId,
               collectionId);
         }
       }
@@ -110,11 +111,19 @@ public class ContentMutationUtil {
   }
 
   /**
-   * Add content (image) to new collections with specified visibility and orderIndex. Creates join
-   * table entries for the content in the specified collections.
+   * Convenience overload for callers holding a {@link ContentImageEntity}. Kept for back-compat —
+   * dispatches to the contentId-based variant.
    */
-  public void handleAddToCollections(
-      ContentImageEntity image, List<Records.ChildCollection> collections) {
+  public void handleContentChildCollectionUpdates(
+      ContentImageEntity image, List<Records.ChildCollection> collectionUpdates) {
+    handleContentChildCollectionUpdates(image.getId(), collectionUpdates);
+  }
+
+  /**
+   * Add a content block to new collections with specified visibility and orderIndex. Creates join
+   * table entries for the content in the specified collections. Works for any content type.
+   */
+  public void handleAddToCollections(Long contentId, List<Records.ChildCollection> collections) {
     for (Records.ChildCollection childCollection : collections) {
       if (childCollection.collectionId() == null) {
         log.warn("Skipping collection addition: collectionId is null");
@@ -131,17 +140,17 @@ public class ContentMutationUtil {
 
       if (collection.getType().isParentType()) {
         throw new IllegalArgumentException(
-            "Cannot add images to parent-type collection: " + collection.getTitle());
+            "Cannot add content to parent-type collection: " + collection.getTitle());
       }
 
       Optional<CollectionContentEntity> existingOpt =
           collectionRepository.findContentByCollectionIdAndContentId(
-              childCollection.collectionId(), image.getId());
+              childCollection.collectionId(), contentId);
 
       if (existingOpt.isPresent()) {
         log.warn(
-            "Image {} is already in collection {}. Skipping duplicate add.",
-            image.getId(),
+            "Content {} is already in collection {}. Skipping duplicate add.",
+            contentId,
             childCollection.collectionId());
         continue;
       }
@@ -156,18 +165,26 @@ public class ContentMutationUtil {
       CollectionContentEntity joinEntry =
           CollectionContentEntity.builder()
               .collectionId(childCollection.collectionId())
-              .contentId(image.getId())
+              .contentId(contentId)
               .orderIndex(orderIndex)
               .visible(visible)
               .build();
       collectionRepository.saveContent(joinEntry);
       log.info(
-          "Added image {} to collection {} at orderIndex {} with visible={}",
-          image.getId(),
+          "Added content {} to collection {} at orderIndex {} with visible={}",
+          contentId,
           childCollection.collectionId(),
           orderIndex,
           visible);
     }
+  }
+
+  /**
+   * Convenience overload for callers holding a {@link ContentImageEntity}. Kept for back-compat.
+   */
+  public void handleAddToCollections(
+      ContentImageEntity image, List<Records.ChildCollection> collections) {
+    handleAddToCollections(image.getId(), collections);
   }
 
   /** Returns the next available orderIndex for a collection (max + 1, or 0 if empty). */
