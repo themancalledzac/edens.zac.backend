@@ -47,6 +47,15 @@ public class ContentGifEntity extends ContentEntity {
   /** Column: create_date (VARCHAR) */
   private String createDate;
 
+  /**
+   * Column: rating (INT, 0-5 or NULL).
+   *
+   * <p>Drives the layout slot-width algorithm: a horizontal GIF with rating &gt;= 4 takes the full
+   * row, rating 3 takes half a row, lower ratings take a single slot. New uploads default to 4 so
+   * animated content reads as feature media; admins can downgrade later.
+   */
+  private Integer rating;
+
   /** Relationship: Many-to-many with TagEntity (via content_tags table) */
   @Builder.Default private Set<TagEntity> tags = new HashSet<>();
 

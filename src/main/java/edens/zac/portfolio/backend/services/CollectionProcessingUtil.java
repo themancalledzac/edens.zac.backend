@@ -374,24 +374,32 @@ public class CollectionProcessingUtil {
                     Collectors.toMap(
                         ContentImageEntity::getId, ContentImageEntity::getImageUrlWeb));
 
-    // Populate collections on image content (records are immutable -- use withCollections)
+    // Populate collections on image AND GIF content (records are immutable — use withCollections).
+    // GIFs participate in many-to-many collection membership the same way images do.
     List<ContentModel> contents =
         model.getContent().stream()
             .map(
                 content -> {
+                  Long contentId = content.id();
+                  List<CollectionContentEntity> contentCollections =
+                      collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
+                  if (contentCollections.isEmpty()) {
+                    return content;
+                  }
+                  List<Records.ChildCollection> childCollections =
+                      contentCollections.stream()
+                          .map(
+                              joinEntry ->
+                                  convertToChildCollection(
+                                      joinEntry, collectionsById, coverImageUrlsById))
+                          .filter(Objects::nonNull)
+                          .collect(Collectors.toList());
+
                   if (content instanceof ContentModels.Image imageModel) {
-                    Long contentId = content.id();
-                    List<CollectionContentEntity> contentCollections =
-                        collectionsByContentId.getOrDefault(contentId, Collections.emptyList());
-                    List<Records.ChildCollection> childCollections =
-                        contentCollections.stream()
-                            .map(
-                                joinEntry ->
-                                    convertToChildCollection(
-                                        joinEntry, collectionsById, coverImageUrlsById))
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toList());
                     return (ContentModel) imageModel.withCollections(childCollections);
+                  }
+                  if (content instanceof ContentModels.Gif gifModel) {
+                    return (ContentModel) gifModel.withCollections(childCollections);
                   }
                   return content;
                 })

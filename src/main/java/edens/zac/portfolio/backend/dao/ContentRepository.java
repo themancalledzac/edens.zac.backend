@@ -127,6 +127,7 @@ public class ContentRepository extends BaseDao {
               .height(getInteger(rs, "height"))
               .author(getString(rs, "author"))
               .createDate(getString(rs, "create_date"))
+              .rating(getInteger(rs, "rating"))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .updatedAt(getLocalDateTime(rs, "updated_at"))
               .tags(new HashSet<>())
@@ -179,7 +180,7 @@ public class ContentRepository extends BaseDao {
       """
       SELECT c.id, c.content_type, c.created_at, c.updated_at,
              cg.title, cg.gif_url, cg.thumbnail_url, cg.width, cg.height,
-             cg.author, cg.create_date
+             cg.author, cg.create_date, cg.rating
       FROM content c
       JOIN content_gif cg ON c.id = cg.id
       """;
@@ -849,8 +850,8 @@ public class ContentRepository extends BaseDao {
 
       String gifSql =
           """
-          INSERT INTO content_gif (id, title, gif_url, thumbnail_url, width, height, author, create_date)
-          VALUES (:id, :title, :gifUrl, :thumbnailUrl, :width, :height, :author, :createDate)
+          INSERT INTO content_gif (id, title, gif_url, thumbnail_url, width, height, author, create_date, rating)
+          VALUES (:id, :title, :gifUrl, :thumbnailUrl, :width, :height, :author, :createDate, :rating)
           """;
 
       MapSqlParameterSource gifParams =
@@ -862,7 +863,8 @@ public class ContentRepository extends BaseDao {
               .addValue("width", entity.getWidth())
               .addValue("height", entity.getHeight())
               .addValue("author", entity.getAuthor())
-              .addValue("createDate", entity.getCreateDate());
+              .addValue("createDate", entity.getCreateDate())
+              .addValue("rating", entity.getRating());
 
       update(gifSql, gifParams);
 
@@ -890,7 +892,8 @@ public class ContentRepository extends BaseDao {
           """
           UPDATE content_gif
           SET title = :title, gif_url = :gifUrl, thumbnail_url = :thumbnailUrl,
-              width = :width, height = :height, author = :author, create_date = :createDate
+              width = :width, height = :height, author = :author, create_date = :createDate,
+              rating = :rating
           WHERE id = :id
           """;
 
@@ -903,7 +906,8 @@ public class ContentRepository extends BaseDao {
               .addValue("width", entity.getWidth())
               .addValue("height", entity.getHeight())
               .addValue("author", entity.getAuthor())
-              .addValue("createDate", entity.getCreateDate());
+              .addValue("createDate", entity.getCreateDate())
+              .addValue("rating", entity.getRating());
 
       update(gifSql, gifParams);
 

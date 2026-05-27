@@ -22,12 +22,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.cloudfront.CloudFrontClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @ExtendWith(MockitoExtension.class)
 class ImageProcessingServiceTest {
 
   @Mock private S3Client s3Client;
+  @Mock private CloudFrontClient cloudFrontClient;
   @Mock private ContentRepository contentRepository;
   @Mock private EquipmentRepository equipmentRepository;
   @Mock private LocationRepository locationRepository;
@@ -38,19 +40,22 @@ class ImageProcessingServiceTest {
 
   private static final String BUCKET_NAME = "test-bucket";
   private static final String CLOUDFRONT_DOMAIN = "test.cloudfront.net";
+  private static final String CLOUDFRONT_DISTRIBUTION_ID = "";
 
   @BeforeEach
   void setUp() {
     imageProcessingService =
         new ImageProcessingService(
             s3Client,
+            cloudFrontClient,
             contentRepository,
             equipmentRepository,
             locationRepository,
             imageMetadataExtractor,
             contentValidator,
             BUCKET_NAME,
-            CLOUDFRONT_DOMAIN);
+            CLOUDFRONT_DOMAIN,
+            CLOUDFRONT_DISTRIBUTION_ID);
   }
 
   // ============================================================================

@@ -23,6 +23,10 @@ RUN mvn clean package -DskipTests
 # Use an official Java runtime as a parent image
 FROM --platform=linux/amd64 eclipse-temurin:23-jre-alpine
 
+# ffmpeg is required at runtime by ImageProcessingService.processGifContent
+# for first-frame thumbnail extraction on MP4/MOV uploads.
+RUN apk add --no-cache ffmpeg
+
 # Set the working directory in the container
 WORKDIR /app
 

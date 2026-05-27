@@ -345,6 +345,31 @@ class AdminController {
     return ResponseEntity.status(HttpStatus.CREATED).body(gif);
   }
 
+  /**
+   * Patch an existing GIF/MP4 content block. Only the fields present on the request are applied.
+   */
+  @PatchMapping("/content/gifs/{id}")
+  public ResponseEntity<ContentModels.Gif> updateGif(
+      @PathVariable Long id, @RequestBody @Valid ContentRequests.UpdateGif request) {
+    ContentModels.Gif gif = contentService.updateGif(id, request);
+    log.info("Updated GIF {}", id);
+    return ResponseEntity.ok(gif);
+  }
+
+  /**
+   * Delete a GIF/MP4 content block. Cleans up the S3 objects (full media + thumbnail) and the
+   * content_gif row + base content row + tag join entries.
+   */
+  @DeleteMapping("/content/gifs/{id}")
+  public ResponseEntity<Map<String, Object>> deleteGif(@PathVariable Long id) {
+    Long deletedId = contentService.deleteGif(id);
+    if (deletedId == null) {
+      throw new IllegalArgumentException("GIF not found: " + id);
+    }
+    log.info("Deleted GIF {}", deletedId);
+    return ResponseEntity.ok(Map.of("deletedId", deletedId));
+  }
+
   /** Create a new collection and upload images to it in one request. */
   @PostMapping(
       value = "/content/images/create-collection",

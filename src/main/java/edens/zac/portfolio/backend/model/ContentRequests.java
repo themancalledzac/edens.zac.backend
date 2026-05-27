@@ -2,6 +2,8 @@ package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.FilmFormat;
 import edens.zac.portfolio.backend.types.TextFormType;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -44,4 +46,18 @@ public final class ContentRequests {
       String description,
       @NotBlank(message = "Text content is required") String textContent,
       TextFormType formType) {}
+
+  /**
+   * Request for updating an existing GIF/MP4 content block. All fields optional — only non-null
+   * fields are applied. Mirrors the slice of {@code ContentImageUpdateRequest} that makes sense for
+   * animated content (no EXIF/equipment fields).
+   *
+   * <p>{@code tags} and {@code collections} use the prev/newValue/remove pattern from {@link
+   * CollectionRequests} so a single request can add, remove, and re-order memberships in one shot.
+   */
+  public record UpdateGif(
+      @Size(max = 200, message = "Title must be 200 characters or less") String title,
+      @Min(value = 0, message = "Rating must be between 0 and 5") @Max(value = 5, message = "Rating must be between 0 and 5") Integer rating,
+      CollectionRequests.TagUpdate tags,
+      CollectionRequests.CollectionUpdate collections) {}
 }

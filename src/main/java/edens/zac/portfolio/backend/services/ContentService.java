@@ -501,6 +501,97 @@ public class ContentService {
     return castContentModel(contentModel, ContentModels.Gif.class);
   }
 
+  /**
+   * Delete a GIF/MP4 content block — removes the join-table linkage, the S3 objects (full media +
+   * thumbnail), and the entity rows. Mirrors {@link #deleteImages} for the single-id case.
+   *
+   * @return id of the deleted gif, or null if no entity was found
+   */
+  @Transactional
+  public Long deleteGif(Long id) {
+    ContentGifEntity gif = contentRepository.findGifById(id).orElse(null);
+    if (gif == null) {
+      log.warn("Attempted to delete missing GIF: {}", id);
+      return null;
+    }
+    imageProcessingService.deleteGifFromS3(gif);
+    contentRepository.deleteGifById(id);
+    log.info("Deleted GIF {}", id);
+    return id;
+  }
+
+  /**
+   * Patch a GIF/MP4 content block. Only non-null fields on the request are applied. Today's
+   * surface: title, rating, tags, and collection memberships (prev/newValue/remove pattern). The
+   * latter two reuse the same mutation utilities and join-table semantics that drive image updates
+   * — see {@link ContentMutationUtil#handleAddToCollections(Long, java.util.List)} and {@link
+   * ContentMutationUtil#handleContentChildCollectionUpdates(Long, java.util.List)}.
+   *
+   * <p>EXIF/equipment fields (camera, lens, ISO, etc.) intentionally have no analog for GIF — the
+   * frontend modal greys them out for animated content.
+   */
+  @Transactional
+  public ContentModels.Gif updateGif(Long id, ContentRequests.UpdateGif request) {
+    ContentGifEntity gif =
+        contentRepository
+            .findGifById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("GIF not found: " + id));
+
+    if (request.title() != null) {
+      gif.setTitle(request.title());
+    }
+    if (request.rating() != null) {
+      gif.setRating(request.rating());
+    }
+
+    // Tags: reuse the optimized image-tag helper — it only needs the content id + current tag
+    // list + the prev/newValue/remove update payload. ContentGifEntity also exposes setTags.
+    if (request.tags() != null) {
+      List<TagEntity> currentTagEntities = tagRepository.findContentTags(gif.getId());
+      Set<TagEntity> currentTags = new HashSet<>(currentTagEntities);
+      Set<TagEntity> newlyCreatedTags = new HashSet<>();
+      Set<TagEntity> updatedTags =
+          contentMutationUtil.updateTags(currentTags, request.tags(), newlyCreatedTags);
+      gif.setTags(updatedTags);
+      List<Long> updatedTagIds =
+          updatedTags.stream()
+              .map(TagEntity::getId)
+              .filter(Objects::nonNull)
+              .distinct()
+              .collect(Collectors.toList());
+      tagRepository.saveContentTags(gif.getId(), updatedTagIds);
+    }
+
+    ContentGifEntity saved = contentRepository.saveGif(gif);
+    log.info("Updated GIF {} (title={}, rating={})", id, saved.getTitle(), saved.getRating());
+
+    // Collections: prev/newValue/remove pattern, same as images.
+    if (request.collections() != null) {
+      CollectionRequests.CollectionUpdate cu = request.collections();
+      if (cu.remove() != null && !cu.remove().isEmpty()) {
+        for (Long collectionIdToRemove : cu.remove()) {
+          collectionRepository.removeContentFromCollection(collectionIdToRemove, List.of(id));
+          log.info("Removed GIF {} from collection {}", id, collectionIdToRemove);
+        }
+      }
+      if (cu.prev() != null && !cu.prev().isEmpty()) {
+        contentMutationUtil.handleContentChildCollectionUpdates(id, cu.prev());
+      }
+      if (cu.newValue() != null && !cu.newValue().isEmpty()) {
+        contentMutationUtil.handleAddToCollections(id, cu.newValue());
+      }
+    }
+
+    ContentModel model =
+        contentModelConverter.convertEntityToModel(
+            CollectionContentEntity.builder()
+                .contentId(saved.getId())
+                .orderIndex(null)
+                .visible(null)
+                .build());
+    return castContentModel(model, ContentModels.Gif.class);
+  }
+
   // ---------------------------------------------------------------------------
   //  Read helpers for download endpoints
   // ---------------------------------------------------------------------------
