@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +91,7 @@ public class ImageProcessingService {
   private static final String PATH_IMAGE_FULL = "Image/Full";
   private static final String PATH_IMAGE_WEB = "Image/Web";
   private static final String PATH_GIF_FULL = "Gif/Full";
+  private static final String PATH_GIF_WEB = "Gif/Web";
   private static final String PATH_GIF_THUMBNAIL = "Gif/Thumbnail";
   private static final String PATH_IMAGE_RAW = "Image/Raw";
 
@@ -956,6 +958,152 @@ public class ImageProcessingService {
       return "gif-upload-" + UUID.randomUUID();
     }
     return filename.replaceAll("(?i)\\.(mp4|mov|gif)$", "");
+  }
+
+  /**
+   * Probe the pixel dimensions of a video's primary stream via ffprobe.
+   *
+   * @return int[]{width, height}, or null if ffprobe fails or output is unparseable.
+   */
+  private int[] probeVideoDimensions(byte[] videoBytes, String filename) throws IOException {
+    Path tempInput = Files.createTempFile("gif-probe-", "-" + safeTempName(filename));
+    try {
+      Files.write(tempInput, videoBytes);
+
+      ProcessBuilder pb =
+          new ProcessBuilder(
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-show_entries",
+              "stream=width,height",
+              "-of",
+              "csv=s=x:p=0",
+              tempInput.toAbsolutePath().toString());
+      pb.redirectErrorStream(true);
+      Process process = pb.start();
+
+      String out;
+      try (InputStream is = process.getInputStream()) {
+        out = new String(is.readAllBytes(), StandardCharsets.UTF_8).trim();
+      }
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        log.error("ffprobe exited with code {}: {}", exitCode, out);
+        return null;
+      }
+
+      String[] parts = out.split("x");
+      if (parts.length != 2) {
+        log.error("ffprobe returned unexpected dimensions output: '{}'", out);
+        return null;
+      }
+      return new int[] {Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim())};
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("ffprobe was interrupted", e);
+    } catch (NumberFormatException e) {
+      log.error("ffprobe dimensions not numeric for {}: {}", filename, e.getMessage());
+      return null;
+    } finally {
+      Files.deleteIfExists(tempInput);
+    }
+  }
+
+  /**
+   * Re-encode a video to fit within {@code maxLongestSide} (preserving aspect ratio, even
+   * dimensions, never upscaling — the decrease-only scale filter only shrinks). Strips audio and
+   * enables faststart. H.264 / yuv420p / CRF 23 for broad mobile + browser support.
+   */
+  private byte[] encodeVideoVariant(byte[] videoBytes, String filename, int maxLongestSide)
+      throws IOException {
+    String scale =
+        String.format(
+            "scale=w=%d:h=%d:force_original_aspect_ratio=decrease:force_divisible_by=2",
+            maxLongestSide, maxLongestSide);
+    return runFfmpegToMp4(
+        videoBytes,
+        filename,
+        new String[] {
+          "-vf",
+          scale,
+          "-c:v",
+          "libx264",
+          "-profile:v",
+          "high",
+          "-pix_fmt",
+          "yuv420p",
+          "-crf",
+          "23",
+          "-preset",
+          "medium",
+          "-an",
+          "-movflags",
+          "+faststart"
+        });
+  }
+
+  /**
+   * Lossless container rewrap for an already web-sized video: copy the video bitstream verbatim (no
+   * quality loss, near-instant), drop audio, enable faststart.
+   */
+  private byte[] remuxVideo(byte[] videoBytes, String filename) throws IOException {
+    return runFfmpegToMp4(
+        videoBytes, filename, new String[] {"-c:v", "copy", "-an", "-movflags", "+faststart"});
+  }
+
+  /**
+   * Run ffmpeg with the given output args, reading raw input from a temp file and returning the
+   * encoded MP4 bytes. Shared glue for {@link #encodeVideoVariant} and {@link #remuxVideo}.
+   */
+  private byte[] runFfmpegToMp4(byte[] videoBytes, String filename, String[] outputArgs)
+      throws IOException {
+    Path tempInput = Files.createTempFile("gif-src-", "-" + safeTempName(filename));
+    Path tempOutput = Files.createTempFile("gif-out-", ".mp4");
+    try {
+      Files.write(tempInput, videoBytes);
+
+      List<String> command = new ArrayList<>();
+      command.add("ffmpeg");
+      command.add("-y");
+      command.add("-i");
+      command.add(tempInput.toAbsolutePath().toString());
+      command.addAll(Arrays.asList(outputArgs));
+      command.add(tempOutput.toAbsolutePath().toString());
+
+      ProcessBuilder pb = new ProcessBuilder(command);
+      pb.redirectErrorStream(true);
+      Process process = pb.start();
+
+      String ffmpegOutput;
+      try (InputStream is = process.getInputStream()) {
+        ffmpegOutput = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+      }
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        log.error("ffmpeg exited with code {}: {}", exitCode, ffmpegOutput);
+        throw new IOException("ffmpeg failed with exit code " + exitCode);
+      }
+      return Files.readAllBytes(tempOutput);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("ffmpeg was interrupted", e);
+    } finally {
+      Files.deleteIfExists(tempInput);
+      Files.deleteIfExists(tempOutput);
+    }
+  }
+
+  /** Filename safe for a temp suffix: strip path separators, fall back to a UUID. */
+  private String safeTempName(String filename) {
+    if (filename == null || filename.isBlank()) {
+      return UUID.randomUUID() + ".mp4";
+    }
+    return filename.replaceAll("[/\\\\]", "_");
   }
 
   // ============================================================================
