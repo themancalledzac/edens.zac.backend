@@ -702,6 +702,13 @@ public class ImageProcessingService {
     List<String> deletedKeys = new ArrayList<>();
     String gifKey = deleteS3ObjectByUrl(gif.getGifUrl());
     if (gifKey != null) deletedKeys.add(gifKey);
+    // Web variant may be null, or may equal gifUrl (small files reuse the full path) — guard the
+    // duplicate so we don't issue a redundant delete/invalidation for the same key.
+    String webUrl = gif.getGifUrlWeb();
+    if (webUrl != null && !webUrl.equals(gif.getGifUrl())) {
+      String webKey = deleteS3ObjectByUrl(webUrl);
+      if (webKey != null) deletedKeys.add(webKey);
+    }
     String thumbKey = deleteS3ObjectByUrl(gif.getThumbnailUrl());
     if (thumbKey != null) deletedKeys.add(thumbKey);
     invalidateCloudFrontPaths(deletedKeys);
