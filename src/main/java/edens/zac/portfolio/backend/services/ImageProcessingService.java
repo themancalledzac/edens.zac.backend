@@ -500,25 +500,69 @@ public class ImageProcessingService {
     try {
       contentValidator.validateGifFile(file);
 
-      byte[] fileBytes = file.getBytes();
+      byte[] originalBytes = file.getBytes();
       String originalFilename = file.getOriginalFilename();
-      String contentType =
+      String fallbackContentType =
           file.getContentType() != null ? file.getContentType() : "application/octet-stream";
+      String baseName = stripVideoExtension(originalFilename);
 
       LocalDate now = LocalDate.now();
       int year = now.getYear();
       int month = now.getMonthValue();
 
-      // Upload raw file to S3
-      String gifUrl =
-          uploadToS3(fileBytes, originalFilename, contentType, PATH_GIF_FULL, year, month);
+      boolean isVideo = contentValidator.isMp4File(file);
 
-      // Extract first frame for WebP thumbnail
-      BufferedImage firstFrame;
-      if (contentValidator.isMp4File(file)) {
-        firstFrame = extractFirstFrameViaFfmpeg(fileBytes, originalFilename);
+      String gifUrl;
+      String gifUrlWeb;
+      byte[] fullBytes;
+
+      if (isVideo) {
+        // Probe dimensions; if probing fails, fall back to re-encoding both variants (safe: a
+        // re-encode of an unknown-size file still caps it to the web ceilings).
+        int[] dims = probeVideoDimensions(originalBytes, originalFilename);
+        VideoVariantPlanner.VideoVariantPlan plan =
+            dims != null
+                ? VideoVariantPlanner.compute(dims[0], dims[1])
+                : new VideoVariantPlanner.VideoVariantPlan(
+                    true,
+                    VideoVariantPlanner.FULL_MAX_LONGEST_SIDE,
+                    true,
+                    VideoVariantPlanner.WEB_MAX_LONGEST_SIDE);
+
+        // FULL (2000px master): re-encode only when the source exceeds the cap; otherwise a
+        // lossless remux that strips audio + faststart and preserves a good export untouched.
+        fullBytes =
+            plan.fullNeedsReencode()
+                ? encodeVideoVariant(originalBytes, originalFilename, plan.fullTargetLongestSide())
+                : remuxVideo(originalBytes, originalFilename);
+        gifUrl = uploadToS3(fullBytes, baseName + ".mp4", "video/mp4", PATH_GIF_FULL, year, month);
+
+        // WEB (1080px display): separate encode only when the source is larger than the web
+        // ceiling; otherwise the small full file IS the web file (never upscale).
+        if (plan.webIsSeparate()) {
+          byte[] webBytes =
+              encodeVideoVariant(originalBytes, originalFilename, plan.webTargetLongestSide());
+          gifUrlWeb =
+              uploadToS3(webBytes, baseName + "-web.mp4", "video/mp4", PATH_GIF_WEB, year, month);
+        } else {
+          gifUrlWeb = gifUrl;
+        }
       } else {
-        try (InputStream is = new ByteArrayInputStream(fileBytes)) {
+        // Actual image/gif upload: keep as-is, no web variant (frontend falls back to gifUrl).
+        fullBytes = originalBytes;
+        gifUrl =
+            uploadToS3(
+                originalBytes, originalFilename, fallbackContentType, PATH_GIF_FULL, year, month);
+        gifUrlWeb = null;
+      }
+
+      // Thumbnail: extract the first frame from the FULL bytes so width/height reflect the master
+      // and the poster matches what fullscreen shows.
+      BufferedImage firstFrame;
+      if (isVideo) {
+        firstFrame = extractFirstFrameViaFfmpeg(fullBytes, originalFilename);
+      } else {
+        try (InputStream is = new ByteArrayInputStream(fullBytes)) {
           firstFrame = ImageIO.read(is);
         }
       }
@@ -531,21 +575,21 @@ public class ImageProcessingService {
         width = firstFrame.getWidth();
         height = firstFrame.getHeight();
         byte[] webpBytes = convertToWebP(firstFrame);
-        String thumbFilename = stripVideoExtension(originalFilename) + "-thumbnail.webp";
+        String thumbFilename = baseName + "-thumbnail.webp";
         thumbnailUrl =
             uploadToS3(webpBytes, thumbFilename, "image/webp", PATH_GIF_THUMBNAIL, year, month);
       } else {
         log.warn("Could not extract first frame from: {}", originalFilename);
       }
 
-      // Build and save entity. Default rating to 4 so a new GIF/MP4 reads as
-      // feature media in the row grid — horizontal gets a full row, vertical
-      // gets half. Admins can downgrade later.
+      // Default rating to 4 so a new GIF/MP4 reads as feature media in the row grid — horizontal
+      // gets a full row, vertical gets half. Admins can downgrade later.
       ContentGifEntity entity =
           ContentGifEntity.builder()
               .contentType(ContentType.GIF)
               .title(title != null && !title.isBlank() ? title : originalFilename)
               .gifUrl(gifUrl)
+              .gifUrlWeb(gifUrlWeb)
               .thumbnailUrl(thumbnailUrl)
               .width(width)
               .height(height)
