@@ -122,6 +122,7 @@ public class ContentRepository extends BaseDao {
               .contentType(ContentType.GIF)
               .title(getString(rs, "title"))
               .gifUrl(rs.getString("gif_url"))
+              .gifUrlWeb(getString(rs, "gif_url_web"))
               .thumbnailUrl(getString(rs, "thumbnail_url"))
               .width(getInteger(rs, "width"))
               .height(getInteger(rs, "height"))
@@ -179,7 +180,7 @@ public class ContentRepository extends BaseDao {
   private static final String SELECT_CONTENT_GIF =
       """
       SELECT c.id, c.content_type, c.created_at, c.updated_at,
-             cg.title, cg.gif_url, cg.thumbnail_url, cg.width, cg.height,
+             cg.title, cg.gif_url, cg.gif_url_web, cg.thumbnail_url, cg.width, cg.height,
              cg.author, cg.create_date, cg.rating
       FROM content c
       JOIN content_gif cg ON c.id = cg.id
@@ -850,8 +851,8 @@ public class ContentRepository extends BaseDao {
 
       String gifSql =
           """
-          INSERT INTO content_gif (id, title, gif_url, thumbnail_url, width, height, author, create_date, rating)
-          VALUES (:id, :title, :gifUrl, :thumbnailUrl, :width, :height, :author, :createDate, :rating)
+          INSERT INTO content_gif (id, title, gif_url, gif_url_web, thumbnail_url, width, height, author, create_date, rating)
+          VALUES (:id, :title, :gifUrl, :gifUrlWeb, :thumbnailUrl, :width, :height, :author, :createDate, :rating)
           """;
 
       MapSqlParameterSource gifParams =
@@ -859,6 +860,7 @@ public class ContentRepository extends BaseDao {
               .addValue("id", contentId)
               .addValue("title", entity.getTitle())
               .addValue("gifUrl", entity.getGifUrl())
+              .addValue("gifUrlWeb", entity.getGifUrlWeb())
               .addValue("thumbnailUrl", entity.getThumbnailUrl())
               .addValue("width", entity.getWidth())
               .addValue("height", entity.getHeight())
@@ -891,7 +893,7 @@ public class ContentRepository extends BaseDao {
       String gifSql =
           """
           UPDATE content_gif
-          SET title = :title, gif_url = :gifUrl, thumbnail_url = :thumbnailUrl,
+          SET title = :title, gif_url = :gifUrl, gif_url_web = :gifUrlWeb, thumbnail_url = :thumbnailUrl,
               width = :width, height = :height, author = :author, create_date = :createDate,
               rating = :rating
           WHERE id = :id
@@ -902,6 +904,7 @@ public class ContentRepository extends BaseDao {
               .addValue("id", entity.getId())
               .addValue("title", entity.getTitle())
               .addValue("gifUrl", entity.getGifUrl())
+              .addValue("gifUrlWeb", entity.getGifUrlWeb())
               .addValue("thumbnailUrl", entity.getThumbnailUrl())
               .addValue("width", entity.getWidth())
               .addValue("height", entity.getHeight())
