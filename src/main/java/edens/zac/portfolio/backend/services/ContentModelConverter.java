@@ -432,6 +432,7 @@ class ContentModelConverter {
         entity.getCreatedAt(),
         entity.getUpdatedAt(),
         entity.getGifUrl(),
+        entity.getGifUrlWeb(),
         entity.getThumbnailUrl(),
         entity.getWidth(),
         entity.getHeight(),
