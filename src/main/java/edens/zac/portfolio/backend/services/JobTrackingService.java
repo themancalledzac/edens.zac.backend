@@ -32,7 +32,6 @@ public class JobTrackingService {
     private final AtomicInteger skipped = new AtomicInteger(0);
     private final List<String> errors = new CopyOnWriteArrayList<>();
     private final LocalDateTime startedAt;
-    private volatile LocalDateTime completedAt;
 
     JobStatus(UUID jobId, int totalFiles) {
       this.jobId = jobId;
@@ -83,7 +82,6 @@ public class JobTrackingService {
 
     public void markCompleted() {
       this.status = errors.isEmpty() ? "COMPLETED" : "FAILED";
-      this.completedAt = LocalDateTime.now();
     }
   }
 

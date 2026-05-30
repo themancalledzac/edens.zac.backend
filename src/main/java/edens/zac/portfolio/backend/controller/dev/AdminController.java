@@ -248,11 +248,13 @@ class AdminController {
 
   /** Patch one or more images. */
   @PatchMapping("/content/images")
+  // Unchecked: Spring's @RequestBody binding of a generic List<T>, plus the
+  // Map<String,Object> -> List<ContentModels.Image> cast below. Both are inherently unchecked.
+  @SuppressWarnings("unchecked")
   public ResponseEntity<Map<String, Object>> updateImages(
       @RequestBody @Valid List<ContentImageUpdateRequest> updates) {
     Map<String, Object> response = contentService.updateImages(updates);
 
-    @SuppressWarnings("unchecked")
     List<ContentModels.Image> updatedImages =
         (List<ContentModels.Image>) response.get("updatedImages");
 
