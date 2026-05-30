@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +91,7 @@ public class ImageProcessingService {
   private static final String PATH_IMAGE_FULL = "Image/Full";
   private static final String PATH_IMAGE_WEB = "Image/Web";
   private static final String PATH_GIF_FULL = "Gif/Full";
+  private static final String PATH_GIF_WEB = "Gif/Web";
   private static final String PATH_GIF_THUMBNAIL = "Gif/Thumbnail";
   private static final String PATH_IMAGE_RAW = "Image/Raw";
 
@@ -498,25 +500,69 @@ public class ImageProcessingService {
     try {
       contentValidator.validateGifFile(file);
 
-      byte[] fileBytes = file.getBytes();
+      byte[] originalBytes = file.getBytes();
       String originalFilename = file.getOriginalFilename();
-      String contentType =
+      String fallbackContentType =
           file.getContentType() != null ? file.getContentType() : "application/octet-stream";
+      String baseName = stripVideoExtension(originalFilename);
 
       LocalDate now = LocalDate.now();
       int year = now.getYear();
       int month = now.getMonthValue();
 
-      // Upload raw file to S3
-      String gifUrl =
-          uploadToS3(fileBytes, originalFilename, contentType, PATH_GIF_FULL, year, month);
+      boolean isVideo = contentValidator.isMp4File(file);
 
-      // Extract first frame for WebP thumbnail
-      BufferedImage firstFrame;
-      if (contentValidator.isMp4File(file)) {
-        firstFrame = extractFirstFrameViaFfmpeg(fileBytes, originalFilename);
+      String gifUrl;
+      String gifUrlWeb;
+      byte[] fullBytes;
+
+      if (isVideo) {
+        // Probe dimensions; if probing fails, fall back to re-encoding both variants (safe: a
+        // re-encode of an unknown-size file still caps it to the web ceilings).
+        int[] dims = probeVideoDimensions(originalBytes, originalFilename);
+        VideoVariantPlanner.VideoVariantPlan plan =
+            dims != null
+                ? VideoVariantPlanner.compute(dims[0], dims[1])
+                : new VideoVariantPlanner.VideoVariantPlan(
+                    true,
+                    VideoVariantPlanner.FULL_MAX_LONGEST_SIDE,
+                    true,
+                    VideoVariantPlanner.WEB_MAX_LONGEST_SIDE);
+
+        // FULL (2000px master): re-encode only when the source exceeds the cap; otherwise a
+        // lossless remux that strips audio + faststart and preserves a good export untouched.
+        fullBytes =
+            plan.fullNeedsReencode()
+                ? encodeVideoVariant(originalBytes, originalFilename, plan.fullTargetLongestSide())
+                : remuxVideo(originalBytes, originalFilename);
+        gifUrl = uploadToS3(fullBytes, baseName + ".mp4", "video/mp4", PATH_GIF_FULL, year, month);
+
+        // WEB (1080px display): separate encode only when the source is larger than the web
+        // ceiling; otherwise the small full file IS the web file (never upscale).
+        if (plan.webIsSeparate()) {
+          byte[] webBytes =
+              encodeVideoVariant(originalBytes, originalFilename, plan.webTargetLongestSide());
+          gifUrlWeb =
+              uploadToS3(webBytes, baseName + "-web.mp4", "video/mp4", PATH_GIF_WEB, year, month);
+        } else {
+          gifUrlWeb = gifUrl;
+        }
       } else {
-        try (InputStream is = new ByteArrayInputStream(fileBytes)) {
+        // Actual image/gif upload: keep as-is, no web variant (frontend falls back to gifUrl).
+        fullBytes = originalBytes;
+        gifUrl =
+            uploadToS3(
+                originalBytes, originalFilename, fallbackContentType, PATH_GIF_FULL, year, month);
+        gifUrlWeb = null;
+      }
+
+      // Thumbnail: extract the first frame from the FULL bytes so width/height reflect the master
+      // and the poster matches what fullscreen shows.
+      BufferedImage firstFrame;
+      if (isVideo) {
+        firstFrame = extractFirstFrameViaFfmpeg(fullBytes, originalFilename);
+      } else {
+        try (InputStream is = new ByteArrayInputStream(fullBytes)) {
           firstFrame = ImageIO.read(is);
         }
       }
@@ -529,21 +575,21 @@ public class ImageProcessingService {
         width = firstFrame.getWidth();
         height = firstFrame.getHeight();
         byte[] webpBytes = convertToWebP(firstFrame);
-        String thumbFilename = stripVideoExtension(originalFilename) + "-thumbnail.webp";
+        String thumbFilename = baseName + "-thumbnail.webp";
         thumbnailUrl =
             uploadToS3(webpBytes, thumbFilename, "image/webp", PATH_GIF_THUMBNAIL, year, month);
       } else {
         log.warn("Could not extract first frame from: {}", originalFilename);
       }
 
-      // Build and save entity. Default rating to 4 so a new GIF/MP4 reads as
-      // feature media in the row grid — horizontal gets a full row, vertical
-      // gets half. Admins can downgrade later.
+      // Default rating to 4 so a new GIF/MP4 reads as feature media in the row grid — horizontal
+      // gets a full row, vertical gets half. Admins can downgrade later.
       ContentGifEntity entity =
           ContentGifEntity.builder()
               .contentType(ContentType.GIF)
               .title(title != null && !title.isBlank() ? title : originalFilename)
               .gifUrl(gifUrl)
+              .gifUrlWeb(gifUrlWeb)
               .thumbnailUrl(thumbnailUrl)
               .width(width)
               .height(height)
@@ -656,6 +702,13 @@ public class ImageProcessingService {
     List<String> deletedKeys = new ArrayList<>();
     String gifKey = deleteS3ObjectByUrl(gif.getGifUrl());
     if (gifKey != null) deletedKeys.add(gifKey);
+    // Web variant may be null, or may equal gifUrl (small files reuse the full path) — guard the
+    // duplicate so we don't issue a redundant delete/invalidation for the same key.
+    String webUrl = gif.getGifUrlWeb();
+    if (webUrl != null && !webUrl.equals(gif.getGifUrl())) {
+      String webKey = deleteS3ObjectByUrl(webUrl);
+      if (webKey != null) deletedKeys.add(webKey);
+    }
     String thumbKey = deleteS3ObjectByUrl(gif.getThumbnailUrl());
     if (thumbKey != null) deletedKeys.add(thumbKey);
     invalidateCloudFrontPaths(deletedKeys);
@@ -956,6 +1009,152 @@ public class ImageProcessingService {
       return "gif-upload-" + UUID.randomUUID();
     }
     return filename.replaceAll("(?i)\\.(mp4|mov|gif)$", "");
+  }
+
+  /**
+   * Probe the pixel dimensions of a video's primary stream via ffprobe.
+   *
+   * @return int[]{width, height}, or null if ffprobe fails or output is unparseable.
+   */
+  private int[] probeVideoDimensions(byte[] videoBytes, String filename) throws IOException {
+    Path tempInput = Files.createTempFile("gif-probe-", "-" + safeTempName(filename));
+    try {
+      Files.write(tempInput, videoBytes);
+
+      ProcessBuilder pb =
+          new ProcessBuilder(
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-show_entries",
+              "stream=width,height",
+              "-of",
+              "csv=s=x:p=0",
+              tempInput.toAbsolutePath().toString());
+      pb.redirectErrorStream(true);
+      Process process = pb.start();
+
+      String out;
+      try (InputStream is = process.getInputStream()) {
+        out = new String(is.readAllBytes(), StandardCharsets.UTF_8).trim();
+      }
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        log.error("ffprobe exited with code {}: {}", exitCode, out);
+        return null;
+      }
+
+      String[] parts = out.split("x");
+      if (parts.length != 2) {
+        log.error("ffprobe returned unexpected dimensions output: '{}'", out);
+        return null;
+      }
+      return new int[] {Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim())};
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("ffprobe was interrupted", e);
+    } catch (NumberFormatException e) {
+      log.error("ffprobe dimensions not numeric for {}: {}", filename, e.getMessage());
+      return null;
+    } finally {
+      Files.deleteIfExists(tempInput);
+    }
+  }
+
+  /**
+   * Re-encode a video to fit within {@code maxLongestSide} (preserving aspect ratio, even
+   * dimensions, never upscaling — the decrease-only scale filter only shrinks). Strips audio and
+   * enables faststart. H.264 / yuv420p / CRF 23 for broad mobile + browser support.
+   */
+  private byte[] encodeVideoVariant(byte[] videoBytes, String filename, int maxLongestSide)
+      throws IOException {
+    String scale =
+        String.format(
+            "scale=w=%d:h=%d:force_original_aspect_ratio=decrease:force_divisible_by=2",
+            maxLongestSide, maxLongestSide);
+    return runFfmpegToMp4(
+        videoBytes,
+        filename,
+        new String[] {
+          "-vf",
+          scale,
+          "-c:v",
+          "libx264",
+          "-profile:v",
+          "high",
+          "-pix_fmt",
+          "yuv420p",
+          "-crf",
+          "23",
+          "-preset",
+          "medium",
+          "-an",
+          "-movflags",
+          "+faststart"
+        });
+  }
+
+  /**
+   * Lossless container rewrap for an already web-sized video: copy the video bitstream verbatim (no
+   * quality loss, near-instant), drop audio, enable faststart.
+   */
+  private byte[] remuxVideo(byte[] videoBytes, String filename) throws IOException {
+    return runFfmpegToMp4(
+        videoBytes, filename, new String[] {"-c:v", "copy", "-an", "-movflags", "+faststart"});
+  }
+
+  /**
+   * Run ffmpeg with the given output args, reading raw input from a temp file and returning the
+   * encoded MP4 bytes. Shared glue for {@link #encodeVideoVariant} and {@link #remuxVideo}.
+   */
+  private byte[] runFfmpegToMp4(byte[] videoBytes, String filename, String[] outputArgs)
+      throws IOException {
+    Path tempInput = Files.createTempFile("gif-src-", "-" + safeTempName(filename));
+    Path tempOutput = Files.createTempFile("gif-out-", ".mp4");
+    try {
+      Files.write(tempInput, videoBytes);
+
+      List<String> command = new ArrayList<>();
+      command.add("ffmpeg");
+      command.add("-y");
+      command.add("-i");
+      command.add(tempInput.toAbsolutePath().toString());
+      command.addAll(Arrays.asList(outputArgs));
+      command.add(tempOutput.toAbsolutePath().toString());
+
+      ProcessBuilder pb = new ProcessBuilder(command);
+      pb.redirectErrorStream(true);
+      Process process = pb.start();
+
+      String ffmpegOutput;
+      try (InputStream is = process.getInputStream()) {
+        ffmpegOutput = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+      }
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        log.error("ffmpeg exited with code {}: {}", exitCode, ffmpegOutput);
+        throw new IOException("ffmpeg failed with exit code " + exitCode);
+      }
+      return Files.readAllBytes(tempOutput);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("ffmpeg was interrupted", e);
+    } finally {
+      Files.deleteIfExists(tempInput);
+      Files.deleteIfExists(tempOutput);
+    }
+  }
+
+  /** Filename safe for a temp suffix: strip path separators, fall back to a UUID. */
+  private String safeTempName(String filename) {
+    if (filename == null || filename.isBlank()) {
+      return UUID.randomUUID() + ".mp4";
+    }
+    return filename.replaceAll("[/\\\\]", "_");
   }
 
   // ============================================================================

@@ -29,8 +29,14 @@ public class ContentGifEntity extends ContentEntity {
   /** Column: title (VARCHAR) */
   private String title;
 
-  /** Column: gif_url (VARCHAR, NOT NULL) - S3 URL for GIF */
+  /** Column: gif_url (VARCHAR, NOT NULL) - S3 URL for the 2000px "full" master (fullscreen). */
   @NotNull private String gifUrl;
+
+  /**
+   * Column: gif_url_web (VARCHAR) - S3 URL for the 1080px "web" display variant used in the row
+   * layout. NULL for pre-existing gifs and actual image/gif uploads; consumers fall back to gifUrl.
+   */
+  private String gifUrlWeb;
 
   /** Column: thumbnail_url (VARCHAR) - S3 URL for thumbnail */
   private String thumbnailUrl;
