@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.CollectionSiblingRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
@@ -44,6 +45,7 @@ public class CollectionProcessingUtil {
 
   private final CollectionRepository collectionRepository;
   private final CollectionPeopleRepository collectionPeopleRepository;
+  private final CollectionSiblingRepository collectionSiblingRepository;
   private final ContentRepository contentRepository;
   private final ContentModelConverter contentModelConverter;
   private final ContentMutationUtil contentMutationUtil;
@@ -306,11 +308,13 @@ public class CollectionProcessingUtil {
     if (joinEntries.isEmpty()) {
       CollectionModel model = convertToBasicModel(entity);
       model.setContent(Collections.emptyList());
+      populateSiblings(model, false);
       return model;
     }
 
     CollectionModel model = convertToModel(entity, joinEntries, 0, 0, joinEntries.size());
     populateCollectionsOnContent(model);
+    populateSiblings(model, false);
     return model;
   }
 
@@ -406,6 +410,18 @@ public class CollectionProcessingUtil {
             .collect(Collectors.toList());
 
     model.setContent(contents);
+  }
+
+  /**
+   * Populate {@code model.siblings} from the collection_sibling join. {@code listedOnly=true} on
+   * the public read path (LISTED siblings only — no dead links leak); {@code listedOnly=false} on
+   * the admin manage payload. No-op when the model or its id is null.
+   */
+  public void populateSiblings(CollectionModel model, boolean listedOnly) {
+    if (model == null || model.getId() == null) {
+      return;
+    }
+    model.setSiblings(collectionSiblingRepository.findSiblings(model.getId(), listedOnly));
   }
 
   /**

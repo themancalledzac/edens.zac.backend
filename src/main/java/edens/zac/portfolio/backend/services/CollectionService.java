@@ -125,6 +125,9 @@ public class CollectionService {
     // Populate collections on content items
     collectionProcessingUtil.populateCollectionsOnContent(model);
 
+    // Populate siblings — public read path shows LISTED siblings only (no dead links leak)
+    collectionProcessingUtil.populateSiblings(model, true);
+
     // Filter out child collection content that references non-LISTED collections
     filterNonListedChildCollections(model);
 

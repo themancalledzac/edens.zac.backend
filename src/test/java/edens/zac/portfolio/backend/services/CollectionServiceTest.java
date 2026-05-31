@@ -340,6 +340,7 @@ class CollectionServiceTest {
 
       assertThat(result).isNotNull();
       assertThat(result.getTitle()).isEqualTo("Test Collection");
+      verify(collectionProcessingUtil).populateSiblings(model, true);
     }
 
     @Test
