@@ -954,6 +954,26 @@ class CollectionUpdateRequestTest {
     }
 
     @Test
+    @DisplayName("FE collection update sends tags/people/collections plural keys - all populate")
+    void shouldDeserializeCollectionRelationalSiblingKeys() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      String json =
+          "{\"id\":102,"
+              + "\"tags\":{\"prev\":[1]},"
+              + "\"people\":{\"prev\":[2]},"
+              + "\"collections\":{\"remove\":[3]}}";
+
+      CollectionRequests.Update dto = mapper.readValue(json, CollectionRequests.Update.class);
+
+      assertNotNull(dto.tags());
+      assertEquals(List.of(1L), dto.tags().prev());
+      assertNotNull(dto.people());
+      assertEquals(List.of(2L), dto.people().prev());
+      assertNotNull(dto.collections());
+      assertEquals(List.of(3L), dto.collections().remove());
+    }
+
+    @Test
     @DisplayName("Should accept location update with multiple values")
     void shouldAcceptLocationUpdateWithMultipleValues() {
       CollectionRequests.Update dto =
