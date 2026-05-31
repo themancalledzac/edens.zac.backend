@@ -80,7 +80,14 @@ public final class CollectionRequests {
        * Collection updates using prev/new/remove pattern. Used to manage child collections within
        * this collection (add, remove, update visibility/order of nested collections).
        */
-      CollectionUpdate collections) {}
+      CollectionUpdate collections,
+      /**
+       * Sibling (mutual) collection updates. Reuses {@link CollectionUpdate}; only {@code newValue}
+       * (add) and {@code remove} (delete) are honored, and only each entry's {@code collectionId}
+       * is read ({@code orderIndex}/{@code visible}/{@code prev} are ignored — siblings carry no
+       * ordering or per-link visibility).
+       */
+      CollectionUpdate siblings) {}
 
   /**
    * Request for reordering content within a collection. Allows multiple content items to be
