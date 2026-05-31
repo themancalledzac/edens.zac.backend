@@ -379,7 +379,7 @@ public class ImageProcessingService {
         // Only update location if new export has one — never clear user-curated location data.
         if (metadata.get("location") != null) {
           Long locId = locationRepository.findOrCreate(metadata.get("location")).getId();
-          locationRepository.saveImageLocations(savedEntity.getId(), List.of(locId));
+          locationRepository.saveContentLocations(savedEntity.getId(), List.of(locId));
         }
 
         // Only delete old S3 files if the URLs actually changed (different key).
@@ -412,7 +412,7 @@ public class ImageProcessingService {
 
     if (metadata.get("location") != null) {
       Long locId = locationRepository.findOrCreate(metadata.get("location")).getId();
-      locationRepository.saveImageLocations(savedEntity.getId(), List.of(locId));
+      locationRepository.saveContentLocations(savedEntity.getId(), List.of(locId));
     }
     log.info("Created new image entity with ID: {}", savedEntity.getId());
     return new DedupeResult(savedEntity, DedupeAction.CREATE);

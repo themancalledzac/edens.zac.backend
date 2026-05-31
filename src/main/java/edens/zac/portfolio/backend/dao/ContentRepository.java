@@ -273,7 +273,7 @@ public class ContentRepository extends BaseDao {
     String sql =
         SELECT_CONTENT_IMAGE
             + """
-             JOIN content_image_locations cil ON ci.id = cil.image_id
+             JOIN content_image_locations cil ON ci.id = cil.content_id
              JOIN location l ON cil.location_id = l.id
              WHERE l.location_name = :locationName
             """;
@@ -308,7 +308,7 @@ public class ContentRepository extends BaseDao {
             """
             SELECT COUNT(DISTINCT c.id) FROM content c
             JOIN content_image ci ON c.id = ci.id
-            JOIN content_image_locations cil ON ci.id = cil.image_id
+            JOIN content_image_locations cil ON ci.id = cil.content_id
             JOIN location l ON cil.location_id = l.id
             WHERE l.location_name = :locationName
             """);
@@ -508,31 +508,24 @@ public class ContentRepository extends BaseDao {
   }
 
   @Transactional
-  public void saveImagePeople(Long imageId, List<Long> personIds) {
-    String deleteSql = "DELETE FROM content_image_people WHERE image_id = :imageId";
-    MapSqlParameterSource deleteParams = createParameterSource().addValue("imageId", imageId);
+  public void saveContentPeople(Long contentId, List<Long> personIds) {
+    String deleteSql = "DELETE FROM content_image_people WHERE content_id = :contentId";
+    MapSqlParameterSource deleteParams = createParameterSource().addValue("contentId", contentId);
     update(deleteSql, deleteParams);
 
     if (personIds != null && !personIds.isEmpty()) {
       String insertSql =
-          "INSERT INTO content_image_people (image_id, person_id) VALUES (:imageId, :personId)";
+          "INSERT INTO content_image_people (content_id, person_id) VALUES (:contentId, :personId) ON CONFLICT DO NOTHING";
       MapSqlParameterSource[] batchParams =
           personIds.stream()
               .map(
                   personId ->
                       createParameterSource()
-                          .addValue("imageId", imageId)
+                          .addValue("contentId", contentId)
                           .addValue("personId", personId))
               .toArray(MapSqlParameterSource[]::new);
       batchUpdate(insertSql, batchParams);
     }
-  }
-
-  @Transactional(readOnly = true)
-  public List<Long> findImagePersonIds(Long imageId) {
-    String sql = "SELECT person_id FROM content_image_people WHERE image_id = :imageId";
-    MapSqlParameterSource params = createParameterSource().addValue("imageId", imageId);
-    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
   /**
@@ -546,7 +539,7 @@ public class ContentRepository extends BaseDao {
         """
         SELECT DISTINCT cip.person_id
         FROM collection_content cc
-        JOIN content_image_people cip ON cip.image_id = cc.content_id
+        JOIN content_image_people cip ON cip.content_id = cc.content_id
         WHERE cc.collection_id = :collectionId
           AND cc.visible = true
         ORDER BY cip.person_id
@@ -564,7 +557,7 @@ public class ContentRepository extends BaseDao {
     }
 
     String sql =
-        "SELECT image_id, person_id FROM content_image_people WHERE image_id IN (:imageIds)";
+        "SELECT content_id, person_id FROM content_image_people WHERE content_id IN (:imageIds)";
     MapSqlParameterSource params = createParameterSource().addValue("imageIds", imageIds);
 
     Map<Long, List<Long>> result = new HashMap<>();
@@ -572,7 +565,7 @@ public class ContentRepository extends BaseDao {
         sql,
         params,
         rs -> {
-          Long imageId = rs.getLong("image_id");
+          Long imageId = rs.getLong("content_id");
           Long personId = rs.getLong("person_id");
           result.computeIfAbsent(imageId, k -> new ArrayList<>()).add(personId);
         });
@@ -594,10 +587,10 @@ public class ContentRepository extends BaseDao {
     String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";
     update(deleteTagsSql, params);
 
-    String deletePeopleSql = "DELETE FROM content_image_people WHERE image_id = :id";
+    String deletePeopleSql = "DELETE FROM content_image_people WHERE content_id = :id";
     update(deletePeopleSql, params);
 
-    String deleteLocationsSql = "DELETE FROM content_image_locations WHERE image_id = :id";
+    String deleteLocationsSql = "DELETE FROM content_image_locations WHERE content_id = :id";
     update(deleteLocationsSql, params);
 
     String deleteImageSql = "DELETE FROM content_image WHERE id = :id";
@@ -656,7 +649,7 @@ public class ContentRepository extends BaseDao {
       sql.append(" JOIN content_tags ctag ON c.id = ctag.content_id");
     }
     if (request.personIds() != null && !request.personIds().isEmpty()) {
-      sql.append(" JOIN content_image_people cip ON c.id = cip.image_id");
+      sql.append(" JOIN content_image_people cip ON c.id = cip.content_id");
     }
   }
 
@@ -682,7 +675,7 @@ public class ContentRepository extends BaseDao {
     }
     if (request.locationId() != null) {
       conditions.add(
-          "EXISTS (SELECT 1 FROM content_image_locations cil WHERE cil.image_id = c.id AND cil.location_id = :locationId)");
+          "EXISTS (SELECT 1 FROM content_image_locations cil WHERE cil.content_id = c.id AND cil.location_id = :locationId)");
       params.addValue("locationId", request.locationId());
     }
     if (request.minRating() != null) {
@@ -934,6 +927,12 @@ public class ContentRepository extends BaseDao {
 
     String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";
     update(deleteTagsSql, params);
+
+    String deletePeopleSql = "DELETE FROM content_image_people WHERE content_id = :id";
+    update(deletePeopleSql, params);
+
+    String deleteLocationsSql = "DELETE FROM content_image_locations WHERE content_id = :id";
+    update(deleteLocationsSql, params);
 
     String gifSql = "DELETE FROM content_gif WHERE id = :id";
     update(gifSql, params);

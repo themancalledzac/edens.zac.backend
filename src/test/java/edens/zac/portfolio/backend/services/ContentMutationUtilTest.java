@@ -385,7 +385,7 @@ class ContentMutationUtilTest {
 
     contentMutationUtil.associateExtractedKeywords(1L, null, List.of("Alice"));
 
-    verify(contentRepository).saveImagePeople(eq(1L), anyList());
+    verify(contentRepository).saveContentPeople(eq(1L), anyList());
   }
 
   // =============================================================================
@@ -420,6 +420,6 @@ class ContentMutationUtilTest {
     contentMutationUtil.updateImageLocationsOptimized(image, update, currentLocations, newLocs);
 
     assertTrue(image.getLocations().isEmpty());
-    verify(locationRepository).saveImageLocations(eq(1L), anyList());
+    verify(locationRepository).saveContentLocations(eq(1L), anyList());
   }
 }
