@@ -498,7 +498,9 @@ class CollectionControllerDevTest {
     when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
         .thenReturn(testCollectionUpdateResponse);
 
-    String body = "{\"id\":1,\"siblings\":{\"newValue\":[{\"collectionId\":20}],\"remove\":[30]}}";
+    // Mirror the real frontend payload: newValue entries carry { collectionId, name }.
+    String body =
+        "{\"id\":1,\"siblings\":{\"newValue\":[{\"collectionId\":20,\"name\":\"Sibling B\"}],\"remove\":[30]}}";
 
     // Act
     mockMvc
@@ -515,6 +517,9 @@ class CollectionControllerDevTest {
     org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue()).hasSize(1);
     org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue().get(0).collectionId())
         .isEqualTo(20L);
+    // The extra `name` field from the frontend binds cleanly (it is a real ChildCollection field).
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue().get(0).name())
+        .isEqualTo("Sibling B");
     org.assertj.core.api.Assertions.assertThat(sent.siblings().remove()).containsExactly(30L);
   }
 

@@ -13,7 +13,9 @@ CREATE TABLE collection_sibling (
     CONSTRAINT chk_collection_sibling_not_self CHECK (collection_id <> sibling_collection_id)
 );
 
-CREATE INDEX idx_collection_sibling_collection ON collection_sibling(collection_id);
-CREATE INDEX idx_collection_sibling_sibling    ON collection_sibling(sibling_collection_id);
+-- collection_id is already the leading column of the composite PK, so a separate index
+-- on it would be redundant. Only sibling_collection_id needs its own index — it backs the
+-- ON DELETE CASCADE lookup on the reverse FK (the forward direction is served by the PK).
+CREATE INDEX idx_collection_sibling_sibling ON collection_sibling(sibling_collection_id);
 
 COMMIT;
