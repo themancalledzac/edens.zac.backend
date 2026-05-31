@@ -138,6 +138,11 @@ public class LocationRepository extends BaseDao {
   // Image Location Join Table Operations
   // ============================================================
 
+  /**
+   * Replace the locations linked to a content item. The table name retains the {@code
+   * content_image_} prefix for historical reasons; the column is content-level {@code content_id}
+   * (any content type), not image-specific.
+   */
   @Transactional
   public void saveContentLocations(Long contentId, List<Long> locationIds) {
     String deleteSql = "DELETE FROM content_image_locations WHERE content_id = :contentId";

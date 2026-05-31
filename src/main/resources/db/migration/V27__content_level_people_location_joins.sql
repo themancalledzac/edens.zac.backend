@@ -1,7 +1,8 @@
 -- Generalize the people + location join tables from image-specific to content-level.
--- content_image_people.image_id / content_image_locations.image_id are already the shared
--- content.id (JOINED inheritance), so this is an in-place column rename + FK retarget, not a
--- data move. Retargeting the FK to content(id) lets GIF (and any content type) use these joins.
+-- The tables are V16-managed (Flyway baseline); their image_id values are already the shared
+-- content.id, so this is an in-place column rename + FK retarget, not a data move. The dynamic
+-- pg_constraint lookup is required because the original FK name is auto-generated and not stable.
+-- Retargeting the FK to content(id) lets GIF (and any content type) use these joins.
 
 -- ---- content_image_locations ----
 ALTER TABLE content_image_locations RENAME COLUMN image_id TO content_id;

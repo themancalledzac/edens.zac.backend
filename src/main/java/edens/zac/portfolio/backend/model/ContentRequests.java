@@ -52,12 +52,16 @@ public final class ContentRequests {
    * fields are applied. Mirrors the slice of {@code ContentImageUpdateRequest} that makes sense for
    * animated content (no EXIF/equipment fields).
    *
-   * <p>{@code tags} and {@code collections} use the prev/newValue/remove pattern from {@link
-   * CollectionRequests} so a single request can add, remove, and re-order memberships in one shot.
+   * <p>{@code tags}, {@code people}, {@code locations}, and {@code collections} use the
+   * prev/newValue/remove pattern from {@link CollectionRequests} so a single request can add,
+   * remove, and re-order memberships in one shot. People and locations are content-level edits
+   * (audit 4.3) and apply to GIF/MP4 exactly as they do to images.
    */
   public record UpdateGif(
       @Size(max = 200, message = "Title must be 200 characters or less") String title,
       @Min(value = 0, message = "Rating must be between 0 and 5") @Max(value = 5, message = "Rating must be between 0 and 5") Integer rating,
       CollectionRequests.TagUpdate tags,
+      CollectionRequests.PersonUpdate people,
+      CollectionRequests.LocationUpdate locations,
       CollectionRequests.CollectionUpdate collections) {}
 }

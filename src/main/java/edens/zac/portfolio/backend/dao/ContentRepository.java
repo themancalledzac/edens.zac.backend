@@ -507,6 +507,11 @@ public class ContentRepository extends BaseDao {
     update(sql, params);
   }
 
+  /**
+   * Replace the people linked to a content item. The table name retains the {@code content_image_}
+   * prefix for historical reasons; the column is content-level {@code content_id} (any content
+   * type), not image-specific.
+   */
   @Transactional
   public void saveContentPeople(Long contentId, List<Long> personIds) {
     String deleteSql = "DELETE FROM content_image_people WHERE content_id = :contentId";

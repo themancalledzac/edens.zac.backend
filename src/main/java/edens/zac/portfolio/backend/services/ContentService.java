@@ -524,10 +524,13 @@ public class ContentService {
 
   /**
    * Patch a GIF/MP4 content block. Only non-null fields on the request are applied. Today's
-   * surface: title, rating, tags, and collection memberships (prev/newValue/remove pattern). The
-   * latter two reuse the same mutation utilities and join-table semantics that drive image updates
-   * — see {@link ContentMutationUtil#handleAddToCollections(Long, java.util.List)} and {@link
-   * ContentMutationUtil#handleContentChildCollectionUpdates(Long, java.util.List)}.
+   * surface: title, rating, tags, people, locations, and collection memberships
+   * (prev/newValue/remove pattern). The membership fields reuse the same mutation utilities and
+   * join-table semantics that drive image updates — see {@link
+   * ContentMutationUtil#handleAddToCollections(Long, java.util.List)} and {@link
+   * ContentMutationUtil#handleContentChildCollectionUpdates(Long, java.util.List)}. People and
+   * locations write to the content-level joins via {@link ContentRepository#saveContentPeople(Long,
+   * java.util.List)} and {@link LocationRepository#saveContentLocations(Long, java.util.List)}.
    *
    * <p>EXIF/equipment fields (camera, lens, ISO, etc.) intentionally have no analog for GIF — the
    * frontend modal greys them out for animated content.
@@ -562,6 +565,44 @@ public class ContentService {
               .distinct()
               .collect(Collectors.toList());
       tagRepository.saveContentTags(gif.getId(), updatedTagIds);
+    }
+
+    // People: content-level join (content_image_people, content_id-keyed). Same merge + persist
+    // shape as tags, using the content-agnostic helper and generalized save method.
+    if (request.people() != null) {
+      List<ContentPersonEntity> currentPeople = personRepository.findContentPeople(gif.getId());
+      Set<ContentPersonEntity> updatedPeople =
+          contentMutationUtil.updatePeople(
+              new HashSet<>(currentPeople), request.people(), new HashSet<>());
+      gif.setPeople(updatedPeople);
+      List<Long> updatedPersonIds =
+          updatedPeople.stream()
+              .map(ContentPersonEntity::getId)
+              .filter(Objects::nonNull)
+              .distinct()
+              .collect(Collectors.toList());
+      contentRepository.saveContentPeople(gif.getId(), updatedPersonIds);
+    }
+
+    // Locations: content-level join (content_image_locations, content_id-keyed).
+    // findLocationsByContentIds returns a Map<contentId, List<LocationEntity>>, so extract this
+    // gif's list before merging.
+    if (request.locations() != null) {
+      List<LocationEntity> currentLocations =
+          locationRepository
+              .findLocationsByContentIds(List.of(gif.getId()))
+              .getOrDefault(gif.getId(), List.of());
+      Set<LocationEntity> updatedLocations =
+          contentMutationUtil.updateLocations(
+              new HashSet<>(currentLocations), request.locations(), new HashSet<>());
+      gif.setLocations(updatedLocations);
+      List<Long> updatedLocationIds =
+          updatedLocations.stream()
+              .map(LocationEntity::getId)
+              .filter(Objects::nonNull)
+              .distinct()
+              .collect(Collectors.toList());
+      locationRepository.saveContentLocations(gif.getId(), updatedLocationIds);
     }
 
     ContentGifEntity saved = contentRepository.saveGif(gif);

@@ -124,6 +124,8 @@ public final class ContentModels {
       String createDate,
       Integer rating,
       List<Records.Tag> tags,
+      List<Records.Person> people,
+      List<Records.Location> locations,
       List<Records.ChildCollection> collections)
       implements ContentModel {
 
@@ -148,6 +150,8 @@ public final class ContentModels {
           createDate,
           rating,
           tags,
+          people,
+          locations,
           collections);
     }
   }
