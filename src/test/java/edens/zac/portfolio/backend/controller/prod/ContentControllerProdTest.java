@@ -213,6 +213,8 @@ class ContentControllerProdTest {
           null,
           title,
           null,
+          null,
+          null,
           "https://example.com/img.jpg",
           null,
           0,

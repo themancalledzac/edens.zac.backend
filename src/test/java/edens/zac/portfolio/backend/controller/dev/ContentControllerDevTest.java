@@ -88,6 +88,8 @@ class ContentControllerDevTest {
             null,
             null,
             null,
+            null,
+            null,
             List.of());
 
     testImages = List.of(testImage);

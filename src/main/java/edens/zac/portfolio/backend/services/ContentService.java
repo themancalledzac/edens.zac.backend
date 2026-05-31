@@ -277,6 +277,8 @@ public class ContentService {
 
     // Update basic metadata fields
     if (updateRequest.getTitle() != null) image.setTitle(updateRequest.getTitle());
+    if (updateRequest.getCaption() != null) image.setCaption(updateRequest.getCaption());
+    if (updateRequest.getAlt() != null) image.setAlt(updateRequest.getAlt());
     if (updateRequest.getRating() != null) image.setRating(updateRequest.getRating());
     if (updateRequest.getAuthor() != null) image.setAuthor(updateRequest.getAuthor());
     if (updateRequest.getIsFilm() != null) image.setIsFilm(updateRequest.getIsFilm());

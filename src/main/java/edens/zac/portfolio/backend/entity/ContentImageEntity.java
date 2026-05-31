@@ -36,6 +36,12 @@ public class ContentImageEntity extends ContentEntity {
   /** Column: title (VARCHAR) */
   private String title;
 
+  /** Column: caption (TEXT) - editable image caption/description */
+  private String caption;
+
+  /** Column: alt (VARCHAR 500) - alt text for accessibility/SEO */
+  private String alt;
+
   /** Column: image_width (INTEGER) */
   private Integer imageWidth;
 

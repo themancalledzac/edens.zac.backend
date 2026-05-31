@@ -24,6 +24,8 @@ class ContentImageUpdateRequestWireTest {
         "{"
             + "\"id\":42,"
             + "\"title\":\"Sunset\","
+            + "\"caption\":\"On the ridge\","
+            + "\"alt\":\"hiker on a ridge\","
             + "\"rating\":4,"
             + "\"locations\":{\"prev\":[3]},"
             + "\"people\":{\"prev\":[7]},"
@@ -36,6 +38,8 @@ class ContentImageUpdateRequestWireTest {
     ContentImageUpdateRequest dto = mapper.readValue(json, ContentImageUpdateRequest.class);
 
     assertEquals(42L, dto.getId());
+    assertEquals("On the ridge", dto.getCaption(), "FE 'caption' key must populate");
+    assertEquals("hiker on a ridge", dto.getAlt(), "FE 'alt' key must populate");
     assertNotNull(dto.getLocations(), "plural 'locations' key must deserialize");
     assertEquals(List.of(3L), dto.getLocations().prev());
     assertNotNull(dto.getPeople(), "'people' key must deserialize");

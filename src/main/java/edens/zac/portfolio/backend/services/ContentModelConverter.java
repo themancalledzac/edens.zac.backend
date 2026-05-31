@@ -359,6 +359,8 @@ class ContentModelConverter {
         entity.getContentType(),
         entity.getTitle(),
         null,
+        entity.getCaption(),
+        entity.getAlt(),
         entity.getImageUrlWeb(),
         entity.getImageUrlRaw(),
         orderIndex,

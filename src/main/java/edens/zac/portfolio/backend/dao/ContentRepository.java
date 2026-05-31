@@ -49,6 +49,8 @@ public class ContentRepository extends BaseDao {
                 .id(rs.getLong("id"))
                 .contentType(ContentType.IMAGE)
                 .title(getString(rs, "title"))
+                .caption(getString(rs, "caption"))
+                .alt(getString(rs, "alt"))
                 .imageWidth(getInteger(rs, "image_width"))
                 .imageHeight(getInteger(rs, "image_height"))
                 .iso(getInteger(rs, "iso"))
@@ -154,7 +156,8 @@ public class ContentRepository extends BaseDao {
   private static final String SELECT_CONTENT_IMAGE =
       """
       SELECT c.id, c.content_type, c.created_at, c.updated_at,
-             ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
+             ci.title, ci.caption, ci.alt, ci.image_width, ci.image_height, ci.iso,
+             ci.author, ci.rating,
              ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
              ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
              ci.image_url_web, ci.image_url_original, ci.image_url_raw,
@@ -408,12 +411,14 @@ public class ContentRepository extends BaseDao {
 
       String imageSql =
           """
-          INSERT INTO content_image (id, title, image_width, image_height, iso, author, rating,
+          INSERT INTO content_image (id, title, caption, alt, image_width, image_height, iso,
+                                    author, rating,
                                     f_stop, lens_id, black_and_white, is_film, film_type_id,
                                     film_format, shutter_speed, camera_id, focal_length,
                                     image_url_web, image_url_original, image_url_raw,
                                     capture_date, last_export_date, original_filename)
-          VALUES (:id, :title, :imageWidth, :imageHeight, :iso, :author, :rating,
+          VALUES (:id, :title, :caption, :alt, :imageWidth, :imageHeight, :iso,
+                  :author, :rating,
                   :fStop, :lensId, :blackAndWhite, :isFilm, :filmTypeId,
                   :filmFormat, :shutterSpeed, :cameraId, :focalLength,
                   :imageUrlWeb, :imageUrlOriginal, :imageUrlRaw,
@@ -445,7 +450,8 @@ public class ContentRepository extends BaseDao {
       String imageSql =
           """
           UPDATE content_image
-          SET title = :title, image_width = :imageWidth, image_height = :imageHeight, iso = :iso,
+          SET title = :title, caption = :caption, alt = :alt,
+              image_width = :imageWidth, image_height = :imageHeight, iso = :iso,
               author = :author, rating = :rating, f_stop = :fStop, lens_id = :lensId,
               black_and_white = :blackAndWhite, is_film = :isFilm, film_type_id = :filmTypeId,
               film_format = :filmFormat, shutter_speed = :shutterSpeed, camera_id = :cameraId,
@@ -468,6 +474,8 @@ public class ContentRepository extends BaseDao {
     return createParameterSource()
         .addValue("id", id)
         .addValue("title", entity.getTitle())
+        .addValue("caption", entity.getCaption())
+        .addValue("alt", entity.getAlt())
         .addValue("imageWidth", entity.getImageWidth())
         .addValue("imageHeight", entity.getImageHeight())
         .addValue("iso", entity.getIso())
@@ -713,7 +721,8 @@ public class ContentRepository extends BaseDao {
       sql.append(
           """
            GROUP BY c.id, c.content_type, c.created_at, c.updated_at,
-                    ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
+                    ci.title, ci.caption, ci.alt, ci.image_width, ci.image_height, ci.iso,
+                    ci.author, ci.rating,
                     ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
                     ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
                     ci.image_url_web, ci.image_url_original, ci.image_url_raw,
