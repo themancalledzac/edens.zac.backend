@@ -492,6 +492,33 @@ class CollectionControllerDevTest {
   }
 
   @Test
+  @DisplayName("PUT /collections/{id} should accept a siblings block in the body")
+  void updateCollection_acceptsSiblings() throws Exception {
+    // Arrange
+    when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
+        .thenReturn(testCollectionUpdateResponse);
+
+    String body = "{\"id\":1,\"siblings\":{\"newValue\":[{\"collectionId\":20}],\"remove\":[30]}}";
+
+    // Act
+    mockMvc
+        .perform(
+            put("/api/admin/collections/1").contentType(MediaType.APPLICATION_JSON).content(body))
+        .andExpect(status().isOk());
+
+    // Assert: Jackson bound the raw siblings block onto Update and the controller forwarded it.
+    org.mockito.ArgumentCaptor<CollectionRequests.Update> captor =
+        org.mockito.ArgumentCaptor.forClass(CollectionRequests.Update.class);
+    verify(collectionService).updateContentWithMetadata(eq(1L), captor.capture());
+    CollectionRequests.Update sent = captor.getValue();
+    org.assertj.core.api.Assertions.assertThat(sent.siblings()).isNotNull();
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue()).hasSize(1);
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue().get(0).collectionId())
+        .isEqualTo(20L);
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().remove()).containsExactly(30L);
+  }
+
+  @Test
   @DisplayName("GET /collections/all should return all collections ordered by date")
   void getAllCollectionsOrderedByDate_shouldReturnAllCollections() throws Exception {
     // Arrange
