@@ -527,8 +527,8 @@ public class CollectionProcessingUtil {
       entity.setType(updateDTO.type());
     }
     // Handle location update using prev/new/remove pattern (many-to-many)
-    if (updateDTO.location() != null) {
-      CollectionRequests.LocationUpdate locationUpdate = updateDTO.location();
+    if (updateDTO.locations() != null) {
+      CollectionRequests.LocationUpdate locationUpdate = updateDTO.locations();
       List<LocationEntity> currentLocations =
           locationRepository.findCollectionLocations(entity.getId());
       Set<LocationEntity> updatedLocations =
