@@ -64,7 +64,8 @@ class CollectionUpdateRequestTest {
         coverImageId,
         tags,
         people,
-        collections);
+        collections,
+        null);
   }
 
   @BeforeEach

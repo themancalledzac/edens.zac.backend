@@ -108,6 +108,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             null);
   }
 
@@ -181,6 +182,7 @@ class CollectionControllerDevTest {
             999L,
             null,
             "Updated Test Blog",
+            null,
             null,
             null,
             null,
@@ -374,6 +376,7 @@ class CollectionControllerDevTest {
             null,
             tagUpdate,
             null,
+            null,
             null);
 
     when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
@@ -420,6 +423,7 @@ class CollectionControllerDevTest {
             null,
             null,
             personUpdate,
+            null,
             null);
 
     when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
@@ -467,6 +471,7 @@ class CollectionControllerDevTest {
             null,
             tagUpdate,
             personUpdate,
+            null,
             null);
 
     when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))

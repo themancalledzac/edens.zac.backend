@@ -5,6 +5,7 @@ import static edens.zac.portfolio.backend.config.DefaultValues.default_content_p
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.CollectionSiblingRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
@@ -59,6 +60,7 @@ public class CollectionService {
 
   private final CollectionRepository collectionRepository;
   private final CollectionPeopleRepository collectionPeopleRepository;
+  private final CollectionSiblingRepository collectionSiblingRepository;
   private final ContentRepository contentRepository;
   private final LocationRepository locationRepository;
   private final TagRepository tagRepository;
@@ -487,6 +489,9 @@ public class CollectionService {
       handleCollectionToCollectionUpdates(entity, updateDTO.collections());
     }
 
+    // Handle sibling (mutual) collection updates
+    handleSiblingUpdates(entity.getId(), updateDTO.siblings());
+
     // Update total blocks count from join table before saving
     long totalBlocks = collectionRepository.countContentByCollectionId(entity.getId());
     entity.setTotalContent((int) totalBlocks);
@@ -900,6 +905,35 @@ public class CollectionService {
         }
       }
     }
+  }
+
+  /**
+   * Apply mutual sibling updates. Each {@code newValue} entry's collectionId is added via a
+   * reciprocal INSERT; each {@code remove} id is deleted bidirectionally. Self-links are skipped
+   * defensively (the DB CHECK also blocks them). No-op when {@code siblings} is null.
+   */
+  private void handleSiblingUpdates(Long parentId, CollectionRequests.CollectionUpdate siblings) {
+    if (siblings == null) {
+      return;
+    }
+    if (siblings.remove() != null) {
+      for (Long siblingId : siblings.remove()) {
+        if (siblingId == null || siblingId.equals(parentId)) {
+          continue;
+        }
+        collectionSiblingRepository.removeSibling(parentId, siblingId);
+      }
+    }
+    if (siblings.newValue() != null) {
+      for (Records.ChildCollection entry : siblings.newValue()) {
+        Long siblingId = entry.collectionId();
+        if (siblingId == null || siblingId.equals(parentId)) {
+          continue;
+        }
+        collectionSiblingRepository.addSibling(parentId, siblingId);
+      }
+    }
+    log.info("Applied sibling updates for collection {}", parentId);
   }
 
   /**
