@@ -359,6 +359,8 @@ class ContentModelConverter {
         entity.getContentType(),
         entity.getTitle(),
         null,
+        entity.getCaption(),
+        entity.getAlt(),
         entity.getImageUrlWeb(),
         entity.getImageUrlRaw(),
         orderIndex,
@@ -421,6 +423,18 @@ class ContentModelConverter {
       tags = new HashSet<>(tagEntities);
     }
 
+    // Load people from database if not already loaded
+    Set<ContentPersonEntity> people = entity.getPeople();
+    if (people == null || people.isEmpty()) {
+      List<ContentPersonEntity> personEntities = personRepository.findContentPeople(entity.getId());
+      people = new HashSet<>(personEntities);
+    }
+
+    Map<Long, List<LocationEntity>> locMap =
+        locationRepository.findLocationsByContentIds(List.of(entity.getId()));
+    List<Records.Location> locations =
+        resolveLocations(locMap.getOrDefault(entity.getId(), List.of()));
+
     return new ContentModels.Gif(
         entity.getId(),
         entity.getContentType(),
@@ -440,6 +454,8 @@ class ContentModelConverter {
         entity.getCreateDate(),
         entity.getRating(),
         convertTagsToModels(tags),
+        convertPeopleToModels(people),
+        locations,
         new ArrayList<>());
   }
 

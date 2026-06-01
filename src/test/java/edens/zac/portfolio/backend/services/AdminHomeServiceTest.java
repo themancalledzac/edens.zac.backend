@@ -48,6 +48,8 @@ class AdminHomeServiceTest {
             null, // contentType
             null, // title
             null, // description
+            null, // caption
+            null, // alt
             url, // imageUrl
             null, // imageUrlRaw
             null, // orderIndex

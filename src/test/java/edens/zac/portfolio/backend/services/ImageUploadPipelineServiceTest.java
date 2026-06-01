@@ -86,6 +86,8 @@ class ImageUploadPipelineServiceTest {
         null,
         null,
         null,
+        null,
+        null,
         rating,
         null,
         null,

@@ -22,10 +22,12 @@ import lombok.experimental.SuperBuilder;
  * camera_id -> content_cameras.id
  *
  * <p>Join tables: - content_image_tags (image_id, tag_id) - many-to-many with tags -
- * content_image_people (image_id, person_id) - many-to-many with people
+ * content_image_people (content_id, person_id) - content-keyed people - content_image_locations
+ * (content_id, location_id) - content-keyed locations
  *
  * <p>Indexes on join tables: - idx_image_tags_image (image_id) - idx_image_tags_tag (tag_id) -
- * idx_image_people_image (image_id) - idx_image_people_person (person_id)
+ * idx_content_image_people_content_id (content_id) - idx_content_image_locations_content_id
+ * (content_id)
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -35,6 +37,12 @@ public class ContentImageEntity extends ContentEntity {
 
   /** Column: title (VARCHAR) */
   private String title;
+
+  /** Column: caption (TEXT) - editable image caption/description */
+  private String caption;
+
+  /** Column: alt (VARCHAR 500) - alt text for accessibility/SEO */
+  private String alt;
 
   /** Column: image_width (INTEGER) */
   private Integer imageWidth;

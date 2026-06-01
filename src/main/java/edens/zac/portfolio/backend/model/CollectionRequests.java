@@ -51,8 +51,8 @@ public final class CollectionRequests {
       @Size(min = 3, max = 150, message = "Slug must be between 3 and 150 characters") String slug,
       /** Collection description */
       @Size(max = 500, message = "Description cannot exceed 500 characters") String description,
-      /** Location update using prev/new/remove pattern */
-      @Valid LocationUpdate location,
+      /** Location updates using prev/new/remove pattern */
+      @Valid LocationUpdate locations,
       /** Date associated with the collection */
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
       /** Set to true to explicitly clear the collection date (set it to null) */

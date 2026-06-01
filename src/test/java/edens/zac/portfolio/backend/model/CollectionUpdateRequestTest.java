@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.model;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
@@ -108,8 +109,8 @@ class CollectionUpdateRequestTest {
       assertEquals("Updated Client Gallery", dto.title());
       assertEquals("updated-client-gallery", dto.slug());
       assertEquals("Updated professional client gallery", dto.description());
-      assertNotNull(dto.location());
-      assertEquals(List.of("Updated Location"), dto.location().newValue());
+      assertNotNull(dto.locations());
+      assertEquals(List.of("Updated Location"), dto.locations().newValue());
       assertEquals(today, dto.collectionDate());
       assertEquals(CollectionVisibility.LISTED, dto.visibility());
       assertEquals(25, dto.contentPerPage());
@@ -938,6 +939,41 @@ class CollectionUpdateRequestTest {
     }
 
     @Test
+    @DisplayName("Frontend sends plural 'locations' JSON key - must populate location update")
+    void shouldDeserializePluralLocationsJsonKey() throws Exception {
+      // Regression guard: the manage page PUTs the location association under the PLURAL
+      // key "locations" (matching tags/people/collections). When the DTO field was singular
+      // "location", Jackson silently dropped this key and collection location edits never saved.
+      ObjectMapper mapper = new ObjectMapper();
+      String json = "{ \"id\": 102, \"locations\": { \"prev\": [3] } }";
+
+      CollectionRequests.Update dto = mapper.readValue(json, CollectionRequests.Update.class);
+
+      assertNotNull(dto.locations(), "plural 'locations' key must deserialize into the DTO");
+      assertEquals(List.of(3L), dto.locations().prev());
+    }
+
+    @Test
+    @DisplayName("FE collection update sends tags/people/collections plural keys - all populate")
+    void shouldDeserializeCollectionRelationalSiblingKeys() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      String json =
+          "{\"id\":102,"
+              + "\"tags\":{\"prev\":[1]},"
+              + "\"people\":{\"prev\":[2]},"
+              + "\"collections\":{\"remove\":[3]}}";
+
+      CollectionRequests.Update dto = mapper.readValue(json, CollectionRequests.Update.class);
+
+      assertNotNull(dto.tags());
+      assertEquals(List.of(1L), dto.tags().prev());
+      assertNotNull(dto.people());
+      assertEquals(List.of(2L), dto.people().prev());
+      assertNotNull(dto.collections());
+      assertEquals(List.of(3L), dto.collections().remove());
+    }
+
+    @Test
     @DisplayName("Should accept location update with multiple values")
     void shouldAcceptLocationUpdateWithMultipleValues() {
       CollectionRequests.Update dto =
@@ -961,8 +997,8 @@ class CollectionUpdateRequestTest {
 
       Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
       assertTrue(violations.isEmpty());
-      assertNotNull(dto.location());
-      assertEquals(2, dto.location().newValue().size());
+      assertNotNull(dto.locations());
+      assertEquals(2, dto.locations().newValue().size());
     }
   }
 }

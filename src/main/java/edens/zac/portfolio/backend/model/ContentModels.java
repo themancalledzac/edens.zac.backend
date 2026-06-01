@@ -23,6 +23,8 @@ public final class ContentModels {
       ContentType contentType,
       String title,
       String description,
+      String caption,
+      String alt,
       String imageUrl,
       String imageUrlRaw,
       Integer orderIndex,
@@ -57,6 +59,8 @@ public final class ContentModels {
           contentType,
           title,
           description,
+          caption,
+          alt,
           imageUrl,
           imageUrlRaw,
           orderIndex,
@@ -120,6 +124,8 @@ public final class ContentModels {
       String createDate,
       Integer rating,
       List<Records.Tag> tags,
+      List<Records.Person> people,
+      List<Records.Location> locations,
       List<Records.ChildCollection> collections)
       implements ContentModel {
 
@@ -144,6 +150,8 @@ public final class ContentModels {
           createDate,
           rating,
           tags,
+          people,
+          locations,
           collections);
     }
   }

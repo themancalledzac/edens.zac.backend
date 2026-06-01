@@ -238,7 +238,7 @@ public class ContentMutationUtil {
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.toList());
-    contentRepository.saveImagePeople(image.getId(), updatedPersonIds);
+    contentRepository.saveContentPeople(image.getId(), updatedPersonIds);
   }
 
   /**
@@ -260,7 +260,7 @@ public class ContentMutationUtil {
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.toList());
-    locationRepository.saveImageLocations(image.getId(), updatedLocationIds);
+    locationRepository.saveContentLocations(image.getId(), updatedLocationIds);
   }
 
   // =============================================================================
@@ -323,7 +323,7 @@ public class ContentMutationUtil {
             log.info("Created new person from XMP keyword: {}", personName);
           }
         }
-        contentRepository.saveImagePeople(imageId, new ArrayList<>(personIds));
+        contentRepository.saveContentPeople(imageId, new ArrayList<>(personIds));
         log.info("Associated {} people with image {}", personIds.size(), imageId);
       }
     } catch (Exception e) {

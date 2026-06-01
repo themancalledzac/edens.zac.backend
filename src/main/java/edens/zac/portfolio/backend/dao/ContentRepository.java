@@ -49,6 +49,8 @@ public class ContentRepository extends BaseDao {
                 .id(rs.getLong("id"))
                 .contentType(ContentType.IMAGE)
                 .title(getString(rs, "title"))
+                .caption(getString(rs, "caption"))
+                .alt(getString(rs, "alt"))
                 .imageWidth(getInteger(rs, "image_width"))
                 .imageHeight(getInteger(rs, "image_height"))
                 .iso(getInteger(rs, "iso"))
@@ -154,7 +156,8 @@ public class ContentRepository extends BaseDao {
   private static final String SELECT_CONTENT_IMAGE =
       """
       SELECT c.id, c.content_type, c.created_at, c.updated_at,
-             ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
+             ci.title, ci.caption, ci.alt, ci.image_width, ci.image_height, ci.iso,
+             ci.author, ci.rating,
              ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
              ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
              ci.image_url_web, ci.image_url_original, ci.image_url_raw,
@@ -270,7 +273,7 @@ public class ContentRepository extends BaseDao {
     String sql =
         SELECT_CONTENT_IMAGE
             + """
-             JOIN content_image_locations cil ON ci.id = cil.image_id
+             JOIN content_image_locations cil ON ci.id = cil.content_id
              JOIN location l ON cil.location_id = l.id
              WHERE l.location_name = :locationName
             """;
@@ -305,7 +308,7 @@ public class ContentRepository extends BaseDao {
             """
             SELECT COUNT(DISTINCT c.id) FROM content c
             JOIN content_image ci ON c.id = ci.id
-            JOIN content_image_locations cil ON ci.id = cil.image_id
+            JOIN content_image_locations cil ON ci.id = cil.content_id
             JOIN location l ON cil.location_id = l.id
             WHERE l.location_name = :locationName
             """);
@@ -408,12 +411,14 @@ public class ContentRepository extends BaseDao {
 
       String imageSql =
           """
-          INSERT INTO content_image (id, title, image_width, image_height, iso, author, rating,
+          INSERT INTO content_image (id, title, caption, alt, image_width, image_height, iso,
+                                    author, rating,
                                     f_stop, lens_id, black_and_white, is_film, film_type_id,
                                     film_format, shutter_speed, camera_id, focal_length,
                                     image_url_web, image_url_original, image_url_raw,
                                     capture_date, last_export_date, original_filename)
-          VALUES (:id, :title, :imageWidth, :imageHeight, :iso, :author, :rating,
+          VALUES (:id, :title, :caption, :alt, :imageWidth, :imageHeight, :iso,
+                  :author, :rating,
                   :fStop, :lensId, :blackAndWhite, :isFilm, :filmTypeId,
                   :filmFormat, :shutterSpeed, :cameraId, :focalLength,
                   :imageUrlWeb, :imageUrlOriginal, :imageUrlRaw,
@@ -445,7 +450,8 @@ public class ContentRepository extends BaseDao {
       String imageSql =
           """
           UPDATE content_image
-          SET title = :title, image_width = :imageWidth, image_height = :imageHeight, iso = :iso,
+          SET title = :title, caption = :caption, alt = :alt,
+              image_width = :imageWidth, image_height = :imageHeight, iso = :iso,
               author = :author, rating = :rating, f_stop = :fStop, lens_id = :lensId,
               black_and_white = :blackAndWhite, is_film = :isFilm, film_type_id = :filmTypeId,
               film_format = :filmFormat, shutter_speed = :shutterSpeed, camera_id = :cameraId,
@@ -468,6 +474,8 @@ public class ContentRepository extends BaseDao {
     return createParameterSource()
         .addValue("id", id)
         .addValue("title", entity.getTitle())
+        .addValue("caption", entity.getCaption())
+        .addValue("alt", entity.getAlt())
         .addValue("imageWidth", entity.getImageWidth())
         .addValue("imageHeight", entity.getImageHeight())
         .addValue("iso", entity.getIso())
@@ -499,32 +507,30 @@ public class ContentRepository extends BaseDao {
     update(sql, params);
   }
 
+  /**
+   * Replace the people linked to a content item. The table name retains the {@code content_image_}
+   * prefix for historical reasons; the column is content-level {@code content_id} (any content
+   * type), not image-specific.
+   */
   @Transactional
-  public void saveImagePeople(Long imageId, List<Long> personIds) {
-    String deleteSql = "DELETE FROM content_image_people WHERE image_id = :imageId";
-    MapSqlParameterSource deleteParams = createParameterSource().addValue("imageId", imageId);
+  public void saveContentPeople(Long contentId, List<Long> personIds) {
+    String deleteSql = "DELETE FROM content_image_people WHERE content_id = :contentId";
+    MapSqlParameterSource deleteParams = createParameterSource().addValue("contentId", contentId);
     update(deleteSql, deleteParams);
 
     if (personIds != null && !personIds.isEmpty()) {
       String insertSql =
-          "INSERT INTO content_image_people (image_id, person_id) VALUES (:imageId, :personId)";
+          "INSERT INTO content_image_people (content_id, person_id) VALUES (:contentId, :personId) ON CONFLICT DO NOTHING";
       MapSqlParameterSource[] batchParams =
           personIds.stream()
               .map(
                   personId ->
                       createParameterSource()
-                          .addValue("imageId", imageId)
+                          .addValue("contentId", contentId)
                           .addValue("personId", personId))
               .toArray(MapSqlParameterSource[]::new);
       batchUpdate(insertSql, batchParams);
     }
-  }
-
-  @Transactional(readOnly = true)
-  public List<Long> findImagePersonIds(Long imageId) {
-    String sql = "SELECT person_id FROM content_image_people WHERE image_id = :imageId";
-    MapSqlParameterSource params = createParameterSource().addValue("imageId", imageId);
-    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
   /**
@@ -538,7 +544,7 @@ public class ContentRepository extends BaseDao {
         """
         SELECT DISTINCT cip.person_id
         FROM collection_content cc
-        JOIN content_image_people cip ON cip.image_id = cc.content_id
+        JOIN content_image_people cip ON cip.content_id = cc.content_id
         WHERE cc.collection_id = :collectionId
           AND cc.visible = true
         ORDER BY cip.person_id
@@ -556,7 +562,7 @@ public class ContentRepository extends BaseDao {
     }
 
     String sql =
-        "SELECT image_id, person_id FROM content_image_people WHERE image_id IN (:imageIds)";
+        "SELECT content_id, person_id FROM content_image_people WHERE content_id IN (:imageIds)";
     MapSqlParameterSource params = createParameterSource().addValue("imageIds", imageIds);
 
     Map<Long, List<Long>> result = new HashMap<>();
@@ -564,7 +570,7 @@ public class ContentRepository extends BaseDao {
         sql,
         params,
         rs -> {
-          Long imageId = rs.getLong("image_id");
+          Long imageId = rs.getLong("content_id");
           Long personId = rs.getLong("person_id");
           result.computeIfAbsent(imageId, k -> new ArrayList<>()).add(personId);
         });
@@ -586,10 +592,10 @@ public class ContentRepository extends BaseDao {
     String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";
     update(deleteTagsSql, params);
 
-    String deletePeopleSql = "DELETE FROM content_image_people WHERE image_id = :id";
+    String deletePeopleSql = "DELETE FROM content_image_people WHERE content_id = :id";
     update(deletePeopleSql, params);
 
-    String deleteLocationsSql = "DELETE FROM content_image_locations WHERE image_id = :id";
+    String deleteLocationsSql = "DELETE FROM content_image_locations WHERE content_id = :id";
     update(deleteLocationsSql, params);
 
     String deleteImageSql = "DELETE FROM content_image WHERE id = :id";
@@ -648,7 +654,7 @@ public class ContentRepository extends BaseDao {
       sql.append(" JOIN content_tags ctag ON c.id = ctag.content_id");
     }
     if (request.personIds() != null && !request.personIds().isEmpty()) {
-      sql.append(" JOIN content_image_people cip ON c.id = cip.image_id");
+      sql.append(" JOIN content_image_people cip ON c.id = cip.content_id");
     }
   }
 
@@ -674,7 +680,7 @@ public class ContentRepository extends BaseDao {
     }
     if (request.locationId() != null) {
       conditions.add(
-          "EXISTS (SELECT 1 FROM content_image_locations cil WHERE cil.image_id = c.id AND cil.location_id = :locationId)");
+          "EXISTS (SELECT 1 FROM content_image_locations cil WHERE cil.content_id = c.id AND cil.location_id = :locationId)");
       params.addValue("locationId", request.locationId());
     }
     if (request.minRating() != null) {
@@ -713,7 +719,8 @@ public class ContentRepository extends BaseDao {
       sql.append(
           """
            GROUP BY c.id, c.content_type, c.created_at, c.updated_at,
-                    ci.title, ci.image_width, ci.image_height, ci.iso, ci.author, ci.rating,
+                    ci.title, ci.caption, ci.alt, ci.image_width, ci.image_height, ci.iso,
+                    ci.author, ci.rating,
                     ci.f_stop, ci.lens_id, ci.black_and_white, ci.is_film, ci.film_type_id,
                     ci.film_format, ci.shutter_speed, ci.camera_id, ci.focal_length,
                     ci.image_url_web, ci.image_url_original, ci.image_url_raw,
@@ -925,6 +932,12 @@ public class ContentRepository extends BaseDao {
 
     String deleteTagsSql = "DELETE FROM content_tags WHERE content_id = :id";
     update(deleteTagsSql, params);
+
+    String deletePeopleSql = "DELETE FROM content_image_people WHERE content_id = :id";
+    update(deletePeopleSql, params);
+
+    String deleteLocationsSql = "DELETE FROM content_image_locations WHERE content_id = :id";
+    update(deleteLocationsSql, params);
 
     String gifSql = "DELETE FROM content_gif WHERE id = :id";
     update(gifSql, params);

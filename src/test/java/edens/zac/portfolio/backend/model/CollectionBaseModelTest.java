@@ -38,6 +38,8 @@ class CollectionBaseModelTest {
         edens.zac.portfolio.backend.types.ContentType.IMAGE,
         null,
         null,
+        null,
+        null,
         imageUrl,
         null,
         null,

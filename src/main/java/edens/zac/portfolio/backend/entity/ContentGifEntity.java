@@ -16,7 +16,9 @@ import lombok.experimental.SuperBuilder;
  *
  * <p>Database table: content_gif Primary key: id (inherited from content table, FK to content.id)
  *
- * <p>Join tables: - content_gif_tags (gif_id, tag_id) - many-to-many with tags
+ * <p>Join tables: - content_gif_tags (gif_id, tag_id) - many-to-many with tags -
+ * content_image_people (content_id, person_id) - content-keyed people - content_image_locations
+ * (content_id, location_id) - content-keyed locations
  *
  * <p>Indexes on join table: - idx_gif_tags_gif (gif_id) - idx_gif_tags_tag (tag_id)
  */
@@ -64,6 +66,15 @@ public class ContentGifEntity extends ContentEntity {
 
   /** Relationship: Many-to-many with TagEntity (via content_tags table) */
   @Builder.Default private Set<TagEntity> tags = new HashSet<>();
+
+  /** Relationship: people associated with this content (via content_image_people, content-keyed) */
+  @Builder.Default private Set<ContentPersonEntity> people = new HashSet<>();
+
+  /**
+   * Relationship: locations associated with this content (via content_image_locations,
+   * content-keyed)
+   */
+  @Builder.Default private Set<LocationEntity> locations = new HashSet<>();
 
   @Override
   public ContentType getContentType() {

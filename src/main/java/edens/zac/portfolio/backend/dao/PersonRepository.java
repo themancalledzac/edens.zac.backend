@@ -89,7 +89,7 @@ public class PersonRepository extends BaseDao {
         FROM content_people p
         LEFT JOIN content_image_people cip ON p.id = cip.person_id
         GROUP BY p.id, p.person_name, p.slug, p.created_at
-        ORDER BY COUNT(cip.image_id) DESC
+        ORDER BY COUNT(cip.content_id) DESC
         """;
     return query(sql, PERSON_ROW_MAPPER);
   }
@@ -149,10 +149,10 @@ public class PersonRepository extends BaseDao {
 
     String sql =
         """
-        SELECT cip.image_id AS content_id, p.id, p.person_name, p.slug, p.created_at
+        SELECT cip.content_id, p.id, p.person_name, p.slug, p.created_at
         FROM content_image_people cip
         JOIN content_people p ON cip.person_id = p.id
-        WHERE cip.image_id IN (:contentIds)
+        WHERE cip.content_id IN (:contentIds)
         ORDER BY p.person_name ASC
         """;
     MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
@@ -196,7 +196,7 @@ public class PersonRepository extends BaseDao {
         SELECT p.id, p.person_name, p.slug, p.created_at
         FROM content_people p
         JOIN content_image_people cip ON p.id = cip.person_id
-        WHERE cip.image_id = :contentId
+        WHERE cip.content_id = :contentId
         ORDER BY p.person_name ASC
         """;
     MapSqlParameterSource params = createParameterSource().addValue("contentId", contentId);

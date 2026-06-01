@@ -138,32 +138,30 @@ public class LocationRepository extends BaseDao {
   // Image Location Join Table Operations
   // ============================================================
 
+  /**
+   * Replace the locations linked to a content item. The table name retains the {@code
+   * content_image_} prefix for historical reasons; the column is content-level {@code content_id}
+   * (any content type), not image-specific.
+   */
   @Transactional
-  public void saveImageLocations(Long imageId, List<Long> locationIds) {
-    String deleteSql = "DELETE FROM content_image_locations WHERE image_id = :imageId";
-    MapSqlParameterSource deleteParams = createParameterSource().addValue("imageId", imageId);
+  public void saveContentLocations(Long contentId, List<Long> locationIds) {
+    String deleteSql = "DELETE FROM content_image_locations WHERE content_id = :contentId";
+    MapSqlParameterSource deleteParams = createParameterSource().addValue("contentId", contentId);
     update(deleteSql, deleteParams);
 
     if (locationIds != null && !locationIds.isEmpty()) {
       String insertSql =
-          "INSERT INTO content_image_locations (image_id, location_id) VALUES (:imageId, :locationId) ON CONFLICT DO NOTHING";
+          "INSERT INTO content_image_locations (content_id, location_id) VALUES (:contentId, :locationId) ON CONFLICT DO NOTHING";
       MapSqlParameterSource[] batchParams =
           locationIds.stream()
               .map(
                   locationId ->
                       createParameterSource()
-                          .addValue("imageId", imageId)
+                          .addValue("contentId", contentId)
                           .addValue("locationId", locationId))
               .toArray(MapSqlParameterSource[]::new);
       batchUpdate(insertSql, batchParams);
     }
-  }
-
-  @Transactional(readOnly = true)
-  public List<Long> findImageLocationIds(Long imageId) {
-    String sql = "SELECT location_id FROM content_image_locations WHERE image_id = :imageId";
-    MapSqlParameterSource params = createParameterSource().addValue("imageId", imageId);
-    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
   @Transactional(readOnly = true)
@@ -174,10 +172,10 @@ public class LocationRepository extends BaseDao {
 
     String sql =
         """
-        SELECT cil.image_id, l.id, l.location_name, l.slug, l.created_at
+        SELECT cil.content_id, l.id, l.location_name, l.slug, l.created_at
         FROM content_image_locations cil
         JOIN location l ON cil.location_id = l.id
-        WHERE cil.image_id IN (:contentIds)
+        WHERE cil.content_id IN (:contentIds)
         ORDER BY l.location_name ASC
         """;
     MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
@@ -187,7 +185,7 @@ public class LocationRepository extends BaseDao {
         sql,
         params,
         rs -> {
-          Long imageId = rs.getLong("image_id");
+          Long imageId = rs.getLong("content_id");
           LocationEntity entity =
               LocationEntity.builder()
                   .id(rs.getLong("id"))
@@ -304,17 +302,17 @@ public class LocationRepository extends BaseDao {
         SELECT l.id, l.location_name, l.slug,
           COUNT(DISTINCT c.id) AS collection_count,
           COUNT(DISTINCT CASE
-            WHEN cil.image_id IS NOT NULL
+            WHEN cil.content_id IS NOT NULL
               AND NOT EXISTS (
                 SELECT 1 FROM collection_content cc2
                 JOIN collection c2 ON cc2.collection_id = c2.id
                 JOIN collection_locations cl2 ON c2.id = cl2.collection_id
-                WHERE cc2.content_id = cil.image_id
+                WHERE cc2.content_id = cil.content_id
                   AND cl2.location_id = l.id
                   AND c2.visibility = 'LISTED'
                   AND cc2.visible = true
               )
-            THEN cil.image_id
+            THEN cil.content_id
           END) AS orphan_image_count
         FROM location l
         LEFT JOIN collection_locations cl ON cl.location_id = l.id
@@ -323,17 +321,17 @@ public class LocationRepository extends BaseDao {
         GROUP BY l.id, l.location_name, l.slug
         HAVING COUNT(DISTINCT c.id) > 0
             OR COUNT(DISTINCT CASE
-                 WHEN cil.image_id IS NOT NULL
+                 WHEN cil.content_id IS NOT NULL
                    AND NOT EXISTS (
                      SELECT 1 FROM collection_content cc2
                      JOIN collection c2 ON cc2.collection_id = c2.id
                      JOIN collection_locations cl2 ON c2.id = cl2.collection_id
-                     WHERE cc2.content_id = cil.image_id
+                     WHERE cc2.content_id = cil.content_id
                        AND cl2.location_id = l.id
                        AND c2.visibility = 'LISTED'
                        AND cc2.visible = true
                    )
-                 THEN cil.image_id
+                 THEN cil.content_id
                END) > 0
         ORDER BY l.location_name ASC
         """;

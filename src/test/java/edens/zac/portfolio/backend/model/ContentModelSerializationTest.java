@@ -32,6 +32,8 @@ class ContentModelSerializationTest {
             ContentType.IMAGE,
             "Test caption",
             null,
+            null,
+            null,
             "https://example.com/img.jpg",
             null,
             3,
@@ -101,6 +103,8 @@ class ContentModelSerializationTest {
         new ContentModels.Image(
             1L,
             ContentType.IMAGE,
+            null,
+            null,
             null,
             null,
             "https://example.com/image.jpg",

@@ -27,6 +27,12 @@ public class ContentImageUpdateRequest {
   /** Image title */
   private String title;
 
+  /** Image caption (editable) */
+  private String caption;
+
+  /** Alt text for accessibility/SEO (editable) */
+  private String alt;
+
   /** Image rating (1-5) */
   private Integer rating;
 
