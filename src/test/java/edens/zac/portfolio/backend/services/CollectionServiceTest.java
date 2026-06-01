@@ -56,6 +56,10 @@ class CollectionServiceTest {
   @Mock private MetadataService metadataService;
   @Mock private SyntheticCollectionResolver syntheticResolver;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
+
+  @Mock
+  private edens.zac.portfolio.backend.dao.CollectionSiblingRepository collectionSiblingRepository;
+
   @Mock private org.springframework.core.env.Environment springEnv;
 
   @InjectMocks private CollectionService service;
@@ -215,6 +219,7 @@ class CollectionServiceTest {
               null,
               null,
               null,
+              null,
               null);
 
       CollectionModel updatedModel =
@@ -260,6 +265,7 @@ class CollectionServiceTest {
               null,
               null,
               null,
+              null,
               null);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.empty());
@@ -279,6 +285,7 @@ class CollectionServiceTest {
               "New Title",
               "new-slug",
               "New desc",
+              null,
               null,
               null,
               null,
@@ -333,6 +340,7 @@ class CollectionServiceTest {
 
       assertThat(result).isNotNull();
       assertThat(result.getTitle()).isEqualTo("Test Collection");
+      verify(collectionProcessingUtil).populateSiblings(model, true);
     }
 
     @Test
@@ -1408,6 +1416,64 @@ class CollectionServiceTest {
           .thenReturn(false);
 
       assertThat(service.isGalleryAccessAuthorized("protected-gallery", request)).isFalse();
+    }
+  }
+
+  @Nested
+  class HandleSiblingUpdates {
+
+    private CollectionRequests.Update updateWithSiblings(
+        Long id, CollectionRequests.CollectionUpdate siblings) {
+      // 18 positional args: id first, siblings last, everything else null
+      return new CollectionRequests.Update(
+          id, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+          null, /* collections */ null, /* siblings */ siblings);
+    }
+
+    @Test
+    void addsEachNewValueAndRemovesEachRemoveId() {
+      Long parentId = 1L;
+      CollectionRequests.CollectionUpdate siblings =
+          new CollectionRequests.CollectionUpdate(
+              null,
+              List.of(
+                  new Records.ChildCollection(20L, null, null, null, null, null),
+                  new Records.ChildCollection(21L, null, null, null, null, null)),
+              List.of(30L, 31L));
+      when(collectionRepository.findById(parentId)).thenReturn(Optional.of(testCollection));
+
+      service.updateContent(parentId, updateWithSiblings(parentId, siblings));
+
+      verify(collectionSiblingRepository).addSibling(parentId, 20L);
+      verify(collectionSiblingRepository).addSibling(parentId, 21L);
+      verify(collectionSiblingRepository).removeSibling(parentId, 30L);
+      verify(collectionSiblingRepository).removeSibling(parentId, 31L);
+    }
+
+    @Test
+    void skipsSelfReferenceInNewValue() {
+      Long parentId = 1L;
+      CollectionRequests.CollectionUpdate siblings =
+          new CollectionRequests.CollectionUpdate(
+              null,
+              List.of(new Records.ChildCollection(parentId, null, null, null, null, null)),
+              null);
+      when(collectionRepository.findById(parentId)).thenReturn(Optional.of(testCollection));
+
+      service.updateContent(parentId, updateWithSiblings(parentId, siblings));
+
+      verify(collectionSiblingRepository, never()).addSibling(eq(parentId), eq(parentId));
+    }
+
+    @Test
+    void nullSiblings_isNoOp() {
+      Long parentId = 1L;
+      when(collectionRepository.findById(parentId)).thenReturn(Optional.of(testCollection));
+
+      service.updateContent(parentId, updateWithSiblings(parentId, null));
+
+      verify(collectionSiblingRepository, never()).addSibling(anyLong(), anyLong());
+      verify(collectionSiblingRepository, never()).removeSibling(anyLong(), anyLong());
     }
   }
 }

@@ -1,10 +1,12 @@
 package edens.zac.portfolio.backend.services;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.CollectionSiblingRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
@@ -13,6 +15,7 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
@@ -43,6 +46,8 @@ class CollectionProcessingUtilTest {
   @Mock private TagRepository tagRepository;
 
   @Mock private PersonRepository personRepository;
+
+  @Mock private CollectionSiblingRepository collectionSiblingRepository;
 
   @InjectMocks private CollectionProcessingUtil util;
 
@@ -149,5 +154,32 @@ class CollectionProcessingUtilTest {
     assertEquals(30, result.getContentPerPage());
     // Client galleries are private by default -> UNLISTED (direct slug access only).
     assertEquals(CollectionVisibility.UNLISTED, result.getVisibility());
+  }
+
+  @Test
+  void populateSiblings_listedOnlyTrue_setsResultFromRepository() {
+    CollectionModel model = CollectionModel.builder().id(5L).build();
+    List<Records.CollectionList> siblings =
+        List.of(
+            new Records.CollectionList(
+                9L, "Dolomites Film", "dolomites-film", CollectionType.PORTFOLIO));
+    when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(siblings);
+
+    util.populateSiblings(model, true);
+
+    assertThat(model.getSiblings()).isEqualTo(siblings);
+    verify(collectionSiblingRepository).findSiblings(5L, true);
+  }
+
+  @Test
+  void populateSiblings_nullModel_isNoOp() {
+    util.populateSiblings(null, true);
+    verifyNoInteractions(collectionSiblingRepository);
+  }
+
+  @Test
+  void populateSiblings_nullId_isNoOp() {
+    util.populateSiblings(CollectionModel.builder().build(), false);
+    verifyNoInteractions(collectionSiblingRepository);
   }
 }

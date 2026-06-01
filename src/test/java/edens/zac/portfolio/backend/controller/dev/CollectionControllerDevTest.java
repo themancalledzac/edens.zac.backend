@@ -108,6 +108,7 @@ class CollectionControllerDevTest {
             null,
             null,
             null,
+            null,
             null);
   }
 
@@ -181,6 +182,7 @@ class CollectionControllerDevTest {
             999L,
             null,
             "Updated Test Blog",
+            null,
             null,
             null,
             null,
@@ -374,6 +376,7 @@ class CollectionControllerDevTest {
             null,
             tagUpdate,
             null,
+            null,
             null);
 
     when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
@@ -420,6 +423,7 @@ class CollectionControllerDevTest {
             null,
             null,
             personUpdate,
+            null,
             null);
 
     when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
@@ -467,6 +471,7 @@ class CollectionControllerDevTest {
             null,
             tagUpdate,
             personUpdate,
+            null,
             null);
 
     when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
@@ -484,6 +489,38 @@ class CollectionControllerDevTest {
 
     verify(collectionService)
         .updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class));
+  }
+
+  @Test
+  @DisplayName("PUT /collections/{id} should accept a siblings block in the body")
+  void updateCollection_acceptsSiblings() throws Exception {
+    // Arrange
+    when(collectionService.updateContentWithMetadata(eq(1L), any(CollectionRequests.Update.class)))
+        .thenReturn(testCollectionUpdateResponse);
+
+    // Mirror the real frontend payload: newValue entries carry { collectionId, name }.
+    String body =
+        "{\"id\":1,\"siblings\":{\"newValue\":[{\"collectionId\":20,\"name\":\"Sibling B\"}],\"remove\":[30]}}";
+
+    // Act
+    mockMvc
+        .perform(
+            put("/api/admin/collections/1").contentType(MediaType.APPLICATION_JSON).content(body))
+        .andExpect(status().isOk());
+
+    // Assert: Jackson bound the raw siblings block onto Update and the controller forwarded it.
+    org.mockito.ArgumentCaptor<CollectionRequests.Update> captor =
+        org.mockito.ArgumentCaptor.forClass(CollectionRequests.Update.class);
+    verify(collectionService).updateContentWithMetadata(eq(1L), captor.capture());
+    CollectionRequests.Update sent = captor.getValue();
+    org.assertj.core.api.Assertions.assertThat(sent.siblings()).isNotNull();
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue()).hasSize(1);
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue().get(0).collectionId())
+        .isEqualTo(20L);
+    // The extra `name` field from the frontend binds cleanly (it is a real ChildCollection field).
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().newValue().get(0).name())
+        .isEqualTo("Sibling B");
+    org.assertj.core.api.Assertions.assertThat(sent.siblings().remove()).containsExactly(30L);
   }
 
   @Test

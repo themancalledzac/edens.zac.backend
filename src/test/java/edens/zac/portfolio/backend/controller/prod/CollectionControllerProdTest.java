@@ -242,6 +242,34 @@ class CollectionControllerProdTest {
   }
 
   @Test
+  @DisplayName("GET /{slug} should serialize siblings in the response")
+  void getCollectionBySlug_returnsSiblings() throws Exception {
+    // Arrange
+    CollectionModel model =
+        CollectionModel.builder()
+            .id(1L)
+            .type(CollectionType.PORTFOLIO)
+            .title("Dolomites")
+            .slug("dolomites")
+            .visibility(CollectionVisibility.LISTED)
+            .siblings(
+                List.of(
+                    new Records.CollectionList(
+                        2L, "Dolomites Film", "dolomites-film", CollectionType.PORTFOLIO)))
+            .build();
+    when(collectionService.getCollectionWithPagination(eq("dolomites"), anyInt(), anyInt()))
+        .thenReturn(model);
+
+    // Act & Assert
+    mockMvc
+        .perform(get("/api/read/collections/dolomites"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.siblings", hasSize(1)))
+        .andExpect(jsonPath("$.siblings[0].slug", is("dolomites-film")))
+        .andExpect(jsonPath("$.siblings[0].name", is("Dolomites Film")));
+  }
+
+  @Test
   @DisplayName("GET /collections/{slug} with non-existent slug should return not found")
   void getCollectionBySlug_withNonExistentSlug_shouldReturnNotFound() throws Exception {
     // Arrange

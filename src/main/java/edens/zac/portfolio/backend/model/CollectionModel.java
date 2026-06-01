@@ -74,6 +74,12 @@ public class CollectionModel {
 
   private List<String> tags;
 
+  /**
+   * Sibling collections (mutual association via collection_sibling). LISTED-only on the public read
+   * path; all siblings on the admin manage payload. Null/empty when none.
+   */
+  private List<Records.CollectionList> siblings;
+
   @Valid private List<ContentModel> content;
 
   // === Access Control ===
