@@ -1583,7 +1583,6 @@ class CollectionServiceTest {
       assertThat(captor.getValue().getCollectionId()).isEqualTo(42L);
       assertThat(captor.getValue().getContentId()).isEqualTo(900L);
 
-      // Parent 42 gained a child, so its totalContent is recounted and persisted (no drift).
       ArgumentCaptor<CollectionEntity> savedCaptor =
           ArgumentCaptor.forClass(CollectionEntity.class);
       verify(collectionRepository, times(2)).save(savedCaptor.capture());
@@ -1625,7 +1624,6 @@ class CollectionServiceTest {
 
       verify(collectionRepository).removeContentFromCollection(55L, List.of(900L));
 
-      // Parent 55 lost a child, so its totalContent is recounted and persisted (no drift).
       ArgumentCaptor<CollectionEntity> savedCaptor =
           ArgumentCaptor.forClass(CollectionEntity.class);
       verify(collectionRepository, times(2)).save(savedCaptor.capture());
