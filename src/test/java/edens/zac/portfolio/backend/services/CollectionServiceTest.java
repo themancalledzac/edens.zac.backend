@@ -29,6 +29,7 @@ import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -879,6 +880,42 @@ class CollectionServiceTest {
       assertThat(result).isNotNull();
       assertThat(result.childCollectionImages()).isNull();
       verify(collectionProcessingUtil, never()).loadImagesFromChildCollections(any());
+    }
+
+    @Test
+    void getUpdateCollectionData_populatesParentsFromInverseJoin() {
+      String slug = "child";
+      CollectionEntity child =
+          CollectionEntity.builder()
+              .id(7L)
+              .slug(slug)
+              .title("Child")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionModel model = CollectionModel.builder().id(7L).slug(slug).title("Child").build();
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(42L)
+              .title("Parent")
+              .slug("parent")
+              .type(CollectionType.PARENT)
+              .collectionDate(LocalDate.of(2026, 1, 1))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(child));
+      when(collectionProcessingUtil.convertToFullModel(child)).thenReturn(model);
+      when(collectionRepository.findAllParentCollectionsByChildId(7L)).thenReturn(List.of(parent));
+      stubEmptyMetadata();
+
+      CollectionRequests.UpdateResponse response = service.getUpdateCollectionData(slug);
+
+      assertThat(response.collection().getParents())
+          .extracting(Records.CollectionList::id)
+          .containsExactly(42L);
+      assertThat(response.collection().getParents())
+          .extracting(Records.CollectionList::collectionDate)
+          .containsExactly(LocalDate.of(2026, 1, 1));
     }
 
     @Test
