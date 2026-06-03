@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +20,7 @@ import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -28,6 +30,7 @@ import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -881,6 +884,42 @@ class CollectionServiceTest {
     }
 
     @Test
+    void getUpdateCollectionData_populatesParentsFromInverseJoin() {
+      String slug = "child";
+      CollectionEntity child =
+          CollectionEntity.builder()
+              .id(7L)
+              .slug(slug)
+              .title("Child")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionModel model = CollectionModel.builder().id(7L).slug(slug).title("Child").build();
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(42L)
+              .title("Parent")
+              .slug("parent")
+              .type(CollectionType.PARENT)
+              .collectionDate(LocalDate.of(2026, 1, 1))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(child));
+      when(collectionProcessingUtil.convertToFullModel(child)).thenReturn(model);
+      when(collectionRepository.findAllParentCollectionsByChildId(7L)).thenReturn(List.of(parent));
+      stubEmptyMetadata();
+
+      CollectionRequests.UpdateResponse response = service.getUpdateCollectionData(slug);
+
+      assertThat(response.collection().getParents())
+          .extracting(Records.CollectionList::id)
+          .containsExactly(42L);
+      assertThat(response.collection().getParents())
+          .extracting(Records.CollectionList::collectionDate)
+          .containsExactly(LocalDate.of(2026, 1, 1));
+    }
+
+    @Test
     void parentOfClientGalleries_keepsUnlistedChildren_dropsHidden() {
       // PARENT containing CLIENT_GALLERY children: viewer is already inside the password-gated
       // parent context, so UNLISTED galleries (the typical visibility for client work) must
@@ -1474,6 +1513,150 @@ class CollectionServiceTest {
 
       verify(collectionSiblingRepository, never()).addSibling(anyLong(), anyLong());
       verify(collectionSiblingRepository, never()).removeSibling(anyLong(), anyLong());
+    }
+  }
+
+  @Nested
+  class HandleParentCollectionUpdates {
+
+    private CollectionEntity current;
+    private CollectionEntity targetParent;
+
+    @BeforeEach
+    void setUpEntities() {
+      current = CollectionEntity.builder().id(7L).title("Current").slug("current").build();
+      targetParent = CollectionEntity.builder().id(42L).title("Target Parent").build();
+    }
+
+    private CollectionRequests.Update updateWithParents(
+        CollectionRequests.CollectionUpdate parents) {
+      return new CollectionRequests.Update(
+          current.getId(),
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          parents);
+    }
+
+    @Test
+    void addsCurrentAsChildOfEachNewValueParent() {
+      ContentCollectionEntity currentAsContent =
+          ContentCollectionEntity.builder().id(900L).referencedCollection(current).build();
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findById(42L)).thenReturn(Optional.of(targetParent));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(7L)).thenReturn(List.of());
+      when(contentRepository.findCollectionContentByReferencedCollectionId(7L))
+          .thenReturn(Optional.of(currentAsContent));
+      when(collectionRepository.findContentByCollectionIdAndContentId(42L, 900L))
+          .thenReturn(Optional.empty());
+      when(collectionRepository.countContentByCollectionId(42L)).thenReturn(3L);
+
+      service.updateContent(
+          current.getId(),
+          updateWithParents(
+              new CollectionRequests.CollectionUpdate(
+                  null,
+                  List.of(new Records.ChildCollection(42L, null, null, null, null, null)),
+                  null)));
+
+      ArgumentCaptor<CollectionContentEntity> captor =
+          ArgumentCaptor.forClass(CollectionContentEntity.class);
+      verify(collectionRepository).saveContent(captor.capture());
+      assertThat(captor.getValue().getCollectionId()).isEqualTo(42L);
+      assertThat(captor.getValue().getContentId()).isEqualTo(900L);
+
+      ArgumentCaptor<CollectionEntity> savedCaptor =
+          ArgumentCaptor.forClass(CollectionEntity.class);
+      verify(collectionRepository, times(2)).save(savedCaptor.capture());
+      assertThat(savedCaptor.getAllValues())
+          .anySatisfy(
+              saved -> {
+                assertThat(saved.getId()).isEqualTo(42L);
+                assertThat(saved.getTotalContent()).isEqualTo(3);
+              });
+    }
+
+    @Test
+    void removesCurrentFromEachRemoveIdParentChildren() {
+      CollectionEntity existingParent =
+          CollectionEntity.builder().id(55L).title("Existing").build();
+      ContentCollectionEntity currentAsContent =
+          ContentCollectionEntity.builder().id(900L).referencedCollection(current).build();
+      CollectionContentEntity joinRow =
+          CollectionContentEntity.builder()
+              .id(800L)
+              .collectionId(55L)
+              .contentId(900L)
+              .visible(true)
+              .build();
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findById(55L)).thenReturn(Optional.of(existingParent));
+      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(55L))
+          .thenReturn(List.of(joinRow));
+      when(contentRepository.findCollectionContentById(900L))
+          .thenReturn(Optional.of(currentAsContent));
+      when(collectionRepository.countContentByCollectionId(55L)).thenReturn(2L);
+
+      service.updateContent(
+          current.getId(),
+          updateWithParents(new CollectionRequests.CollectionUpdate(null, null, List.of(55L))));
+
+      verify(collectionRepository).removeContentFromCollection(55L, List.of(900L));
+
+      ArgumentCaptor<CollectionEntity> savedCaptor =
+          ArgumentCaptor.forClass(CollectionEntity.class);
+      verify(collectionRepository, times(2)).save(savedCaptor.capture());
+      assertThat(savedCaptor.getAllValues())
+          .anySatisfy(
+              saved -> {
+                assertThat(saved.getId()).isEqualTo(55L);
+                assertThat(saved.getTotalContent()).isEqualTo(2);
+              });
+    }
+
+    @Test
+    void rejectsSelfParent() {
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(7L)).thenReturn(List.of());
+      CollectionRequests.CollectionUpdate parents =
+          new CollectionRequests.CollectionUpdate(
+              null,
+              List.of(new Records.ChildCollection(current.getId(), null, null, null, null, null)),
+              null);
+
+      assertThatThrownBy(() -> service.updateContent(current.getId(), updateWithParents(parents)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("its own parent");
+    }
+
+    @Test
+    void rejects2Cycle_whenNewValueIdIsAlreadyAChild() {
+      CollectionEntity existingChild =
+          CollectionEntity.builder().id(99L).title("Existing Child").build();
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(7L))
+          .thenReturn(List.of(existingChild));
+      CollectionRequests.CollectionUpdate parents =
+          new CollectionRequests.CollectionUpdate(
+              null, List.of(new Records.ChildCollection(99L, null, null, null, null, null)), null);
+
+      assertThatThrownBy(() -> service.updateContent(current.getId(), updateWithParents(parents)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cycle detected");
     }
   }
 }

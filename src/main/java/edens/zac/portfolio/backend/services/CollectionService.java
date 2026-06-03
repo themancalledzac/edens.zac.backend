@@ -495,6 +495,8 @@ public class CollectionService {
     // Handle sibling (mutual) collection updates
     handleSiblingUpdates(entity.getId(), updateDTO.siblings());
 
+    handleParentCollectionUpdates(entity, updateDTO.parents());
+
     // Update total blocks count from join table before saving
     long totalBlocks = collectionRepository.countContentByCollectionId(entity.getId());
     entity.setTotalContent((int) totalBlocks);
@@ -666,6 +668,14 @@ public class CollectionService {
     // Populate admin-only fields so the manage page can display/edit them.
     collection.setGalleryPassword(entity.getGalleryPassword());
     collection.setRecipientEmails(entity.getRecipientEmails());
+
+    collection.setParents(
+        collectionRepository.findAllParentCollectionsByChildId(entity.getId()).stream()
+            .map(
+                p ->
+                    new Records.CollectionList(
+                        p.getId(), p.getTitle(), p.getSlug(), p.getType(), p.getCollectionDate()))
+            .toList());
 
     return new CollectionRequests.UpdateResponse(collection, metadata, childCollectionImages);
   }
@@ -937,6 +947,112 @@ public class CollectionService {
       }
     }
     log.info("Applied sibling updates for collection {}", parentId);
+  }
+
+  /**
+   * Apply parent-collection updates by inverting the request and delegating to {@link
+   * #handleCollectionToCollectionUpdates}. Each {@code newValue} parent gains the current
+   * collection as a child; each {@code remove} parent drops it. Cycle validation (self-parent +
+   * direct 2-cycle) runs first and throws {@link IllegalArgumentException} (mapped to 400 Bad
+   * Request). No-op when {@code parents} is null.
+   */
+  private void handleParentCollectionUpdates(
+      CollectionEntity currentCollection, CollectionRequests.CollectionUpdate parents) {
+    if (parents == null) {
+      return;
+    }
+    validateNoParentCycles(currentCollection, parents);
+    if (parents.newValue() != null) {
+      for (Records.ChildCollection entry : parents.newValue()) {
+        Long parentId = entry.collectionId();
+        if (parentId == null) {
+          continue;
+        }
+        CollectionEntity parent =
+            collectionRepository
+                .findById(parentId)
+                .orElseThrow(
+                    () ->
+                        new ResourceNotFoundException(
+                            "Parent collection not found with ID: " + parentId));
+        Records.ChildCollection currentAsChild =
+            new Records.ChildCollection(
+                currentCollection.getId(),
+                currentCollection.getTitle(),
+                currentCollection.getSlug(),
+                null,
+                null,
+                null);
+        handleCollectionToCollectionUpdates(
+            parent, new CollectionRequests.CollectionUpdate(null, List.of(currentAsChild), null));
+        recountParentTotalContent(parent);
+      }
+    }
+    if (parents.remove() != null) {
+      for (Long parentId : parents.remove()) {
+        if (parentId == null || parentId.equals(currentCollection.getId())) {
+          continue;
+        }
+        CollectionEntity parent =
+            collectionRepository
+                .findById(parentId)
+                .orElseThrow(
+                    () ->
+                        new ResourceNotFoundException(
+                            "Parent collection not found with ID: " + parentId));
+        handleCollectionToCollectionUpdates(
+            parent,
+            new CollectionRequests.CollectionUpdate(
+                null, null, List.of(currentCollection.getId())));
+        recountParentTotalContent(parent);
+      }
+    }
+    log.info("Applied parent collection updates for collection {}", currentCollection.getId());
+  }
+
+  /**
+   * Recount a parent collection's join-table membership and persist its {@code totalContent}. The
+   * inverse parent-update path mutates each parent's children directly, so without this the
+   * parent's stored count drifts until it is next edited (mirrors the recount {@link
+   * #updateContent} runs for the edited collection).
+   */
+  private void recountParentTotalContent(CollectionEntity parent) {
+    parent.setTotalContent((int) collectionRepository.countContentByCollectionId(parent.getId()));
+    collectionRepository.save(parent);
+  }
+
+  /**
+   * Reject direct cycles before applying parent updates: a collection cannot be its own parent, and
+   * a candidate parent that is already a child of the current collection would form a 2-cycle.
+   * Deeper N-cycles are an accepted limitation.
+   */
+  private void validateNoParentCycles(
+      CollectionEntity current, CollectionRequests.CollectionUpdate parents) {
+    if (parents == null || parents.newValue() == null) {
+      return;
+    }
+    Set<Long> existingChildIds =
+        collectionRepository.findAllReferencedCollectionsByParentId(current.getId()).stream()
+            .map(CollectionEntity::getId)
+            .collect(Collectors.toSet());
+    for (Records.ChildCollection entry : parents.newValue()) {
+      Long parentId = entry.collectionId();
+      if (parentId == null) {
+        continue;
+      }
+      if (parentId.equals(current.getId())) {
+        throw new IllegalArgumentException(
+            "A collection cannot be its own parent (id=" + parentId + ")");
+      }
+      if (existingChildIds.contains(parentId)) {
+        throw new IllegalArgumentException(
+            "Cycle detected: collection "
+                + parentId
+                + " is already a child of "
+                + current.getId()
+                + " and cannot also be a parent");
+      }
+    }
   }
 
   /**

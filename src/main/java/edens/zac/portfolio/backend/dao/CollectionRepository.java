@@ -191,6 +191,31 @@ public class CollectionRepository extends BaseDao {
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
+  /**
+   * Inverse of {@link #findAllReferencedCollectionsByParentId}: given a child collection, find
+   * every parent collection that references it. Walks child -> content_collection ->
+   * collection_content -> parent. Admin-context query: filters neither {@code c.visibility} nor
+   * per-membership {@code cc.visible}, so the admin sees every parent relationship -- including
+   * ones where the child is linked but hidden. Mirrors the both-gates-dropped symmetry of {@link
+   * #findAllReferencedCollectionsByParentId}.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findAllParentCollectionsByChildId(Long childId) {
+    String sql =
+        """
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        FROM collection c
+        JOIN collection_content cc ON cc.collection_id = c.id
+        JOIN content_collection cct ON cct.id = cc.content_id
+        WHERE cct.referenced_collection_id = :childId
+        ORDER BY c.title ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("childId", childId);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
   /** Find every listed collection that has a cover image, ordered by rating then date. */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findAllListedWithCovers() {

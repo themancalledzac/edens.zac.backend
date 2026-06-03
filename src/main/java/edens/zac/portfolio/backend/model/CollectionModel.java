@@ -80,6 +80,12 @@ public class CollectionModel {
    */
   private List<Records.CollectionList> siblings;
 
+  /**
+   * Parent collections on the admin manage payload. Includes HIDDEN parents - admin sees every
+   * relationship. Null/empty when none. Not populated on public read paths.
+   */
+  private List<Records.CollectionList> parents;
+
   @Valid private List<ContentModel> content;
 
   // === Access Control ===
