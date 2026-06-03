@@ -968,7 +968,8 @@ public class CollectionService {
     if (parents.newValue() != null) {
       for (Records.ChildCollection entry : parents.newValue()) {
         Long parentId = entry.collectionId();
-        if (parentId == null || parentId.equals(currentCollection.getId())) {
+        // Self-parent is already rejected by validateNoParentCycles above; only skip null ids.
+        if (parentId == null) {
           continue;
         }
         CollectionEntity parent =
