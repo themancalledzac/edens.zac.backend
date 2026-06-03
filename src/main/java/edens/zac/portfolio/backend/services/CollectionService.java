@@ -495,7 +495,6 @@ public class CollectionService {
     // Handle sibling (mutual) collection updates
     handleSiblingUpdates(entity.getId(), updateDTO.siblings());
 
-    // Handle parent (inverse child) collection updates
     handleParentCollectionUpdates(entity, updateDTO.parents());
 
     // Update total blocks count from join table before saving
@@ -670,8 +669,6 @@ public class CollectionService {
     collection.setGalleryPassword(entity.getGalleryPassword());
     collection.setRecipientEmails(entity.getRecipientEmails());
 
-    // Populate parents (inverse of children) for the admin manage page. Admin-only: includes every
-    // parent regardless of visibility. Public read paths intentionally do not set this.
     collection.setParents(
         collectionRepository.findAllParentCollectionsByChildId(entity.getId()).stream()
             .map(

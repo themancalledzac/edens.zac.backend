@@ -262,7 +262,7 @@ class CollectionRepositoryTest {
       assertThat(sql).contains("JOIN content_collection cct ON cct.id = cc.content_id");
       assertThat(sql).contains("WHERE cct.referenced_collection_id = :childId");
       assertThat(sql).doesNotContain("cc.visible");
-      assertThat(sql).doesNotContain("c.visibility ="); // admin view -- no parent-visibility gate
+      assertThat(sql).doesNotContain("c.visibility =");
       assertThat(paramsCaptor.getValue().getValue("childId")).isEqualTo(42L);
       assertThat(parents).hasSize(1).first().extracting(CollectionEntity::getId).isEqualTo(99L);
     }

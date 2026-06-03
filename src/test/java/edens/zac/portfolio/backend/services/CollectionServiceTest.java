@@ -1528,7 +1528,6 @@ class CollectionServiceTest {
       targetParent = CollectionEntity.builder().id(42L).title("Target Parent").build();
     }
 
-    // 19 positional args: id first, parents last, everything else null.
     private CollectionRequests.Update updateWithParents(
         CollectionRequests.CollectionUpdate parents) {
       return new CollectionRequests.Update(
@@ -1547,17 +1546,14 @@ class CollectionServiceTest {
           null,
           null,
           null,
-          null, /* collections */
-          null, /* siblings */
-          null, /* parents */
+          null,
+          null,
+          null,
           parents);
     }
 
     @Test
     void addsCurrentAsChildOfEachNewValueParent() {
-      // Adding parent 42 means: add "current" (7) as a child of 42. The service inverts the
-      // request and delegates to the existing child-collection add path, which reuses the
-      // ContentCollectionEntity referencing 7 and inserts a join row into parent 42.
       ContentCollectionEntity currentAsContent =
           ContentCollectionEntity.builder().id(900L).referencedCollection(current).build();
       when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
@@ -1596,9 +1592,6 @@ class CollectionServiceTest {
 
     @Test
     void removesCurrentFromEachRemoveIdParentChildren() {
-      // Removing parent 55 means: drop "current" (7) from parent 55's children. The service
-      // delegates to the existing child-removal path, which finds the ContentCollectionEntity
-      // referencing 7 inside parent 55 and unlinks it.
       CollectionEntity existingParent =
           CollectionEntity.builder().id(55L).title("Existing").build();
       ContentCollectionEntity currentAsContent =
