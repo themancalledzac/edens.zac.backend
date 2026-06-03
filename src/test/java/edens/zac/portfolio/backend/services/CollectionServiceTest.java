@@ -1574,5 +1574,36 @@ class CollectionServiceTest {
 
       verify(collectionRepository).removeContentFromCollection(55L, List.of(900L));
     }
+
+    @Test
+    void rejectsSelfParent() {
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(7L)).thenReturn(List.of());
+      CollectionRequests.CollectionUpdate parents =
+          new CollectionRequests.CollectionUpdate(
+              null,
+              List.of(new Records.ChildCollection(current.getId(), null, null, null, null, null)),
+              null);
+
+      assertThatThrownBy(() -> service.updateContent(current.getId(), updateWithParents(parents)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("its own parent");
+    }
+
+    @Test
+    void rejects2Cycle_whenNewValueIdIsAlreadyAChild() {
+      CollectionEntity existingChild =
+          CollectionEntity.builder().id(99L).title("Existing Child").build();
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(7L))
+          .thenReturn(List.of(existingChild));
+      CollectionRequests.CollectionUpdate parents =
+          new CollectionRequests.CollectionUpdate(
+              null, List.of(new Records.ChildCollection(99L, null, null, null, null, null)), null);
+
+      assertThatThrownBy(() -> service.updateContent(current.getId(), updateWithParents(parents)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cycle detected");
+    }
   }
 }
