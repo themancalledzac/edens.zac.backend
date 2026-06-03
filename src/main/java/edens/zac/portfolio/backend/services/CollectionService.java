@@ -980,7 +980,24 @@ public class CollectionService {
             parent, new CollectionRequests.CollectionUpdate(null, List.of(currentAsChild), null));
       }
     }
-    // Remove branch implemented in Task 1.4
+    if (parents.remove() != null) {
+      for (Long parentId : parents.remove()) {
+        if (parentId == null || parentId.equals(currentCollection.getId())) {
+          continue;
+        }
+        CollectionEntity parent =
+            collectionRepository
+                .findById(parentId)
+                .orElseThrow(
+                    () ->
+                        new ResourceNotFoundException(
+                            "Parent collection not found with ID: " + parentId));
+        handleCollectionToCollectionUpdates(
+            parent,
+            new CollectionRequests.CollectionUpdate(
+                null, null, List.of(currentCollection.getId())));
+      }
+    }
     log.info("Applied parent collection updates for collection {}", currentCollection.getId());
   }
 

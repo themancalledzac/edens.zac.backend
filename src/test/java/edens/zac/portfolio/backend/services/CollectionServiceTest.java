@@ -1544,5 +1544,35 @@ class CollectionServiceTest {
       assertThat(captor.getValue().getCollectionId()).isEqualTo(42L);
       assertThat(captor.getValue().getContentId()).isEqualTo(900L);
     }
+
+    @Test
+    void removesCurrentFromEachRemoveIdParentChildren() {
+      // Removing parent 55 means: drop "current" (7) from parent 55's children. The service
+      // delegates to the existing child-removal path, which finds the ContentCollectionEntity
+      // referencing 7 inside parent 55 and unlinks it.
+      CollectionEntity existingParent =
+          CollectionEntity.builder().id(55L).title("Existing").build();
+      ContentCollectionEntity currentAsContent =
+          ContentCollectionEntity.builder().id(900L).referencedCollection(current).build();
+      CollectionContentEntity joinRow =
+          CollectionContentEntity.builder()
+              .id(800L)
+              .collectionId(55L)
+              .contentId(900L)
+              .visible(true)
+              .build();
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findById(55L)).thenReturn(Optional.of(existingParent));
+      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(55L))
+          .thenReturn(List.of(joinRow));
+      when(contentRepository.findCollectionContentById(900L))
+          .thenReturn(Optional.of(currentAsContent));
+
+      service.updateContent(
+          current.getId(),
+          updateWithParents(new CollectionRequests.CollectionUpdate(null, null, List.of(55L))));
+
+      verify(collectionRepository).removeContentFromCollection(55L, List.of(900L));
+    }
   }
 }
