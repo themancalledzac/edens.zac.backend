@@ -194,8 +194,10 @@ public class CollectionRepository extends BaseDao {
   /**
    * Inverse of {@link #findAllReferencedCollectionsByParentId}: given a child collection, find
    * every parent collection that references it. Walks child -> content_collection ->
-   * collection_content -> parent. Excludes soft-deleted memberships (cc.visible = false) but does
-   * NOT filter by c.visibility -- admin views see every parent regardless of visibility.
+   * collection_content -> parent. Admin-context query: filters neither {@code c.visibility} nor
+   * per-membership {@code cc.visible}, so the admin sees every parent relationship -- including
+   * ones where the child is linked but hidden. Mirrors the both-gates-dropped symmetry of {@link
+   * #findAllReferencedCollectionsByParentId}.
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findAllParentCollectionsByChildId(Long childId) {
@@ -208,7 +210,6 @@ public class CollectionRepository extends BaseDao {
         JOIN collection_content cc ON cc.collection_id = c.id
         JOIN content_collection cct ON cct.id = cc.content_id
         WHERE cct.referenced_collection_id = :childId
-          AND cc.visible = true
         ORDER BY c.title ASC
         """;
     MapSqlParameterSource params = createParameterSource().addValue("childId", childId);

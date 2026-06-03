@@ -988,6 +988,7 @@ public class CollectionService {
                 null);
         handleCollectionToCollectionUpdates(
             parent, new CollectionRequests.CollectionUpdate(null, List.of(currentAsChild), null));
+        recountParentTotalContent(parent);
       }
     }
     if (parents.remove() != null) {
@@ -1006,9 +1007,21 @@ public class CollectionService {
             parent,
             new CollectionRequests.CollectionUpdate(
                 null, null, List.of(currentCollection.getId())));
+        recountParentTotalContent(parent);
       }
     }
     log.info("Applied parent collection updates for collection {}", currentCollection.getId());
+  }
+
+  /**
+   * Recount a parent collection's join-table membership and persist its {@code totalContent}. The
+   * inverse parent-update path mutates each parent's children directly, so without this the
+   * parent's stored count drifts until it is next edited (mirrors the recount {@link
+   * #updateContent} runs for the edited collection).
+   */
+  private void recountParentTotalContent(CollectionEntity parent) {
+    parent.setTotalContent((int) collectionRepository.countContentByCollectionId(parent.getId()));
+    collectionRepository.save(parent);
   }
 
   /**

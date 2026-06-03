@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -1566,6 +1567,7 @@ class CollectionServiceTest {
           .thenReturn(Optional.of(currentAsContent));
       when(collectionRepository.findContentByCollectionIdAndContentId(42L, 900L))
           .thenReturn(Optional.empty());
+      when(collectionRepository.countContentByCollectionId(42L)).thenReturn(3L);
 
       service.updateContent(
           current.getId(),
@@ -1580,6 +1582,17 @@ class CollectionServiceTest {
       verify(collectionRepository).saveContent(captor.capture());
       assertThat(captor.getValue().getCollectionId()).isEqualTo(42L);
       assertThat(captor.getValue().getContentId()).isEqualTo(900L);
+
+      // Parent 42 gained a child, so its totalContent is recounted and persisted (no drift).
+      ArgumentCaptor<CollectionEntity> savedCaptor =
+          ArgumentCaptor.forClass(CollectionEntity.class);
+      verify(collectionRepository, times(2)).save(savedCaptor.capture());
+      assertThat(savedCaptor.getAllValues())
+          .anySatisfy(
+              saved -> {
+                assertThat(saved.getId()).isEqualTo(42L);
+                assertThat(saved.getTotalContent()).isEqualTo(3);
+              });
     }
 
     @Test
@@ -1604,12 +1617,24 @@ class CollectionServiceTest {
           .thenReturn(List.of(joinRow));
       when(contentRepository.findCollectionContentById(900L))
           .thenReturn(Optional.of(currentAsContent));
+      when(collectionRepository.countContentByCollectionId(55L)).thenReturn(2L);
 
       service.updateContent(
           current.getId(),
           updateWithParents(new CollectionRequests.CollectionUpdate(null, null, List.of(55L))));
 
       verify(collectionRepository).removeContentFromCollection(55L, List.of(900L));
+
+      // Parent 55 lost a child, so its totalContent is recounted and persisted (no drift).
+      ArgumentCaptor<CollectionEntity> savedCaptor =
+          ArgumentCaptor.forClass(CollectionEntity.class);
+      verify(collectionRepository, times(2)).save(savedCaptor.capture());
+      assertThat(savedCaptor.getAllValues())
+          .anySatisfy(
+              saved -> {
+                assertThat(saved.getId()).isEqualTo(55L);
+                assertThat(saved.getTotalContent()).isEqualTo(2);
+              });
     }
 
     @Test
