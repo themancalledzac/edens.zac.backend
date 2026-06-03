@@ -87,7 +87,60 @@ public final class CollectionRequests {
        * is read ({@code orderIndex}/{@code visible}/{@code prev} are ignored — siblings carry no
        * ordering or per-link visibility).
        */
-      CollectionUpdate siblings) {}
+      CollectionUpdate siblings,
+      /**
+       * Parent collection updates. Derived from the inverse of the {@code collections} (children)
+       * relationship — each {@code newValue} entry adds the current collection as a child of that
+       * parent; each {@code remove} ID removes the current from that parent's children. Reuses
+       * {@link CollectionUpdate}; only {@code collectionId} is read.
+       */
+      CollectionUpdate parents) {
+
+    /**
+     * Backwards-compatible constructor for callers predating the {@code parents} field. Delegates
+     * to the canonical constructor with {@code parents = null}.
+     */
+    public Update(
+        Long id,
+        CollectionType type,
+        String title,
+        String slug,
+        String description,
+        LocationUpdate locations,
+        LocalDate collectionDate,
+        Boolean clearCollectionDate,
+        CollectionVisibility visibility,
+        Integer rating,
+        DisplayMode displayMode,
+        Integer contentPerPage,
+        Integer rowsWide,
+        Long coverImageId,
+        TagUpdate tags,
+        PersonUpdate people,
+        CollectionUpdate collections,
+        CollectionUpdate siblings) {
+      this(
+          id,
+          type,
+          title,
+          slug,
+          description,
+          locations,
+          collectionDate,
+          clearCollectionDate,
+          visibility,
+          rating,
+          displayMode,
+          contentPerPage,
+          rowsWide,
+          coverImageId,
+          tags,
+          people,
+          collections,
+          siblings,
+          null);
+    }
+  }
 
   /**
    * Request for reordering content within a collection. Allows multiple content items to be

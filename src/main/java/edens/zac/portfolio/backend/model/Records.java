@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.CollectionType;
+import java.time.LocalDate;
 
 /**
  * Simple immutable data transfer objects implemented as Java records. These replace the verbose
@@ -63,10 +64,17 @@ public final class Records {
   public record CollectionSummary(Long id, String title) {}
 
   /**
-   * Model representing a collection for list views. Contains the collection's ID, name, slug, and
-   * type.
+   * Model representing a collection for list views. Contains the collection's ID, name, slug, type,
+   * and collection date (serialized as an ISO date string; null when not projected).
    */
-  public record CollectionList(Long id, String name, String slug, CollectionType type) {}
+  public record CollectionList(
+      Long id, String name, String slug, CollectionType type, LocalDate collectionDate) {
+
+    /** Backwards-compatible constructor for callers that omit the collection date. */
+    public CollectionList(Long id, String name, String slug, CollectionType type) {
+      this(id, name, slug, type, null);
+    }
+  }
 
   /** DTO for admin hub tile configuration. coverImageUrl is null when no image is assigned. */
   public record AdminHomeTileResponse(String tileKey, String coverImageUrl, int displayOrder) {}
