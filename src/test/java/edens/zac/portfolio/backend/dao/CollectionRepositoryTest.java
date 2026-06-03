@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.HashMap;
@@ -238,6 +239,42 @@ class CollectionRepositoryTest {
       MapSqlParameterSource params = paramsCaptor.getValue();
       assertThat(params.getValue("id")).isEqualTo(7L);
       assertThat(params.getValue("rating")).isEqualTo(4);
+    }
+  }
+
+  @Nested
+  class FindAllParentCollectionsByChildId {
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void buildsInverseJoinSql_andPassesChildIdParam() {
+      CollectionEntity stub = CollectionEntity.builder().id(99L).title("Parent A").build();
+      when(namedParameterJdbcTemplate.query(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(List.of(stub));
+
+      List<CollectionEntity> parents = collectionRepository.findAllParentCollectionsByChildId(42L);
+
+      verify(namedParameterJdbcTemplate)
+          .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+      String sql = sqlCaptor.getValue();
+      assertThat(sql).contains("JOIN collection_content cc ON cc.collection_id = c.id");
+      assertThat(sql).contains("JOIN content_collection cct ON cct.id = cc.content_id");
+      assertThat(sql).contains("WHERE cct.referenced_collection_id = :childId");
+      assertThat(sql).contains("AND cc.visible = true");
+      assertThat(sql).doesNotContain("c.visibility ="); // admin view -- no parent-visibility gate
+      assertThat(paramsCaptor.getValue().getValue("childId")).isEqualTo(42L);
+      assertThat(parents).hasSize(1).first().extracting(CollectionEntity::getId).isEqualTo(99L);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void returnsEmpty_whenJdbcReturnsEmpty() {
+      when(namedParameterJdbcTemplate.query(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(List.of());
+
+      assertThat(collectionRepository.findAllParentCollectionsByChildId(42L)).isEmpty();
     }
   }
 }
