@@ -259,5 +259,60 @@ class ContentServiceDownloadTest {
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Unsupported download format");
     }
+
+    @Test
+    void imageIdsSubset_returnsOnlyRequestedInCollectionOrder() {
+      stubCollectionImages(
+          1L,
+          List.of(
+              image(1L, "first.jpg", "first.webp"),
+              image(2L, "second.jpg", "second.webp"),
+              image(3L, "third.jpg", "third.webp")));
+
+      List<DownloadResolution> entries =
+          service.resolveCollectionDownloadEntries(1L, "web", List.of(1L, 3L));
+
+      // Exactly ids 1 and 3, in collection (order_index) order — not request order.
+      assertThat(entries).hasSize(2);
+      assertThat(entries.get(0).s3Key()).contains("first.webp");
+      assertThat(entries.get(1).s3Key()).contains("third.webp");
+    }
+
+    @Test
+    void imageIdsNull_returnsFullSet() {
+      stubCollectionImages(
+          1L,
+          List.of(image(1L, "first.jpg", "first.webp"), image(2L, "second.jpg", "second.webp")));
+
+      List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "web", null);
+
+      assertThat(entries).hasSize(2);
+    }
+
+    @Test
+    void imageIdsEmpty_returnsFullSet() {
+      stubCollectionImages(
+          1L,
+          List.of(image(1L, "first.jpg", "first.webp"), image(2L, "second.jpg", "second.webp")));
+
+      List<DownloadResolution> entries =
+          service.resolveCollectionDownloadEntries(1L, "web", List.of());
+
+      assertThat(entries).hasSize(2);
+    }
+
+    @Test
+    void imageIdsNotInCollection_areDroppedNotLeaked() {
+      stubCollectionImages(
+          1L,
+          List.of(image(1L, "first.jpg", "first.webp"), image(2L, "second.jpg", "second.webp")));
+
+      // id 99 does not belong to this collection: silently dropped, no throw, never leaked.
+      List<DownloadResolution> entries =
+          service.resolveCollectionDownloadEntries(1L, "web", List.of(1L, 99L));
+
+      assertThat(entries).hasSize(1);
+      assertThat(entries.get(0).s3Key()).contains("first.webp");
+    }
   }
 }

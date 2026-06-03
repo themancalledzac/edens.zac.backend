@@ -49,6 +49,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
  *   <li>{@code GET /api/read/collections/{slug}/download?format=web} -- ZIP of every WebP
  *   <li>{@code GET /api/read/collections/{slug}/download?format=original} -- ZIP of full-res JPEGs
  *       (per-image fallback to WebP when no original is stored)
+ *   <li>{@code GET /api/read/collections/{slug}/download?format=web&imageIds=1,2,3} -- ZIP of just
+ *       the selected images (optional {@code imageIds} subset; ids not in the collection are
+ *       dropped, and the ZIP filename gains a {@code -selection-N} suffix)
  * </ul>
  */
 @Slf4j
@@ -111,6 +114,7 @@ public class ContentDownloadControllerProd {
   public void downloadCollection(
       @PathVariable String slug,
       @RequestParam(defaultValue = "web") String format,
+      @RequestParam(required = false) List<Long> imageIds,
       HttpServletRequest request,
       HttpServletResponse response)
       throws IOException {
@@ -125,9 +129,15 @@ public class ContentDownloadControllerProd {
     }
 
     List<DownloadResolution> entries =
-        contentService.resolveCollectionDownloadEntries(collection.getId(), format);
+        contentService.resolveCollectionDownloadEntries(collection.getId(), format, imageIds);
 
+    boolean isSubset = imageIds != null && !imageIds.isEmpty();
     String zipName = contentService.collectionZipFilename(collection.getSlug(), collection.getId());
+    if (isSubset) {
+      // Distinguish a selected-subset ZIP from the whole-collection one so a client who downloads
+      // "all" and then a subset doesn't get two identically named files. Count is an int -- safe.
+      zipName = zipName.replaceFirst("\\.zip$", "-selection-" + imageIds.size() + ".zip");
+    }
     response.setContentType("application/zip");
     response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipName + "\"");
 
