@@ -19,6 +19,7 @@ import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -1474,6 +1475,74 @@ class CollectionServiceTest {
 
       verify(collectionSiblingRepository, never()).addSibling(anyLong(), anyLong());
       verify(collectionSiblingRepository, never()).removeSibling(anyLong(), anyLong());
+    }
+  }
+
+  @Nested
+  class HandleParentCollectionUpdates {
+
+    private CollectionEntity current;
+    private CollectionEntity targetParent;
+
+    @BeforeEach
+    void setUpEntities() {
+      current = CollectionEntity.builder().id(7L).title("Current").slug("current").build();
+      targetParent = CollectionEntity.builder().id(42L).title("Target Parent").build();
+    }
+
+    // 19 positional args: id first, parents last, everything else null.
+    private CollectionRequests.Update updateWithParents(
+        CollectionRequests.CollectionUpdate parents) {
+      return new CollectionRequests.Update(
+          current.getId(),
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null, /* collections */
+          null, /* siblings */
+          null, /* parents */
+          parents);
+    }
+
+    @Test
+    void addsCurrentAsChildOfEachNewValueParent() {
+      // Adding parent 42 means: add "current" (7) as a child of 42. The service inverts the
+      // request and delegates to the existing child-collection add path, which reuses the
+      // ContentCollectionEntity referencing 7 and inserts a join row into parent 42.
+      ContentCollectionEntity currentAsContent =
+          ContentCollectionEntity.builder().id(900L).referencedCollection(current).build();
+      when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
+      when(collectionRepository.findById(42L)).thenReturn(Optional.of(targetParent));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(7L)).thenReturn(List.of());
+      when(contentRepository.findCollectionContentByReferencedCollectionId(7L))
+          .thenReturn(Optional.of(currentAsContent));
+      when(collectionRepository.findContentByCollectionIdAndContentId(42L, 900L))
+          .thenReturn(Optional.empty());
+
+      service.updateContent(
+          current.getId(),
+          updateWithParents(
+              new CollectionRequests.CollectionUpdate(
+                  null,
+                  List.of(new Records.ChildCollection(42L, null, null, null, null, null)),
+                  null)));
+
+      ArgumentCaptor<CollectionContentEntity> captor =
+          ArgumentCaptor.forClass(CollectionContentEntity.class);
+      verify(collectionRepository).saveContent(captor.capture());
+      assertThat(captor.getValue().getCollectionId()).isEqualTo(42L);
+      assertThat(captor.getValue().getContentId()).isEqualTo(900L);
     }
   }
 }
