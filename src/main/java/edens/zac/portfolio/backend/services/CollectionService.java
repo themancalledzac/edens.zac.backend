@@ -571,10 +571,21 @@ public class CollectionService {
       throw new ResourceNotFoundException("Collection not found with ID: " + id);
     }
 
-    // Delete all join table entries (dissociate content from collection)
-    // This does NOT delete the content itself - content is reusable!
+    // Disassociate this collection from any parent collections that reference it as a child.
+    // Capture the parents before removing the back-references, then recount each parent's
+    // totalContent so their stored counts stay accurate.
+    List<CollectionEntity> parents = collectionRepository.findAllParentCollectionsByChildId(id);
+    contentRepository.deleteContentCollectionsReferencing(id);
+    for (CollectionEntity parent : parents) {
+      recountParentTotalContent(parent);
+    }
+
+    // Dissociate this collection's own content membership and its tags. Content itself is reusable
+    // and is NOT deleted. collection_locations, collection_people, and collection_sibling rows are
+    // removed by ON DELETE CASCADE when the collection row is deleted.
     collectionRepository.deleteContentByCollectionId(id);
-    log.debug("Deleted all join table entries for collection ID: {}", id);
+    tagRepository.deleteCollectionTags(id);
+    log.debug("Disassociated content, tags, and parent references for collection ID: {}", id);
 
     // Delete collection
     collectionRepository.deleteById(id);

@@ -222,7 +222,10 @@ class CollectionControllerDevTest {
     doNothing().when(collectionService).deleteCollection(1L);
 
     // Act & Assert
-    mockMvc.perform(delete("/api/admin/collections/1")).andExpect(status().isNoContent());
+    mockMvc
+        .perform(delete("/api/admin/collections/1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
 
     verify(collectionService).deleteCollection(1L);
   }
