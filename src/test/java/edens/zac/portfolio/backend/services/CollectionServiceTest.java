@@ -161,13 +161,15 @@ class CollectionServiceTest {
   class DeleteCollection {
 
     @Test
-    void deleteCollection_happyPath_deletesJoinEntriesThenCollection() {
+    void deleteCollection_happyPath_disassociatesAllRelationshipsThenDeletes() {
       Long collectionId = 1L;
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
 
       service.deleteCollection(collectionId);
 
+      verify(contentRepository).deleteContentCollectionsReferencing(collectionId);
       verify(collectionRepository).deleteContentByCollectionId(collectionId);
+      verify(tagRepository).deleteCollectionTags(collectionId);
       verify(collectionRepository).deleteById(collectionId);
     }
 
@@ -180,21 +182,47 @@ class CollectionServiceTest {
           .isInstanceOf(ResourceNotFoundException.class)
           .hasMessageContaining("Collection not found with ID: 999");
 
+      verify(contentRepository, never()).deleteContentCollectionsReferencing(any());
       verify(collectionRepository, never()).deleteContentByCollectionId(any());
+      verify(tagRepository, never()).deleteCollectionTags(any());
       verify(collectionRepository, never()).deleteById(any());
     }
 
     @Test
-    void deleteCollection_deletesJoinEntriesBeforeCollection() {
+    void deleteCollection_removesBackReferencesAndTagsBeforeDeletingCollection() {
       Long collectionId = 1L;
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
 
       service.deleteCollection(collectionId);
 
-      // Verify order: join entries deleted first, then collection
-      var inOrder = org.mockito.Mockito.inOrder(collectionRepository);
+      // Back-references, own content, and tags must all be cleared before the collection row.
+      var inOrder =
+          org.mockito.Mockito.inOrder(collectionRepository, contentRepository, tagRepository);
+      inOrder.verify(contentRepository).deleteContentCollectionsReferencing(collectionId);
       inOrder.verify(collectionRepository).deleteContentByCollectionId(collectionId);
+      inOrder.verify(tagRepository).deleteCollectionTags(collectionId);
       inOrder.verify(collectionRepository).deleteById(collectionId);
+    }
+
+    @Test
+    void deleteCollection_withParentReferences_recountsEachParentTotalContent() {
+      Long collectionId = 1L;
+      CollectionEntity parentA = CollectionEntity.builder().id(10L).totalContent(99).build();
+      CollectionEntity parentB = CollectionEntity.builder().id(11L).totalContent(99).build();
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(collectionRepository.findAllParentCollectionsByChildId(collectionId))
+          .thenReturn(List.of(parentA, parentB));
+      when(collectionRepository.countContentByCollectionId(10L)).thenReturn(3L);
+      when(collectionRepository.countContentByCollectionId(11L)).thenReturn(5L);
+
+      service.deleteCollection(collectionId);
+
+      // Back-references removed, then each parent's stored count recomputed and persisted.
+      verify(contentRepository).deleteContentCollectionsReferencing(collectionId);
+      assertThat(parentA.getTotalContent()).isEqualTo(3);
+      assertThat(parentB.getTotalContent()).isEqualTo(5);
+      verify(collectionRepository).save(parentA);
+      verify(collectionRepository).save(parentB);
     }
   }
 

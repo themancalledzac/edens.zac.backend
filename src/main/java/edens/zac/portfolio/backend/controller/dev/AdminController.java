@@ -120,10 +120,10 @@ class AdminController {
   }
 
   @DeleteMapping("/collections/{id}")
-  public ResponseEntity<Void> deleteCollection(@PathVariable Long id) {
+  public ResponseEntity<Map<String, Boolean>> deleteCollection(@PathVariable Long id) {
     collectionService.deleteCollection(id);
     log.info("Deleted collection: {}", id);
-    return ResponseEntity.noContent().build();
+    return ResponseEntity.ok(Map.of("success", true));
   }
 
   /** All collections paginated, ordered by collection date DESC. Visibility is not filtered. */

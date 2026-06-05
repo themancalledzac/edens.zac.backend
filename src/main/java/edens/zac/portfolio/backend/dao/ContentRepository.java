@@ -1047,4 +1047,25 @@ public class ContentRepository extends BaseDao {
     String contentSql = "DELETE FROM content WHERE id = :id";
     update(contentSql, params);
   }
+
+  /**
+   * Delete every {@code content_collection} block that references the given collection. Unlinks the
+   * blocks from any parent collection ({@code collection_content}), removes the {@code
+   * content_collection} rows, and deletes the underlying {@code content} rows. Used when a
+   * collection is deleted so parent collections no longer hold a dangling reference to it.
+   */
+  @Transactional
+  public void deleteContentCollectionsReferencing(Long referencedCollectionId) {
+    String findSql = "SELECT id FROM content_collection WHERE referenced_collection_id = :refId";
+    MapSqlParameterSource refParams =
+        createParameterSource().addValue("refId", referencedCollectionId);
+    List<Long> blockIds = namedParameterJdbcTemplate.queryForList(findSql, refParams, Long.class);
+    if (blockIds.isEmpty()) {
+      return;
+    }
+    MapSqlParameterSource idParams = createParameterSource().addValue("ids", blockIds);
+    update("DELETE FROM collection_content WHERE content_id IN (:ids)", idParams);
+    update("DELETE FROM content_collection WHERE referenced_collection_id = :refId", refParams);
+    update("DELETE FROM content WHERE id IN (:ids)", idParams);
+  }
 }
