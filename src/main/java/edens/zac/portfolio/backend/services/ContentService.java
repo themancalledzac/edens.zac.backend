@@ -391,10 +391,10 @@ public class ContentService {
     long totalElements = contentRepository.countSearchImages(request);
     int totalPages = limit > 0 ? (int) Math.ceil((double) totalElements / limit) : 0;
 
+    // Batch-convert (3 queries total for tags/people/locations) instead of mapping each entity
+    // through the singular converter, which fires 3 per-image queries -> N+1 on large pages.
     List<ContentModels.Image> images =
-        entities.stream()
-            .map(contentModelConverter::convertImageEntityToModel)
-            .collect(Collectors.toList());
+        contentModelConverter.batchConvertImageEntitiesToModels(entities);
 
     return new ImageSearchResponse(images, totalElements, totalPages);
   }
