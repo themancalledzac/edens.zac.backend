@@ -31,6 +31,7 @@ import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidato
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -755,9 +756,39 @@ public class ContentService {
   @Transactional(readOnly = true)
   public List<DownloadResolution> resolveCollectionDownloadEntries(
       Long collectionId, String format) {
+    return resolveCollectionDownloadEntries(collectionId, format, null);
+  }
+
+  /**
+   * Resolve the per-image download targets for a collection ZIP, optionally restricted to a subset
+   * of image ids. When {@code imageIds} is {@code null} or empty the whole collection is resolved
+   * (identical to the 2-arg overload); otherwise the collection's images are filtered to those
+   * whose id is in {@code imageIds}, preserving collection display order. Filtering only ever
+   * narrows the collection's own images, so an id that does not belong to this collection is
+   * silently dropped -- this is the auth boundary, and no image outside the authorized collection
+   * can be requested.
+   *
+   * <p>Format resolution semantics are unchanged: for {@code format=original}, prefers {@code
+   * imageUrlOriginal} per image but transparently falls back to {@code imageUrlWeb} (and the {@code
+   * .webp} extension) when an original is not stored, so the ZIP is always complete. Images whose
+   * configured CloudFront URL cannot be parsed into an S3 key are skipped with a WARN log.
+   *
+   * <p>Throws {@link IllegalArgumentException} for unsupported formats.
+   */
+  @Transactional(readOnly = true)
+  public List<DownloadResolution> resolveCollectionDownloadEntries(
+      Long collectionId, String format, Collection<Long> imageIds) {
     requireSupportedFormat(format);
     boolean isOriginal = FORMAT_ORIGINAL.equalsIgnoreCase(format);
     List<ContentImageEntity> images = findImagesForCollection(collectionId);
+
+    // Subset filter: when imageIds is non-empty, keep only requested ids (membership-preserving,
+    // so an id not in this collection is silently dropped -- this is the auth boundary).
+    if (imageIds != null && !imageIds.isEmpty()) {
+      Set<Long> wanted = new HashSet<>(imageIds);
+      images = images.stream().filter(img -> wanted.contains(img.getId())).toList();
+    }
+
     List<DownloadResolution> resolutions = new ArrayList<>(images.size());
     for (ContentImageEntity image : images) {
       String url = image.getImageUrlWeb();

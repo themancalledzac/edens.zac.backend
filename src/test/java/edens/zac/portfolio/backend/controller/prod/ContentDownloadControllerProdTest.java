@@ -30,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -269,7 +270,7 @@ class ContentDownloadControllerProdTest {
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(gallery);
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
           .thenReturn(true);
-      when(contentService.resolveCollectionDownloadEntries(1L, "web"))
+      when(contentService.resolveCollectionDownloadEntries(1L, "web", null))
           .thenReturn(List.of(webResolution("first.webp"), webResolution("second.webp")));
       when(s3Client.getObject(any(GetObjectRequest.class)))
           .thenReturn(fakeS3Stream("aaaa".getBytes()))
@@ -321,14 +322,14 @@ class ContentDownloadControllerProdTest {
           .perform(get("/api/read/collections/smith-wedding/download"))
           .andExpect(status().isUnauthorized());
 
-      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any());
+      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any(), any());
       verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
 
     @Test
     void unprotectedCollection_noCookie_returns200() throws Exception {
       when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
-      when(contentService.resolveCollectionDownloadEntries(2L, "web"))
+      when(contentService.resolveCollectionDownloadEntries(2L, "web", null))
           .thenReturn(List.of(webResolution("open.webp")));
       when(s3Client.getObject(any(GetObjectRequest.class)))
           .thenReturn(fakeS3Stream("zzzz".getBytes()));
@@ -344,7 +345,7 @@ class ContentDownloadControllerProdTest {
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
           .thenReturn(true);
-      when(contentService.resolveCollectionDownloadEntries(1L, "original"))
+      when(contentService.resolveCollectionDownloadEntries(1L, "original", null))
           .thenReturn(List.of(jpegResolution("first.jpg"), jpegResolution("second.jpg")));
       when(s3Client.getObject(any(GetObjectRequest.class)))
           .thenReturn(fakeS3Stream("JPEG1".getBytes()))
@@ -374,7 +375,7 @@ class ContentDownloadControllerProdTest {
     @Test
     void formatUnsupported_serviceThrowsIllegalArgument_returns400() throws Exception {
       when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
-      when(contentService.resolveCollectionDownloadEntries(eq(2L), eq("raw")))
+      when(contentService.resolveCollectionDownloadEntries(eq(2L), eq("raw"), eq(null)))
           .thenThrow(new IllegalArgumentException("Unsupported download format: raw"));
 
       mockMvc
@@ -387,7 +388,7 @@ class ContentDownloadControllerProdTest {
     @Test
     void zipsRemainingImagesWhenOneS3FetchFails() throws Exception {
       when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
-      when(contentService.resolveCollectionDownloadEntries(2L, "web"))
+      when(contentService.resolveCollectionDownloadEntries(2L, "web", null))
           .thenReturn(
               List.of(
                   webResolution("first.webp"),
@@ -434,7 +435,7 @@ class ContentDownloadControllerProdTest {
     @Test
     void emptyCollection_returnsEmptyZip() throws Exception {
       when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
-      when(contentService.resolveCollectionDownloadEntries(2L, "web")).thenReturn(List.of());
+      when(contentService.resolveCollectionDownloadEntries(2L, "web", null)).thenReturn(List.of());
 
       MvcResult result =
           mockMvc
@@ -446,6 +447,58 @@ class ContentDownloadControllerProdTest {
       try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
         assertThat(zis.getNextEntry()).isNull();
       }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void imageIdsSubset_passesIdsToResolverAndUsesSelectionFilename() throws Exception {
+      CollectionEntity gallery = protectedGallery();
+      when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(gallery);
+      when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
+          .thenReturn(true);
+      when(contentService.resolveCollectionDownloadEntries(eq(1L), eq("web"), any()))
+          .thenReturn(List.of(webResolution("first.webp"), webResolution("third.webp")));
+      when(contentService.collectionZipFilename("smith-wedding", 1L))
+          .thenReturn("smith-wedding-1.zip");
+      when(s3Client.getObject(any(GetObjectRequest.class)))
+          .thenReturn(fakeS3Stream("aaaa".getBytes()))
+          .thenReturn(fakeS3Stream("cccc".getBytes()));
+
+      mockMvc
+          .perform(
+              get("/api/read/collections/smith-wedding/download")
+                  .param("format", "web")
+                  .param("imageIds", "1", "3")
+                  .cookie(new Cookie("gallery_access_smith-wedding", "tok-123")))
+          .andExpect(status().isOk())
+          .andExpect(header().string("Content-Type", "application/zip"))
+          // Subset ZIPs carry a -selection-<count> suffix so they don't collide with the "all" ZIP.
+          .andExpect(
+              header()
+                  .string(
+                      "Content-Disposition",
+                      org.hamcrest.Matchers.containsString("smith-wedding-1-selection-2.zip")));
+
+      ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
+      verify(contentService)
+          .resolveCollectionDownloadEntries(eq(1L), eq("web"), idsCaptor.capture());
+      assertThat(idsCaptor.getValue()).containsExactly(1L, 3L);
+    }
+
+    @Test
+    void protectedCollection_noCookie_withImageIds_returns401() throws Exception {
+      when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
+
+      // Auth gate precedes resolution: a subset request from an unauthorized client is still 401.
+      mockMvc
+          .perform(
+              get("/api/read/collections/smith-wedding/download")
+                  .param("format", "web")
+                  .param("imageIds", "1", "3"))
+          .andExpect(status().isUnauthorized());
+
+      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any(), any());
+      verify(s3Client, never()).getObject(any(GetObjectRequest.class));
     }
   }
 }
