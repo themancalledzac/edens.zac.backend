@@ -257,7 +257,14 @@ class CollectionControllerProdTest {
             .siblings(
                 List.of(
                     new Records.CollectionList(
-                        2L, "Dolomites Film", "dolomites-film", CollectionType.PORTFOLIO)))
+                        2L,
+                        "Dolomites Film",
+                        "dolomites-film",
+                        CollectionType.PORTFOLIO,
+                        null,
+                        "https://cdn.example.com/dolomites-film-cover.jpg"),
+                    new Records.CollectionList(
+                        3L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO)))
             .build();
     when(collectionService.getCollectionWithPagination(eq("dolomites"), anyInt(), anyInt()))
         .thenReturn(model);
@@ -266,9 +273,16 @@ class CollectionControllerProdTest {
     mockMvc
         .perform(get("/api/read/collections/dolomites"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.siblings", hasSize(1)))
+        .andExpect(jsonPath("$.siblings", hasSize(2)))
         .andExpect(jsonPath("$.siblings[0].slug", is("dolomites-film")))
-        .andExpect(jsonPath("$.siblings[0].name", is("Dolomites Film")));
+        .andExpect(jsonPath("$.siblings[0].name", is("Dolomites Film")))
+        .andExpect(jsonPath("$.siblings[0].type", is("PORTFOLIO")))
+        .andExpect(
+            jsonPath(
+                "$.siblings[0].coverImageUrl",
+                is("https://cdn.example.com/dolomites-film-cover.jpg")))
+        .andExpect(jsonPath("$.siblings[1].slug", is("alps-digital")))
+        .andExpect(jsonPath("$.siblings[1].coverImageUrl").value(nullValue()));
   }
 
   @Test

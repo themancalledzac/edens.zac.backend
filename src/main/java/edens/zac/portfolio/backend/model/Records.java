@@ -65,16 +65,41 @@ public final class Records {
 
   /**
    * Model representing a collection for list views. Contains the collection's ID, name, slug, type,
-   * and collection date (serialized as an ISO date string; null when not projected).
+   * collection date (serialized as an ISO date string; null when not projected), and an optional
+   * cover image URL (null when the collection has no cover image or it was not projected). The
+   * cover image lets the frontend render related/sibling collections as image cards rather than
+   * text links.
    */
   public record CollectionList(
-      Long id, String name, String slug, CollectionType type, LocalDate collectionDate) {
+      Long id,
+      String name,
+      String slug,
+      CollectionType type,
+      LocalDate collectionDate,
+      String coverImageUrl) {
 
-    /** Backwards-compatible constructor for callers that omit the collection date. */
+    /** Backwards-compatible constructor for callers that omit the cover image URL. */
+    public CollectionList(
+        Long id, String name, String slug, CollectionType type, LocalDate collectionDate) {
+      this(id, name, slug, type, collectionDate, null);
+    }
+
+    /**
+     * Backwards-compatible constructor for callers that omit the collection date and cover image.
+     */
     public CollectionList(Long id, String name, String slug, CollectionType type) {
-      this(id, name, slug, type, null);
+      this(id, name, slug, type, null, null);
     }
   }
+
+  /**
+   * Internal projection of a sibling collection row. Carries the raw {@code coverImageId} (FK to
+   * the content image table) instead of a resolved URL so the cover image URLs can be batch-loaded
+   * in a single query (avoiding N+1), then mapped into {@link CollectionList} records. Not
+   * serialized to API responses directly.
+   */
+  public record SiblingRow(
+      Long id, String name, String slug, CollectionType type, Long coverImageId) {}
 
   /** DTO for admin hub tile configuration. coverImageUrl is null when no image is assigned. */
   public record AdminHomeTileResponse(String tileKey, String coverImageUrl, int displayOrder) {}

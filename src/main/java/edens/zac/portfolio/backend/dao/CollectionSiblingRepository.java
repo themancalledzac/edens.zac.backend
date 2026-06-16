@@ -18,13 +18,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class CollectionSiblingRepository extends BaseDao {
 
-  private static final RowMapper<Records.CollectionList> SIBLING_ROW_MAPPER =
-      (rs, rowNum) ->
-          new Records.CollectionList(
-              rs.getLong("id"),
-              rs.getString("name"),
-              rs.getString("slug"),
-              CollectionType.valueOf(rs.getString("type")));
+  private static final RowMapper<Records.SiblingRow> SIBLING_ROW_MAPPER =
+      (rs, rowNum) -> {
+        long coverImageId = rs.getLong("cover_image_id");
+        return new Records.SiblingRow(
+            rs.getLong("id"),
+            rs.getString("name"),
+            rs.getString("slug"),
+            CollectionType.valueOf(rs.getString("type")),
+            rs.wasNull() ? null : coverImageId);
+      };
 
   public CollectionSiblingRepository(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
@@ -54,14 +57,16 @@ public class CollectionSiblingRepository extends BaseDao {
   }
 
   /**
-   * Siblings of one collection as {@link Records.CollectionList} rows, ordered by title. When
-   * {@code listedOnly} is true, only LISTED siblings are returned (public read path); when false,
-   * every sibling regardless of visibility is returned (admin manage payload).
+   * Siblings of one collection as {@link Records.SiblingRow} projections (including the raw {@code
+   * cover_image_id}), ordered by title. When {@code listedOnly} is true, only LISTED siblings are
+   * returned (public read path); when false, every sibling regardless of visibility is returned
+   * (admin manage payload). Cover image URLs are resolved separately in a batch by the caller to
+   * avoid N+1.
    */
   @Transactional(readOnly = true)
-  public List<Records.CollectionList> findSiblings(Long collectionId, boolean listedOnly) {
+  public List<Records.SiblingRow> findSiblings(Long collectionId, boolean listedOnly) {
     String sql =
-        "SELECT c.id, c.title AS name, c.slug, c.type "
+        "SELECT c.id, c.title AS name, c.slug, c.type, c.cover_image_id "
             + "FROM collection_sibling cs "
             + "JOIN collection c ON c.id = cs.sibling_collection_id "
             + "WHERE cs.collection_id = :id "
