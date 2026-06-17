@@ -19,10 +19,13 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -196,7 +199,7 @@ public class ImageProcessingService {
       if (originalFilename == null) {
         throw new IllegalArgumentException("Original filename must not be null");
       }
-      finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+      finalFilename = hashedWebFilename(originalFilename, processedImageBytes);
     } else {
       throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
     }
@@ -290,7 +293,7 @@ public class ImageProcessingService {
 
     // Convert to WebP
     byte[] processedImageBytes = convertToWebP(resizedImage);
-    String webFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+    String webFilename = hashedWebFilename(originalFilename, processedImageBytes);
     String imageUrlWeb =
         uploadToS3(
             processedImageBytes, webFilename, "image/webp", PATH_IMAGE_WEB, imageYear, imageMonth);
@@ -336,7 +339,10 @@ public class ImageProcessingService {
    */
   public DedupeResult savePreparedImageWithDedupe(PreparedImageData prepared, String title) {
     Map<String, String> metadata = prepared.metadata();
-    String webFilename = prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+    // Display-title fallback only — NOT the S3 web key (that is content-hashed in
+    // prepareImageForUpload via hashedWebFilename). Named distinctly to avoid that confusion.
+    String titleFallback =
+        prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
 
     // Check for existing image by filename + capture date
     if (prepared.originalFilename() != null && prepared.captureDate() != null) {
@@ -404,7 +410,7 @@ public class ImageProcessingService {
     ContentImageEntity entity =
         ContentImageEntity.builder()
             .contentType(ContentType.IMAGE)
-            .title(title != null ? title : metadata.getOrDefault("title", webFilename))
+            .title(title != null ? title : metadata.getOrDefault("title", titleFallback))
             .createdAt(
                 imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate")))
             .build();
@@ -436,7 +442,13 @@ public class ImageProcessingService {
     entity.setImageHeight(
         imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
     entity.setIso(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("iso"), null));
-    entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
+    // Preserve an existing rating when the export omits the tag (mirrors the location handling in
+    // savePreparedImageWithDedupe). Rating is user-curated in Lightroom and may be absent on a
+    // re-export; clobbering it to null would silently wipe curated data — and re-upload is now the
+    // intended self-heal path (content-hashed web keys). A present tag still overwrites.
+    if (metadata.get("rating") != null) {
+      entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
+    }
     entity.setFStop(metadata.get("fStop"));
     entity.setShutterSpeed(metadata.get("shutterSpeed"));
     entity.setFocalLength(metadata.get("focalLength"));
@@ -673,6 +685,39 @@ public class ImageProcessingService {
     String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
 
     return cloudfrontUrl;
+  }
+
+  /**
+   * Build the content-addressed web filename: the original name (extension stripped) plus a short
+   * content hash and the {@code .webp} extension, e.g. {@code DSC_0559.a1b2c3d4e5f6.webp}.
+   *
+   * <p>Web image S3 keys are otherwise deterministic from {@code filename/year/month}, so a
+   * re-upload overwrites the same key/URL and CloudFront, the Next.js image optimizer, and browsers
+   * all keep serving the stale (immutable, 1-year-cached) copy. Folding the content hash into the
+   * key means new bytes produce a new URL, so every cache layer sees a brand-new resource and
+   * refreshes automatically — no invalidation needed, and {@code immutable} caching becomes
+   * correct. Identical bytes produce the identical key (idempotent), so re-exporting an unchanged
+   * image is a no-op and the dedupe "delete old key" guard never fires.
+   *
+   * <p>Scope: the web rendition only — the asset the site actually displays and CloudFront caches.
+   * The full-size original and the GIF poster keep deterministic {@code filename/year/month} keys
+   * (they are not the layout asset and are rarely re-fetched), so a GIF re-upload keeps its prior
+   * cached poster. Intentional; revisit if either becomes a CDN-cached display asset.
+   */
+  String hashedWebFilename(String originalFilename, byte[] webpBytes) {
+    String base = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", "");
+    return base + "." + contentHash(webpBytes) + ".webp";
+  }
+
+  /** Short, URL-safe content hash (first 12 hex chars of SHA-256) of the given bytes. */
+  String contentHash(byte[] bytes) {
+    try {
+      byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+      return HexFormat.of().formatHex(digest, 0, 6); // 6 bytes -> 12 hex chars
+    } catch (NoSuchAlgorithmException e) {
+      // SHA-256 is mandated to always be available; this branch is unreachable.
+      throw new IllegalStateException("SHA-256 algorithm unavailable", e);
+    }
   }
 
   /**

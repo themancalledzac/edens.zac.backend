@@ -233,6 +233,35 @@ class ImageProcessingServiceTest {
     assertEquals(ImageProcessingService.DedupeAction.CREATE, result.action());
   }
 
+  @Test
+  void savePreparedImageWithDedupe_update_preservesExistingRating_whenExportOmitsRatingTag() {
+    // Re-upload self-heal path: a Lightroom re-export often omits the rating XMP tag. The update
+    // must NOT clobber the curated rating to null — regression guard for the preserve-on-absent
+    // fix in applyMetadataToEntity. createPreparedImageData carries no "rating" key; the existing
+    // entity has rating = 5.
+    LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
+    LocalDateTime oldExportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
+    LocalDateTime newExportDate = LocalDateTime.of(2026, 3, 1, 12, 0);
+    ImageProcessingService.PreparedImageData prepared =
+        createPreparedImageData("photo.jpg", captureDate, newExportDate);
+
+    ContentImageEntity existing = createContentImageEntity(); // rating = 5
+    existing.setLastExportDate(oldExportDate);
+    when(contentRepository.findByOriginalFilenameAndCaptureDate("photo.jpg", captureDate))
+        .thenReturn(Optional.of(existing));
+    when(contentRepository.saveImage(any(ContentImageEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    ImageProcessingService.DedupeResult result =
+        imageProcessingService.savePreparedImageWithDedupe(prepared, null);
+
+    assertEquals(ImageProcessingService.DedupeAction.UPDATE, result.action());
+    assertEquals(
+        Integer.valueOf(5),
+        result.entity().getRating(),
+        "re-export without a rating tag must preserve the existing curated rating");
+  }
+
   // ============================================================================
   // Tests for recordRenditionDimensions (re-upload dimension fix)
   // ============================================================================
@@ -289,5 +318,45 @@ class ImageProcessingServiceTest {
     entity.setCaptureDate(LocalDateTime.of(2023, 1, 1, 0, 0));
     entity.setOriginalFilename("test-image.jpg");
     return entity;
+  }
+
+  // ============================================================================
+  // Tests for content-addressed web keys (hashedWebFilename / contentHash)
+  // ============================================================================
+
+  @Test
+  void hashedWebFilename_embedsHashAndKeepsSingleWebExtension() {
+    String name = imageProcessingService.hashedWebFilename("DSC_0559.jpg", "bytes".getBytes());
+    assertTrue(
+        name.matches("DSC_0559\\.[0-9a-f]{12}\\.webp"),
+        "expected DSC_0559.<12-hex>.webp but was: " + name);
+  }
+
+  @Test
+  void hashedWebFilename_stripsExistingWebpExtensionWithoutDoubling() {
+    String name = imageProcessingService.hashedWebFilename("DSC_0559.webp", "bytes".getBytes());
+    assertTrue(name.matches("DSC_0559\\.[0-9a-f]{12}\\.webp"), name);
+    assertFalse(name.contains(".webp.webp"), "must not double the extension");
+  }
+
+  @Test
+  void hashedWebFilename_differentBytesProduceDifferentKeys() {
+    String a = imageProcessingService.hashedWebFilename("DSC_0559.jpg", "version-a".getBytes());
+    String b = imageProcessingService.hashedWebFilename("DSC_0559.jpg", "version-b".getBytes());
+    assertNotEquals(a, b, "different bytes must yield different content-addressed keys");
+  }
+
+  @Test
+  void hashedWebFilename_identicalBytesAreIdempotent() {
+    byte[] bytes = "same-export".getBytes();
+    String a = imageProcessingService.hashedWebFilename("DSC_0559.jpg", bytes);
+    String b = imageProcessingService.hashedWebFilename("DSC_0559.jpg", bytes);
+    assertEquals(a, b, "identical bytes must yield the identical key (idempotent re-export)");
+  }
+
+  @Test
+  void contentHash_isTwelveLowercaseHexChars() {
+    String h = imageProcessingService.contentHash("anything".getBytes());
+    assertTrue(h.matches("[0-9a-f]{12}"), "expected 12 lowercase hex chars but was: " + h);
   }
 }
