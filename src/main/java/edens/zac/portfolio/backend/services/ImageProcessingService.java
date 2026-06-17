@@ -19,10 +19,13 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -185,7 +188,8 @@ public class ImageProcessingService {
     if (originalImage == null) {
       throw new IOException("Failed to read image: " + originalFilename);
     }
-    BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+    BufferedImage resizedImage = resizeImage(originalImage, 2500);
+    recordRenditionDimensions(resizedImage, metadata);
 
     // Convert to WebP
     byte[] processedImageBytes;
@@ -195,7 +199,7 @@ public class ImageProcessingService {
       if (originalFilename == null) {
         throw new IllegalArgumentException("Original filename must not be null");
       }
-      finalFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+      finalFilename = hashedWebFilename(originalFilename, processedImageBytes);
     } else {
       throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
     }
@@ -284,11 +288,12 @@ public class ImageProcessingService {
     if (originalImage == null) {
       throw new IOException("Failed to read image: " + originalFilename);
     }
-    BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+    BufferedImage resizedImage = resizeImage(originalImage, 2500);
+    recordRenditionDimensions(resizedImage, metadata);
 
     // Convert to WebP
     byte[] processedImageBytes = convertToWebP(resizedImage);
-    String webFilename = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+    String webFilename = hashedWebFilename(originalFilename, processedImageBytes);
     String imageUrlWeb =
         uploadToS3(
             processedImageBytes, webFilename, "image/webp", PATH_IMAGE_WEB, imageYear, imageMonth);
@@ -334,7 +339,10 @@ public class ImageProcessingService {
    */
   public DedupeResult savePreparedImageWithDedupe(PreparedImageData prepared, String title) {
     Map<String, String> metadata = prepared.metadata();
-    String webFilename = prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
+    // Display-title fallback only — not the S3 web key (that is content-hashed via
+    // hashedWebFilename).
+    String titleFallback =
+        prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
 
     // Check for existing image by filename + capture date
     if (prepared.originalFilename() != null && prepared.captureDate() != null) {
@@ -402,7 +410,7 @@ public class ImageProcessingService {
     ContentImageEntity entity =
         ContentImageEntity.builder()
             .contentType(ContentType.IMAGE)
-            .title(title != null ? title : metadata.getOrDefault("title", webFilename))
+            .title(title != null ? title : metadata.getOrDefault("title", titleFallback))
             .createdAt(
                 imageMetadataExtractor.parseExifDateToLocalDateTime(metadata.get("createDate")))
             .build();
@@ -434,7 +442,11 @@ public class ImageProcessingService {
     entity.setImageHeight(
         imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
     entity.setIso(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("iso"), null));
-    entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
+    // Preserve a curated rating when the re-export omits the tag (like location); present
+    // overwrites.
+    if (metadata.get("rating") != null) {
+      entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
+    }
     entity.setFStop(metadata.get("fStop"));
     entity.setShutterSpeed(metadata.get("shutterSpeed"));
     entity.setFocalLength(metadata.get("focalLength"));
@@ -674,6 +686,28 @@ public class ImageProcessingService {
   }
 
   /**
+   * Content-addressed web filename: {@code <name>.<12-hex-hash>.webp}. New bytes yield a new
+   * key/URL so CloudFront and the Next optimizer refresh without invalidation; identical bytes
+   * yield the identical key (idempotent re-export). Web rendition only — the full-size original and
+   * GIF poster keep deterministic filename/year/month keys.
+   */
+  String hashedWebFilename(String originalFilename, byte[] webpBytes) {
+    String base = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", "");
+    return base + "." + contentHash(webpBytes) + ".webp";
+  }
+
+  /** Short, URL-safe content hash (first 12 hex chars of SHA-256) of the given bytes. */
+  String contentHash(byte[] bytes) {
+    try {
+      byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+      return HexFormat.of().formatHex(digest, 0, 6); // 6 bytes -> 12 hex chars
+    } catch (NoSuchAlgorithmException e) {
+      // SHA-256 is mandated to always be available; this branch is unreachable.
+      throw new IllegalStateException("SHA-256 algorithm unavailable", e);
+    }
+  }
+
+  /**
    * Delete an image and its variants from S3, then invalidate the CloudFront cache for the same
    * paths so re-uploads at identical S3 keys (which is the norm — keys are deterministic from
    * filename/year/month) are served fresh instead of from CDN cache.
@@ -795,15 +829,14 @@ public class ImageProcessingService {
 
   /**
    * Resize a BufferedImage to fit within the maximum dimension. If the image is already within the
-   * size limits, it returns the original unchanged.
+   * size limits, it returns the original unchanged. Pure transform — callers record the resulting
+   * dimensions via {@link #recordRenditionDimensions}.
    *
    * @param originalImage The original BufferedImage to resize
-   * @param metadata The image metadata containing dimensions (will be updated)
    * @param maxDimension The maximum allowed dimension (width or height)
    * @return Resized BufferedImage, or original if no resize needed
    */
-  private BufferedImage resizeImage(
-      BufferedImage originalImage, Map<String, String> metadata, int maxDimension) {
+  private BufferedImage resizeImage(BufferedImage originalImage, int maxDimension) {
     int originalWidth = originalImage.getWidth();
     int originalHeight = originalImage.getHeight();
 
@@ -849,10 +882,16 @@ public class ImageProcessingService {
     g.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
     g.dispose();
 
-    metadata.put("imageWidth", String.valueOf(newWidth));
-    metadata.put("imageHeight", String.valueOf(newHeight));
-
     return resizedImage;
+  }
+
+  /**
+   * Overwrite metadata imageWidth/imageHeight with the served rendition's actual dimensions, so a
+   * re-upload with a new aspect ratio persists correct dims instead of stale EXIF values.
+   */
+  void recordRenditionDimensions(BufferedImage rendition, Map<String, String> metadata) {
+    metadata.put("imageWidth", String.valueOf(rendition.getWidth()));
+    metadata.put("imageHeight", String.valueOf(rendition.getHeight()));
   }
 
   /**
