@@ -185,7 +185,8 @@ public class ImageProcessingService {
     if (originalImage == null) {
       throw new IOException("Failed to read image: " + originalFilename);
     }
-    BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+    BufferedImage resizedImage = resizeImage(originalImage, 2500);
+    recordRenditionDimensions(resizedImage, metadata);
 
     // Convert to WebP
     byte[] processedImageBytes;
@@ -284,7 +285,8 @@ public class ImageProcessingService {
     if (originalImage == null) {
       throw new IOException("Failed to read image: " + originalFilename);
     }
-    BufferedImage resizedImage = resizeImage(originalImage, metadata, 2500);
+    BufferedImage resizedImage = resizeImage(originalImage, 2500);
+    recordRenditionDimensions(resizedImage, metadata);
 
     // Convert to WebP
     byte[] processedImageBytes = convertToWebP(resizedImage);
@@ -795,15 +797,14 @@ public class ImageProcessingService {
 
   /**
    * Resize a BufferedImage to fit within the maximum dimension. If the image is already within the
-   * size limits, it returns the original unchanged.
+   * size limits, it returns the original unchanged. Pure transform — callers record the resulting
+   * dimensions via {@link #recordRenditionDimensions}.
    *
    * @param originalImage The original BufferedImage to resize
-   * @param metadata The image metadata containing dimensions (will be updated)
    * @param maxDimension The maximum allowed dimension (width or height)
    * @return Resized BufferedImage, or original if no resize needed
    */
-  private BufferedImage resizeImage(
-      BufferedImage originalImage, Map<String, String> metadata, int maxDimension) {
+  private BufferedImage resizeImage(BufferedImage originalImage, int maxDimension) {
     int originalWidth = originalImage.getWidth();
     int originalHeight = originalImage.getHeight();
 
@@ -849,10 +850,21 @@ public class ImageProcessingService {
     g.drawImage(originalImage, 0, 0, newWidth, newHeight, null);
     g.dispose();
 
-    metadata.put("imageWidth", String.valueOf(newWidth));
-    metadata.put("imageHeight", String.valueOf(newHeight));
-
     return resizedImage;
+  }
+
+  /**
+   * Record the dimensions of the actual served web rendition into the metadata map, overwriting any
+   * (possibly stale) EXIF-derived values. The web {@code .webp} is encoded from {@code rendition},
+   * so its width/height are the ground truth the frontend lays out gallery slots from. Called on
+   * every (re)upload so a replacement file with a new aspect ratio persists correct dimensions.
+   *
+   * @param rendition The resized BufferedImage that becomes the served web rendition
+   * @param metadata The metadata map whose imageWidth/imageHeight entries are overwritten
+   */
+  void recordRenditionDimensions(BufferedImage rendition, Map<String, String> metadata) {
+    metadata.put("imageWidth", String.valueOf(rendition.getWidth()));
+    metadata.put("imageHeight", String.valueOf(rendition.getHeight()));
   }
 
   /**

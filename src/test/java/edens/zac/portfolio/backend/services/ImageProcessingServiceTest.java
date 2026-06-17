@@ -12,7 +12,9 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentLensEntity;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
+import java.awt.image.BufferedImage;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -229,6 +231,37 @@ class ImageProcessingServiceTest {
         captor.getValue().getCreatedAt(),
         "absent EXIF createDate -> null entity.createdAt -> DAO fills with upload time");
     assertEquals(ImageProcessingService.DedupeAction.CREATE, result.action());
+  }
+
+  // ============================================================================
+  // Tests for recordRenditionDimensions (re-upload dimension fix)
+  // ============================================================================
+
+  @Test
+  void recordRenditionDimensions_overridesStaleExifDimensions() {
+    // Re-upload scenario: metadata carries stale EXIF dims from a previously stored file, but the
+    // served web rendition is a differently-shaped image. Stored dims must follow the rendition,
+    // not the EXIF, otherwise the frontend lays out the slot at the wrong aspect ratio.
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("imageWidth", "2500");
+    metadata.put("imageHeight", "2143");
+    BufferedImage rendition = new BufferedImage(2500, 1250, BufferedImage.TYPE_INT_RGB);
+
+    imageProcessingService.recordRenditionDimensions(rendition, metadata);
+
+    assertEquals("2500", metadata.get("imageWidth"));
+    assertEquals("1250", metadata.get("imageHeight"));
+  }
+
+  @Test
+  void recordRenditionDimensions_populatesDimensions_whenAbsent() {
+    Map<String, String> metadata = new HashMap<>();
+    BufferedImage rendition = new BufferedImage(400, 600, BufferedImage.TYPE_INT_RGB);
+
+    imageProcessingService.recordRenditionDimensions(rendition, metadata);
+
+    assertEquals("400", metadata.get("imageWidth"));
+    assertEquals("600", metadata.get("imageHeight"));
   }
 
   // Helper methods
