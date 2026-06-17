@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
@@ -13,6 +14,7 @@ import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.Records;
@@ -157,18 +159,58 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void populateSiblings_listedOnlyTrue_setsResultFromRepository() {
+  void populateSiblings_listedOnlyTrue_resolvesCoverImageUrlInBatch() {
     CollectionModel model = CollectionModel.builder().id(5L).build();
-    List<Records.CollectionList> siblings =
+    // Sibling 9 has cover image 100; sibling 11 has none.
+    List<Records.SiblingRow> rows =
         List.of(
-            new Records.CollectionList(
-                9L, "Dolomites Film", "dolomites-film", CollectionType.PORTFOLIO));
-    when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(siblings);
+            new Records.SiblingRow(
+                9L, "Dolomites Film", "dolomites-film", CollectionType.PORTFOLIO, 100L),
+            new Records.SiblingRow(
+                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null));
+    when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
+
+    ContentImageEntity cover =
+        ContentImageEntity.builder()
+            .id(100L)
+            .imageUrlWeb("https://cdn.example.com/dolomites-film-cover.jpg")
+            .build();
+    when(contentRepository.findImagesByIds(List.of(100L))).thenReturn(List.of(cover));
 
     util.populateSiblings(model, true);
 
-    assertThat(model.getSiblings()).isEqualTo(siblings);
+    assertThat(model.getSiblings()).hasSize(2);
+    Records.CollectionList withCover = model.getSiblings().get(0);
+    assertThat(withCover.id()).isEqualTo(9L);
+    assertThat(withCover.name()).isEqualTo("Dolomites Film");
+    assertThat(withCover.slug()).isEqualTo("dolomites-film");
+    assertThat(withCover.type()).isEqualTo(CollectionType.PORTFOLIO);
+    assertThat(withCover.coverImageUrl())
+        .isEqualTo("https://cdn.example.com/dolomites-film-cover.jpg");
+
+    Records.CollectionList withoutCover = model.getSiblings().get(1);
+    assertThat(withoutCover.id()).isEqualTo(11L);
+    assertThat(withoutCover.coverImageUrl()).isNull();
+
     verify(collectionSiblingRepository).findSiblings(5L, true);
+    verify(contentRepository).findImagesByIds(List.of(100L));
+  }
+
+  @Test
+  void populateSiblings_noCoverImages_skipsImageLookup() {
+    CollectionModel model = CollectionModel.builder().id(5L).build();
+    List<Records.SiblingRow> rows =
+        List.of(
+            new Records.SiblingRow(
+                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null));
+    when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
+
+    util.populateSiblings(model, false);
+
+    assertThat(model.getSiblings()).hasSize(1);
+    assertThat(model.getSiblings().get(0).coverImageUrl()).isNull();
+    // No cover image ids -> no batch image lookup at all.
+    verify(contentRepository, never()).findImagesByIds(anyList());
   }
 
   @Test

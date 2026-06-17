@@ -416,12 +416,50 @@ public class CollectionProcessingUtil {
    * Populate {@code model.siblings} from the collection_sibling join. {@code listedOnly=true} on
    * the public read path (LISTED siblings only — no dead links leak); {@code listedOnly=false} on
    * the admin manage payload. No-op when the model or its id is null.
+   *
+   * <p>Cover image URLs are batch-loaded in a single query (mirroring {@link
+   * #convertToChildCollection}) so siblings can be rendered as cover-image cards on the frontend
+   * without an N+1. The {@code coverImageUrl} on each {@link Records.CollectionList} is null when
+   * the sibling has no cover image assigned.
    */
   public void populateSiblings(CollectionModel model, boolean listedOnly) {
     if (model == null || model.getId() == null) {
       return;
     }
-    model.setSiblings(collectionSiblingRepository.findSiblings(model.getId(), listedOnly));
+
+    List<Records.SiblingRow> siblingRows =
+        collectionSiblingRepository.findSiblings(model.getId(), listedOnly);
+
+    // Batch-load cover image URLs for all siblings that have a cover image.
+    List<Long> coverImageIds =
+        siblingRows.stream()
+            .map(Records.SiblingRow::coverImageId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+
+    Map<Long, String> coverImageUrlsById =
+        coverImageIds.isEmpty()
+            ? Collections.emptyMap()
+            : contentRepository.findImagesByIds(coverImageIds).stream()
+                .collect(
+                    Collectors.toMap(
+                        ContentImageEntity::getId, ContentImageEntity::getImageUrlWeb));
+
+    List<Records.CollectionList> siblings =
+        siblingRows.stream()
+            .map(
+                row -> {
+                  String coverImageUrl =
+                      row.coverImageId() != null
+                          ? coverImageUrlsById.get(row.coverImageId())
+                          : null;
+                  return new Records.CollectionList(
+                      row.id(), row.name(), row.slug(), row.type(), null, coverImageUrl);
+                })
+            .toList();
+
+    model.setSiblings(siblings);
   }
 
   /**
