@@ -21,10 +21,12 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -386,6 +388,40 @@ class ContentMutationUtilTest {
     contentMutationUtil.associateExtractedKeywords(1L, null, List.of("Alice"));
 
     verify(contentRepository).saveContentPeople(eq(1L), anyList());
+  }
+
+  @Test
+  void associateExtractedKeywords_mergesNewTagsWithExisting_keepsTagsMissingFromExport() {
+    // Re-upload: the image already has tags 10 and 20; the new export only carries "sunset" (id
+    // 30).
+    // Additive merge must keep 10 and 20 AND add 30 -- never drop tags absent from the new export.
+    TagEntity sunset = TagEntity.builder().id(30L).tagName("sunset").slug("sunset").build();
+    when(tagRepository.findBySlug("sunset")).thenReturn(Optional.of(sunset));
+    when(tagRepository.findTagIdsByContentIds(List.of(1L)))
+        .thenReturn(Map.of(1L, List.of(10L, 20L)));
+
+    contentMutationUtil.associateExtractedKeywords(1L, List.of("sunset"), null);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
+    verify(tagRepository).saveContentTags(eq(1L), captor.capture());
+    assertEquals(Set.of(10L, 20L, 30L), new HashSet<>(captor.getValue()));
+  }
+
+  @Test
+  void associateExtractedKeywords_mergesNewPeopleWithExisting_keepsPeopleMissingFromExport() {
+    ContentPersonEntity alice =
+        ContentPersonEntity.builder().id(30L).personName("Alice").slug("alice").build();
+    when(personRepository.findBySlug("alice")).thenReturn(Optional.of(alice));
+    when(contentRepository.findPersonIdsByImageIds(List.of(1L)))
+        .thenReturn(Map.of(1L, List.of(10L, 20L)));
+
+    contentMutationUtil.associateExtractedKeywords(1L, null, List.of("Alice"));
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
+    verify(contentRepository).saveContentPeople(eq(1L), captor.capture());
+    assertEquals(Set.of(10L, 20L, 30L), new HashSet<>(captor.getValue()));
   }
 
   // =============================================================================

@@ -272,6 +272,10 @@ public class ContentMutationUtil {
    * tag/person entities if they don't already exist (case-insensitive dedup). Failures are logged
    * but do not propagate -- the image save is not affected.
    *
+   * <p>Merges additively with the image's existing tags and people: a re-upload adds the new
+   * export's keywords without removing any that are absent from it, so curated tags/people survive
+   * re-uploads. The latest export is the current version, but keyword associations only grow.
+   *
    * @param imageId The saved image entity ID
    * @param tagNames Tag names extracted from XMP keywords
    * @param peopleNames Person names extracted from XMP keywords
@@ -301,6 +305,10 @@ public class ContentMutationUtil {
             log.info("Created new tag from XMP keyword: {}", tagName);
           }
         }
+        tagIds.addAll(
+            tagRepository
+                .findTagIdsByContentIds(List.of(imageId))
+                .getOrDefault(imageId, List.of()));
         tagRepository.saveContentTags(imageId, new ArrayList<>(tagIds));
         log.info("Associated {} tags with image {}", tagIds.size(), imageId);
       }
@@ -323,6 +331,10 @@ public class ContentMutationUtil {
             log.info("Created new person from XMP keyword: {}", personName);
           }
         }
+        personIds.addAll(
+            contentRepository
+                .findPersonIdsByImageIds(List.of(imageId))
+                .getOrDefault(imageId, List.of()));
         contentRepository.saveContentPeople(imageId, new ArrayList<>(personIds));
         log.info("Associated {} people with image {}", personIds.size(), imageId);
       }
