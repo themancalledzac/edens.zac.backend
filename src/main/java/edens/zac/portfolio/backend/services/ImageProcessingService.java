@@ -339,8 +339,8 @@ public class ImageProcessingService {
    */
   public DedupeResult savePreparedImageWithDedupe(PreparedImageData prepared, String title) {
     Map<String, String> metadata = prepared.metadata();
-    // Display-title fallback only — NOT the S3 web key (that is content-hashed in
-    // prepareImageForUpload via hashedWebFilename). Named distinctly to avoid that confusion.
+    // Display-title fallback only — not the S3 web key (that is content-hashed via
+    // hashedWebFilename).
     String titleFallback =
         prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
 
@@ -442,10 +442,8 @@ public class ImageProcessingService {
     entity.setImageHeight(
         imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
     entity.setIso(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("iso"), null));
-    // Preserve an existing rating when the export omits the tag (mirrors the location handling in
-    // savePreparedImageWithDedupe). Rating is user-curated in Lightroom and may be absent on a
-    // re-export; clobbering it to null would silently wipe curated data — and re-upload is now the
-    // intended self-heal path (content-hashed web keys). A present tag still overwrites.
+    // Preserve a curated rating when the re-export omits the tag (like location); present
+    // overwrites.
     if (metadata.get("rating") != null) {
       entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
     }
@@ -688,21 +686,10 @@ public class ImageProcessingService {
   }
 
   /**
-   * Build the content-addressed web filename: the original name (extension stripped) plus a short
-   * content hash and the {@code .webp} extension, e.g. {@code DSC_0559.a1b2c3d4e5f6.webp}.
-   *
-   * <p>Web image S3 keys are otherwise deterministic from {@code filename/year/month}, so a
-   * re-upload overwrites the same key/URL and CloudFront, the Next.js image optimizer, and browsers
-   * all keep serving the stale (immutable, 1-year-cached) copy. Folding the content hash into the
-   * key means new bytes produce a new URL, so every cache layer sees a brand-new resource and
-   * refreshes automatically — no invalidation needed, and {@code immutable} caching becomes
-   * correct. Identical bytes produce the identical key (idempotent), so re-exporting an unchanged
-   * image is a no-op and the dedupe "delete old key" guard never fires.
-   *
-   * <p>Scope: the web rendition only — the asset the site actually displays and CloudFront caches.
-   * The full-size original and the GIF poster keep deterministic {@code filename/year/month} keys
-   * (they are not the layout asset and are rarely re-fetched), so a GIF re-upload keeps its prior
-   * cached poster. Intentional; revisit if either becomes a CDN-cached display asset.
+   * Content-addressed web filename: {@code <name>.<12-hex-hash>.webp}. New bytes yield a new
+   * key/URL so CloudFront and the Next optimizer refresh without invalidation; identical bytes
+   * yield the identical key (idempotent re-export). Web rendition only — the full-size original and
+   * GIF poster keep deterministic filename/year/month keys.
    */
   String hashedWebFilename(String originalFilename, byte[] webpBytes) {
     String base = originalFilename.replaceAll("(?i)\\.(jpg|jpeg|webp)$", "");
@@ -899,13 +886,8 @@ public class ImageProcessingService {
   }
 
   /**
-   * Record the dimensions of the actual served web rendition into the metadata map, overwriting any
-   * (possibly stale) EXIF-derived values. The web {@code .webp} is encoded from {@code rendition},
-   * so its width/height are the ground truth the frontend lays out gallery slots from. Called on
-   * every (re)upload so a replacement file with a new aspect ratio persists correct dimensions.
-   *
-   * @param rendition The resized BufferedImage that becomes the served web rendition
-   * @param metadata The metadata map whose imageWidth/imageHeight entries are overwritten
+   * Overwrite metadata imageWidth/imageHeight with the served rendition's actual dimensions, so a
+   * re-upload with a new aspect ratio persists correct dims instead of stale EXIF values.
    */
   void recordRenditionDimensions(BufferedImage rendition, Map<String, String> metadata) {
     metadata.put("imageWidth", String.valueOf(rendition.getWidth()));

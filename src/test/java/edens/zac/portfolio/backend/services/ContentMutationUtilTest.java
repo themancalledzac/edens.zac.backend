@@ -392,9 +392,7 @@ class ContentMutationUtilTest {
 
   @Test
   void associateExtractedKeywords_mergesNewTagsWithExisting_keepsTagsMissingFromExport() {
-    // Re-upload: the image already has tags 10 and 20; the new export only carries "sunset" (id
-    // 30).
-    // Additive merge must keep 10 and 20 AND add 30 -- never drop tags absent from the new export.
+    // Existing tags 10, 20 + new export's 30 -> additive merge keeps all three, drops none.
     TagEntity sunset = TagEntity.builder().id(30L).tagName("sunset").slug("sunset").build();
     when(tagRepository.findBySlug("sunset")).thenReturn(Optional.of(sunset));
     when(tagRepository.findTagIdsByContentIds(List.of(1L)))

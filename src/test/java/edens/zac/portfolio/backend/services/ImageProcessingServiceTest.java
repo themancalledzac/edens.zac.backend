@@ -235,10 +235,8 @@ class ImageProcessingServiceTest {
 
   @Test
   void savePreparedImageWithDedupe_update_preservesExistingRating_whenExportOmitsRatingTag() {
-    // Re-upload self-heal path: a Lightroom re-export often omits the rating XMP tag. The update
-    // must NOT clobber the curated rating to null — regression guard for the preserve-on-absent
-    // fix in applyMetadataToEntity. createPreparedImageData carries no "rating" key; the existing
-    // entity has rating = 5.
+    // A re-export that omits the rating tag must not clobber the curated rating (existing = 5; the
+    // prepared metadata carries no "rating" key).
     LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
     LocalDateTime oldExportDate = LocalDateTime.of(2026, 1, 15, 10, 0);
     LocalDateTime newExportDate = LocalDateTime.of(2026, 3, 1, 12, 0);
@@ -268,9 +266,7 @@ class ImageProcessingServiceTest {
 
   @Test
   void recordRenditionDimensions_overridesStaleExifDimensions() {
-    // Re-upload scenario: metadata carries stale EXIF dims from a previously stored file, but the
-    // served web rendition is a differently-shaped image. Stored dims must follow the rendition,
-    // not the EXIF, otherwise the frontend lays out the slot at the wrong aspect ratio.
+    // Stale EXIF dims vs a differently-shaped web rendition: stored dims must follow the rendition.
     Map<String, String> metadata = new HashMap<>();
     metadata.put("imageWidth", "2500");
     metadata.put("imageHeight", "2143");

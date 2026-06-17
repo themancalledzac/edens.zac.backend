@@ -272,9 +272,8 @@ public class ContentMutationUtil {
    * tag/person entities if they don't already exist (case-insensitive dedup). Failures are logged
    * but do not propagate -- the image save is not affected.
    *
-   * <p>Merges additively with the image's existing tags and people: a re-upload adds the new
-   * export's keywords without removing any that are absent from it, so curated tags/people survive
-   * re-uploads. The latest export is the current version, but keyword associations only grow.
+   * <p>Additive: a re-upload adds the export's keywords without removing curated ones absent from
+   * it.
    *
    * @param imageId The saved image entity ID
    * @param tagNames Tag names extracted from XMP keywords
