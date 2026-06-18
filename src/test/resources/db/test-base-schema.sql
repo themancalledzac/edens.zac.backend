@@ -1,6 +1,10 @@
--- V1: Initial portfolio backend schema.
--- This migration captures the baseline tables that existed before Flyway was introduced.
--- All subsequent migrations (V2+) alter or extend these tables.
+-- TEST-ONLY base schema (NOT a Flyway migration).
+-- Reconstructs the tables that pre-dated Flyway in prod, so a fresh Postgres
+-- Testcontainers container has the base schema BEFORE Flyway connects. The container
+-- runs this via withInitScript(); Flyway (baseline-on-migrate=true) then baselines the
+-- non-empty DB at 0 and applies V2..V29 on top — producing the same end schema while
+-- leaving the prod Flyway path (V2..V30, already baselined at 0) completely untouched.
+-- V2's "CREATE TABLE IF NOT EXISTS location" makes this layering safe.
 
 -- Reference lookup tables
 -- Note: location.slug added in V8; V2 creates location with IF NOT EXISTS (pre-Flyway it existed already).
