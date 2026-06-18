@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ public class WebAuthnChallengeStore {
 
   private final Cache<String, Object> cache;
 
+  @Autowired
   public WebAuthnChallengeStore(
       @Value("${app.auth.webauthn.challenge-ttl-minutes:5}") long ttlMinutes) {
     this(Duration.ofMinutes(ttlMinutes));
