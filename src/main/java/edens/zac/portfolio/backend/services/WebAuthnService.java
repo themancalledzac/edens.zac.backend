@@ -11,7 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
@@ -63,21 +63,24 @@ public class WebAuthnService {
    * @param appUserRepository the app_user repository (principal/handle resolution)
    * @param credentialRepository the JDBC webauthn_credential repository
    * @param sessionService the F1 session service (login converges here)
-   * @param webAuthnObjectMapper the WebAuthn-aware mapper that (de)serializes ceremony JSON
+   * @param objectMapper the primary application mapper (Spring Boot auto-registers the WebAuthn
+   *     Jackson module onto it via the {@link
+   *     edens.zac.portfolio.backend.config.WebAuthnConfig#webauthnJackson2Module()} bean)
    */
+  @Autowired
   public WebAuthnService(
       WebAuthnRelyingPartyOperations operations,
       WebAuthnChallengeStore challengeStore,
       AppUserRepository appUserRepository,
       WebAuthnCredentialRepository credentialRepository,
       SessionService sessionService,
-      @Qualifier("webAuthnObjectMapper") ObjectMapper webAuthnObjectMapper) {
+      ObjectMapper objectMapper) {
     this.operations = operations;
     this.challengeStore = challengeStore;
     this.appUserRepository = appUserRepository;
     this.credentialRepository = credentialRepository;
     this.sessionService = sessionService;
-    this.objectMapper = webAuthnObjectMapper;
+    this.objectMapper = objectMapper;
   }
 
   /**

@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.Module;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -19,7 +19,9 @@ import org.springframework.security.web.webauthn.management.Webauthn4JRelyingPar
  * Wires the programmatic Spring Security WebAuthn engine (NOT the {@code http.webAuthn()} DSL): the
  * relying-party entity (from {@code app.auth.webauthn.rp-id}/{@code rp-name}), the allowed-origins
  * set (from {@code app.auth.webauthn.allowed-origins}), the {@link WebAuthnRelyingPartyOperations}
- * bean, and a WebAuthn-aware {@link ObjectMapper} for (de)serializing the W3C ceremony JSON bodies.
+ * bean, and the {@link WebauthnJackson2Module} registered onto the application's primary {@link
+ * com.fasterxml.jackson.databind.ObjectMapper} via a {@link Module} bean (Spring Boot auto-applies
+ * all {@link Module} beans to its primary mapper, so no qualifier is needed at injection sites).
  */
 @Configuration
 public class WebAuthnConfig {
@@ -75,15 +77,16 @@ public class WebAuthnConfig {
   }
 
   /**
-   * An {@link ObjectMapper} with the WebAuthn Jackson module registered, for (de)serializing the
-   * W3C {@code PublicKeyCredential<...>} ceremony JSON bodies.
+   * Registers the {@link WebauthnJackson2Module} onto the application's primary {@link
+   * com.fasterxml.jackson.databind.ObjectMapper}. Spring Boot's {@code JacksonAutoConfiguration}
+   * applies every {@link Module} bean to its primary mapper, so all injection sites receive the
+   * same, fully-configured mapper with WebAuthn (de)serialization support — without suppressing the
+   * auto-configured primary mapper or changing any app-wide Jackson settings.
    *
-   * @return the WebAuthn-aware object mapper
+   * @return the WebAuthn Jackson module
    */
-  @Bean("webAuthnObjectMapper")
-  public ObjectMapper webAuthnObjectMapper() {
-    ObjectMapper mapper = new ObjectMapper();
-    mapper.registerModule(new WebauthnJackson2Module());
-    return mapper;
+  @Bean
+  public Module webauthnJackson2Module() {
+    return new WebauthnJackson2Module();
   }
 }

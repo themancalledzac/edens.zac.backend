@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -53,15 +52,17 @@ public class WebAuthnController {
    * Constructor.
    *
    * @param webAuthnService the ceremony orchestration service
-   * @param webAuthnObjectMapper the WebAuthn-aware mapper for serializing the options bodies
+   * @param objectMapper the primary application mapper (the WebAuthn Jackson module is auto-applied
+   *     by Spring Boot via the {@link
+   *     edens.zac.portfolio.backend.config.WebAuthnConfig#webauthnJackson2Module()} bean)
    * @param cookieSecure whether the attempt cookie is set Secure
    */
   public WebAuthnController(
       WebAuthnService webAuthnService,
-      @Qualifier("webAuthnObjectMapper") ObjectMapper webAuthnObjectMapper,
+      ObjectMapper objectMapper,
       @Value("${app.auth.cookie-secure:true}") boolean cookieSecure) {
     this.webAuthnService = webAuthnService;
-    this.webAuthnObjectMapper = webAuthnObjectMapper;
+    this.webAuthnObjectMapper = objectMapper;
     this.cookieSecure = cookieSecure;
   }
 
