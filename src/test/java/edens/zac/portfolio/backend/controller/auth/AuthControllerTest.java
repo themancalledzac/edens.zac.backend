@@ -131,6 +131,47 @@ class AuthControllerTest {
         .andExpect(status().isUnauthorized());
 
     verify(loginLimiter).recordFailure(anyString(), eq("ghost@example.com"));
+    // Dummy BCrypt check must be performed to equalize timing with the wrong-password branch.
+    verify(passwordEncoder).matches(eq("x"), anyString());
+  }
+
+  @Test
+  void unknownEmailAndWrongPasswordBothReturn401WithNoBody() throws Exception {
+    // Unknown email branch
+    when(loginLimiter.isBlocked(anyString(), eq("ghost@example.com"))).thenReturn(false);
+    when(appUserRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+    mockMvc
+        .perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(new LoginRequest("ghost@example.com", "x"))))
+        .andExpect(status().isUnauthorized())
+        .andExpect(
+            result ->
+                org.junit.jupiter.api.Assertions.assertTrue(
+                    result.getResponse().getContentAsString().isEmpty(),
+                    "401 body must be empty for unknown email"));
+
+    // Wrong password branch
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));
+    when(passwordEncoder.matches("wrong", "{bcrypt}$2a$10$hash")).thenReturn(false);
+
+    mockMvc
+        .perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginRequest("admin@example.com", "wrong"))))
+        .andExpect(status().isUnauthorized())
+        .andExpect(
+            result ->
+                org.junit.jupiter.api.Assertions.assertTrue(
+                    result.getResponse().getContentAsString().isEmpty(),
+                    "401 body must be empty for wrong password"));
   }
 
   @Test

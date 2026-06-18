@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.auth;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.WebAuthnService;
 import edens.zac.portfolio.backend.types.Role;
@@ -42,6 +44,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class WebAuthnControllerTest {
 
   private WebAuthnService webAuthnService;
+  private AuthLoginLimiter loginLimiter;
   private MockMvc mockMvc;
 
   private final AuthPrincipal admin = new AuthPrincipal(1L, "admin@example.com", Role.ADMIN, false);
@@ -49,10 +52,11 @@ class WebAuthnControllerTest {
   @BeforeEach
   void setUp() {
     webAuthnService = mock(WebAuthnService.class);
+    loginLimiter = mock(AuthLoginLimiter.class);
     ObjectMapper webAuthnObjectMapper = new ObjectMapper();
     webAuthnObjectMapper.registerModule(new WebauthnJackson2Module());
     WebAuthnController controller =
-        new WebAuthnController(webAuthnService, webAuthnObjectMapper, false);
+        new WebAuthnController(webAuthnService, webAuthnObjectMapper, loginLimiter, false);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
@@ -98,6 +102,7 @@ class WebAuthnControllerTest {
 
   @Test
   void loginStartReturns200WithOptionsAndSetsAttemptCookie() throws Exception {
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
     when(webAuthnService.startLogin(eq("admin@example.com")))
         .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
 
@@ -110,10 +115,29 @@ class WebAuthnControllerTest {
         .andExpect(cookie().exists("ezac_webauthn_attempt"))
         .andExpect(cookie().value("ezac_webauthn_attempt", "attempt-1"))
         .andExpect(cookie().httpOnly("ezac_webauthn_attempt", true));
+
+    verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+  }
+
+  @Test
+  void loginStartReturns429WhenRateLimited() throws Exception {
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(true);
+
+    mockMvc
+        .perform(
+            post("/api/auth/webauthn/login/start")
+                .contentType("application/json")
+                .content("{\"email\":\"admin@example.com\"}"))
+        .andExpect(status().isTooManyRequests());
+
+    verify(webAuthnService, never()).startLogin(any());
   }
 
   @Test
   void loginFinishReadsAttemptCookieDelegatesAndClearsCookie() throws Exception {
+    when(webAuthnService.finishLogin(eq("attempt-1"), eq("{\"id\":\"abc\"}"), any(), any()))
+        .thenReturn("admin@example.com");
+
     mockMvc
         .perform(
             post("/api/auth/webauthn/login/finish")
@@ -124,6 +148,44 @@ class WebAuthnControllerTest {
         .andExpect(cookie().maxAge("ezac_webauthn_attempt", 0));
 
     verify(webAuthnService).finishLogin(eq("attempt-1"), eq("{\"id\":\"abc\"}"), any(), any());
+    verify(loginLimiter).reset(anyString(), eq("admin@example.com"));
+  }
+
+  @Test
+  void loginFinishClearsCookieEvenOnServiceException() throws Exception {
+    when(webAuthnService.finishLogin(eq("attempt-1"), any(), any(), any()))
+        .thenThrow(new IllegalStateException("bad assertion"));
+
+    // MockMvc standalone rethrows unhandled controller exceptions. Add a catch-all exception
+    // resolver so the response object is populated (and the Set-Cookie from the finally block is
+    // readable) without the exception blowing up the perform() call.
+    WebAuthnController controller =
+        new WebAuthnController(webAuthnService, new ObjectMapper(), loginLimiter, false);
+    MockMvc exceptionHandlingMvc =
+        MockMvcBuilders.standaloneSetup(controller)
+            .setHandlerExceptionResolvers(
+                (request, response, handler, ex) -> {
+                  response.setStatus(500);
+                  return new org.springframework.web.servlet.ModelAndView();
+                })
+            .build();
+
+    org.springframework.mock.web.MockHttpServletResponse response =
+        exceptionHandlingMvc
+            .perform(
+                post("/api/auth/webauthn/login/finish")
+                    .cookie(new jakarta.servlet.http.Cookie("ezac_webauthn_attempt", "attempt-1"))
+                    .contentType("application/json")
+                    .content("{\"id\":\"abc\"}"))
+            .andReturn()
+            .getResponse();
+
+    boolean clearedCookiePresent =
+        response.getHeaders(org.springframework.http.HttpHeaders.SET_COOKIE).stream()
+            .anyMatch(h -> h.contains("ezac_webauthn_attempt") && h.contains("Max-Age=0"));
+    org.junit.jupiter.api.Assertions.assertTrue(
+        clearedCookiePresent,
+        "attempt cookie must be cleared (Max-Age=0) even when finishLogin throws");
   }
 
   @Test

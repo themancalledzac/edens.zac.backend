@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.WebAuthnService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,6 +42,7 @@ public class WebAuthnController {
 
   private final WebAuthnService webAuthnService;
   private final ObjectMapper webAuthnObjectMapper;
+  private final AuthLoginLimiter loginLimiter;
 
   /**
    * Whether the attempt cookie is set Secure. Mirrors SessionService's flag (true in prod; the dev
@@ -55,14 +57,17 @@ public class WebAuthnController {
    * @param objectMapper the primary application mapper (the WebAuthn Jackson module is auto-applied
    *     by Spring Boot via the {@link
    *     edens.zac.portfolio.backend.config.WebAuthnConfig#webauthnJackson2Module()} bean)
+   * @param loginLimiter the shared login rate-limiter (mirrors {@code AuthController})
    * @param cookieSecure whether the attempt cookie is set Secure
    */
   public WebAuthnController(
       WebAuthnService webAuthnService,
       ObjectMapper objectMapper,
+      AuthLoginLimiter loginLimiter,
       @Value("${app.auth.cookie-secure:true}") boolean cookieSecure) {
     this.webAuthnService = webAuthnService;
     this.webAuthnObjectMapper = objectMapper;
+    this.loginLimiter = loginLimiter;
     this.cookieSecure = cookieSecure;
   }
 
@@ -106,16 +111,32 @@ public class WebAuthnController {
    * short-lived HttpOnly {@code ezac_webauthn_attempt} cookie so the client returns it on {@code
    * /login/finish}.
    *
+   * <p>Rate-limiting mirrors {@code AuthController.login}: if the IP+email pair is blocked, 429 is
+   * returned immediately before minting any options or setting a cookie. A failure counter is
+   * recorded on every non-blocked call so that repeated start attempts (without a matching
+   * successful finish) eventually trip the limiter. The limiter is reset on a successful {@link
+   * #loginFinish}.
+   *
    * @param body the JSON body {@code {"email": "..."}}
-   * @return 200 with the options JSON and a Set-Cookie for the attempt id
+   * @param request the servlet request (IP resolution)
+   * @return 200 with the options JSON and a Set-Cookie for the attempt id, or 429 if rate-limited
    * @throws Exception if the options cannot be serialized
    */
   @PostMapping(
       value = "/login/start",
       consumes = MediaType.APPLICATION_JSON_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<String> loginStart(@RequestBody Map<String, String> body) throws Exception {
+  public ResponseEntity<String> loginStart(
+      @RequestBody Map<String, String> body, HttpServletRequest request) throws Exception {
     String email = body.get("email");
+    String ip = resolveClientIp(request);
+
+    if (loginLimiter.isBlocked(ip, email)) {
+      log.warn("WebAuthn login/start rate-limited for email={} ip={}", email, ip);
+      return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
+    }
+    loginLimiter.recordFailure(ip, email);
+
     WebAuthnService.LoginStart start = webAuthnService.startLogin(email);
     String optionsJson = webAuthnObjectMapper.writeValueAsString(start.options());
     ResponseCookie cookie =
@@ -134,6 +155,11 @@ public class WebAuthnController {
    * ezac_webauthn_attempt} cookie (401 if absent), delegates to the service (which sets the session
    * cookie via {@code SessionService.create}), then clears the single-use attempt cookie.
    *
+   * <p>The attempt cookie is cleared in a {@code finally} block so it is always expired — on both
+   * success and assertion failure — preventing the cookie from lingering until its 5-minute TTL on
+   * bad assertions. On success the limiter is reset so subsequent legitimate logins are not
+   * blocked.
+   *
    * @param attemptId the per-attempt id from the cookie (null if absent)
    * @param credentialJson the raw W3C assertion credential JSON
    * @param request the servlet request
@@ -149,17 +175,31 @@ public class WebAuthnController {
     if (attemptId == null || attemptId.isBlank()) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
-    webAuthnService.finishLogin(attemptId, credentialJson, request, response);
-    // Clear the single-use attempt cookie once it has been consumed.
-    ResponseCookie cleared =
-        ResponseCookie.from(ATTEMPT_COOKIE, "")
-            .httpOnly(true)
-            .secure(cookieSecure)
-            .sameSite("Strict")
-            .path(ATTEMPT_COOKIE_PATH)
-            .maxAge(0)
-            .build();
-    response.addHeader(HttpHeaders.SET_COOKIE, cleared.toString());
-    return ResponseEntity.noContent().build();
+    String ip = resolveClientIp(request);
+    try {
+      String authenticatedEmail =
+          webAuthnService.finishLogin(attemptId, credentialJson, request, response);
+      loginLimiter.reset(ip, authenticatedEmail);
+      return ResponseEntity.noContent().build();
+    } finally {
+      // Always clear the single-use attempt cookie — on success and on assertion failure.
+      ResponseCookie cleared =
+          ResponseCookie.from(ATTEMPT_COOKIE, "")
+              .httpOnly(true)
+              .secure(cookieSecure)
+              .sameSite("Strict")
+              .path(ATTEMPT_COOKIE_PATH)
+              .maxAge(0)
+              .build();
+      response.addHeader(HttpHeaders.SET_COOKIE, cleared.toString());
+    }
+  }
+
+  private static String resolveClientIp(HttpServletRequest request) {
+    String realIp = request.getHeader("X-Real-IP");
+    if (realIp != null && !realIp.isBlank()) {
+      return realIp.trim();
+    }
+    return request.getRemoteAddr();
   }
 }

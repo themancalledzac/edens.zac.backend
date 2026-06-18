@@ -179,8 +179,10 @@ public class WebAuthnService {
    * @param credentialJson the raw W3C assertion credential JSON from {@code login/finish}
    * @param request the servlet request (IP / User-Agent for the session row)
    * @param response the Set-Cookie sink for the session cookie
+   * @return the email address of the successfully authenticated user (used by the controller to
+   *     reset the rate-limiter on success)
    */
-  public void finishLogin(
+  public String finishLogin(
       String attemptId,
       String credentialJson,
       HttpServletRequest request,
@@ -205,6 +207,7 @@ public class WebAuthnService {
                 () -> new IllegalStateException("Authenticated handle has no app_user: " + handle));
 
     sessionService.create(user, true, request, response);
+    return user.getEmail();
   }
 
   private AppUserEntity requireUser(Long userId) {

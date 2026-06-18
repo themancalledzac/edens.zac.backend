@@ -176,9 +176,10 @@ class WebAuthnServiceTest {
     when(operations.authenticate(any())).thenReturn(authedEntity);
     when(appUserRepository.findByWebauthnUserHandle(handle)).thenReturn(Optional.of(admin));
 
-    service.finishLogin("attempt-1", validAssertionJson(), request, response);
+    String email = service.finishLogin("attempt-1", validAssertionJson(), request, response);
 
     verify(sessionService).create(eq(admin), eq(true), eq(request), eq(response));
+    assertThat(email).isEqualTo("admin@example.com");
   }
 
   @Test

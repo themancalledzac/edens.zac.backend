@@ -36,6 +36,15 @@ public class AuthController {
 
   private static final String COOKIE_NAME = "ezac_session";
 
+  /**
+   * Precomputed BCrypt hash used to equalize the response time of the unknown-email branch with the
+   * wrong-password branch. Without this, an attacker could distinguish "no such user" (fast) from
+   * "wrong password" (slow BCrypt) via timing — a user-enumeration oracle. We always call {@code
+   * passwordEncoder.matches} and discard the result so both branches pay the same BCrypt cost.
+   */
+  private static final String DUMMY_HASH =
+      "{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOe4LqswmsWnGKD.QZEWMbwIQfRoZxNfy";
+
   private final SessionService sessionService;
   private final AuthLoginLimiter loginLimiter;
   private final AppUserRepository appUserRepository;
@@ -56,9 +65,15 @@ public class AuthController {
     }
 
     Optional<AppUserEntity> maybeUser = appUserRepository.findByEmail(email);
-    if (maybeUser.isEmpty()
-        || maybeUser.get().getPasswordHash() == null
-        || !passwordEncoder.matches(body.password(), maybeUser.get().getPasswordHash())) {
+    if (maybeUser.isEmpty() || maybeUser.get().getPasswordHash() == null) {
+      // Perform a dummy BCrypt check so unknown-email and wrong-password branches take the same
+      // time — prevents user-enumeration via timing side-channel. The result is discarded.
+      passwordEncoder.matches(body.password(), DUMMY_HASH);
+      loginLimiter.recordFailure(ip, email);
+      log.warn("Failed auth login for email={} ip={}", email, ip);
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+    if (!passwordEncoder.matches(body.password(), maybeUser.get().getPasswordHash())) {
       loginLimiter.recordFailure(ip, email);
       log.warn("Failed auth login for email={} ip={}", email, ip);
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
