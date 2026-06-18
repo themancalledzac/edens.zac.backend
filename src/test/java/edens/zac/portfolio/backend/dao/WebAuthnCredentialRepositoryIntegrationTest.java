@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
@@ -19,6 +20,16 @@ class WebAuthnCredentialRepositoryIntegrationTest extends AbstractPostgresIntegr
 
   @Autowired private WebAuthnCredentialRepository repository;
   @Autowired private DataSource dataSource;
+
+  /**
+   * Remove test users inserted by seedUser() so the shared singleton container is clean for other
+   * test classes (e.g. AppUserRepositoryIntegrationTest.existsByRoleReflectsInsertedAdmin).
+   */
+  @AfterEach
+  void cleanUp() {
+    new JdbcTemplate(dataSource)
+        .update("DELETE FROM app_user WHERE email LIKE 'wac-%@example.com'");
+  }
 
   private Long seedUser(String email) {
     return new JdbcTemplate(dataSource)
