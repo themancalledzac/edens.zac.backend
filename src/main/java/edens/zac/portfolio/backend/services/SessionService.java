@@ -39,6 +39,7 @@ public class SessionService {
   private final boolean cookieSecure;
   private final long ttlDays;
   private final long refreshThresholdHours;
+  private final long maxLifetimeDays;
 
   /**
    * Spring constructor: binds config and the repositories.
@@ -47,20 +48,25 @@ public class SessionService {
    * @param appUserRepository the repository for {@code app_user} rows
    * @param cookieSecure whether the {@code ezac_session} cookie should carry the {@code Secure}
    *     flag (false in dev)
-   * @param ttlDays sliding session TTL in days; the cookie {@code Max-Age} matches
+   * @param ttlDays sliding idle TTL in days; the cookie {@code Max-Age} matches and each slide
+   *     extends idle expiry to {@code now + ttlDays}
    * @param refreshThresholdHours how many hours of inactivity before the sliding window is bumped
+   * @param maxLifetimeDays absolute session ceiling in days from creation; a session can never
+   *     slide past {@code createdAt + maxLifetimeDays}, bounding total lifetime per OWASP
    */
   public SessionService(
       UserSessionRepository sessionRepository,
       AppUserRepository appUserRepository,
       @Value("${app.auth.cookie-secure:true}") boolean cookieSecure,
       @Value("${app.auth.session.ttl-days:60}") long ttlDays,
-      @Value("${app.auth.session.refresh-threshold-hours:24}") long refreshThresholdHours) {
+      @Value("${app.auth.session.refresh-threshold-hours:24}") long refreshThresholdHours,
+      @Value("${app.auth.session.max-lifetime-days:90}") long maxLifetimeDays) {
     this.sessionRepository = sessionRepository;
     this.appUserRepository = appUserRepository;
     this.cookieSecure = cookieSecure;
     this.ttlDays = ttlDays;
     this.refreshThresholdHours = refreshThresholdHours;
+    this.maxLifetimeDays = maxLifetimeDays;
   }
 
   /**
@@ -106,8 +112,11 @@ public class SessionService {
 
   /**
    * Resolve a raw cookie token to a principal. Returns empty if the session is unknown, revoked, or
-   * expired. Applies the sliding refresh: if {@code last_seen_at} is older than the refresh
-   * threshold, bump it and extend expiry by ttl-days from now.
+   * expired. Two timeouts bound the session: an <em>idle</em> timeout of {@code ttl-days} of
+   * inactivity (slid forward on each resolve once {@code last_seen_at} is older than the refresh
+   * threshold), and an <em>absolute</em> ceiling of {@code createdAt + max-lifetime-days} that the
+   * slide can never cross. Once the slid expiry reaches the absolute ceiling, the session stops
+   * renewing and lapses, so an actively-used session cannot live forever.
    *
    * @param rawToken the raw value read from the {@code ezac_session} cookie
    * @return the principal, or empty when the session is not currently valid
@@ -128,7 +137,12 @@ public class SessionService {
     }
 
     if (session.getLastSeenAt().isBefore(now.minusHours(refreshThresholdHours))) {
-      sessionRepository.touch(session.getId(), now, now.plusDays(ttlDays));
+      // Slide the idle window to now + ttlDays, but never past the absolute ceiling. The capped
+      // expires_at then enforces the absolute timeout via the expires_at < now rejection above.
+      LocalDateTime absoluteMax = session.getCreatedAt().plusDays(maxLifetimeDays);
+      LocalDateTime slideTo = now.plusDays(ttlDays);
+      LocalDateTime newExpiry = slideTo.isBefore(absoluteMax) ? slideTo : absoluteMax;
+      sessionRepository.touch(session.getId(), now, newExpiry);
     }
 
     Optional<AppUserEntity> maybeUser = appUserRepository.findById(session.getUserId());

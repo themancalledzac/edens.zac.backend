@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -23,6 +25,7 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
   @Autowired private SessionService sessionService;
   @Autowired private AppUserRepository userRepository;
   @Autowired private UserSessionRepository sessionRepository;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
   private AppUserEntity seedAdmin(String email) {
     Long id =
@@ -149,5 +152,50 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     String cleared = logoutResponse.getHeader("Set-Cookie");
     assertThat(cleared).contains("ezac_session=");
     assertThat(cleared).contains("Max-Age=0");
+  }
+
+  @Test
+  void resolveCapsSlideAtAbsoluteLifetimeCeiling() {
+    AppUserEntity admin = seedAdmin("absolute@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, false, request, response);
+    String raw = rawTokenFrom(response);
+
+    String tokenHash = sessionService.sha256HexForTest(raw);
+    Long sessionId = sessionRepository.findByTokenHash(tokenHash).orElseThrow().getId();
+
+    // Backdate creation to ~89 days ago and make last_seen_at stale so resolve() slides.
+    // expires_at stays in the future so the session is still valid at resolve time.
+    LocalDateTime createdAt = LocalDateTime.now().minusDays(89);
+    jdbcTemplate.update(
+        "UPDATE user_session SET created_at = ?, last_seen_at = ?, expires_at = ? WHERE id = ?",
+        createdAt,
+        LocalDateTime.now().minusDays(2),
+        LocalDateTime.now().plusDays(1),
+        sessionId);
+
+    assertThat(sessionService.resolve(raw)).isPresent();
+
+    LocalDateTime slidExpiry =
+        sessionRepository.findByTokenHash(tokenHash).orElseThrow().getExpiresAt();
+    // The slide must be capped at createdAt + 90d (~1 day from now), NOT now + 60d.
+    LocalDateTime absoluteMax = createdAt.plusDays(90);
+    assertThat(slidExpiry).isCloseTo(absoluteMax, within(5, java.time.temporal.ChronoUnit.SECONDS));
+    // Sanity: the uncapped slide (now + 60d) is far past the absolute ceiling — confirm we capped.
+    assertThat(slidExpiry).isBefore(LocalDateTime.now().plusDays(2));
+  }
+
+  @Test
+  void resolvePreservesMfaSatisfiedTrue() {
+    AppUserEntity admin = seedAdmin("mfa@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, true, request, response);
+    String raw = rawTokenFrom(response);
+
+    Optional<AuthPrincipal> principal = sessionService.resolve(raw);
+    assertThat(principal).isPresent();
+    assertThat(principal.get().mfaSatisfied()).isTrue();
   }
 }
