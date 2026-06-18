@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
  * or {@code internal.api.secret.next} (the rotation candidate). Both are compared in constant time.
  */
 @Component
-@Order(1)
+@Order(-200)
 @Profile("prod")
 @Slf4j
 public class InternalSecretFilter implements Filter {
