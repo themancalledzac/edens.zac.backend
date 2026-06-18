@@ -8,8 +8,6 @@ import edens.zac.portfolio.backend.entity.WebAuthnCredentialEntity;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
@@ -19,25 +17,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class WebAuthnCredentialRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private WebAuthnCredentialRepository repository;
-  @Autowired private DataSource dataSource;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
-  /**
-   * Remove test users inserted by seedUser() so the shared singleton container is clean for other
-   * test classes (e.g. AppUserRepositoryIntegrationTest.existsByRoleReflectsInsertedAdmin).
-   */
-  @AfterEach
-  void cleanUp() {
-    new JdbcTemplate(dataSource)
-        .update("DELETE FROM app_user WHERE email LIKE 'wac-%@example.com'");
-  }
+  // Auth tables are truncated after each test by
+  // AbstractPostgresIntegrationTest.truncateAuthTables.
 
   private Long seedUser(String email) {
-    return new JdbcTemplate(dataSource)
-        .queryForObject(
-            "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
-                + "VALUES (?, 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
-            Long.class,
-            email);
+    return jdbcTemplate.queryForObject(
+        "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
+            + "VALUES (?, 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
+        Long.class,
+        email);
   }
 
   @Test

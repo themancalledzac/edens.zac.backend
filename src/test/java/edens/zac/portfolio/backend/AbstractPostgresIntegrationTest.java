@@ -1,6 +1,9 @@
 package edens.zac.portfolio.backend;
 
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -13,6 +16,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * {@link DynamicPropertySource}. Flyway then baselines the non-empty DB at 0 and applies V2..V29 on
  * top — exactly mirroring prod. All subclasses share the same container so the Spring TestContext
  * cache never points at a stopped container. Requires Docker to be running.
+ *
+ * <p>After each test method, auth tables are truncated so every test starts from a clean slate,
+ * eliminating order-dependent failures (e.g. {@code existsByRole} counting rows from a previous
+ * class). Non-auth tables (collections, content, etc.) are intentionally left untouched.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -30,5 +37,19 @@ public abstract class AbstractPostgresIntegrationTest {
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
+  }
+
+  @Autowired private JdbcTemplate jdbcTemplate;
+
+  /**
+   * Truncate all auth tables after each test so rows from one test (or test class) cannot affect
+   * assertions in another. {@code RESTART IDENTITY} resets sequences; {@code CASCADE} handles FK
+   * children. Only auth tables are touched — pre-existing schema tables are left intact.
+   */
+  @AfterEach
+  void truncateAuthTables() {
+    jdbcTemplate.execute(
+        "TRUNCATE TABLE webauthn_credential, gallery_access, user_session, app_user"
+            + " RESTART IDENTITY CASCADE");
   }
 }
