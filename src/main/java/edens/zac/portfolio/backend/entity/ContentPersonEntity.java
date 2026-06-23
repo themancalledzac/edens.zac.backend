@@ -38,6 +38,9 @@ public class ContentPersonEntity {
 
   @Size(min = 1, max = 150) private String slug;
 
+  /** Optional link to an auth account ({@code app_user.id}); null for plain metadata tags. */
+  private Long userId;
+
   private LocalDateTime createdAt;
 
   // Many-to-many relationship with ContentImageEntity (mappedBy side - non-owning)

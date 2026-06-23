@@ -32,6 +32,17 @@ public class PersonRepository extends BaseDao {
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
+  /** Row mapper for queries that also select {@code user_id} (the account-link column). */
+  private static final RowMapper<ContentPersonEntity> USER_LINKED_ROW_MAPPER =
+      (rs, rowNum) ->
+          ContentPersonEntity.builder()
+              .id(rs.getLong("id"))
+              .personName(rs.getString("person_name"))
+              .slug(rs.getString("slug"))
+              .createdAt(getLocalDateTime(rs, "created_at"))
+              .userId(getLong(rs, "user_id"))
+              .build();
+
   @Transactional(readOnly = true)
   public Optional<ContentPersonEntity> findByPersonName(String personName) {
     String sql =
@@ -173,6 +184,43 @@ public class PersonRepository extends BaseDao {
           result.computeIfAbsent(contentId, k -> new ArrayList<>()).add(person);
         });
     return result;
+  }
+
+  /** Resolve the person identity linked to an auth account, if any. */
+  @Transactional(readOnly = true)
+  public Optional<ContentPersonEntity> findByUserId(Long userId) {
+    String sql =
+        "SELECT id, person_name, slug, created_at, user_id FROM content_people WHERE user_id = :userId";
+    MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
+    return queryForObject(sql, USER_LINKED_ROW_MAPPER, params);
+  }
+
+  /** Link a person tag to an auth account (admin-only data). */
+  @Transactional
+  public void linkUser(Long personId, Long userId) {
+    update(
+        "UPDATE content_people SET user_id = :userId WHERE id = :personId",
+        createParameterSource().addValue("userId", userId).addValue("personId", personId));
+  }
+
+  /** Remove a person tag's account link. */
+  @Transactional
+  public void unlinkUser(Long personId) {
+    update(
+        "UPDATE content_people SET user_id = NULL WHERE id = :personId",
+        createParameterSource().addValue("personId", personId));
+  }
+
+  /** Of the given person ids, the distinct account ids that are linked (drops unlinked persons). */
+  @Transactional(readOnly = true)
+  public List<Long> findLinkedUserIdsByPersonIds(List<Long> personIds) {
+    if (personIds == null || personIds.isEmpty()) {
+      return List.of();
+    }
+    return query(
+        "SELECT DISTINCT user_id FROM content_people WHERE id IN (:ids) AND user_id IS NOT NULL",
+        (rs, n) -> rs.getLong("user_id"),
+        createParameterSource().addValue("ids", personIds));
   }
 
   @Transactional
