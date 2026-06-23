@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.dev;
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
@@ -41,6 +42,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -180,8 +182,7 @@ class AdminController {
   ResponseEntity<Void> setPeople(
       @PathVariable Long id,
       @RequestBody List<Long> personIds,
-      @org.springframework.security.core.annotation.AuthenticationPrincipal
-          edens.zac.portfolio.backend.model.AuthPrincipal principal) {
+      @AuthenticationPrincipal AuthPrincipal principal) {
     collectionService.setCollectionPeople(
         id, personIds, principal == null ? null : principal.userId());
     log.info("Set {} people on collection {}", personIds == null ? 0 : personIds.size(), id);
