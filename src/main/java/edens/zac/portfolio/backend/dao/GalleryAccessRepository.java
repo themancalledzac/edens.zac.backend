@@ -43,6 +43,21 @@ public class GalleryAccessRepository extends BaseDao {
     return query(sql, GALLERY_ACCESS_ROW_MAPPER, params);
   }
 
+  /** True if a grant already exists for the (user, collection) pair; backs idempotent upserts. */
+  @Transactional(readOnly = true)
+  public boolean existsByUserIdAndCollectionId(Long userId, Long collectionId) {
+    Integer count =
+        queryForObject(
+                "SELECT count(*) FROM gallery_access "
+                    + "WHERE user_id = :userId AND collection_id = :collectionId",
+                (rs, n) -> rs.getInt(1),
+                createParameterSource()
+                    .addValue("userId", userId)
+                    .addValue("collectionId", collectionId))
+            .orElse(0);
+    return count > 0;
+  }
+
   @Transactional
   public Long insert(GalleryAccessEntity entity) {
     String sql =
