@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import static edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page;
 
+import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
@@ -16,6 +17,7 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessRequest;
@@ -49,6 +51,7 @@ import org.springframework.core.env.Profiles;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -453,10 +456,21 @@ public class CollectionService {
     return collectionRepository
         .findBySlug(slug)
         .map(
-            entity ->
-                edens.zac.portfolio.backend.config.GalleryAccessCookies.hasValidAccess(
-                    request, slug, entity.getGalleryPassword(), clientGalleryAuthService))
+            entity -> {
+              Long userId = currentUserId();
+              if (userId != null && galleryAccessService.hasGrant(userId, entity.getId())) {
+                return true;
+              }
+              return GalleryAccessCookies.hasValidAccess(
+                  request, slug, entity.getGalleryPassword(), clientGalleryAuthService);
+            })
         .orElse(true);
+  }
+
+  /** The authenticated principal's user id, or null when the request is anonymous. */
+  private static Long currentUserId() {
+    var auth = SecurityContextHolder.getContext().getAuthentication();
+    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 
   @Transactional

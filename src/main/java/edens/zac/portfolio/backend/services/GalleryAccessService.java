@@ -5,6 +5,7 @@ import edens.zac.portfolio.backend.dao.GalleryAccessRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.entity.GalleryAccessEntity;
 import edens.zac.portfolio.backend.types.CollectionType;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,27 @@ public class GalleryAccessService {
   private final CollectionRepository collectionRepository;
   private final PersonRepository personRepository;
   private final GalleryAccessRepository galleryAccessRepository;
+
+  /** True if the user currently holds a non-expired grant for the collection. */
+  @Transactional(readOnly = true)
+  public boolean hasGrant(Long userId, Long collectionId) {
+    return galleryAccessRepository
+        .findByUserIdAndCollectionId(userId, collectionId)
+        .map(g -> g.getExpiresAt() == null || g.getExpiresAt().isAfter(LocalDateTime.now()))
+        .orElse(false);
+  }
+
+  /**
+   * True if the user holds a non-expired grant for the collection AND that grant allows download.
+   */
+  @Transactional(readOnly = true)
+  public boolean hasDownloadGrant(Long userId, Long collectionId) {
+    return galleryAccessRepository
+        .findByUserIdAndCollectionId(userId, collectionId)
+        .filter(g -> g.getExpiresAt() == null || g.getExpiresAt().isAfter(LocalDateTime.now()))
+        .map(GalleryAccessEntity::isCanDownload)
+        .orElse(false);
+  }
 
   /**
    * For a {@code CLIENT_GALLERY}, ensure every tagged account-linked person holds a grant. No-op

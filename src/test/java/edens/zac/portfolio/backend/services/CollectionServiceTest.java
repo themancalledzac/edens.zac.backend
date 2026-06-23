@@ -50,6 +50,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CollectionServiceTest {
 
   @Mock private CollectionRepository collectionRepository;
+
+  @Mock
+  private edens.zac.portfolio.backend.dao.CollectionPeopleRepository collectionPeopleRepository;
+
   @Mock private ContentRepository contentRepository;
   @Mock private LocationRepository locationRepository;
   @Mock private TagRepository tagRepository;
@@ -57,8 +61,10 @@ class CollectionServiceTest {
   @Mock private ContentMutationUtil contentMutationUtil;
   @Mock private ContentModelConverter contentModelConverter;
   @Mock private MetadataService metadataService;
+  @Mock private edens.zac.portfolio.backend.services.EmailService emailService;
   @Mock private SyntheticCollectionResolver syntheticResolver;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
+  @Mock private GalleryAccessService galleryAccessService;
 
   @Mock
   private edens.zac.portfolio.backend.dao.CollectionSiblingRepository collectionSiblingRepository;

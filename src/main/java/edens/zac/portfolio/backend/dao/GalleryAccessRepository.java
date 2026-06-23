@@ -43,6 +43,20 @@ public class GalleryAccessRepository extends BaseDao {
     return query(sql, GALLERY_ACCESS_ROW_MAPPER, params);
   }
 
+  /**
+   * The grant for a specific (user, collection) pair, if any. Used for expiry-aware grant checks.
+   */
+  @Transactional(readOnly = true)
+  public java.util.Optional<GalleryAccessEntity> findByUserIdAndCollectionId(
+      Long userId, Long collectionId) {
+    String sql =
+        SELECT_GALLERY_ACCESS + " WHERE user_id = :userId AND collection_id = :collectionId";
+    return queryForObject(
+        sql,
+        GALLERY_ACCESS_ROW_MAPPER,
+        createParameterSource().addValue("userId", userId).addValue("collectionId", collectionId));
+  }
+
   /** True if a grant already exists for the (user, collection) pair; backs idempotent upserts. */
   @Transactional(readOnly = true)
   public boolean existsByUserIdAndCollectionId(Long userId, Long collectionId) {
