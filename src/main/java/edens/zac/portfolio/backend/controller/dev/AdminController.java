@@ -177,8 +177,13 @@ class AdminController {
 
   /** Replace the entire People list for a collection (DELETE-then-INSERT semantics). */
   @PutMapping("/collections/{id}/people")
-  ResponseEntity<Void> setPeople(@PathVariable Long id, @RequestBody List<Long> personIds) {
-    collectionService.setCollectionPeople(id, personIds);
+  ResponseEntity<Void> setPeople(
+      @PathVariable Long id,
+      @RequestBody List<Long> personIds,
+      @org.springframework.security.core.annotation.AuthenticationPrincipal
+          edens.zac.portfolio.backend.model.AuthPrincipal principal) {
+    collectionService.setCollectionPeople(
+        id, personIds, principal == null ? null : principal.userId());
     log.info("Set {} people on collection {}", personIds == null ? 0 : personIds.size(), id);
     return ResponseEntity.noContent().build();
   }

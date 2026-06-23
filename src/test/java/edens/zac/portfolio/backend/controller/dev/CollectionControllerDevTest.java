@@ -55,6 +55,9 @@ class CollectionControllerDevTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(contentCollectionController)
             .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+            .setCustomArgumentResolvers(
+                new org.springframework.security.web.method.annotation
+                    .AuthenticationPrincipalArgumentResolver())
             .build();
 
     // Create test collection model (for updateContent, addContents)
@@ -720,7 +723,7 @@ class CollectionControllerDevTest {
                 .content("[101, 102, 103]"))
         .andExpect(status().isNoContent());
 
-    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of(101L, 102L, 103L)));
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of(101L, 102L, 103L)), eq(null));
   }
 
   @Test
@@ -732,7 +735,7 @@ class CollectionControllerDevTest {
                 .content("[]"))
         .andExpect(status().isNoContent());
 
-    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of()));
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of()), eq(null));
   }
 
   @Test

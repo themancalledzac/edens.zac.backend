@@ -71,6 +71,7 @@ public class CollectionService {
   private final EmailService emailService;
   private final SyntheticCollectionResolver syntheticResolver;
   private final ClientGalleryAuthService clientGalleryAuthService;
+  private final GalleryAccessService galleryAccessService;
   private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -542,12 +543,13 @@ public class CollectionService {
   }
 
   /**
-   * Replace the entire {@code collection_people} list for a collection. Manual edits from the admin
-   * manage page route through here.
+   * Replace the entire {@code collection_people} list, then materialize gallery-access grants for
+   * any account-linked person tagged on a client gallery. {@code grantedBy} is the acting admin.
    */
   @Transactional
-  public void setCollectionPeople(Long collectionId, List<Long> personIds) {
+  public void setCollectionPeople(Long collectionId, List<Long> personIds, Long grantedBy) {
     collectionPeopleRepository.setPeopleForCollection(collectionId, personIds);
+    galleryAccessService.syncFromCollectionPeople(collectionId, personIds, grantedBy);
   }
 
   /**
@@ -559,6 +561,7 @@ public class CollectionService {
     List<Long> distinctPersonIds =
         contentRepository.findDistinctPersonIdsInCollection(collectionId);
     collectionPeopleRepository.setPeopleForCollection(collectionId, distinctPersonIds);
+    galleryAccessService.syncFromCollectionPeople(collectionId, distinctPersonIds, null);
   }
 
   @Transactional
