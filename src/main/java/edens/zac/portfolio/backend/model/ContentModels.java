@@ -174,5 +174,29 @@ public final class ContentModels {
       String slug,
       CollectionType collectionType,
       ContentModels.Image coverImage)
-      implements ContentModel {}
+      implements ContentModel {
+
+    /**
+     * Build a child-reference block from a basic {@link CollectionModel} (a converted collection,
+     * not a content row). Used by synthetic PARENT views (synthetic list slugs and the {@code
+     * /user} page) where each child collection becomes a {@code COLLECTION} block pointing back at
+     * itself.
+     */
+    public static Collection fromCollectionModel(CollectionModel c) {
+      return new Collection(
+          c.getId(),
+          ContentType.COLLECTION,
+          c.getTitle(),
+          c.getDescription(),
+          null,
+          0,
+          true,
+          c.getCreatedAt(),
+          c.getUpdatedAt(),
+          c.getId(),
+          c.getSlug(),
+          c.getType(),
+          c.getCoverImage());
+    }
+  }
 }

@@ -1,5 +1,7 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -63,7 +65,7 @@ class UserControllerProdTest {
   void anonymousRequestIsUnauthorized() throws Exception {
     mockMvc.perform(get("/api/read/user/me/page")).andExpect(status().isUnauthorized());
 
-    verify(userPageAssembler, never()).assembleForUser(org.mockito.ArgumentMatchers.any());
+    verify(userPageAssembler, never()).assembleForUser(any());
   }
 
   @Test
@@ -86,9 +88,9 @@ class UserControllerProdTest {
     mockMvc
         .perform(get("/api/read/user/me/page").with(asUser(user)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.slug", org.hamcrest.Matchers.is("user")))
-        .andExpect(jsonPath("$.title", org.hamcrest.Matchers.is("Jane Doe")))
-        .andExpect(jsonPath("$.type", org.hamcrest.Matchers.is("PARENT")));
+        .andExpect(jsonPath("$.slug", is("user")))
+        .andExpect(jsonPath("$.title", is("Jane Doe")))
+        .andExpect(jsonPath("$.type", is("PARENT")));
 
     verify(userPageAssembler).assembleForUser(7L);
   }

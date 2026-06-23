@@ -2,17 +2,14 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
-import edens.zac.portfolio.backend.dao.GalleryAccessRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
-import edens.zac.portfolio.backend.entity.GalleryAccessEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.ContentType;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -42,7 +39,7 @@ public class UserPageAssembler {
   private static final String DEFAULT_TITLE = "Your Galleries";
 
   private final PersonRepository personRepository;
-  private final GalleryAccessRepository galleryAccessRepository;
+  private final GalleryAccessService galleryAccessService;
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
@@ -56,9 +53,7 @@ public class UserPageAssembler {
     Set<Long> collectionIds = new LinkedHashSet<>();
     person.ifPresent(
         p -> collectionIds.addAll(collectionRepository.findCollectionIdsByPersonId(p.getId())));
-    galleryAccessRepository.findByUserId(userId).stream()
-        .map(GalleryAccessEntity::getCollectionId)
-        .forEach(collectionIds::add);
+    collectionIds.addAll(galleryAccessService.activeGrantCollectionIdsForUser(userId));
 
     List<ContentModel> content = buildCollectionBlocks(collectionIds);
     ContentModels.Image cover = person.flatMap(p -> resolveCover(p.getId())).orElse(null);
@@ -92,7 +87,7 @@ public class UserPageAssembler {
                 Comparator.nullsLast(Comparator.reverseOrder()))
             .thenComparing(CollectionEntity::getId, Comparator.reverseOrder()));
     return collectionProcessingUtil.batchConvertToBasicModels(rows).stream()
-        .map(UserPageAssembler::toCollectionContent)
+        .map(ContentModels.Collection::fromCollectionModel)
         .map(ContentModel.class::cast)
         .toList();
   }
@@ -103,22 +98,5 @@ public class UserPageAssembler {
         .findMostRecentImageIdByPersonId(personId)
         .flatMap(contentRepository::findImageById)
         .map(contentModelConverter::convertImageEntityToModel);
-  }
-
-  private static ContentModels.Collection toCollectionContent(CollectionModel c) {
-    return new ContentModels.Collection(
-        c.getId(),
-        ContentType.COLLECTION,
-        c.getTitle(),
-        c.getDescription(),
-        null,
-        0,
-        true,
-        c.getCreatedAt(),
-        c.getUpdatedAt(),
-        c.getId(),
-        c.getSlug(),
-        c.getType(),
-        c.getCoverImage());
   }
 }

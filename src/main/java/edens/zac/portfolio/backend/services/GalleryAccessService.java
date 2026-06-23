@@ -48,6 +48,19 @@ public class GalleryAccessService {
         .orElse(false);
   }
 
+  /**
+   * Collection ids the user holds a currently-active (non-expired) grant to. Shares the same expiry
+   * semantics as {@link #hasGrant} so listing surfaces (e.g. the {@code /user} page) never
+   * advertise a gallery the enforcement path would then password-gate.
+   */
+  @Transactional(readOnly = true)
+  public List<Long> activeGrantCollectionIdsForUser(Long userId) {
+    return galleryAccessRepository.findByUserId(userId).stream()
+        .filter(GalleryAccessService::isActive)
+        .map(GalleryAccessEntity::getCollectionId)
+        .toList();
+  }
+
   /** A grant is active when it has no expiry or its expiry is still in the future. */
   private static boolean isActive(GalleryAccessEntity grant) {
     return grant.getExpiresAt() == null || grant.getExpiresAt().isAfter(LocalDateTime.now());

@@ -69,6 +69,15 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
         collectionId);
   }
 
+  private void grantWithExpiry(Long userId, Long collectionId, LocalDateTime expiresAt) {
+    jdbc.update(
+        "INSERT INTO gallery_access (user_id, collection_id, can_download, can_tag, expires_at) "
+            + "VALUES (?, ?, true, false, ?)",
+        userId,
+        collectionId,
+        Timestamp.valueOf(expiresAt));
+  }
+
   private Long seedTaggedImage(Long personId, String webUrl, LocalDateTime captureDate) {
     Long contentId =
         jdbc.queryForObject(
@@ -130,6 +139,24 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     // Cover is the most-recent tagged image (D2).
     assertThat(model.getCoverImage()).isNotNull();
     assertThat(model.getCoverImage().imageUrl()).isEqualTo("https://cdn/new.webp");
+  }
+
+  @Test
+  void expiredGrantIsExcludedWhileActiveGrantIsIncluded() {
+    Long userId = seedUser("expiry-" + UUID.randomUUID() + "@example.com");
+
+    Long expired = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(2));
+    grantWithExpiry(userId, expired, LocalDateTime.now().minusDays(1));
+
+    Long active = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    grant(userId, active);
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    // Mirrors Phase 3 enforcement: an expired grant must not surface a gallery the click-through
+    // would then password-gate.
+    assertThat(referencedCollectionIds(model)).containsExactly(active);
+    assertThat(referencedCollectionIds(model)).doesNotContain(expired);
   }
 
   @Test
