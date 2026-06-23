@@ -256,6 +256,30 @@ public class ContentRepository extends BaseDao {
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
+  /**
+   * The newest image content id a person is tagged on via {@code content_image_people}, ordered by
+   * EXIF capture date desc then row creation desc. Backs the {@code /user} synthetic-collection
+   * cover (Decision D2). Empty when the person tags no image content.
+   */
+  @Transactional(readOnly = true)
+  public Optional<Long> findMostRecentImageIdByPersonId(Long personId) {
+    if (personId == null) {
+      return Optional.empty();
+    }
+    String sql =
+        """
+        SELECT ci.id
+        FROM content_image ci
+        JOIN content c ON c.id = ci.id
+        JOIN content_image_people cip ON cip.content_id = ci.id
+        WHERE cip.person_id = :personId
+        ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC
+        LIMIT 1
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
+    return query(sql, (rs, n) -> rs.getLong("id"), params).stream().findFirst();
+  }
+
   @Transactional(readOnly = true)
   public Optional<String> findRandomImageWebUrl() {
     return query(FIND_RANDOM_IMAGE_WEB_URL_SQL, (rs, rowNum) -> rs.getString("image_url_web"))
