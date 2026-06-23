@@ -101,6 +101,7 @@ todo
 !terraform.tfvars.example
 
 # Local-only authoring artifacts (handoffs, plans, specs, spikes)
+docs/handoff/
 docs/handoffs/
 docs/superpowers/
 docs/spikes/
