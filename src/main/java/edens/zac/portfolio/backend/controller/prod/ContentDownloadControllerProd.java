@@ -2,10 +2,12 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.GalleryAccessService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -22,6 +24,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -64,6 +67,7 @@ public class ContentDownloadControllerProd {
   private final CollectionService collectionService;
   private final ContentService contentService;
   private final ClientGalleryAuthService clientGalleryAuthService;
+  private final GalleryAccessService galleryAccessService;
 
   @Value("${aws.portfolio.s3.bucket}")
   private String bucketName;
@@ -81,9 +85,9 @@ public class ContentDownloadControllerProd {
     // Auth gate: enforce only when a parent collection is password-protected.
     Optional<CollectionEntity> parentCollection = contentService.findCollectionForImage(id);
     if (parentCollection.isPresent() && parentCollection.get().getGalleryPassword() != null) {
-      String parentSlug = parentCollection.get().getSlug();
-      if (!GalleryAccessCookies.hasValidAccess(request, parentSlug, clientGalleryAuthService)) {
-        log.warn("Unauthorized image download (id={}, slug={})", id, parentSlug);
+      if (!isDownloadAuthorized(request, parentCollection.get())) {
+        log.warn(
+            "Unauthorized image download (id={}, slug={})", id, parentCollection.get().getSlug());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
       }
     }
@@ -121,8 +125,7 @@ public class ContentDownloadControllerProd {
 
     CollectionEntity collection = collectionService.findEntityBySlug(slug);
 
-    if (collection.getGalleryPassword() != null
-        && !GalleryAccessCookies.hasValidAccess(request, slug, clientGalleryAuthService)) {
+    if (collection.getGalleryPassword() != null && !isDownloadAuthorized(request, collection)) {
       log.warn("Unauthorized collection ZIP download (slug={})", slug);
       response.sendError(HttpStatus.UNAUTHORIZED.value());
       return;
@@ -172,5 +175,28 @@ public class ContentDownloadControllerProd {
       zos.finish();
     }
     log.info("Streamed ZIP download (slug={}, format={}, count={})", slug, format, entries.size());
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Auth helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Session+grant download authorization, falling back to the existing cookie gate. A non-null
+   * {@code galleryPassword} is already confirmed by callers before invoking this helper.
+   */
+  private boolean isDownloadAuthorized(HttpServletRequest request, CollectionEntity collection) {
+    Long userId = currentUserId();
+    if (userId != null && galleryAccessService.hasDownloadGrant(userId, collection.getId())) {
+      return true;
+    }
+    return GalleryAccessCookies.hasValidAccess(
+        request, collection.getSlug(), clientGalleryAuthService);
+  }
+
+  /** The authenticated principal's user id, or null when the request is anonymous. */
+  private static Long currentUserId() {
+    var auth = SecurityContextHolder.getContext().getAuthentication();
+    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 }
