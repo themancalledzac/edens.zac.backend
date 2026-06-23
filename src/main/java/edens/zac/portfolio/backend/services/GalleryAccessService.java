@@ -32,7 +32,7 @@ public class GalleryAccessService {
   public boolean hasGrant(Long userId, Long collectionId) {
     return galleryAccessRepository
         .findByUserIdAndCollectionId(userId, collectionId)
-        .map(g -> g.getExpiresAt() == null || g.getExpiresAt().isAfter(LocalDateTime.now()))
+        .map(GalleryAccessService::isActive)
         .orElse(false);
   }
 
@@ -43,9 +43,14 @@ public class GalleryAccessService {
   public boolean hasDownloadGrant(Long userId, Long collectionId) {
     return galleryAccessRepository
         .findByUserIdAndCollectionId(userId, collectionId)
-        .filter(g -> g.getExpiresAt() == null || g.getExpiresAt().isAfter(LocalDateTime.now()))
+        .filter(GalleryAccessService::isActive)
         .map(GalleryAccessEntity::isCanDownload)
         .orElse(false);
+  }
+
+  /** A grant is active when it has no expiry or its expiry is still in the future. */
+  private static boolean isActive(GalleryAccessEntity grant) {
+    return grant.getExpiresAt() == null || grant.getExpiresAt().isAfter(LocalDateTime.now());
   }
 
   /**

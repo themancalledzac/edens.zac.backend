@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.GalleryAccessRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +44,21 @@ class GalleryAccessServiceIntegrationTest extends AbstractPostgresIntegrationTes
         type);
   }
 
+  /**
+   * Insert a raw grant with an explicit expiry and download flag so the enforcement helpers can be
+   * exercised against real rows (the upsert path always writes {@code expires_at = NULL}).
+   */
+  private void seedGrant(
+      Long userId, Long collectionId, boolean canDownload, LocalDateTime expiresAt) {
+    jdbc.update(
+        "INSERT INTO gallery_access (user_id, collection_id, can_download, can_tag, expires_at) "
+            + "VALUES (?, ?, ?, false, ?)",
+        userId,
+        collectionId,
+        canDownload,
+        expiresAt == null ? null : Timestamp.valueOf(expiresAt));
+  }
+
   @Test
   void clientGalleryLinkedPersonGetsGrant_idempotently() {
     Long adminId = seedUser("admin@example.com");
@@ -77,5 +94,39 @@ class GalleryAccessServiceIntegrationTest extends AbstractPostgresIntegrationTes
     service.syncFromCollectionPeople(collectionId, List.of(personId), 99L);
 
     assertThat(jdbc.queryForObject("SELECT count(*) FROM gallery_access", Integer.class)).isZero();
+  }
+
+  @Test
+  void expiredGrantIsNotGranted() {
+    Long userId = seedUser("expired@example.com");
+    Long collectionId = seedCollection("g-expired", "CLIENT_GALLERY");
+    seedGrant(userId, collectionId, true, LocalDateTime.now().minusDays(1));
+
+    assertThat(service.hasGrant(userId, collectionId)).isFalse();
+    assertThat(service.hasDownloadGrant(userId, collectionId)).isFalse();
+  }
+
+  @Test
+  void activeDownloadableGrantIsGranted() {
+    Long nullExpiryUser = seedUser("nullexpiry@example.com");
+    Long futureExpiryUser = seedUser("futureexpiry@example.com");
+    Long collectionId = seedCollection("g-active", "CLIENT_GALLERY");
+    seedGrant(nullExpiryUser, collectionId, true, null);
+    seedGrant(futureExpiryUser, collectionId, true, LocalDateTime.now().plusDays(1));
+
+    assertThat(service.hasGrant(nullExpiryUser, collectionId)).isTrue();
+    assertThat(service.hasDownloadGrant(nullExpiryUser, collectionId)).isTrue();
+    assertThat(service.hasGrant(futureExpiryUser, collectionId)).isTrue();
+    assertThat(service.hasDownloadGrant(futureExpiryUser, collectionId)).isTrue();
+  }
+
+  @Test
+  void activeGrantWithoutDownloadAllowsAccessButNotDownload() {
+    Long userId = seedUser("nodownload@example.com");
+    Long collectionId = seedCollection("g-nodownload", "CLIENT_GALLERY");
+    seedGrant(userId, collectionId, false, null);
+
+    assertThat(service.hasGrant(userId, collectionId)).isTrue();
+    assertThat(service.hasDownloadGrant(userId, collectionId)).isFalse();
   }
 }

@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.GalleryAccessEntity;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -47,8 +48,7 @@ public class GalleryAccessRepository extends BaseDao {
    * The grant for a specific (user, collection) pair, if any. Used for expiry-aware grant checks.
    */
   @Transactional(readOnly = true)
-  public java.util.Optional<GalleryAccessEntity> findByUserIdAndCollectionId(
-      Long userId, Long collectionId) {
+  public Optional<GalleryAccessEntity> findByUserIdAndCollectionId(Long userId, Long collectionId) {
     String sql =
         SELECT_GALLERY_ACCESS + " WHERE user_id = :userId AND collection_id = :collectionId";
     return queryForObject(
