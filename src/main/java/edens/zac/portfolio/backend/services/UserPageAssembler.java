@@ -10,6 +10,7 @@ import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,7 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Mirrors the block-building shape of {@link SyntheticCollectionResolver} (PARENT model of
  * {@link ContentModels.Collection} blocks via {@link
  * CollectionProcessingUtil#batchConvertToBasicModels}), but sources rows from the principal's
- * unions instead of a slug catalog.
+ * unions instead of a slug catalog, and additionally appends the linked person's standalone tagged
+ * image/gif content as IMAGE/GIF blocks (spec §7). The body is ordered collections-first
+ * (collection-date desc), then standalone content (capture/creation date desc), with {@code
+ * orderIndex} reassigned sequentially for stable rendering.
  */
 @Service
 @RequiredArgsConstructor
@@ -55,7 +59,10 @@ public class UserPageAssembler {
         p -> collectionIds.addAll(collectionRepository.findCollectionIdsByPersonId(p.getId())));
     collectionIds.addAll(galleryAccessService.activeGrantCollectionIdsForUser(userId));
 
-    List<ContentModel> content = buildCollectionBlocks(collectionIds);
+    List<ContentModel> body = new ArrayList<>(buildCollectionBlocks(collectionIds));
+    person.ifPresent(p -> body.addAll(buildTaggedContentBlocks(p.getId())));
+    reindexSequentially(body);
+
     ContentModels.Image cover = person.flatMap(p -> resolveCover(p.getId())).orElse(null);
     String title = person.map(ContentPersonEntity::getPersonName).orElse(DEFAULT_TITLE);
 
@@ -65,16 +72,17 @@ public class UserPageAssembler {
         .type(CollectionType.PARENT)
         .visibility(CollectionVisibility.UNLISTED)
         .coverImage(cover)
-        .content(content)
-        .contentCount(content.size())
-        .contentPerPage(content.size())
+        .content(body)
+        .contentCount(body.size())
+        .contentPerPage(body.size())
         .currentPage(0)
         .totalPages(1)
         .build();
   }
 
   /**
-   * Load and convert the associated collections into deterministically ordered Collection blocks.
+   * Load and convert the associated collections into Collection cover-tile blocks, ordered by
+   * collection date desc (then id desc as a stable tiebreaker).
    */
   private List<ContentModel> buildCollectionBlocks(Set<Long> collectionIds) {
     if (collectionIds.isEmpty()) {
@@ -90,6 +98,38 @@ public class UserPageAssembler {
         .map(ContentModels.Collection::fromCollectionModel)
         .map(ContentModel.class::cast)
         .toList();
+  }
+
+  /**
+   * The linked person's standalone tagged content as IMAGE/GIF blocks, each kind already date-desc
+   * from the DAO (images by capture date, gifs by creation), images before gifs. Cross-collection
+   * de-duplication is intentionally out of scope for this slice.
+   */
+  private List<ContentModel> buildTaggedContentBlocks(Long personId) {
+    List<ContentModel> blocks = new ArrayList<>();
+    contentRepository.findTaggedImagesByPersonId(personId).stream()
+        .map(contentModelConverter::convertImageEntityToModel)
+        .forEach(blocks::add);
+    contentRepository.findTaggedGifsByPersonId(personId).stream()
+        .map(contentModelConverter::convertRegularContentEntityToModel)
+        .forEach(blocks::add);
+    return blocks;
+  }
+
+  /** Reassign {@code orderIndex} to match list position so the body renders deterministically. */
+  private static void reindexSequentially(List<ContentModel> body) {
+    for (int i = 0; i < body.size(); i++) {
+      body.set(i, withOrderIndex(body.get(i), i));
+    }
+  }
+
+  private static ContentModel withOrderIndex(ContentModel block, int orderIndex) {
+    return switch (block) {
+      case ContentModels.Collection c -> c.withOrderIndex(orderIndex);
+      case ContentModels.Image img -> img.withOrderIndex(orderIndex);
+      case ContentModels.Gif gif -> gif.withOrderIndex(orderIndex);
+      case ContentModels.Text t -> t; // never emitted by this assembler
+    };
   }
 
   /** The most-recent associated content image as a cover model (Decision D2). */

@@ -280,6 +280,48 @@ public class ContentRepository extends BaseDao {
     return query(sql, (rs, n) -> rs.getLong("id"), params).stream().findFirst();
   }
 
+  /**
+   * Images a person is tagged on via {@code content_image_people}, newest first (EXIF capture date
+   * desc, then row creation desc). Backs the {@code /user} page's standalone tagged-image blocks
+   * (spec §7). Empty for null/unknown persons.
+   */
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> findTaggedImagesByPersonId(Long personId) {
+    if (personId == null) {
+      return List.of();
+    }
+    String sql =
+        SELECT_CONTENT_IMAGE
+            + """
+             JOIN content_image_people cip ON cip.content_id = c.id
+             WHERE cip.person_id = :personId
+             ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC
+            """;
+    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
+    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
+  /**
+   * Gifs a person is tagged on via {@code content_image_people} (V27 generalized the join to
+   * content-level), newest first by row creation. Backs the {@code /user} page's standalone
+   * tagged-gif blocks (spec §7). Empty for null/unknown persons.
+   */
+  @Transactional(readOnly = true)
+  public List<ContentGifEntity> findTaggedGifsByPersonId(Long personId) {
+    if (personId == null) {
+      return List.of();
+    }
+    String sql =
+        SELECT_CONTENT_GIF
+            + """
+             JOIN content_image_people cip ON cip.content_id = c.id
+             WHERE cip.person_id = :personId
+             ORDER BY c.created_at DESC
+            """;
+    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
+    return query(sql, CONTENT_GIF_ROW_MAPPER, params);
+  }
+
   @Transactional(readOnly = true)
   public Optional<String> findRandomImageWebUrl() {
     return query(FIND_RANDOM_IMAGE_WEB_URL_SQL, (rs, rowNum) -> rs.getString("image_url_web"))

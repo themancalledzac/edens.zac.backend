@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
@@ -95,9 +96,32 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     return contentId;
   }
 
-  private static List<Long> referencedCollectionIds(CollectionModel model) {
+  private Long seedTaggedGif(Long personId, String gifUrl) {
+    Long contentId =
+        jdbc.queryForObject(
+            "INSERT INTO content (content_type) VALUES ('GIF') RETURNING id", Long.class);
+    jdbc.update(
+        "INSERT INTO content_gif (id, title, gif_url, gif_url_web) VALUES (?, ?, ?, ?)",
+        contentId,
+        "gif",
+        gifUrl,
+        gifUrl);
+    jdbc.update(
+        "INSERT INTO content_image_people (content_id, person_id) VALUES (?, ?)",
+        contentId,
+        personId);
+    return contentId;
+  }
+
+  private static List<ContentModels.Collection> collectionBlocks(CollectionModel model) {
     return model.getContent().stream()
+        .filter(ContentModels.Collection.class::isInstance)
         .map(ContentModels.Collection.class::cast)
+        .toList();
+  }
+
+  private static List<Long> referencedCollectionIds(CollectionModel model) {
+    return collectionBlocks(model).stream()
         .map(ContentModels.Collection::referencedCollectionId)
         .toList();
   }
@@ -131,10 +155,25 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
     List<Long> referenced = referencedCollectionIds(model);
     assertThat(referenced).containsExactlyInAnyOrder(tagged, granted, both);
-    assertThat(model.getContentCount()).isEqualTo(3);
 
-    // Deterministic ordering: collection_date desc -> granted (-1d), both (-3d), tagged (-5d).
+    // Body = 3 collection blocks + 2 standalone tagged-image blocks.
+    assertThat(model.getContentCount()).isEqualTo(5);
+    assertThat(model.getContent()).hasSize(5);
+
+    // Deterministic ordering: collections first (collection_date desc -> granted -1d, both -3d,
+    // tagged -5d), then standalone content (capture date desc -> new, old).
     assertThat(referenced).containsExactly(granted, both, tagged);
+    assertThat(model.getContent().get(0)).isInstanceOf(ContentModels.Collection.class);
+    assertThat(model.getContent().get(3)).isInstanceOf(ContentModels.Image.class);
+    assertThat(((ContentModels.Image) model.getContent().get(3)).imageUrl())
+        .isEqualTo("https://cdn/new.webp");
+    assertThat(((ContentModels.Image) model.getContent().get(4)).imageUrl())
+        .isEqualTo("https://cdn/old.webp");
+
+    // orderIndex is reassigned sequentially across the whole body.
+    for (int i = 0; i < model.getContent().size(); i++) {
+      assertThat(model.getContent().get(i).orderIndex()).isEqualTo(i);
+    }
 
     // Cover is the most-recent tagged image (D2).
     assertThat(model.getCoverImage()).isNotNull();
@@ -199,5 +238,63 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(referencedCollectionIds(model)).containsExactly(tagged);
     assertThat(model.getCoverImage()).isNull();
     assertThat(model.getTitle()).isEqualTo("No Cover Person");
+  }
+
+  @Test
+  void standaloneTaggedImageNotInAnyCollectionAppearsAsImageBlock() {
+    Long userId = seedUser("standalone-img-" + UUID.randomUUID() + "@example.com");
+    Long personId = seedPerson("Standalone Image Person");
+    people.linkUser(personId, userId);
+    // Tagged image with NO collection membership and NO grant.
+    seedTaggedImage(personId, "https://cdn/standalone.webp", LocalDateTime.now().minusDays(1));
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    assertThat(collectionBlocks(model)).isEmpty();
+    assertThat(model.getContent()).hasSize(1);
+    assertThat(model.getContent().get(0)).isInstanceOf(ContentModels.Image.class);
+    assertThat(((ContentModels.Image) model.getContent().get(0)).imageUrl())
+        .isEqualTo("https://cdn/standalone.webp");
+    assertThat(model.getContent().get(0).orderIndex()).isZero();
+  }
+
+  @Test
+  void taggedGifAppearsAsGifBlock() {
+    Long userId = seedUser("gif-" + UUID.randomUUID() + "@example.com");
+    Long personId = seedPerson("Gif Person");
+    people.linkUser(personId, userId);
+    seedTaggedGif(personId, "https://cdn/anim.gif");
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    assertThat(model.getContent()).hasSize(1);
+    ContentModel block = model.getContent().get(0);
+    assertThat(block).isInstanceOf(ContentModels.Gif.class);
+    assertThat(((ContentModels.Gif) block).gifUrl()).isEqualTo("https://cdn/anim.gif");
+    assertThat(block.orderIndex()).isZero();
+  }
+
+  @Test
+  void bodyOrderingIsCollectionsThenContentBothDateDesc() {
+    Long userId = seedUser("order-" + UUID.randomUUID() + "@example.com");
+    Long personId = seedPerson("Order Person");
+    people.linkUser(personId, userId);
+
+    Long collection = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(2));
+    tagCollection(collection, personId);
+    seedTaggedImage(personId, "https://cdn/img.webp", LocalDateTime.now().minusDays(3));
+    seedTaggedGif(personId, "https://cdn/g.gif");
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    // Collection block first, then standalone content (image before gif), orderIndex 0..2.
+    List<ContentModel> body = model.getContent();
+    assertThat(body).hasSize(3);
+    assertThat(body.get(0)).isInstanceOf(ContentModels.Collection.class);
+    assertThat(body.get(1)).isInstanceOf(ContentModels.Image.class);
+    assertThat(body.get(2)).isInstanceOf(ContentModels.Gif.class);
+    assertThat(body.get(0).orderIndex()).isZero();
+    assertThat(body.get(1).orderIndex()).isEqualTo(1);
+    assertThat(body.get(2).orderIndex()).isEqualTo(2);
   }
 }
