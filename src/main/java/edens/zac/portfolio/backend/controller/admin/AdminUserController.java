@@ -20,8 +20,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Admin endpoints for user account management. Secured behind the BFF perimeter — callers must hold
- * an authenticated admin session; Spring Security's authorization matrix enforces this.
+ * Admin endpoints for user account management.
+ *
+ * <p>Authorization is perimeter-based, not role-based. In the {@code prod} profile every request is
+ * gated by {@link edens.zac.portfolio.backend.config.InternalSecretFilter} on the {@code
+ * X-Internal-Secret} header that the BFF proxy injects for same-origin admin calls. Spring
+ * Security's authorization matrix does NOT gate these routes — {@link
+ * edens.zac.portfolio.backend.config.SecurityConfig} falls through to {@code permitAll}, so outside
+ * {@code prod} (e.g. local dev) they are unauthenticated. Per-user admin RBAC is deferred (Phase A).
  */
 @Slf4j
 @RestController

@@ -44,6 +44,11 @@ public class SecurityConfig {
                     .authenticated()
                     .requestMatchers("/api/auth/webauthn/register/**")
                     .authenticated()
+                    // Everything else (including /api/admin/**) is permitAll at the Spring layer.
+                    // Admin/write protection is the prod-only InternalSecretFilter + BFF perimeter,
+                    // not this matrix — outside prod these routes are unauthenticated. Per-user
+                    // admin RBAC is deferred (Phase A). Do NOT switch /api/admin/** to
+                    // authenticated(): admin calls carry the BFF secret, not a session principal.
                     .anyRequest()
                     .permitAll())
         .addFilterBefore(saf, AuthorizationFilter.class)
