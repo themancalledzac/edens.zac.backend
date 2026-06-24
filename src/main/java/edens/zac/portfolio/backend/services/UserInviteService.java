@@ -72,21 +72,31 @@ public class UserInviteService {
   }
 
   /**
-   * Redeem a raw invite token, marking it used. Callers must first call {@link #validate} and act
-   * on its result before calling {@code redeem}. Returns the invite entity so the caller can look
-   * up the associated user.
+   * Atomically redeem a raw invite token. The single-use guarantee lives in the DB write: after
+   * confirming the token is known and unexpired, the conditional {@code markUsedIfUnused} update is
+   * the gate. Only the first caller's update affects a row; a concurrent or repeat redeem affects
+   * zero rows and yields empty. This holds regardless of how the controller sequences calls.
    *
    * @param rawToken the raw token from the invite URL
-   * @return the redeemed invite entity, or empty if the token is invalid/already used/expired
+   * @return the redeemed invite entity, or empty if the token is unknown, expired, or already used
    */
   @Transactional
   public Optional<UserInviteEntity> redeem(String rawToken) {
-    Optional<UserInviteEntity> maybeInvite = validate(rawToken);
+    if (rawToken == null || rawToken.isBlank()) {
+      return Optional.empty();
+    }
+    Optional<UserInviteEntity> maybeInvite =
+        inviteRepository.findByTokenHash(TokenUtil.sha256Hex(rawToken));
     if (maybeInvite.isEmpty()) {
       return Optional.empty();
     }
     UserInviteEntity invite = maybeInvite.get();
-    inviteRepository.markUsed(invite.getId(), LocalDateTime.now());
+    if (invite.getExpiresAt().isBefore(LocalDateTime.now())) {
+      return Optional.empty();
+    }
+    if (inviteRepository.markUsedIfUnused(invite.getId(), LocalDateTime.now()) == 0) {
+      return Optional.empty();
+    }
     return Optional.of(invite);
   }
 }

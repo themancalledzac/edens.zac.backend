@@ -99,6 +99,20 @@ class UserInviteServiceIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
+  void redeemIsAtomicSingleUse() {
+    Long userId = seedUser("redeem-atomic@example.com");
+    String raw = inviteService.createInvite(userId, "redeem-atomic@example.com");
+    Long inviteId =
+        inviteRepository.findByTokenHash(TokenUtil.sha256Hex(raw)).orElseThrow().getId();
+
+    assertThat(inviteService.redeem(raw)).isPresent();
+    assertThat(inviteService.redeem(raw)).isEmpty();
+
+    // The single-use gate lives in the DB write: a repeat conditional update affects no rows.
+    assertThat(inviteRepository.markUsedIfUnused(inviteId, LocalDateTime.now())).isZero();
+  }
+
+  @Test
   void redeemExpiredTokenReturnsEmpty() {
     Long userId = seedUser("redeem-expired@example.com");
     String raw = inviteService.createInvite(userId, "redeem-expired@example.com");

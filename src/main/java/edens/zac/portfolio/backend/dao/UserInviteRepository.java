@@ -10,6 +10,11 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * JdbcTemplate repository for {@code user_invite} rows. Tokens are looked up by their SHA-256 hash
+ * (the raw token is never stored). Redemption is single-use: {@link #markUsedIfUnused} only flips
+ * an unredeemed row, so two concurrent accepts cannot both succeed.
+ */
 @Component
 @Slf4j
 public class UserInviteRepository extends BaseDao {
@@ -61,11 +66,21 @@ public class UserInviteRepository extends BaseDao {
     return queryForObject(sql, USER_INVITE_ROW_MAPPER, params);
   }
 
+  /**
+   * Conditionally mark an invite used. The {@code used_at IS NULL} guard makes redemption atomic
+   * and single-use: only the first caller's update affects a row; a concurrent or repeat call sees
+   * the row already flipped and affects none.
+   *
+   * @param id the invite id
+   * @param usedAt the redemption timestamp
+   * @return the number of rows affected — {@code 1} on a successful first redeem, {@code 0} if the
+   *     invite was already used
+   */
   @Transactional
-  public void markUsed(Long id, LocalDateTime usedAt) {
-    String sql = "UPDATE user_invite SET used_at = :usedAt WHERE id = :id";
+  public int markUsedIfUnused(Long id, LocalDateTime usedAt) {
+    String sql = "UPDATE user_invite SET used_at = :usedAt WHERE id = :id AND used_at IS NULL";
     MapSqlParameterSource params =
         createParameterSource().addValue("usedAt", usedAt).addValue("id", id);
-    update(sql, params);
+    return update(sql, params);
   }
 }

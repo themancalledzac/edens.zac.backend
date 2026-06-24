@@ -14,11 +14,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 class UserInviteRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private UserInviteRepository inviteRepository;
   @Autowired private AppUserRepository userRepository;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
   private Long seedUser(String email) {
     return userRepository.insert(
@@ -60,14 +62,18 @@ class UserInviteRepositoryIntegrationTest extends AbstractPostgresIntegrationTes
   }
 
   @Test
-  void markUsedSetsUsedAt() {
+  void markUsedIfUnusedFlipsOnceThenNoOps() {
     Long userId = seedUser("invite-used@example.com");
     Long id = inviteRepository.insert(newInvite(userId, "hash-mark", "invite-used@example.com"));
-    LocalDateTime usedAt = LocalDateTime.now();
-    inviteRepository.markUsed(id, usedAt);
+
+    int firstAffected = inviteRepository.markUsedIfUnused(id, LocalDateTime.now());
+    assertThat(firstAffected).isEqualTo(1);
 
     UserInviteEntity after = inviteRepository.findByTokenHash("hash-mark").orElseThrow();
     assertThat(after.getUsedAt()).isNotNull();
+
+    int secondAffected = inviteRepository.markUsedIfUnused(id, LocalDateTime.now());
+    assertThat(secondAffected).isZero();
   }
 
   @Test
@@ -84,11 +90,7 @@ class UserInviteRepositoryIntegrationTest extends AbstractPostgresIntegrationTes
     Long userId = seedUser("invite-cascade@example.com");
     inviteRepository.insert(newInvite(userId, "hash-cascade", "invite-cascade@example.com"));
 
-    org.springframework.jdbc.core.JdbcTemplate jdbc =
-        (org.springframework.jdbc.core.JdbcTemplate)
-            org.springframework.test.util.ReflectionTestUtils.getField(
-                userRepository, "jdbcTemplate");
-    jdbc.update("DELETE FROM app_user WHERE id = ?", userId);
+    jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", userId);
 
     assertThat(inviteRepository.findByTokenHash("hash-cascade")).isEmpty();
   }
