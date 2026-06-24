@@ -73,7 +73,9 @@ public class AdminUserController {
 
     Long userId = appUserRepository.insert(newUser);
     String rawToken = userInviteService.createInvite(userId, email);
-    String inviteUrl = frontendBaseUrl + "/invite/" + rawToken;
+    // Strip any trailing slash so a configured base URL ending in "/" does not yield a double
+    // slash.
+    String inviteUrl = frontendBaseUrl.replaceAll("/+$", "") + "/invite/" + rawToken;
 
     log.info("Admin created user (userId={}, email={})", userId, email);
     return ResponseEntity.status(HttpStatus.CREATED)

@@ -94,6 +94,26 @@ class AuthControllerTest {
   }
 
   @Test
+  void loginWithMixedCaseEmailResolvesLowercasedUser() throws Exception {
+    // Email stored lowercased at creation time; a mixed-case login must still resolve it.
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));
+    when(passwordEncoder.matches("correct", "{bcrypt}$2a$10$hash")).thenReturn(true);
+
+    mockMvc
+        .perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginRequest("ADMIN@Example.COM", "correct"))))
+        .andExpect(status().isNoContent());
+
+    verify(appUserRepository).findByEmail("admin@example.com");
+    verify(sessionService).create(any(AppUserEntity.class), eq(false), any(), any());
+  }
+
+  @Test
   void loginWithBadPasswordReturns401AndRecordsFailure() throws Exception {
     when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
     when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));

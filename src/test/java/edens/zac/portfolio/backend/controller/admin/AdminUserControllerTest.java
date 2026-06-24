@@ -19,7 +19,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
@@ -34,10 +33,13 @@ class AdminUserControllerTest {
   @Mock private AppUserRepository appUserRepository;
   @Mock private UserInviteService userInviteService;
 
-  @InjectMocks private AdminUserController controller;
+  // Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join.
+  private static final String FRONTEND_BASE_URL = "https://app.example.com/";
 
   @BeforeEach
   void setUp() {
+    AdminUserController controller =
+        new AdminUserController(appUserRepository, userInviteService, FRONTEND_BASE_URL);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())
@@ -60,9 +62,8 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"alice@example.com\",\"displayName\":\"Alice\"}"))
           .andExpect(status().isCreated())
           .andExpect(jsonPath("$.userId").value(42))
-          .andExpect(
-              jsonPath("$.inviteUrl")
-                  .value(org.hamcrest.Matchers.containsString("/invite/raw-token-abc")));
+          // Trailing slash on the base URL must not produce a double slash before "invite".
+          .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/raw-token-abc"));
     }
 
     @Test

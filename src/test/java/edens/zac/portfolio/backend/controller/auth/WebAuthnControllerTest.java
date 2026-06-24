@@ -120,6 +120,26 @@ class WebAuthnControllerTest {
   }
 
   @Test
+  void loginStartLowercasesEmailBeforeResolving() throws Exception {
+    // Email stored lowercased at creation time; a mixed-case login/start must resolve it
+    // lowercased.
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(webAuthnService.startLogin(eq("admin@example.com")))
+        .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
+
+    mockMvc
+        .perform(
+            post("/api/auth/webauthn/login/start")
+                .contentType("application/json")
+                .content("{\"email\":\"ADMIN@Example.COM\"}"))
+        .andExpect(status().isOk())
+        .andExpect(cookie().value("ezac_webauthn_attempt", "attempt-1"));
+
+    verify(webAuthnService).startLogin(eq("admin@example.com"));
+    verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+  }
+
+  @Test
   void loginStartReturns429WhenRateLimited() throws Exception {
     when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(true);
 

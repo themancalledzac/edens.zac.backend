@@ -57,7 +57,8 @@ public class AuthController {
       HttpServletRequest request,
       HttpServletResponse response) {
     String ip = resolveClientIp(request);
-    String email = body.email();
+    // Normalize to lowercase so login matches the lowercased email stored at account-creation time.
+    String email = body.email().toLowerCase();
 
     if (loginLimiter.isBlocked(ip, email)) {
       log.warn("Auth login rate-limited for email={} ip={}", email, ip);

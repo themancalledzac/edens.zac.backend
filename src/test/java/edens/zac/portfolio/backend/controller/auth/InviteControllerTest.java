@@ -135,7 +135,8 @@ class InviteControllerTest {
     }
 
     @Test
-    void alreadyRedeemedTokenReturns410() throws Exception {
+    void alreadyUsedTokenReturns410() throws Exception {
+      // redeem()'s atomic gate yields empty for an already-redeemed token → 410 Gone.
       when(userInviteService.redeem("used-token")).thenReturn(Optional.empty());
 
       mockMvc
@@ -147,6 +148,22 @@ class InviteControllerTest {
 
       verify(appUserRepository, never()).updatePasswordHash(anyLong(), anyString());
       verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(sessionService, never()).create(any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    void expiredTokenReturns410() throws Exception {
+      // redeem() also yields empty for an expired token (collapsed with the used case) → 410 Gone.
+      when(userInviteService.redeem("expired-token")).thenReturn(Optional.empty());
+
+      mockMvc
+          .perform(
+              post("/api/auth/invite/expired-token/accept")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Bob\",\"password\":\"newpass1\"}"))
+          .andExpect(status().isGone());
+
+      verify(appUserRepository, never()).updatePasswordHash(anyLong(), anyString());
       verify(sessionService, never()).create(any(), anyBoolean(), any(), any());
     }
 

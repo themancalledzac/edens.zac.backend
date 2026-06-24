@@ -128,7 +128,9 @@ public class WebAuthnController {
       produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<String> loginStart(
       @RequestBody Map<String, String> body, HttpServletRequest request) throws Exception {
-    String email = body.get("email");
+    String rawEmail = body.get("email");
+    // Normalize to lowercase so the engine resolves the lowercased email stored at creation time.
+    String email = rawEmail == null ? null : rawEmail.toLowerCase();
     String ip = resolveClientIp(request);
 
     if (loginLimiter.isBlocked(ip, email)) {
