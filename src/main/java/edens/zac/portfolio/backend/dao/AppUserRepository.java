@@ -97,4 +97,21 @@ public class AppUserRepository extends BaseDao {
         createParameterSource().addValue("hash", hash).addValue("id", id);
     update(sql, params);
   }
+
+  @Transactional
+  public void updateStatus(Long id, UserStatus status) {
+    String sql = "UPDATE app_user SET status = :status, updated_at = now() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("status", status.name()).addValue("id", id);
+    update(sql, params);
+  }
+
+  @Transactional
+  public void updateDisplayName(Long id, String displayName) {
+    String sql =
+        "UPDATE app_user SET display_name = :displayName, updated_at = now() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("displayName", displayName).addValue("id", id);
+    update(sql, params);
+  }
 }

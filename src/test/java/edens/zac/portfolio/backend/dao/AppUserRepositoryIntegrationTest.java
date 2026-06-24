@@ -89,4 +89,27 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThatThrownBy(() -> repository.insert(newUser("unique@example.com", Role.CLIENT)))
         .isInstanceOf(DataIntegrityViolationException.class);
   }
+
+  @Test
+  void updateStatusPersists() {
+    Long id =
+        repository.insert(
+            AppUserEntity.builder()
+                .email("status@example.com")
+                .role(Role.CLIENT)
+                .webauthnUserHandle(UUID.randomUUID())
+                .status(UserStatus.INVITED)
+                .build());
+    repository.updateStatus(id, UserStatus.ACTIVE);
+    assertThat(repository.findById(id)).isPresent();
+    assertThat(repository.findById(id).get().getStatus()).isEqualTo(UserStatus.ACTIVE);
+  }
+
+  @Test
+  void updateDisplayNamePersists() {
+    Long id = repository.insert(newUser("displayname@example.com", Role.CLIENT));
+    repository.updateDisplayName(id, "Alice Smith");
+    assertThat(repository.findById(id)).isPresent();
+    assertThat(repository.findById(id).get().getDisplayName()).isEqualTo("Alice Smith");
+  }
 }

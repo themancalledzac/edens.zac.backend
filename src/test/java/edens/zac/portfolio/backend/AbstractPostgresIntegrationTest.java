@@ -49,7 +49,7 @@ public abstract class AbstractPostgresIntegrationTest {
   @AfterEach
   void truncateAuthTables() {
     jdbcTemplate.execute(
-        "TRUNCATE TABLE webauthn_credential, gallery_access, user_session, app_user"
+        "TRUNCATE TABLE user_invite, webauthn_credential, gallery_access, user_session, app_user"
             + " RESTART IDENTITY CASCADE");
   }
 }
