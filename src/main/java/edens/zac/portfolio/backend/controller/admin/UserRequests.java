@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.admin;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 /** Request and response records for the admin user-management endpoints. */
 public final class UserRequests {
@@ -37,4 +38,14 @@ public final class UserRequests {
    * @param inviteUrl the full invite URL the admin should send to the invitee
    */
   public record CreateUserResponse(Long userId, String inviteUrl) {}
+
+  /**
+   * Body for {@code PATCH /api/admin/users/{id}} — updates the two admin-editable fields. Email is
+   * deliberately immutable (it is the login identity and invite target). {@code displayName} may be
+   * {@code null} to clear it; {@code status} is required.
+   *
+   * @param displayName the new display name, or {@code null} to clear
+   * @param status the new lifecycle status (INVITED / ACTIVE / DISABLED)
+   */
+  public record UpdateUserRequest(String displayName, @NotNull UserStatus status) {}
 }
