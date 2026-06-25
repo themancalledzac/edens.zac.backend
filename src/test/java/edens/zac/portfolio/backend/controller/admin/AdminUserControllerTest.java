@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -188,6 +189,106 @@ class AdminUserControllerTest {
       mockMvc.perform(post("/api/admin/users/999/invite")).andExpect(status().isNotFound());
 
       verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
+    }
+  }
+
+  @Nested
+  class GetUser {
+
+    @Test
+    void getUserReturnsSummary() throws Exception {
+      AppUserEntity user =
+          AppUserEntity.builder()
+              .id(3L)
+              .email("carol@example.com")
+              .displayName("Carol")
+              .status(UserStatus.ACTIVE)
+              .passwordHash("secret-hash")
+              .webauthnUserHandle(UUID.randomUUID())
+              .build();
+      when(appUserRepository.findById(3L)).thenReturn(Optional.of(user));
+
+      mockMvc
+          .perform(get("/api/admin/users/3"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.id").value(3))
+          .andExpect(jsonPath("$.email").value("carol@example.com"))
+          .andExpect(jsonPath("$.displayName").value("Carol"))
+          .andExpect(jsonPath("$.status").value("ACTIVE"))
+          .andExpect(jsonPath("$.passwordHash").doesNotExist())
+          .andExpect(jsonPath("$.webauthnUserHandle").doesNotExist());
+    }
+
+    @Test
+    void getUnknownUserReturns404() throws Exception {
+      when(appUserRepository.findById(999L)).thenReturn(Optional.empty());
+
+      mockMvc.perform(get("/api/admin/users/999")).andExpect(status().isNotFound());
+    }
+  }
+
+  @Nested
+  class UpdateUser {
+
+    @Test
+    void updateUserAppliesDisplayNameAndStatusAndReturnsSummary() throws Exception {
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .displayName("Ken")
+              .status(UserStatus.INVITED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .displayName("Kenneth")
+              .status(UserStatus.ACTIVE)
+              .build();
+      // First findById gates the 404 check; second reads the refreshed row back.
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Kenneth\",\"status\":\"ACTIVE\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.id").value(8))
+          .andExpect(jsonPath("$.displayName").value("Kenneth"))
+          .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+      verify(appUserRepository).updateDisplayName(8L, "Kenneth");
+      verify(appUserRepository).updateStatus(8L, UserStatus.ACTIVE);
+    }
+
+    @Test
+    void updateUnknownUserReturns404() throws Exception {
+      when(appUserRepository.findById(999L)).thenReturn(Optional.empty());
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/999")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Nobody\",\"status\":\"ACTIVE\"}"))
+          .andExpect(status().isNotFound());
+
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+    }
+
+    @Test
+    void updateWithMissingStatusReturns400() throws Exception {
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Kenneth\"}"))
+          .andExpect(status().isBadRequest());
+
+      verify(appUserRepository, never()).updateDisplayName(anyLong(), anyString());
     }
   }
 }

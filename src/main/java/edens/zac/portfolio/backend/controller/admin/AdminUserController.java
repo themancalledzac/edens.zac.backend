@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.admin;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserSummary;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserResponse;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserRequest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.services.UserInviteService;
@@ -18,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -127,6 +129,46 @@ public class AdminUserController {
     String rawToken = userInviteService.regenerateInvite(user.getId(), user.getEmail());
     log.info("Admin regenerated invite (userId={})", user.getId());
     return ResponseEntity.ok(new CreateUserResponse(user.getId(), buildInviteUrl(rawToken)));
+  }
+
+  /**
+   * Fetch a single user summary for the admin detail view.
+   *
+   * @param id the {@code app_user.id}
+   * @return {@code 200} with {@link AdminUserSummary}, or {@code 404} if no such user
+   */
+  @GetMapping("/{id}")
+  public ResponseEntity<AdminUserSummary> getUser(@PathVariable Long id) {
+    return appUserRepository
+        .findById(id)
+        .map(
+            u ->
+                ResponseEntity.ok(
+                    new AdminUserSummary(
+                        u.getId(), u.getEmail(), u.getDisplayName(), u.getStatus())))
+        .orElseGet(() -> ResponseEntity.notFound().build());
+  }
+
+  /**
+   * Update the two admin-editable fields (display name + status). Email/role are immutable here.
+   *
+   * @param id the {@code app_user.id}
+   * @param request the new display name (nullable) and status (required)
+   * @return {@code 200} with the refreshed {@link AdminUserSummary}, or {@code 404} if no such user
+   */
+  @PatchMapping("/{id}")
+  @Transactional
+  public ResponseEntity<AdminUserSummary> updateUser(
+      @PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
+    if (appUserRepository.findById(id).isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+    appUserRepository.updateDisplayName(id, request.displayName());
+    appUserRepository.updateStatus(id, request.status());
+    AppUserEntity updated = appUserRepository.findById(id).orElseThrow();
+    return ResponseEntity.ok(
+        new AdminUserSummary(
+            updated.getId(), updated.getEmail(), updated.getDisplayName(), updated.getStatus()));
   }
 
   /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */
