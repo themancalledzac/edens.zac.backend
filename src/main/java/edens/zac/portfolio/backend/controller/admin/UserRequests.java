@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
@@ -7,6 +8,17 @@ import jakarta.validation.constraints.NotBlank;
 public final class UserRequests {
 
   private UserRequests() {}
+
+  /**
+   * Row in the admin user list ({@code GET /api/admin/users}). Deliberately excludes the password
+   * hash and WebAuthn handle — admin needs only identity and lifecycle state.
+   *
+   * @param id the {@code app_user.id}
+   * @param email the account email
+   * @param displayName the display name, may be {@code null}
+   * @param status the account lifecycle status (INVITED / ACTIVE / DISABLED)
+   */
+  public record AdminUserSummary(Long id, String email, String displayName, UserStatus status) {}
 
   /**
    * Body for {@code POST /api/admin/users} — creates a new user account and returns an invite URL.

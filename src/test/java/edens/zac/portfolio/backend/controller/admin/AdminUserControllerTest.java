@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,7 +15,10 @@ import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.services.UserInviteService;
+import edens.zac.portfolio.backend.types.UserStatus;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -117,6 +121,73 @@ class AdminUserControllerTest {
                   .contentType(MediaType.APPLICATION_JSON)
                   .content("{\"email\":\"not-an-email\"}"))
           .andExpect(status().isBadRequest());
+    }
+  }
+
+  @Nested
+  class ListUsers {
+
+    @Test
+    void listUsersReturnsSummariesWithoutSensitiveFields() throws Exception {
+      AppUserEntity alice =
+          AppUserEntity.builder()
+              .id(1L)
+              .email("alice@example.com")
+              .displayName("Alice")
+              .status(UserStatus.ACTIVE)
+              .passwordHash("{bcrypt}$2a$10$secret")
+              .webauthnUserHandle(UUID.randomUUID())
+              .build();
+      AppUserEntity bob =
+          AppUserEntity.builder()
+              .id(2L)
+              .email("bob@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findAllOrderedByCreatedAt()).thenReturn(List.of(alice, bob));
+
+      mockMvc
+          .perform(get("/api/admin/users"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$[0].id").value(1))
+          .andExpect(jsonPath("$[0].email").value("alice@example.com"))
+          .andExpect(jsonPath("$[0].displayName").value("Alice"))
+          .andExpect(jsonPath("$[0].status").value("ACTIVE"))
+          // Sensitive fields must never be serialized into the admin list.
+          .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
+          .andExpect(jsonPath("$[0].webauthnUserHandle").doesNotExist())
+          .andExpect(jsonPath("$[1].status").value("INVITED"));
+    }
+  }
+
+  @Nested
+  class RegenerateInvite {
+
+    @Test
+    void regenerateReturns200WithFreshInviteUrl() throws Exception {
+      AppUserEntity bob =
+          AppUserEntity.builder()
+              .id(5L)
+              .email("bob@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(5L)).thenReturn(Optional.of(bob));
+      when(userInviteService.regenerateInvite(5L, "bob@example.com")).thenReturn("fresh-token");
+
+      mockMvc
+          .perform(post("/api/admin/users/5/invite"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.userId").value(5))
+          .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/fresh-token"));
+    }
+
+    @Test
+    void regenerateUnknownUserReturns404() throws Exception {
+      when(appUserRepository.findById(999L)).thenReturn(Optional.empty());
+
+      mockMvc.perform(post("/api/admin/users/999/invite")).andExpect(status().isNotFound());
+
+      verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
     }
   }
 }

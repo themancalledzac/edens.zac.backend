@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserSummary;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserResponse;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
@@ -8,12 +9,16 @@ import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,7 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
  * X-Internal-Secret} header that the BFF proxy injects for same-origin admin calls. Spring
  * Security's authorization matrix does NOT gate these routes — {@link
  * edens.zac.portfolio.backend.config.SecurityConfig} falls through to {@code permitAll}, so outside
- * {@code prod} (e.g. local dev) they are unauthenticated. Per-user admin RBAC is deferred (Phase A).
+ * {@code prod} (e.g. local dev) they are unauthenticated. Per-user admin RBAC is deferred (Phase
+ * A).
  */
 @Slf4j
 @RestController
@@ -81,12 +87,50 @@ public class AdminUserController {
 
     Long userId = appUserRepository.insert(newUser);
     String rawToken = userInviteService.createInvite(userId, email);
-    // Strip any trailing slash so a configured base URL ending in "/" does not yield a double
-    // slash.
-    String inviteUrl = frontendBaseUrl.replaceAll("/+$", "") + "/invite/" + rawToken;
+    String inviteUrl = buildInviteUrl(rawToken);
 
     log.info("Admin created user (userId={}, email={})", userId, email);
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new CreateUserResponse(userId, inviteUrl));
+  }
+
+  /**
+   * List all user accounts (newest first) for the admin user-management view. Returns identity and
+   * lifecycle state only — never password hashes or WebAuthn handles.
+   *
+   * @return the user summaries
+   */
+  @GetMapping
+  public List<AdminUserSummary> listUsers() {
+    return appUserRepository.findAllOrderedByCreatedAt().stream()
+        .map(u -> new AdminUserSummary(u.getId(), u.getEmail(), u.getDisplayName(), u.getStatus()))
+        .toList();
+  }
+
+  /**
+   * Re-issue a single-use invite link for an existing user — a resend for an {@code INVITED} user,
+   * a password-reset for an {@code ACTIVE} one (both complete the same accept flow). Invalidates
+   * the user's prior unused invites so only the newest link is live; the account status is
+   * unchanged.
+   *
+   * @param id the {@code app_user.id} to re-invite
+   * @return {@code 200} with {@link CreateUserResponse}, or {@code 404} if no such user
+   */
+  @PostMapping("/{id}/invite")
+  @Transactional
+  public ResponseEntity<CreateUserResponse> regenerateInvite(@PathVariable Long id) {
+    Optional<AppUserEntity> maybeUser = appUserRepository.findById(id);
+    if (maybeUser.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+    AppUserEntity user = maybeUser.get();
+    String rawToken = userInviteService.regenerateInvite(user.getId(), user.getEmail());
+    log.info("Admin regenerated invite (userId={})", user.getId());
+    return ResponseEntity.ok(new CreateUserResponse(user.getId(), buildInviteUrl(rawToken)));
+  }
+
+  /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */
+  private String buildInviteUrl(String rawToken) {
+    return frontendBaseUrl.replaceAll("/+$", "") + "/invite/" + rawToken;
   }
 }

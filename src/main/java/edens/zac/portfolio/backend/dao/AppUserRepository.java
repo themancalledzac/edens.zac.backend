@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.dao;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +63,15 @@ public class AppUserRepository extends BaseDao {
     String sql = SELECT_APP_USER + " WHERE webauthn_user_handle = :handle";
     MapSqlParameterSource params = createParameterSource().addValue("handle", handle);
     return queryForObject(sql, APP_USER_ROW_MAPPER, params);
+  }
+
+  /**
+   * All users, newest first. Backs the admin user list; callers must not expose sensitive fields.
+   */
+  @Transactional(readOnly = true)
+  public List<AppUserEntity> findAllOrderedByCreatedAt() {
+    String sql = SELECT_APP_USER + " ORDER BY created_at DESC";
+    return query(sql, APP_USER_ROW_MAPPER, createParameterSource());
   }
 
   @Transactional(readOnly = true)

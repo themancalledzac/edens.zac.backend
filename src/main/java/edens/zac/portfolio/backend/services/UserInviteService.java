@@ -45,6 +45,22 @@ public class UserInviteService {
   }
 
   /**
+   * Re-issue an invite for an existing user: invalidate any outstanding unused invites, then mint a
+   * fresh one. Serves both resend (for an {@code INVITED} user) and password-reset (for an {@code
+   * ACTIVE} user, who completes the same accept flow). The raw token is returned for the link; the
+   * old link, if anyone still holds it, is dead. Does not change the user's status.
+   *
+   * @param userId the id of the {@code app_user} record to re-invite
+   * @param email the user's current email, captured on the fresh invite
+   * @return the raw token for the new invite link
+   */
+  @Transactional
+  public String regenerateInvite(Long userId, String email) {
+    inviteRepository.invalidateUnusedForUser(userId);
+    return createInvite(userId, email);
+  }
+
+  /**
    * Validate a raw invite token. Returns the invite entity if the token is found, unexpired, and
    * not yet redeemed. Returns empty for unknown, expired, or already-used tokens.
    *

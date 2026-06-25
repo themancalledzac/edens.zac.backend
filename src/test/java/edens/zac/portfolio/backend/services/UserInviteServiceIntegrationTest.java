@@ -122,4 +122,25 @@ class UserInviteServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     assertThat(inviteService.redeem(raw)).isEmpty();
   }
+
+  @Test
+  void regenerateInvalidatesPriorUnusedInvitesAndMintsFresh() {
+    Long userId = seedUser("regen@example.com");
+    String oldRaw = inviteService.createInvite(userId, "regen@example.com");
+
+    String newRaw = inviteService.regenerateInvite(userId, "regen@example.com");
+
+    // The old link is now dead; the freshly-minted link validates.
+    assertThat(inviteService.validate(oldRaw)).isEmpty();
+    assertThat(inviteService.validate(newRaw)).isPresent();
+    assertThat(inviteService.validate(newRaw).orElseThrow().getUserId()).isEqualTo(userId);
+
+    // Exactly one unused invite remains for the user.
+    Integer unused =
+        jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM user_invite WHERE user_id = ? AND used_at IS NULL",
+            Integer.class,
+            userId);
+    assertThat(unused).isEqualTo(1);
+  }
 }

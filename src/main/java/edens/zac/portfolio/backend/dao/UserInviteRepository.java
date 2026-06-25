@@ -83,4 +83,19 @@ public class UserInviteRepository extends BaseDao {
         createParameterSource().addValue("usedAt", usedAt).addValue("id", id);
     return update(sql, params);
   }
+
+  /**
+   * Mark every still-unused invite for a user as used, so that issuing a fresh invite leaves only
+   * the newest link live. Used invites are untouched.
+   *
+   * @param userId the {@code app_user.id} whose outstanding invites should be invalidated
+   * @return the number of invites invalidated
+   */
+  @Transactional
+  public int invalidateUnusedForUser(Long userId) {
+    String sql =
+        "UPDATE user_invite SET used_at = now() WHERE user_id = :userId AND used_at IS NULL";
+    MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
+    return update(sql, params);
+  }
 }
