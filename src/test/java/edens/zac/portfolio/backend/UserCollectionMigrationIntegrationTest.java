@@ -42,7 +42,7 @@ class UserCollectionMigrationIntegrationTest extends AbstractPostgresIntegration
         "INSERT INTO users (name, webauthn_user_handle, status) VALUES ('Member Mary', gen_random_uuid(), 'ACTIVE')");
     Long userId = jdbc.queryForObject("SELECT id FROM users WHERE name='Member Mary'", Long.class);
     jdbc.update(
-        "INSERT INTO collection (title, slug, type) VALUES ('C', 'c-slug', 'CLIENT_GALLERY')");
+        "INSERT INTO collection (title, slug, type, visibility) VALUES ('C', 'c-slug', 'CLIENT_GALLERY', 'UNLISTED')");
     Long collectionId =
         jdbc.queryForObject("SELECT id FROM collection WHERE slug='c-slug'", Long.class);
 
