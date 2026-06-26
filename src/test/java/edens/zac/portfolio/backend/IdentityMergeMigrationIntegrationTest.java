@@ -49,9 +49,12 @@ class IdentityMergeMigrationIntegrationTest extends AbstractPostgresIntegrationT
     jdbc.update("INSERT INTO content (content_type) VALUES ('IMAGE')");
     Long contentId = jdbc.queryForObject("SELECT max(id) FROM content", Long.class);
     jdbc.update(
-        "INSERT INTO content_image (id, title, image_url_web) VALUES (?, 'x', 'http://x')", contentId);
+        "INSERT INTO content_image (id, title, image_url_web) VALUES (?, 'x', 'http://x')",
+        contentId);
     jdbc.update(
-        "INSERT INTO content_image_people (content_id, person_id) VALUES (?, ?)", contentId, userId);
+        "INSERT INTO content_image_people (content_id, person_id) VALUES (?, ?)",
+        contentId,
+        userId);
 
     Long resolved =
         jdbc.queryForObject(

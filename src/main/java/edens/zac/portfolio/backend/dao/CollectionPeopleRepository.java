@@ -16,15 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
  * DTOs directly so callers (CollectionProcessingUtil) can populate {@code CollectionModel.people}
  * without going through {@code ContentPersonEntity}.
  *
- * <p>The actual person table is {@code content_people} with column {@code person_name}; columns are
- * aliased as {@code name} so they map cleanly into {@link Records.Person}.
+ * <p>The person identity lives in {@code users} (since the V35 merge) with column {@code name};
+ * reads project only {@code id, name} into {@link Records.Person} — never account columns.
  */
 @Component
 public class CollectionPeopleRepository extends BaseDao {
 
   private static final RowMapper<Records.Person> PERSON_ROW_MAPPER =
-      (rs, rowNum) ->
-          new Records.Person(rs.getLong("id"), rs.getString("name"), rs.getString("slug"));
+      (rs, rowNum) -> new Records.Person(rs.getLong("id"), rs.getString("name"));
 
   public CollectionPeopleRepository(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
@@ -34,11 +33,11 @@ public class CollectionPeopleRepository extends BaseDao {
   public List<Records.Person> findPeopleForCollection(Long collectionId) {
     String sql =
         """
-        SELECT p.id, p.person_name AS name, p.slug
+        SELECT p.id, p.name
         FROM collection_people cp
-        JOIN content_people p ON p.id = cp.person_id
+        JOIN users p ON p.id = cp.person_id
         WHERE cp.collection_id = :collectionId
-        ORDER BY p.person_name
+        ORDER BY p.name
         """;
     return query(
         sql, PERSON_ROW_MAPPER, createParameterSource().addValue("collectionId", collectionId));
@@ -55,11 +54,11 @@ public class CollectionPeopleRepository extends BaseDao {
     }
     String sql =
         """
-        SELECT cp.collection_id, p.id, p.person_name AS name, p.slug
+        SELECT cp.collection_id, p.id, p.name
         FROM collection_people cp
-        JOIN content_people p ON p.id = cp.person_id
+        JOIN users p ON p.id = cp.person_id
         WHERE cp.collection_id IN (:collectionIds)
-        ORDER BY cp.collection_id, p.person_name
+        ORDER BY cp.collection_id, p.name
         """;
     Map<Long, List<Records.Person>> result = new HashMap<>();
     namedParameterJdbcTemplate.query(
@@ -67,8 +66,7 @@ public class CollectionPeopleRepository extends BaseDao {
         createParameterSource().addValue("collectionIds", collectionIds),
         rs -> {
           Long cid = rs.getLong("collection_id");
-          Records.Person person =
-              new Records.Person(rs.getLong("id"), rs.getString("name"), rs.getString("slug"));
+          Records.Person person = new Records.Person(rs.getLong("id"), rs.getString("name"));
           result.computeIfAbsent(cid, k -> new ArrayList<>()).add(person);
         });
     return result;

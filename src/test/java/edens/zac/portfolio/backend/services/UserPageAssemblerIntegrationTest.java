@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.services;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
-import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -26,23 +25,27 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private UserPageAssembler assembler;
-  @Autowired private PersonRepository people;
   @Autowired private JdbcTemplate jdbc;
 
+  // Since the V35 merge, the account and the person tag are one `users` row: the principal's id IS
+  // the person id. A "linked person" test now seeds a single account row and tags it directly.
   private Long seedUser(String email) {
     return jdbc.queryForObject(
-        "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
-            + "VALUES (?, 'CLIENT', gen_random_uuid(), 'ACTIVE') RETURNING id",
+        "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
+            + "VALUES (?, ?, 'CLIENT', gen_random_uuid(), 'ACTIVE') RETURNING id",
         Long.class,
+        email,
         email);
   }
 
-  private Long seedPerson(String name) {
+  /** An account row whose display name drives the assembled title. */
+  private Long seedUserNamed(String name) {
     return jdbc.queryForObject(
-        "INSERT INTO content_people (person_name, slug) VALUES (?, ?) RETURNING id",
+        "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
+            + "VALUES (?, ?, 'CLIENT', gen_random_uuid(), 'ACTIVE') RETURNING id",
         Long.class,
         name,
-        name.toLowerCase().replace(' ', '-') + "-" + UUID.randomUUID());
+        name.toLowerCase().replace(' ', '-') + "-" + UUID.randomUUID() + "@example.com");
   }
 
   private Long seedCollection(String type, LocalDateTime date) {
@@ -128,23 +131,22 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Test
   void unionsTaggedAndGrantedCollectionsDeDuplicatedWithMostRecentCover() {
-    Long userId = seedUser("jane-" + UUID.randomUUID() + "@example.com");
-    Long personId = seedPerson("Jane Doe");
-    people.linkUser(personId, userId);
+    // The account row IS the person identity: tag and grant against the same id.
+    Long userId = seedUserNamed("Jane Doe");
 
     Long tagged = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(5));
-    tagCollection(tagged, personId);
+    tagCollection(tagged, userId);
 
     Long granted = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
     grant(userId, granted);
 
     // A collection both tagged AND granted must collapse to a single block (de-dupe).
     Long both = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(3));
-    tagCollection(both, personId);
+    tagCollection(both, userId);
     grant(userId, both);
 
-    seedTaggedImage(personId, "https://cdn/old.webp", LocalDateTime.now().minusYears(2));
-    seedTaggedImage(personId, "https://cdn/new.webp", LocalDateTime.now().minusDays(2));
+    seedTaggedImage(userId, "https://cdn/old.webp", LocalDateTime.now().minusYears(2));
+    seedTaggedImage(userId, "https://cdn/new.webp", LocalDateTime.now().minusDays(2));
 
     CollectionModel model = assembler.assembleForUser(userId);
 
@@ -227,11 +229,9 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Test
   void linkedPersonWithoutTaggedImageHasNullCover() {
-    Long userId = seedUser("nocover-" + UUID.randomUUID() + "@example.com");
-    Long personId = seedPerson("No Cover Person");
-    people.linkUser(personId, userId);
+    Long userId = seedUserNamed("No Cover Person");
     Long tagged = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
-    tagCollection(tagged, personId);
+    tagCollection(tagged, userId);
 
     CollectionModel model = assembler.assembleForUser(userId);
 
@@ -242,11 +242,9 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Test
   void standaloneTaggedImageNotInAnyCollectionAppearsAsImageBlock() {
-    Long userId = seedUser("standalone-img-" + UUID.randomUUID() + "@example.com");
-    Long personId = seedPerson("Standalone Image Person");
-    people.linkUser(personId, userId);
+    Long userId = seedUserNamed("Standalone Image Person");
     // Tagged image with NO collection membership and NO grant.
-    seedTaggedImage(personId, "https://cdn/standalone.webp", LocalDateTime.now().minusDays(1));
+    seedTaggedImage(userId, "https://cdn/standalone.webp", LocalDateTime.now().minusDays(1));
 
     CollectionModel model = assembler.assembleForUser(userId);
 
@@ -260,10 +258,8 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Test
   void taggedGifAppearsAsGifBlock() {
-    Long userId = seedUser("gif-" + UUID.randomUUID() + "@example.com");
-    Long personId = seedPerson("Gif Person");
-    people.linkUser(personId, userId);
-    seedTaggedGif(personId, "https://cdn/anim.gif");
+    Long userId = seedUserNamed("Gif Person");
+    seedTaggedGif(userId, "https://cdn/anim.gif");
 
     CollectionModel model = assembler.assembleForUser(userId);
 
@@ -276,14 +272,12 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Test
   void bodyOrderingIsCollectionsThenContentBothDateDesc() {
-    Long userId = seedUser("order-" + UUID.randomUUID() + "@example.com");
-    Long personId = seedPerson("Order Person");
-    people.linkUser(personId, userId);
+    Long userId = seedUserNamed("Order Person");
 
     Long collection = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(2));
-    tagCollection(collection, personId);
-    seedTaggedImage(personId, "https://cdn/img.webp", LocalDateTime.now().minusDays(3));
-    seedTaggedGif(personId, "https://cdn/g.gif");
+    tagCollection(collection, userId);
+    seedTaggedImage(userId, "https://cdn/img.webp", LocalDateTime.now().minusDays(3));
+    seedTaggedGif(userId, "https://cdn/g.gif");
 
     CollectionModel model = assembler.assembleForUser(userId);
 

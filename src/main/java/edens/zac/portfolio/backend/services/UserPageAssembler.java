@@ -52,17 +52,32 @@ public class UserPageAssembler {
   /** Assemble the synthetic collection for a user id derived from the authenticated principal. */
   @Transactional(readOnly = true)
   public CollectionModel assembleForUser(Long userId) {
-    Optional<ContentPersonEntity> person = personRepository.findByUserId(userId);
+    // Since the V35 identity merge the account and the person tag are one `users` row, so the
+    // principal's id IS the person id. The page treats the user as a "person" only when they are
+    // actually tagged (tagged collections or tagged standalone content); a grant-only viewer with
+    // no person tags still falls back to the generic title and surfaces only their granted
+    // galleries (preserving the pre-merge findByUserId contract).
+    Optional<ContentPersonEntity> identity = personRepository.findById(userId);
 
-    Set<Long> collectionIds = new LinkedHashSet<>();
-    person.ifPresent(
-        p -> collectionIds.addAll(collectionRepository.findCollectionIdsByPersonId(p.getId())));
+    Set<Long> personCollectionIds = new LinkedHashSet<>();
+    identity.ifPresent(
+        p ->
+            personCollectionIds.addAll(
+                collectionRepository.findCollectionIdsByPersonId(p.getId())));
+    List<ContentModel> taggedBlocks =
+        identity.map(p -> buildTaggedContentBlocks(p.getId())).orElseGet(List::of);
+
+    Set<Long> collectionIds = new LinkedHashSet<>(personCollectionIds);
     collectionIds.addAll(galleryAccessService.activeGrantCollectionIdsForUser(userId));
 
     List<ContentModel> body = new ArrayList<>(buildCollectionBlocks(collectionIds));
-    person.ifPresent(p -> body.addAll(buildTaggedContentBlocks(p.getId())));
+    body.addAll(taggedBlocks);
     reindexSequentially(body);
 
+    // Cover and title only apply when the viewer is an actual tagged person (has tagged collections
+    // or tagged standalone content); a grant-only viewer keeps the generic title and no cover.
+    Optional<ContentPersonEntity> person =
+        identity.filter(p -> !personCollectionIds.isEmpty() || !taggedBlocks.isEmpty());
     ContentModels.Image cover = person.flatMap(p -> resolveCover(p.getId())).orElse(null);
     String title = person.map(ContentPersonEntity::getPersonName).orElse(DEFAULT_TITLE);
 

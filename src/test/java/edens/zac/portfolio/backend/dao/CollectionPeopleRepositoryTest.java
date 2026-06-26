@@ -56,7 +56,7 @@ class CollectionPeopleRepositoryTest {
     @SuppressWarnings("unchecked")
     @Test
     void selectsFromJoinAndAliasesPersonName() {
-      Records.Person p = new Records.Person(101L, "Alice", "alice");
+      Records.Person p = new Records.Person(101L, "Alice");
       when(namedParameterJdbcTemplate.query(
               anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
           .thenReturn(List.of(p));
@@ -67,8 +67,8 @@ class CollectionPeopleRepositoryTest {
           .query(sqlCaptor.capture(), any(SqlParameterSource.class), any(RowMapper.class));
       String sql = sqlCaptor.getValue();
       assertThat(sql).containsIgnoringCase("FROM collection_people");
-      assertThat(sql).containsIgnoringCase("JOIN content_people");
-      assertThat(sql).containsIgnoringCase("person_name AS name");
+      assertThat(sql).containsIgnoringCase("JOIN users");
+      assertThat(sql).containsIgnoringCase("p.name");
       assertThat(sql).containsIgnoringCase("WHERE cp.collection_id = :collectionId");
       assertThat(result).hasSize(1).first().isEqualTo(p);
     }

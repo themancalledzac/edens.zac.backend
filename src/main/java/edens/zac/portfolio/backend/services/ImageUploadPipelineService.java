@@ -279,13 +279,15 @@ public class ImageUploadPipelineService {
         job.totalFiles(),
         collectionId);
 
-    // Load all known people once -- used for both slug-existence checks and tag filtering
+    // Load all known people once -- used for both existence checks and tag filtering
     List<ContentPersonEntity> existingPeople = personRepository.findAllByOrderByPersonNameAsc();
-    Set<String> existingSlugs =
-        existingPeople.stream().map(ContentPersonEntity::getSlug).collect(Collectors.toSet());
+    Set<String> existingNames =
+        existingPeople.stream()
+            .map(p -> p.getPersonName().toLowerCase())
+            .collect(Collectors.toCollection(HashSet::new));
 
     // Ensure all plugin-provided people exist in DB before processing images
-    ensurePluginPeopleExist(request, existingSlugs);
+    ensurePluginPeopleExist(request, existingNames);
 
     // Build set of all known people names for filtering them out of tags.
     // Lightroom writes people to dc:subject as flat keywords, so without this they become Tags too.
@@ -377,11 +379,11 @@ public class ImageUploadPipelineService {
    * Ensure all plugin-provided people exist in DB before processing images. Deduplicates by slug
    * against the provided set, creating new people as needed.
    */
-  private void ensurePluginPeopleExist(DiskUploadRequest request, Set<String> existingSlugs) {
+  private void ensurePluginPeopleExist(DiskUploadRequest request, Set<String> existingNames) {
     request.files().stream()
         .filter(f -> f.people() != null)
         .flatMap(f -> f.people().stream())
-        .filter(name -> existingSlugs.add(SlugUtil.generateSlug(name)))
+        .filter(name -> existingNames.add(name.toLowerCase()))
         .forEach(
             name -> {
               personRepository.save(new ContentPersonEntity(name));

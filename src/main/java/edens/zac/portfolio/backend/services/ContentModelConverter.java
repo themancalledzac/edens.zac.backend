@@ -303,7 +303,7 @@ class ContentModelConverter {
       return new ArrayList<>();
     }
     return people.stream()
-        .map(person -> new Records.Person(person.getId(), person.getPersonName(), person.getSlug()))
+        .map(person -> new Records.Person(person.getId(), person.getPersonName()))
         .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
         .collect(Collectors.toList());
   }

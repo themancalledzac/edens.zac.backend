@@ -174,9 +174,9 @@ class ContentControllerProdTest {
     // Arrange
     List<Records.Person> people =
         List.of(
-            new Records.Person(1L, "Alice", "alice"),
-            new Records.Person(2L, "Bob", "bob"),
-            new Records.Person(3L, "Charlie", "charlie"));
+            new Records.Person(1L, "Alice"),
+            new Records.Person(2L, "Bob"),
+            new Records.Person(3L, "Charlie"));
 
     when(metadataService.getAllPeople()).thenReturn(people);
 

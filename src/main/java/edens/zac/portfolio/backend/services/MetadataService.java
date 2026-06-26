@@ -147,7 +147,6 @@ public class MetadataService {
     }
 
     person.setPersonName(personName);
-    person.setSlug(SlugUtil.generateSlug(personName));
     ContentPersonEntity saved = personRepository.save(person);
     log.info("Updated person with ID: {} to name: {}", id, personName);
     return toPersonModel(saved);
@@ -401,7 +400,7 @@ public class MetadataService {
   }
 
   private Records.Person toPersonModel(ContentPersonEntity entity) {
-    return new Records.Person(entity.getId(), entity.getPersonName(), entity.getSlug());
+    return new Records.Person(entity.getId(), entity.getPersonName());
   }
 
   private Records.Location toLocationModel(LocationEntity entity) {

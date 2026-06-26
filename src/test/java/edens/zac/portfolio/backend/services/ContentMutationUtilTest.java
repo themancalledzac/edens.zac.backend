@@ -148,8 +148,7 @@ class ContentMutationUtilTest {
   @Test
   void updatePeople_createNew() {
     when(personRepository.findByPersonNameIgnoreCase("Charlie")).thenReturn(Optional.empty());
-    ContentPersonEntity saved =
-        ContentPersonEntity.builder().id(10L).personName("Charlie").slug("charlie").build();
+    ContentPersonEntity saved = ContentPersonEntity.builder().id(10L).personName("Charlie").build();
     when(personRepository.save(any(ContentPersonEntity.class))).thenReturn(saved);
 
     Set<ContentPersonEntity> newPeople = new HashSet<>();
@@ -380,9 +379,8 @@ class ContentMutationUtilTest {
 
   @Test
   void associateExtractedKeywords_createsPeople() {
-    ContentPersonEntity created =
-        ContentPersonEntity.builder().id(1L).personName("Alice").slug("alice").build();
-    when(personRepository.findBySlug("alice")).thenReturn(Optional.empty());
+    ContentPersonEntity created = ContentPersonEntity.builder().id(1L).personName("Alice").build();
+    when(personRepository.findByPersonNameIgnoreCase("Alice")).thenReturn(Optional.empty());
     when(personRepository.save(any(ContentPersonEntity.class))).thenReturn(created);
 
     contentMutationUtil.associateExtractedKeywords(1L, null, List.of("Alice"));
@@ -408,9 +406,8 @@ class ContentMutationUtilTest {
 
   @Test
   void associateExtractedKeywords_mergesNewPeopleWithExisting_keepsPeopleMissingFromExport() {
-    ContentPersonEntity alice =
-        ContentPersonEntity.builder().id(30L).personName("Alice").slug("alice").build();
-    when(personRepository.findBySlug("alice")).thenReturn(Optional.of(alice));
+    ContentPersonEntity alice = ContentPersonEntity.builder().id(30L).personName("Alice").build();
+    when(personRepository.findByPersonNameIgnoreCase("Alice")).thenReturn(Optional.of(alice));
     when(contentRepository.findPersonIdsByImageIds(List.of(1L)))
         .thenReturn(Map.of(1L, List.of(10L, 20L)));
 

@@ -969,8 +969,7 @@ public class ContentService {
                     newlyCreatedTags, e -> new Records.Tag(e.getId(), e.getTagName(), e.getSlug())))
             .people(
                 mapOrNull(
-                    newlyCreatedPeople,
-                    e -> new Records.Person(e.getId(), e.getPersonName(), e.getSlug())))
+                    newlyCreatedPeople, e -> new Records.Person(e.getId(), e.getPersonName())))
             .cameras(
                 mapOrNull(newlyCreatedCameras, ContentModelConverter::cameraEntityToCameraModel))
             .lenses(mapOrNull(newlyCreatedLenses, ContentModelConverter::lensEntityToLensModel))

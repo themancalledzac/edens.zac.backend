@@ -83,7 +83,7 @@ public class GalleryAccessService {
     if (!isClientGallery) {
       return;
     }
-    for (Long userId : personRepository.findLinkedUserIdsByPersonIds(personIds)) {
+    for (Long userId : personRepository.findAccountUserIdsByIds(personIds)) {
       if (galleryAccessRepository.existsByUserIdAndCollectionId(userId, collectionId)) {
         continue;
       }
