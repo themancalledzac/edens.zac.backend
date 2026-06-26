@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.UserInviteRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.UserInviteEntity;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -28,7 +27,6 @@ class UserInviteServiceIntegrationTest extends AbstractPostgresIntegrationTest {
         AppUserEntity.builder()
             .email(email)
             .name(email)
-            .role(Role.CLIENT)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.INVITED)
             .build());

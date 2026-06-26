@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.entity;
 
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -16,7 +15,6 @@ import lombok.NoArgsConstructor;
 public class AppUserEntity {
   private Long id;
   private String email;
-  private Role role;
   private String passwordHash;
   private UUID webauthnUserHandle;
   private String name;

@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.WebAuthnService;
-import edens.zac.portfolio.backend.types.Role;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -47,7 +46,7 @@ class WebAuthnControllerTest {
   private AuthLoginLimiter loginLimiter;
   private MockMvc mockMvc;
 
-  private final AuthPrincipal admin = new AuthPrincipal(1L, "admin@example.com", Role.ADMIN, false);
+  private final AuthPrincipal admin = new AuthPrincipal(1L, "admin@example.com", false);
 
   @BeforeEach
   void setUp() {
@@ -72,7 +71,7 @@ class WebAuthnControllerTest {
     return request -> {
       var auth =
           new UsernamePasswordAuthenticationToken(
-              admin, null, AuthorityUtils.createAuthorityList("ROLE_ADMIN"));
+              admin, null, AuthorityUtils.createAuthorityList("ROLE_USER"));
       SecurityContextHolder.getContext().setAuthentication(auth);
       return request;
     };

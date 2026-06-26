@@ -55,8 +55,8 @@ class AuthWebAuthnMigrationIntegrationTest extends AbstractPostgresIntegrationTe
     Long userId =
         jdbc.queryForObject(
             "INSERT INTO users "
-                + "(name, email, role, webauthn_user_handle, status) "
-                + "VALUES (?, ?, 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
+                + "(name, email, webauthn_user_handle, status) "
+                + "VALUES (?, ?, gen_random_uuid(), 'ACTIVE') RETURNING id",
             Long.class,
             "Cascade WebAuthn",
             "cascade-webauthn@example.com");

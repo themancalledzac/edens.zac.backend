@@ -218,9 +218,7 @@ public class WebAuthnService {
 
   private static Authentication toAuthentication(AuthPrincipal principal) {
     return new UsernamePasswordAuthenticationToken(
-        principal.email(),
-        principal,
-        AuthorityUtils.createAuthorityList("ROLE_" + principal.role().name()));
+        principal.email(), principal, AuthorityUtils.createAuthorityList("ROLE_USER"));
   }
 
   /**

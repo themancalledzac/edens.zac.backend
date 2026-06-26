@@ -18,8 +18,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * cache never points at a stopped container. Requires Docker to be running.
  *
  * <p>After each test method, auth tables are truncated so every test starts from a clean slate,
- * eliminating order-dependent failures (e.g. {@code existsByRole} counting rows from a previous
- * class). Non-auth tables (collections, content, etc.) are intentionally left untouched.
+ * eliminating order-dependent failures (e.g. row counts leaking from a previous test class).
+ * Non-auth tables (collections, content, etc.) are intentionally left untouched.
  */
 @SpringBootTest
 @ActiveProfiles("test")

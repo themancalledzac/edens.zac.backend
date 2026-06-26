@@ -27,9 +27,8 @@ public final class UserRequests {
    * @param email the invitee's email address (normalized to lowercase by the controller)
    * @param displayName optional display name pre-filled on the account; the invitee may override it
    *     at accept time
-   * @param role reserved for future use; currently ignored by the controller (always CLIENT)
    */
-  public record CreateUserRequest(@NotBlank @Email String email, String displayName, String role) {}
+  public record CreateUserRequest(@NotBlank @Email String email, String displayName) {}
 
   /**
    * Response for {@code POST /api/admin/users}.

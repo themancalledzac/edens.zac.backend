@@ -19,7 +19,6 @@ import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.LoginRequest;
 import edens.zac.portfolio.backend.services.SessionService;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
 import java.util.Optional;
@@ -67,7 +66,6 @@ class AuthControllerTest {
     return AppUserEntity.builder()
         .id(1L)
         .email("admin@example.com")
-        .role(Role.ADMIN)
         .passwordHash("{bcrypt}$2a$10$hash")
         .webauthnUserHandle(UUID.randomUUID())
         .status(UserStatus.ACTIVE)
@@ -221,18 +219,17 @@ class AuthControllerTest {
 
   @Test
   void meReturns200WithPrincipal() throws Exception {
-    AuthPrincipal principal = new AuthPrincipal(1L, "admin@example.com", Role.ADMIN, false);
+    AuthPrincipal principal = new AuthPrincipal(1L, "admin@example.com", false);
     SecurityContextHolder.getContext()
         .setAuthentication(
             new UsernamePasswordAuthenticationToken(
-                principal, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     when(userCollectionRepository.findByUserId(1L)).thenReturn(List.of());
 
     mockMvc
         .perform(get("/api/auth/me"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.email", org.hamcrest.Matchers.is("admin@example.com")))
-        .andExpect(jsonPath("$.role", org.hamcrest.Matchers.is("ADMIN")))
         .andExpect(jsonPath("$.mfaSatisfied", org.hamcrest.Matchers.is(false)))
         .andExpect(jsonPath("$.galleries", org.hamcrest.Matchers.hasSize(0)));
   }

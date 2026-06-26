@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** Verifies V36 created user_collection + dropped gallery_access. */
+/** Verifies V36 created user_collection + dropped gallery_access, and V37 dropped users.role. */
 class UserCollectionMigrationIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private JdbcTemplate jdbc;
@@ -31,9 +31,10 @@ class UserCollectionMigrationIntegrationTest extends AbstractPostgresIntegration
   }
 
   @Test
-  void userCollectionReplacesGalleryAccess() {
+  void userCollectionReplacesGalleryAccessAndRoleIsGone() {
     assertThat(tableExists("user_collection")).isTrue();
     assertThat(tableExists("gallery_access")).isFalse();
+    assertThat(columnExists("users", "role")).isFalse();
   }
 
   @Test

@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.AppUserEntity;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +22,7 @@ public class AppUserRepository extends BaseDao {
 
   private static final String SELECT_APP_USER =
       """
-      SELECT id, email, role, password_hash, webauthn_user_handle, name, status,
+      SELECT id, email, password_hash, webauthn_user_handle, name, status,
              created_at, updated_at
       FROM users
       """;
@@ -34,7 +33,6 @@ public class AppUserRepository extends BaseDao {
         return AppUserEntity.builder()
             .id(rs.getLong("id"))
             .email(rs.getString("email"))
-            .role(Role.valueOf(rs.getString("role")))
             .passwordHash(rs.getString("password_hash"))
             .webauthnUserHandle(handle != null ? (UUID) handle : null)
             .name(rs.getString("name"))
@@ -74,25 +72,16 @@ public class AppUserRepository extends BaseDao {
     return query(sql, APP_USER_ROW_MAPPER, createParameterSource());
   }
 
-  @Transactional(readOnly = true)
-  public boolean existsByRole(Role role) {
-    String sql = "SELECT COUNT(*) FROM users WHERE role = :role";
-    MapSqlParameterSource params = createParameterSource().addValue("role", role.name());
-    Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
-    return count != null && count > 0;
-  }
-
   @Transactional
   public Long insert(AppUserEntity entity) {
     String sql =
         """
-        INSERT INTO users (email, role, password_hash, webauthn_user_handle, name, status)
-        VALUES (:email, :role, :passwordHash, :webauthnUserHandle, :name, :status)
+        INSERT INTO users (email, password_hash, webauthn_user_handle, name, status)
+        VALUES (:email, :passwordHash, :webauthnUserHandle, :name, :status)
         """;
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("email", entity.getEmail())
-            .addValue("role", entity.getRole().name())
             .addValue("passwordHash", entity.getPasswordHash())
             .addValue("webauthnUserHandle", entity.getWebauthnUserHandle())
             .addValue("name", entity.getName())

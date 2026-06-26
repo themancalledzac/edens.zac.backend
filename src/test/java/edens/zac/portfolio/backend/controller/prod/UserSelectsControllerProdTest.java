@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.UserSelectGroup;
 import edens.zac.portfolio.backend.services.UserSelectsService;
-import edens.zac.portfolio.backend.types.Role;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +38,7 @@ class UserSelectsControllerProdTest {
 
   private MockMvc mockMvc;
 
-  private final AuthPrincipal client = new AuthPrincipal(7L, "c@b.com", Role.CLIENT, true);
+  private final AuthPrincipal client = new AuthPrincipal(7L, "c@b.com", true);
 
   @BeforeEach
   void setUp() {

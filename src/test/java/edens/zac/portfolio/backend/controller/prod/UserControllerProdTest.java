@@ -15,7 +15,6 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.Role;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,7 +69,7 @@ class UserControllerProdTest {
 
   @Test
   void authenticatedRequestReturnsAssembledPage() throws Exception {
-    AuthPrincipal user = new AuthPrincipal(7L, "c@example.com", Role.CLIENT, true);
+    AuthPrincipal user = new AuthPrincipal(7L, "c@example.com", true);
     CollectionModel assembled =
         CollectionModel.builder()
             .slug("user")

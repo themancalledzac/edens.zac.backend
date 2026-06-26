@@ -16,7 +16,6 @@ import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.UserCollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.Role;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Optional;
@@ -71,7 +70,7 @@ class ContentDownloadAuthTest {
   }
 
   private void authenticate(Long userId) {
-    var principal = new AuthPrincipal(userId, "c@example.com", Role.CLIENT, true);
+    var principal = new AuthPrincipal(userId, "c@example.com", true);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
   }

@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * so the WebAuthn {@link Bytes} id round-trips to the UUID; the user {@code name} is the email (no
  * separate username concept — admin/client identity is the email).
  *
- * <p>{@code app_user} rows are provisioned out-of-band (AdminBootstrap / client onboarding), so
+ * <p>{@code app_user} rows are provisioned out-of-band (admin invite flow / client onboarding), so
  * {@link #save(PublicKeyCredentialUserEntity)} and {@link #delete(Bytes)} are no-ops here, but the
  * SPI requires the methods. The operations engine calls {@code save} for an unknown username when
  * minting login options; the no-op (combined with the credential-less allow-list) keeps login
@@ -59,7 +59,7 @@ public class JdbcPublicKeyCredentialUserEntityRepository
 
   @Override
   public void save(PublicKeyCredentialUserEntity userEntity) {
-    // No-op: app_user rows are provisioned by AdminBootstrap / client onboarding, not by the
+    // No-op: app_user rows are provisioned by the admin invite flow, not by the
     // WebAuthn ceremony. The user must already exist before registration starts. The operations
     // engine also invokes save() for an unknown username while minting login options; we do not
     // persist here (anti-enumeration: no account is created from a login attempt).

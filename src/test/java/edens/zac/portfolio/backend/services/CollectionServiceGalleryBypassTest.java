@@ -12,7 +12,6 @@ import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
-import edens.zac.portfolio.backend.types.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
@@ -61,7 +60,7 @@ class CollectionServiceGalleryBypassTest {
   }
 
   private void authenticate(Long userId) {
-    var principal = new AuthPrincipal(userId, "c@example.com", Role.CLIENT, true);
+    var principal = new AuthPrincipal(userId, "c@example.com", true);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
   }

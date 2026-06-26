@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.UserSessionEntity;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -25,7 +24,6 @@ class UserSessionRepositoryIntegrationTest extends AbstractPostgresIntegrationTe
         AppUserEntity.builder()
             .email(email)
             .name(email)
-            .role(Role.ADMIN)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.ACTIVE)
             .build());

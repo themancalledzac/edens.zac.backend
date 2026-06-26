@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserReque
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.services.UserInviteService;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -80,7 +79,6 @@ public class AdminUserController {
     AppUserEntity newUser =
         AppUserEntity.builder()
             .email(email)
-            .role(Role.CLIENT)
             .status(UserStatus.INVITED)
             .webauthnUserHandle(UUID.randomUUID())
             .name(request.displayName())

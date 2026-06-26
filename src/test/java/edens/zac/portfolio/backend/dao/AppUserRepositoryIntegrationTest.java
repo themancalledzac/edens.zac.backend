@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,11 +16,10 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private AppUserRepository repository;
 
-  private AppUserEntity newUser(String email, Role role) {
+  private AppUserEntity newUser(String email) {
     return AppUserEntity.builder()
         .email(email)
         .name(email)
-        .role(role)
         .webauthnUserHandle(UUID.randomUUID())
         .status(UserStatus.ACTIVE)
         .build();
@@ -33,7 +31,6 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     AppUserEntity user =
         AppUserEntity.builder()
             .email("round@example.com")
-            .role(Role.ADMIN)
             .passwordHash("{bcrypt}$2a$10$abc")
             .webauthnUserHandle(handle)
             .name("Round Trip")
@@ -46,7 +43,6 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     Optional<AppUserEntity> found = repository.findByEmail("round@example.com");
     assertThat(found).isPresent();
     assertThat(found.get().getId()).isEqualTo(id);
-    assertThat(found.get().getRole()).isEqualTo(Role.ADMIN);
     assertThat(found.get().getStatus()).isEqualTo(UserStatus.ACTIVE);
     assertThat(found.get().getPasswordHash()).isEqualTo("{bcrypt}$2a$10$abc");
     assertThat(found.get().getWebauthnUserHandle()).isEqualTo(handle);
@@ -61,7 +57,6 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
         AppUserEntity.builder()
             .email("handle@example.com")
             .name("Handle")
-            .role(Role.CLIENT)
             .webauthnUserHandle(handle)
             .status(UserStatus.ACTIVE)
             .build());
@@ -71,15 +66,8 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
-  void existsByRoleReflectsInsertedAdmin() {
-    assertThat(repository.existsByRole(Role.ADMIN)).isFalse();
-    repository.insert(newUser("admin@example.com", Role.ADMIN));
-    assertThat(repository.existsByRole(Role.ADMIN)).isTrue();
-  }
-
-  @Test
   void updatePasswordHashPersists() {
-    Long id = repository.insert(newUser("pw@example.com", Role.ADMIN));
+    Long id = repository.insert(newUser("pw@example.com"));
     repository.updatePasswordHash(id, "{bcrypt}$2a$10$newhash");
     assertThat(repository.findById(id)).isPresent();
     assertThat(repository.findById(id).get().getPasswordHash()).isEqualTo("{bcrypt}$2a$10$newhash");
@@ -87,8 +75,8 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Test
   void duplicateEmailViolatesUniqueConstraint() {
-    repository.insert(newUser("unique@example.com", Role.ADMIN));
-    assertThatThrownBy(() -> repository.insert(newUser("unique@example.com", Role.CLIENT)))
+    repository.insert(newUser("unique@example.com"));
+    assertThatThrownBy(() -> repository.insert(newUser("unique@example.com")))
         .isInstanceOf(DataIntegrityViolationException.class);
   }
 
@@ -99,7 +87,6 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
             AppUserEntity.builder()
                 .email("status@example.com")
                 .name("Status")
-                .role(Role.CLIENT)
                 .webauthnUserHandle(UUID.randomUUID())
                 .status(UserStatus.INVITED)
                 .build());
@@ -110,7 +97,7 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Test
   void updateNamePersists() {
-    Long id = repository.insert(newUser("displayname@example.com", Role.CLIENT));
+    Long id = repository.insert(newUser("displayname@example.com"));
     repository.updateName(id, "Alice Smith");
     assertThat(repository.findById(id)).isPresent();
     assertThat(repository.findById(id).get().getName()).isEqualTo("Alice Smith");

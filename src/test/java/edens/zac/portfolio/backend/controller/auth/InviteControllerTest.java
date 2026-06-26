@@ -19,7 +19,6 @@ import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.UserInviteEntity;
 import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.services.UserInviteService;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.Optional;
 import java.util.UUID;
@@ -64,7 +63,6 @@ class InviteControllerTest {
         .id(id)
         .email(email)
         .name(displayName)
-        .role(Role.CLIENT)
         .status(UserStatus.INVITED)
         .webauthnUserHandle(UUID.randomUUID())
         .build();
