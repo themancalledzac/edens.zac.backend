@@ -108,13 +108,14 @@ public class TagRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           "INSERT INTO tag (tag_name, slug, created_at) VALUES (:tagName, :slug, :createdAt)";
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(LocalDateTime.now());
+      }
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("tagName", entity.getTagName())
               .addValue("slug", entity.getSlug())
-              .addValue(
-                  "createdAt",
-                  entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now());
+              .addValue("createdAt", entity.getCreatedAt());
       Long id = insertAndReturnId(sql, "id", params);
       entity.setId(id);
       return entity;
