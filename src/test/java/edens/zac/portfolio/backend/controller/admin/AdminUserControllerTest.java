@@ -379,5 +379,18 @@ class AdminUserControllerTest {
                   .content("{}"))
           .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void putCollectionRoleReturns400OnUnparseableRoleEnum() throws Exception {
+      // Unknown enum value -> Jackson cannot deserialize the body, so this is an
+      // HttpMessageNotReadableException (a malformed body), NOT bean validation. It previously
+      // fell through to the catch-all Exception handler and returned 500 instead of 400.
+      mockMvc
+          .perform(
+              put("/api/admin/users/10/collections/20")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"role\":\"INVALID_ROLE\"}"))
+          .andExpect(status().isBadRequest());
+    }
   }
 }
