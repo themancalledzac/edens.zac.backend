@@ -147,7 +147,7 @@ public class AdminUserController {
   }
 
   /**
-   * Update the two admin-editable fields (display name + status). Email/role are immutable here.
+   * Update the two admin-editable fields (display name + status). Email is immutable here.
    *
    * @param id the {@code app_user.id}
    * @param request the new display name (nullable) and status (required)
