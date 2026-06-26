@@ -12,6 +12,7 @@ import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
+import edens.zac.portfolio.backend.types.CollectionRole;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -192,7 +193,12 @@ public class AdminUserController {
   public ResponseEntity<List<AdminUserCollection>> userCollections(@PathVariable Long id) {
     List<AdminUserCollection> rows =
         userCollectionRepository.findAssociatedCollections(id).stream()
-            .map(a -> new AdminUserCollection(a.collectionId(), a.title(), a.role()))
+            .map(
+                a ->
+                    new AdminUserCollection(
+                        a.collectionId(),
+                        a.title(),
+                        a.role() != null ? CollectionRole.valueOf(a.role()) : null))
             .toList();
     return ResponseEntity.ok(rows);
   }

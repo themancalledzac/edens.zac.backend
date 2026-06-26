@@ -57,7 +57,7 @@ public final class UserRequests {
    * @param title the collection title
    * @param role the membership role, or {@code null} if tagged only
    */
-  public record AdminUserCollection(Long collectionId, String title, String role) {}
+  public record AdminUserCollection(Long collectionId, String title, CollectionRole role) {}
 
   /**
    * Body for {@code PUT /api/admin/users/{id}/collections/{collectionId}} — set the membership
