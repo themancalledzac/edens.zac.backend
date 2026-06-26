@@ -369,5 +369,15 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$.title", is("Alice")))
           .andExpect(jsonPath("$.type", is("PARENT")));
     }
+
+    @Test
+    void putCollectionRoleReturns400OnMissingRole() throws Exception {
+      mockMvc
+          .perform(
+              put("/api/admin/users/10/collections/20")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{}"))
+          .andExpect(status().isBadRequest());
+    }
   }
 }
