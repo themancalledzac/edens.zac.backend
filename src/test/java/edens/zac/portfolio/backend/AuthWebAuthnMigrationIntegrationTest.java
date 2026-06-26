@@ -54,10 +54,11 @@ class AuthWebAuthnMigrationIntegrationTest extends AbstractPostgresIntegrationTe
     JdbcTemplate jdbc = new JdbcTemplate(dataSource);
     Long userId =
         jdbc.queryForObject(
-            "INSERT INTO app_user "
-                + "(email, role, webauthn_user_handle, status) "
-                + "VALUES (?, 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
+            "INSERT INTO users "
+                + "(name, email, role, webauthn_user_handle, status) "
+                + "VALUES (?, ?, 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
             Long.class,
+            "Cascade WebAuthn",
             "cascade-webauthn@example.com");
     jdbc.update(
         "INSERT INTO webauthn_credential (user_id, credential_id, public_key) "
@@ -66,7 +67,7 @@ class AuthWebAuthnMigrationIntegrationTest extends AbstractPostgresIntegrationTe
         new byte[] {1, 2, 3},
         new byte[] {4, 5, 6});
 
-    jdbc.update("DELETE FROM app_user WHERE id = ?", userId);
+    jdbc.update("DELETE FROM users WHERE id = ?", userId);
 
     Integer remaining =
         jdbc.queryForObject(

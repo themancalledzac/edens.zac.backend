@@ -16,6 +16,9 @@ ALTER TABLE users RENAME COLUMN display_name TO name;
 UPDATE users SET name = COALESCE(name, email, 'Unnamed') WHERE name IS NULL OR name = '';
 ALTER TABLE users ALTER COLUMN name SET NOT NULL;
 ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+-- A tag-only PERSON row has no account, so it has no role. `role` stays for accounts (Phase 2
+-- removes it) but must allow NULL for PERSON rows.
+ALTER TABLE users ALTER COLUMN role DROP NOT NULL;
 
 -- 3. Allow PERSON status (tagged-only, no account). Existing accounts keep their lifecycle value.
 --    app_user.status is a VARCHAR(16) with app-level enum; no DB check constraint to widen here.

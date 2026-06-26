@@ -27,6 +27,7 @@ class UserInviteServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     return userRepository.insert(
         AppUserEntity.builder()
             .email(email)
+            .name(email)
             .role(Role.CLIENT)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.INVITED)

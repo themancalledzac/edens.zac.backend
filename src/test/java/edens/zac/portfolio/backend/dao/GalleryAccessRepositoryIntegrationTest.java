@@ -25,6 +25,7 @@ class GalleryAccessRepositoryIntegrationTest extends AbstractPostgresIntegration
     return userRepository.insert(
         AppUserEntity.builder()
             .email(email)
+            .name(email)
             .role(Role.CLIENT)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.ACTIVE)
@@ -92,7 +93,7 @@ class GalleryAccessRepositoryIntegrationTest extends AbstractPostgresIntegration
     galleryAccessRepository.insert(
         GalleryAccessEntity.builder().userId(userId).collectionId(collectionId).build());
 
-    jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", userId);
+    jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
     assertThat(galleryAccessRepository.findByUserId(userId)).isEmpty();
   }
 }

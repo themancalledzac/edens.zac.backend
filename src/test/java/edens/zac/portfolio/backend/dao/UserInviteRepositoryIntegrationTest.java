@@ -26,6 +26,7 @@ class UserInviteRepositoryIntegrationTest extends AbstractPostgresIntegrationTes
     return userRepository.insert(
         AppUserEntity.builder()
             .email(email)
+            .name(email)
             .role(Role.CLIENT)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.INVITED)
@@ -90,7 +91,7 @@ class UserInviteRepositoryIntegrationTest extends AbstractPostgresIntegrationTes
     Long userId = seedUser("invite-cascade@example.com");
     inviteRepository.insert(newInvite(userId, "hash-cascade", "invite-cascade@example.com"));
 
-    jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", userId);
+    jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
 
     assertThat(inviteRepository.findByTokenHash("hash-cascade")).isEmpty();
   }

@@ -53,6 +53,7 @@ class AuthFlowEndToEndTest extends AbstractPostgresIntegrationTest {
     appUserRepository.insert(
         AppUserEntity.builder()
             .email(ADMIN_EMAIL)
+            .name(ADMIN_EMAIL)
             .role(Role.ADMIN)
             .passwordHash(hash)
             .webauthnUserHandle(UUID.randomUUID())

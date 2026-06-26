@@ -32,27 +32,29 @@ class AuthMigrationIntegrationTest extends AbstractPostgresIntegrationTest {
     return count != null && count > 0;
   }
 
+  // V29 created `app_user`; V35 renamed it to `users` (the content_people identity merge). Flyway
+  // runs through the latest migration here, so these assert the post-merge `users` shape.
   @Test
   void v29CreatesThreeAuthTables() {
-    assertThat(tableExists("app_user")).isTrue();
+    assertThat(tableExists("users")).isTrue();
     assertThat(tableExists("user_session")).isTrue();
     assertThat(tableExists("gallery_access")).isTrue();
   }
 
   @Test
   void appUserHasWebauthnHandleAndUniqueEmail() {
-    assertThat(columnExists("app_user", "webauthn_user_handle")).isTrue();
-    assertThat(columnExists("app_user", "password_hash")).isTrue();
+    assertThat(columnExists("users", "webauthn_user_handle")).isTrue();
+    assertThat(columnExists("users", "password_hash")).isTrue();
 
     // email UNIQUE is enforced: a duplicate insert must throw.
     jdbcTemplate.update(
-        "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
-            + "VALUES ('dup@example.com', 'ADMIN', gen_random_uuid(), 'ACTIVE')");
+        "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
+            + "VALUES ('Dup', 'dup@example.com', 'ADMIN', gen_random_uuid(), 'ACTIVE')");
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () ->
                 jdbcTemplate.update(
-                    "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
-                        + "VALUES ('dup@example.com', 'CLIENT', gen_random_uuid(), 'ACTIVE')"))
+                    "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
+                        + "VALUES ('Dup2', 'dup@example.com', 'CLIENT', gen_random_uuid(), 'ACTIVE')"))
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
   }
 
@@ -60,15 +62,15 @@ class AuthMigrationIntegrationTest extends AbstractPostgresIntegrationTest {
   void userSessionForeignKeyCascadesOnUserDelete() {
     Long userId =
         jdbcTemplate.queryForObject(
-            "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
-                + "VALUES ('cascade@example.com', 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
+            "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
+                + "VALUES ('Cascade', 'cascade@example.com', 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
             Long.class);
     jdbcTemplate.update(
         "INSERT INTO user_session (user_id, token_hash, expires_at) "
             + "VALUES (?, 'hash-1', now() + interval '1 day')",
         userId);
 
-    jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", userId);
+    jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
 
     Integer remaining =
         jdbcTemplate.queryForObject(

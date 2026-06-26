@@ -32,6 +32,7 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
         userRepository.insert(
             AppUserEntity.builder()
                 .email(email)
+                .name(email)
                 .role(Role.ADMIN)
                 .webauthnUserHandle(UUID.randomUUID())
                 .status(UserStatus.ACTIVE)

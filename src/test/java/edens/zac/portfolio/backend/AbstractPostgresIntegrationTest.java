@@ -48,8 +48,9 @@ public abstract class AbstractPostgresIntegrationTest {
    */
   @AfterEach
   void truncateAuthTables() {
+    // `app_user` was renamed to `users` by V35 (the content_people identity merge).
     jdbcTemplate.execute(
-        "TRUNCATE TABLE user_invite, webauthn_credential, gallery_access, user_session, app_user"
+        "TRUNCATE TABLE user_invite, webauthn_credential, gallery_access, user_session, users"
             + " RESTART IDENTITY CASCADE");
   }
 }

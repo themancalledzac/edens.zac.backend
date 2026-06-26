@@ -20,6 +20,7 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   private AppUserEntity newUser(String email, Role role) {
     return AppUserEntity.builder()
         .email(email)
+        .name(email)
         .role(role)
         .webauthnUserHandle(UUID.randomUUID())
         .status(UserStatus.ACTIVE)
@@ -59,6 +60,7 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     repository.insert(
         AppUserEntity.builder()
             .email("handle@example.com")
+            .name("Handle")
             .role(Role.CLIENT)
             .webauthnUserHandle(handle)
             .status(UserStatus.ACTIVE)
@@ -96,6 +98,7 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
         repository.insert(
             AppUserEntity.builder()
                 .email("status@example.com")
+                .name("Status")
                 .role(Role.CLIENT)
                 .webauthnUserHandle(UUID.randomUUID())
                 .status(UserStatus.INVITED)

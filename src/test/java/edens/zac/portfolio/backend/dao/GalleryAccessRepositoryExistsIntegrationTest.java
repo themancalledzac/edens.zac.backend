@@ -15,8 +15,8 @@ class GalleryAccessRepositoryExistsIntegrationTest extends AbstractPostgresInteg
 
   private Long seedUser() {
     return jdbc.queryForObject(
-        "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
-            + "VALUES ('c@example.com', 'CLIENT', gen_random_uuid(), 'ACTIVE') RETURNING id",
+        "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
+            + "VALUES ('Client', 'c@example.com', 'CLIENT', gen_random_uuid(), 'ACTIVE') RETURNING id",
         Long.class);
   }
 

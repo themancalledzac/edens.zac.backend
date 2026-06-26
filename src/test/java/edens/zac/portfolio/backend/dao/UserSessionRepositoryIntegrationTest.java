@@ -24,6 +24,7 @@ class UserSessionRepositoryIntegrationTest extends AbstractPostgresIntegrationTe
     return userRepository.insert(
         AppUserEntity.builder()
             .email(email)
+            .name(email)
             .role(Role.ADMIN)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.ACTIVE)
@@ -103,7 +104,7 @@ class UserSessionRepositoryIntegrationTest extends AbstractPostgresIntegrationTe
         (org.springframework.jdbc.core.JdbcTemplate)
             org.springframework.test.util.ReflectionTestUtils.getField(
                 userRepository, "jdbcTemplate");
-    jdbc.update("DELETE FROM app_user WHERE id = ?", userId);
+    jdbc.update("DELETE FROM users WHERE id = ?", userId);
 
     assertThat(sessionRepository.findByTokenHash("hash-cascade")).isEmpty();
   }
