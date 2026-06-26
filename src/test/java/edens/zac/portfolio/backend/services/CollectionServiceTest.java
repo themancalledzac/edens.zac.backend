@@ -64,7 +64,7 @@ class CollectionServiceTest {
   @Mock private edens.zac.portfolio.backend.services.EmailService emailService;
   @Mock private SyntheticCollectionResolver syntheticResolver;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
-  @Mock private GalleryAccessService galleryAccessService;
+  @Mock private UserCollectionService userCollectionService;
 
   @Mock
   private edens.zac.portfolio.backend.dao.CollectionSiblingRepository collectionSiblingRepository;

@@ -22,15 +22,15 @@ import org.springframework.security.access.AccessDeniedException;
 class UserSelectsServiceTest {
 
   @Mock private UserSelectRepository userSelectRepository;
-  @Mock private GalleryAccessService galleryAccessService;
+  @Mock private UserCollectionService userCollectionService;
 
   @InjectMocks private UserSelectsService service;
 
   @Test
-  void addInsertsWhenUserHoldsAGrant() {
-    when(galleryAccessService.hasGrant(7L, 3L)).thenReturn(true);
+  void addInsertsWhenUserHoldsMembership() {
+    when(userCollectionService.canView(7L, 3L)).thenReturn(true);
 
-    service.add(7L, false, 3L, 42L);
+    service.add(7L, 3L, 42L);
 
     ArgumentCaptor<UserSelectEntity> captor = ArgumentCaptor.forClass(UserSelectEntity.class);
     verify(userSelectRepository).insert(captor.capture());
@@ -41,38 +41,26 @@ class UserSelectsServiceTest {
   }
 
   @Test
-  void addInsertsForAdminWithoutAGrant() {
-    service.add(7L, true, 3L, 42L);
+  void addDeniedWhenNoMembership() {
+    when(userCollectionService.canView(7L, 3L)).thenReturn(false);
 
-    verify(galleryAccessService, never())
-        .hasGrant(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
-    ArgumentCaptor<UserSelectEntity> captor = ArgumentCaptor.forClass(UserSelectEntity.class);
-    verify(userSelectRepository).insert(captor.capture());
-    assertThat(captor.getValue().getContentId()).isEqualTo(42L);
-  }
-
-  @Test
-  void addDeniedWhenNonAdminLacksGrant() {
-    when(galleryAccessService.hasGrant(7L, 3L)).thenReturn(false);
-
-    assertThatThrownBy(() -> service.add(7L, false, 3L, 42L))
-        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> service.add(7L, 3L, 42L)).isInstanceOf(AccessDeniedException.class);
 
     verify(userSelectRepository, never()).insert(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
-  void removeDeletesRegardlessOfGrant() {
+  void removeDeletesRegardlessOfMembership() {
     service.remove(7L, 42L);
 
     verify(userSelectRepository).deleteByUserIdAndContentId(7L, 42L);
   }
 
   @Test
-  void listIdsRequiresGrantForNonAdmin() {
-    when(galleryAccessService.hasGrant(7L, 3L)).thenReturn(false);
+  void listIdsRequiresMembership() {
+    when(userCollectionService.canView(7L, 3L)).thenReturn(false);
 
-    assertThatThrownBy(() -> service.listSelectIds(7L, false, 3L))
+    assertThatThrownBy(() -> service.listSelectIds(7L, 3L))
         .isInstanceOf(AccessDeniedException.class);
 
     verify(userSelectRepository, never())
@@ -81,12 +69,12 @@ class UserSelectsServiceTest {
   }
 
   @Test
-  void listIdsReturnsForGrantedUser() {
-    when(galleryAccessService.hasGrant(7L, 3L)).thenReturn(true);
+  void listIdsReturnsForMember() {
+    when(userCollectionService.canView(7L, 3L)).thenReturn(true);
     when(userSelectRepository.findContentIdsByUserIdAndCollectionId(7L, 3L))
         .thenReturn(List.of(42L, 43L));
 
-    assertThat(service.listSelectIds(7L, false, 3L)).containsExactly(42L, 43L);
+    assertThat(service.listSelectIds(7L, 3L)).containsExactly(42L, 43L);
   }
 
   @Test

@@ -43,7 +43,7 @@ public class UserPageAssembler {
   private static final String DEFAULT_TITLE = "Your Galleries";
 
   private final PersonRepository personRepository;
-  private final GalleryAccessService galleryAccessService;
+  private final UserCollectionService userCollectionService;
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
@@ -68,7 +68,7 @@ public class UserPageAssembler {
         identity.map(p -> buildTaggedContentBlocks(p.getId())).orElseGet(List::of);
 
     Set<Long> collectionIds = new LinkedHashSet<>(personCollectionIds);
-    collectionIds.addAll(galleryAccessService.activeGrantCollectionIdsForUser(userId));
+    collectionIds.addAll(userCollectionService.memberCollectionIdsForUser(userId));
 
     List<ContentModel> body = new ArrayList<>(buildCollectionBlocks(collectionIds));
     body.addAll(taggedBlocks);

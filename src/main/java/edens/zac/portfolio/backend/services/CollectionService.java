@@ -74,7 +74,7 @@ public class CollectionService {
   private final EmailService emailService;
   private final SyntheticCollectionResolver syntheticResolver;
   private final ClientGalleryAuthService clientGalleryAuthService;
-  private final GalleryAccessService galleryAccessService;
+  private final UserCollectionService userCollectionService;
   private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -458,7 +458,7 @@ public class CollectionService {
         .map(
             entity -> {
               Long userId = currentUserId();
-              if (userId != null && galleryAccessService.hasGrant(userId, entity.getId())) {
+              if (userId != null && userCollectionService.canView(userId, entity.getId())) {
                 return true;
               }
               return GalleryAccessCookies.hasValidAccess(
@@ -557,13 +557,12 @@ public class CollectionService {
   }
 
   /**
-   * Replace the entire {@code collection_people} list, then materialize gallery-access grants for
-   * any account-linked person tagged on a client gallery. {@code grantedBy} is the acting admin.
+   * Replace the entire {@code collection_people} list. Membership (user_collection) is not
+   * auto-materialized here — it must be granted explicitly via the /admin Users module.
    */
   @Transactional
-  public void setCollectionPeople(Long collectionId, List<Long> personIds, Long grantedBy) {
+  public void setCollectionPeople(Long collectionId, List<Long> personIds) {
     collectionPeopleRepository.setPeopleForCollection(collectionId, personIds);
-    galleryAccessService.syncFromCollectionPeople(collectionId, personIds, grantedBy);
   }
 
   /**
@@ -575,7 +574,6 @@ public class CollectionService {
     List<Long> distinctPersonIds =
         contentRepository.findDistinctPersonIdsInCollection(collectionId);
     collectionPeopleRepository.setPeopleForCollection(collectionId, distinctPersonIds);
-    galleryAccessService.syncFromCollectionPeople(collectionId, distinctPersonIds, null);
   }
 
   @Transactional

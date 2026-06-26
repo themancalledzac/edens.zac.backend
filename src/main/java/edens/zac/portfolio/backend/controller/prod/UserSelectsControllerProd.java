@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.controller.prod;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.UserSelectGroup;
 import edens.zac.portfolio.backend.services.UserSelectsService;
-import edens.zac.portfolio.backend.types.Role;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -36,8 +35,7 @@ public class UserSelectsControllerProd {
     if (principal == null) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
-    userSelectsService.add(
-        principal.userId(), principal.role() == Role.ADMIN, body.collectionId(), body.contentId());
+    userSelectsService.add(principal.userId(), body.collectionId(), body.contentId());
     return ResponseEntity.status(HttpStatus.CREATED).build();
   }
 
@@ -65,9 +63,7 @@ public class UserSelectsControllerProd {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     if (collectionId != null) {
-      List<Long> ids =
-          userSelectsService.listSelectIds(
-              principal.userId(), principal.role() == Role.ADMIN, collectionId);
+      List<Long> ids = userSelectsService.listSelectIds(principal.userId(), collectionId);
       return ResponseEntity.ok(ids);
     }
     List<UserSelectGroup> groups = userSelectsService.listAll(principal.userId());

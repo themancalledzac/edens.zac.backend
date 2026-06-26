@@ -7,12 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import edens.zac.portfolio.backend.dao.GalleryAccessRepository;
 import edens.zac.portfolio.backend.dao.UserRatingOverrideRepository;
-import edens.zac.portfolio.backend.entity.GalleryAccessEntity;
 import edens.zac.portfolio.backend.entity.UserRatingOverrideEntity;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,25 +24,15 @@ class UserRatingOverrideServiceTest {
   private static final Long CONTENT = 42L;
 
   @Mock private UserRatingOverrideRepository overrideRepository;
-  @Mock private GalleryAccessRepository galleryAccessRepository;
+  @Mock private UserCollectionService userCollectionService;
 
   private UserRatingOverrideService service() {
-    return new UserRatingOverrideService(overrideRepository, galleryAccessRepository);
-  }
-
-  private GalleryAccessEntity grant(boolean canTag) {
-    return GalleryAccessEntity.builder()
-        .userId(USER)
-        .collectionId(COLLECTION)
-        .canDownload(true)
-        .canTag(canTag)
-        .build();
+    return new UserRatingOverrideService(overrideRepository, userCollectionService);
   }
 
   @Test
-  void upsertPersistsWhenGrantAllowsTagging() {
-    when(galleryAccessRepository.findByUserIdAndCollectionId(USER, COLLECTION))
-        .thenReturn(Optional.of(grant(true)));
+  void upsertPersistsWhenClientMembership() {
+    when(userCollectionService.isClient(USER, COLLECTION)).thenReturn(true);
 
     service().upsert(USER, COLLECTION, CONTENT, 4);
 
@@ -60,20 +47,8 @@ class UserRatingOverrideServiceTest {
   }
 
   @Test
-  void upsertRejectedWhenGrantLacksCanTag() {
-    when(galleryAccessRepository.findByUserIdAndCollectionId(USER, COLLECTION))
-        .thenReturn(Optional.of(grant(false)));
-
-    assertThatThrownBy(() -> service().upsert(USER, COLLECTION, CONTENT, 4))
-        .isInstanceOf(SecurityException.class);
-
-    verify(overrideRepository, never()).upsert(any());
-  }
-
-  @Test
-  void upsertRejectedWhenNoGrant() {
-    when(galleryAccessRepository.findByUserIdAndCollectionId(USER, COLLECTION))
-        .thenReturn(Optional.empty());
+  void upsertRejectedWhenNoClientMembership() {
+    when(userCollectionService.isClient(USER, COLLECTION)).thenReturn(false);
 
     assertThatThrownBy(() -> service().upsert(USER, COLLECTION, CONTENT, 4))
         .isInstanceOf(SecurityException.class);

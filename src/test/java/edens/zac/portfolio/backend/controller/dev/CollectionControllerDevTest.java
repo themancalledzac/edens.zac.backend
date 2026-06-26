@@ -723,7 +723,7 @@ class CollectionControllerDevTest {
                 .content("[101, 102, 103]"))
         .andExpect(status().isNoContent());
 
-    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of(101L, 102L, 103L)), eq(null));
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of(101L, 102L, 103L)));
   }
 
   @Test
@@ -735,7 +735,7 @@ class CollectionControllerDevTest {
                 .content("[]"))
         .andExpect(status().isNoContent());
 
-    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of()), eq(null));
+    verify(collectionService).setCollectionPeople(eq(7L), eq(List.of()));
   }
 
   @Test

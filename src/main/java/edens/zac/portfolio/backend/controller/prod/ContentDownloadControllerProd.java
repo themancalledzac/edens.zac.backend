@@ -7,7 +7,7 @@ import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
-import edens.zac.portfolio.backend.services.GalleryAccessService;
+import edens.zac.portfolio.backend.services.UserCollectionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -67,7 +67,7 @@ public class ContentDownloadControllerProd {
   private final CollectionService collectionService;
   private final ContentService contentService;
   private final ClientGalleryAuthService clientGalleryAuthService;
-  private final GalleryAccessService galleryAccessService;
+  private final UserCollectionService userCollectionService;
 
   @Value("${aws.portfolio.s3.bucket}")
   private String bucketName;
@@ -187,7 +187,7 @@ public class ContentDownloadControllerProd {
    */
   private boolean isDownloadAuthorized(HttpServletRequest request, CollectionEntity collection) {
     Long userId = currentUserId();
-    if (userId != null && galleryAccessService.hasDownloadGrant(userId, collection.getId())) {
+    if (userId != null && userCollectionService.isClient(userId, collection.getId())) {
       return true;
     }
     return GalleryAccessCookies.hasValidAccess(

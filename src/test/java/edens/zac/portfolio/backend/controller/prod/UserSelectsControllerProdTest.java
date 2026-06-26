@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.controller.prod;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -41,7 +40,6 @@ class UserSelectsControllerProdTest {
   private MockMvc mockMvc;
 
   private final AuthPrincipal client = new AuthPrincipal(7L, "c@b.com", Role.CLIENT, true);
-  private final AuthPrincipal admin = new AuthPrincipal(1L, "a@b.com", Role.ADMIN, true);
 
   @BeforeEach
   void setUp() {
@@ -73,12 +71,11 @@ class UserSelectsControllerProdTest {
                 .content("{\"collectionId\":3,\"contentId\":42}"))
         .andExpect(status().isUnauthorized());
 
-    verify(userSelectsService, never())
-        .add(any(), org.mockito.ArgumentMatchers.anyBoolean(), any(), any());
+    verify(userSelectsService, never()).add(anyLong(), anyLong(), anyLong());
   }
 
   @Test
-  void addAuthenticatedReturns201AndCallsServiceWithRoleFlag() throws Exception {
+  void addAuthenticatedReturns201AndCallsService() throws Exception {
     mockMvc
         .perform(
             post("/api/read/user/selects")
@@ -87,20 +84,7 @@ class UserSelectsControllerProdTest {
                 .content("{\"collectionId\":3,\"contentId\":42}"))
         .andExpect(status().isCreated());
 
-    verify(userSelectsService).add(7L, false, 3L, 42L);
-  }
-
-  @Test
-  void addAsAdminPassesIsAdminTrue() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/read/user/selects")
-                .with(asUser(admin))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"collectionId\":3,\"contentId\":42}"))
-        .andExpect(status().isCreated());
-
-    verify(userSelectsService).add(1L, true, 3L, 42L);
+    verify(userSelectsService).add(7L, 3L, 42L);
   }
 
   @Test
@@ -114,7 +98,7 @@ class UserSelectsControllerProdTest {
 
   @Test
   void listIdsReturnsArray() throws Exception {
-    when(userSelectsService.listSelectIds(7L, false, 3L)).thenReturn(List.of(42L, 43L));
+    when(userSelectsService.listSelectIds(7L, 3L)).thenReturn(List.of(42L, 43L));
 
     mockMvc
         .perform(get("/api/read/user/selects").param("collectionId", "3").with(asUser(client)))

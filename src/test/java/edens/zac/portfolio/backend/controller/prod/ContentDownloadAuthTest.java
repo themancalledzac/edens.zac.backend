@@ -13,7 +13,7 @@ import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
-import edens.zac.portfolio.backend.services.GalleryAccessService;
+import edens.zac.portfolio.backend.services.UserCollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.Role;
@@ -40,9 +40,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 /**
- * Verifies the grant-based download bypass in {@link ContentDownloadControllerProd}: a principal
- * holding a {@code can_download=true} grant sees 200 without a cookie; {@code can_download=false}
- * sees 401; and anonymous paths still consult the cookie gate unchanged.
+ * Verifies the CLIENT-membership download bypass in {@link ContentDownloadControllerProd}: a
+ * principal holding a CLIENT membership sees 200 without a cookie; no CLIENT membership sees 401;
+ * and anonymous paths still consult the cookie gate unchanged.
  */
 @ExtendWith(MockitoExtension.class)
 class ContentDownloadAuthTest {
@@ -53,7 +53,7 @@ class ContentDownloadAuthTest {
   @Mock private CollectionService collectionService;
   @Mock private ContentService contentService;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
-  @Mock private GalleryAccessService galleryAccessService;
+  @Mock private UserCollectionService userCollectionService;
 
   @InjectMocks private ContentDownloadControllerProd controller;
 
@@ -98,17 +98,17 @@ class ContentDownloadAuthTest {
   }
 
   // ---------------------------------------------------------------------------
-  //  Image download — grant bypass
+  //  Image download — CLIENT membership bypass
   // ---------------------------------------------------------------------------
 
   @Nested
   class ImageDownloadGrantBypass {
 
     @Test
-    void grantedUser_withCanDownload_gets200_withoutCookie() throws Exception {
+    void clientMember_gets200_withoutCookie() throws Exception {
       authenticate(7L);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
-      when(galleryAccessService.hasDownloadGrant(7L, 1L)).thenReturn(true);
+      when(userCollectionService.isClient(7L, 1L)).thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
       when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeStream());
 
@@ -118,10 +118,10 @@ class ContentDownloadAuthTest {
     }
 
     @Test
-    void grantedUser_withCanDownloadFalse_gets401() throws Exception {
+    void nonClientMember_gets401() throws Exception {
       authenticate(7L);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
-      when(galleryAccessService.hasDownloadGrant(7L, 1L)).thenReturn(false);
+      when(userCollectionService.isClient(7L, 1L)).thenReturn(false);
       // No cookie present; cookie gate returns false by default, yielding 401.
 
       mockMvc
@@ -132,7 +132,7 @@ class ContentDownloadAuthTest {
     }
 
     @Test
-    void anonymous_noGrant_noCookie_gets401() throws Exception {
+    void anonymous_noMembership_noCookie_gets401() throws Exception {
       // No authentication set; no cookie present — cookie gate default returns false.
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
 
@@ -140,7 +140,7 @@ class ContentDownloadAuthTest {
           .perform(get("/api/read/content/images/10/download"))
           .andExpect(status().isUnauthorized());
 
-      verify(galleryAccessService, never()).hasDownloadGrant(any(), any());
+      verify(userCollectionService, never()).isClient(any(), any());
     }
 
     @Test
@@ -156,22 +156,22 @@ class ContentDownloadAuthTest {
                   .cookie(new jakarta.servlet.http.Cookie("gallery_access_smith-wedding", "tok")))
           .andExpect(status().isOk());
 
-      verify(galleryAccessService, never()).hasDownloadGrant(any(), any());
+      verify(userCollectionService, never()).isClient(any(), any());
     }
   }
 
   // ---------------------------------------------------------------------------
-  //  Collection ZIP download — grant bypass
+  //  Collection ZIP download — CLIENT membership bypass
   // ---------------------------------------------------------------------------
 
   @Nested
   class CollectionDownloadGrantBypass {
 
     @Test
-    void grantedUser_withCanDownload_gets200_withoutCookie() throws Exception {
+    void clientMember_gets200_withoutCookie() throws Exception {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
-      when(galleryAccessService.hasDownloadGrant(7L, 1L)).thenReturn(true);
+      when(userCollectionService.isClient(7L, 1L)).thenReturn(true);
       when(contentService.resolveCollectionDownloadEntries(1L, "web", null))
           .thenReturn(List.of(webResolution("img.webp")));
       when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeStream());
@@ -184,10 +184,10 @@ class ContentDownloadAuthTest {
     }
 
     @Test
-    void grantedUser_withCanDownloadFalse_gets401() throws Exception {
+    void nonClientMember_gets401() throws Exception {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
-      when(galleryAccessService.hasDownloadGrant(7L, 1L)).thenReturn(false);
+      when(userCollectionService.isClient(7L, 1L)).thenReturn(false);
       // No cookie present; cookie gate returns false by default, yielding 401.
 
       mockMvc
@@ -198,7 +198,7 @@ class ContentDownloadAuthTest {
     }
 
     @Test
-    void anonymous_noGrant_noCookie_gets401() throws Exception {
+    void anonymous_noMembership_noCookie_gets401() throws Exception {
       // No authentication set; no cookie present — cookie gate default returns false.
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
 
@@ -206,7 +206,7 @@ class ContentDownloadAuthTest {
           .perform(get("/api/read/collections/smith-wedding/download"))
           .andExpect(status().isUnauthorized());
 
-      verify(galleryAccessService, never()).hasDownloadGrant(any(), any());
+      verify(userCollectionService, never()).isClient(any(), any());
     }
 
     @Test
@@ -223,7 +223,7 @@ class ContentDownloadAuthTest {
                   .cookie(new jakarta.servlet.http.Cookie("gallery_access_smith-wedding", "tok")))
           .andExpect(status().isOk());
 
-      verify(galleryAccessService, never()).hasDownloadGrant(any(), any());
+      verify(userCollectionService, never()).isClient(any(), any());
     }
   }
 }

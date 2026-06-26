@@ -32,13 +32,14 @@ class AuthMigrationIntegrationTest extends AbstractPostgresIntegrationTest {
     return count != null && count > 0;
   }
 
-  // V29 created `app_user`; V35 renamed it to `users` (the content_people identity merge). Flyway
-  // runs through the latest migration here, so these assert the post-merge `users` shape.
+  // V29 created `app_user`; V35 renamed it to `users` (the content_people identity merge).
+  // V36 replaced `gallery_access` with `user_collection`. These assert the post-V36 schema shape.
   @Test
-  void v29CreatesThreeAuthTables() {
+  void v29CreatesAuthTablesAndV36ReplacesGalleryAccess() {
     assertThat(tableExists("users")).isTrue();
     assertThat(tableExists("user_session")).isTrue();
-    assertThat(tableExists("gallery_access")).isTrue();
+    assertThat(tableExists("user_collection")).isTrue();
+    assertThat(tableExists("gallery_access")).isFalse();
   }
 
   @Test
@@ -48,13 +49,13 @@ class AuthMigrationIntegrationTest extends AbstractPostgresIntegrationTest {
 
     // email UNIQUE is enforced: a duplicate insert must throw.
     jdbcTemplate.update(
-        "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
-            + "VALUES ('Dup', 'dup@example.com', 'ADMIN', gen_random_uuid(), 'ACTIVE')");
+        "INSERT INTO users (name, email, webauthn_user_handle, status) "
+            + "VALUES ('Dup', 'dup@example.com', gen_random_uuid(), 'ACTIVE')");
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () ->
                 jdbcTemplate.update(
-                    "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
-                        + "VALUES ('Dup2', 'dup@example.com', 'CLIENT', gen_random_uuid(), 'ACTIVE')"))
+                    "INSERT INTO users (name, email, webauthn_user_handle, status) "
+                        + "VALUES ('Dup2', 'dup@example.com', gen_random_uuid(), 'ACTIVE')"))
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
   }
 
@@ -62,8 +63,8 @@ class AuthMigrationIntegrationTest extends AbstractPostgresIntegrationTest {
   void userSessionForeignKeyCascadesOnUserDelete() {
     Long userId =
         jdbcTemplate.queryForObject(
-            "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
-                + "VALUES ('Cascade', 'cascade@example.com', 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
+            "INSERT INTO users (name, email, webauthn_user_handle, status) "
+                + "VALUES ('Cascade', 'cascade@example.com', gen_random_uuid(), 'ACTIVE') RETURNING id",
             Long.class);
     jdbcTemplate.update(
         "INSERT INTO user_session (user_id, token_hash, expires_at) "

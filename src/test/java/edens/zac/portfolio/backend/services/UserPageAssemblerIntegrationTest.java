@@ -18,7 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Exercises {@link UserPageAssembler} against a real schema: the synthetic {@code /user} model is
- * the de-duplicated union of person-tagged collections and granted galleries, with a cover drawn
+ * the de-duplicated union of person-tagged collections and member galleries, with a cover drawn
  * from the most-recent tagged image (Decision D2). Because the base class truncates only auth
  * tables, each test seeds uniquely named people/content and scopes assertions to those ids.
  */
@@ -31,8 +31,8 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   // the person id. A "linked person" test now seeds a single account row and tags it directly.
   private Long seedUser(String email) {
     return jdbc.queryForObject(
-        "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
-            + "VALUES (?, ?, 'CLIENT', gen_random_uuid(), 'ACTIVE') RETURNING id",
+        "INSERT INTO users (name, email, webauthn_user_handle, status) "
+            + "VALUES (?, ?, gen_random_uuid(), 'ACTIVE') RETURNING id",
         Long.class,
         email,
         email);
@@ -41,8 +41,8 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   /** An account row whose display name drives the assembled title. */
   private Long seedUserNamed(String name) {
     return jdbc.queryForObject(
-        "INSERT INTO users (name, email, role, webauthn_user_handle, status) "
-            + "VALUES (?, ?, 'CLIENT', gen_random_uuid(), 'ACTIVE') RETURNING id",
+        "INSERT INTO users (name, email, webauthn_user_handle, status) "
+            + "VALUES (?, ?, gen_random_uuid(), 'ACTIVE') RETURNING id",
         Long.class,
         name,
         name.toLowerCase().replace(' ', '-') + "-" + UUID.randomUUID() + "@example.com");
@@ -67,19 +67,9 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   private void grant(Long userId, Long collectionId) {
     jdbc.update(
-        "INSERT INTO gallery_access (user_id, collection_id, can_download, can_tag) "
-            + "VALUES (?, ?, true, false)",
+        "INSERT INTO user_collection (user_id, collection_id, role) VALUES (?, ?, 'GENERAL')",
         userId,
         collectionId);
-  }
-
-  private void grantWithExpiry(Long userId, Long collectionId, LocalDateTime expiresAt) {
-    jdbc.update(
-        "INSERT INTO gallery_access (user_id, collection_id, can_download, can_tag, expires_at) "
-            + "VALUES (?, ?, true, false, ?)",
-        userId,
-        collectionId,
-        Timestamp.valueOf(expiresAt));
   }
 
   private Long seedTaggedImage(Long personId, String webUrl, LocalDateTime captureDate) {
@@ -183,25 +173,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
-  void expiredGrantIsExcludedWhileActiveGrantIsIncluded() {
-    Long userId = seedUser("expiry-" + UUID.randomUUID() + "@example.com");
-
-    Long expired = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(2));
-    grantWithExpiry(userId, expired, LocalDateTime.now().minusDays(1));
-
-    Long active = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
-    grant(userId, active);
-
-    CollectionModel model = assembler.assembleForUser(userId);
-
-    // Mirrors Phase 3 enforcement: an expired grant must not surface a gallery the click-through
-    // would then password-gate.
-    assertThat(referencedCollectionIds(model)).containsExactly(active);
-    assertThat(referencedCollectionIds(model)).doesNotContain(expired);
-  }
-
-  @Test
-  void grantOnlyUserWithNoPersonLinkStillGetsGrantedCollections() {
+  void memberOnlyUserWithNoPersonLinkStillGetsMemberCollections() {
     Long userId = seedUser("grantonly-" + UUID.randomUUID() + "@example.com");
     Long granted = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
     grant(userId, granted);
@@ -214,7 +186,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
-  void emptyCaseUserWithNoPersonLinkAndNoGrants() {
+  void emptyCaseUserWithNoPersonLinkAndNoMemberships() {
     Long userId = seedUser("empty-" + UUID.randomUUID() + "@example.com");
 
     CollectionModel model = assembler.assembleForUser(userId);
