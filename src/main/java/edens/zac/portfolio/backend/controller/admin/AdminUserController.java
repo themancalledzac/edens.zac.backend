@@ -1,12 +1,17 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserCollection;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserSummary;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserResponse;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.SetCollectionRoleRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserRequest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
+import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
+import edens.zac.portfolio.backend.services.UserPageAssembler;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -17,10 +22,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,14 +50,20 @@ public class AdminUserController {
 
   private final AppUserRepository appUserRepository;
   private final UserInviteService userInviteService;
+  private final UserCollectionRepository userCollectionRepository;
+  private final UserPageAssembler userPageAssembler;
   private final String frontendBaseUrl;
 
   public AdminUserController(
       AppUserRepository appUserRepository,
       UserInviteService userInviteService,
+      UserCollectionRepository userCollectionRepository,
+      UserPageAssembler userPageAssembler,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.appUserRepository = appUserRepository;
     this.userInviteService = userInviteService;
+    this.userCollectionRepository = userCollectionRepository;
+    this.userPageAssembler = userPageAssembler;
     this.frontendBaseUrl = frontendBaseUrl;
   }
 
@@ -166,6 +179,65 @@ public class AdminUserController {
     return ResponseEntity.ok(
         new AdminUserSummary(
             updated.getId(), updated.getEmail(), updated.getName(), updated.getStatus()));
+  }
+
+  /**
+   * Collections the user is associated with (tagged via {@code collection_people} or holding a
+   * {@code user_collection} membership), with current role. Role is {@code null} when tagged only.
+   *
+   * @param id the {@code app_user.id}
+   * @return the associated collections
+   */
+  @GetMapping("/{id}/collections")
+  public ResponseEntity<List<AdminUserCollection>> userCollections(@PathVariable Long id) {
+    List<AdminUserCollection> rows =
+        userCollectionRepository.findAssociatedCollections(id).stream()
+            .map(a -> new AdminUserCollection(a.collectionId(), a.title(), a.role()))
+            .toList();
+    return ResponseEntity.ok(rows);
+  }
+
+  /**
+   * Set the user's membership role on a collection (GENERAL or CLIENT). Creates the membership row
+   * if absent; promotes/demotes if already present.
+   *
+   * @param id the {@code app_user.id}
+   * @param collectionId the collection id
+   * @param body the new role
+   * @return {@code 204 No Content}
+   */
+  @PutMapping("/{id}/collections/{collectionId}")
+  public ResponseEntity<Void> setCollectionRole(
+      @PathVariable Long id,
+      @PathVariable Long collectionId,
+      @Valid @RequestBody SetCollectionRoleRequest body) {
+    userCollectionRepository.upsertRole(id, collectionId, body.role(), null);
+    return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Remove the user's membership on a collection (revoke all access).
+   *
+   * @param id the {@code app_user.id}
+   * @param collectionId the collection id
+   * @return {@code 204 No Content}
+   */
+  @DeleteMapping("/{id}/collections/{collectionId}")
+  public ResponseEntity<Void> removeCollectionRole(
+      @PathVariable Long id, @PathVariable Long collectionId) {
+    userCollectionRepository.delete(id, collectionId);
+    return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Admin view of a user's full page (what they see at /user). Perimeter-gated.
+   *
+   * @param id the {@code app_user.id}
+   * @return the assembled {@link CollectionModel}
+   */
+  @GetMapping("/{id}/page")
+  public ResponseEntity<CollectionModel> userPage(@PathVariable Long id) {
+    return ResponseEntity.ok(userPageAssembler.assembleForUser(id));
   }
 
   /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */

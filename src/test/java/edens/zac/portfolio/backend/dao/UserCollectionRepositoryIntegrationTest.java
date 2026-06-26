@@ -3,7 +3,9 @@ package edens.zac.portfolio.backend.dao;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository.AssociatedCollection;
 import edens.zac.portfolio.backend.types.CollectionRole;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,5 +45,40 @@ class UserCollectionRepositoryIntegrationTest extends AbstractPostgresIntegratio
 
     repo.delete(u, c);
     assertThat(repo.hasMembership(u, c)).isFalse();
+  }
+
+  @Test
+  void findAssociatedCollectionsReturnsTaggedOnlyWithNullRoleThenMemberWithRole() {
+    long u = seedUser("Dave");
+    long c = seedCollection("tagged-only");
+
+    // Tag the user in collection_people (tagged, no membership yet)
+    jdbc.update("INSERT INTO collection_people (collection_id, person_id) VALUES (?, ?)", c, u);
+
+    List<AssociatedCollection> rows = repo.findAssociatedCollections(u);
+    assertThat(rows).hasSize(1);
+    AssociatedCollection row = rows.get(0);
+    assertThat(row.collectionId()).isEqualTo(c);
+    assertThat(row.title()).isEqualTo("tagged-only");
+    assertThat(row.role()).isNull();
+
+    // Grant membership — role should now appear
+    repo.upsertRole(u, c, CollectionRole.CLIENT, null);
+    List<AssociatedCollection> after = repo.findAssociatedCollections(u);
+    assertThat(after).hasSize(1);
+    assertThat(after.get(0).role()).isEqualTo("CLIENT");
+  }
+
+  @Test
+  void findAssociatedCollectionsIncludesMemberWithoutTag() {
+    long u = seedUser("Eve");
+    long c = seedCollection("member-only");
+
+    // Grant membership with no collection_people row
+    repo.upsertRole(u, c, CollectionRole.GENERAL, null);
+
+    List<AssociatedCollection> rows = repo.findAssociatedCollections(u);
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).role()).isEqualTo("GENERAL");
   }
 }

@@ -106,4 +106,29 @@ public class UserCollectionRepository extends BaseDao {
         "DELETE FROM user_collection WHERE user_id = :userId AND collection_id = :collectionId",
         createParameterSource().addValue("userId", userId).addValue("collectionId", collectionId));
   }
+
+  /** A row for the admin toggle UI: a collection the user is tagged in or a member of, + role. */
+  public record AssociatedCollection(Long collectionId, String title, String role) {}
+
+  @Transactional(readOnly = true)
+  public List<AssociatedCollection> findAssociatedCollections(Long userId) {
+    String sql =
+        """
+        SELECT c.id AS collection_id, c.title AS title, uc.role AS role
+          FROM collection c
+          JOIN (
+                SELECT collection_id FROM collection_people WHERE person_id = :userId
+                UNION
+                SELECT collection_id FROM user_collection   WHERE user_id   = :userId
+               ) assoc ON assoc.collection_id = c.id
+          LEFT JOIN user_collection uc ON uc.collection_id = c.id AND uc.user_id = :userId
+         ORDER BY c.title ASC
+        """;
+    return query(
+        sql,
+        (rs, n) ->
+            new AssociatedCollection(
+                rs.getLong("collection_id"), rs.getString("title"), rs.getString("role")),
+        createParameterSource().addValue("userId", userId));
+  }
 }

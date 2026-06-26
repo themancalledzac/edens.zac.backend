@@ -1,21 +1,31 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository.AssociatedCollection;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
+import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
+import edens.zac.portfolio.backend.services.UserPageAssembler;
+import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
 import java.util.Optional;
@@ -37,6 +47,8 @@ class AdminUserControllerTest {
 
   @Mock private AppUserRepository appUserRepository;
   @Mock private UserInviteService userInviteService;
+  @Mock private UserCollectionRepository userCollectionRepository;
+  @Mock private UserPageAssembler userPageAssembler;
 
   // Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join.
   private static final String FRONTEND_BASE_URL = "https://app.example.com/";
@@ -44,7 +56,12 @@ class AdminUserControllerTest {
   @BeforeEach
   void setUp() {
     AdminUserController controller =
-        new AdminUserController(appUserRepository, userInviteService, FRONTEND_BASE_URL);
+        new AdminUserController(
+            appUserRepository,
+            userInviteService,
+            userCollectionRepository,
+            userPageAssembler,
+            FRONTEND_BASE_URL);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())
@@ -289,6 +306,68 @@ class AdminUserControllerTest {
           .andExpect(status().isBadRequest());
 
       verify(appUserRepository, never()).updateName(anyLong(), anyString());
+    }
+  }
+
+  @Nested
+  class CollectionMembership {
+
+    @Test
+    void putCollectionRoleReturns204AndCallsUpsert() throws Exception {
+      mockMvc
+          .perform(
+              put("/api/admin/users/10/collections/20")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"role\":\"CLIENT\"}"))
+          .andExpect(status().isNoContent());
+
+      verify(userCollectionRepository).upsertRole(10L, 20L, CollectionRole.CLIENT, null);
+    }
+
+    @Test
+    void deleteCollectionRoleReturns204AndCallsDelete() throws Exception {
+      mockMvc
+          .perform(delete("/api/admin/users/10/collections/20"))
+          .andExpect(status().isNoContent());
+
+      verify(userCollectionRepository).delete(10L, 20L);
+    }
+
+    @Test
+    void getCollectionsReturnsAssociatedRowsWithNullRoleBeforeGrant() throws Exception {
+      when(userCollectionRepository.findAssociatedCollections(10L))
+          .thenReturn(List.of(new AssociatedCollection(42L, "Wedding Gallery", null)));
+
+      mockMvc
+          .perform(get("/api/admin/users/10/collections"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$[0].collectionId", is(42)))
+          .andExpect(jsonPath("$[0].title", is("Wedding Gallery")))
+          .andExpect(jsonPath("$[0].role").doesNotExist());
+    }
+
+    @Test
+    void getUserPageReturns200WithCollectionModel() throws Exception {
+      CollectionModel page =
+          CollectionModel.builder()
+              .slug("user")
+              .title("Alice")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.UNLISTED)
+              .content(List.of())
+              .contentCount(0)
+              .contentPerPage(0)
+              .currentPage(0)
+              .totalPages(1)
+              .build();
+      when(userPageAssembler.assembleForUser(10L)).thenReturn(page);
+
+      mockMvc
+          .perform(get("/api/admin/users/10/page"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.slug", is("user")))
+          .andExpect(jsonPath("$.title", is("Alice")))
+          .andExpect(jsonPath("$.type", is("PARENT")));
     }
   }
 }
