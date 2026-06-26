@@ -19,7 +19,7 @@ public class AppUserEntity {
   private Role role;
   private String passwordHash;
   private UUID webauthnUserHandle;
-  private String displayName;
+  private String name;
   private UserStatus status;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;

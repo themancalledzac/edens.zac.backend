@@ -134,7 +134,7 @@ class AdminUserControllerTest {
           AppUserEntity.builder()
               .id(1L)
               .email("alice@example.com")
-              .displayName("Alice")
+              .name("Alice")
               .status(UserStatus.ACTIVE)
               .passwordHash("{bcrypt}$2a$10$secret")
               .webauthnUserHandle(UUID.randomUUID())
@@ -201,7 +201,7 @@ class AdminUserControllerTest {
           AppUserEntity.builder()
               .id(3L)
               .email("carol@example.com")
-              .displayName("Carol")
+              .name("Carol")
               .status(UserStatus.ACTIVE)
               .passwordHash("secret-hash")
               .webauthnUserHandle(UUID.randomUUID())
@@ -236,14 +236,14 @@ class AdminUserControllerTest {
           AppUserEntity.builder()
               .id(8L)
               .email("ken@example.com")
-              .displayName("Ken")
+              .name("Ken")
               .status(UserStatus.INVITED)
               .build();
       AppUserEntity after =
           AppUserEntity.builder()
               .id(8L)
               .email("ken@example.com")
-              .displayName("Kenneth")
+              .name("Kenneth")
               .status(UserStatus.ACTIVE)
               .build();
       // First findById gates the 404 check; second reads the refreshed row back.
@@ -261,7 +261,7 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$.displayName").value("Kenneth"))
           .andExpect(jsonPath("$.status").value("ACTIVE"));
 
-      verify(appUserRepository).updateDisplayName(8L, "Kenneth");
+      verify(appUserRepository).updateName(8L, "Kenneth");
       verify(appUserRepository).updateStatus(8L, UserStatus.ACTIVE);
     }
 
@@ -288,7 +288,7 @@ class AdminUserControllerTest {
                   .content("{\"displayName\":\"Kenneth\"}"))
           .andExpect(status().isBadRequest());
 
-      verify(appUserRepository, never()).updateDisplayName(anyLong(), anyString());
+      verify(appUserRepository, never()).updateName(anyLong(), anyString());
     }
   }
 }

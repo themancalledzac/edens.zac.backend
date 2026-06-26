@@ -23,9 +23,9 @@ public class AppUserRepository extends BaseDao {
 
   private static final String SELECT_APP_USER =
       """
-      SELECT id, email, role, password_hash, webauthn_user_handle, display_name, status,
+      SELECT id, email, role, password_hash, webauthn_user_handle, name, status,
              created_at, updated_at
-      FROM app_user
+      FROM users
       """;
 
   private static final RowMapper<AppUserEntity> APP_USER_ROW_MAPPER =
@@ -37,7 +37,7 @@ public class AppUserRepository extends BaseDao {
             .role(Role.valueOf(rs.getString("role")))
             .passwordHash(rs.getString("password_hash"))
             .webauthnUserHandle(handle != null ? (UUID) handle : null)
-            .displayName(rs.getString("display_name"))
+            .name(rs.getString("name"))
             .status(UserStatus.valueOf(rs.getString("status")))
             .createdAt(getLocalDateTime(rs, "created_at"))
             .updatedAt(getLocalDateTime(rs, "updated_at"))
@@ -76,7 +76,7 @@ public class AppUserRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public boolean existsByRole(Role role) {
-    String sql = "SELECT COUNT(*) FROM app_user WHERE role = :role";
+    String sql = "SELECT COUNT(*) FROM users WHERE role = :role";
     MapSqlParameterSource params = createParameterSource().addValue("role", role.name());
     Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
     return count != null && count > 0;
@@ -86,8 +86,8 @@ public class AppUserRepository extends BaseDao {
   public Long insert(AppUserEntity entity) {
     String sql =
         """
-        INSERT INTO app_user (email, role, password_hash, webauthn_user_handle, display_name, status)
-        VALUES (:email, :role, :passwordHash, :webauthnUserHandle, :displayName, :status)
+        INSERT INTO users (email, role, password_hash, webauthn_user_handle, name, status)
+        VALUES (:email, :role, :passwordHash, :webauthnUserHandle, :name, :status)
         """;
     MapSqlParameterSource params =
         createParameterSource()
@@ -95,14 +95,14 @@ public class AppUserRepository extends BaseDao {
             .addValue("role", entity.getRole().name())
             .addValue("passwordHash", entity.getPasswordHash())
             .addValue("webauthnUserHandle", entity.getWebauthnUserHandle())
-            .addValue("displayName", entity.getDisplayName())
+            .addValue("name", entity.getName())
             .addValue("status", entity.getStatus().name());
     return insertAndReturnId(sql, "id", params);
   }
 
   @Transactional
   public void updatePasswordHash(Long id, String hash) {
-    String sql = "UPDATE app_user SET password_hash = :hash, updated_at = now() WHERE id = :id";
+    String sql = "UPDATE users SET password_hash = :hash, updated_at = now() WHERE id = :id";
     MapSqlParameterSource params =
         createParameterSource().addValue("hash", hash).addValue("id", id);
     update(sql, params);
@@ -110,18 +110,17 @@ public class AppUserRepository extends BaseDao {
 
   @Transactional
   public void updateStatus(Long id, UserStatus status) {
-    String sql = "UPDATE app_user SET status = :status, updated_at = now() WHERE id = :id";
+    String sql = "UPDATE users SET status = :status, updated_at = now() WHERE id = :id";
     MapSqlParameterSource params =
         createParameterSource().addValue("status", status.name()).addValue("id", id);
     update(sql, params);
   }
 
   @Transactional
-  public void updateDisplayName(Long id, String displayName) {
-    String sql =
-        "UPDATE app_user SET display_name = :displayName, updated_at = now() WHERE id = :id";
+  public void updateName(Long id, String name) {
+    String sql = "UPDATE users SET name = :name, updated_at = now() WHERE id = :id";
     MapSqlParameterSource params =
-        createParameterSource().addValue("displayName", displayName).addValue("id", id);
+        createParameterSource().addValue("name", name).addValue("id", id);
     update(sql, params);
   }
 }

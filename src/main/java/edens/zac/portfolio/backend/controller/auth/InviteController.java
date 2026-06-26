@@ -60,7 +60,7 @@ public class InviteController {
       return ResponseEntity.notFound().build();
     }
     AppUserEntity user = maybeUser.get();
-    return ResponseEntity.ok(new InvitePreview(invite.getEmail(), user.getDisplayName()));
+    return ResponseEntity.ok(new InvitePreview(invite.getEmail(), user.getName()));
   }
 
   /**
@@ -90,7 +90,7 @@ public class InviteController {
     Long userId = invite.getUserId();
 
     appUserRepository.updatePasswordHash(userId, passwordEncoder.encode(body.password()));
-    appUserRepository.updateDisplayName(userId, body.displayName());
+    appUserRepository.updateName(userId, body.displayName());
     appUserRepository.updateStatus(userId, UserStatus.ACTIVE);
 
     AppUserEntity user =

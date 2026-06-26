@@ -35,7 +35,7 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
             .role(Role.ADMIN)
             .passwordHash("{bcrypt}$2a$10$abc")
             .webauthnUserHandle(handle)
-            .displayName("Round Trip")
+            .name("Round Trip")
             .status(UserStatus.ACTIVE)
             .build();
 
@@ -49,7 +49,7 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(found.get().getStatus()).isEqualTo(UserStatus.ACTIVE);
     assertThat(found.get().getPasswordHash()).isEqualTo("{bcrypt}$2a$10$abc");
     assertThat(found.get().getWebauthnUserHandle()).isEqualTo(handle);
-    assertThat(found.get().getDisplayName()).isEqualTo("Round Trip");
+    assertThat(found.get().getName()).isEqualTo("Round Trip");
     assertThat(found.get().getCreatedAt()).isNotNull();
   }
 
@@ -106,10 +106,10 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
-  void updateDisplayNamePersists() {
+  void updateNamePersists() {
     Long id = repository.insert(newUser("displayname@example.com", Role.CLIENT));
-    repository.updateDisplayName(id, "Alice Smith");
+    repository.updateName(id, "Alice Smith");
     assertThat(repository.findById(id)).isPresent();
-    assertThat(repository.findById(id).get().getDisplayName()).isEqualTo("Alice Smith");
+    assertThat(repository.findById(id).get().getName()).isEqualTo("Alice Smith");
   }
 }

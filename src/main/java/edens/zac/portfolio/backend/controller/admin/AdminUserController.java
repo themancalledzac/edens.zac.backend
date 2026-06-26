@@ -83,7 +83,7 @@ public class AdminUserController {
             .role(Role.CLIENT)
             .status(UserStatus.INVITED)
             .webauthnUserHandle(UUID.randomUUID())
-            .displayName(request.displayName())
+            .name(request.displayName())
             .passwordHash(null)
             .build();
 
@@ -105,7 +105,7 @@ public class AdminUserController {
   @GetMapping
   public List<AdminUserSummary> listUsers() {
     return appUserRepository.findAllOrderedByCreatedAt().stream()
-        .map(u -> new AdminUserSummary(u.getId(), u.getEmail(), u.getDisplayName(), u.getStatus()))
+        .map(u -> new AdminUserSummary(u.getId(), u.getEmail(), u.getName(), u.getStatus()))
         .toList();
   }
 
@@ -144,8 +144,7 @@ public class AdminUserController {
         .map(
             u ->
                 ResponseEntity.ok(
-                    new AdminUserSummary(
-                        u.getId(), u.getEmail(), u.getDisplayName(), u.getStatus())))
+                    new AdminUserSummary(u.getId(), u.getEmail(), u.getName(), u.getStatus())))
         .orElseGet(() -> ResponseEntity.notFound().build());
   }
 
@@ -163,12 +162,12 @@ public class AdminUserController {
     if (appUserRepository.findById(id).isEmpty()) {
       return ResponseEntity.notFound().build();
     }
-    appUserRepository.updateDisplayName(id, request.displayName());
+    appUserRepository.updateName(id, request.displayName());
     appUserRepository.updateStatus(id, request.status());
     AppUserEntity updated = appUserRepository.findById(id).orElseThrow();
     return ResponseEntity.ok(
         new AdminUserSummary(
-            updated.getId(), updated.getEmail(), updated.getDisplayName(), updated.getStatus()));
+            updated.getId(), updated.getEmail(), updated.getName(), updated.getStatus()));
   }
 
   /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */

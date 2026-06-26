@@ -63,7 +63,7 @@ class InviteControllerTest {
     return AppUserEntity.builder()
         .id(id)
         .email(email)
-        .displayName(displayName)
+        .name(displayName)
         .role(Role.CLIENT)
         .status(UserStatus.INVITED)
         .webauthnUserHandle(UUID.randomUUID())
@@ -129,7 +129,7 @@ class InviteControllerTest {
           .andExpect(status().isNoContent());
 
       verify(appUserRepository).updatePasswordHash(10L, "{bcrypt}hashed");
-      verify(appUserRepository).updateDisplayName(10L, "Bob");
+      verify(appUserRepository).updateName(10L, "Bob");
       verify(appUserRepository).updateStatus(10L, UserStatus.ACTIVE);
       verify(sessionService).create(eq(user), eq(false), any(), any());
     }

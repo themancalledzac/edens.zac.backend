@@ -37,7 +37,7 @@ public class JdbcPublicKeyCredentialUserEntityRepository
     return ImmutablePublicKeyCredentialUserEntity.builder()
         .id(new Bytes(user.getWebauthnUserHandle().toString().getBytes(StandardCharsets.UTF_8)))
         .name(user.getEmail())
-        .displayName(user.getDisplayName() != null ? user.getDisplayName() : user.getEmail())
+        .displayName(user.getName() != null ? user.getName() : user.getEmail())
         .build();
   }
 
