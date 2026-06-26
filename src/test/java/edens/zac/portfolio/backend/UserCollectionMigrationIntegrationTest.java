@@ -58,12 +58,18 @@ class UserCollectionMigrationIntegrationTest extends AbstractPostgresIntegration
             collectionId);
     assertThat(role).isEqualTo("CLIENT");
 
+    // Seed a second collection so the bad-role insert is a fresh (user, collection) pair —
+    // ensures only the CHECK constraint can throw, not a PK unique-violation on the same pair.
+    jdbc.update(
+        "INSERT INTO collection (title, slug, type, visibility) VALUES ('C2', 'c2-slug', 'CLIENT_GALLERY', 'UNLISTED')");
+    Long collectionId2 =
+        jdbc.queryForObject("SELECT id FROM collection WHERE slug='c2-slug'", Long.class);
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () ->
                 jdbc.update(
                     "INSERT INTO user_collection (user_id, collection_id, role) VALUES (?, ?, 'admin')",
                     userId,
-                    collectionId))
+                    collectionId2))
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
   }
 }

@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** JDBC access to {@code user_selects}. Mirrors {@link GalleryAccessRepository}'s BaseDao style. */
+/** JDBC access to {@code user_selects}. Mirrors the BaseDao style. */
 @Component
 @Slf4j
 public class UserSelectRepository extends BaseDao {

@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Authed-user endpoints for per-user rating overrides. PUT upserts an override (authz: the caller
- * must hold a {@code gallery_access} grant whose {@code canTag} is true — enforced in the service);
+ * must hold a CLIENT membership (user_collection) for the collection — enforced in the service);
  * GET lists the caller's overrides for a collection. Both require a non-null principal (401
  * otherwise). Admins use the canonical admin content path, not this endpoint.
  */

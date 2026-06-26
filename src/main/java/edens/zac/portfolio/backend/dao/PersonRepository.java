@@ -99,8 +99,8 @@ public class PersonRepository extends BaseDao {
   /**
    * Of the given identity ids, those that are real accounts (status {@code <> 'PERSON'}) — drops
    * tag-only PERSON rows. Replaces the pre-merge {@code findLinkedUserIdsByPersonIds}: it preserves
-   * the "only account-backed persons receive a gallery_access grant" rule now that a person tag and
-   * an account share one {@code users} row.
+   * the "only account-backed persons receive a user_collection membership" rule now that a person
+   * tag and an account share one {@code users} row.
    */
   @Transactional(readOnly = true)
   public List<Long> findAccountUserIdsByIds(List<Long> ids) {
