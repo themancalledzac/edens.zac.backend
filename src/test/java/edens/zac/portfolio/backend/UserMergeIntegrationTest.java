@@ -7,6 +7,7 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,27 +52,62 @@ class UserMergeIntegrationTest extends AbstractPostgresIntegrationTest {
     return contentId;
   }
 
+  /** A real collection row (idiom mirrors UserCollectionRepositoryIntegrationTest). */
+  private Long newCollection() {
+    String slug = "merge-test-" + UUID.randomUUID();
+    return jdbc.queryForObject(
+        "INSERT INTO collection (title, slug, type, visibility) "
+            + "VALUES (?, ?, 'CLIENT_GALLERY', 'UNLISTED') RETURNING id",
+        Long.class,
+        slug,
+        slug);
+  }
+
+  private void tagPersonOnCollection(Long collectionId, Long personId) {
+    jdbc.update(
+        "INSERT INTO collection_people (collection_id, person_id) VALUES (?, ?)",
+        collectionId,
+        personId);
+  }
+
   @Test
   void mergeRepointsTagsCollapsesDuplicatesAndDeletesSource() {
     Long account = newAccount("danny@danny.com", "Danny");
     Long person = newPerson("Danny Nieves");
-    Long onlyOnPerson = newImageTaggedWith(person);
-    Long shared = newImageTaggedWith(person);
-    // account is ALSO tagged on `shared` -> that source row must collapse, not duplicate.
+
+    // --- image tags ---
+    Long onlyOnPersonImage = newImageTaggedWith(person);
+    Long sharedImage = newImageTaggedWith(person);
+    // account is ALSO tagged on `sharedImage` -> that source row must collapse, not duplicate.
     jdbc.update(
-        "INSERT INTO content_image_people (content_id, person_id) VALUES (?, ?)", shared, account);
+        "INSERT INTO content_image_people (content_id, person_id) VALUES (?, ?)",
+        sharedImage,
+        account);
+
+    // --- collection tags (exercises the (collection_id, person_id) PK dedupe branch) ---
+    Long onlyOnPersonCollection = newCollection();
+    tagPersonOnCollection(onlyOnPersonCollection, person);
+    Long sharedCollection = newCollection();
+    tagPersonOnCollection(sharedCollection, person);
+    // account is ALSO tagged on `sharedCollection` -> the source row must collapse on re-point,
+    // otherwise the UPDATE would hit a duplicate-key violation on the composite PK.
+    tagPersonOnCollection(sharedCollection, account);
 
     MergeResult result = userMergeService.merge(person, account);
 
-    assertThat(result.duplicatesCollapsed()).isEqualTo(1);
-    // Source had two image tags before the merge; reported `movedImageTags` is the gross source
-    // count (preview-coherent), independent of how many collapsed on landing.
+    // One image overlap + one collection overlap collapse.
+    assertThat(result.duplicatesCollapsed()).isEqualTo(2);
+    // Source had two image tags + two collection tags before the merge; reported moved counts are
+    // the gross source counts (preview-coherent), independent of how many collapsed on landing.
     assertThat(result.movedImageTags()).isEqualTo(2);
+    assertThat(result.movedCollections()).isEqualTo(2);
+
     // source row gone
     assertThat(
             jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Integer.class, person))
         .isZero();
-    // both images now point at the account, no duplicate on `shared`
+
+    // both images now point at the account, no duplicate on `sharedImage`
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM content_image_people WHERE person_id = ?",
@@ -82,9 +118,38 @@ class UserMergeIntegrationTest extends AbstractPostgresIntegrationTest {
             jdbc.queryForObject(
                 "SELECT count(*) FROM content_image_people WHERE content_id = ? AND person_id = ?",
                 Integer.class,
-                onlyOnPerson,
+                onlyOnPersonImage,
                 account))
         .isEqualTo(1);
+
+    // both collections now point at the account, with NO duplicate row on `sharedCollection`
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM collection_people WHERE person_id = ?",
+                Integer.class,
+                account))
+        .isEqualTo(2);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM collection_people WHERE collection_id = ? AND person_id = ?",
+                Integer.class,
+                sharedCollection,
+                account))
+        .isEqualTo(1);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM collection_people WHERE collection_id = ? AND person_id = ?",
+                Integer.class,
+                onlyOnPersonCollection,
+                account))
+        .isEqualTo(1);
+    // no orphaned source rows remain in either join
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM collection_people WHERE person_id = ?",
+                Integer.class,
+                person))
+        .isZero();
   }
 
   @Test

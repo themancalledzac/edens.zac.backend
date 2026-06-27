@@ -20,6 +20,7 @@ import edens.zac.portfolio.backend.types.CollectionRole;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -294,12 +295,12 @@ public class AdminUserController {
   @PostMapping("/{targetId}/merge")
   public ResponseEntity<MergeResult> merge(
       @PathVariable Long targetId, @Valid @RequestBody MergeRequest request) {
-    if (appUserRepository.findById(request.sourceId()).isEmpty()
-        || appUserRepository.findById(targetId).isEmpty()) {
-      return ResponseEntity.notFound().build();
-    }
+    // Missing-id 404 and rail 409 are both delegated to the service (mirrors merge-preview), which
+    // re-checks existence inside its own transaction — no redundant controller-level lookups.
     try {
       return ResponseEntity.ok(userMergeService.merge(request.sourceId(), targetId));
+    } catch (NoSuchElementException e) {
+      return ResponseEntity.notFound().build();
     } catch (IllegalStateException e) {
       return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }

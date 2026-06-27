@@ -84,6 +84,9 @@ public class UserMergeService {
         images,
         collections,
         collapsed);
+    // movedImageTags/movedCollections are the GROSS source counts (coherent with the preview's
+    // imageTagCount/collectionCount), not net-of-collisions; duplicatesCollapsed reports the
+    // overlap.
     return new MergeResult(images, collections, collapsed);
   }
 
