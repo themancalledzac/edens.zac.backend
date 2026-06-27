@@ -58,47 +58,56 @@ public class AdminHomeService {
     List<TileRow> rows = tileRepository.findAllOrderedByDisplay();
     List<Records.AdminHomeTileResponse> out = new ArrayList<>(rows.size());
     for (TileRow row : rows) {
-      String url = resolveCover(row.tileKey());
-      out.add(new Records.AdminHomeTileResponse(row.tileKey(), url, row.displayOrder()));
+      ContentModels.Image cover = resolveCoverImage(row.tileKey());
+      String url = cover != null ? cover.imageUrl() : null;
+      Integer width = cover != null ? cover.imageWidth() : null;
+      Integer height = cover != null ? cover.imageHeight() : null;
+      out.add(
+          new Records.AdminHomeTileResponse(row.tileKey(), url, width, height, row.displayOrder()));
     }
     return List.copyOf(out);
   }
 
-  private String resolveCover(String tileKey) {
+  private ContentModels.Image resolveCoverImage(String tileKey) {
     return switch (tileKey) {
-      case "home" -> randomCoverUrlFromCollections(collectionService.findChildCollectionsForHome());
+      case "home" ->
+          randomCoverImageFromCollections(collectionService.findChildCollectionsForHome());
       case "all-collections" ->
-          randomCoverUrlFromCollections(collectionService.findAllListedWithCovers());
-      case "all-images" -> contentRepository.findRandomImageWebUrl().orElse(null);
+          randomCoverImageFromCollections(collectionService.findAllListedWithCovers());
+      case "all-images" -> {
+        String url = contentRepository.findRandomImageWebUrl().orElse(null);
+        yield url != null ? urlOnlyCoverImage(url) : null;
+      }
       case "blogs" ->
-          randomCoverUrlFromCollections(
+          randomCoverImageFromCollections(
               collectionService.findVisibleByTypeOrderByDate(CollectionType.BLOG));
       case "client-galleries" ->
-          // Client galleries are typically UNLISTED (their listing is private by design), so the
-          // LISTED-only lookup would yield no candidates and the tile would render with no cover.
-          // Admin-context lookup includes UNLISTED.
-          randomCoverUrlFromCollections(
+          randomCoverImageFromCollections(
               collectionService.findByTypeForAdminCovers(CollectionType.CLIENT_GALLERY));
-      // metadata, comments, create, manage, about: no cover (rendered as plain entries elsewhere)
       default -> null;
     };
   }
 
-  private String randomCoverUrlFromCollections(List<CollectionModel> candidates) {
+  private ContentModels.Image randomCoverImageFromCollections(List<CollectionModel> candidates) {
     if (candidates == null || candidates.isEmpty()) {
       return null;
     }
-    List<String> urls =
+    List<ContentModels.Image> images =
         candidates.stream()
             .map(CollectionModel::getCoverImage)
             .filter(Objects::nonNull)
-            .map(ContentModels.Image::imageUrl)
-            .filter(Objects::nonNull)
-            .filter(s -> !s.isBlank())
+            .filter(img -> img.imageUrl() != null && !img.imageUrl().isBlank())
             .toList();
-    if (urls.isEmpty()) {
+    if (images.isEmpty()) {
       return null;
     }
-    return urls.get(ThreadLocalRandom.current().nextInt(urls.size()));
+    return images.get(ThreadLocalRandom.current().nextInt(images.size()));
+  }
+
+  private static ContentModels.Image urlOnlyCoverImage(String url) {
+    return new ContentModels.Image(
+        null, null, null, null, null, null, url, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+        null);
   }
 }

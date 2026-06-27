@@ -36,12 +36,12 @@ class AdminHomeServiceTest {
     service = new AdminHomeService(tileRepository, collectionService, contentRepository);
   }
 
-  /**
-   * Build a CollectionModel whose cover image carries only the supplied imageUrl.
-   * ContentModels.Image is a 28-field record; everything except imageUrl is null because the
-   * service only reads the URL.
-   */
   private static CollectionModel collectionWithCoverUrl(long id, String slug, String url) {
+    return collectionWithCoverImage(id, slug, url, null, null);
+  }
+
+  private static CollectionModel collectionWithCoverImage(
+      long id, String slug, String url, Integer width, Integer height) {
     ContentModels.Image cover =
         new ContentModels.Image(
             null, // id
@@ -56,8 +56,8 @@ class AdminHomeServiceTest {
             null, // visible
             null, // createdAt
             null, // updatedAt
-            null, // imageWidth
-            null, // imageHeight
+            width, // imageWidth
+            height, // imageHeight
             null, // iso
             null, // author
             null, // rating
@@ -97,20 +97,23 @@ class AdminHomeServiceTest {
                   new TileRow("manage", 8),
                   new TileRow("about", 9)));
 
-      var homeChild = collectionWithCoverUrl(11L, "film", "https://cdn/example/home-child.webp");
+      var homeChild =
+          collectionWithCoverImage(11L, "film", "https://cdn/example/home-child.webp", 1600, 1067);
       when(collectionService.findChildCollectionsForHome()).thenReturn(List.of(homeChild));
 
-      var anyVisible = collectionWithCoverUrl(21L, "any", "https://cdn/example/any.webp");
+      var anyVisible =
+          collectionWithCoverImage(21L, "any", "https://cdn/example/any.webp", 1200, 800);
       when(collectionService.findAllListedWithCovers()).thenReturn(List.of(anyVisible));
 
       when(contentRepository.findRandomImageWebUrl())
           .thenReturn(Optional.of("https://cdn/example/random-image.webp"));
 
-      var blog = collectionWithCoverUrl(31L, "trip", "https://cdn/example/blog.webp");
+      var blog = collectionWithCoverImage(31L, "trip", "https://cdn/example/blog.webp", 900, 600);
       when(collectionService.findVisibleByTypeOrderByDate(CollectionType.BLOG))
           .thenReturn(List.of(blog));
 
-      var gallery = collectionWithCoverUrl(41L, "smith", "https://cdn/example/gallery.webp");
+      var gallery =
+          collectionWithCoverImage(41L, "smith", "https://cdn/example/gallery.webp", 1400, 933);
       when(collectionService.findByTypeForAdminCovers(CollectionType.CLIENT_GALLERY))
           .thenReturn(List.of(gallery));
 
@@ -131,15 +134,30 @@ class AdminHomeServiceTest {
               "manage",
               "about");
       assertThat(tiles.get(0).coverImageUrl()).isEqualTo("https://cdn/example/home-child.webp");
+      assertThat(tiles.get(0).coverImageWidth()).isEqualTo(1600);
+      assertThat(tiles.get(0).coverImageHeight()).isEqualTo(1067);
       assertThat(tiles.get(1).coverImageUrl()).isEqualTo("https://cdn/example/any.webp");
+      assertThat(tiles.get(1).coverImageWidth()).isEqualTo(1200);
+      assertThat(tiles.get(1).coverImageHeight()).isEqualTo(800);
       assertThat(tiles.get(2).coverImageUrl()).isEqualTo("https://cdn/example/random-image.webp");
-      assertThat(tiles.get(3).coverImageUrl()).isNull(); // metadata - no source
-      assertThat(tiles.get(4).coverImageUrl()).isNull(); // comments - no source
+      assertThat(tiles.get(2).coverImageWidth()).isNull();
+      assertThat(tiles.get(2).coverImageHeight()).isNull();
+      assertThat(tiles.get(3).coverImageUrl()).isNull();
+      assertThat(tiles.get(3).coverImageWidth()).isNull();
+      assertThat(tiles.get(4).coverImageUrl()).isNull();
+      assertThat(tiles.get(4).coverImageWidth()).isNull();
       assertThat(tiles.get(5).coverImageUrl()).isEqualTo("https://cdn/example/blog.webp");
+      assertThat(tiles.get(5).coverImageWidth()).isEqualTo(900);
+      assertThat(tiles.get(5).coverImageHeight()).isEqualTo(600);
       assertThat(tiles.get(6).coverImageUrl()).isEqualTo("https://cdn/example/gallery.webp");
-      assertThat(tiles.get(7).coverImageUrl()).isNull(); // create - no source
-      assertThat(tiles.get(8).coverImageUrl()).isNull(); // manage - no source
-      assertThat(tiles.get(9).coverImageUrl()).isNull(); // about - no source
+      assertThat(tiles.get(6).coverImageWidth()).isEqualTo(1400);
+      assertThat(tiles.get(6).coverImageHeight()).isEqualTo(933);
+      assertThat(tiles.get(7).coverImageUrl()).isNull();
+      assertThat(tiles.get(7).coverImageWidth()).isNull();
+      assertThat(tiles.get(8).coverImageUrl()).isNull();
+      assertThat(tiles.get(8).coverImageWidth()).isNull();
+      assertThat(tiles.get(9).coverImageUrl()).isNull();
+      assertThat(tiles.get(9).coverImageWidth()).isNull();
       assertThat(tiles.get(0).displayOrder()).isZero();
       assertThat(tiles.get(9).displayOrder()).isEqualTo(9);
     }
@@ -178,6 +196,8 @@ class AdminHomeServiceTest {
 
       assertThat(tiles).hasSize(1);
       assertThat(tiles.get(0).coverImageUrl()).isNull();
+      assertThat(tiles.get(0).coverImageWidth()).isNull();
+      assertThat(tiles.get(0).coverImageHeight()).isNull();
     }
 
     @Test
@@ -190,6 +210,8 @@ class AdminHomeServiceTest {
       assertThat(tiles).hasSize(1);
       assertThat(tiles.get(0).tileKey()).isEqualTo("not-a-known-key");
       assertThat(tiles.get(0).coverImageUrl()).isNull();
+      assertThat(tiles.get(0).coverImageWidth()).isNull();
+      assertThat(tiles.get(0).coverImageHeight()).isNull();
       verifyNoMoreInteractions(collectionService, contentRepository);
     }
   }
