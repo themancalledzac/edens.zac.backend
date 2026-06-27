@@ -66,4 +66,44 @@ public final class UserRequests {
    * @param role the new membership role (GENERAL or CLIENT)
    */
   public record SetCollectionRoleRequest(@NotNull CollectionRole role) {}
+
+  /**
+   * Body for {@code POST /api/admin/users/{targetId}/merge} — absorb a tag-only PERSON into the
+   * surviving identity in the path.
+   *
+   * @param sourceId the tag-only PERSON to absorb (it is hard-deleted by the merge)
+   */
+  public record MergeRequest(@NotNull Long sourceId) {}
+
+  /**
+   * Preview of a pending identity merge ({@code GET
+   * /api/admin/users/{sourceId}/merge-preview?targetId=}). Counts what would move from source onto
+   * target without mutating anything.
+   *
+   * @param sourceId the tag-only PERSON to absorb
+   * @param sourceName the source's display name, may be {@code null}
+   * @param targetId the surviving identity
+   * @param targetName the target's display name, may be {@code null}
+   * @param imageTagCount image tags currently on the source
+   * @param collectionCount collection associations currently on the source
+   * @param duplicatesCollapsed source tags that already exist on the target (will be de-duped)
+   */
+  public record MergePreview(
+      Long sourceId,
+      String sourceName,
+      Long targetId,
+      String targetName,
+      int imageTagCount,
+      int collectionCount,
+      int duplicatesCollapsed) {}
+
+  /**
+   * Result of a completed merge ({@code POST /api/admin/users/{targetId}/merge}).
+   *
+   * @param movedImageTags image tags re-pointed onto the target
+   * @param movedCollections collection associations re-pointed onto the target
+   * @param duplicatesCollapsed source tags that collided with an existing target tag and were
+   *     de-duped
+   */
+  public record MergeResult(int movedImageTags, int movedCollections, int duplicatesCollapsed) {}
 }
