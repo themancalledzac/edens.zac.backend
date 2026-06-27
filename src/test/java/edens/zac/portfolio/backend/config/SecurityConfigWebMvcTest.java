@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.SessionService;
-import edens.zac.portfolio.backend.types.Role;
 import jakarta.servlet.http.Cookie;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -88,7 +87,7 @@ class SecurityConfigWebMvcTest {
   @Test
   void meResolvesPrincipalWhenCookiePresent() throws Exception {
     when(sessionService.resolve(eq("valid-token")))
-        .thenReturn(Optional.of(new AuthPrincipal(7L, "admin@example.com", Role.ADMIN, false)));
+        .thenReturn(Optional.of(new AuthPrincipal(7L, "admin@example.com", false)));
 
     mockMvc
         .perform(get("/api/auth/me").cookie(new Cookie("ezac_session", "valid-token")))

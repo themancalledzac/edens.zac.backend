@@ -38,7 +38,7 @@ services:
       # Email (AWS SES v2) — disabled by default; flip EMAIL_ENABLED=true once SES domain + from-address are verified.
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@edens.zac}
-      EMAIL_FRONTEND_BASE_URL: ${EMAIL_FRONTEND_BASE_URL:-https://edens.zac}
+      EMAIL_FRONTEND_BASE_URL: ${EMAIL_FRONTEND_BASE_URL:-http://localhost:3000}
 
       # JVM memory: local dev uses 1g (48GB machine), EC2 prod uses 384m (1GB instance)
       # EC2 prod override: JAVA_OPTS=-Xmx384m -Xms256m
@@ -47,6 +47,11 @@ services:
       # Local dev only: mount Photography dir so backend can stream RAW files to S3.
       # On EC2 prod, omit PHOTOGRAPHY_PATH or leave empty (RAW uploads only happen locally).
       - ${PHOTOGRAPHY_PATH:-/dev/null}:${PHOTOGRAPHY_PATH:-/dev/null}:ro
+      # Local dev only: mount external drives so RAW files stored on external hard disks
+      # (e.g. "/Volumes/My Book/Photography/Raw/...") are visible for background S3 upload.
+      # Set PHOTOGRAPHY_EXTERNAL_PATH=/Volumes in .env. On EC2 prod, omit it (defaults to
+      # /dev/null, which Compose dedupes with the line above -- a harmless no-op).
+      - ${PHOTOGRAPHY_EXTERNAL_PATH:-/dev/null}:${PHOTOGRAPHY_EXTERNAL_PATH:-/dev/null}:ro
     deploy:
       resources:
         limits:

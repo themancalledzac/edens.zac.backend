@@ -41,7 +41,7 @@ public final class Records {
   public record Tag(Long id, String name, String slug) {}
 
   /** Model representing a person for API responses. Contains the person's ID and name. */
-  public record Person(Long id, String name, String slug) {}
+  public record Person(Long id, String name) {}
 
   // Location
 

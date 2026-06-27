@@ -55,6 +55,9 @@ class CollectionControllerDevTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(contentCollectionController)
             .setControllerAdvice(new edens.zac.portfolio.backend.config.GlobalExceptionHandler())
+            .setCustomArgumentResolvers(
+                new org.springframework.security.web.method.annotation
+                    .AuthenticationPrincipalArgumentResolver())
             .build();
 
     // Create test collection model (for updateContent, addContents)

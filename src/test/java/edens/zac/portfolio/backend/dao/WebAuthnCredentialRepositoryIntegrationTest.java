@@ -24,9 +24,10 @@ class WebAuthnCredentialRepositoryIntegrationTest extends AbstractPostgresIntegr
 
   private Long seedUser(String email) {
     return jdbcTemplate.queryForObject(
-        "INSERT INTO app_user (email, role, webauthn_user_handle, status) "
-            + "VALUES (?, 'ADMIN', gen_random_uuid(), 'ACTIVE') RETURNING id",
+        "INSERT INTO users (name, email, webauthn_user_handle, status) "
+            + "VALUES (?, ?, gen_random_uuid(), 'ACTIVE') RETURNING id",
         Long.class,
+        email,
         email);
   }
 

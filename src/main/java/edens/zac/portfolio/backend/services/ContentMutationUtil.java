@@ -319,8 +319,7 @@ public class ContentMutationUtil {
           if (!seenPeople.add(personName.toLowerCase())) {
             continue;
           }
-          String personSlug = SlugUtil.generateSlug(personName);
-          var existing = personRepository.findBySlug(personSlug);
+          var existing = personRepository.findByPersonNameIgnoreCase(personName);
           if (existing.isPresent()) {
             personIds.add(existing.get().getId());
           } else {

@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -84,7 +83,7 @@ public class SyntheticCollectionResolver {
 
     List<ContentModel> content =
         children.stream()
-            .map(SyntheticCollectionResolver::toCollectionContent)
+            .map(ContentModels.Collection::fromCollectionModel)
             .map(ContentModel.class::cast)
             .toList();
 
@@ -99,23 +98,6 @@ public class SyntheticCollectionResolver {
         .currentPage(0)
         .totalPages(1)
         .build();
-  }
-
-  private static ContentModels.Collection toCollectionContent(CollectionModel c) {
-    return new ContentModels.Collection(
-        c.getId(),
-        ContentType.COLLECTION,
-        c.getTitle(),
-        c.getDescription(),
-        null,
-        0,
-        true,
-        c.getCreatedAt(),
-        c.getUpdatedAt(),
-        c.getId(),
-        c.getSlug(),
-        c.getType(),
-        c.getCoverImage());
   }
 
   private record Synthetic(String title, CollectionType typeFilter) {}

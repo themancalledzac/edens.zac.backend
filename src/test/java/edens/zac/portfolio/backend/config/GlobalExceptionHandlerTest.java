@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.config;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,6 +18,8 @@ import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -72,6 +75,14 @@ class GlobalExceptionHandlerTest {
     String generic() {
       throw new RuntimeException("unexpected failure");
     }
+
+    @PostMapping("/echo")
+    String echo(@RequestBody EchoRequest body) {
+      return body.value();
+    }
+
+    /** Minimal body type so {@code /echo} has something to deserialize a request into. */
+    record EchoRequest(String value) {}
   }
 
   @BeforeEach
@@ -190,5 +201,20 @@ class GlobalExceptionHandlerTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.status").value(500))
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
+  }
+
+  @Test
+  void handleMessageNotReadable_returnsStatus400() throws Exception {
+    // A malformed request body fails Jackson deserialization with
+    // HttpMessageNotReadableException. Without a dedicated handler it is caught by the
+    // catch-all Exception handler and mis-reported as 500; it must be a 400.
+    mockMvc
+        .perform(
+            post("/test/echo").contentType(MediaType.APPLICATION_JSON).content("{ invalid json }"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.error").value("Bad Request"))
+        .andExpect(jsonPath("$.message").value("Malformed or unreadable request body"))
+        .andExpect(jsonPath("$.timestamp").exists());
   }
 }

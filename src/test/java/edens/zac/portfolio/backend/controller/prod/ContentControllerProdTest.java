@@ -174,9 +174,9 @@ class ContentControllerProdTest {
     // Arrange
     List<Records.Person> people =
         List.of(
-            new Records.Person(1L, "Alice", "alice"),
-            new Records.Person(2L, "Bob", "bob"),
-            new Records.Person(3L, "Charlie", "charlie"));
+            new Records.Person(1L, "Alice"),
+            new Records.Person(2L, "Bob"),
+            new Records.Person(3L, "Charlie"));
 
     when(metadataService.getAllPeople()).thenReturn(people);
 
@@ -187,7 +187,15 @@ class ContentControllerProdTest {
         .andExpect(jsonPath("$", hasSize(3)))
         .andExpect(jsonPath("$[0].id", is(1)))
         .andExpect(jsonPath("$[0].name", is("Alice")))
-        .andExpect(jsonPath("$[2].name", is("Charlie")));
+        .andExpect(jsonPath("$[2].name", is("Charlie")))
+        // Secret hygiene: since the V35 merge a person tag shares the `users` row with an account,
+        // so a person DTO must expose only {id, name} — never the account columns.
+        .andExpect(jsonPath("$[0].email").doesNotExist())
+        .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
+        .andExpect(jsonPath("$[0].webauthnUserHandle").doesNotExist())
+        .andExpect(jsonPath("$[0].status").doesNotExist())
+        .andExpect(jsonPath("$[0].role").doesNotExist())
+        .andExpect(jsonPath("$[0].slug").doesNotExist());
   }
 
   @Test

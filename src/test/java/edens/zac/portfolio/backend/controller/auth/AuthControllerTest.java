@@ -14,12 +14,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
-import edens.zac.portfolio.backend.dao.GalleryAccessRepository;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.LoginRequest;
 import edens.zac.portfolio.backend.services.SessionService;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
 import java.util.Optional;
@@ -48,7 +47,7 @@ class AuthControllerTest {
   @Mock private SessionService sessionService;
   @Mock private AuthLoginLimiter loginLimiter;
   @Mock private AppUserRepository appUserRepository;
-  @Mock private GalleryAccessRepository galleryAccessRepository;
+  @Mock private UserCollectionRepository userCollectionRepository;
   @Mock private PasswordEncoder passwordEncoder;
 
   @InjectMocks private AuthController authController;
@@ -67,7 +66,6 @@ class AuthControllerTest {
     return AppUserEntity.builder()
         .id(1L)
         .email("admin@example.com")
-        .role(Role.ADMIN)
         .passwordHash("{bcrypt}$2a$10$hash")
         .webauthnUserHandle(UUID.randomUUID())
         .status(UserStatus.ACTIVE)
@@ -90,6 +88,26 @@ class AuthControllerTest {
         .andExpect(status().isNoContent());
 
     verify(loginLimiter).reset(anyString(), eq("admin@example.com"));
+    verify(sessionService).create(any(AppUserEntity.class), eq(false), any(), any());
+  }
+
+  @Test
+  void loginWithMixedCaseEmailResolvesLowercasedUser() throws Exception {
+    // Email stored lowercased at creation time; a mixed-case login must still resolve it.
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));
+    when(passwordEncoder.matches("correct", "{bcrypt}$2a$10$hash")).thenReturn(true);
+
+    mockMvc
+        .perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginRequest("ADMIN@Example.COM", "correct"))))
+        .andExpect(status().isNoContent());
+
+    verify(appUserRepository).findByEmail("admin@example.com");
     verify(sessionService).create(any(AppUserEntity.class), eq(false), any(), any());
   }
 
@@ -201,18 +219,17 @@ class AuthControllerTest {
 
   @Test
   void meReturns200WithPrincipal() throws Exception {
-    AuthPrincipal principal = new AuthPrincipal(1L, "admin@example.com", Role.ADMIN, false);
+    AuthPrincipal principal = new AuthPrincipal(1L, "admin@example.com", false);
     SecurityContextHolder.getContext()
         .setAuthentication(
             new UsernamePasswordAuthenticationToken(
-                principal, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
-    when(galleryAccessRepository.findByUserId(1L)).thenReturn(List.of());
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+    when(userCollectionRepository.findByUserId(1L)).thenReturn(List.of());
 
     mockMvc
         .perform(get("/api/auth/me"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.email", org.hamcrest.Matchers.is("admin@example.com")))
-        .andExpect(jsonPath("$.role", org.hamcrest.Matchers.is("ADMIN")))
         .andExpect(jsonPath("$.mfaSatisfied", org.hamcrest.Matchers.is(false)))
         .andExpect(jsonPath("$.galleries", org.hamcrest.Matchers.hasSize(0)));
   }

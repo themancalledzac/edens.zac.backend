@@ -2,10 +2,10 @@ package edens.zac.portfolio.backend.controller.auth;
 
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
-import edens.zac.portfolio.backend.dao.GalleryAccessRepository;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
-import edens.zac.portfolio.backend.model.GalleryAccessSummary;
+import edens.zac.portfolio.backend.model.GalleryMembership;
 import edens.zac.portfolio.backend.model.LoginRequest;
 import edens.zac.portfolio.backend.model.MeResponse;
 import edens.zac.portfolio.backend.services.SessionService;
@@ -48,7 +48,7 @@ public class AuthController {
   private final SessionService sessionService;
   private final AuthLoginLimiter loginLimiter;
   private final AppUserRepository appUserRepository;
-  private final GalleryAccessRepository galleryAccessRepository;
+  private final UserCollectionRepository userCollectionRepository;
   private final PasswordEncoder passwordEncoder;
 
   @PostMapping("/login")
@@ -57,7 +57,8 @@ public class AuthController {
       HttpServletRequest request,
       HttpServletResponse response) {
     String ip = resolveClientIp(request);
-    String email = body.email();
+    // Normalize to lowercase so login matches the lowercased email stored at account-creation time.
+    String email = body.email().toLowerCase();
 
     if (loginLimiter.isBlocked(ip, email)) {
       log.warn("Auth login rate-limited for email={} ip={}", email, ip);
@@ -97,13 +98,12 @@ public class AuthController {
         || !(authentication.getPrincipal() instanceof AuthPrincipal principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
-    List<GalleryAccessSummary> galleries =
-        galleryAccessRepository.findByUserId(principal.userId()).stream()
-            .map(
-                g -> new GalleryAccessSummary(g.getCollectionId(), g.isCanDownload(), g.isCanTag()))
+    List<GalleryMembership> galleries =
+        userCollectionRepository.findByUserId(principal.userId()).stream()
+            .map(m -> new GalleryMembership(m.getCollectionId(), m.getRole()))
             .toList();
     return ResponseEntity.ok(
-        new MeResponse(principal.email(), principal.role(), principal.mfaSatisfied(), galleries));
+        new MeResponse(principal.email(), principal.mfaSatisfied(), galleries));
   }
 
   private static String readCookie(HttpServletRequest request) {

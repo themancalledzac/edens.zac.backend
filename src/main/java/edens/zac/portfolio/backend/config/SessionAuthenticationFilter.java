@@ -37,7 +37,7 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
           p -> {
             var auth =
                 new UsernamePasswordAuthenticationToken(
-                    p, null, List.of(new SimpleGrantedAuthority("ROLE_" + p.role().name())));
+                    p, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
             SecurityContext context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(auth);
             SecurityContextHolder.setContext(context);

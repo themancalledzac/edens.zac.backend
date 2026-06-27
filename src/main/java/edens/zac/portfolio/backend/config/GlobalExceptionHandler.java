@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -71,6 +72,21 @@ public class GlobalExceptionHandler {
 
     log.warn("Validation failed: {}", message);
     return ResponseEntity.badRequest().body(ErrorResponse.of(HttpStatus.BAD_REQUEST, message));
+  }
+
+  /**
+   * Handle malformed or unparseable request bodies (invalid JSON syntax, or a value Jackson cannot
+   * map such as an unknown enum constant). These are client errors, but without this handler they
+   * are matched by the catch-all {@link #handleGeneric} (which the {@code
+   * ExceptionHandlerExceptionResolver} consults before Spring's {@code
+   * DefaultHandlerExceptionResolver}) and mis-reported as 500. The message is intentionally
+   * generic: the underlying parser detail can be large and leak internals.
+   */
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException e) {
+    log.warn("Malformed request body: {}", e.getMessage());
+    return ResponseEntity.badRequest()
+        .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Malformed or unreadable request body"));
   }
 
   /** Handle constraint violations from @Validated on path/query parameters. */

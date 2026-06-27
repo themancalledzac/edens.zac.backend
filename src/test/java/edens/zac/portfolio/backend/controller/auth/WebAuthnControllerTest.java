@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.WebAuthnService;
-import edens.zac.portfolio.backend.types.Role;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -47,7 +46,7 @@ class WebAuthnControllerTest {
   private AuthLoginLimiter loginLimiter;
   private MockMvc mockMvc;
 
-  private final AuthPrincipal admin = new AuthPrincipal(1L, "admin@example.com", Role.ADMIN, false);
+  private final AuthPrincipal admin = new AuthPrincipal(1L, "admin@example.com", false);
 
   @BeforeEach
   void setUp() {
@@ -72,7 +71,7 @@ class WebAuthnControllerTest {
     return request -> {
       var auth =
           new UsernamePasswordAuthenticationToken(
-              admin, null, AuthorityUtils.createAuthorityList("ROLE_ADMIN"));
+              admin, null, AuthorityUtils.createAuthorityList("ROLE_USER"));
       SecurityContextHolder.getContext().setAuthentication(auth);
       return request;
     };
@@ -116,6 +115,26 @@ class WebAuthnControllerTest {
         .andExpect(cookie().value("ezac_webauthn_attempt", "attempt-1"))
         .andExpect(cookie().httpOnly("ezac_webauthn_attempt", true));
 
+    verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+  }
+
+  @Test
+  void loginStartLowercasesEmailBeforeResolving() throws Exception {
+    // Email stored lowercased at creation time; a mixed-case login/start must resolve it
+    // lowercased.
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(webAuthnService.startLogin(eq("admin@example.com")))
+        .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
+
+    mockMvc
+        .perform(
+            post("/api/auth/webauthn/login/start")
+                .contentType("application/json")
+                .content("{\"email\":\"ADMIN@Example.COM\"}"))
+        .andExpect(status().isOk())
+        .andExpect(cookie().value("ezac_webauthn_attempt", "attempt-1"));
+
+    verify(webAuthnService).startLogin(eq("admin@example.com"));
     verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
   }
 

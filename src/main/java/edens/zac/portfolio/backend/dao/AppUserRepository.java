@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.AppUserEntity;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -22,9 +22,9 @@ public class AppUserRepository extends BaseDao {
 
   private static final String SELECT_APP_USER =
       """
-      SELECT id, email, role, password_hash, webauthn_user_handle, display_name, status,
+      SELECT id, email, password_hash, webauthn_user_handle, name, status,
              created_at, updated_at
-      FROM app_user
+      FROM users
       """;
 
   private static final RowMapper<AppUserEntity> APP_USER_ROW_MAPPER =
@@ -33,10 +33,9 @@ public class AppUserRepository extends BaseDao {
         return AppUserEntity.builder()
             .id(rs.getLong("id"))
             .email(rs.getString("email"))
-            .role(Role.valueOf(rs.getString("role")))
             .passwordHash(rs.getString("password_hash"))
             .webauthnUserHandle(handle != null ? (UUID) handle : null)
-            .displayName(rs.getString("display_name"))
+            .name(rs.getString("name"))
             .status(UserStatus.valueOf(rs.getString("status")))
             .createdAt(getLocalDateTime(rs, "created_at"))
             .updatedAt(getLocalDateTime(rs, "updated_at"))
@@ -64,37 +63,53 @@ public class AppUserRepository extends BaseDao {
     return queryForObject(sql, APP_USER_ROW_MAPPER, params);
   }
 
+  /**
+   * All users, newest first. Backs the admin user list; callers must not expose sensitive fields.
+   */
   @Transactional(readOnly = true)
-  public boolean existsByRole(Role role) {
-    String sql = "SELECT COUNT(*) FROM app_user WHERE role = :role";
-    MapSqlParameterSource params = createParameterSource().addValue("role", role.name());
-    Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
-    return count != null && count > 0;
+  public List<AppUserEntity> findAllOrderedByCreatedAt() {
+    String sql = SELECT_APP_USER + " ORDER BY created_at DESC";
+    return query(sql, APP_USER_ROW_MAPPER, createParameterSource());
   }
 
   @Transactional
   public Long insert(AppUserEntity entity) {
     String sql =
         """
-        INSERT INTO app_user (email, role, password_hash, webauthn_user_handle, display_name, status)
-        VALUES (:email, :role, :passwordHash, :webauthnUserHandle, :displayName, :status)
+        INSERT INTO users (email, password_hash, webauthn_user_handle, name, status)
+        VALUES (:email, :passwordHash, :webauthnUserHandle, :name, :status)
         """;
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("email", entity.getEmail())
-            .addValue("role", entity.getRole().name())
             .addValue("passwordHash", entity.getPasswordHash())
             .addValue("webauthnUserHandle", entity.getWebauthnUserHandle())
-            .addValue("displayName", entity.getDisplayName())
+            .addValue("name", entity.getName())
             .addValue("status", entity.getStatus().name());
     return insertAndReturnId(sql, "id", params);
   }
 
   @Transactional
   public void updatePasswordHash(Long id, String hash) {
-    String sql = "UPDATE app_user SET password_hash = :hash, updated_at = now() WHERE id = :id";
+    String sql = "UPDATE users SET password_hash = :hash, updated_at = now() WHERE id = :id";
     MapSqlParameterSource params =
         createParameterSource().addValue("hash", hash).addValue("id", id);
+    update(sql, params);
+  }
+
+  @Transactional
+  public void updateStatus(Long id, UserStatus status) {
+    String sql = "UPDATE users SET status = :status, updated_at = now() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("status", status.name()).addValue("id", id);
+    update(sql, params);
+  }
+
+  @Transactional
+  public void updateName(Long id, String name) {
+    String sql = "UPDATE users SET name = :name, updated_at = now() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("name", name).addValue("id", id);
     update(sql, params);
   }
 }

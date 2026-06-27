@@ -87,6 +87,42 @@ public final class ContentModels {
           people,
           collections);
     }
+
+    /** Returns a new Image with {@code orderIndex} replaced (records are immutable). */
+    public Image withOrderIndex(Integer orderIndex) {
+      return new Image(
+          id,
+          contentType,
+          title,
+          description,
+          caption,
+          alt,
+          imageUrl,
+          imageUrlRaw,
+          orderIndex,
+          visible,
+          createdAt,
+          updatedAt,
+          imageWidth,
+          imageHeight,
+          iso,
+          author,
+          rating,
+          fStop,
+          lens,
+          blackAndWhite,
+          isFilm,
+          filmType,
+          filmFormat,
+          shutterSpeed,
+          camera,
+          focalLength,
+          locations,
+          captureDate,
+          tags,
+          people,
+          collections);
+    }
   }
 
   /** Text content block (markdown, code, plain text, etc.). */
@@ -154,6 +190,32 @@ public final class ContentModels {
           locations,
           collections);
     }
+
+    /** Returns a new Gif with {@code orderIndex} replaced (records are immutable). */
+    public Gif withOrderIndex(Integer orderIndex) {
+      return new Gif(
+          id,
+          contentType,
+          title,
+          description,
+          imageUrl,
+          orderIndex,
+          visible,
+          createdAt,
+          updatedAt,
+          gifUrl,
+          gifUrlWeb,
+          thumbnailUrl,
+          width,
+          height,
+          author,
+          createDate,
+          rating,
+          tags,
+          people,
+          locations,
+          collections);
+    }
   }
 
   /**
@@ -174,5 +236,47 @@ public final class ContentModels {
       String slug,
       CollectionType collectionType,
       ContentModels.Image coverImage)
-      implements ContentModel {}
+      implements ContentModel {
+
+    /**
+     * Build a child-reference block from a basic {@link CollectionModel} (a converted collection,
+     * not a content row). Used by synthetic PARENT views (synthetic list slugs and the {@code
+     * /user} page) where each child collection becomes a {@code COLLECTION} block pointing back at
+     * itself.
+     */
+    public static Collection fromCollectionModel(CollectionModel c) {
+      return new Collection(
+          c.getId(),
+          ContentType.COLLECTION,
+          c.getTitle(),
+          c.getDescription(),
+          null,
+          0,
+          true,
+          c.getCreatedAt(),
+          c.getUpdatedAt(),
+          c.getId(),
+          c.getSlug(),
+          c.getType(),
+          c.getCoverImage());
+    }
+
+    /** Returns a new Collection with {@code orderIndex} replaced (records are immutable). */
+    public Collection withOrderIndex(Integer orderIndex) {
+      return new Collection(
+          id,
+          contentType,
+          title,
+          description,
+          imageUrl,
+          orderIndex,
+          visible,
+          createdAt,
+          updatedAt,
+          referencedCollectionId,
+          slug,
+          collectionType,
+          coverImage);
+    }
+  }
 }

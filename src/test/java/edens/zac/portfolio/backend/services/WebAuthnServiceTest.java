@@ -13,7 +13,6 @@ import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
-import edens.zac.portfolio.backend.types.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
@@ -66,13 +65,12 @@ class WebAuthnServiceTest {
         AppUserEntity.builder()
             .id(1L)
             .email("admin@example.com")
-            .role(Role.ADMIN)
             .webauthnUserHandle(handle)
             .build();
   }
 
   private AuthPrincipal principal() {
-    return new AuthPrincipal(1L, "admin@example.com", Role.ADMIN, false);
+    return new AuthPrincipal(1L, "admin@example.com", false);
   }
 
   @Test

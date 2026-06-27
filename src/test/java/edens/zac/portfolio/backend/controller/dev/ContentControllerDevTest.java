@@ -520,7 +520,7 @@ class ContentControllerDevTest {
     ContentRequests.CreatePerson request = new ContentRequests.CreatePerson("John Doe");
 
     Map<String, Object> response = new HashMap<>();
-    response.put("person", new Records.Person(1L, "John Doe", "john-doe"));
+    response.put("person", new Records.Person(1L, "John Doe"));
     response.put("message", "Person created successfully");
 
     when(contentService.createPerson("John Doe")).thenReturn(response);

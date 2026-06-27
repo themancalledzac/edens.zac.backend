@@ -7,13 +7,8 @@ import edens.zac.portfolio.backend.entity.UserSessionEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +27,6 @@ import org.springframework.stereotype.Service;
 public class SessionService {
 
   private static final String COOKIE_NAME = "ezac_session";
-  private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
   private final UserSessionRepository sessionRepository;
   private final AppUserRepository appUserRepository;
@@ -83,14 +77,12 @@ public class SessionService {
       boolean mfaSatisfied,
       HttpServletRequest request,
       HttpServletResponse response) {
-    byte[] tokenBytes = new byte[32];
-    SECURE_RANDOM.nextBytes(tokenBytes);
-    String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+    String raw = TokenUtil.generateRawToken();
 
     UserSessionEntity session =
         UserSessionEntity.builder()
             .userId(user.getId())
-            .tokenHash(sha256Hex(raw))
+            .tokenHash(TokenUtil.sha256Hex(raw))
             .mfaSatisfied(mfaSatisfied)
             .ip(request.getHeader("X-Real-IP"))
             .userAgent(truncate(request.getHeader("User-Agent"), 255))
@@ -126,7 +118,7 @@ public class SessionService {
       return Optional.empty();
     }
     Optional<UserSessionEntity> maybeSession =
-        sessionRepository.findByTokenHash(sha256Hex(rawToken));
+        sessionRepository.findByTokenHash(TokenUtil.sha256Hex(rawToken));
     if (maybeSession.isEmpty()) {
       return Optional.empty();
     }
@@ -150,8 +142,7 @@ public class SessionService {
       return Optional.empty();
     }
     AppUserEntity user = maybeUser.get();
-    return Optional.of(
-        new AuthPrincipal(user.getId(), user.getEmail(), user.getRole(), session.isMfaSatisfied()));
+    return Optional.of(new AuthPrincipal(user.getId(), user.getEmail(), session.isMfaSatisfied()));
   }
 
   /**
@@ -162,7 +153,7 @@ public class SessionService {
    */
   public void revoke(String rawToken, HttpServletResponse response) {
     if (rawToken != null && !rawToken.isBlank()) {
-      sessionRepository.revokeByTokenHash(sha256Hex(rawToken));
+      sessionRepository.revokeByTokenHash(TokenUtil.sha256Hex(rawToken));
     }
     response.addHeader(
         HttpHeaders.SET_COOKIE,
@@ -184,17 +175,7 @@ public class SessionService {
    * @return the SHA-256 hex digest stored in {@code user_session.token_hash}
    */
   String sha256HexForTest(String rawToken) {
-    return sha256Hex(rawToken);
-  }
-
-  private static String sha256Hex(String value) {
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      byte[] hashed = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(hashed);
-    } catch (Exception e) {
-      throw new IllegalStateException("SHA-256 unavailable", e);
-    }
+    return TokenUtil.sha256Hex(rawToken);
   }
 
   private static String truncate(String value, int max) {

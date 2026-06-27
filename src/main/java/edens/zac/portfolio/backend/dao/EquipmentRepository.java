@@ -174,6 +174,9 @@ public class EquipmentRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           "INSERT INTO content_cameras (camera_name, body_serial_number, is_film, default_film_format, created_at) VALUES (:cameraName, :bodySerialNumber, :isFilm, :defaultFilmFormat, :createdAt)";
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(java.time.LocalDateTime.now());
+      }
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("cameraName", entity.getCameraName())
@@ -184,11 +187,7 @@ public class EquipmentRepository extends BaseDao {
                   entity.getDefaultFilmFormat() != null
                       ? entity.getDefaultFilmFormat().name()
                       : null)
-              .addValue(
-                  "createdAt",
-                  entity.getCreatedAt() != null
-                      ? entity.getCreatedAt()
-                      : java.time.LocalDateTime.now());
+              .addValue("createdAt", entity.getCreatedAt());
       Long id = insertAndReturnId(sql, "id", params);
       entity.setId(id);
       return entity;
@@ -300,15 +299,14 @@ public class EquipmentRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           "INSERT INTO content_lenses (lens_name, lens_serial_number, created_at) VALUES (:lensName, :lensSerialNumber, :createdAt)";
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(java.time.LocalDateTime.now());
+      }
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("lensName", entity.getLensName())
               .addValue("lensSerialNumber", entity.getLensSerialNumber())
-              .addValue(
-                  "createdAt",
-                  entity.getCreatedAt() != null
-                      ? entity.getCreatedAt()
-                      : java.time.LocalDateTime.now());
+              .addValue("createdAt", entity.getCreatedAt());
       Long id = insertAndReturnId(sql, "id", params);
       entity.setId(id);
       return entity;
@@ -431,16 +429,15 @@ public class EquipmentRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           "INSERT INTO content_film_types (film_type_name, display_name, default_iso, created_at) VALUES (:filmTypeName, :displayName, :defaultIso, :createdAt)";
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(java.time.LocalDateTime.now());
+      }
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("filmTypeName", entity.getFilmTypeName())
               .addValue("displayName", entity.getDisplayName())
               .addValue("defaultIso", entity.getDefaultIso())
-              .addValue(
-                  "createdAt",
-                  entity.getCreatedAt() != null
-                      ? entity.getCreatedAt()
-                      : java.time.LocalDateTime.now());
+              .addValue("createdAt", entity.getCreatedAt());
       Long id = insertAndReturnId(sql, "id", params);
       entity.setId(id);
       return entity;

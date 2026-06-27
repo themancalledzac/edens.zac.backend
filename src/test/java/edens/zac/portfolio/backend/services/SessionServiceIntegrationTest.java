@@ -9,7 +9,6 @@ import edens.zac.portfolio.backend.dao.UserSessionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.UserSessionEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -32,7 +31,7 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
         userRepository.insert(
             AppUserEntity.builder()
                 .email(email)
-                .role(Role.ADMIN)
+                .name(email)
                 .webauthnUserHandle(UUID.randomUUID())
                 .status(UserStatus.ACTIVE)
                 .build());
@@ -71,7 +70,6 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Optional<AuthPrincipal> principal = sessionService.resolve(raw);
     assertThat(principal).isPresent();
     assertThat(principal.get().email()).isEqualTo("create@example.com");
-    assertThat(principal.get().role()).isEqualTo(Role.ADMIN);
     assertThat(principal.get().mfaSatisfied()).isFalse();
   }
 

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.UserSessionEntity;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -24,7 +23,7 @@ class UserSessionRepositoryIntegrationTest extends AbstractPostgresIntegrationTe
     return userRepository.insert(
         AppUserEntity.builder()
             .email(email)
-            .role(Role.ADMIN)
+            .name(email)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.ACTIVE)
             .build());
@@ -103,7 +102,7 @@ class UserSessionRepositoryIntegrationTest extends AbstractPostgresIntegrationTe
         (org.springframework.jdbc.core.JdbcTemplate)
             org.springframework.test.util.ReflectionTestUtils.getField(
                 userRepository, "jdbcTemplate");
-    jdbc.update("DELETE FROM app_user WHERE id = ?", userId);
+    jdbc.update("DELETE FROM users WHERE id = ?", userId);
 
     assertThat(sessionRepository.findByTokenHash("hash-cascade")).isEmpty();
   }

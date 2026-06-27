@@ -1,0 +1,76 @@
+package edens.zac.portfolio.backend;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/** Verifies V36 created user_collection + dropped gallery_access, and V37 dropped users.role. */
+class UserCollectionMigrationIntegrationTest extends AbstractPostgresIntegrationTest {
+
+  @Autowired private JdbcTemplate jdbc;
+
+  private boolean tableExists(String table) {
+    Integer c =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name=?",
+            Integer.class,
+            table);
+    return c != null && c > 0;
+  }
+
+  private boolean columnExists(String table, String column) {
+    Integer c =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_name=? AND column_name=?",
+            Integer.class,
+            table,
+            column);
+    return c != null && c > 0;
+  }
+
+  @Test
+  void userCollectionReplacesGalleryAccessAndRoleIsGone() {
+    assertThat(tableExists("user_collection")).isTrue();
+    assertThat(tableExists("gallery_access")).isFalse();
+    assertThat(columnExists("users", "role")).isFalse();
+  }
+
+  @Test
+  void membershipRoundTripsAndRejectsBadRole() {
+    jdbc.update(
+        "INSERT INTO users (name, webauthn_user_handle, status) VALUES ('Member Mary', gen_random_uuid(), 'ACTIVE')");
+    Long userId = jdbc.queryForObject("SELECT id FROM users WHERE name='Member Mary'", Long.class);
+    jdbc.update(
+        "INSERT INTO collection (title, slug, type, visibility) VALUES ('C', 'c-slug', 'CLIENT_GALLERY', 'UNLISTED')");
+    Long collectionId =
+        jdbc.queryForObject("SELECT id FROM collection WHERE slug='c-slug'", Long.class);
+
+    jdbc.update(
+        "INSERT INTO user_collection (user_id, collection_id, role) VALUES (?, ?, 'CLIENT')",
+        userId,
+        collectionId);
+    String role =
+        jdbc.queryForObject(
+            "SELECT role FROM user_collection WHERE user_id=? AND collection_id=?",
+            String.class,
+            userId,
+            collectionId);
+    assertThat(role).isEqualTo("CLIENT");
+
+    // Seed a second collection so the bad-role insert is a fresh (user, collection) pair —
+    // ensures only the CHECK constraint can throw, not a PK unique-violation on the same pair.
+    jdbc.update(
+        "INSERT INTO collection (title, slug, type, visibility) VALUES ('C2', 'c2-slug', 'CLIENT_GALLERY', 'UNLISTED')");
+    Long collectionId2 =
+        jdbc.queryForObject("SELECT id FROM collection WHERE slug='c2-slug'", Long.class);
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                jdbc.update(
+                    "INSERT INTO user_collection (user_id, collection_id, role) VALUES (?, ?, 'admin')",
+                    userId,
+                    collectionId2))
+        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+  }
+}

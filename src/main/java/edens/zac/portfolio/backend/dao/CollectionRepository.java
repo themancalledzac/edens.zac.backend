@@ -582,6 +582,17 @@ public class CollectionRepository extends BaseDao {
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
+  /** Collection ids a person is tagged on via {@code collection_people}. Empty for null/unknown. */
+  @Transactional(readOnly = true)
+  public List<Long> findCollectionIdsByPersonId(Long personId) {
+    if (personId == null) {
+      return List.of();
+    }
+    String sql = "SELECT collection_id FROM collection_people WHERE person_id = :personId";
+    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
+    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
+  }
+
   // ============================================================
   // CollectionContent Operations
   // ============================================================

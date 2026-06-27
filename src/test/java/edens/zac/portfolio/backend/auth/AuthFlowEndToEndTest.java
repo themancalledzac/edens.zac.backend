@@ -6,7 +6,6 @@ import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.MeResponse;
-import edens.zac.portfolio.backend.types.Role;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.Map;
 import java.util.UUID;
@@ -53,7 +52,7 @@ class AuthFlowEndToEndTest extends AbstractPostgresIntegrationTest {
     appUserRepository.insert(
         AppUserEntity.builder()
             .email(ADMIN_EMAIL)
-            .role(Role.ADMIN)
+            .name(ADMIN_EMAIL)
             .passwordHash(hash)
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.ACTIVE)
@@ -90,7 +89,6 @@ class AuthFlowEndToEndTest extends AbstractPostgresIntegrationTest {
     assertThat(meResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(meResponse.getBody()).isNotNull();
     assertThat(meResponse.getBody().email()).isEqualTo(ADMIN_EMAIL);
-    assertThat(meResponse.getBody().role()).isEqualTo(Role.ADMIN);
     assertThat(meResponse.getBody().mfaSatisfied()).isFalse();
   }
 

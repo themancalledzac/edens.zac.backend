@@ -93,13 +93,14 @@ public class LocationRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           "INSERT INTO location (location_name, slug, created_at) VALUES (:locationName, :slug, :createdAt)";
+      if (entity.getCreatedAt() == null) {
+        entity.setCreatedAt(LocalDateTime.now());
+      }
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("locationName", entity.getLocationName())
               .addValue("slug", entity.getSlug())
-              .addValue(
-                  "createdAt",
-                  entity.getCreatedAt() != null ? entity.getCreatedAt() : LocalDateTime.now());
+              .addValue("createdAt", entity.getCreatedAt());
       Long id = insertAndReturnId(sql, "id", params);
       entity.setId(id);
       return entity;
