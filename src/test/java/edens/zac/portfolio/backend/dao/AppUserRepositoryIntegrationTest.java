@@ -102,4 +102,23 @@ class AppUserRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(repository.findById(id)).isPresent();
     assertThat(repository.findById(id).get().getName()).isEqualTo("Alice Smith");
   }
+
+  @Test
+  void updateDescriptionPersists() {
+    Long id = repository.insert(newUser("desc@example.com"));
+    // description is NULL on fresh insert
+    assertThat(repository.findById(id).get().getDescription()).isNull();
+
+    repository.updateDescription(id, "Photographer and traveller.");
+    assertThat(repository.findById(id).get().getDescription())
+        .isEqualTo("Photographer and traveller.");
+  }
+
+  @Test
+  void updateDescriptionCanBeCleared() {
+    Long id = repository.insert(newUser("desc-clear@example.com"));
+    repository.updateDescription(id, "Some description");
+    repository.updateDescription(id, null);
+    assertThat(repository.findById(id).get().getDescription()).isNull();
+  }
 }

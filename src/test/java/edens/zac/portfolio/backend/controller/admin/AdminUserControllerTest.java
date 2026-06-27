@@ -155,6 +155,7 @@ class AdminUserControllerTest {
               .id(1L)
               .email("alice@example.com")
               .name("Alice")
+              .description("A keen landscape photographer.")
               .status(UserStatus.ACTIVE)
               .passwordHash("{bcrypt}$2a$10$secret")
               .webauthnUserHandle(UUID.randomUUID())
@@ -173,6 +174,7 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$[0].id").value(1))
           .andExpect(jsonPath("$[0].email").value("alice@example.com"))
           .andExpect(jsonPath("$[0].displayName").value("Alice"))
+          .andExpect(jsonPath("$[0].description").value("A keen landscape photographer."))
           .andExpect(jsonPath("$[0].status").value("ACTIVE"))
           // Sensitive fields must never be serialized into the admin list.
           .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
@@ -245,6 +247,7 @@ class AdminUserControllerTest {
               .id(3L)
               .email("carol@example.com")
               .name("Carol")
+              .description("Documentary photographer based in Seattle.")
               .status(UserStatus.ACTIVE)
               .passwordHash("secret-hash")
               .webauthnUserHandle(UUID.randomUUID())
@@ -257,6 +260,7 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$.id").value(3))
           .andExpect(jsonPath("$.email").value("carol@example.com"))
           .andExpect(jsonPath("$.displayName").value("Carol"))
+          .andExpect(jsonPath("$.description").value("Documentary photographer based in Seattle."))
           .andExpect(jsonPath("$.status").value("ACTIVE"))
           .andExpect(jsonPath("$.passwordHash").doesNotExist())
           .andExpect(jsonPath("$.webauthnUserHandle").doesNotExist());
@@ -306,6 +310,41 @@ class AdminUserControllerTest {
 
       verify(appUserRepository).updateName(8L, "Kenneth");
       verify(appUserRepository).updateStatus(8L, UserStatus.ACTIVE);
+      verify(appUserRepository).updateDescription(8L, null);
+    }
+
+    @Test
+    void updateUserWithDescriptionPersistsAndEchoes() throws Exception {
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(9L)
+              .email("diana@example.com")
+              .name("Diana")
+              .status(UserStatus.ACTIVE)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(9L)
+              .email("diana@example.com")
+              .name("Diana")
+              .description("Wildlife and conservation photographer.")
+              .status(UserStatus.ACTIVE)
+              .build();
+      when(appUserRepository.findById(9L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/9")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      "{\"displayName\":\"Diana\",\"status\":\"ACTIVE\","
+                          + "\"description\":\"Wildlife and conservation photographer.\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.description").value("Wildlife and conservation photographer."));
+
+      verify(appUserRepository).updateDescription(9L, "Wildlife and conservation photographer.");
     }
 
     @Test

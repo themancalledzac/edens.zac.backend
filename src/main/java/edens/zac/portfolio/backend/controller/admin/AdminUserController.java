@@ -131,7 +131,10 @@ public class AdminUserController {
       @RequestParam(name = "includePeople", defaultValue = "false") boolean includePeople) {
     return appUserRepository.findAllOrderedByCreatedAt().stream()
         .filter(u -> includePeople || u.getStatus() != UserStatus.PERSON)
-        .map(u -> new AdminUserSummary(u.getId(), u.getEmail(), u.getName(), u.getStatus()))
+        .map(
+            u ->
+                new AdminUserSummary(
+                    u.getId(), u.getEmail(), u.getName(), u.getStatus(), u.getDescription()))
         .toList();
   }
 
@@ -170,7 +173,8 @@ public class AdminUserController {
         .map(
             u ->
                 ResponseEntity.ok(
-                    new AdminUserSummary(u.getId(), u.getEmail(), u.getName(), u.getStatus())))
+                    new AdminUserSummary(
+                        u.getId(), u.getEmail(), u.getName(), u.getStatus(), u.getDescription())))
         .orElseGet(() -> ResponseEntity.notFound().build());
   }
 
@@ -190,10 +194,15 @@ public class AdminUserController {
     }
     appUserRepository.updateName(id, request.displayName());
     appUserRepository.updateStatus(id, request.status());
+    appUserRepository.updateDescription(id, request.description());
     AppUserEntity updated = appUserRepository.findById(id).orElseThrow();
     return ResponseEntity.ok(
         new AdminUserSummary(
-            updated.getId(), updated.getEmail(), updated.getName(), updated.getStatus()));
+            updated.getId(),
+            updated.getEmail(),
+            updated.getName(),
+            updated.getStatus(),
+            updated.getDescription()));
   }
 
   /**

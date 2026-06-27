@@ -106,6 +106,13 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     return contentId;
   }
 
+  /** Seed a user and set a description directly on the row. */
+  private Long seedUserWithDescription(String name, String description) {
+    Long id = seedUserNamed(name);
+    jdbc.update("UPDATE users SET description = ? WHERE id = ?", description, id);
+    return id;
+  }
+
   private static List<ContentModels.Collection> collectionBlocks(CollectionModel model) {
     return model.getContent().stream()
         .filter(ContentModels.Collection.class::isInstance)
@@ -120,7 +127,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
-  void unionsTaggedAndGrantedCollectionsDeDuplicatedWithMostRecentCover() {
+  void unionsTaggedAndGrantedCollectionsDeDuplicatedWithRandomCover() {
     // The account row IS the person identity: tag and grant against the same id.
     Long userId = seedUserNamed("Jane Doe");
 
@@ -167,9 +174,13 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
       assertThat(model.getContent().get(i).orderIndex()).isEqualTo(i);
     }
 
-    // Cover is the most-recent tagged image (D2).
+    // Cover is a random tagged image — assert it is one of the seeded images (not a fixed URL).
     assertThat(model.getCoverImage()).isNotNull();
-    assertThat(model.getCoverImage().imageUrl()).isEqualTo("https://cdn/new.webp");
+    assertThat(model.getCoverImage().imageUrl())
+        .isIn("https://cdn/old.webp", "https://cdn/new.webp");
+
+    // No description was set on this user.
+    assertThat(model.getDescription()).isNull();
   }
 
   @Test
@@ -262,5 +273,32 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(body.get(0).orderIndex()).isZero();
     assertThat(body.get(1).orderIndex()).isEqualTo(1);
     assertThat(body.get(2).orderIndex()).isEqualTo(2);
+  }
+
+  @Test
+  void taggedUserWithDescriptionHasCoverFromTaggedSetAndDescriptionSet() {
+    Long userId = seedUserWithDescription("Described Person", "A portrait photographer.");
+
+    // Tag two images; cover must be one of them.
+    seedTaggedImage(userId, "https://cdn/a.webp", LocalDateTime.now().minusDays(1));
+    seedTaggedImage(userId, "https://cdn/b.webp", LocalDateTime.now().minusDays(2));
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    assertThat(model.getDescription()).isEqualTo("A portrait photographer.");
+    assertThat(model.getCoverImage()).isNotNull();
+    assertThat(model.getCoverImage().imageUrl()).isIn("https://cdn/a.webp", "https://cdn/b.webp");
+  }
+
+  @Test
+  void untaggedUserWithDescriptionHasDescriptionSetAndNullCover() {
+    Long userId = seedUserWithDescription("Untagged With Desc", "Grant-only viewer bio.");
+    // This user has no tagged images, no tagged collections, no memberships.
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    assertThat(model.getDescription()).isEqualTo("Grant-only viewer bio.");
+    assertThat(model.getCoverImage()).isNull();
+    assertThat(model.getContent()).isEmpty();
   }
 }

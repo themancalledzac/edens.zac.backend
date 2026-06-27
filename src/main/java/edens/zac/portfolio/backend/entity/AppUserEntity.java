@@ -18,6 +18,7 @@ public class AppUserEntity {
   private String passwordHash;
   private UUID webauthnUserHandle;
   private String name;
+  private String description;
   private UserStatus status;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
