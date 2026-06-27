@@ -117,6 +117,7 @@ public class AdminUserController {
   @GetMapping
   public List<AdminUserSummary> listUsers() {
     return appUserRepository.findAllOrderedByCreatedAt().stream()
+        .filter(u -> u.getStatus() != UserStatus.PERSON)
         .map(u -> new AdminUserSummary(u.getId(), u.getEmail(), u.getName(), u.getStatus()))
         .toList();
   }

@@ -176,6 +176,29 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$[0].webauthnUserHandle").doesNotExist())
           .andExpect(jsonPath("$[1].status").value("INVITED"));
     }
+
+    @Test
+    void listUsersExcludesPersonTagRows() throws Exception {
+      // V35 merged content_people into users as status=PERSON rows (tag-only identities, no
+      // account). The admin account list must skip them -- and must not 400 on the new enum value.
+      AppUserEntity account =
+          AppUserEntity.builder()
+              .id(1L)
+              .email("alice@example.com")
+              .name("Alice")
+              .status(UserStatus.ACTIVE)
+              .build();
+      AppUserEntity personTag =
+          AppUserEntity.builder().id(2L).name("Abby Bennett").status(UserStatus.PERSON).build();
+      when(appUserRepository.findAllOrderedByCreatedAt()).thenReturn(List.of(account, personTag));
+
+      mockMvc
+          .perform(get("/api/admin/users"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(1))
+          .andExpect(jsonPath("$[0].id").value(1))
+          .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+    }
   }
 
   @Nested
