@@ -281,6 +281,30 @@ public class ContentRepository extends BaseDao {
   }
 
   /**
+   * A random image content id the person is tagged on via {@code content_image_people}. Backs the
+   * {@code /user} synthetic-collection cover (random variant, replaces Decision D2's
+   * most-recent-first ordering). Empty when the person tags no image content.
+   */
+  @Transactional(readOnly = true)
+  public Optional<Long> findRandomImageIdByPersonId(Long personId) {
+    if (personId == null) {
+      return Optional.empty();
+    }
+    String sql =
+        """
+        SELECT ci.id
+        FROM content_image ci
+        JOIN content c ON c.id = ci.id
+        JOIN content_image_people cip ON cip.content_id = ci.id
+        WHERE cip.person_id = :personId
+        ORDER BY RANDOM()
+        LIMIT 1
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
+    return query(sql, (rs, n) -> rs.getLong("id"), params).stream().findFirst();
+  }
+
+  /**
    * Images a person is tagged on via {@code content_image_people}, newest first (EXIF capture date
    * desc, then row creation desc). Backs the {@code /user} page's standalone tagged-image blocks
    * (spec §7). Empty for null/unknown persons.

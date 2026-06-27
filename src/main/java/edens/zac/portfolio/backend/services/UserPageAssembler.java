@@ -1,8 +1,10 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -42,6 +44,7 @@ public class UserPageAssembler {
 
   private static final String DEFAULT_TITLE = "Your Galleries";
 
+  private final AppUserRepository appUserRepository;
   private final PersonRepository personRepository;
   private final UserCollectionService userCollectionService;
   private final CollectionRepository collectionRepository;
@@ -81,9 +84,14 @@ public class UserPageAssembler {
     ContentModels.Image cover = person.flatMap(p -> resolveCover(p.getId())).orElse(null);
     String title = person.map(ContentPersonEntity::getPersonName).orElse(DEFAULT_TITLE);
 
+    // Description is set unconditionally from the user account row, independent of person tagging.
+    String description =
+        appUserRepository.findById(userId).map(AppUserEntity::getDescription).orElse(null);
+
     return CollectionModel.builder()
         .slug("user")
         .title(title)
+        .description(description)
         .type(CollectionType.PARENT)
         .visibility(CollectionVisibility.UNLISTED)
         .coverImage(cover)
@@ -147,10 +155,10 @@ public class UserPageAssembler {
     };
   }
 
-  /** The most-recent associated content image as a cover model (Decision D2). */
+  /** A random associated content image as a cover model. */
   private Optional<ContentModels.Image> resolveCover(Long personId) {
     return contentRepository
-        .findMostRecentImageIdByPersonId(personId)
+        .findRandomImageIdByPersonId(personId)
         .flatMap(contentRepository::findImageById)
         .map(contentModelConverter::convertImageEntityToModel);
   }

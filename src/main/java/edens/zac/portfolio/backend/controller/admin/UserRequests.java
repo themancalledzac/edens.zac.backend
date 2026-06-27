@@ -5,6 +5,7 @@ import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /** Request and response records for the admin user-management endpoints. */
 public final class UserRequests {
@@ -19,8 +20,10 @@ public final class UserRequests {
    * @param email the account email
    * @param displayName the display name, may be {@code null}
    * @param status the account lifecycle status (INVITED / ACTIVE / DISABLED)
+   * @param description the admin-authored per-user description, may be {@code null}
    */
-  public record AdminUserSummary(Long id, String email, String displayName, UserStatus status) {}
+  public record AdminUserSummary(
+      Long id, String email, String displayName, UserStatus status, String description) {}
 
   /**
    * Body for {@code POST /api/admin/users} — creates a new user account and returns an invite URL.
@@ -40,14 +43,16 @@ public final class UserRequests {
   public record CreateUserResponse(Long userId, String inviteUrl) {}
 
   /**
-   * Body for {@code PATCH /api/admin/users/{id}} — updates the two admin-editable fields. Email is
+   * Body for {@code PATCH /api/admin/users/{id}} — updates the admin-editable fields. Email is
    * deliberately immutable (it is the login identity and invite target). {@code displayName} may be
    * {@code null} to clear it; {@code status} is required.
    *
    * @param displayName the new display name, or {@code null} to clear
    * @param status the new lifecycle status (INVITED / ACTIVE / DISABLED)
+   * @param description the admin-authored per-user description, or {@code null} to clear
    */
-  public record UpdateUserRequest(String displayName, @NotNull UserStatus status) {}
+  public record UpdateUserRequest(
+      String displayName, @NotNull UserStatus status, @Size(max = 500) String description) {}
 
   /**
    * One associated-collection row in the admin user detail. {@code role} is {@code null} when the

@@ -22,7 +22,7 @@ public class AppUserRepository extends BaseDao {
 
   private static final String SELECT_APP_USER =
       """
-      SELECT id, email, password_hash, webauthn_user_handle, name, status,
+      SELECT id, email, password_hash, webauthn_user_handle, name, description, status,
              created_at, updated_at
       FROM users
       """;
@@ -36,6 +36,7 @@ public class AppUserRepository extends BaseDao {
             .passwordHash(rs.getString("password_hash"))
             .webauthnUserHandle(handle != null ? (UUID) handle : null)
             .name(rs.getString("name"))
+            .description(rs.getString("description"))
             .status(UserStatus.valueOf(rs.getString("status")))
             .createdAt(getLocalDateTime(rs, "created_at"))
             .updatedAt(getLocalDateTime(rs, "updated_at"))
@@ -110,6 +111,14 @@ public class AppUserRepository extends BaseDao {
     String sql = "UPDATE users SET name = :name, updated_at = now() WHERE id = :id";
     MapSqlParameterSource params =
         createParameterSource().addValue("name", name).addValue("id", id);
+    update(sql, params);
+  }
+
+  @Transactional
+  public void updateDescription(Long id, String description) {
+    String sql = "UPDATE users SET description = :description, updated_at = now() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("description", description).addValue("id", id);
     update(sql, params);
   }
 }
