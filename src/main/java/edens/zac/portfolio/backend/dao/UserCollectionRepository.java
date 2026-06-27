@@ -107,6 +107,20 @@ public class UserCollectionRepository extends BaseDao {
         createParameterSource().addValue("userId", userId).addValue("collectionId", collectionId));
   }
 
+  /**
+   * Re-point a source identity's collection memberships onto target (de-duped). No-op for a PERSON.
+   */
+  @Transactional
+  public void repointMemberships(Long sourceId, Long targetId) {
+    MapSqlParameterSource p =
+        createParameterSource().addValue("src", sourceId).addValue("tgt", targetId);
+    update(
+        "DELETE FROM user_collection WHERE user_id = :src "
+            + "AND collection_id IN (SELECT collection_id FROM user_collection WHERE user_id = :tgt)",
+        p);
+    update("UPDATE user_collection SET user_id = :tgt WHERE user_id = :src", p);
+  }
+
   /** A row for the admin toggle UI: a collection the user is tagged in or a member of, + role. */
   public record AssociatedCollection(Long collectionId, String title, String role) {}
 

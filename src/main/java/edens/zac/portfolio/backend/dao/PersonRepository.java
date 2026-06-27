@@ -201,6 +201,75 @@ public class PersonRepository extends BaseDao {
     update("DELETE FROM collection_people WHERE person_id = :personId", params);
   }
 
+  /** Number of image tags currently on a person. */
+  @Transactional(readOnly = true)
+  public int countImageTags(Long personId) {
+    Integer n =
+        namedParameterJdbcTemplate.queryForObject(
+            "SELECT count(*) FROM content_image_people WHERE person_id = :id",
+            createParameterSource().addValue("id", personId),
+            Integer.class);
+    return n == null ? 0 : n;
+  }
+
+  /** Number of collection associations currently on a person. */
+  @Transactional(readOnly = true)
+  public int countCollectionTags(Long personId) {
+    Integer n =
+        namedParameterJdbcTemplate.queryForObject(
+            "SELECT count(*) FROM collection_people WHERE person_id = :id",
+            createParameterSource().addValue("id", personId),
+            Integer.class);
+    return n == null ? 0 : n;
+  }
+
+  /** Tags on source that would collide with an existing target tag (image + collection). */
+  @Transactional(readOnly = true)
+  public int countCollisions(Long sourceId, Long targetId) {
+    MapSqlParameterSource p =
+        createParameterSource().addValue("src", sourceId).addValue("tgt", targetId);
+    Integer img =
+        namedParameterJdbcTemplate.queryForObject(
+            "SELECT count(*) FROM content_image_people s "
+                + "WHERE s.person_id = :src AND EXISTS (SELECT 1 FROM content_image_people t "
+                + "WHERE t.person_id = :tgt AND t.content_id = s.content_id)",
+            p,
+            Integer.class);
+    Integer col =
+        namedParameterJdbcTemplate.queryForObject(
+            "SELECT count(*) FROM collection_people s "
+                + "WHERE s.person_id = :src AND EXISTS (SELECT 1 FROM collection_people t "
+                + "WHERE t.person_id = :tgt AND t.collection_id = s.collection_id)",
+            p,
+            Integer.class);
+    return (img == null ? 0 : img) + (col == null ? 0 : col);
+  }
+
+  /** Re-point all of source's image + collection tags onto target, de-duplicating first. */
+  @Transactional
+  public void repointTags(Long sourceId, Long targetId) {
+    MapSqlParameterSource p =
+        createParameterSource().addValue("src", sourceId).addValue("tgt", targetId);
+    update(
+        "DELETE FROM content_image_people WHERE person_id = :src "
+            + "AND content_id IN (SELECT content_id FROM content_image_people WHERE person_id = :tgt)",
+        p);
+    update("UPDATE content_image_people SET person_id = :tgt WHERE person_id = :src", p);
+    update(
+        "DELETE FROM collection_people WHERE person_id = :src "
+            + "AND collection_id IN (SELECT collection_id FROM collection_people WHERE person_id = :tgt)",
+        p);
+    update("UPDATE collection_people SET person_id = :tgt WHERE person_id = :src", p);
+  }
+
+  /** Defense-in-depth delete: only removes a tag-only PERSON row. */
+  @Transactional
+  public void deletePersonById(Long id) {
+    update(
+        "DELETE FROM users WHERE id = :id AND status = 'PERSON'",
+        createParameterSource().addValue("id", id));
+  }
+
   @Transactional(readOnly = true)
   public List<ContentPersonEntity> findContentPeople(Long contentId) {
     String sql =
