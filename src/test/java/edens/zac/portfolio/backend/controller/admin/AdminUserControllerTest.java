@@ -22,6 +22,7 @@ import edens.zac.portfolio.backend.dao.UserCollectionRepository.AssociatedCollec
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
+import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
 import edens.zac.portfolio.backend.types.CollectionRole;
 import edens.zac.portfolio.backend.types.CollectionType;
@@ -49,6 +50,7 @@ class AdminUserControllerTest {
   @Mock private UserInviteService userInviteService;
   @Mock private UserCollectionRepository userCollectionRepository;
   @Mock private UserPageAssembler userPageAssembler;
+  @Mock private UserMergeService userMergeService;
 
   // Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join.
   private static final String FRONTEND_BASE_URL = "https://app.example.com/";
@@ -61,6 +63,7 @@ class AdminUserControllerTest {
             userInviteService,
             userCollectionRepository,
             userPageAssembler,
+            userMergeService,
             FRONTEND_BASE_URL);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)

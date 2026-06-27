@@ -4,6 +4,9 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserCollec
 import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserSummary;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserResponse;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeRequest;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.SetCollectionRoleRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserRequest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
@@ -11,6 +14,7 @@ import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
+import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
 import edens.zac.portfolio.backend.types.CollectionRole;
 import edens.zac.portfolio.backend.types.UserStatus;
@@ -31,6 +35,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -53,6 +58,7 @@ public class AdminUserController {
   private final UserInviteService userInviteService;
   private final UserCollectionRepository userCollectionRepository;
   private final UserPageAssembler userPageAssembler;
+  private final UserMergeService userMergeService;
   private final String frontendBaseUrl;
 
   public AdminUserController(
@@ -60,11 +66,13 @@ public class AdminUserController {
       UserInviteService userInviteService,
       UserCollectionRepository userCollectionRepository,
       UserPageAssembler userPageAssembler,
+      UserMergeService userMergeService,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.appUserRepository = appUserRepository;
     this.userInviteService = userInviteService;
     this.userCollectionRepository = userCollectionRepository;
     this.userPageAssembler = userPageAssembler;
+    this.userMergeService = userMergeService;
     this.frontendBaseUrl = frontendBaseUrl;
   }
 
@@ -109,15 +117,19 @@ public class AdminUserController {
   }
 
   /**
-   * List all user accounts (newest first) for the admin user-management view. Returns identity and
-   * lifecycle state only — never password hashes or WebAuthn handles.
+   * List user accounts (newest first) for the admin user-management view. Returns identity and
+   * lifecycle state only — never password hashes or WebAuthn handles. By default tag-only {@code
+   * PERSON} rows are excluded (accounts only); pass {@code includePeople=true} to surface them for
+   * the identity-merge UI.
    *
+   * @param includePeople when {@code true}, include {@code status='PERSON'} rows in the result
    * @return the user summaries
    */
   @GetMapping
-  public List<AdminUserSummary> listUsers() {
+  public List<AdminUserSummary> listUsers(
+      @RequestParam(name = "includePeople", defaultValue = "false") boolean includePeople) {
     return appUserRepository.findAllOrderedByCreatedAt().stream()
-        .filter(u -> u.getStatus() != UserStatus.PERSON)
+        .filter(u -> includePeople || u.getStatus() != UserStatus.PERSON)
         .map(u -> new AdminUserSummary(u.getId(), u.getEmail(), u.getName(), u.getStatus()))
         .toList();
   }
@@ -245,6 +257,52 @@ public class AdminUserController {
   @GetMapping("/{id}/page")
   public ResponseEntity<CollectionModel> userPage(@PathVariable Long id) {
     return ResponseEntity.ok(userPageAssembler.assembleForUser(id));
+  }
+
+  /**
+   * Preview an identity merge: count what would move from a tag-only PERSON ({@code sourceId}) onto
+   * a surviving identity ({@code targetId}) without mutating anything.
+   *
+   * @param sourceId the tag-only PERSON to absorb
+   * @param targetId the surviving identity
+   * @return {@code 200} with {@link MergePreview}, {@code 404} if either id is missing, or {@code
+   *     409} if the pair is not mergeable (same id, or source is not a PERSON)
+   */
+  @GetMapping("/{sourceId}/merge-preview")
+  public ResponseEntity<MergePreview> mergePreview(
+      @PathVariable Long sourceId, @RequestParam Long targetId) {
+    try {
+      return userMergeService
+          .preview(sourceId, targetId)
+          .map(ResponseEntity::ok)
+          .orElseGet(() -> ResponseEntity.notFound().build());
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+  }
+
+  /**
+   * Absorb a tag-only PERSON into the surviving identity in the path: re-point its image/collection
+   * tags + memberships onto the target, collapse duplicates, then hard-delete the source PERSON
+   * row. Irreversible.
+   *
+   * @param targetId the surviving identity (kept)
+   * @param request the source id to absorb
+   * @return {@code 200} with {@link MergeResult}, {@code 404} if either id is missing, or {@code
+   *     409} if the pair is not mergeable (same id, or source is not a PERSON)
+   */
+  @PostMapping("/{targetId}/merge")
+  public ResponseEntity<MergeResult> merge(
+      @PathVariable Long targetId, @Valid @RequestBody MergeRequest request) {
+    if (appUserRepository.findById(request.sourceId()).isEmpty()
+        || appUserRepository.findById(targetId).isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+    try {
+      return ResponseEntity.ok(userMergeService.merge(request.sourceId(), targetId));
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
   }
 
   /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */
