@@ -101,8 +101,16 @@ public final class Records {
   public record SiblingRow(
       Long id, String name, String slug, CollectionType type, Long coverImageId) {}
 
-  /** DTO for admin hub tile configuration. coverImageUrl is null when no image is assigned. */
-  public record AdminHomeTileResponse(String tileKey, String coverImageUrl, int displayOrder) {}
+  /**
+   * DTO for admin hub tile configuration. coverImageUrl and dimensions are null when no image is
+   * assigned.
+   */
+  public record AdminHomeTileResponse(
+      String tileKey,
+      String coverImageUrl,
+      Integer coverImageWidth,
+      Integer coverImageHeight,
+      int displayOrder) {}
 
   /**
    * DTO representing the relationship between a child entity (content or collection) and a parent

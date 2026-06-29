@@ -42,8 +42,9 @@ class AdminHomeControllerDevTest {
   void getTiles_returnsTileListWith200() throws Exception {
     List<Records.AdminHomeTileResponse> tiles =
         List.of(
-            new Records.AdminHomeTileResponse("home", "https://cdn.example.com/home.jpg", 0),
-            new Records.AdminHomeTileResponse("all-collections", null, 1));
+            new Records.AdminHomeTileResponse(
+                "home", "https://cdn.example.com/home.jpg", 1200, 800, 0),
+            new Records.AdminHomeTileResponse("all-collections", null, null, null, 1));
     when(adminHomeService.getTiles()).thenReturn(tiles);
 
     mockMvc
@@ -52,9 +53,13 @@ class AdminHomeControllerDevTest {
         .andExpect(jsonPath("$", hasSize(2)))
         .andExpect(jsonPath("$[0].tileKey", is("home")))
         .andExpect(jsonPath("$[0].coverImageUrl", is("https://cdn.example.com/home.jpg")))
+        .andExpect(jsonPath("$[0].coverImageWidth", is(1200)))
+        .andExpect(jsonPath("$[0].coverImageHeight", is(800)))
         .andExpect(jsonPath("$[0].displayOrder", is(0)))
         .andExpect(jsonPath("$[1].tileKey", is("all-collections")))
-        .andExpect(jsonPath("$[1].coverImageUrl", nullValue()));
+        .andExpect(jsonPath("$[1].coverImageUrl", nullValue()))
+        .andExpect(jsonPath("$[1].coverImageWidth", nullValue()))
+        .andExpect(jsonPath("$[1].coverImageHeight", nullValue()));
     verify(adminHomeService).getTiles();
   }
 
