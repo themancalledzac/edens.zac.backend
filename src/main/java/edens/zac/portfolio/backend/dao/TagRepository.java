@@ -42,11 +42,7 @@ public class TagRepository extends BaseDao {
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
-  /**
-   * Maps the same collection column set as {@code CollectionRepository.COLLECTION_ROW_MAPPER}. Used
-   * by {@link #findCollectionsByTagId} so tag-view membership rows convert exactly like collections
-   * fetched through the normal read path.
-   */
+  /** Collection row mapper for {@link #findCollectionsByTagId}. */
   private static final RowMapper<CollectionEntity> COLLECTION_ROW_MAPPER =
       (rs, rowNum) -> {
         CollectionEntity entity = new CollectionEntity();
@@ -264,11 +260,8 @@ public class TagRepository extends BaseDao {
   }
 
   /**
-   * Collections carrying the given tag, filtered to the supplied visibility set. Walks {@code tag
-   * -> collection_tags -> collection} and applies the same column set + ordering idiom as {@link
-   * edens.zac.portfolio.backend.dao.CollectionRepository#findNonEmptyOrderedByVisibilityIn} (rating
-   * desc, then collection_date desc). Backs the tag-view read model: tagged collections are the
-   * primary members of a synthetic tag PARENT view. Empty when the tag has no visible collections.
+   * Collections carrying the tag within the allowed visibilities, ordered rating- then date-desc.
+   * The tag-view's primary members; empty when none.
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findCollectionsByTagId(
@@ -295,14 +288,9 @@ public class TagRepository extends BaseDao {
   }
 
   /**
-   * IDs of IMAGE content carrying the given tag, gated by the owning collection's visibility.
-   *
-   * <p>Content rows have no visibility column of their own, so visibility is derived from the
-   * collection that contains the image: an image is rendered only if it has at least one visible
-   * membership ({@code collection_content.visible = true}) in a collection whose {@code visibility}
-   * is within {@code allowed}. Walks {@code tag -> content_tags -> content (IMAGE) ->
-   * collection_content -> collection}. Returns distinct content ids, most-recently-created first.
-   * Empty when no tagged image is reachable through a visible collection.
+   * IDs of tagged IMAGE content, newest first. Content has no visibility of its own, so an image
+   * qualifies only via a visible membership ({@code collection_content.visible}) in a collection
+   * within {@code allowed}. Distinct; empty when none qualify.
    */
   @Transactional(readOnly = true)
   public List<Long> findImageContentByTagId(Long tagId, List<CollectionVisibility> allowed) {

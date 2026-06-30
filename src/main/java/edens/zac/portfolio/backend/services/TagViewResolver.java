@@ -18,18 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Resolves any non-colliding tag slug into a synthetic, PARENT-shaped {@link CollectionModel} so a
- * tag becomes browsable as a collection at {@code /{slug}}. Tagged collections render first (as
- * {@link ContentModels.Collection} blocks), then tagged images (as {@link ContentModels.Image}
- * blocks). No DB schema change: membership is derived live from the {@code collection_tags} and
- * {@code content_tags} join tables.
+ * Resolves a non-colliding tag slug into a synthetic PARENT {@link CollectionModel} so a tag is
+ * browsable at {@code /{slug}}: tagged collections first, then tagged images. Membership is derived
+ * live from {@code collection_tags}/{@code content_tags} (no schema change).
  *
- * <p>Sibling to {@link SyntheticCollectionResolver}, following the same construction pattern (a
- * PARENT model with {@code visibility=LISTED}) and env-aware visibility scope. Membership comes
- * from a DB tag lookup, returning {@link Optional#empty()} when the slug matches no tag.
- *
- * <p>Depends on repositories and conversion utils directly (not {@link CollectionService}) to avoid
- * a circular bean dependency.
+ * <p>Tag-backed sibling of {@link SyntheticCollectionResolver}; depends on repositories directly
+ * (not {@link CollectionService}) to avoid a circular bean dependency.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,14 +35,11 @@ public class TagViewResolver {
   private final ContentModelConverter contentModelConverter;
 
   /**
-   * Resolve a slug into a tag-view PARENT model. Returns empty when the slug matches no tag, or
-   * when the matching tag has zero visible members (no collections AND no images) — callers fall
-   * through to a 404 rather than render an empty PARENT page.
+   * Resolves a slug into a tag-view PARENT model, or empty when no tag matches or the tag has no
+   * visible members (caller 404s).
    *
-   * @param slug the requested slug (already confirmed not to be a synthetic list slug or a real
-   *     collection by the caller)
-   * @param isLocalEnvironment when true, expands the allowed visibility set to include UNLISTED and
-   *     HIDDEN (dev only); prod sees LISTED only
+   * @param slug requested slug (caller has ruled out synthetic + real-collection slugs)
+   * @param isLocalEnvironment dev expands visibility to UNLISTED/HIDDEN; prod is LISTED only
    */
   @Transactional(readOnly = true)
   public Optional<CollectionModel> resolveTagView(String slug, boolean isLocalEnvironment) {
@@ -106,11 +97,7 @@ public class TagViewResolver {
             .build());
   }
 
-  /**
-   * Pick a representative cover: the first member collection that has a cover image, else the first
-   * tagged image, else none. Member collections arrive rating-desc / date-desc ordered, so "first
-   * with a cover" is the most prominent member.
-   */
+  /** Cover: first member collection with a cover image, else first tagged image, else none. */
   private ContentModels.Image representativeCover(
       List<CollectionModel> memberCollections, List<ContentModels.Image> memberImages) {
     return memberCollections.stream()

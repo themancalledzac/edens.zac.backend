@@ -17,15 +17,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Real-Postgres integration coverage for the A1 tag-view read model. Exercises the new {@link
- * TagRepository} SQL end-to-end against a Flyway-migrated schema so the multi-column {@code
- * DISTINCT} path in {@link TagRepository#findImageContentByTagId} and the visibility/ordering
- * semantics are verified against the real planner rather than a mock.
- *
- * <p>The {@code test} profile is not {@code dev}, so {@link
- * CollectionService#getCollectionWithPagination} resolves with the production visibility scope
- * (LISTED only). Repository methods are additionally exercised directly with explicit visibility
- * sets to cover both the prod and local scopes.
+ * Real-Postgres coverage for the A1 tag-view read model: {@link TagRepository} SQL (incl. the
+ * multi-column {@code DISTINCT} in {@link TagRepository#findImageContentByTagId}), visibility, and
+ * ordering, verified against a Flyway schema rather than mocks. The {@code test} profile resolves
+ * the service path with prod visibility (LISTED); repo methods are also tested directly per scope.
  */
 class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
 
