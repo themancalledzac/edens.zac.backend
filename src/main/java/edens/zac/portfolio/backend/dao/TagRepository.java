@@ -326,9 +326,6 @@ public class TagRepository extends BaseDao {
         createParameterSource()
             .addValue("tagId", tagId)
             .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
-    // Custom single-column mapper: the query selects c.created_at as well (Postgres requires
-    // DISTINCT + ORDER BY columns in the select list), so queryForList(..., Long.class) — which
-    // demands a single-column result via SingleColumnRowMapper — would throw at runtime.
     return query(sql, (rs, rowNum) -> rs.getLong("id"), params);
   }
 

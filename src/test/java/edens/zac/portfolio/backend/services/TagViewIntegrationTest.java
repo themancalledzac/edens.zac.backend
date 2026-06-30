@@ -19,9 +19,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Real-Postgres integration coverage for the A1 tag-view read model. Exercises the new {@link
  * TagRepository} SQL end-to-end against a Flyway-migrated schema so the multi-column {@code
- * DISTINCT} path in {@link TagRepository#findImageContentByTagId} (the column-count regression that
- * was fixed by hand) cannot recur, and so visibility/ordering semantics are verified against the
- * real planner rather than a mock.
+ * DISTINCT} path in {@link TagRepository#findImageContentByTagId} and the visibility/ordering
+ * semantics are verified against the real planner rather than a mock.
  *
  * <p>The {@code test} profile is not {@code dev}, so {@link
  * CollectionService#getCollectionWithPagination} resolves with the production visibility scope
@@ -159,11 +158,8 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   /**
-   * Regression guard for the fixed column-count bug: an image that is a visible member of MULTIPLE
-   * LISTED collections must appear exactly once. Against the pre-fix {@code
-   * queryForList(Long.class)} implementation this query (DISTINCT c.id, c.created_at) throws — a
-   * single-column mapper cannot read the two-column result — so this assertion genuinely exercises
-   * the multi-column DISTINCT path.
+   * An image that is a visible member of multiple LISTED collections appears exactly once,
+   * exercising the multi-column {@code DISTINCT c.id, c.created_at} path.
    */
   @Test
   void findImageContentByTagId_multipleVisibleMemberships_dedupesToOneRow() {

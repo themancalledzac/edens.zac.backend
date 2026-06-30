@@ -24,12 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
  * blocks). No DB schema change: membership is derived live from the {@code collection_tags} and
  * {@code content_tags} join tables.
  *
- * <p>Sibling to {@link SyntheticCollectionResolver}: it follows the same construction pattern
- * (build a PARENT model with {@code visibility=LISTED}) and the same env-aware visibility scope,
- * but is a separate class because its membership comes from a DB tag lookup (returning {@link
- * Optional#empty()} on miss) rather than a static catalog. Depends on repositories + conversion
- * utils directly — NOT on {@link CollectionService} — to avoid a circular bean dependency,
- * mirroring {@link SyntheticCollectionResolver}.
+ * <p>Sibling to {@link SyntheticCollectionResolver}, following the same construction pattern (a
+ * PARENT model with {@code visibility=LISTED}) and env-aware visibility scope. Membership comes
+ * from a DB tag lookup, returning {@link Optional#empty()} when the slug matches no tag.
+ *
+ * <p>Depends on repositories and conversion utils directly (not {@link CollectionService}) to avoid
+ * a circular bean dependency.
  */
 @Service
 @RequiredArgsConstructor
