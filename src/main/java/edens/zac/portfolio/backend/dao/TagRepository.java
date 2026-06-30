@@ -1,9 +1,15 @@
 package edens.zac.portfolio.backend.dao;
 
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.services.SlugUtil;
+import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
+import edens.zac.portfolio.backend.types.DisplayMode;
+import java.sql.Array;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +41,52 @@ public class TagRepository extends BaseDao {
               .slug(rs.getString("slug"))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
+
+  /**
+   * Maps the same collection column set as {@code CollectionRepository.COLLECTION_ROW_MAPPER}. Used
+   * by {@link #findCollectionsByTagId} so tag-view membership rows convert exactly like collections
+   * fetched through the normal read path.
+   */
+  private static final RowMapper<CollectionEntity> COLLECTION_ROW_MAPPER =
+      (rs, rowNum) -> {
+        CollectionEntity entity = new CollectionEntity();
+        entity.setId(rs.getLong("id"));
+        entity.setType(CollectionType.valueOf(rs.getString("type")));
+        entity.setTitle(rs.getString("title"));
+        entity.setSlug(rs.getString("slug"));
+        entity.setDescription(rs.getString("description"));
+        entity.setCollectionDate(getLocalDate(rs, "collection_date"));
+        entity.setVisibility(CollectionVisibility.valueOf(rs.getString("visibility")));
+
+        String displayMode = rs.getString("display_mode");
+        if (displayMode != null) {
+          try {
+            entity.setDisplayMode(DisplayMode.valueOf(displayMode));
+          } catch (IllegalArgumentException e) {
+            log.warn("Invalid display_mode value: {}", displayMode);
+          }
+        }
+
+        Long coverImageId = getLong(rs, "cover_image_id");
+        if (coverImageId != null) {
+          entity.setCoverImageId(coverImageId);
+        }
+
+        entity.setContentPerPage(getInteger(rs, "content_per_page"));
+        entity.setTotalContent(getInteger(rs, "total_content"));
+        entity.setRowsWide(getInteger(rs, "rows_wide"));
+        entity.setGalleryPassword(rs.getString("gallery_password"));
+        Array emailsArray = rs.getArray("recipient_emails");
+        entity.setRecipientEmails(
+            emailsArray != null
+                ? new ArrayList<>(Arrays.asList((String[]) emailsArray.getArray()))
+                : new ArrayList<>());
+        entity.setRating(getInteger(rs, "rating"));
+        entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
+        entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
+
+        return entity;
+      };
 
   // ============================================================
   // Tag CRUD Operations
@@ -209,6 +261,75 @@ public class TagRepository extends BaseDao {
         """;
     MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
     return query(sql, TAG_ROW_MAPPER, params);
+  }
+
+  /**
+   * Collections carrying the given tag, filtered to the supplied visibility set. Walks {@code tag
+   * -> collection_tags -> collection} and applies the same column set + ordering idiom as {@link
+   * edens.zac.portfolio.backend.dao.CollectionRepository#findNonEmptyOrderedByVisibilityIn} (rating
+   * desc, then collection_date desc). Backs the tag-view read model: tagged collections are the
+   * primary members of a synthetic tag PARENT view. Empty when the tag has no visible collections.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findCollectionsByTagId(
+      Long tagId, List<CollectionVisibility> allowed) {
+    if (tagId == null || allowed == null || allowed.isEmpty()) {
+      return List.of();
+    }
+    String sql =
+        """
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
+               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        FROM collection c
+        JOIN collection_tags ct ON ct.collection_id = c.id
+        WHERE ct.tag_id = :tagId
+          AND c.visibility IN (:visibilities)
+        ORDER BY c.rating DESC NULLS LAST, c.collection_date DESC NULLS LAST
+        """;
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("tagId", tagId)
+            .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
+   * IDs of IMAGE content carrying the given tag, gated by the owning collection's visibility.
+   *
+   * <p>Content rows have no visibility column of their own, so visibility is derived from the
+   * collection that contains the image: an image is rendered only if it has at least one visible
+   * membership ({@code collection_content.visible = true}) in a collection whose {@code visibility}
+   * is within {@code allowed}. Walks {@code tag -> content_tags -> content (IMAGE) ->
+   * collection_content -> collection}. Returns distinct content ids, most-recently-created first.
+   * Empty when no tagged image is reachable through a visible collection.
+   */
+  @Transactional(readOnly = true)
+  public List<Long> findImageContentByTagId(Long tagId, List<CollectionVisibility> allowed) {
+    if (tagId == null || allowed == null || allowed.isEmpty()) {
+      return List.of();
+    }
+    String sql =
+        """
+        SELECT DISTINCT c.id, c.created_at
+        FROM content c
+        JOIN content_tags ctg ON ctg.content_id = c.id
+        JOIN collection_content cc ON cc.content_id = c.id
+        JOIN collection col ON col.id = cc.collection_id
+        WHERE ctg.tag_id = :tagId
+          AND c.content_type = 'IMAGE'
+          AND cc.visible = true
+          AND col.visibility IN (:visibilities)
+        ORDER BY c.created_at DESC NULLS LAST, c.id DESC
+        """;
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("tagId", tagId)
+            .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
+    // Custom single-column mapper: the query selects c.created_at as well (Postgres requires
+    // DISTINCT + ORDER BY columns in the select list), so queryForList(..., Long.class) — which
+    // demands a single-column result via SingleColumnRowMapper — would throw at runtime.
+    return query(sql, (rs, rowNum) -> rs.getLong("id"), params);
   }
 
   @Transactional

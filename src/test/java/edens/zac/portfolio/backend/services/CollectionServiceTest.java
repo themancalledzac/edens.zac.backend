@@ -63,6 +63,7 @@ class CollectionServiceTest {
   @Mock private MetadataService metadataService;
   @Mock private edens.zac.portfolio.backend.services.EmailService emailService;
   @Mock private SyntheticCollectionResolver syntheticResolver;
+  @Mock private TagViewResolver tagViewResolver;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
   @Mock private UserCollectionService userCollectionService;
 
@@ -384,10 +385,57 @@ class CollectionServiceTest {
     void getCollectionWithPagination_slugNotFound_throwsException() {
       String slug = "nonexistent";
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.empty());
+      when(tagViewResolver.resolveTagView(eq(slug), anyBoolean())).thenReturn(Optional.empty());
 
       assertThatThrownBy(() -> service.getCollectionWithPagination(slug, 0, 10))
           .isInstanceOf(ResourceNotFoundException.class)
           .hasMessageContaining("Collection not found with slug: nonexistent");
+    }
+
+    @Test
+    void getCollectionWithPagination_realCollectionWinsOnSlugCollision() {
+      // A slug that is BOTH a real collection and a plausible tag must resolve to the real
+      // collection — findBySlug is checked before the tag-view fallback, which is never consulted.
+      String slug = "chamonix";
+      CollectionModel model = CollectionModel.builder().id(1L).title("Chamonix").slug(slug).build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
+      when(collectionRepository.countContentByCollectionId(1L)).thenReturn(0L);
+      when(collectionRepository.findContentByCollectionId(eq(1L), anyInt(), anyInt()))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToModel(
+              eq(testCollection), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result).isSameAs(model);
+      verify(tagViewResolver, never()).resolveTagView(anyString(), anyBoolean());
+    }
+
+    @Test
+    void getCollectionWithPagination_tagFallbackHit_returnsTagView() {
+      String slug = "travel";
+      CollectionModel tagView =
+          CollectionModel.builder().slug(slug).type(CollectionType.PARENT).build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.empty());
+      when(tagViewResolver.resolveTagView(eq(slug), anyBoolean())).thenReturn(Optional.of(tagView));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result).isSameAs(tagView);
+    }
+
+    @Test
+    void getCollectionWithPagination_zeroMemberTag_throwsNotFound() {
+      String slug = "orphan";
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.empty());
+      when(tagViewResolver.resolveTagView(eq(slug), anyBoolean())).thenReturn(Optional.empty());
+
+      assertThatThrownBy(() -> service.getCollectionWithPagination(slug, 0, 10))
+          .isInstanceOf(ResourceNotFoundException.class)
+          .hasMessageContaining("Collection not found with slug: orphan");
     }
 
     @Test

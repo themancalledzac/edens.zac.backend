@@ -73,6 +73,7 @@ public class CollectionService {
   private final MetadataService metadataService;
   private final EmailService emailService;
   private final SyntheticCollectionResolver syntheticResolver;
+  private final TagViewResolver tagViewResolver;
   private final ClientGalleryAuthService clientGalleryAuthService;
   private final UserCollectionService userCollectionService;
   private final Environment springEnv;
@@ -90,12 +91,20 @@ public class CollectionService {
       return syntheticResolver.resolve(slug, isLocalEnvironment());
     }
 
-    // Get collection metadata
-    CollectionEntity collection =
-        collectionRepository
-            .findBySlug(slug)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+    // Resolution order: synthetic -> real collection -> tag-view -> 404. A real collection is
+    // looked up before the tag-view fallback, so a real collection always wins on slug collision.
+    Optional<CollectionEntity> collectionOpt = collectionRepository.findBySlug(slug);
+    if (collectionOpt.isEmpty()) {
+      // No real collection: try to render the slug as a synthetic tag-view (any tag is browsable
+      // at /{slug}). A tag with zero visible members returns empty and falls through to 404.
+      Optional<CollectionModel> tagView =
+          tagViewResolver.resolveTagView(slug, isLocalEnvironment());
+      if (tagView.isPresent()) {
+        return tagView.get();
+      }
+      throw new ResourceNotFoundException("Collection not found with slug: " + slug);
+    }
+    CollectionEntity collection = collectionOpt.get();
 
     // Enforce visibility: invisible collections are not publicly accessible (except "home")
     enforceVisibility(collection, slug, isLocalEnvironment());
