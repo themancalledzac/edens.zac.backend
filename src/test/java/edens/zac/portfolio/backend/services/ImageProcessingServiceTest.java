@@ -12,6 +12,7 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentLensEntity;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import java.awt.image.BufferedImage;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -258,6 +259,100 @@ class ImageProcessingServiceTest {
         Integer.valueOf(5),
         result.entity().getRating(),
         "re-export without a rating tag must preserve the existing curated rating");
+  }
+
+  // ============================================================================
+  // Tests for hardcoded film-camera detection
+  // ============================================================================
+
+  private ImageProcessingService.PreparedImageData createPreparedImageDataWithCamera(
+      String filename, String cameraName, int width, int height) {
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("imageWidth", String.valueOf(width));
+    metadata.put("imageHeight", String.valueOf(height));
+    metadata.put("author", "Test Author");
+    metadata.put("camera", cameraName);
+    return new ImageProcessingService.PreparedImageData(
+        filename,
+        "https://cdn/full/image.jpg",
+        "https://cdn/web/image.webp",
+        null,
+        null,
+        metadata,
+        List.of(),
+        List.of(),
+        2026,
+        1,
+        LocalDateTime.of(2026, 1, 15, 14, 23, 5),
+        LocalDateTime.of(2026, 1, 15, 10, 0));
+  }
+
+  private void stubCameraCreationEcho() {
+    when(equipmentRepository.findCameraByBodySerialNumber(any())).thenReturn(Optional.empty());
+    when(equipmentRepository.findCameraByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(equipmentRepository.saveCamera(any(ContentCameraEntity.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+    when(contentRepository.findByOriginalFilenameAndCaptureDate(any(), any()))
+        .thenReturn(Optional.empty());
+    when(contentRepository.saveImage(any(ContentImageEntity.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+    // The extractor is a mock; make the width/height parse real so aspect-ratio logic runs.
+    when(imageMetadataExtractor.parseIntegerOrDefault(any(), any()))
+        .thenAnswer(
+            inv -> {
+              String value = inv.getArgument(0);
+              Integer fallback = inv.getArgument(1);
+              if (value == null || value.isBlank()) {
+                return fallback;
+              }
+              return Integer.parseInt(value.replaceAll("[^0-9-]", ""));
+            });
+  }
+
+  @Test
+  void ezController_squareFrame_mapsToHasselbladWith120Film() {
+    stubCameraCreationEcho();
+    ImageProcessingService.PreparedImageData prepared =
+        createPreparedImageDataWithCamera("scan.jpg", "EZ Controller", 1000, 1000);
+
+    ImageProcessingService.DedupeResult result =
+        imageProcessingService.savePreparedImageWithDedupe(prepared, "Test");
+
+    ContentImageEntity entity = result.entity();
+    assertEquals("Hasselblad 500cm", entity.getCamera().getCameraName());
+    assertTrue(entity.getIsFilm());
+    assertEquals(FilmFormat.MM_120, entity.getFilmFormat());
+  }
+
+  @Test
+  void ezController_rectangularFrame_mapsToMamiyaWith120Film() {
+    stubCameraCreationEcho();
+    // ~5x7 / 645 aspect ratio (1.4) -> Mamiya, not square Hasselblad.
+    ImageProcessingService.PreparedImageData prepared =
+        createPreparedImageDataWithCamera("scan.jpg", "EZ Controller", 1000, 1400);
+
+    ImageProcessingService.DedupeResult result =
+        imageProcessingService.savePreparedImageWithDedupe(prepared, "Test");
+
+    ContentImageEntity entity = result.entity();
+    assertEquals("Mamiya 645 Pro", entity.getCamera().getCameraName());
+    assertTrue(entity.getIsFilm());
+    assertEquals(FilmFormat.MM_120, entity.getFilmFormat());
+  }
+
+  @Test
+  void opticFilm_mapsTo35mmFilmAndKeepsCameraName() {
+    stubCameraCreationEcho();
+    ImageProcessingService.PreparedImageData prepared =
+        createPreparedImageDataWithCamera("scan.jpg", "OpticFilm 8300i", 1000, 1500);
+
+    ImageProcessingService.DedupeResult result =
+        imageProcessingService.savePreparedImageWithDedupe(prepared, "Test");
+
+    ContentImageEntity entity = result.entity();
+    assertEquals("OpticFilm 8300i", entity.getCamera().getCameraName());
+    assertTrue(entity.getIsFilm());
+    assertEquals(FilmFormat.MM_35, entity.getFilmFormat());
   }
 
   // ============================================================================

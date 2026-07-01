@@ -190,8 +190,21 @@ public class MetadataService {
       }
     }
 
-    if (equipmentRepository.existsByCameraNameIgnoreCase(cameraName)) {
-      throw new DataIntegrityViolationException("Camera already exists: " + cameraName);
+    // Upsert: if the camera already exists (e.g. auto-created during a film upload),
+    // apply the requested film metadata instead of rejecting the request.
+    Optional<ContentCameraEntity> existingByName =
+        equipmentRepository.findCameraByNameIgnoreCase(cameraName);
+    if (existingByName.isPresent()) {
+      ContentCameraEntity existing = existingByName.get();
+      Boolean newIsFilm = isFilm != null ? isFilm : existing.getIsFilm();
+      FilmFormat newFilmFormat =
+          defaultFilmFormat != null ? defaultFilmFormat : existing.getDefaultFilmFormat();
+      equipmentRepository.updateCameraFilmMetadata(existing.getId(), newIsFilm, newFilmFormat);
+      return Map.of(
+          "id", existing.getId(),
+          "cameraName", existing.getCameraName(),
+          "isFilm", newIsFilm != null ? newIsFilm : Boolean.FALSE,
+          "createdAt", existing.getCreatedAt());
     }
 
     ContentCameraEntity camera =
