@@ -52,6 +52,12 @@ public class TagViewResolver {
     }
     TagEntity tag = tagOpt.get();
 
+    // A converted tag has handed its slug to a real collection; that collection now renders
+    // instead.
+    if (tag.getConvertedCollectionId() != null) {
+      return Optional.empty();
+    }
+
     List<CollectionVisibility> allowed =
         isLocalEnvironment
             ? List.of(
@@ -87,6 +93,7 @@ public class TagViewResolver {
             .slug(tag.getSlug())
             .title(tag.getTagName())
             .type(CollectionType.PARENT)
+            .derived(true)
             .visibility(CollectionVisibility.LISTED)
             .coverImage(representativeCover(memberCollections, memberImages))
             .content(content)
