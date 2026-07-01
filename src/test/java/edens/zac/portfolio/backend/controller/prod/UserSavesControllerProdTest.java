@@ -11,7 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.UserSavesService;
+import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,5 +112,64 @@ class UserSavesControllerProdTest {
     mockMvc.perform(get("/api/read/user/saves")).andExpect(status().isUnauthorized());
 
     verify(userSavesService, never()).listSavedImageIds(anyLong());
+  }
+
+  private ContentModels.Image imageModel(Long id, String title, String imageUrl) {
+    return new ContentModels.Image(
+        id,
+        ContentType.IMAGE,
+        title,
+        null,
+        null,
+        null,
+        imageUrl,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        List.of(),
+        null,
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  @Test
+  void listImagesReturnsModels() throws Exception {
+    when(userSavesService.listSavedImages(7L))
+        .thenReturn(
+            List.of(
+                imageModel(42L, "Newer", "https://cdn.example.com/newer.jpg"),
+                imageModel(43L, "Older", "https://cdn.example.com/older.jpg")));
+
+    mockMvc
+        .perform(get("/api/read/user/saves/images").with(asUser(client)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(42))
+        .andExpect(jsonPath("$[0].title").value("Newer"))
+        .andExpect(jsonPath("$[0].imageUrl").value("https://cdn.example.com/newer.jpg"))
+        .andExpect(jsonPath("$[1].id").value(43));
+  }
+
+  @Test
+  void listImagesAnonymousIsUnauthorized() throws Exception {
+    mockMvc.perform(get("/api/read/user/saves/images")).andExpect(status().isUnauthorized());
+
+    verify(userSavesService, never()).listSavedImages(anyLong());
   }
 }

@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.UserSavesService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -55,5 +56,15 @@ public class UserSavesControllerProd {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     return ResponseEntity.ok(userSavesService.listSavedImageIds(principal.userId()));
+  }
+
+  /** The caller's saved images as full models, newest-saved first. 401 when anonymous. */
+  @GetMapping("/images")
+  public ResponseEntity<List<ContentModels.Image>> listImages(
+      @AuthenticationPrincipal AuthPrincipal principal) {
+    if (principal == null) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+    return ResponseEntity.ok(userSavesService.listSavedImages(principal.userId()));
   }
 }

@@ -1,7 +1,10 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.UserSavedImageRepository;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.UserSavedImageEntity;
+import edens.zac.portfolio.backend.model.ContentModels;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserSavesService {
 
   private final UserSavedImageRepository userSavedImageRepository;
+  private final ContentRepository contentRepository;
+  private final ContentModelConverter contentModelConverter;
 
   /** Add an image to the user's saves. Idempotent. */
   @Transactional
@@ -36,5 +41,12 @@ public class UserSavesService {
   @Transactional(readOnly = true)
   public List<Long> listSavedImageIds(Long userId) {
     return userSavedImageRepository.findImageIdsByUserId(userId);
+  }
+
+  /** The user's saved images as full models, newest-saved first. */
+  @Transactional(readOnly = true)
+  public List<ContentModels.Image> listSavedImages(Long userId) {
+    List<ContentImageEntity> entities = contentRepository.findSavedImagesByUserId(userId);
+    return contentModelConverter.batchConvertImageEntitiesToModels(entities);
   }
 }

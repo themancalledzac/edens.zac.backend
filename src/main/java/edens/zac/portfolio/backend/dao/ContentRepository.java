@@ -256,6 +256,18 @@ public class ContentRepository extends BaseDao {
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
+  /** A user's saved images as full entities, newest-saved first. Ignores gallery access. */
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> findSavedImagesByUserId(Long userId) {
+    String sql =
+        SELECT_CONTENT_IMAGE
+            + " JOIN user_saved_image usi ON usi.image_id = c.id"
+            + " WHERE usi.user_id = :userId"
+            + " ORDER BY usi.created_at DESC";
+    MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
+    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
   /**
    * The newest image content id a person is tagged on via {@code content_image_people}, ordered by
    * EXIF capture date desc then row creation desc. Backs the {@code /user} synthetic-collection
