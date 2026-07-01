@@ -30,6 +30,9 @@ public class TagEntity {
 
   @Size(min = 1, max = 100) private String slug;
 
+  /** Set once the tag is promoted to a real collection; the tag-view then stops rendering. */
+  private Long convertedCollectionId;
+
   private LocalDateTime createdAt;
 
   /**

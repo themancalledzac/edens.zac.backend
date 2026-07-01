@@ -210,6 +210,19 @@ public class EquipmentRepository extends BaseDao {
     }
   }
 
+  /** Update only the film metadata (is_film, default_film_format) for a camera by id. */
+  public void updateCameraFilmMetadata(Long id, Boolean isFilm, FilmFormat defaultFilmFormat) {
+    String sql =
+        "UPDATE content_cameras SET is_film = :isFilm, default_film_format = :defaultFilmFormat WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("isFilm", isFilm != null ? isFilm : Boolean.FALSE)
+            .addValue(
+                "defaultFilmFormat", defaultFilmFormat != null ? defaultFilmFormat.name() : null)
+            .addValue("id", id);
+    update(sql, params);
+  }
+
   @Transactional(readOnly = true)
   public Optional<ContentCameraEntity> findCameraById(Long id) {
     String sql =

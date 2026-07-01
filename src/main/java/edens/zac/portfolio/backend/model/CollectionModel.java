@@ -53,6 +53,9 @@ public class CollectionModel {
 
   private DisplayMode displayMode;
 
+  /** True for a synthetic tag-view model; unset/false for real collections. */
+  private boolean derived;
+
   @Min(1) private Integer rowsWide;
 
   // === Pagination ===
