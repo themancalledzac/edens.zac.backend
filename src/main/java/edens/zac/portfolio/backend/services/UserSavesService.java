@@ -13,8 +13,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Per-user saved images ("Your Space" bookmarks). Any logged-in user may save any image: there is
- * no per-collection access check. Auth is enforced at the controller (principal null-check).
+ * Per-user saved images ("Your Space" bookmarks). A logged-in user may save an image only if they
+ * may SEE it — i.e. it holds a visible membership in a LISTED collection or one the caller has an
+ * explicit {@code user_collection} membership for (see {@link
+ * ContentRepository#isImageVisibleToUser}). This prevents a client-gallery user from POSTing an
+ * arbitrary image id to exfiltrate images from HIDDEN/UNLISTED collections or another client's
+ * gated gallery via the saved-images read. Auth (identity) is enforced at the controller (principal
+ * null-check); this service enforces per-image visibility.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,12 +31,15 @@ public class UserSavesService {
   private final ContentModelConverter contentModelConverter;
 
   /**
-   * Add an image to the user's saves. Idempotent. Rejects a nonexistent image with a 404 (via
-   * {@link ResourceNotFoundException}) rather than letting the missing-row FK surface as a 409.
+   * Add an image to the user's saves. Idempotent. Rejects an image the caller may not see with a
+   * 404 (via {@link ResourceNotFoundException}) — deliberately 404 not 403, so a sequential id scan
+   * cannot distinguish "missing" from "exists but hidden" (no enumeration oracle). The visibility
+   * check subsumes the old existence guard: an id with no visible LISTED/accessible membership
+   * (including a nonexistent id) is treated as not found.
    */
   @Transactional
   public void add(Long userId, Long imageId) {
-    if (contentRepository.findImageById(imageId).isEmpty()) {
+    if (!contentRepository.isImageVisibleToUser(imageId, userId)) {
       throw new ResourceNotFoundException("Image not found with ID: " + imageId);
     }
     userSavedImageRepository.insert(
