@@ -2,6 +2,8 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.UserFollowsService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,12 +29,12 @@ public class UserFollowsControllerProd {
   private final UserFollowsService userFollowsService;
 
   /** Body of {@code POST /api/read/user/follows}. */
-  public record AddFollowRequest(Long collectionId) {}
+  public record AddFollowRequest(@NotNull Long collectionId) {}
 
   /** Add a collection to the caller's follows. 201 on success, 401 when anonymous. */
   @PostMapping
   public ResponseEntity<Void> add(
-      @AuthenticationPrincipal AuthPrincipal principal, @RequestBody AddFollowRequest body) {
+      @AuthenticationPrincipal AuthPrincipal principal, @Valid @RequestBody AddFollowRequest body) {
     if (principal == null) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }

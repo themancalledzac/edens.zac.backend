@@ -23,9 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TagService {
 
-  private static final List<CollectionVisibility> ALL_VISIBILITIES =
-      List.of(
-          CollectionVisibility.LISTED, CollectionVisibility.UNLISTED, CollectionVisibility.HIDDEN);
+  /**
+   * Default snapshot scope for a promote: prod-visible members only (LISTED + UNLISTED), EXCLUDING
+   * HIDDEN. HIDDEN is dev-only, so copying it into a new collection would leak dev-gated content;
+   * an admin must explicitly opt in via {@code includeHidden} to capture it.
+   */
+  private static final List<CollectionVisibility> DEFAULT_SNAPSHOT_SCOPE =
+      List.of(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED);
 
   private final TagRepository tagRepository;
   private final CollectionRepository collectionRepository;
@@ -77,7 +81,7 @@ public class TagService {
     newCollection.setVisibility(visibility);
     collectionRepository.save(newCollection);
 
-    snapshotMembers(tagId, newCollectionId);
+    snapshotMembers(tagId, newCollectionId, request);
 
     tagRepository.updateConvertedCollectionId(tagId, newCollectionId);
     log.info(
@@ -86,15 +90,31 @@ public class TagService {
     return collectionService.getUpdateCollectionData(tag.getSlug());
   }
 
-  /** Snapshots tagged member collections (first) then tagged images into collection_content. */
-  private void snapshotMembers(Long tagId, Long collectionId) {
-    List<CollectionEntity> memberCollections =
-        tagRepository.findCollectionsByTagId(tagId, ALL_VISIBILITIES);
+  /**
+   * Snapshots tagged member collections (first) then tagged images into collection_content.
+   *
+   * <p>Scope defaults to {@link #DEFAULT_SNAPSHOT_SCOPE} (LISTED + UNLISTED). A HIDDEN member — or
+   * a password-gated collection — is only captured when the request explicitly opts in via {@code
+   * includeHidden}, so a promote never silently copies dev-only or password-protected content into
+   * the new collection. Image ids are derived from a visible membership in an in-scope collection
+   * (see {@code TagRepository.findImageContentByTagId}), so HIDDEN-only images are already excluded
+   * by the same scope.
+   */
+  private void snapshotMembers(Long tagId, Long collectionId, SaveAsCollectionRequest request) {
+    boolean includeHidden = request != null && request.includeHiddenMembers();
+    List<CollectionVisibility> scope =
+        includeHidden ? CollectionVisibility.visibleScope(true) : DEFAULT_SNAPSHOT_SCOPE;
+
+    List<CollectionEntity> memberCollections = tagRepository.findCollectionsByTagId(tagId, scope);
     for (CollectionEntity member : memberCollections) {
+      // Skip password-gated member collections unless explicitly opted in.
+      if (!includeHidden && member.getGalleryPassword() != null) {
+        continue;
+      }
       collectionService.linkCollectionToParent(collectionId, member.getId());
     }
 
-    List<Long> imageContentIds = tagRepository.findImageContentByTagId(tagId, ALL_VISIBILITIES);
+    List<Long> imageContentIds = tagRepository.findImageContentByTagId(tagId, scope);
     Integer maxOrderIndex = collectionRepository.getMaxOrderIndexForCollection(collectionId);
     int orderIndex = maxOrderIndex != null ? maxOrderIndex + 1 : 0;
     for (Long imageContentId : imageContentIds) {

@@ -1,5 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
+import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.UserFollowedCollectionRepository;
 import edens.zac.portfolio.backend.entity.UserFollowedCollectionEntity;
 import java.util.List;
@@ -18,10 +20,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserFollowsService {
 
   private final UserFollowedCollectionRepository userFollowedCollectionRepository;
+  private final CollectionRepository collectionRepository;
 
-  /** Add a collection to the user's follows. Idempotent. */
+  /**
+   * Add a collection to the user's follows. Idempotent. Rejects a nonexistent collection with a 404
+   * (via {@link ResourceNotFoundException}) rather than letting the missing-row FK surface as a
+   * 409.
+   */
   @Transactional
   public void add(Long userId, Long collectionId) {
+    if (collectionRepository.findById(collectionId).isEmpty()) {
+      throw new ResourceNotFoundException("Collection not found with ID: " + collectionId);
+    }
     userFollowedCollectionRepository.insert(
         UserFollowedCollectionEntity.builder().userId(userId).collectionId(collectionId).build());
   }

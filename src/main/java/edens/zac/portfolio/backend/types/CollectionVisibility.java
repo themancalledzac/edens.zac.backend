@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.types;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import java.util.List;
 
 /**
  * 3-state visibility for collections. Replaces the legacy {@code visible} boolean as of V20.
@@ -16,6 +17,18 @@ public enum CollectionVisibility {
   LISTED,
   UNLISTED,
   HIDDEN;
+
+  private static final List<CollectionVisibility> PROD_SCOPE = List.of(LISTED);
+  private static final List<CollectionVisibility> LOCAL_SCOPE = List.of(LISTED, UNLISTED, HIDDEN);
+
+  /**
+   * The visibility scope a viewer may browse: prod sees LISTED only; a local/dev environment
+   * additionally sees UNLISTED and HIDDEN. Single source of truth for the {@code
+   * isLocalEnvironment} ternary previously duplicated across the resolvers and {@code TagService}.
+   */
+  public static List<CollectionVisibility> visibleScope(boolean isLocalEnvironment) {
+    return isLocalEnvironment ? LOCAL_SCOPE : PROD_SCOPE;
+  }
 
   public boolean appearsInLists() {
     return this == LISTED;

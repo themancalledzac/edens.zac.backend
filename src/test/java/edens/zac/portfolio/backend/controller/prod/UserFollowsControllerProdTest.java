@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.UserFollowsService;
 import java.util.List;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,6 +47,7 @@ class UserFollowsControllerProdTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
 
@@ -83,6 +87,41 @@ class UserFollowsControllerProdTest {
         .andExpect(status().isCreated());
 
     verify(userFollowsService).add(7L, 3L);
+  }
+
+  @Test
+  void addNullCollectionIdIsBadRequest() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/read/user/follows")
+                .with(asUser(client))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"collectionId\":null}"))
+        .andExpect(status().isBadRequest());
+
+    verify(userFollowsService, never()).add(anyLong(), anyLong());
+  }
+
+  @Test
+  void addNonexistentCollectionIsNotFound() throws Exception {
+    Mockito.doThrow(new ResourceNotFoundException("Collection not found with ID: 999"))
+        .when(userFollowsService)
+        .add(7L, 999L);
+
+    mockMvc
+        .perform(
+            post("/api/read/user/follows")
+                .with(asUser(client))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"collectionId\":999}"))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void deleteAnonymousIsUnauthorized() throws Exception {
+    mockMvc.perform(delete("/api/read/user/follows/3")).andExpect(status().isUnauthorized());
+
+    verify(userFollowsService, never()).remove(anyLong(), anyLong());
   }
 
   @Test

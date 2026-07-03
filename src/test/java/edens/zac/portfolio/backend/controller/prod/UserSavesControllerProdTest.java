@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.UserSavesService;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -46,6 +49,7 @@ class UserSavesControllerProdTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
 
@@ -85,6 +89,41 @@ class UserSavesControllerProdTest {
         .andExpect(status().isCreated());
 
     verify(userSavesService).add(7L, 42L);
+  }
+
+  @Test
+  void addNullImageIdIsBadRequest() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/read/user/saves")
+                .with(asUser(client))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"imageId\":null}"))
+        .andExpect(status().isBadRequest());
+
+    verify(userSavesService, never()).add(anyLong(), anyLong());
+  }
+
+  @Test
+  void addNonexistentImageIsNotFound() throws Exception {
+    Mockito.doThrow(new ResourceNotFoundException("Image not found with ID: 999"))
+        .when(userSavesService)
+        .add(7L, 999L);
+
+    mockMvc
+        .perform(
+            post("/api/read/user/saves")
+                .with(asUser(client))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"imageId\":999}"))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void deleteAnonymousIsUnauthorized() throws Exception {
+    mockMvc.perform(delete("/api/read/user/saves/42")).andExpect(status().isUnauthorized());
+
+    verify(userSavesService, never()).remove(anyLong(), anyLong());
   }
 
   @Test

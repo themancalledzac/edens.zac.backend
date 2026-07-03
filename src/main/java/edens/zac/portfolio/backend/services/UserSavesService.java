@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.UserSavedImageRepository;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
@@ -24,9 +25,15 @@ public class UserSavesService {
   private final ContentRepository contentRepository;
   private final ContentModelConverter contentModelConverter;
 
-  /** Add an image to the user's saves. Idempotent. */
+  /**
+   * Add an image to the user's saves. Idempotent. Rejects a nonexistent image with a 404 (via
+   * {@link ResourceNotFoundException}) rather than letting the missing-row FK surface as a 409.
+   */
   @Transactional
   public void add(Long userId, Long imageId) {
+    if (contentRepository.findImageById(imageId).isEmpty()) {
+      throw new ResourceNotFoundException("Image not found with ID: " + imageId);
+    }
     userSavedImageRepository.insert(
         UserSavedImageEntity.builder().userId(userId).imageId(imageId).build());
   }

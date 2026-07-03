@@ -80,4 +80,26 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     assertThat(userSavesService.listSavedImages(userId)).isEmpty();
   }
+
+  @Test
+  void savesAreIsolatedPerUser_userAneverSeesUserBsaves() {
+    Long userA = seedUser("saves-a-" + UUID.randomUUID() + "@example.com");
+    Long userB = seedUser("saves-b-" + UUID.randomUUID() + "@example.com");
+    Long imageA = seedImage("A's image", "https://cdn.example.com/" + UUID.randomUUID() + ".jpg");
+    Long imageB = seedImage("B's image", "https://cdn.example.com/" + UUID.randomUUID() + ".jpg");
+
+    userSavesService.add(userA, imageA);
+    userSavesService.add(userB, imageB);
+
+    // User A sees only their own save; user B's save never leaks into A's list.
+    assertThat(userSavesService.listSavedImageIds(userA)).containsExactly(imageA);
+    assertThat(userSavesService.listSavedImageIds(userA)).doesNotContain(imageB);
+    assertThat(userSavesService.listSavedImages(userA))
+        .extracting(ContentModels.Image::id)
+        .containsExactly(imageA);
+
+    // And symmetrically for user B.
+    assertThat(userSavesService.listSavedImageIds(userB)).containsExactly(imageB);
+    assertThat(userSavesService.listSavedImageIds(userB)).doesNotContain(imageA);
+  }
 }

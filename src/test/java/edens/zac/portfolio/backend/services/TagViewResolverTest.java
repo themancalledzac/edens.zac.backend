@@ -140,6 +140,35 @@ class TagViewResolverTest {
   }
 
   @Test
+  void imageOrder_followsIdOrder_evenWhenRepositoryReturnsScrambled_andDropsMissing() {
+    TagEntity travel = tag(7L, "Travel", "travel");
+    when(tagRepository.findBySlug("travel")).thenReturn(Optional.of(travel));
+    when(tagRepository.findCollectionsByTagId(eq(7L), eq(PROD_VISIBILITIES))).thenReturn(List.of());
+    when(collectionProcessingUtil.batchConvertToBasicModels(any())).thenReturn(List.of());
+
+    // findImageContentByTagId returns the intended order: 200, 201, 202.
+    when(tagRepository.findImageContentByTagId(eq(7L), eq(PROD_VISIBILITIES)))
+        .thenReturn(List.of(200L, 201L, 202L));
+
+    // findImagesByIds (unordered IN query) returns them scrambled AND omits 201 (e.g. deleted).
+    ContentImageEntity img202 = ContentImageEntity.builder().id(202L).build();
+    ContentImageEntity img200 = ContentImageEntity.builder().id(200L).build();
+    when(contentRepository.findImagesByIds(eq(List.of(200L, 201L, 202L))))
+        .thenReturn(List.of(img202, img200));
+
+    // The resolver must re-order to [200, 202] (201 dropped) before converting.
+    when(contentModelConverter.batchConvertImageEntitiesToModels(eq(List.of(img200, img202))))
+        .thenReturn(List.of(imageModel(200L), imageModel(202L)));
+
+    CollectionModel out = resolver.resolveTagView("travel", false).orElseThrow();
+
+    List<ContentModel> content = out.getContent();
+    assertThat(content).hasSize(2);
+    assertThat(((ContentModels.Image) content.get(0)).id()).isEqualTo(200L);
+    assertThat(((ContentModels.Image) content.get(1)).id()).isEqualTo(202L);
+  }
+
+  @Test
   void tagWithOnlyImages_rendersImageSectionAndCoverFromFirstImage() {
     TagEntity film = tag(9L, "Film", "film");
     when(tagRepository.findBySlug("film")).thenReturn(Optional.of(film));

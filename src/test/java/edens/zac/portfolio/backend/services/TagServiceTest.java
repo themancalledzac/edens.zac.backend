@@ -72,7 +72,8 @@ class TagServiceTest {
     CollectionRequests.UpdateResponse result =
         tagService.convertTagToCollection(
             5L,
-            new SaveAsCollectionRequest(CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED));
+            new SaveAsCollectionRequest(
+                CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED, null));
 
     // Create used the tag NAME as title.
     ArgumentCaptor<CollectionRequests.Create> createCaptor =
@@ -128,6 +129,82 @@ class TagServiceTest {
     ArgumentCaptor<CollectionEntity> saveCaptor = ArgumentCaptor.forClass(CollectionEntity.class);
     verify(collectionRepository).save(saveCaptor.capture());
     assertThat(saveCaptor.getValue().getVisibility()).isEqualTo(CollectionVisibility.UNLISTED);
+  }
+
+  @Test
+  void convertTagToCollection_defaultScope_excludesHiddenAndSkipsPasswordGatedMembers() {
+    TagEntity tag = unconvertedTag();
+    when(tagRepository.findById(5L)).thenReturn(Optional.of(tag));
+    when(collectionRepository.findBySlug("landscape")).thenReturn(Optional.empty());
+    when(collectionService.createCollection(any())).thenReturn(responseWithId(99L, "landscape-1"));
+    CollectionEntity created = new CollectionEntity();
+    created.setId(99L);
+    when(collectionRepository.findById(99L)).thenReturn(Optional.of(created));
+
+    // One plain member collection and one password-gated member collection.
+    CollectionEntity plain = new CollectionEntity();
+    plain.setId(200L);
+    CollectionEntity gated = new CollectionEntity();
+    gated.setId(201L);
+    gated.setGalleryPassword("secret");
+
+    ArgumentCaptor<List<CollectionVisibility>> scopeCaptor = scopeCaptor();
+    when(tagRepository.findCollectionsByTagId(eq(5L), scopeCaptor.capture()))
+        .thenReturn(List.of(plain, gated));
+    when(tagRepository.findImageContentByTagId(eq(5L), anyList())).thenReturn(List.of());
+    when(collectionService.getUpdateCollectionData("landscape"))
+        .thenReturn(responseWithId(99L, "landscape"));
+
+    tagService.convertTagToCollection(
+        5L,
+        new SaveAsCollectionRequest(CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED, null));
+
+    // Default scope is LISTED + UNLISTED (HIDDEN excluded).
+    assertThat(scopeCaptor.getValue())
+        .containsExactlyInAnyOrder(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED)
+        .doesNotContain(CollectionVisibility.HIDDEN);
+    // Password-gated member collection is skipped; only the plain one is linked.
+    verify(collectionService).linkCollectionToParent(99L, 200L);
+    verify(collectionService, never()).linkCollectionToParent(99L, 201L);
+  }
+
+  @Test
+  void convertTagToCollection_includeHidden_widensScopeAndKeepsPasswordGatedMembers() {
+    TagEntity tag = unconvertedTag();
+    when(tagRepository.findById(5L)).thenReturn(Optional.of(tag));
+    when(collectionRepository.findBySlug("landscape")).thenReturn(Optional.empty());
+    when(collectionService.createCollection(any())).thenReturn(responseWithId(99L, "landscape-1"));
+    CollectionEntity created = new CollectionEntity();
+    created.setId(99L);
+    when(collectionRepository.findById(99L)).thenReturn(Optional.of(created));
+
+    CollectionEntity gated = new CollectionEntity();
+    gated.setId(201L);
+    gated.setGalleryPassword("secret");
+
+    ArgumentCaptor<List<CollectionVisibility>> scopeCaptor = scopeCaptor();
+    when(tagRepository.findCollectionsByTagId(eq(5L), scopeCaptor.capture()))
+        .thenReturn(List.of(gated));
+    when(tagRepository.findImageContentByTagId(eq(5L), anyList())).thenReturn(List.of());
+    when(collectionService.getUpdateCollectionData("landscape"))
+        .thenReturn(responseWithId(99L, "landscape"));
+
+    tagService.convertTagToCollection(
+        5L,
+        new SaveAsCollectionRequest(CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED, true));
+
+    // Opt-in widens scope to include HIDDEN and keeps the password-gated member.
+    assertThat(scopeCaptor.getValue())
+        .containsExactlyInAnyOrder(
+            CollectionVisibility.LISTED,
+            CollectionVisibility.UNLISTED,
+            CollectionVisibility.HIDDEN);
+    verify(collectionService).linkCollectionToParent(99L, 201L);
+  }
+
+  @SuppressWarnings("unchecked")
+  private ArgumentCaptor<List<CollectionVisibility>> scopeCaptor() {
+    return ArgumentCaptor.forClass(List.class);
   }
 
   @Test

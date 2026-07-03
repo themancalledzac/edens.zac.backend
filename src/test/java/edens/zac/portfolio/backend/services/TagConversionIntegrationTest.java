@@ -81,7 +81,8 @@ class TagConversionIntegrationTest extends AbstractPostgresIntegrationTest {
     CollectionRequests.UpdateResponse response =
         tagService.convertTagToCollection(
             tag,
-            new SaveAsCollectionRequest(CollectionType.PORTFOLIO, CollectionVisibility.LISTED));
+            new SaveAsCollectionRequest(
+                CollectionType.PORTFOLIO, CollectionVisibility.LISTED, null));
 
     Long newCollectionId = response.collection().getId();
 
@@ -121,6 +122,78 @@ class TagConversionIntegrationTest extends AbstractPostgresIntegrationTest {
     // (e) Re-convert is rejected.
     assertThatThrownBy(() -> tagService.convertTagToCollection(tag, null))
         .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void convert_defaultScope_doesNotCopyHiddenMembers() {
+    long tag = seedTag("Private", "private");
+
+    // A HIDDEN member collection tagged directly, plus a LISTED one.
+    long listedMember = seedCollection("listed-member", CollectionVisibility.LISTED, 5);
+    long hiddenMember = seedCollection("hidden-member", CollectionVisibility.HIDDEN, 5);
+    tagCollection(listedMember, tag);
+    tagCollection(hiddenMember, tag);
+
+    // A tagged image visible ONLY through a HIDDEN collection membership.
+    long hiddenHost = seedCollection("hidden-host", CollectionVisibility.HIDDEN, 1);
+    long hiddenImage = seedImage("https://cdn/hidden.jpg");
+    tagContent(hiddenImage, tag);
+    addMembership(hiddenHost, hiddenImage, true);
+
+    // A tagged image visible through a LISTED collection membership.
+    long listedHost = seedCollection("listed-host", CollectionVisibility.LISTED, 1);
+    long listedImage = seedImage("https://cdn/listed.jpg");
+    tagContent(listedImage, tag);
+    addMembership(listedHost, listedImage, true);
+
+    CollectionRequests.UpdateResponse response =
+        tagService.convertTagToCollection(
+            tag,
+            new SaveAsCollectionRequest(
+                CollectionType.PORTFOLIO, CollectionVisibility.LISTED, null));
+    Long newCollectionId = response.collection().getId();
+
+    // The HIDDEN-only image is NOT snapshotted.
+    Integer hiddenImageRows =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM collection_content WHERE collection_id = ? AND content_id = ?",
+            Integer.class,
+            newCollectionId,
+            hiddenImage);
+    assertThat(hiddenImageRows).isZero();
+
+    // The LISTED image IS snapshotted.
+    Integer listedImageRows =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM collection_content WHERE collection_id = ? AND content_id = ?",
+            Integer.class,
+            newCollectionId,
+            listedImage);
+    assertThat(listedImageRows).isEqualTo(1);
+
+    // Exactly two content rows total: 1 LISTED member-collection wrapper + 1 LISTED image. The
+    // HIDDEN member collection and the HIDDEN-only image are both excluded. We assert the total
+    // count (not a per-member-id lookup) because linkCollectionToParent stores the child's
+    // content-wrapper id in content_id, not the child collection id.
+    Integer totalRows =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM collection_content WHERE collection_id = ?",
+            Integer.class,
+            newCollectionId);
+    assertThat(totalRows).isEqualTo(2);
+
+    // And the LISTED member collection's content-wrapper is linked (proves the LISTED path works).
+    Integer listedChildRows =
+        jdbc.queryForObject(
+            """
+            SELECT COUNT(*) FROM collection_content cc
+            JOIN content_collection ccn ON ccn.id = cc.content_id
+            WHERE cc.collection_id = ? AND ccn.referenced_collection_id = ?
+            """,
+            Integer.class,
+            newCollectionId,
+            listedMember);
+    assertThat(listedChildRows).isEqualTo(1);
   }
 
   @Test

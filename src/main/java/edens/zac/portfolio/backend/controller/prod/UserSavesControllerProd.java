@@ -3,6 +3,8 @@ package edens.zac.portfolio.backend.controller.prod;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.UserSavesService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,12 +27,12 @@ public class UserSavesControllerProd {
   private final UserSavesService userSavesService;
 
   /** Body of {@code POST /api/read/user/saves}. */
-  public record AddSaveRequest(Long imageId) {}
+  public record AddSaveRequest(@NotNull Long imageId) {}
 
   /** Add an image to the caller's saves. 201 on success, 401 when anonymous. */
   @PostMapping
   public ResponseEntity<Void> add(
-      @AuthenticationPrincipal AuthPrincipal principal, @RequestBody AddSaveRequest body) {
+      @AuthenticationPrincipal AuthPrincipal principal, @Valid @RequestBody AddSaveRequest body) {
     if (principal == null) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
