@@ -1,118 +1,50 @@
 # Cursor Rules for Portfolio Backend
 
+Cursor also reads `.claude/CLAUDE.md` and the deep-dive docs in `.claude/`. Those are the
+source of truth for architecture, API patterns, database schema, and testing. This file
+lists only the essentials so the two never drift.
+
 ## Project Context
 
 - Java 23 / Spring Boot 3.4.1
 - Package: `edens.zac.portfolio.backend`
-- Current system: Collection/Content architecture (refactor complete)
-- MySQL (prod) / H2 (dev)
-- AWS S3 for media storage
+- Database: **PostgreSQL 16** (Flyway migrations, currently through V41). No MySQL, no H2.
+- Data access: JDBC via `NamedParameterJdbcTemplate` (not JPA/Spring Data). DAO classes
+  live in `dao/` and are named `*Repository`, extending a shared `BaseDao`.
+- AWS S3 for media storage, CloudFront CDN.
 
 ## Naming Conventions
 
-- **Entities**: `*Entity` (e.g., `CollectionEntity`, `ContentEntity`, `ContentImageEntity`, `CollectionContentEntity`)
-- **Models/DTOs**: `*Model`, `*Request`, `*ResponseDTO` (e.g., `CollectionModel`, `ContentImageUpdateRequest`)
-- **Services**: Interface `*Service`, Implementation `*ServiceImpl` (package-private)
-- **Repositories**: `*Repository`
-- **Controllers**: `*ControllerDev` (dev) / `*ControllerProd` (prod)
+- **Entities**: `*Entity` (e.g. `CollectionEntity`, `ContentEntity`, `ContentImageEntity`, `AppUserEntity`)
+- **Models/DTOs**: records, `*Model`, `*Request`, `*ResponseDTO`
+- **Services**: concrete `*Service` classes. **No** interface + `*ServiceImpl` split.
+- **DAOs**: `*Repository` (in `dao/`)
+- **Controllers**: `*ControllerProd` (read) and plain `*Controller` under `admin/`/`auth/`/`pub/`; `AdminController` is the dev-only surface.
+
+## API Design
+
+- URL families: `/api/read/...` (public read), `/api/admin/...` (admin/write),
+  `/api/auth/...` (session + passkeys), `/api/public/...` (unauthenticated).
+  There is no `/api/v1/...` versioning scheme.
+- NEVER expose entities directly -- use DTOs/Models.
+- Use `ResponseEntity<T>` with a concrete type (never `ResponseEntity<?>`).
+- JSON responses are objects (not arrays) at top level; camelCase properties.
+- No try-catch in controllers -- `GlobalExceptionHandler` maps exceptions to responses.
+- Always use `@Valid` on `@RequestBody` DTOs.
 
 ## Code Generation Principles
 
-**CRITICAL: Keep changes SMALL and CONCISE**
+- Keep changes SMALL and focused. Simplify, don't rebuild or rearchitect.
+- Reuse existing utilities, DTOs, and patterns.
+- Constructor injection only (`@RequiredArgsConstructor` + `final` fields). Never `@Autowired` on fields.
+- All imports at top of file; never fully qualified names inline.
+- `@Transactional(readOnly = true)` for queries, `@Transactional` for modifications.
+- Modern Java: records, switch expressions, `var` when type is obvious. Use `Optional` properly.
+- Logging via SLF4J; never `System.out.println`.
+- Plain ASCII only -- no emojis or Unicode symbols. Use `->`, `*` bullets, `[x]` checkboxes.
 
-- Simplify existing code, don't rebuild
-- Reuse existing utilities and patterns
-- Make minimal, focused changes
-- Avoid over-engineering or rearchitecting
-- Prefer refactoring existing code over creating new abstractions
+## Testing
 
-## Best Practices
-
-### Dependencies & Injection
-
-- **ALWAYS use constructor injection** with `@RequiredArgsConstructor`
-- Declare dependencies as `final` fields
-- Prefer package-private visibility for Spring components
-- **NEVER use field injection** or `@Autowired`
-
-### Imports
-
-- Place ALL imports at top of file
-- **NEVER use fully qualified names inline**
-- Use proper import statements
-
-### Transactions
-
-- `@Transactional(readOnly = true)` for queries
-- `@Transactional` for modifications
-- Keep transaction scope minimal
-
-### API Design
-
-- **NEVER expose entities directly** - use DTOs/Models
-- Use `ResponseEntity<T>` for explicit HTTP status codes
-- Versioned URLs: `/api/v1/resource` pattern
-- JSON responses must be objects (not arrays) at top level
-- Use camelCase for JSON properties
-
-### Entity Design
-
-- Use Jakarta Validation annotations
-- Use Lombok (`@Data`, `@Builder`, `@RequiredArgsConstructor`)
-- Add proper database indexes
-- Use `@CreationTimestamp` and `@UpdateTimestamp`
-
-### Testing
-
-- Use TestContainers for integration tests
-- Prefer real dependencies over excessive mocking
-- Test behavior, not implementation
-- Clear test names: `methodName_scenario_expectedResult()`
-- Arrange-Act-Assert pattern
-- Target single logic focus per test
-
-## Warnings - Patterns to AVOID
-
-### DO NOT:
-
-- Expose entities in REST responses
-- Use field injection (`@Autowired` on fields)
-- Use fully qualified class names inline
-- Create unnecessary abstractions or utility classes
-- Over-engineer solutions (keep it simple)
-- Rebuild existing working code
-- Use emojis or Unicode symbols (ASCII only)
-- Run build/compile commands (user handles builds)
-- Create large code changes - prefer incremental, focused edits
-- Create multiple similar files (e.g., multiple SQL scripts for the same fix) - create ONE file with the solution
-
-### DO:
-
-- Use existing utilities and patterns
-- Make small, focused code changes
-- Reuse existing DTOs and models
-- Follow existing architectural patterns
-- Keep code simple and testable
-
-## File Organization
-
-- `controller/` - REST endpoints (dev/prod separation)
-- `services/` - Business logic (interface + implementation)
-- `repository/` - Data access
-- `entity/` - JPA entities
-- `model/` - DTOs, requests, responses
-- `config/` - Configuration classes
-- `types/` - Enums and type definitions
-
-## Code Style
-
-- Modern Java: records, switch expressions, `var` when type obvious
-- Use `Optional` properly (avoid `.get()`, use `.orElse()`, `.orElseThrow()`)
-- Use Stream API appropriately
-- Logging: SLF4J with Logback, never `System.out.println`
-- Guard expensive log operations: `if (logger.isDebugEnabled())`
-
-## Character Encoding
-
-- **ALWAYS use plain ASCII** - no emojis, Unicode symbols, or special characters
-- Use `->` instead of arrows, `*` for bullets, `[x]` for checkboxes
+- JUnit 5 + Mockito + AssertJ + MockMvc. See `.claude/testing.md`.
+- Clear names: `methodName_scenario_expectedResult()`. Arrange-Act-Assert.
+- Test behavior, not implementation.

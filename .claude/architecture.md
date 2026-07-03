@@ -60,8 +60,20 @@ A single image can belong to multiple collections with different ordering/captio
 
 ### Collection Hierarchy
 - Collections can contain any ContentEntity type
-- CollectionType enum: `BLOG`, `PORTFOLIO`, `ART_GALLERY`, `CLIENT_GALLERY`, `HOME`, `MISC`
-- Collections have: slug, title, coverImage, date, visibility flags
+- `CollectionType` enum: `BLOG`, `PORTFOLIO`, `ART_GALLERY`, `CLIENT_GALLERY`, `HOME`, `PARENT`, `MISC` (`HOME` and `PARENT` are parent-only: they hold child collections, not leaf content)
+- `ContentType` enum: `IMAGE`, `TEXT`, `GIF`, `COLLECTION`
+- `CollectionVisibility` enum: three-state visibility (see `V20__visibility_3state.sql`)
+- Collections have: slug (unique), title, coverImage, date, rating, visibility, and (for client galleries) password + recipient allow-list
+
+### Authentication & Users
+- `AppUserEntity` -- application user (email, BCrypt password hash for break-glass login)
+- `UserSessionEntity` -- opaque DB-backed session (SHA-256 token hash, sliding + absolute expiry)
+- `WebAuthnCredentialEntity` -- registered passkey credentials
+- `UserInviteEntity` -- invite tokens for account creation
+- `UserCollectionMembershipEntity` -- per-user gallery membership + role
+- `UserSavedImageEntity`, `UserFollowedCollectionEntity`, `UserSelectEntity`, `UserRatingOverrideEntity` -- user-space features
+
+See [auth.md](auth.md) for the full authentication model.
 
 ## Data Flow: Image Upload
 1. Controller receives multipart file
@@ -80,6 +92,6 @@ A single image can belong to multiple collections with different ordering/captio
 6. Controller wraps in `ResponseEntity<T>`
 7. On exception: `GlobalExceptionHandler` maps to appropriate HTTP status/body
 
-<!-- PLANNED CHANGES (refactor_2026.md):
-- Phase 4: DAOs will be consolidated and potentially renamed to *Repository
--->
+<!-- DAO classes live in dao/ and are named *Repository (e.g. CollectionRepository,
+     ContentRepository), extending a shared BaseDao. They use NamedParameterJdbcTemplate,
+     not Spring Data. -->

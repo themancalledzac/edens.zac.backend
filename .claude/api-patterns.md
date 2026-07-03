@@ -2,9 +2,16 @@
 
 ## Endpoint Structure
 ```
-/api/read/...    - Public GET endpoints (prod, @Profile("prod"))
-/api/admin/...   - Admin/write endpoints (dev, @Profile("dev"))
+/api/read/...    - Public read endpoints (controller/prod/, controller/user/)
+/api/admin/...   - Admin/write endpoints (controller/admin/, plus dev-only AdminController)
+/api/auth/...    - Login, logout, session, WebAuthn passkeys, invites (controller/auth/)
+/api/public/...  - Unauthenticated public endpoints (controller/pub/)
 ```
+
+Controllers are NOT gated by profile except `controller/dev/AdminController` (`@Profile("dev")`).
+All other controllers run in both dev and prod. In prod, `/api/read`, `/api/admin`, and
+`/api/public` sit behind the BFF and the `InternalSecretFilter` shared-secret check; `/api/auth`
+routes are governed by Spring Security (`SecurityConfig`). See `.claude/auth.md`.
 
 ## Error Handling
 
@@ -116,9 +123,15 @@ Key points:
 - Always use `@Valid` with `@RequestBody` for request DTOs
 - Use typed `ResponseEntity<T>` -- never `ResponseEntity<?>`
 
-## Dev vs Prod Controllers
-- `*ControllerDev` (`/api/admin/...`): Write/admin endpoints, `@Profile("dev")`
-- `*ControllerProd` (`/api/read/...`): Read-only public endpoints, `@Profile("prod")`
-- Never expose dev/admin endpoints in production
+## Controller Families
+- `controller/prod/*ControllerProd` (`/api/read/...`): read endpoints; run in both profiles
+- `controller/admin/*` (`/api/admin/...`): admin/write endpoints; run in both profiles, protected in prod by the BFF + `InternalSecretFilter`
+- `controller/auth/*` (`/api/auth/...`): session, WebAuthn, invites; protected by Spring Security
+- `controller/pub/*` (`/api/public/...`): unauthenticated, rate-limited
+- `controller/dev/AdminController` (`/api/admin/...`): dev-only surface, `@Profile("dev")` -- the only profile-gated controller
+
+Do NOT switch `/api/admin/**` to Spring `authenticated()`: those calls carry the BFF
+shared secret, not a session principal. Authorization for that family is the prod-only
+`InternalSecretFilter` + BFF perimeter.
 
 <!-- Phase 3a DONE: Interface/Impl split removed -- controllers inject concrete service classes directly -->

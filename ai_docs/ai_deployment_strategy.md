@@ -467,5 +467,5 @@ Currently logs are in Docker json-file driver (10MB max, 3 files). For searchabl
 - **No automatic deployment**: Merge to main does NOT deploy. Manual SSH required.
 - **Database is co-located**: PostgreSQL runs on same EC2 instance but in a separate Docker Compose stack (`~/portfolio-db/`)
 - **Backups go to S3**: If AWS CLI is installed and `AWS_PORTFOLIO_S3_BUCKET` is set
-- **Legacy MySQL scripts exist**: `scripts/backup-database.sh`, `scripts/restore-database.sh`, `scripts/migrate-from-rds.sh` — these are deprecated, PostgreSQL equivalents are `scripts/backup-postgres.sh` and `scripts/restore-postgres.sh`
-- **Security**: Port 5432 should NOT be in the security group. Use SSH tunnel.
+- **Backup/restore scripts**: `scripts/backup-postgres.sh` and `scripts/restore-postgres.sh` (PostgreSQL; the older MySQL/RDS-era scripts have been removed)
+- **Security**: Port 5432 should NOT be in the security group. Use `scripts/db-tunnel.sh` (SSH tunnel).

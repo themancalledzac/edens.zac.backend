@@ -15,7 +15,7 @@
 
 ```
 ~/portfolio-db/              # PostgreSQL service
-├── docker compose.yml       # PostgreSQL container config
+├── docker-compose.yml       # PostgreSQL container config
 ├── .env                     # Database credentials (not in git)
 ├── data/                    # PostgreSQL data volume (persistent)
 └── scripts/                 # Initialization scripts
@@ -23,7 +23,7 @@
 
 ~/portfolio-backend/         # Application service
 ├── repo/                    # Git repository clone
-│   ├── docker compose.yml   # Application container config
+│   ├── docker-compose.yml   # Application container config
 │   └── .env                 # App environment variables (copied from parent)
 └── .env                     # Master environment file (not in git)
 ```
@@ -31,7 +31,7 @@
 ## PostgreSQL Service
 
 ### Configuration
-**File**: `scripts/ec2-postgres/docker compose.yml`
+**File**: `scripts/ec2-postgres/docker-compose.yml`
 **Image**: `postgres:16-alpine`
 **Container name**: `portfolio-postgres`
 **Port**: `5432` (exposed to host)
@@ -53,7 +53,7 @@ POSTGRES_PASSWORD=<secure-password>
 
 **1. Copy files to EC2**:
 ```bash
-scp -i "$EC2_PEM_FILE" scripts/ec2-postgres/docker compose.yml "$EC2_USER@$EC2_HOST:~/portfolio-db/"
+scp -i "$EC2_PEM_FILE" scripts/ec2-postgres/docker-compose.yml "$EC2_USER@$EC2_HOST:~/portfolio-db/"
 scp -i "$EC2_PEM_FILE" scripts/ec2-postgres/env.template "$EC2_USER@$EC2_HOST:~/portfolio-db/"
 scp -i "$EC2_PEM_FILE" scripts/postgres-init.sql "$EC2_USER@$EC2_HOST:~/portfolio-db/scripts/"
 ```
@@ -120,10 +120,11 @@ docker compose restart
 ## Application Service
 
 ### Configuration
-**File**: `docker compose.yml` (root of repo)
+**File**: `docker-compose.yml` (root of repo)
 **Image**: `edens.zac.backend:latest`
 **Port**: `8080` (exposed to host)
-**No local PostgreSQL**: Database service commented out, uses EC2 PostgreSQL
+**No local PostgreSQL**: the root `docker-compose.yml` has no database service; the app
+connects to the separate PostgreSQL stack in `~/portfolio-db/`.
 
 **Environment variables** (from `~/portfolio-backend/.env`):
 ```bash
@@ -210,57 +211,43 @@ docker compose exec backend /bin/sh
 
 **Connecting local Spring app to EC2 PostgreSQL**:
 
-Create `.env` file in local repo root:
-```bash
-POSTGRES_HOST=<ec2-public-ip>
-POSTGRES_PORT=5432
-POSTGRES_DB=edens_zac
-POSTGRES_USER=zedens
-POSTGRES_PASSWORD=<same-as-ec2-db-password>
-
-# AWS credentials (same as EC2)
-AWS_ACCESS_KEY_ID=<key>
-AWS_SECRET_ACCESS_KEY=<secret>
-AWS_REGION=us-west-2
-AWS_PORTFOLIO_S3_BUCKET=<bucket-name>
-AWS_CLOUDFRONT_DOMAIN=<domain>
-
-SPRING_PROFILES_ACTIVE=default
-```
-
-**Security**: Use SSH tunnel for database access (do NOT open port 5432 in security group):
-```bash
-ssh -L 5432:localhost:5432 -i ~/key.pem ec2-user@<ec2-ip>
-```
-
-**Connection string in Spring**:
-```
-jdbc:postgresql://<ec2-public-ip>:5432/edens_zac
-```
+1. Copy `.env.example` to `.env` and fill in the values (see `.env.example` for every key).
+   Set `POSTGRES_HOST=localhost` -- local dev reaches the database through an SSH tunnel, not
+   directly.
+2. Open the tunnel (port 5432 is deliberately closed in the security group):
+   ```bash
+   ./scripts/db-tunnel.sh up      # ensure SSH access + forward localhost:5432, print connection info
+   ./scripts/db-tunnel.sh psql    # optional: drop into psql
+   ./scripts/db-tunnel.sh down    # close when done
+   ```
+   `db-tunnel.sh` reads all host/credential values from the environment (`EC2_PEM_FILE`,
+   `EC2_USER`, `EC2_HOST`, `POSTGRES_*`) -- nothing is hard-coded, since this repo is public.
+3. With the tunnel up, Spring connects at:
+   ```
+   jdbc:postgresql://localhost:5432/edens_zac
+   ```
 
 ## Scripts Reference
 
 | Script | Location | Purpose |
 |--------|----------|---------|
 | `deploy.sh` | Repo root | Deploy application to EC2 (run on EC2) |
+| `db-tunnel.sh` | `scripts/db-tunnel.sh` | Open an SSH tunnel to the EC2 PostgreSQL for local access |
 | `setup-ec2.sh` | `scripts/setup-ec2.sh` | One-time EC2 instance setup |
 | `backup-postgres.sh` | `scripts/backup-postgres.sh` | PostgreSQL backup with S3 sync |
 | `restore-postgres.sh` | `scripts/restore-postgres.sh` | Restore PostgreSQL from backup |
-| `backup-database.sh` | `scripts/backup-database.sh` | **DEPRECATED** — Legacy MySQL backup |
-| `restore-database.sh` | `scripts/restore-database.sh` | **DEPRECATED** — Legacy MySQL restore |
-| `migrate-from-rds.sh` | `scripts/migrate-from-rds.sh` | **DEPRECATED** — RDS → EC2 MySQL migration |
-| `postgres-init.sql` | `scripts/postgres-init.sql` | PostgreSQL schema initialization |
+| `ec2-postgres/` | `scripts/ec2-postgres/` | PostgreSQL container config + env template (copied to `~/portfolio-db/`) |
 
-**Note**: Backup/restore/migrate scripts are legacy MySQL scripts. PostgreSQL backups use `pg_dump` manually.
+**Note**: Backups use `backup-postgres.sh` / `restore-postgres.sh` (wrapping `pg_dump` / `psql`).
 
 ## File Locations
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `scripts/ec2-postgres/docker compose.yml` | Repo | PostgreSQL container config (copy to EC2) |
+| `scripts/ec2-postgres/docker-compose.yml` | Repo | PostgreSQL container config (copy to EC2) |
 | `scripts/ec2-postgres/env.template` | Repo | Template for PostgreSQL `.env` file |
 | `scripts/postgres-init.sql` | Repo | Database schema and initial data |
-| `docker compose.yml` | Repo root | Application container config (backend only, no local DB) |
+| `docker-compose.yml` | Repo root | Application container config (backend only, no local DB) |
 | `~/portfolio-db/.env` | EC2 only | PostgreSQL credentials (not in git) |
 | `~/portfolio-backend/.env` | EC2 only | Application environment variables (not in git) |
 
@@ -417,11 +404,11 @@ ls -la ~/portfolio-backend/repo/.env
 
 - **Architecture**: Single EC2 instance, two separate Docker Compose services
 - **Database sharing**: Local dev connects to EC2 PostgreSQL remotely (not localhost)
-- **No local database**: `docker compose.yml` has PostgreSQL service commented out
+- **No local database**: the root `docker-compose.yml` has no PostgreSQL service; the DB is a separate stack in `~/portfolio-db/`
 - **Deployment is manual**: `deploy.sh` must be run via SSH, no GitHub Actions automation
 - **Environment files**: `.env` files exist only on EC2 and local dev, never in git
-- **Legacy scripts**: MySQL backup/restore/migration scripts are deprecated (PostgreSQL now)
-- **PostgreSQL backups**: Automated via `scripts/backup-postgres.sh`, restore via `scripts/restore-postgres.sh`
+- **Local DB access**: use `scripts/db-tunnel.sh` (SSH tunnel); port 5432 is not open in the security group
+- **PostgreSQL backups**: `scripts/backup-postgres.sh`, restore via `scripts/restore-postgres.sh`
 - **Connection patterns**:
   - EC2 app uses `POSTGRES_HOST=localhost` or EC2 private IP
   - Local dev uses `POSTGRES_HOST=<ec2-public-ip>`

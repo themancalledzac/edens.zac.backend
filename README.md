@@ -7,7 +7,9 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI Pipeline](https://github.com/themancalledzac/edens.zac.backend/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/themancalledzac/edens.zac.backend/actions/workflows/ci-cd.yml)
 
-Backend REST API for a photography portfolio and content management platform. Handles image upload and processing, collection management, multi-dimensional search, client gallery access control, and media delivery through AWS S3 + CloudFront.
+Backend REST API for a photography portfolio and content management platform. Handles image upload and processing, collection management, multi-dimensional search, client gallery access control, passkey/session authentication, and media delivery through AWS S3 + CloudFront.
+
+The API is consumed by a Next.js frontend via a server-side BFF (backend-for-frontend) proxy; browsers never call this API directly in production.
 
 ---
 
@@ -18,11 +20,12 @@ Backend REST API for a photography portfolio and content management platform. Ha
 | **Runtime** | Java 23, Spring Boot 3.4.1 |
 | **Database** | PostgreSQL 16, Flyway migrations |
 | **Data Access** | JDBC via `NamedParameterJdbcTemplate` (not JPA/Hibernate) |
-| **Storage** | AWS S3 (images, GIFs, backups) |
+| **Auth** | Spring Security, opaque DB-backed sessions, WebAuthn passkeys (webauthn4j) |
+| **Storage** | AWS S3 (images, GIFs) |
 | **CDN** | AWS CloudFront with Origin Access Control |
-| **Hosting** | AWS EC2 |
+| **Hosting** | AWS EC2 (Docker Compose) |
 | **Image Processing** | Thumbnailator, Apache Commons Imaging, Metadata Extractor |
-| **Build** | Maven, Docker multi-stage builds |
+| **Build** | Maven, Docker multi-stage build |
 | **CI** | GitHub Actions (lint, test, build, security scan) |
 | **Code Style** | Google Java Format (Spotless) + Checkstyle |
 | **Testing** | JUnit 5, Mockito, AssertJ, MockMvc |
@@ -31,14 +34,16 @@ Backend REST API for a photography portfolio and content management platform. Ha
 
 ## Features
 
-- **Image Upload & Processing** -- Multi-resolution thumbnail generation (web, thumbnail, small), EXIF metadata extraction (camera, lens, GPS, exposure), WebP conversion
-- **Collection Management** -- Four collection types (Blog, Portfolio, Art Gallery, Client Gallery) with pagination, ordering, and nested collection support
-- **Multi-Dimensional Image Search** -- Filter by tags, people, camera, lens, location, rating, film/digital, date range with dynamic SQL query building
+- **Image Upload & Processing** -- Multi-resolution image generation, EXIF metadata extraction (camera, lens, GPS, exposure, film metadata), WebP conversion
+- **Collection Management** -- Multiple collection types (Blog, Portfolio, Art Gallery, Client Gallery, Home, Parent, Misc) with pagination, ordering, nested/child collections, and per-collection visibility
+- **Multi-Dimensional Image Search** -- Filter by tags, people, camera, lens, location, rating, film/digital, and date range with dynamic SQL query building
 - **Location Pages** -- Collections and orphan images grouped by location with count hints for frontend clickability
-- **Client Gallery Protection** -- SHA-256 password hashing, access token flow, rate-limited authentication
-- **GIF & Video Support** -- GIF upload with first-frame WebP thumbnail extraction, MP4 processing
-- **Metadata Management** -- Tags, people, cameras, lenses, locations, film types with batch operations
-- **Content Reordering** -- Bulk CASE-based SQL reorder for drag-and-drop collection management
+- **Client Gallery Protection** -- Password-gated galleries, HMAC access tokens, per-recipient allow-lists, rate-limited access
+- **Authentication** -- Session login with WebAuthn passkeys and a password break-glass path, invite-based account creation, HttpOnly session cookies
+- **User Space** -- Per-user saved images, followed collections, content selects, and rating overrides
+- **GIF & Video Support** -- GIF upload with first-frame thumbnail extraction, MP4 variant handling
+- **Metadata Management** -- Tags, people, cameras, lenses, locations, and film types with batch operations
+- **Content Reordering** -- Bulk SQL reorder for drag-and-drop collection management
 
 ---
 
@@ -46,33 +51,34 @@ Backend REST API for a photography portfolio and content management platform. Ha
 
 ```
 +------------------+
-|   Next.js 15     |
-|   (Amplify)      |
+|  Next.js         |
+|  frontend + BFF  |
 +--------+---------+
          |
-         | REST API
+         | REST API (X-Internal-Secret in prod)
          |
 +--------v---------+
 |   Spring Boot    |
 |   REST API       |
-|   (EC2)          |
+|   (EC2, Docker)  |
 +--------+---------+
          |
   +------+------+
   |             |
-+-v------+  +--v-----------+
-| Postgres|  | AWS S3       |
-| (EC2)  |  | + CloudFront |
-+--------+  +--------------+
++-v-------+  +--v-----------+
+| Postgres |  | AWS S3       |
+| (EC2,    |  | + CloudFront |
+|  Docker) |  |              |
++---------+  +--------------+
 ```
 
-**API Layer** -- Dual-profile controllers: `prod` for public read endpoints, `dev` for admin/write operations. Global exception handling via `@ControllerAdvice`.
+**API Layer** -- Controllers grouped by family under `controller/` (see [API Endpoints](#api-endpoints)). Global exception handling via `@ControllerAdvice` (`GlobalExceptionHandler`). In production, all write/admin traffic is fronted by the BFF and gated by a shared-secret filter (`InternalSecretFilter`); session/passkey routes are protected by Spring Security.
 
 **Service Layer** -- Concrete service classes (no interface/impl split). Processing utilities handle entity-to-model conversion, metadata population, and batch operations.
 
-**Data Access** -- Raw JDBC with `NamedParameterJdbcTemplate` and hand-written SQL. Row mappers, parameter sources, and a `BaseDao` utility class. No ORM magic.
+**Data Access** -- Raw JDBC with `NamedParameterJdbcTemplate` and hand-written SQL. Row mappers, parameter sources, and a `BaseDao` utility. DAO classes live in `dao/` and are named `*Repository`. No ORM.
 
-**Storage** -- Images uploaded to S3 in multiple resolutions. CloudFront serves them globally. Flyway manages database schema evolution.
+**Storage** -- Images uploaded to S3 in multiple resolutions; CloudFront serves them globally. Flyway manages schema evolution.
 
 ---
 
@@ -81,58 +87,42 @@ Backend REST API for a photography portfolio and content management platform. Ha
 ```
 src/main/java/edens/zac/portfolio/backend/
   controller/
-    dev/              Admin endpoints (@Profile("dev"))
-    prod/             Public read endpoints (@Profile("prod"))
-  services/           Business logic (concrete *Service classes)
-  dao/                Data access (JDBC, NamedParameterJdbcTemplate)
-  entity/             Database entities (*Entity suffix)
-  model/              DTOs, requests, responses (*Model, *Request, Records)
-  types/              Enums (CollectionType, ContentType, DisplayMode)
-  config/             Spring configuration, exception handling
+    admin/    Admin/write endpoints (run in dev + prod)
+    auth/     Login, logout, session, WebAuthn passkeys, invites
+    dev/      Dev-only admin surface (@Profile("dev"))
+    prod/     Public read endpoints (/api/read/...)
+    pub/      Unauthenticated public endpoints (/api/public/...)
+    user/     Authenticated per-user endpoints
+  services/   Business logic (concrete *Service classes)
+  dao/        Data access (JDBC, NamedParameterJdbcTemplate; *Repository classes)
+  entity/     Database entities (*Entity suffix)
+  model/      DTOs, requests, responses (records, *Model, *Request)
+  types/      Enums (CollectionType, ContentType, CollectionVisibility, DisplayMode, ...)
+  config/     Spring configuration, security, filters, exception handling
 src/main/resources/
-  db/migration/       Flyway SQL migrations (V1-V5)
-terraform/            AWS infrastructure as code
-docker/               Docker configurations
-scripts/              Deployment and utility scripts
+  db/migration/  Flyway SQL migrations (V2 .. V41)
+terraform/       AWS infrastructure as code
+scripts/         Deployment, DB tunnel, and backup utilities
+ai_docs/         Deployment / infrastructure reference docs
 ```
 
 ---
 
 ## API Endpoints
 
-### Public Read Endpoints (`/api/read/`)
+Endpoints are organised into families by base path. The tables below list the base path and the controller that serves each family; consult the controller for the exact method-level routes (kept there to avoid documentation drift).
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/collections` | Paginated list of all collections |
-| `GET` | `/collections/{slug}` | Collection with paginated content (supports `?accessToken=`) |
-| `GET` | `/collections/{slug}/meta` | Lightweight collection metadata (SEO) |
-| `GET` | `/collections/type/{type}` | Visible collections by type |
-| `GET` | `/collections/location/{name}` | Collections + orphan images at a location |
-| `POST` | `/collections/{slug}/access` | Validate client gallery password, returns access token |
-| `GET` | `/content/images/search` | Multi-filter image search with pagination |
-| `GET` | `/content/tags` | All tags |
-| `GET` | `/content/people` | All people |
-| `GET` | `/content/cameras` | All cameras |
-| `GET` | `/content/lenses` | All lenses |
-| `GET` | `/content/locations` | Locations with collection/image counts |
-| `GET` | `/content/film-metadata` | Film types and formats |
+| Family | Base path | Auth in prod | Controller(s) |
+|--------|-----------|--------------|---------------|
+| **Public read** | `/api/read/...` | BFF shared-secret | [`controller/prod/`](src/main/java/edens/zac/portfolio/backend/controller/prod) |
+| **Per-user** | `/api/read/user/...` | Session cookie + BFF secret | [`UserControllerProd`](src/main/java/edens/zac/portfolio/backend/controller/prod/UserControllerProd.java), [`UserSavesControllerProd`](src/main/java/edens/zac/portfolio/backend/controller/prod/UserSavesControllerProd.java), [`UserFollowsControllerProd`](src/main/java/edens/zac/portfolio/backend/controller/prod/UserFollowsControllerProd.java), [`UserSelectsControllerProd`](src/main/java/edens/zac/portfolio/backend/controller/prod/UserSelectsControllerProd.java), [`UserRatingOverrideControllerProd`](src/main/java/edens/zac/portfolio/backend/controller/user/UserRatingOverrideControllerProd.java) |
+| **Admin / write** | `/api/admin/...` | BFF shared-secret | [`controller/admin/`](src/main/java/edens/zac/portfolio/backend/controller/admin) (prod + dev), [`controller/dev/AdminController`](src/main/java/edens/zac/portfolio/backend/controller/dev/AdminController.java) (`@Profile("dev")` only) |
+| **Auth** | `/api/auth/...` | Spring Security (see below) | [`AuthController`](src/main/java/edens/zac/portfolio/backend/controller/auth/AuthController.java), [`WebAuthnController`](src/main/java/edens/zac/portfolio/backend/controller/auth/WebAuthnController.java), [`InviteController`](src/main/java/edens/zac/portfolio/backend/controller/auth/InviteController.java) |
+| **Public (unauth)** | `/api/public/...` | Public + rate-limited | [`MessagesControllerPublic`](src/main/java/edens/zac/portfolio/backend/controller/pub/MessagesControllerPublic.java) |
 
-### Admin Endpoints (`/api/admin/`)
+**Read family highlights** (`/api/read/...`): paginated collection list and single-collection reads (`/collections`, `/collections/{slug}`, `/collections/{slug}/meta`, `/collections/location/{slug}`), a multi-filter image search (`/content/images/search`), metadata lookups (`/content/tags`, `/content/people`, `/content/cameras`, `/content/lenses`, `/content/locations`, `/content/film-metadata`), and authenticated content downloads.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/collections` | All collections (admin view) |
-| `POST` | `/collections` | Create collection |
-| `PUT` | `/collections/{id}` | Update collection metadata, tags, people |
-| `DELETE` | `/collections/{id}` | Delete collection |
-| `POST` | `/collections/{id}/children` | Create child collection |
-| `PUT` | `/collections/{id}/reorder` | Reorder collection content |
-| `POST` | `/content/upload/images` | Batch image upload with EXIF extraction |
-| `POST` | `/content/upload/gif` | GIF upload with thumbnail generation |
-| `PATCH` | `/content/images/batch` | Batch update image metadata |
-| `POST` | `/content/{collectionId}/add` | Add content to collection |
-| `DELETE` | `/content/{collectionId}/remove` | Remove content from collection |
+For the authentication model (sessions, passkeys, invites, the BFF secret perimeter), see [`.claude/auth.md`](.claude/auth.md).
 
 ---
 
@@ -142,7 +132,7 @@ scripts/              Deployment and utility scripts
 
 - Java 23+
 - Maven 3.8+ (or use the included `./mvnw` wrapper)
-- PostgreSQL 16 (local or EC2 via SSH tunnel)
+- Access to the PostgreSQL 16 database (see [Database & Local Development](#database--local-development))
 - AWS credentials for S3
 
 ### Local Development
@@ -157,15 +147,10 @@ scripts/              Deployment and utility scripts
 2. Set up environment:
    ```bash
    cp .env.example .env
-   # Edit .env with your database and AWS credentials
+   # Edit .env with your database and AWS credentials (see .env.example for every key)
    ```
 
-3. Connect to the EC2 database via SSH tunnel:
-   ```bash
-   ssh -L 5432:localhost:5432 -i ~/key.pem ec2-user@<ec2-ip>
-   ```
-
-4. Run:
+3. Open a tunnel to the database (see below), then run:
    ```bash
    ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
    ```
@@ -178,7 +163,25 @@ The API runs at `http://localhost:8080`.
 docker compose up --build
 ```
 
-The backend connects to an external PostgreSQL instance. The database runs separately on EC2.
+The backend container connects to an **external** PostgreSQL instance (there is no database service in `docker-compose.yml`). `SPRING_PROFILES_ACTIVE` must be set explicitly to `dev` or `prod`.
+
+---
+
+## Database & Local Development
+
+The database is **PostgreSQL 16 running in its own Docker Compose stack** on the EC2 host (container `portfolio-postgres`, managed from `~/portfolio-db/`). The Spring Boot application runs as a **separate** Docker Compose stack on the same instance, so redeploying the app never touches the database. Schema is managed by Flyway (`src/main/resources/db/migration`, currently through `V41`).
+
+Port `5432` is **not** open in the EC2 security group. Local development reaches the database over an SSH tunnel that forwards `localhost:5432` to the instance:
+
+```bash
+./scripts/db-tunnel.sh up      # ensure SSH access + open the tunnel, prints connection info
+./scripts/db-tunnel.sh psql    # up, then drop into an interactive psql session
+./scripts/db-tunnel.sh down    # close the tunnel
+```
+
+`db-tunnel.sh` reads all host and credential values from the environment (this repo is public, so nothing is hard-coded) -- set `EC2_PEM_FILE`, `EC2_USER`, `EC2_HOST`, and the `POSTGRES_*` values in your shell profile or a git-ignored `.env`. With the tunnel up, point Spring (and any GUI client) at `jdbc:postgresql://localhost:5432/edens_zac`.
+
+See [ai_docs/ai_deployment_strategy.md](ai_docs/ai_deployment_strategy.md) and [ai_docs/ai_ec2.md](ai_docs/ai_ec2.md) for the full infrastructure layout.
 
 ---
 
@@ -202,32 +205,34 @@ The build uses [Spotless](https://github.com/diffplug/spotless) with [google-jav
 
 ## Environment Variables
 
+Every key the application consumes is documented in [`.env.example`](.env.example). The essentials:
+
 | Variable | Description |
 |----------|-------------|
-| `POSTGRES_HOST` | Database host |
-| `POSTGRES_PORT` | Database port (default: 5432) |
-| `POSTGRES_DB` | Database name |
-| `POSTGRES_USERNAME` | Database user |
-| `POSTGRES_PASSWORD` | Database password |
-| `AWS_ACCESS_KEY_ID` | AWS access key |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
-| `AWS_REGION` | AWS region (default: us-west-2) |
-| `S3_BUCKET_NAME` | S3 bucket for image storage |
-| `CLOUDFRONT_DOMAIN` | CloudFront distribution domain |
-| `INTERNAL_SECRET` | Secret for prod endpoint authentication |
+| `SPRING_PROFILES_ACTIVE` | `dev` (local) or `prod` (EC2). No silent default. |
+| `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` | Database connection (host is `localhost` when tunnelling) |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` | Database credentials |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 |
+| `AWS_PORTFOLIO_S3_BUCKET` | S3 bucket for image storage |
+| `AWS_CLOUDFRONT_DOMAIN` | CloudFront distribution domain |
+| `AWS_CLOUDFRONT_DISTRIBUTION_ID` | CloudFront distribution id, for cache invalidation on delete (optional) |
+| `INTERNAL_API_SECRET` | Shared secret between the Next.js BFF proxy and this backend (prod perimeter) |
+| `ACCESS_TOKEN_SECRET` | Secret for client-gallery HMAC access tokens (required) |
+| `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party config |
+| `EMAIL_ENABLED` / `EMAIL_FROM_ADDRESS` / `EMAIL_FRONTEND_BASE_URL` | Transactional email (AWS SES v2) |
 
 ---
 
 ## Deployment
 
-Manual deploy via SSH to EC2:
+Manual deploy via SSH to EC2 (CI runs checks on merge; deployment is intentionally not automated):
 
 ```bash
 ssh -i ~/key.pem ec2-user@<ec2-ip>
 bash ~/portfolio-backend/repo/deploy.sh
 ```
 
-See [ai_docs/ai_deployment_strategy.md](ai_docs/ai_deployment_strategy.md) for the full deployment guide.
+See [ai_docs/ai_deployment_strategy.md](ai_docs/ai_deployment_strategy.md) for the full deployment guide and [ai_docs/ai_cicd.md](ai_docs/ai_cicd.md) for the CI pipeline.
 
 ---
 
@@ -235,11 +240,11 @@ See [ai_docs/ai_deployment_strategy.md](ai_docs/ai_deployment_strategy.md) for t
 
 AWS infrastructure is managed with Terraform in the `terraform/` directory:
 
-- **EC2** -- Application host (Spring Boot + PostgreSQL)
-- **S3** -- Image storage and database backups
+- **EC2** -- Application host (Spring Boot + PostgreSQL, each as its own Docker Compose stack)
+- **S3** -- Image storage
 - **CloudFront** -- CDN with Origin Access Control
-- **Security Groups** -- Network access rules
-- **IAM** -- Users and policies for S3 access
+- **Security Groups** -- Network access rules (port 5432 deliberately closed; use the SSH tunnel)
+- **IAM** -- User and policies for S3 access
 
 ---
 
