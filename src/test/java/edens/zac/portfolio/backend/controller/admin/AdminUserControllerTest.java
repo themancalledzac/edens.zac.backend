@@ -426,8 +426,12 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"alice@example.com\",\"status\":\"INVITED\"}"))
           .andExpect(status().isConflict());
 
+      // 409 is a normal return, so @Transactional commits this path: NO field may have been
+      // written by the time the conflict is detected, or a partial update would persist.
       verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+      verify(appUserRepository, never()).updateName(anyLong(), any());
       verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(appUserRepository, never()).updateDescription(anyLong(), any());
     }
 
     @Test
@@ -515,6 +519,20 @@ class AdminUserControllerTest {
 
       verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
       verify(appUserRepository, never()).findByEmail(anyString());
+    }
+
+    @Test
+    void updateWithMalformedEmailReturns400() throws Exception {
+      // Pins the @Email constraint on UpdateUserRequest: bean validation rejects the body
+      // before the controller body runs, so no findById stub is needed and nothing is written.
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"not-an-email\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isBadRequest());
+
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
     }
   }
 

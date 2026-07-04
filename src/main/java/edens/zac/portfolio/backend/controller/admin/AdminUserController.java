@@ -180,9 +180,10 @@ public class AdminUserController {
 
   /**
    * Update the admin-editable fields (email, display name, status, description). Email is the login
-   * identity: when non-null and non-blank it is normalized to lowercase and updated, returning
+   * identity: when non-null and non-empty it is normalized to lowercase and updated, returning
    * {@code 409 Conflict} if another user already owns it — resubmitting the user's own email (any
-   * casing) succeeds. A {@code null} or blank email leaves it unchanged.
+   * casing) succeeds. A {@code null}, empty, or omitted email leaves it unchanged (whitespace-only
+   * is rejected with {@code 400} by the {@code @Email} constraint before this method runs).
    *
    * @param id the {@code app_user.id}
    * @param request the new email (nullable = unchanged), display name (nullable), status

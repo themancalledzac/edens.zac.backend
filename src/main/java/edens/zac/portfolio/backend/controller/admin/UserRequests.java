@@ -44,11 +44,12 @@ public final class UserRequests {
 
   /**
    * Body for {@code PATCH /api/admin/users/{id}} — updates the admin-editable fields. {@code email}
-   * is optional: {@code null} or blank leaves the login email unchanged; when present the
-   * controller normalizes it to lowercase and returns {@code 409 Conflict} if another user already
-   * owns it. {@code displayName} may be {@code null} to clear it; {@code status} is required.
+   * is optional: {@code null}, empty, or omitted leaves the login email unchanged (whitespace-only
+   * fails the {@code @Email} constraint with {@code 400}); when non-empty the controller normalizes
+   * it to lowercase and returns {@code 409 Conflict} if another user already owns it. {@code
+   * displayName} may be {@code null} to clear it; {@code status} is required.
    *
-   * @param email the new account email, or {@code null}/blank to leave it unchanged
+   * @param email the new account email, or {@code null}/empty to leave it unchanged
    * @param displayName the new display name, or {@code null} to clear
    * @param status the new lifecycle status (INVITED / ACTIVE / DISABLED)
    * @param description the admin-authored per-user description, or {@code null} to clear
