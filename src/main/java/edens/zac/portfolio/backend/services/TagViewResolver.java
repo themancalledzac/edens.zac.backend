@@ -12,7 +12,10 @@ import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,13 +55,13 @@ public class TagViewResolver {
     }
     TagEntity tag = tagOpt.get();
 
-    List<CollectionVisibility> allowed =
-        isLocalEnvironment
-            ? List.of(
-                CollectionVisibility.LISTED,
-                CollectionVisibility.UNLISTED,
-                CollectionVisibility.HIDDEN)
-            : List.of(CollectionVisibility.LISTED);
+    // A converted tag has handed its slug to a real collection; that collection now renders
+    // instead.
+    if (tag.getConvertedCollectionId() != null) {
+      return Optional.empty();
+    }
+
+    List<CollectionVisibility> allowed = CollectionVisibility.visibleScope(isLocalEnvironment);
 
     // Members: tagged collections first (deliberate collection-level tags), then tagged images.
     List<CollectionEntity> collectionRows =
@@ -66,8 +69,16 @@ public class TagViewResolver {
     List<CollectionModel> memberCollections =
         collectionProcessingUtil.batchConvertToBasicModels(collectionRows);
 
+    // findImageContentByTagId returns ids in the intended order, but findImagesByIds uses an
+    // unordered "WHERE c.id IN (:ids)" (shared by 4 other callers, so it stays unordered).
+    // Re-key the fetched entities by id and re-stream over the ordered id list to restore order,
+    // dropping any id that resolved to no entity.
     List<Long> imageContentIds = tagRepository.findImageContentByTagId(tag.getId(), allowed);
-    List<ContentImageEntity> imageEntities = contentRepository.findImagesByIds(imageContentIds);
+    Map<Long, ContentImageEntity> imagesById =
+        contentRepository.findImagesByIds(imageContentIds).stream()
+            .collect(Collectors.toMap(ContentImageEntity::getId, image -> image));
+    List<ContentImageEntity> imageEntities =
+        imageContentIds.stream().map(imagesById::get).filter(Objects::nonNull).toList();
     List<ContentModels.Image> memberImages =
         contentModelConverter.batchConvertImageEntitiesToModels(imageEntities);
 
@@ -87,6 +98,7 @@ public class TagViewResolver {
             .slug(tag.getSlug())
             .title(tag.getTagName())
             .type(CollectionType.PARENT)
+            .derived(true)
             .visibility(CollectionVisibility.LISTED)
             .coverImage(representativeCover(memberCollections, memberImages))
             .content(content)

@@ -9,6 +9,7 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentLensEntity;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -457,6 +458,17 @@ public class ImageProcessingService {
 
     String cameraName = metadata.get("camera");
     String bodySerialNumber = metadata.get("bodySerialNumber");
+    // Some film scanners / medium-format backs report a generic capture-software
+    // name in the EXIF Model tag instead of the physical body. Remap to the real
+    // camera and set film defaults before resolving the camera entity.
+    FilmCameraDefaults filmDefaults = resolveFilmCameraDefaults(cameraName, entity);
+    if (filmDefaults != null) {
+      entity.setIsFilm(true);
+      entity.setFilmFormat(filmDefaults.filmFormat());
+      cameraName = filmDefaults.cameraName();
+      // The EXIF serial belongs to the scanner, not the remapped body.
+      bodySerialNumber = filmDefaults.remapped() ? null : bodySerialNumber;
+    }
     if (cameraName != null && !cameraName.trim().isEmpty()) {
       entity.setCamera(createCamera(cameraName, bodySerialNumber, null));
     }
@@ -465,6 +477,53 @@ public class ImageProcessingService {
     if (lensName != null && !lensName.trim().isEmpty()) {
       entity.setLens(createLens(lensName, lensSerialNumber, null));
     }
+  }
+
+  /** Resolved camera name and film format for a recognized film scanner/back. */
+  private record FilmCameraDefaults(String cameraName, FilmFormat filmFormat, boolean remapped) {}
+
+  /**
+   * Hardcoded film-camera detection. Maps generic EXIF Model names reported by film scanners and
+   * medium-format backs to the physical camera and its film format.
+   *
+   * <ul>
+   *   <li>"EZ Controller" (Hasselblad/Flextight scan software) -> 120 film. A square (1:1) frame is
+   *       a Hasselblad 500cm; a wider frame (closer to 645 / 5x7) is a Mamiya 645 Pro.
+   *   <li>"OpticFilm 8300i" (Plustek 35mm scanner) -> 35mm film, camera name unchanged.
+   * </ul>
+   *
+   * @param cameraName the raw EXIF camera name
+   * @param entity the image entity (dimensions already applied) used for aspect-ratio checks
+   * @return the film defaults, or null if the camera is not a recognized film source
+   */
+  private FilmCameraDefaults resolveFilmCameraDefaults(
+      String cameraName, ContentImageEntity entity) {
+    if (cameraName == null) {
+      return null;
+    }
+    String name = cameraName.trim();
+    if ("EZ Controller".equalsIgnoreCase(name)) {
+      String body = isSquareAspectRatio(entity) ? "Hasselblad 500cm" : "Mamiya 645 Pro";
+      return new FilmCameraDefaults(body, FilmFormat.MM_120, true);
+    }
+    if ("OpticFilm 8300i".equalsIgnoreCase(name)) {
+      return new FilmCameraDefaults(name, FilmFormat.MM_35, false);
+    }
+    return null;
+  }
+
+  /**
+   * Whether the image is effectively square (Hasselblad 6x6). A 645 or 5x7 frame has a ratio of
+   * ~1.33-1.4, so a modest tolerance above 1.0 cleanly separates the two.
+   */
+  private boolean isSquareAspectRatio(ContentImageEntity entity) {
+    Integer width = entity.getImageWidth();
+    Integer height = entity.getImageHeight();
+    if (width == null || height == null || width <= 0 || height <= 0) {
+      return false;
+    }
+    double ratio = (double) Math.max(width, height) / Math.min(width, height);
+    return ratio <= 1.15;
   }
 
   /**

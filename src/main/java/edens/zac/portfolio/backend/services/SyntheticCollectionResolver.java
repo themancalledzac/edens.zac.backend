@@ -63,13 +63,7 @@ public class SyntheticCollectionResolver {
       throw new IllegalArgumentException("Not a synthetic slug: " + slug);
     }
 
-    List<CollectionVisibility> allowed =
-        isLocalEnvironment
-            ? List.of(
-                CollectionVisibility.LISTED,
-                CollectionVisibility.UNLISTED,
-                CollectionVisibility.HIDDEN)
-            : List.of(CollectionVisibility.LISTED);
+    List<CollectionVisibility> allowed = CollectionVisibility.visibleScope(isLocalEnvironment);
 
     // "all-client-galleries" includes PARENT collections that have ≥1 CLIENT_GALLERY child
     // (e.g. wedding wrappers with ceremony/reception sub-galleries) so they appear alongside

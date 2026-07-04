@@ -246,6 +246,39 @@ public class ContentRepository extends BaseDao {
     return queryForObject(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
+  /**
+   * True iff {@code userId} may SEE {@code imageId}: the image holds at least one visible
+   * membership ({@code collection_content.visible = true}) in a collection that is either LISTED or
+   * one the user holds a {@code user_collection} membership for. Mirrors the public-read predicate
+   * used by {@code CollectionRepository.findReferencedCollectionsByParentId} ({@code cc.visible =
+   * true AND c.visibility = 'LISTED'}) and the membership predicate behind {@code
+   * UserCollectionService.canView}. UNLISTED/HIDDEN-only images are not visible unless the caller
+   * holds an explicit membership. Gates {@code UserSavesService.add} so a viewer cannot save (and
+   * thereby exfiltrate) an image from a gallery they cannot access.
+   */
+  @Transactional(readOnly = true)
+  public boolean isImageVisibleToUser(Long imageId, Long userId) {
+    String sql =
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM collection_content cc
+          JOIN collection col ON col.id = cc.collection_id
+          WHERE cc.content_id = :imageId
+            AND cc.visible = true
+            AND (
+              col.visibility = 'LISTED'
+              OR EXISTS (
+                SELECT 1 FROM user_collection uc
+                WHERE uc.collection_id = col.id AND uc.user_id = :userId))
+        )
+        """;
+    MapSqlParameterSource params =
+        createParameterSource().addValue("imageId", imageId).addValue("userId", userId);
+    return Boolean.TRUE.equals(
+        queryForObject(sql, (rs, n) -> rs.getBoolean(1), params).orElse(false));
+  }
+
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findImagesByIds(List<Long> ids) {
     if (ids == null || ids.isEmpty()) {
@@ -253,6 +286,34 @@ public class ContentRepository extends BaseDao {
     }
     String sql = SELECT_CONTENT_IMAGE + " WHERE c.id IN (:ids)";
     MapSqlParameterSource params = createParameterSource().addValue("ids", ids);
+    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+  }
+
+  /**
+   * A user's saved images as full entities, newest-saved first. Applies the same visibility gate as
+   * {@link #isImageVisibleToUser}: an image is returned only while it still holds a visible
+   * membership in a LISTED collection or one the user has explicit access to. Defense-in-depth — a
+   * save made while an image was visible drops out of the list if the owner later hides it, and it
+   * closes the read side even if a row was ever inserted without the write-side check.
+   */
+  @Transactional(readOnly = true)
+  public List<ContentImageEntity> findSavedImagesByUserId(Long userId) {
+    String sql =
+        SELECT_CONTENT_IMAGE
+            + " JOIN user_saved_image usi ON usi.image_id = c.id"
+            + " WHERE usi.user_id = :userId"
+            + "   AND EXISTS ("
+            + "     SELECT 1 FROM collection_content cc"
+            + "     JOIN collection col ON col.id = cc.collection_id"
+            + "     WHERE cc.content_id = c.id"
+            + "       AND cc.visible = true"
+            + "       AND ("
+            + "         col.visibility = 'LISTED'"
+            + "         OR EXISTS ("
+            + "           SELECT 1 FROM user_collection uc"
+            + "           WHERE uc.collection_id = col.id AND uc.user_id = :userId)))"
+            + " ORDER BY usi.created_at DESC";
+    MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
   }
 
