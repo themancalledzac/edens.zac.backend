@@ -89,8 +89,8 @@ class AdminController {
   /**
    * DEV-ONLY: mint an {@code ezac_session} for {@code userId} and set it on the response so the
    * admin can browse the site as that user (e.g. to preview their {@code /user} page). This
-   * controller is {@code @Profile("dev")}, so the endpoint does not exist in prod — impersonation is
-   * never reachable there, which matters while {@code /api/admin/**} has no per-user authz. This
+   * controller is {@code @Profile("dev")}, so the endpoint does not exist in prod — impersonation
+   * is never reachable there, which matters while {@code /api/admin/**} has no per-user authz. This
    * overwrites the caller's current session cookie; log in again to return to the admin account.
    */
   @PostMapping("/impersonate/{userId}")
