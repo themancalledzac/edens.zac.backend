@@ -43,16 +43,21 @@ public final class UserRequests {
   public record CreateUserResponse(Long userId, String inviteUrl) {}
 
   /**
-   * Body for {@code PATCH /api/admin/users/{id}} — updates the admin-editable fields. Email is
-   * deliberately immutable (it is the login identity and invite target). {@code displayName} may be
-   * {@code null} to clear it; {@code status} is required.
+   * Body for {@code PATCH /api/admin/users/{id}} — updates the admin-editable fields. {@code email}
+   * is optional: {@code null} or blank leaves the login email unchanged; when present the
+   * controller normalizes it to lowercase and returns {@code 409 Conflict} if another user already
+   * owns it. {@code displayName} may be {@code null} to clear it; {@code status} is required.
    *
+   * @param email the new account email, or {@code null}/blank to leave it unchanged
    * @param displayName the new display name, or {@code null} to clear
    * @param status the new lifecycle status (INVITED / ACTIVE / DISABLED)
    * @param description the admin-authored per-user description, or {@code null} to clear
    */
   public record UpdateUserRequest(
-      String displayName, @NotNull UserStatus status, @Size(max = 500) String description) {}
+      @Email String email,
+      String displayName,
+      @NotNull UserStatus status,
+      @Size(max = 500) String description) {}
 
   /**
    * One associated-collection row in the admin user detail. {@code role} is {@code null} when the

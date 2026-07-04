@@ -372,6 +372,150 @@ class AdminUserControllerTest {
 
       verify(appUserRepository, never()).updateName(anyLong(), anyString());
     }
+
+    @Test
+    void updateUserChangesEmailAndReturnsSummary() throws Exception {
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .name("Ken")
+              .status(UserStatus.INVITED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("kenneth@example.com")
+              .name("Ken")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+      when(appUserRepository.findByEmail("kenneth@example.com")).thenReturn(Optional.empty());
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      "{\"email\":\"kenneth@example.com\",\"displayName\":\"Ken\","
+                          + "\"status\":\"INVITED\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.email").value("kenneth@example.com"));
+
+      verify(appUserRepository).updateEmail(8L, "kenneth@example.com");
+    }
+
+    @Test
+    void updateUserWithEmailOwnedByAnotherUserReturns409() throws Exception {
+      AppUserEntity ken =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L)).thenReturn(Optional.of(ken));
+      when(appUserRepository.findByEmail("alice@example.com"))
+          .thenReturn(Optional.of(AppUserEntity.builder().id(1L).build()));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"alice@example.com\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isConflict());
+
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+    }
+
+    @Test
+    void updateEmailIsNormalizedToLowercase() throws Exception {
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("kenneth@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+      when(appUserRepository.findByEmail("kenneth@example.com")).thenReturn(Optional.empty());
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"KENNETH@EXAMPLE.COM\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isOk());
+
+      // Both the duplicate check and the write must see the lowercased email.
+      verify(appUserRepository).findByEmail("kenneth@example.com");
+      verify(appUserRepository).updateEmail(8L, "kenneth@example.com");
+    }
+
+    @Test
+    void resubmittingOwnEmailWithDifferentCaseReturns200NotConflict() throws Exception {
+      // The frontend always sends the email field, so "unchanged email" (possibly re-cased) is
+      // the common path — the duplicate check must not trip on the user's own row.
+      AppUserEntity ken =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L)).thenReturn(Optional.of(ken));
+      when(appUserRepository.findByEmail("ken@example.com")).thenReturn(Optional.of(ken));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"KEN@EXAMPLE.COM\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.email").value("ken@example.com"));
+
+      verify(appUserRepository).updateEmail(8L, "ken@example.com");
+    }
+
+    @Test
+    void updateWithoutEmailFieldLeavesEmailUntouched() throws Exception {
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .name("Ken")
+              .status(UserStatus.INVITED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .name("Kenneth")
+              .status(UserStatus.ACTIVE)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Kenneth\",\"status\":\"ACTIVE\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.email").value("ken@example.com"));
+
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+      verify(appUserRepository, never()).findByEmail(anyString());
+    }
   }
 
   @Nested

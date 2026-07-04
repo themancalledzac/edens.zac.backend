@@ -121,4 +121,12 @@ public class AppUserRepository extends BaseDao {
         createParameterSource().addValue("description", description).addValue("id", id);
     update(sql, params);
   }
+
+  @Transactional
+  public void updateEmail(Long id, String email) {
+    String sql = "UPDATE users SET email = :email, updated_at = now() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("email", email).addValue("id", id);
+    update(sql, params);
+  }
 }

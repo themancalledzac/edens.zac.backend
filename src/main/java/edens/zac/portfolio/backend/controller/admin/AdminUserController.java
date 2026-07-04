@@ -179,11 +179,16 @@ public class AdminUserController {
   }
 
   /**
-   * Update the two admin-editable fields (display name + status). Email is immutable here.
+   * Update the admin-editable fields (email, display name, status, description). Email is the login
+   * identity: when non-null and non-blank it is normalized to lowercase and updated, returning
+   * {@code 409 Conflict} if another user already owns it — resubmitting the user's own email (any
+   * casing) succeeds. A {@code null} or blank email leaves it unchanged.
    *
    * @param id the {@code app_user.id}
-   * @param request the new display name (nullable) and status (required)
-   * @return {@code 200} with the refreshed {@link AdminUserSummary}, or {@code 404} if no such user
+   * @param request the new email (nullable = unchanged), display name (nullable), status
+   *     (required), and description (nullable)
+   * @return {@code 200} with the refreshed {@link AdminUserSummary}, {@code 404} if no such user,
+   *     or {@code 409} if another user owns the requested email
    */
   @PatchMapping("/{id}")
   @Transactional
@@ -191,6 +196,16 @@ public class AdminUserController {
       @PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
     if (appUserRepository.findById(id).isEmpty()) {
       return ResponseEntity.notFound().build();
+    }
+    if (request.email() != null && !request.email().isBlank()) {
+      String email = request.email().toLowerCase();
+      Optional<AppUserEntity> owner = appUserRepository.findByEmail(email);
+      if (owner.isPresent() && !owner.get().getId().equals(id)) {
+        log.warn(
+            "Admin update-user rejected: email already exists (userId={}, email={})", id, email);
+        return ResponseEntity.status(HttpStatus.CONFLICT).build();
+      }
+      appUserRepository.updateEmail(id, email);
     }
     appUserRepository.updateName(id, request.displayName());
     appUserRepository.updateStatus(id, request.status());
