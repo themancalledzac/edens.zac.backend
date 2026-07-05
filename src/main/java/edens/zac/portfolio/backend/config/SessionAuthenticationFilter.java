@@ -8,7 +8,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -35,9 +35,12 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
       Optional<AuthPrincipal> principal = sessionService.resolve(token);
       principal.ifPresent(
           p -> {
-            var auth =
-                new UsernamePasswordAuthenticationToken(
-                    p, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+            var authorities = new ArrayList<SimpleGrantedAuthority>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+            if (p.isAdmin()) {
+              authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            }
+            var auth = new UsernamePasswordAuthenticationToken(p, null, authorities);
             SecurityContext context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(auth);
             SecurityContextHolder.setContext(context);

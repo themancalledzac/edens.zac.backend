@@ -103,7 +103,8 @@ public class AuthController {
             .map(m -> new GalleryMembership(m.getCollectionId(), m.getRole()))
             .toList();
     return ResponseEntity.ok(
-        new MeResponse(principal.email(), principal.mfaSatisfied(), galleries));
+        new MeResponse(
+            principal.email(), principal.isAdmin(), principal.mfaSatisfied(), galleries));
   }
 
   private static String readCookie(HttpServletRequest request) {

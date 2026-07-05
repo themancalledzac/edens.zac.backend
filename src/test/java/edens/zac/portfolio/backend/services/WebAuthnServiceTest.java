@@ -70,7 +70,7 @@ class WebAuthnServiceTest {
   }
 
   private AuthPrincipal principal() {
-    return new AuthPrincipal(1L, "admin@example.com", false);
+    return new AuthPrincipal(1L, "admin@example.com", true, false);
   }
 
   @Test

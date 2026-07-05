@@ -23,7 +23,7 @@ public class AppUserRepository extends BaseDao {
   private static final String SELECT_APP_USER =
       """
       SELECT id, email, password_hash, webauthn_user_handle, name, description, status,
-             created_at, updated_at
+             is_admin, created_at, updated_at
       FROM users
       """;
 
@@ -38,6 +38,7 @@ public class AppUserRepository extends BaseDao {
             .name(rs.getString("name"))
             .description(rs.getString("description"))
             .status(UserStatus.valueOf(rs.getString("status")))
+            .isAdmin(rs.getBoolean("is_admin"))
             .createdAt(getLocalDateTime(rs, "created_at"))
             .updatedAt(getLocalDateTime(rs, "updated_at"))
             .build();
@@ -127,6 +128,14 @@ public class AppUserRepository extends BaseDao {
     String sql = "UPDATE users SET email = :email, updated_at = now() WHERE id = :id";
     MapSqlParameterSource params =
         createParameterSource().addValue("email", email).addValue("id", id);
+    update(sql, params);
+  }
+
+  @Transactional
+  public void setAdmin(Long id, boolean isAdmin) {
+    String sql = "UPDATE users SET is_admin = :isAdmin, updated_at = now() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("isAdmin", isAdmin).addValue("id", id);
     update(sql, params);
   }
 }

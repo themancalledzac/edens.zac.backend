@@ -87,7 +87,7 @@ class SecurityConfigWebMvcTest {
   @Test
   void meResolvesPrincipalWhenCookiePresent() throws Exception {
     when(sessionService.resolve(eq("valid-token")))
-        .thenReturn(Optional.of(new AuthPrincipal(7L, "admin@example.com", false)));
+        .thenReturn(Optional.of(new AuthPrincipal(7L, "admin@example.com", false, false)));
 
     mockMvc
         .perform(get("/api/auth/me").cookie(new Cookie("ezac_session", "valid-token")))

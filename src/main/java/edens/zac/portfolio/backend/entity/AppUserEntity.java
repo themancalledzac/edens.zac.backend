@@ -20,6 +20,7 @@ public class AppUserEntity {
   private String name;
   private String description;
   private UserStatus status;
+  private boolean isAdmin;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 }

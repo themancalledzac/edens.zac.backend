@@ -142,7 +142,8 @@ public class SessionService {
       return Optional.empty();
     }
     AppUserEntity user = maybeUser.get();
-    return Optional.of(new AuthPrincipal(user.getId(), user.getEmail(), session.isMfaSatisfied()));
+    return Optional.of(
+        new AuthPrincipal(user.getId(), user.getEmail(), user.isAdmin(), session.isMfaSatisfied()));
   }
 
   /**
