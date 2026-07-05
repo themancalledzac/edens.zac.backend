@@ -78,7 +78,12 @@ public class AdminBootstrap {
             .isAdmin(true)
             .build();
     Long id = appUserRepository.insert(admin);
-    // insert() intentionally omits is_admin (DB default false), so flip it on explicitly.
+    // insert() intentionally omits is_admin (DB default false), so flip it on explicitly. This
+    // two-step sequence is not atomic, but it is intentionally fail-safe-by-restart: a crash
+    // between the two calls leaves a non-admin row, which the existing.isPresent() &&
+    // !user.isAdmin() branch above self-heals to admin on the next boot -- the failure direction
+    // is always "not enough admin," never "accidental admin." Do not "fix" this into a single
+    // statement without preserving that property.
     appUserRepository.setAdmin(id, true);
     log.info("Admin bootstrap: seeded new admin user: {}", bootstrapEmail);
   }
