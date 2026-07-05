@@ -42,13 +42,16 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Admin endpoints for user account management.
  *
- * <p>Authorization is perimeter-based, not role-based. In the {@code prod} profile every request is
- * gated by {@link edens.zac.portfolio.backend.config.InternalSecretFilter} on the {@code
- * X-Internal-Secret} header that the BFF proxy injects for same-origin admin calls. Spring
- * Security's authorization matrix does NOT gate these routes — {@link
- * edens.zac.portfolio.backend.config.SecurityConfig} falls through to {@code permitAll}, so outside
- * {@code prod} (e.g. local dev) they are unauthenticated. Per-user admin RBAC is deferred (Phase
- * A).
+ * <p>Authorization is two-layer. In the {@code prod} profile, {@link
+ * edens.zac.portfolio.backend.config.InternalSecretFilter} gates every request as an outer
+ * transport perimeter, checking the {@code X-Internal-Secret} header the BFF proxy injects for
+ * same-origin admin calls — this proves the request came through the BFF, not who the caller is.
+ * Inside that perimeter, {@link edens.zac.portfolio.backend.config.SecurityConfig} enforces the
+ * app-layer gate: these routes require {@code hasRole("ADMIN")}, granted only to a session
+ * principal whose user row carries {@code users.is_admin = true}. That inner gate is controlled by
+ * the {@code app.admin.enforce-authz} toggle (default {@code true} — enforced everywhere except
+ * where {@code application-dev.properties} flips it off, so local dev stays login-free without a
+ * prod-only transport perimeter to otherwise protect it).
  */
 @Slf4j
 @RestController
