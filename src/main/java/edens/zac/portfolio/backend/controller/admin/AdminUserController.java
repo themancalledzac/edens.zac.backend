@@ -195,9 +195,11 @@ public class AdminUserController {
   @Transactional
   public ResponseEntity<AdminUserSummary> updateUser(
       @PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
-    if (appUserRepository.findById(id).isEmpty()) {
+    Optional<AppUserEntity> maybeExisting = appUserRepository.findById(id);
+    if (maybeExisting.isEmpty()) {
       return ResponseEntity.notFound().build();
     }
+    AppUserEntity existing = maybeExisting.get();
     if (request.email() != null && !request.email().isBlank()) {
       String email = request.email().toLowerCase();
       Optional<AppUserEntity> owner = appUserRepository.findByEmail(email);
@@ -207,6 +209,14 @@ public class AdminUserController {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
       }
       appUserRepository.updateEmail(id, email);
+      // When an INVITED user's login email actually changes, kill their outstanding invite: the
+      // old link was bound to the prior address, so whoever still holds it (e.g. the prior inbox)
+      // could otherwise redeem it onto the now-corrected account. The admin must issue a fresh
+      // invite to the new address. A no-op change (same address, any casing) leaves the invite
+      // live; ACTIVE users have no pending onboarding invite to hijack.
+      if (existing.getStatus() == UserStatus.INVITED && !email.equals(existing.getEmail())) {
+        userInviteService.invalidateInvites(id);
+      }
     }
     appUserRepository.updateName(id, request.displayName());
     appUserRepository.updateStatus(id, request.status());

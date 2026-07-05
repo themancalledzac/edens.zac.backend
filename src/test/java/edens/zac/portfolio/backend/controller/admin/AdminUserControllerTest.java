@@ -534,6 +534,126 @@ class AdminUserControllerTest {
 
       verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
     }
+
+    @Test
+    void changingInvitedUserEmailInvalidatesOutstandingInvite() throws Exception {
+      // Account-takeover guard: an INVITED user has an outstanding invite bound to their OLD
+      // address. When the admin corrects the email, the old link must die so whoever holds it
+      // (e.g. the prior address's inbox) can no longer redeem it onto the corrected account.
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("kenneth@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+      when(appUserRepository.findByEmail("kenneth@example.com")).thenReturn(Optional.empty());
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"kenneth@example.com\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isOk());
+
+      verify(appUserRepository).updateEmail(8L, "kenneth@example.com");
+      verify(userInviteService).invalidateInvites(8L);
+    }
+
+    @Test
+    void changingActiveUserEmailDoesNotTouchInvites() throws Exception {
+      // Scope guard: an ACTIVE user has no pending onboarding invite to hijack, so an email
+      // change must NOT reach into invite rows (an ACTIVE user's stray unused invite, if one
+      // even exists, is not the account-takeover concern here).
+      AppUserEntity before =
+          AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("kenneth@example.com")
+              .status(UserStatus.ACTIVE)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+      when(appUserRepository.findByEmail("kenneth@example.com")).thenReturn(Optional.empty());
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"kenneth@example.com\",\"status\":\"ACTIVE\"}"))
+          .andExpect(status().isOk());
+
+      verify(appUserRepository).updateEmail(8L, "kenneth@example.com");
+      verify(userInviteService, never()).invalidateInvites(anyLong());
+    }
+
+    @Test
+    void resubmittingInvitedUserSameEmailDoesNotInvalidateInvite() throws Exception {
+      // No-op email change (same address, re-cased) must NOT kill the outstanding invite: the
+      // link is still bound to the same address, so it stays live. The frontend always sends the
+      // email field, so this re-cased-but-unchanged path is common.
+      AppUserEntity ken =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L)).thenReturn(Optional.of(ken));
+      when(appUserRepository.findByEmail("ken@example.com")).thenReturn(Optional.of(ken));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"KEN@EXAMPLE.COM\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isOk());
+
+      // The email write still fires (idempotent same-value write), but the invite is left alone.
+      verify(userInviteService, never()).invalidateInvites(anyLong());
+    }
+
+    @Test
+    void emaillessPatchOnInvitedUserDoesNotInvalidateInvite() throws Exception {
+      // An email-less PATCH (status/name only) never touches the email, so an INVITED user's
+      // outstanding invite must survive — nothing about the login identity changed.
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .name("Ken")
+              .status(UserStatus.INVITED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .name("Kenneth")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Kenneth\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isOk());
+
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+      verify(userInviteService, never()).invalidateInvites(anyLong());
+    }
   }
 
   @Nested

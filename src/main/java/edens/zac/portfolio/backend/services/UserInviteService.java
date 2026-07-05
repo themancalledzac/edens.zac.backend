@@ -61,6 +61,20 @@ public class UserInviteService {
   }
 
   /**
+   * Kill any still-unused invites for a user without minting a replacement. Used when the account's
+   * login email changes out from under an outstanding invite: the old link was bound to the prior
+   * address and must not remain redeemable, so the admin has to issue a fresh invite to the new
+   * address. Used invites are untouched.
+   *
+   * @param userId the id of the {@code app_user} record whose outstanding invites should be killed
+   * @return the number of invites invalidated
+   */
+  @Transactional
+  public int invalidateInvites(Long userId) {
+    return inviteRepository.invalidateUnusedForUser(userId);
+  }
+
+  /**
    * Validate a raw invite token. Returns the invite entity if the token is found, unexpired, and
    * not yet redeemed. Returns empty for unknown, expired, or already-used tokens.
    *
