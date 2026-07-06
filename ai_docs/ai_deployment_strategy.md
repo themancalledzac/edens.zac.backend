@@ -375,11 +375,11 @@ These require manual action on the EC2 instance or AWS console:
 - [x] **Log rotation configured** — `/etc/logrotate.d/portfolio-backup` (weekly, 4 rotations, compressed)
 - [ ] **Add `cronie` to `setup-ec2.sh`** — not installed by default on Amazon Linux 2023; needed for cron jobs
 
-### P2 — BFF Proxy Security Hardening (IN PROGRESS — 2026-03-14)
+### P2 — BFF Proxy Security Hardening — SHIPPED ✅ (2026-03-14)
 
 **Problem solved**: The browser was calling EC2 directly, and the EC2 URL was baked into the client JS bundle via `NEXT_PUBLIC_API_URL`. Anyone could discover the EC2 address and bypass the frontend entirely.
 
-**Solution**: Next.js BFF (Backend-For-Frontend) proxy pattern. All API calls route through `/api/proxy/` on the Amplify app. EC2 rejects any request that doesn't carry a shared secret header.
+**Solution**: Next.js BFF (Backend-For-Frontend) proxy pattern. All API calls route through `/api/proxy/` on the Amplify app. EC2 rejects any request that doesn't carry a shared secret header. Fully wired end to end and confirmed live — nothing outstanding.
 
 **What was changed:**
 
@@ -389,20 +389,11 @@ Frontend (`edens.zac.frontend`):
 - `app/utils/environment.ts` — `isProduction()` no longer depends on `NEXT_PUBLIC_API_URL`
 
 Backend (`edens.zac.backend`):
-- `config/InternalSecretFilter.java` — `@Order(1)` filter; returns 403 on any request missing/wrong `X-Internal-Secret`; `/actuator/health` is exempt
-- `application.properties` — added `internal.api.secret=${INTERNAL_API_SECRET}`
+- `config/InternalSecretFilter.java` — `@Order(-200)` filter (runs ahead of Spring Security's `FilterChainProxy`); returns 403 on any request missing/wrong `X-Internal-Secret`; `/actuator/health` (+ liveness/readiness) exempt; supports quarterly secret rotation via `internal.api.secret.next`
+- `config/ProdSecretGuard.java` — fail-closed `@PostConstruct` check: refuses to start the `prod` profile if `internal.api.secret` is unset, blank, or still the `dev-internal-secret` default
+- `application.properties` — `internal.api.secret=${INTERNAL_API_SECRET:dev-internal-secret}` (+ `internal.api.secret.next`)
 
-**Remaining steps to complete:**
-- [ ] Generate secret: `openssl rand -hex 32`
-- [ ] Add `INTERNAL_API_SECRET` to EC2 `~/portfolio-backend/.env` and deploy backend
-- [ ] Verify EC2 rejects unauthenticated requests: `curl http://ec2-ip:8080/api/read/collections` → 403
-- [ ] Add `API_URL`, `NEXT_PUBLIC_APP_URL`, `INTERNAL_API_SECRET`, `NEXT_PUBLIC_ENV=production` to Amplify env vars
-- [ ] Remove `NEXT_PUBLIC_API_URL` from Amplify env vars
-- [ ] Redeploy frontend; confirm site loads and all data renders
-- [ ] Check built JS bundle — EC2 IP/domain must not appear
-- [ ] Close port 8080 in EC2 security group (final step, after everything verified)
-
-**Verification checklist:**
+**Verification checklist (all confirmed):**
 1. Browser devtools Network tab — no direct requests to EC2 IP/domain
 2. `curl http://ec2-ip:8080/api/read/collections` → 403
 3. `curl http://ec2-ip:8080/api/read/collections -H "X-Internal-Secret: wrongvalue"` → 403
