@@ -35,6 +35,13 @@ services:
       # Access token secret for client gallery HMAC tokens
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-dev-access-token-secret}
 
+      # Admin bootstrap (env-driven; designates the SPECIFIC admin user on startup). Empty
+      # by default -- set both in the prod .env to seed/promote the operator's admin account.
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+      # Inner app-layer gate for /api/admin/**: requires ROLE_ADMIN when true (default).
+      ADMIN_ENFORCE_AUTHZ: ${ADMIN_ENFORCE_AUTHZ:-true}
+
       # Email (AWS SES v2) — disabled by default; flip EMAIL_ENABLED=true once SES domain + from-address are verified.
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@edens.zac}
