@@ -1,9 +1,6 @@
 package edens.zac.portfolio.backend.controller.dev;
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
-import edens.zac.portfolio.backend.config.ResourceNotFoundException;
-import edens.zac.portfolio.backend.dao.AppUserRepository;
-import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
@@ -24,10 +21,7 @@ import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
 import edens.zac.portfolio.backend.services.JobTrackingService;
 import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
-import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.types.CollectionType;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -79,31 +73,6 @@ class AdminController {
   private final ImageUploadPipelineService imageUploadPipelineService;
   private final JobTrackingService jobTrackingService;
   private final MetadataService metadataService;
-  private final SessionService sessionService;
-  private final AppUserRepository appUserRepository;
-
-  // ============================================================================
-  // Dev-only impersonation ("log in as user")
-  // ============================================================================
-
-  /**
-   * DEV-ONLY: mint an {@code ezac_session} for {@code userId} and set it on the response so the
-   * admin can browse the site as that user (e.g. to preview their {@code /user} page). This
-   * controller is {@code @Profile("dev")}, so the endpoint does not exist in prod — impersonation
-   * is never reachable there, which matters while {@code /api/admin/**} has no per-user authz. This
-   * overwrites the caller's current session cookie; log in again to return to the admin account.
-   */
-  @PostMapping("/impersonate/{userId}")
-  ResponseEntity<Void> impersonate(
-      @PathVariable Long userId, HttpServletRequest request, HttpServletResponse response) {
-    AppUserEntity user =
-        appUserRepository
-            .findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
-    sessionService.create(user, false, request, response);
-    log.warn("DEV impersonation: minted a session as user {} ({})", user.getId(), user.getEmail());
-    return ResponseEntity.noContent().build();
-  }
 
   // ============================================================================
   // Admin home tiles
