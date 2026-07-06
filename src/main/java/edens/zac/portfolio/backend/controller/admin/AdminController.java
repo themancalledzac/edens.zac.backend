@@ -54,9 +54,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Single admin controller, active in all profiles. Owns every {@code /api/admin/*} endpoint —
- * admin-home tiles, cache eviction, collection write ops, content uploads/edits, and metadata
- * edits. These are admin-ops endpoints (tiles and cache eviction included), not public reads.
+ * Primary admin-ops controller, active in all profiles: admin-home tiles, cache eviction,
+ * collection write ops, content uploads/edits, and metadata edits. It does not own every {@code
+ * /api/admin/*} route — user, collection, tag, and messages admin ops live in sibling controllers
+ * in this package. These are admin-ops endpoints (tiles and cache eviction included), not public
+ * reads.
  *
  * <p>Unlike the legacy dev/prod controller split, these routes are NOT profile-gated — they are
  * protected at the filter-chain level: {@link edens.zac.portfolio.backend.config.SecurityConfig}

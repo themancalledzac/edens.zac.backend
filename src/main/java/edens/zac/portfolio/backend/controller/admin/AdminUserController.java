@@ -288,7 +288,8 @@ public class AdminUserController {
   }
 
   /**
-   * Admin view of a user's full page (what they see at /user). Perimeter-gated.
+   * Admin view of a user's full page (what they see at /user). Gated by the two-layer admin authz
+   * described in the class Javadoc (prod transport perimeter + {@code hasRole("ADMIN")}).
    *
    * @param id the {@code app_user.id}
    * @return the assembled {@link CollectionModel}
