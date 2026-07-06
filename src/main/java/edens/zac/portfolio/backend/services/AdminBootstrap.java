@@ -13,11 +13,11 @@ import org.springframework.stereotype.Component;
 
 /**
  * Designates the SPECIFIC admin from environment variables on startup, so no admin identity lives
- * in git (the repo is public). Admin capability is the {@code users.is_admin} boolean — never a
- * mere session — so it survives independently of who is logged in and impersonation stays
- * non-admin. Idempotent: if the configured user already exists it flips {@code is_admin} on (a
- * no-op once already set); if the user is absent and a bootstrap password is provided it seeds a
- * new ACTIVE admin. Never throws on normal paths.
+ * in git (the repo is public). Admin capability is the {@code users.is_admin} boolean — a row
+ * attribute of the account, independent of who is currently logged in. Idempotent: if the
+ * configured user already exists it flips {@code is_admin} on (a no-op once already set); if the
+ * user is absent and a bootstrap password is provided it seeds a new ACTIVE admin. Never throws on
+ * normal paths.
  */
 @Component
 @Slf4j
