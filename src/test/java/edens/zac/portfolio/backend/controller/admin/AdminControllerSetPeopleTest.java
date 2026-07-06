@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.dev;
+package edens.zac.portfolio.backend.controller.admin;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;

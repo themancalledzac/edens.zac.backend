@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.dev;
+package edens.zac.portfolio.backend.controller.admin;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;

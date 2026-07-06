@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.dev;
+package edens.zac.portfolio.backend.controller.admin;
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -32,7 +32,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -55,16 +54,21 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Single dev-only admin controller. Owns every {@code /api/admin/*} endpoint — admin-home tiles,
- * cache eviction, collection write ops, content uploads/edits, and metadata edits. All routes are
- * profile-gated and the class is package-private. Exception handling is delegated to {@link
- * GlobalExceptionHandler}.
+ * Single admin controller, active in all profiles. Owns every {@code /api/admin/*} endpoint —
+ * admin-home tiles, cache eviction, collection write ops, content uploads/edits, and metadata
+ * edits. These are admin-ops endpoints (tiles and cache eviction included), not public reads.
+ *
+ * <p>Unlike the legacy dev/prod controller split, these routes are NOT profile-gated — they are
+ * protected at the filter-chain level: {@link edens.zac.portfolio.backend.config.SecurityConfig}
+ * requires {@code hasRole("ADMIN")} on {@code /api/admin/**} (toggle: {@code
+ * app.admin.enforce-authz}, default {@code true}, off only in local dev), and in prod that sits
+ * behind {@link edens.zac.portfolio.backend.config.InternalSecretFilter} as well. The class stays
+ * package-private. Exception handling is delegated to {@link GlobalExceptionHandler}.
  */
 @Slf4j
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/admin")
-@Profile("dev")
 class AdminController {
 
   private final AdminHomeService adminHomeService;

@@ -11,6 +11,7 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 class GlobalExceptionHandlerTest {
 
@@ -74,6 +76,11 @@ class GlobalExceptionHandlerTest {
     @GetMapping("/generic")
     String generic() {
       throw new RuntimeException("unexpected failure");
+    }
+
+    @GetMapping("/no-route")
+    String noRoute() throws NoResourceFoundException {
+      throw new NoResourceFoundException(HttpMethod.GET, "/test/no-route");
     }
 
     @PostMapping("/echo")
@@ -201,6 +208,21 @@ class GlobalExceptionHandlerTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.status").value(500))
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
+  }
+
+  @Test
+  void handleNoResourceFound_returnsStatus404() throws Exception {
+    // An unmatched path (e.g. a retired or typo'd route) is a NoResourceFoundException raised by
+    // the dispatcher. Without a dedicated handler it is caught by the catch-all Exception handler
+    // and mis-reported as 500 -- this was the 0207 prod bug's proximate symptom once
+    // AdminController was promoted out of @Profile("dev"): unknown paths must be 404, not 500.
+    mockMvc
+        .perform(get("/test/no-route").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.error").value("Not Found"))
+        .andExpect(jsonPath("$.message").value("No route found for /test/no-route"))
+        .andExpect(jsonPath("$.timestamp").exists());
   }
 
   @Test

@@ -81,7 +81,7 @@ Backend REST API for a photography portfolio and content management platform. Ha
 ```
 src/main/java/edens/zac/portfolio/backend/
   controller/
-    dev/              Admin endpoints (@Profile("dev"))
+    admin/            Admin endpoints, all profiles (SecurityConfig hasRole("ADMIN") gate)
     prod/             Public read endpoints (@Profile("prod"))
   services/           Business logic (concrete *Service classes)
   dao/                Data access (JDBC, NamedParameterJdbcTemplate)

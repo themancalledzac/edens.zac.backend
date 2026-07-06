@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.dev;
+package edens.zac.portfolio.backend.controller.admin;
 
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;

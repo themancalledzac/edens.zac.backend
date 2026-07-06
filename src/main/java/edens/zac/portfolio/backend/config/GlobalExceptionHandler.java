@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Global exception handler that eliminates duplicate try-catch blocks across all controllers.
@@ -44,6 +45,18 @@ public class GlobalExceptionHandler {
     log.warn("Resource not found: {}", e.getMessage());
     return ResponseEntity.status(HttpStatus.NOT_FOUND)
         .body(ErrorResponse.of(HttpStatus.NOT_FOUND, e.getMessage()));
+  }
+
+  /**
+   * Handle requests to a path with no matching route (e.g. a typo'd or retired endpoint). Without
+   * this handler it is matched by the catch-all {@link #handleGeneric} and mis-reported as 500; an
+   * unmatched path is a client error and must be 404, not 500.
+   */
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException e) {
+    log.warn("No route found: {}", e.getMessage());
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "No route found for " + e.getResourcePath()));
   }
 
   /** Handle IllegalArgumentException - invalid input, always returns 400. */
