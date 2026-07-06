@@ -14,7 +14,7 @@ Package: `edens.zac.portfolio.backend`
 
 ## Project Structure
 ```
-controller/dev/   - Development endpoints (@Profile("dev"))
+controller/admin/ - Admin/write endpoints, all profiles (gated by SecurityConfig hasRole("ADMIN"))
 controller/prod/  - Production endpoints (@Profile("prod"))
 services/         - Business logic (concrete *Service classes, no interface/Impl split)
 dao/              - Data access (JDBC via NamedParameterJdbcTemplate, not JPA repositories)
@@ -28,7 +28,7 @@ config/           - Spring configuration
 - **Entities**: `*Entity` (e.g., `CollectionEntity`, `ContentEntity`, `ContentImageEntity`)
 - **Models/DTOs**: `*Model`, `*Request`, `*ResponseDTO`
 - **Services**: Concrete class `*Service` (no interface, no `*ServiceImpl` suffix)
-- **Controllers**: `*ControllerDev` (dev profile) / `*ControllerProd` (prod profile)
+- **Controllers**: `AdminController` (admin, all profiles, security-gated) / `*ControllerProd` (prod profile)
 
 ## Key Rules
 

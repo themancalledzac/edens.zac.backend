@@ -3,7 +3,8 @@
 ## Endpoint Structure
 ```
 /api/read/...    - Public GET endpoints (prod, @Profile("prod"))
-/api/admin/...   - Admin/write endpoints (dev, @Profile("dev"))
+/api/admin/...   - Admin/write endpoints (all profiles, gated by SecurityConfig
+                   hasRole("ADMIN") + InternalSecretFilter in prod, not @Profile)
 ```
 
 ## Error Handling
@@ -31,6 +32,7 @@ Controllers do NOT use try-catch blocks -- they throw exceptions and let the han
 | `ConstraintViolationException` | 400 BAD_REQUEST | `@Validated` failures |
 | `MethodArgumentTypeMismatchException` | 400 BAD_REQUEST | Wrong param type |
 | `DataIntegrityViolationException` | 409 CONFLICT | Duplicate/FK violation |
+| `NoResourceFoundException` | 404 NOT_FOUND | No route matches the request path |
 | `Exception` (catch-all) | 500 INTERNAL_SERVER_ERROR | Unexpected errors |
 
 ## Controller Pattern
@@ -117,8 +119,9 @@ Key points:
 - Use typed `ResponseEntity<T>` -- never `ResponseEntity<?>`
 
 ## Dev vs Prod Controllers
-- `*ControllerDev` (`/api/admin/...`): Write/admin endpoints, `@Profile("dev")`
+- `AdminController` (`/api/admin/...`): Write/admin endpoints, active in all profiles —
+  gated by SecurityConfig's `hasRole("ADMIN")` (+ InternalSecretFilter in prod), not `@Profile`
 - `*ControllerProd` (`/api/read/...`): Read-only public endpoints, `@Profile("prod")`
-- Never expose dev/admin endpoints in production
+- Admin/write endpoints must stay behind the SecurityConfig admin gate; never permitAll them
 
 <!-- Phase 3a DONE: Interface/Impl split removed -- controllers inject concrete service classes directly -->

@@ -1,4 +1,4 @@
-package edens.zac.portfolio.backend.controller.dev;
+package edens.zac.portfolio.backend.controller.admin;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
