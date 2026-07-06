@@ -238,6 +238,18 @@ ssh -L 5432:localhost:5432 -i ~/key.pem ec2-user@<ec2-ip>
 jdbc:postgresql://<ec2-public-ip>:5432/edens_zac
 ```
 
+**Local admin login (mirrors prod — no local-only bypass)**:
+
+Admin access locally works the same as prod: log in with your own account; admin capability is the `users.is_admin` flag on that account. To designate your local admin account:
+
+```bash
+# In ~/.zshrc (docker-compose already forwards these; see docker-compose.yml):
+export ADMIN_BOOTSTRAP_EMAIL="<your-admin-email>"   # existing account -> flag flipped on boot; no password needed
+# (ADMIN_BOOTSTRAP_PASSWORD only needed to SEED a brand-new admin account)
+```
+
+Restart the backend once (`docker compose up -d --build` if code changed, else `docker compose restart backend`), then log in once via `/login`. The DB-backed `ezac_session` persists across restarts, so subsequent restarts need no re-login. Local now mirrors prod: same login, same `is_admin` gate, no local-only bypass.
+
 ## Scripts Reference
 
 | Script | Location | Purpose |
