@@ -69,7 +69,7 @@ class UserControllerProdTest {
 
   @Test
   void authenticatedRequestReturnsAssembledPage() throws Exception {
-    AuthPrincipal user = new AuthPrincipal(7L, "c@example.com", true);
+    AuthPrincipal user = new AuthPrincipal(7L, "c@example.com", false, true);
     CollectionModel assembled =
         CollectionModel.builder()
             .slug("user")

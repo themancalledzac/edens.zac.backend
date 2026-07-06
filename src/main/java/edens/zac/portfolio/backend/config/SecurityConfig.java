@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +20,10 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 public class SecurityConfig {
 
   @Bean
-  public SecurityFilterChain filterChain(HttpSecurity http, SessionAuthenticationFilter saf)
+  public SecurityFilterChain filterChain(
+      HttpSecurity http,
+      SessionAuthenticationFilter saf,
+      @Value("${app.admin.enforce-authz:true}") boolean enforceAdminAuthz)
       throws Exception {
     http
         // CSRF defense for the API is provided by SameSite=Strict cookies + the BFF write-method
@@ -31,26 +35,31 @@ public class SecurityConfig {
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
-            auth ->
-                auth.requestMatchers(HttpMethod.POST, "/api/auth/login")
-                    .permitAll()
-                    .requestMatchers("/api/auth/webauthn/login/**")
-                    .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/auth/invite/*")
-                    .permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/auth/invite/*/accept")
-                    .permitAll()
-                    .requestMatchers("/api/auth/me", "/api/auth/logout")
-                    .authenticated()
-                    .requestMatchers("/api/auth/webauthn/register/**")
-                    .authenticated()
-                    // Everything else (including /api/admin/**) is permitAll at the Spring layer.
-                    // Admin/write protection is the prod-only InternalSecretFilter + BFF perimeter,
-                    // not this matrix — outside prod these routes are unauthenticated. Per-user
-                    // admin RBAC is deferred (Phase A). Do NOT switch /api/admin/** to
-                    // authenticated(): admin calls carry the BFF secret, not a session principal.
-                    .anyRequest()
-                    .permitAll())
+            auth -> {
+              auth.requestMatchers(HttpMethod.POST, "/api/auth/login")
+                  .permitAll()
+                  .requestMatchers("/api/auth/webauthn/login/**")
+                  .permitAll()
+                  .requestMatchers(HttpMethod.GET, "/api/auth/invite/*")
+                  .permitAll()
+                  .requestMatchers(HttpMethod.POST, "/api/auth/invite/*/accept")
+                  .permitAll()
+                  .requestMatchers("/api/auth/me", "/api/auth/logout")
+                  .authenticated()
+                  .requestMatchers("/api/auth/webauthn/register/**")
+                  .authenticated();
+              // /api/admin/** is the inner, app-layer gate. When enforce-authz is on (prod, and
+              // the default everywhere else), these routes require a session principal whose user
+              // row carries is_admin=true — ROLE_ADMIN, granted by SessionAuthenticationFilter.
+              // In prod this sits INSIDE the InternalSecretFilter perimeter: a request must both
+              // carry the BFF secret AND resolve to an admin. The toggle is flipped off only in
+              // application-dev.properties, where /api/admin/** then falls through to permitAll
+              // below so local dev stays login-free (mirrors InternalSecretFilter being prod-only).
+              if (enforceAdminAuthz) {
+                auth.requestMatchers("/api/admin/**").hasRole("ADMIN");
+              }
+              auth.anyRequest().permitAll();
+            })
         .addFilterBefore(saf, AuthorizationFilter.class)
         .exceptionHandling(
             ex ->

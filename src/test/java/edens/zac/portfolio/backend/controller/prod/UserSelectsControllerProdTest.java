@@ -38,7 +38,7 @@ class UserSelectsControllerProdTest {
 
   private MockMvc mockMvc;
 
-  private final AuthPrincipal client = new AuthPrincipal(7L, "c@b.com", true);
+  private final AuthPrincipal client = new AuthPrincipal(7L, "c@b.com", false, true);
 
   @BeforeEach
   void setUp() {

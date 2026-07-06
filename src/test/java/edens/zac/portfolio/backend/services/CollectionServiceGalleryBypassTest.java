@@ -60,7 +60,7 @@ class CollectionServiceGalleryBypassTest {
   }
 
   private void authenticate(Long userId) {
-    var principal = new AuthPrincipal(userId, "c@example.com", true);
+    var principal = new AuthPrincipal(userId, "c@example.com", false, true);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
   }

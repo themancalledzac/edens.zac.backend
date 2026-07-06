@@ -46,7 +46,7 @@ class WebAuthnControllerTest {
   private AuthLoginLimiter loginLimiter;
   private MockMvc mockMvc;
 
-  private final AuthPrincipal admin = new AuthPrincipal(1L, "admin@example.com", false);
+  private final AuthPrincipal admin = new AuthPrincipal(1L, "admin@example.com", true, false);
 
   @BeforeEach
   void setUp() {

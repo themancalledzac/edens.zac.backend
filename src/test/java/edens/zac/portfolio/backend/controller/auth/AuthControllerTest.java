@@ -219,7 +219,7 @@ class AuthControllerTest {
 
   @Test
   void meReturns200WithPrincipal() throws Exception {
-    AuthPrincipal principal = new AuthPrincipal(1L, "admin@example.com", false);
+    AuthPrincipal principal = new AuthPrincipal(1L, "admin@example.com", true, false);
     SecurityContextHolder.getContext()
         .setAuthentication(
             new UsernamePasswordAuthenticationToken(
@@ -230,6 +230,7 @@ class AuthControllerTest {
         .perform(get("/api/auth/me"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.email", org.hamcrest.Matchers.is("admin@example.com")))
+        .andExpect(jsonPath("$.isAdmin", org.hamcrest.Matchers.is(true)))
         .andExpect(jsonPath("$.mfaSatisfied", org.hamcrest.Matchers.is(false)))
         .andExpect(jsonPath("$.galleries", org.hamcrest.Matchers.hasSize(0)));
   }
