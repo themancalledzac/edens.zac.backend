@@ -18,7 +18,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-zedens}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       # Spring profile: must be explicitly set to dev, prod, or default (no silent fallback).
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?must be set: dev, prod, or default}
+      SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:?must be set: dev, prod, or default}"
 
       # AWS Config
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
