@@ -42,6 +42,14 @@ services:
       # Inner app-layer gate for /api/admin/**: requires ROLE_ADMIN when true (default).
       ADMIN_ENFORCE_AUTHZ: ${ADMIN_ENFORCE_AUTHZ:-true}
 
+      # WebAuthn (passkeys) relying party. The localhost defaults are correct for local dev
+      # only -- on EC2 prod set all three in .env (rp-id = registrable site domain;
+      # allowed-origins = exact https:// origin(s) the site is served from), otherwise the
+      # backend mints ceremonies for rpId=localhost and every browser rejects them.
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-Zac Edens Photography}
+      WEBAUTHN_ALLOWED_ORIGINS: ${WEBAUTHN_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
+
       # Email (AWS SES v2) — disabled by default; flip EMAIL_ENABLED=true once SES domain + from-address are verified.
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@edens.zac}

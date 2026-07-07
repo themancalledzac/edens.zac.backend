@@ -37,7 +37,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class WebAuthnController {
 
   private static final String ATTEMPT_COOKIE = "ezac_webauthn_attempt";
-  private static final String ATTEMPT_COOKIE_PATH = "/api/auth/webauthn";
+
+  /**
+   * Attempt-cookie Path. Must be {@code /}: the browser reaches these endpoints only through the
+   * frontend BFF proxy ({@code /api/proxy/api/auth/webauthn/...}), so a cookie scoped to this
+   * controller's own {@code /api/auth/webauthn} prefix would never path-match the proxied request
+   * and {@code /login/finish} would always 401. Mirrors the session cookie's {@code /} path
+   * (SessionService); the value is a random single-use attempt id, so the wider scope leaks
+   * nothing.
+   */
+  private static final String ATTEMPT_COOKIE_PATH = "/";
+
   private static final Duration ATTEMPT_COOKIE_TTL = Duration.ofMinutes(5);
 
   private final WebAuthnService webAuthnService;
