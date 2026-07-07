@@ -113,7 +113,8 @@ class WebAuthnControllerTest {
         .andExpect(status().isOk())
         .andExpect(cookie().exists("ezac_webauthn_attempt"))
         .andExpect(cookie().value("ezac_webauthn_attempt", "attempt-1"))
-        .andExpect(cookie().httpOnly("ezac_webauthn_attempt", true));
+        .andExpect(cookie().httpOnly("ezac_webauthn_attempt", true))
+        .andExpect(cookie().path("ezac_webauthn_attempt", "/"));
 
     verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
   }
@@ -164,7 +165,8 @@ class WebAuthnControllerTest {
                 .contentType("application/json")
                 .content("{\"id\":\"abc\"}"))
         .andExpect(status().isNoContent())
-        .andExpect(cookie().maxAge("ezac_webauthn_attempt", 0));
+        .andExpect(cookie().maxAge("ezac_webauthn_attempt", 0))
+        .andExpect(cookie().path("ezac_webauthn_attempt", "/"));
 
     verify(webAuthnService).finishLogin(eq("attempt-1"), eq("{\"id\":\"abc\"}"), any(), any());
     verify(loginLimiter).reset(anyString(), eq("admin@example.com"));
@@ -201,10 +203,14 @@ class WebAuthnControllerTest {
 
     boolean clearedCookiePresent =
         response.getHeaders(org.springframework.http.HttpHeaders.SET_COOKIE).stream()
-            .anyMatch(h -> h.contains("ezac_webauthn_attempt") && h.contains("Max-Age=0"));
+            .anyMatch(
+                h ->
+                    h.contains("ezac_webauthn_attempt")
+                        && h.contains("Max-Age=0")
+                        && h.contains("Path=/;"));
     org.junit.jupiter.api.Assertions.assertTrue(
         clearedCookiePresent,
-        "attempt cookie must be cleared (Max-Age=0) even when finishLogin throws");
+        "attempt cookie must be cleared (Max-Age=0, Path=/) even when finishLogin throws");
   }
 
   @Test
