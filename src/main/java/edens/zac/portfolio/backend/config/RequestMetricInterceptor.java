@@ -25,8 +25,15 @@ import org.springframework.web.servlet.HandlerMapping;
  *
  * <p>Recording is best-effort and failure-safe: the entire record step is wrapped so any exception
  * (DB down, etc.) is caught, logged at WARN, and never propagates — a metrics failure must never
- * break or slow the real response. Recording happens in {@link #afterCompletion} so only
- * successfully-routed requests are counted.
+ * break or slow the real response. Recording happens in {@link #afterCompletion}, which fires for
+ * any request Spring successfully MAPPED to a handler — regardless of the response status (2xx,
+ * 4xx, or 5xx) or whether the handler threw. Counting mapped-but-errored requests is intentional:
+ * this is a directional traffic datapoint, not a success meter. Requests Spring never mapped to a
+ * handler (no route pattern) are skipped.
+ *
+ * <p>Slug extraction intentionally reads only the {@code slug} path variable, so routes keyed by a
+ * different variable (e.g. {@code {id}} on the image download/read routes) are aggregated slug-less
+ * by design — they count under their route pattern with a {@code null} slug.
  *
  * <p>This is intentionally NOT a Spring {@code @Component}: it is instantiated by {@link
  * RequestMetricWebConfig} only when a {@link RequestMetricRepository} is present. That keeps sliced

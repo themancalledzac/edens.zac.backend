@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.dao.RequestMetricRepository;
 import edens.zac.portfolio.backend.dao.RequestMetricRepository.RequestMetricRow;
 import edens.zac.portfolio.backend.model.RequestMetrics;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +44,7 @@ public class RequestMetricController {
   public ResponseEntity<RequestMetrics.RequestMetricList> list(
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @Nullable LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) @Nullable LocalDate to) {
-    LocalDate resolvedTo = to != null ? to : LocalDate.now();
+    LocalDate resolvedTo = to != null ? to : LocalDate.now(ZoneOffset.UTC);
     LocalDate resolvedFrom = from != null ? from : resolvedTo.minusDays(DEFAULT_RANGE_DAYS);
     if (resolvedFrom.isAfter(resolvedTo)) {
       LocalDate swap = resolvedFrom;
