@@ -160,6 +160,7 @@ public class CollectionProcessingUtil {
     model.setPeople(new ArrayList<>(peopleByCollectionId.getOrDefault(entity.getId(), List.of())));
 
     model.setCollectionDate(entity.getCollectionDate());
+    model.setCollectionEndDate(entity.getCollectionEndDate());
     model.setVisibility(entity.getVisibility());
     model.setRating(entity.getRating());
 
@@ -586,6 +587,12 @@ public class CollectionProcessingUtil {
     } else if (updateDTO.collectionDate() != null) {
       entity.setCollectionDate(updateDTO.collectionDate());
     }
+    if (Boolean.TRUE.equals(updateDTO.clearCollectionEndDate())) {
+      entity.setCollectionEndDate(null);
+    } else if (updateDTO.collectionEndDate() != null) {
+      entity.setCollectionEndDate(updateDTO.collectionEndDate());
+    }
+    validateDateRange(entity.getCollectionDate(), entity.getCollectionEndDate());
     if (updateDTO.visibility() != null) {
       entity.setVisibility(updateDTO.visibility());
     }
@@ -624,6 +631,29 @@ public class CollectionProcessingUtil {
                         "Cover image not found with ID: " + updateDTO.coverImageId()));
         entity.setCoverImageId(updateDTO.coverImageId());
       }
+    }
+  }
+
+  /**
+   * Validate the collection's resolved date range. Rejects (400 via {@link
+   * edens.zac.portfolio.backend.config.GlobalExceptionHandler}) when the end date precedes the
+   * start date, or when an end date is present without a start date (an open-ended range with no
+   * anchor is meaningless). A null end date is always valid (single-day / open collection).
+   *
+   * @param start the resolved collection start date (may be null)
+   * @param end the resolved collection end date (may be null)
+   */
+  private void validateDateRange(LocalDate start, LocalDate end) {
+    if (end == null) {
+      return;
+    }
+    if (start == null) {
+      throw new IllegalArgumentException(
+          "collectionEndDate requires a collectionDate (start date) to be set");
+    }
+    if (end.isBefore(start)) {
+      throw new IllegalArgumentException(
+          "collectionEndDate (" + end + ") must not be before collectionDate (" + start + ")");
     }
   }
 
