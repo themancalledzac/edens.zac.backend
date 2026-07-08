@@ -243,6 +243,53 @@ class CollectionRepositoryTest {
   }
 
   @Nested
+  class SaveCollectionEndDate {
+
+    @Test
+    void updateSqlWritesCollectionEndDateColumnAndBindsParam() {
+      // Existing-id entity => UPDATE path, which routes through the 2-arg
+      // namedParameterJdbcTemplate.update(sql, params) overload we can capture.
+      when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
+          .thenReturn(1);
+
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(5L)
+              .type(CollectionType.BLOG)
+              .title("Trip")
+              .slug("trip")
+              .collectionDate(java.time.LocalDate.of(2026, 3, 5))
+              .collectionEndDate(java.time.LocalDate.of(2026, 3, 7))
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      collectionRepository.save(entity);
+
+      verify(namedParameterJdbcTemplate).update(sqlCaptor.capture(), paramsCaptor.capture());
+      String sql = sqlCaptor.getValue();
+      assertThat(sql).containsIgnoringCase("collection_end_date = :collectionEndDate");
+      MapSqlParameterSource params = paramsCaptor.getValue();
+      assertThat(params.getValue("collectionEndDate"))
+          .isEqualTo(java.time.LocalDate.of(2026, 3, 7));
+      assertThat(params.getValue("collectionDate")).isEqualTo(java.time.LocalDate.of(2026, 3, 5));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void selectSqlListsCollectionEndDateColumn() {
+      when(namedParameterJdbcTemplate.query(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(List.of());
+
+      collectionRepository.findByIds(List.of(5L));
+
+      verify(namedParameterJdbcTemplate)
+          .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+      assertThat(sqlCaptor.getValue()).containsIgnoringCase("collection_end_date");
+    }
+  }
+
+  @Nested
   class FindAllParentCollectionsByChildId {
 
     @SuppressWarnings("unchecked")

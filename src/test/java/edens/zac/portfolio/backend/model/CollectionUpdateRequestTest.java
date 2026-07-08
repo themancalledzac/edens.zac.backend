@@ -974,6 +974,39 @@ class CollectionUpdateRequestTest {
     }
 
     @Test
+    @DisplayName("collectionEndDate JSON key deserializes into the DTO (wire-contract guard)")
+    void shouldDeserializeCollectionEndDateJsonKey() throws Exception {
+      // Regression guard for the 2026-05-31 "locations" class of bug: a DTO component whose name
+      // does not match the JSON wire name is silently dropped, and positional-constructor tests
+      // never catch it because they bypass Jackson property mapping. This test deserializes real
+      // JSON to prove collectionDate + collectionEndDate land on the correct fields.
+      ObjectMapper mapper = new ObjectMapper();
+      mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+      String json =
+          "{ \"id\": 55, \"collectionDate\": \"2026-03-05\", \"collectionEndDate\": \"2026-03-07\" }";
+
+      CollectionRequests.Update dto = mapper.readValue(json, CollectionRequests.Update.class);
+
+      assertEquals(LocalDate.of(2026, 3, 5), dto.collectionDate());
+      assertEquals(
+          LocalDate.of(2026, 3, 7),
+          dto.collectionEndDate(),
+          "collectionEndDate JSON key must map onto the DTO's collectionEndDate component");
+    }
+
+    @Test
+    @DisplayName("clearCollectionEndDate JSON key deserializes into the DTO")
+    void shouldDeserializeClearCollectionEndDateJsonKey() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      String json = "{ \"id\": 55, \"clearCollectionEndDate\": true }";
+
+      CollectionRequests.Update dto = mapper.readValue(json, CollectionRequests.Update.class);
+
+      assertEquals(Boolean.TRUE, dto.clearCollectionEndDate());
+      assertNull(dto.collectionEndDate());
+    }
+
+    @Test
     @DisplayName("Should accept location update with multiple values")
     void shouldAcceptLocationUpdateWithMultipleValues() {
       CollectionRequests.Update dto =

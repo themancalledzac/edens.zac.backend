@@ -78,6 +78,30 @@ class SyntheticCollectionResolverTest {
   }
 
   @Test
+  void resolveAllCollectionsCarriesDateRangeOntoContentBlocks() {
+    // The public date-organized showcase reads collectionDate/collectionEndDate off the
+    // synthetic all-collections COLLECTION blocks, so fromCollectionModel must copy both.
+    when(collectionRepository.findNonEmptyOrderedByVisibilityIn(any(), eq(null)))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder()
+                    .id(7L)
+                    .slug("spring-trip")
+                    .type(CollectionType.BLOG)
+                    .collectionDate(java.time.LocalDate.of(2026, 3, 5))
+                    .collectionEndDate(java.time.LocalDate.of(2026, 3, 7))
+                    .build()));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.collectionDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 5));
+    assertThat(block.collectionEndDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 7));
+  }
+
+  @Test
   void resolveAllBlogsInProdFiltersToBlogTypeAndListedOnly() {
     when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
             eq(List.of(CollectionVisibility.LISTED)), eq(CollectionType.BLOG)))
