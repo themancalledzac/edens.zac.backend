@@ -35,9 +35,13 @@ public class CollectionEntity {
   /** Column: description (VARCHAR(500)) */
   @Size(max = 500) private String description;
 
-  /** Column: collection_date (DATE) */
+  /** Column: collection_date (DATE) - start of the collection's date range */
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;
+
+  /** Column: collection_end_date (DATE) - inclusive end of the date range; NULL for single-day */
+  @JsonFormat(pattern = "yyyy-MM-dd")
+  private LocalDate collectionEndDate;
 
   /**
    * Column: visibility (VARCHAR, NOT NULL) - LISTED, UNLISTED, or HIDDEN. New rows default HIDDEN.

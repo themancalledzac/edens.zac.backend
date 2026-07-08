@@ -38,7 +38,7 @@ public class CollectionRepository extends BaseDao {
 
   private static final String SELECT_COLLECTION =
       """
-      SELECT id, type, title, slug, description, collection_date,
+      SELECT id, type, title, slug, description, collection_date, collection_end_date,
              visibility, display_mode, cover_image_id, content_per_page, total_content,
              rows_wide, gallery_password, recipient_emails, rating, created_at, updated_at
       FROM collection
@@ -53,6 +53,7 @@ public class CollectionRepository extends BaseDao {
         entity.setSlug(rs.getString("slug"));
         entity.setDescription(rs.getString("description"));
         entity.setCollectionDate(getLocalDate(rs, "collection_date"));
+        entity.setCollectionEndDate(getLocalDate(rs, "collection_end_date"));
         entity.setVisibility(CollectionVisibility.valueOf(rs.getString("visibility")));
 
         String displayMode = rs.getString("display_mode");
@@ -153,7 +154,7 @@ public class CollectionRepository extends BaseDao {
   public List<CollectionEntity> findReferencedCollectionsByParentId(Long parentId) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -178,7 +179,7 @@ public class CollectionRepository extends BaseDao {
   public List<CollectionEntity> findAllReferencedCollectionsByParentId(Long parentId) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -203,7 +204,7 @@ public class CollectionRepository extends BaseDao {
   public List<CollectionEntity> findAllParentCollectionsByChildId(Long childId) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -239,7 +240,7 @@ public class CollectionRepository extends BaseDao {
       String locationName, int limit, int offset) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -437,10 +438,10 @@ public class CollectionRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           """
-          INSERT INTO collection (type, title, slug, description, collection_date,
+          INSERT INTO collection (type, title, slug, description, collection_date, collection_end_date,
                                  visibility, display_mode, cover_image_id, content_per_page, total_content,
                                  rows_wide, gallery_password, rating, created_at, updated_at)
-          VALUES (:type, :title, :slug, :description, :collectionDate,
+          VALUES (:type, :title, :slug, :description, :collectionDate, :collectionEndDate,
                   :visibility, :displayMode, :coverImageId, :contentPerPage, :totalContent,
                   :rowsWide, :galleryPassword, :rating, :createdAt, :updatedAt)
           """;
@@ -452,6 +453,7 @@ public class CollectionRepository extends BaseDao {
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
               .addValue("collectionDate", entity.getCollectionDate())
+              .addValue("collectionEndDate", entity.getCollectionEndDate())
               .addValue(
                   "visibility",
                   entity.getVisibility() != null ? entity.getVisibility().name() : "HIDDEN")
@@ -479,7 +481,8 @@ public class CollectionRepository extends BaseDao {
           """
           UPDATE collection
           SET type = :type, title = :title, slug = :slug, description = :description,
-              collection_date = :collectionDate, visibility = :visibility, display_mode = :displayMode,
+              collection_date = :collectionDate, collection_end_date = :collectionEndDate,
+              visibility = :visibility, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
               rows_wide = :rowsWide, rating = :rating, updated_at = :updatedAt
           WHERE id = :id
@@ -493,6 +496,7 @@ public class CollectionRepository extends BaseDao {
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
               .addValue("collectionDate", entity.getCollectionDate())
+              .addValue("collectionEndDate", entity.getCollectionEndDate())
               .addValue(
                   "visibility",
                   entity.getVisibility() != null ? entity.getVisibility().name() : "HIDDEN")
