@@ -7,6 +7,7 @@ import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.sql.Array;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -126,6 +127,26 @@ public class CollectionRepository extends BaseDao {
             + " WHERE type = :type AND visibility = 'LISTED' "
             + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST";
     MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
+   * Find collections of a given type on an exact collection_date, oldest first. Used by the
+   * tag-first ingest flow to get-or-create the per-day BLOG collection keyed on {@code (type=BLOG,
+   * collection_date=day)}. Ordering by {@code created_at ASC} means callers can take the first
+   * result as the canonical (oldest) collection when duplicates unexpectedly exist.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findByTypeAndCollectionDate(
+      CollectionType type, LocalDate collectionDate) {
+    String sql =
+        SELECT_COLLECTION
+            + " WHERE type = :type AND collection_date = :collectionDate "
+            + "ORDER BY created_at ASC";
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("type", type.name())
+            .addValue("collectionDate", collectionDate);
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 

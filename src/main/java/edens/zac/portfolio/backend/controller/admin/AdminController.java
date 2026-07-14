@@ -446,6 +446,23 @@ class AdminController {
                 "message", "Processing started"));
   }
 
+  /**
+   * Tag-first ingest: background disk-import that auto-derives a date-based BLOG collection per
+   * capture day (no collectionId supplied). Returns 202 with jobId for polling via the same jobs
+   * endpoint as {@code /from-disk}.
+   */
+  @PostMapping("/content/images/ingest")
+  public ResponseEntity<Map<String, Object>> ingestImages(
+      @RequestBody @Valid DiskUploadRequest request) {
+    var jobStatus = imageUploadPipelineService.ingestFilesGroupedByDay(request);
+    return ResponseEntity.status(HttpStatus.ACCEPTED)
+        .body(
+            Map.of(
+                "jobId", jobStatus.jobId().toString(),
+                "totalFiles", jobStatus.totalFiles(),
+                "message", "Processing started"));
+  }
+
   /** Poll a disk-import job by id. */
   @GetMapping("/content/images/jobs/{jobId}")
   public ResponseEntity<JobTrackingService.JobStatusResponse> getJobStatus(

@@ -404,6 +404,63 @@ class ContentControllerDevTest {
     verify(imageUploadPipelineService).processFilesFromDisk(eq(5L), any(DiskUploadRequest.class));
   }
 
+  // ============== POST /api/admin/content/images/ingest ==============
+
+  @Test
+  @DisplayName("POST /content/images/ingest should accept and return job ID (no collectionId)")
+  void ingestImages_shouldAcceptAndReturnJobId() throws Exception {
+    // Arrange
+    UUID jobId = UUID.randomUUID();
+    JobTrackingService.JobStatus jobStatus = mock(JobTrackingService.JobStatus.class);
+    when(jobStatus.jobId()).thenReturn(jobId);
+    when(jobStatus.totalFiles()).thenReturn(2);
+
+    when(imageUploadPipelineService.ingestFilesGroupedByDay(any(DiskUploadRequest.class)))
+        .thenReturn(jobStatus);
+
+    DiskUploadRequest request =
+        new DiskUploadRequest(
+            List.of(
+                new DiskUploadRequest.FileEntry(
+                    "/tmp/photo1.jpg",
+                    null,
+                    List.of("Alice"),
+                    List.of("street", "film"),
+                    List.of("Amsterdam"),
+                    "2024-03-24"),
+                new DiskUploadRequest.FileEntry(
+                    "/tmp/photo2.jpg", null, null, null, null, "2024-03-25")),
+            null);
+
+    // Act & Assert
+    mockMvc
+        .perform(
+            post("/api/admin/content/images/ingest")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isAccepted())
+        .andExpect(jsonPath("$.jobId", is(jobId.toString())))
+        .andExpect(jsonPath("$.totalFiles", is(2)))
+        .andExpect(jsonPath("$.message", is("Processing started")));
+
+    verify(imageUploadPipelineService).ingestFilesGroupedByDay(any(DiskUploadRequest.class));
+  }
+
+  @Test
+  @DisplayName("POST /content/images/ingest should reject empty files list with 400")
+  void ingestImages_emptyFiles_shouldReturnBadRequest() throws Exception {
+    DiskUploadRequest request = new DiskUploadRequest(List.of(), null);
+
+    mockMvc
+        .perform(
+            post("/api/admin/content/images/ingest")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest());
+
+    verify(imageUploadPipelineService, never()).ingestFilesGroupedByDay(any());
+  }
+
   // ============== GET /api/admin/content/images/jobs/{jobId} ==============
 
   @Test
