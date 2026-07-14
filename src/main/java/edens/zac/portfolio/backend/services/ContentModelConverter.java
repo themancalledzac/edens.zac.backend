@@ -505,7 +505,9 @@ class ContentModelConverter {
         referencedCollection.getId(),
         referencedCollection.getSlug(),
         referencedCollection.getType(),
-        coverImage);
+        coverImage,
+        referencedCollection.getCollectionDate(),
+        referencedCollection.getCollectionEndDate());
   }
 
   // =============================================================================

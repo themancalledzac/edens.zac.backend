@@ -53,10 +53,17 @@ public final class CollectionRequests {
       @Size(max = 500, message = "Description cannot exceed 500 characters") String description,
       /** Location updates using prev/new/remove pattern */
       @Valid LocationUpdate locations,
-      /** Date associated with the collection */
+      /** Start date associated with the collection */
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
+      /**
+       * Inclusive end date of the collection's date range. Must be >= collectionDate when both are
+       * present. An end date without a start date is rejected.
+       */
+      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionEndDate,
       /** Set to true to explicitly clear the collection date (set it to null) */
       Boolean clearCollectionDate,
+      /** Set to true to explicitly clear the collection end date (set it to null) */
+      Boolean clearCollectionEndDate,
       /** Visibility state of the collection (LISTED / UNLISTED / HIDDEN). */
       CollectionVisibility visibility,
       /** Rating 0-5 (null leaves rating untouched). Used to order multi-collection list views. */
@@ -97,8 +104,9 @@ public final class CollectionRequests {
       CollectionUpdate parents) {
 
     /**
-     * Backwards-compatible constructor for callers predating the {@code parents} field. Delegates
-     * to the canonical constructor with {@code parents = null}.
+     * Backwards-compatible constructor for callers predating the {@code collectionEndDate}/{@code
+     * clearCollectionEndDate} and {@code parents} fields. Delegates to the canonical constructor
+     * with those three set to {@code null}.
      */
     public Update(
         Long id,
@@ -127,7 +135,9 @@ public final class CollectionRequests {
           description,
           locations,
           collectionDate,
+          null,
           clearCollectionDate,
+          null,
           visibility,
           rating,
           displayMode,

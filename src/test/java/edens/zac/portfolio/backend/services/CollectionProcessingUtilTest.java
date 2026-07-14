@@ -17,10 +17,12 @@ import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -223,5 +225,109 @@ class CollectionProcessingUtilTest {
   void populateSiblings_nullId_isNoOp() {
     util.populateSiblings(CollectionModel.builder().build(), false);
     verifyNoInteractions(collectionSiblingRepository);
+  }
+
+  /**
+   * Build an Update that only carries date-range fields (everything else null). Canonical 21-arg
+   * order: id, type, title, slug, description, locations, collectionDate, collectionEndDate,
+   * clearCollectionDate, clearCollectionEndDate, visibility, rating, displayMode, contentPerPage,
+   * rowsWide, coverImageId, tags, people, collections, siblings, parents.
+   */
+  private static CollectionRequests.Update dateRangeUpdate(
+      LocalDate collectionDate,
+      LocalDate collectionEndDate,
+      Boolean clearCollectionDate,
+      Boolean clearCollectionEndDate) {
+    return new CollectionRequests.Update(
+        1L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        collectionDate,
+        collectionEndDate,
+        clearCollectionDate,
+        clearCollectionEndDate,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  @Test
+  void applyBasicUpdates_setsCollectionEndDate_whenValidRange() {
+    testEntity.setCollectionDate(LocalDate.of(2026, 3, 5));
+
+    util.applyBasicUpdates(
+        testEntity,
+        dateRangeUpdate(LocalDate.of(2026, 3, 5), LocalDate.of(2026, 3, 7), null, null));
+
+    assertEquals(LocalDate.of(2026, 3, 7), testEntity.getCollectionEndDate());
+    assertEquals(LocalDate.of(2026, 3, 5), testEntity.getCollectionDate());
+  }
+
+  @Test
+  void applyBasicUpdates_rejectsEndBeforeStart() {
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                util.applyBasicUpdates(
+                    testEntity,
+                    dateRangeUpdate(
+                        LocalDate.of(2026, 3, 7), LocalDate.of(2026, 3, 5), null, null)));
+    assertTrue(ex.getMessage().contains("collectionEndDate"));
+  }
+
+  @Test
+  void applyBasicUpdates_rejectsEndDateWithoutStartDate() {
+    // Entity has no start date, and none is supplied — only an end date is.
+    testEntity.setCollectionDate(null);
+
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                util.applyBasicUpdates(
+                    testEntity, dateRangeUpdate(null, LocalDate.of(2026, 3, 7), null, null)));
+    assertTrue(ex.getMessage().contains("requires a collectionDate"));
+  }
+
+  @Test
+  void applyBasicUpdates_endDateValidAgainstExistingStartDate() {
+    // Start date already persisted on the entity; the update supplies only the end date.
+    testEntity.setCollectionDate(LocalDate.of(2026, 3, 1));
+
+    util.applyBasicUpdates(testEntity, dateRangeUpdate(null, LocalDate.of(2026, 3, 9), null, null));
+
+    assertEquals(LocalDate.of(2026, 3, 9), testEntity.getCollectionEndDate());
+  }
+
+  @Test
+  void applyBasicUpdates_clearCollectionEndDate_setsNull() {
+    testEntity.setCollectionDate(LocalDate.of(2026, 3, 1));
+    testEntity.setCollectionEndDate(LocalDate.of(2026, 3, 9));
+
+    util.applyBasicUpdates(testEntity, dateRangeUpdate(null, null, null, Boolean.TRUE));
+
+    assertNull(testEntity.getCollectionEndDate());
+  }
+
+  @Test
+  void convertToBasicModel_carriesCollectionEndDate() {
+    testEntity.setCollectionDate(LocalDate.of(2026, 3, 5));
+    testEntity.setCollectionEndDate(LocalDate.of(2026, 3, 7));
+
+    CollectionModel model = util.convertToBasicModel(testEntity);
+
+    assertEquals(LocalDate.of(2026, 3, 7), model.getCollectionEndDate());
   }
 }

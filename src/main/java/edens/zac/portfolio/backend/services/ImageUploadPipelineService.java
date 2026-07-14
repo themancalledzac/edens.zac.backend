@@ -12,10 +12,14 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
+import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.annotation.PreDestroy;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -148,6 +152,24 @@ public class ImageUploadPipelineService {
 
     // Submit background processing on a virtual thread
     rawUploadExecutor.submit(() -> processFilesFromDiskBackground(collectionId, request, job));
+
+    return job;
+  }
+
+  /**
+   * Tag-first ingest: accept file paths with per-file name-based metadata and process them in
+   * background, auto-deriving a date-based BLOG collection per capture day. No collectionId is
+   * supplied -- the day's BLOG (get-or-create keyed on {@code (type=BLOG, collectionDate=day)}) is
+   * the storage home. Returns a JobStatus immediately for the caller to return 202.
+   *
+   * @param request File paths plus optional per-file people/tags/locations/captureDate
+   * @return JobStatus with jobId for polling
+   */
+  public JobTrackingService.JobStatus ingestFilesGroupedByDay(DiskUploadRequest request) {
+    var job = jobTrackingService.createJob(request.files().size());
+
+    // Submit background processing on a virtual thread (same executor as from-disk).
+    rawUploadExecutor.submit(() -> ingestFilesGroupedByDayBackground(request, job));
 
     return job;
   }
@@ -315,11 +337,13 @@ public class ImageUploadPipelineService {
                 ? fileEntry.people()
                 : prepared.extractedPeople();
 
-        // Filter tags against all known people names
+        // Tags: prefer plugin-provided, fall back to XMP-extracted; filter people out of tags.
+        List<String> rawTags =
+            (fileEntry.tags() != null && !fileEntry.tags().isEmpty())
+                ? fileEntry.tags()
+                : prepared.extractedTags();
         List<String> tags =
-            prepared.extractedTags().stream()
-                .filter(tag -> !allKnownPeople.contains(tag.toLowerCase()))
-                .toList();
+            rawTags.stream().filter(tag -> !allKnownPeople.contains(tag.toLowerCase())).toList();
 
         // Save to DB with dedupe (reuses existing logic)
         ImageProcessingService.DedupeResult dedupeResult =
@@ -339,6 +363,8 @@ public class ImageUploadPipelineService {
                 prepared.imageMonth(),
                 collectionId,
                 orderIndex++);
+            contentMutationUtil.associateLocationsByName(
+                dedupeResult.entity().getId(), fileEntry.locations());
           }
           case UPDATE -> {
             job.updated().incrementAndGet();
@@ -351,6 +377,8 @@ public class ImageUploadPipelineService {
                 prepared.imageMonth(),
                 collectionId,
                 orderIndex++);
+            contentMutationUtil.associateLocationsByName(
+                dedupeResult.entity().getId(), fileEntry.locations());
           }
           case SKIP -> job.skipped().incrementAndGet();
           default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
@@ -373,6 +401,184 @@ public class ImageUploadPipelineService {
         job.updated().get(),
         job.skipped().get(),
         job.errors().size());
+  }
+
+  private void ingestFilesGroupedByDayBackground(
+      DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    try {
+      ingestFilesGroupedByDayLoop(request, job);
+    } catch (Exception e) {
+      log.error("Ingest job {} failed unexpectedly: {}", job.jobId(), e.getMessage(), e);
+      job.errors().add("Job failed: " + e.getMessage());
+      job.markCompleted();
+    }
+  }
+
+  private void ingestFilesGroupedByDayLoop(
+      DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    job.markProcessing();
+    log.info("Starting tag-first ingest job {} for {} files", job.jobId(), job.totalFiles());
+
+    // Load all known people once -- used for both existence checks and tag filtering.
+    List<ContentPersonEntity> existingPeople = personRepository.findAllByOrderByPersonNameAsc();
+    Set<String> existingNames =
+        existingPeople.stream()
+            .map(p -> p.getPersonName().toLowerCase())
+            .collect(Collectors.toCollection(HashSet::new));
+
+    // Ensure all plugin-provided people exist in DB before processing images.
+    ensurePluginPeopleExist(request, existingNames);
+
+    // Build set of all known people names for filtering them out of tags.
+    // Lightroom writes people to dc:subject as flat keywords, so without this they become Tags too.
+    Set<String> allKnownPeople =
+        existingPeople.stream()
+            .map(p -> p.getPersonName().toLowerCase())
+            .collect(Collectors.toCollection(HashSet::new));
+    request.files().stream()
+        .filter(f -> f.people() != null)
+        .flatMap(f -> f.people().stream())
+        .forEach(name -> allKnownPeople.add(name.toLowerCase()));
+
+    // Per-day BLOG collection cache (get-or-create memoized within this job) and per-collection
+    // running orderIndex, so multiple files on the same day append in sequence.
+    Map<LocalDate, Long> blogByDay = new HashMap<>();
+    Map<Long, Integer> nextOrderByCollection = new HashMap<>();
+
+    for (var fileEntry : request.files()) {
+      try {
+        // Prepare the image first: this uploads to S3 and extracts EXIF (incl. capture date),
+        // which is our fallback when the request omits captureDate.
+        var prepared =
+            imageProcessingService.prepareImageFromDisk(
+                Path.of(fileEntry.jpegPath()), fileEntry.rawPath());
+
+        LocalDate captureDay = resolveCaptureDay(fileEntry, prepared);
+        if (captureDay == null) {
+          log.warn(
+              "No resolvable capture date for {} -- recording as failure", fileEntry.jpegPath());
+          job.errors()
+              .add(
+                  fileEntry.jpegPath()
+                      + ": no resolvable capture date (request captureDate absent and no EXIF date"
+                      + " on file)");
+          job.processed().incrementAndGet();
+          continue;
+        }
+
+        Long collectionId = blogByDay.computeIfAbsent(captureDay, this::getOrCreateBlogForDay);
+
+        // People: prefer plugin-provided, fall back to XMP-extracted.
+        List<String> people =
+            (fileEntry.people() != null && !fileEntry.people().isEmpty())
+                ? fileEntry.people()
+                : prepared.extractedPeople();
+
+        // Tags: prefer plugin-provided, fall back to XMP-extracted; filter people out of tags.
+        List<String> rawTags =
+            (fileEntry.tags() != null && !fileEntry.tags().isEmpty())
+                ? fileEntry.tags()
+                : prepared.extractedTags();
+        List<String> tags =
+            rawTags.stream().filter(tag -> !allKnownPeople.contains(tag.toLowerCase())).toList();
+
+        // Save to DB with dedupe (reuses existing logic).
+        ImageProcessingService.DedupeResult dedupeResult =
+            imageProcessingService.savePreparedImageWithDedupe(prepared, null);
+
+        job.processed().incrementAndGet();
+        switch (dedupeResult.action()) {
+          case CREATE, UPDATE -> {
+            if (dedupeResult.action() == ImageProcessingService.DedupeAction.CREATE) {
+              job.created().incrementAndGet();
+            } else {
+              job.updated().incrementAndGet();
+            }
+            int orderIndex =
+                nextOrderByCollection.computeIfAbsent(collectionId, contentService::nextOrderIndex);
+            nextOrderByCollection.put(collectionId, orderIndex + 1);
+            wireImageAfterDedupe(
+                dedupeResult,
+                tags,
+                people,
+                prepared.rawFilePath(),
+                prepared.imageYear(),
+                prepared.imageMonth(),
+                collectionId,
+                orderIndex);
+            contentMutationUtil.associateLocationsByName(
+                dedupeResult.entity().getId(), fileEntry.locations());
+          }
+          case SKIP -> job.skipped().incrementAndGet();
+          default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
+        }
+      } catch (Exception e) {
+        log.error("Failed to ingest file {}: {}", fileEntry.jpegPath(), e.getMessage(), e);
+        job.errors().add(fileEntry.jpegPath() + ": " + e.getMessage());
+        job.processed().incrementAndGet();
+      }
+    }
+
+    // Evict generalMetadata cache -- new tags/people/locations may have been created during upload.
+    evictGeneralMetadataCache();
+
+    job.markCompleted();
+    log.info(
+        "Ingest job {} complete: {} created, {} updated, {} skipped, {} errors across {} day(s)",
+        job.jobId(),
+        job.created().get(),
+        job.updated().get(),
+        job.skipped().get(),
+        job.errors().size(),
+        blogByDay.size());
+  }
+
+  /**
+   * Resolve a file's capture day: prefer the request-provided {@code captureDate} ({@code
+   * yyyy-MM-dd}); fall back to the EXIF capture date extracted while preparing the image. Returns
+   * null when neither is resolvable (caller records the file as a job failure).
+   */
+  private LocalDate resolveCaptureDay(
+      DiskUploadRequest.FileEntry fileEntry, ImageProcessingService.PreparedImageData prepared) {
+    if (fileEntry.captureDate() != null && !fileEntry.captureDate().isBlank()) {
+      try {
+        return LocalDate.parse(fileEntry.captureDate().trim());
+      } catch (DateTimeParseException e) {
+        log.warn(
+            "Unparseable captureDate '{}' for {} -- falling back to EXIF",
+            fileEntry.captureDate(),
+            fileEntry.jpegPath());
+      }
+    }
+    return prepared.captureDate() != null ? prepared.captureDate().toLocalDate() : null;
+  }
+
+  /**
+   * Get-or-create the BLOG collection for a capture day, keyed on {@code (type=BLOG,
+   * collectionDate=day)}. If exactly one exists, reuse it; if multiple exist (should not happen),
+   * use the oldest and log a warning; otherwise create a new BLOG whose title/slug derive from the
+   * ISO date.
+   */
+  private Long getOrCreateBlogForDay(LocalDate day) {
+    List<CollectionEntity> existing =
+        collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day);
+    if (!existing.isEmpty()) {
+      if (existing.size() > 1) {
+        log.warn(
+            "Found {} BLOG collections for {} -- using oldest (id {})",
+            existing.size(),
+            day,
+            existing.get(0).getId());
+      }
+      return existing.get(0).getId();
+    }
+
+    var createRequest =
+        new CollectionRequests.Create(CollectionType.BLOG, day.toString(), null, null, null, day);
+    CollectionRequests.UpdateResponse created = collectionService.createCollection(createRequest);
+    Long newId = created.collection().getId();
+    log.info("Created BLOG collection {} for capture day {}", newId, day);
+    return newId;
   }
 
   /**

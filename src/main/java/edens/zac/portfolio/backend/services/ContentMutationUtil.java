@@ -343,6 +343,52 @@ public class ContentMutationUtil {
   }
 
   /**
+   * Resolve-or-create locations by name (case-insensitive by slug) and attach them to a saved
+   * content row. Additive: merges with the content's existing locations rather than replacing them,
+   * mirroring {@link #associateExtractedKeywords}. Failures are logged but do not propagate -- the
+   * image save is not affected.
+   *
+   * @param imageId The saved content entity ID
+   * @param locationNames Location names (e.g. from Lightroom's {@code Location/*} keyword
+   *     hierarchy)
+   */
+  public void associateLocationsByName(Long imageId, List<String> locationNames) {
+    if (locationNames == null || locationNames.isEmpty()) {
+      return;
+    }
+
+    try {
+      Set<Long> locationIds = new LinkedHashSet<>();
+      Set<String> seen = new HashSet<>();
+      for (String locationName : locationNames) {
+        if (locationName == null || locationName.trim().isEmpty()) {
+          continue;
+        }
+        String trimmedName = locationName.trim();
+        if (!seen.add(trimmedName.toLowerCase())) {
+          continue;
+        }
+        LocationEntity location = locationRepository.findOrCreate(trimmedName);
+        if (location != null) {
+          locationIds.add(location.getId());
+        }
+      }
+      if (locationIds.isEmpty()) {
+        return;
+      }
+      // Merge with existing locations so a re-ingest adds without dropping curated ones.
+      locationRepository
+          .findLocationsByContentIds(List.of(imageId))
+          .getOrDefault(imageId, List.of())
+          .forEach(loc -> locationIds.add(loc.getId()));
+      locationRepository.saveContentLocations(imageId, new ArrayList<>(locationIds));
+      log.info("Associated {} locations with content {}", locationIds.size(), imageId);
+    } catch (Exception e) {
+      log.warn("Failed to associate locations with content {}: {}", imageId, e.getMessage(), e);
+    }
+  }
+
+  /**
    * Update tags on an entity using the prev/new/remove pattern.
    *
    * @param currentTags Current set of tags on the entity

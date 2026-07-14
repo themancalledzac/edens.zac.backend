@@ -46,6 +46,10 @@ public class CollectionModel {
   @JsonFormat(pattern = "yyyy-MM-dd")
   private LocalDate collectionDate;
 
+  /** Inclusive end of the collection's date range; null when the collection is single-day. */
+  @JsonFormat(pattern = "yyyy-MM-dd")
+  private LocalDate collectionEndDate;
+
   private CollectionVisibility visibility;
 
   /** Rating 0-5, nullable. Used for ordering multi-collection list views. */

@@ -1,8 +1,10 @@
 package edens.zac.portfolio.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -235,7 +237,9 @@ public final class ContentModels {
       Long referencedCollectionId,
       String slug,
       CollectionType collectionType,
-      ContentModels.Image coverImage)
+      ContentModels.Image coverImage,
+      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
+      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionEndDate)
       implements ContentModel {
 
     /**
@@ -258,7 +262,9 @@ public final class ContentModels {
           c.getId(),
           c.getSlug(),
           c.getType(),
-          c.getCoverImage());
+          c.getCoverImage(),
+          c.getCollectionDate(),
+          c.getCollectionEndDate());
     }
 
     /** Returns a new Collection with {@code orderIndex} replaced (records are immutable). */
@@ -276,7 +282,9 @@ public final class ContentModels {
           referencedCollectionId,
           slug,
           collectionType,
-          coverImage);
+          coverImage,
+          collectionDate,
+          collectionEndDate);
     }
   }
 }
