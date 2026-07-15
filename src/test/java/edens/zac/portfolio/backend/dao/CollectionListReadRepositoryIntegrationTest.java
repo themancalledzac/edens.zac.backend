@@ -130,4 +130,86 @@ class CollectionListReadRepositoryIntegrationTest extends AbstractPostgresIntegr
             .toList();
     assertThat(includingHidden).contains(hidden.getId());
   }
+
+  @Test
+  void findNonEmptyListedOrOwnedOrderByDate_emptyOwnedIdsReturnsListedOnly() {
+    CollectionEntity listed =
+        saveCollection("clr-own-listed", LocalDate.of(2026, 4, 1), CollectionVisibility.LISTED);
+    CollectionEntity unlisted =
+        saveCollection("clr-own-unlisted", LocalDate.of(2026, 4, 2), CollectionVisibility.UNLISTED);
+    attachVisibleContent(listed.getId());
+    attachVisibleContent(unlisted.getId());
+
+    List<Long> ids =
+        collectionRepository
+            .findNonEmptyListedOrOwnedOrderByDate(List.of(CollectionVisibility.LISTED), List.of())
+            .stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids).contains(listed.getId());
+    assertThat(ids).doesNotContain(unlisted.getId());
+  }
+
+  @Test
+  void findNonEmptyListedOrOwnedOrderByDate_includesOwnedUnlistedAndHidden() {
+    CollectionEntity ownedUnlisted =
+        saveCollection("clr-own-u", LocalDate.of(2026, 5, 1), CollectionVisibility.UNLISTED);
+    CollectionEntity ownedHidden =
+        saveCollection("clr-own-h", LocalDate.of(2026, 5, 2), CollectionVisibility.HIDDEN);
+    CollectionEntity strangerUnlisted =
+        saveCollection("clr-own-x", LocalDate.of(2026, 5, 3), CollectionVisibility.UNLISTED);
+    attachVisibleContent(ownedUnlisted.getId());
+    attachVisibleContent(ownedHidden.getId());
+    attachVisibleContent(strangerUnlisted.getId());
+
+    List<Long> ids =
+        collectionRepository
+            .findNonEmptyListedOrOwnedOrderByDate(
+                List.of(CollectionVisibility.LISTED),
+                List.of(ownedUnlisted.getId(), ownedHidden.getId()))
+            .stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids).contains(ownedUnlisted.getId(), ownedHidden.getId());
+    assertThat(ids).doesNotContain(strangerUnlisted.getId());
+  }
+
+  @Test
+  void findNonEmptyListedOrOwnedOrderByDate_excludesEmptyEvenWhenOwned() {
+    CollectionEntity ownedEmpty =
+        saveCollection("clr-own-empty", LocalDate.of(2026, 6, 1), CollectionVisibility.UNLISTED);
+    // No content attached — the EXISTS guard must drop it even though it is owned.
+
+    List<Long> ids =
+        collectionRepository
+            .findNonEmptyListedOrOwnedOrderByDate(
+                List.of(CollectionVisibility.LISTED), List.of(ownedEmpty.getId()))
+            .stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids).doesNotContain(ownedEmpty.getId());
+  }
+
+  @Test
+  void findNonEmptyListedOrOwnedOrderByDate_ordersNewestFirstAcrossScopeAndOwned() {
+    CollectionEntity olderListed =
+        saveCollection("clr-own-old", LocalDate.of(2026, 7, 1), CollectionVisibility.LISTED);
+    CollectionEntity newerOwned =
+        saveCollection("clr-own-new", LocalDate.of(2026, 7, 9), CollectionVisibility.HIDDEN);
+    attachVisibleContent(olderListed.getId());
+    attachVisibleContent(newerOwned.getId());
+
+    List<Long> ids =
+        collectionRepository
+            .findNonEmptyListedOrOwnedOrderByDate(
+                List.of(CollectionVisibility.LISTED), List.of(newerOwned.getId()))
+            .stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids.indexOf(newerOwned.getId())).isLessThan(ids.indexOf(olderListed.getId()));
+  }
 }
