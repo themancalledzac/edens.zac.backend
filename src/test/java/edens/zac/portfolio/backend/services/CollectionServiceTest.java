@@ -926,7 +926,8 @@ class CollectionServiceTest {
               CollectionType.PORTFOLIO,
               null,
               null,
-              null);
+              null,
+              List.of());
 
       CollectionModel model =
           CollectionModel.builder()
@@ -1171,7 +1172,8 @@ class CollectionServiceTest {
           type,
           null,
           null,
-          null);
+          null,
+          List.of());
     }
 
     private CollectionEntity childEntity(

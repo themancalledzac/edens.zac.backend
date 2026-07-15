@@ -384,6 +384,34 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
+   * Same visibility scope and non-empty guard as {@link #findNonEmptyOrderedByVisibilityIn}, but
+   * ordered chronologically ({@code collection_date DESC, id DESC}) instead of rating-first, and
+   * without a type filter. Backs the {@code all-collections} synthetic list, whose first paint is
+   * newest-collections-first; the {@code id DESC} tiebreaker gives a deterministic total order. The
+   * other synthetic lists keep {@link #findNonEmptyOrderedByVisibilityIn} (rating-first), so this
+   * is an additive sibling rather than a change to shared ordering.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findNonEmptyByVisibilityInOrderByDate(
+      List<CollectionVisibility> allowed) {
+    String sql =
+        SELECT_COLLECTION
+            + """
+             WHERE visibility IN (:visibilities)
+               AND EXISTS (
+                 SELECT 1 FROM collection_content cc
+                 WHERE cc.collection_id = collection.id
+                   AND cc.visible = true
+               )
+             ORDER BY collection_date DESC NULLS LAST, id DESC
+             """;
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
+    return query(sql, COLLECTION_ROW_MAPPER, params);
+  }
+
+  /**
    * Find every CLIENT_GALLERY plus every PARENT that has at least one CLIENT_GALLERY child, all
    * within the supplied visibility set, ordered by rating then collection_date. The PARENT branch
    * walks the same join chain as {@link #findReferencedCollectionsByParentId} (parent ->

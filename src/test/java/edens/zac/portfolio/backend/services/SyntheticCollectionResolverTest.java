@@ -7,13 +7,16 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,6 +28,7 @@ class SyntheticCollectionResolverTest {
 
   @Mock private CollectionRepository collectionRepository;
   @Mock private CollectionProcessingUtil collectionProcessingUtil;
+  @Mock private TagRepository tagRepository;
 
   @InjectMocks private SyntheticCollectionResolver resolver;
 
@@ -48,13 +52,13 @@ class SyntheticCollectionResolverTest {
 
   @Test
   void resolveAllCollectionsInDevAllowsAllVisibilitiesAndReturnsChildrenAsContent() {
-    when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
+    // all-collections uses the chronological (date-ordered) query, not the rating-first one.
+    when(collectionRepository.findNonEmptyByVisibilityInOrderByDate(
             eq(
                 List.of(
                     CollectionVisibility.LISTED,
                     CollectionVisibility.UNLISTED,
-                    CollectionVisibility.HIDDEN)),
-            eq(null)))
+                    CollectionVisibility.HIDDEN))))
         .thenReturn(List.of(new CollectionEntity(), new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
@@ -81,7 +85,7 @@ class SyntheticCollectionResolverTest {
   void resolveAllCollectionsCarriesDateRangeOntoContentBlocks() {
     // The public date-organized showcase reads collectionDate/collectionEndDate off the
     // synthetic all-collections COLLECTION blocks, so fromCollectionModel must copy both.
-    when(collectionRepository.findNonEmptyOrderedByVisibilityIn(any(), eq(null)))
+    when(collectionRepository.findNonEmptyByVisibilityInOrderByDate(any()))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
@@ -99,6 +103,64 @@ class SyntheticCollectionResolverTest {
     ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
     assertThat(block.collectionDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 5));
     assertThat(block.collectionEndDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 7));
+  }
+
+  @Test
+  void resolveAllCollectionsUsesDateOrderedQueryNotRatingFirst() {
+    when(collectionRepository.findNonEmptyByVisibilityInOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED))))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(CollectionModel.builder().id(1L).slug("x").type(CollectionType.BLOG).build()));
+
+    resolver.resolve("all-collections", false);
+
+    org.mockito.Mockito.verify(collectionRepository)
+        .findNonEmptyByVisibilityInOrderByDate(eq(List.of(CollectionVisibility.LISTED)));
+    org.mockito.Mockito.verify(collectionRepository, org.mockito.Mockito.never())
+        .findNonEmptyOrderedByVisibilityIn(any(), any());
+  }
+
+  @Test
+  void resolveAllCollectionsAttachesCollectionTagsToContentBlocks() {
+    // Each child collection's tags must ride onto its COLLECTION content block so the frontend can
+    // filter the synthetic list client-side by tag.
+    when(collectionRepository.findNonEmptyByVisibilityInOrderByDate(any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder().id(7L).slug("trip").type(CollectionType.BLOG).build()));
+    when(tagRepository.findTagsByCollectionIds(List.of(7L)))
+        .thenReturn(
+            Map.of(
+                7L,
+                List.of(
+                    TagEntity.builder().id(2L).tagName("italy").slug("italy").build(),
+                    TagEntity.builder().id(3L).tagName("mountains").slug("mountains").build())));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.tags()).extracting("name").containsExactly("italy", "mountains");
+    assertThat(block.tags()).extracting("slug").containsExactly("italy", "mountains");
+  }
+
+  @Test
+  void resolveAllCollectionsWithNoTagsYieldsEmptyBlockTags() {
+    when(collectionRepository.findNonEmptyByVisibilityInOrderByDate(any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder().id(9L).slug("bare").type(CollectionType.BLOG).build()));
+    // tagRepository.findTagsByCollectionIds returns an empty map by default (Mockito) -> no tags.
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.tags()).isEmpty();
   }
 
   @Test
