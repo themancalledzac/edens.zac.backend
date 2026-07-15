@@ -2,8 +2,10 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -13,6 +15,7 @@ import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,9 +51,14 @@ public class SyntheticCollectionResolver {
           "all-misc",
           new Synthetic("Misc", CollectionType.MISC));
 
+  private static final List<CollectionVisibility> ADMIN_SCOPE =
+      List.of(
+          CollectionVisibility.LISTED, CollectionVisibility.UNLISTED, CollectionVisibility.HIDDEN);
+
   private final CollectionRepository collectionRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final TagRepository tagRepository;
+  private final UserCollectionRepository userCollectionRepository;
 
   /** Returns true if the slug matches a synthetic-list catalog entry. */
   public boolean isSyntheticSlug(String slug) {
@@ -72,15 +80,16 @@ public class SyntheticCollectionResolver {
 
     // "all-client-galleries" includes PARENT collections that have ≥1 CLIENT_GALLERY child
     // (e.g. wedding wrappers with ceremony/reception sub-galleries) so they appear alongside
-    // standalone CLIENT_GALLERYs. "all-collections" defaults to chronological order (newest
-    // collections first) for its first paint; the frontend reorders client-side thereafter. Other
-    // synthetic slugs use the simple type filter with rating-first ordering. All non-gallery slugs
-    // exclude collections that have zero content rows so the listing never shows empty tiles.
+    // standalone CLIENT_GALLERYs. "all-collections" is permission-scoped by the caller's verified
+    // identity (NOT the environment) and stays chronological (newest first) for its first paint;
+    // the frontend reorders client-side thereafter. Other synthetic slugs use the simple type
+    // filter with rating-first ordering and the env-based scope. All non-gallery slugs exclude
+    // collections that have zero content rows so the listing never shows empty tiles.
     List<CollectionEntity> rows;
     if (ALL_CLIENT_GALLERIES.equals(slug)) {
       rows = collectionRepository.findClientGalleriesAndQualifyingParents(allowed);
     } else if (ALL_COLLECTIONS.equals(slug)) {
-      rows = collectionRepository.findNonEmptyByVisibilityInOrderByDate(allowed);
+      rows = findAllCollectionsForCurrentViewer();
     } else {
       rows = collectionRepository.findNonEmptyOrderedByVisibilityIn(allowed, spec.typeFilter());
     }
@@ -112,6 +121,32 @@ public class SyntheticCollectionResolver {
         .currentPage(0)
         .totalPages(1)
         .build();
+  }
+
+  /**
+   * Permission-scoped rows for the "all-collections" list. Unlike the other synthetic slugs
+   * (environment-scoped), this list widens strictly on server-verified identity: an admin gets
+   * every visibility; a signed-in non-admin gets LISTED plus the specific collections granted in
+   * {@code user_collection} (their client galleries), even when UNLISTED/HIDDEN; anonymous gets
+   * LISTED only. Nothing client-supplied can widen the scope.
+   */
+  private List<CollectionEntity> findAllCollectionsForCurrentViewer() {
+    AuthPrincipal principal = currentPrincipal();
+    if (principal != null && principal.isAdmin()) {
+      return collectionRepository.findNonEmptyListedOrOwnedOrderByDate(ADMIN_SCOPE, List.of());
+    }
+    List<Long> ownedIds =
+        (principal == null || principal.userId() == null)
+            ? List.of()
+            : userCollectionRepository.findCollectionIdsByUserId(principal.userId());
+    return collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
+        List.of(CollectionVisibility.LISTED), ownedIds);
+  }
+
+  /** The authenticated principal, or null when the request is anonymous. */
+  private static AuthPrincipal currentPrincipal() {
+    var auth = SecurityContextHolder.getContext().getAuthentication();
+    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p : null;
   }
 
   /** Map collection tag entities to serializable Records.Tag, tolerating a null/absent list. */
