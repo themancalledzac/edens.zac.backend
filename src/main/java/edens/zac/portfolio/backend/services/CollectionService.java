@@ -1278,7 +1278,10 @@ public class CollectionService {
    * <ul>
    *   <li>HOME slug always passes (existing exception).
    *   <li>LISTED + UNLISTED both pass for direct slug access.
-   *   <li>HIDDEN passes only when {@code isLocalEnvironment} is true; otherwise NotFound.
+   *   <li>HIDDEN passes in a local environment, for an admin principal, or for a viewer with an
+   *       explicit {@code user_collection} grant; otherwise NotFound. Mirrors the scope the
+   *       permission-aware all-collections list surfaces, so a tile a viewer can see is a tile they
+   *       can open.
    * </ul>
    */
   private void enforceVisibility(CollectionEntity entity, String slug, boolean isLocalEnvironment) {
@@ -1286,11 +1289,22 @@ public class CollectionService {
       return;
     }
     CollectionVisibility v = entity.getVisibility();
-    if (v == CollectionVisibility.HIDDEN && !isLocalEnvironment) {
-      log.debug("Blocked HIDDEN collection {} from non-local request", slug);
+    if (v == CollectionVisibility.HIDDEN
+        && !isLocalEnvironment
+        && !viewerMaySeeHidden(entity.getId())) {
+      log.debug("Blocked HIDDEN collection {} from unauthorized request", slug);
       throw new ResourceNotFoundException("Collection not found with slug: " + slug);
     }
     // LISTED and UNLISTED both allow direct slug access.
+  }
+
+  /** True when the current viewer is an admin or holds a user_collection grant for the id. */
+  private boolean viewerMaySeeHidden(Long collectionId) {
+    var auth = SecurityContextHolder.getContext().getAuthentication();
+    if (auth == null || !(auth.getPrincipal() instanceof AuthPrincipal p) || p.userId() == null) {
+      return false;
+    }
+    return p.isAdmin() || userCollectionService.canView(p.userId(), collectionId);
   }
 
   private boolean isLocalEnvironment() {

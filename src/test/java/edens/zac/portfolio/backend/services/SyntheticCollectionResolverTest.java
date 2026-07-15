@@ -4,29 +4,58 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.dao.TagRepository;
+import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
 class SyntheticCollectionResolverTest {
 
   @Mock private CollectionRepository collectionRepository;
   @Mock private CollectionProcessingUtil collectionProcessingUtil;
+  @Mock private TagRepository tagRepository;
+  @Mock private UserCollectionRepository userCollectionRepository;
 
   @InjectMocks private SyntheticCollectionResolver resolver;
+
+  private static final List<CollectionVisibility> FULL_SCOPE =
+      List.of(
+          CollectionVisibility.LISTED, CollectionVisibility.UNLISTED, CollectionVisibility.HIDDEN);
+
+  @AfterEach
+  void clearSecurityContext() {
+    SecurityContextHolder.clearContext();
+  }
+
+  private static void setPrincipal(AuthPrincipal principal) {
+    var auth = new UsernamePasswordAuthenticationToken(principal, null, List.of());
+    SecurityContext context = SecurityContextHolder.createEmptyContext();
+    context.setAuthentication(auth);
+    SecurityContextHolder.setContext(context);
+  }
 
   @Test
   void recognizesAllCatalogSlugs() {
@@ -47,14 +76,11 @@ class SyntheticCollectionResolverTest {
   }
 
   @Test
-  void resolveAllCollectionsInDevAllowsAllVisibilitiesAndReturnsChildrenAsContent() {
-    when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
-            eq(
-                List.of(
-                    CollectionVisibility.LISTED,
-                    CollectionVisibility.UNLISTED,
-                    CollectionVisibility.HIDDEN)),
-            eq(null)))
+  void resolveAllCollectionsForAdminUsesFullScopeAndReturnsChildrenAsContent() {
+    // all-collections is permission-scoped: an admin principal widens to every visibility
+    // (regardless of environment) and still uses the chronological query.
+    setPrincipal(new AuthPrincipal(1L, "admin@ezac.com", true, true));
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(eq(FULL_SCOPE), eq(List.of())))
         .thenReturn(List.of(new CollectionEntity(), new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
@@ -62,7 +88,7 @@ class SyntheticCollectionResolverTest {
                 CollectionModel.builder().id(1L).slug("a").type(CollectionType.PORTFOLIO).build(),
                 CollectionModel.builder().id(2L).slug("b").type(CollectionType.BLOG).build()));
 
-    CollectionModel out = resolver.resolve("all-collections", true);
+    CollectionModel out = resolver.resolve("all-collections", false);
 
     assertThat(out.getSlug()).isEqualTo("all-collections");
     assertThat(out.getTitle()).isEqualTo("All Collections");
@@ -78,10 +104,76 @@ class SyntheticCollectionResolverTest {
   }
 
   @Test
+  void resolveAllCollectionsForAdminQueriesFullScopeWithNoOwnedIds() {
+    setPrincipal(new AuthPrincipal(1L, "admin@ezac.com", true, true));
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(eq(FULL_SCOPE), eq(List.of())))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(CollectionModel.builder().id(1L).slug("a").type(CollectionType.BLOG).build()));
+
+    resolver.resolve("all-collections", false);
+
+    verify(collectionRepository)
+        .findNonEmptyListedOrOwnedOrderByDate(eq(FULL_SCOPE), eq(List.of()));
+    verify(userCollectionRepository, never()).findCollectionIdsByUserId(any());
+  }
+
+  @Test
+  void resolveAllCollectionsForSignedInNonAdminQueriesListedPlusGrants() {
+    setPrincipal(AuthPrincipal.client(42L, "client@ezac.com", true));
+    when(userCollectionRepository.findCollectionIdsByUserId(42L)).thenReturn(List.of(7L, 9L));
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED)), eq(List.of(7L, 9L))))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(CollectionModel.builder().id(7L).slug("g").type(CollectionType.BLOG).build()));
+
+    resolver.resolve("all-collections", false);
+
+    verify(collectionRepository)
+        .findNonEmptyListedOrOwnedOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED)), eq(List.of(7L, 9L)));
+  }
+
+  @Test
+  void resolveAllCollectionsAnonymousQueriesListedOnlyEvenInLocalEnv() {
+    // No principal set. isLocalEnvironment=true must NOT widen — the env shim is subsumed
+    // for all-collections; identity is the only thing that widens this list.
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED)), eq(List.of())))
+        .thenReturn(List.of());
+    when(collectionProcessingUtil.batchConvertToBasicModels(any())).thenReturn(List.of());
+
+    resolver.resolve("all-collections", true);
+
+    verify(collectionRepository)
+        .findNonEmptyListedOrOwnedOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED)), eq(List.of()));
+  }
+
+  @Test
+  void resolveAllCollectionsNonAdminNeverWidensBeyondListedPlusGrants() {
+    // isAdmin=false with mfaSatisfied=true — guards against transposed boolean reads.
+    setPrincipal(new AuthPrincipal(42L, "client@ezac.com", false, true));
+    when(userCollectionRepository.findCollectionIdsByUserId(42L)).thenReturn(List.of());
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED)), eq(List.of())))
+        .thenReturn(List.of());
+    when(collectionProcessingUtil.batchConvertToBasicModels(any())).thenReturn(List.of());
+
+    resolver.resolve("all-collections", true);
+
+    verify(collectionRepository, never())
+        .findNonEmptyListedOrOwnedOrderByDate(eq(FULL_SCOPE), any());
+  }
+
+  @Test
   void resolveAllCollectionsCarriesDateRangeOntoContentBlocks() {
     // The public date-organized showcase reads collectionDate/collectionEndDate off the
     // synthetic all-collections COLLECTION blocks, so fromCollectionModel must copy both.
-    when(collectionRepository.findNonEmptyOrderedByVisibilityIn(any(), eq(null)))
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
@@ -99,6 +191,64 @@ class SyntheticCollectionResolverTest {
     ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
     assertThat(block.collectionDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 5));
     assertThat(block.collectionEndDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 7));
+  }
+
+  @Test
+  void resolveAllCollectionsUsesDateOrderedQueryNotRatingFirst() {
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED)), eq(List.of())))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(CollectionModel.builder().id(1L).slug("x").type(CollectionType.BLOG).build()));
+
+    resolver.resolve("all-collections", false);
+
+    verify(collectionRepository)
+        .findNonEmptyListedOrOwnedOrderByDate(
+            eq(List.of(CollectionVisibility.LISTED)), eq(List.of()));
+    verify(collectionRepository, never()).findNonEmptyOrderedByVisibilityIn(any(), any());
+  }
+
+  @Test
+  void resolveAllCollectionsAttachesCollectionTagsToContentBlocks() {
+    // Each child collection's tags must ride onto its COLLECTION content block so the frontend can
+    // filter the synthetic list client-side by tag.
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder().id(7L).slug("trip").type(CollectionType.BLOG).build()));
+    when(tagRepository.findTagsByCollectionIds(List.of(7L)))
+        .thenReturn(
+            Map.of(
+                7L,
+                List.of(
+                    TagEntity.builder().id(2L).tagName("italy").slug("italy").build(),
+                    TagEntity.builder().id(3L).tagName("mountains").slug("mountains").build())));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.tags()).extracting("name").containsExactly("italy", "mountains");
+    assertThat(block.tags()).extracting("slug").containsExactly("italy", "mountains");
+  }
+
+  @Test
+  void resolveAllCollectionsWithNoTagsYieldsEmptyBlockTags() {
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder().id(9L).slug("bare").type(CollectionType.BLOG).build()));
+    // tagRepository.findTagsByCollectionIds returns an empty map by default (Mockito) -> no tags.
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.tags()).isEmpty();
   }
 
   @Test
@@ -161,12 +311,7 @@ class SyntheticCollectionResolverTest {
 
   @Test
   void resolveAllClientGalleriesInDevPassesAllVisibilitiesToInclusiveQuery() {
-    when(collectionRepository.findClientGalleriesAndQualifyingParents(
-            eq(
-                List.of(
-                    CollectionVisibility.LISTED,
-                    CollectionVisibility.UNLISTED,
-                    CollectionVisibility.HIDDEN))))
+    when(collectionRepository.findClientGalleriesAndQualifyingParents(eq(FULL_SCOPE)))
         .thenReturn(List.of());
     when(collectionProcessingUtil.batchConvertToBasicModels(any())).thenReturn(List.of());
 

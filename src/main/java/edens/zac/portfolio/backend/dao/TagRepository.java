@@ -274,6 +274,51 @@ public class TagRepository extends BaseDao {
   }
 
   /**
+   * Batch-load collection tags (full {@link TagEntity}) for a set of collection ids, in a single
+   * query. Returns a map collectionId -&gt; ordered list of tags ({@code tag_name ASC});
+   * collections with no tags are simply absent from the map. Empty/null input returns an empty map.
+   * Mirrors {@link #findTagsByContentIds} for collection-level tags. Used by {@link
+   * edens.zac.portfolio.backend.services.SyntheticCollectionResolver} to enrich each {@code
+   * COLLECTION} content-ref block with its tags, so synthetic list views (e.g. {@code
+   * all-collections}) carry per-collection tags for client-side filtering.
+   */
+  @Transactional(readOnly = true)
+  public Map<Long, List<TagEntity>> findTagsByCollectionIds(List<Long> collectionIds) {
+    if (collectionIds == null || collectionIds.isEmpty()) {
+      return Map.of();
+    }
+
+    String sql =
+        """
+        SELECT ct.collection_id, t.id, t.tag_name, t.slug, t.converted_collection_id, t.created_at
+        FROM collection_tags ct
+        JOIN tag t ON ct.tag_id = t.id
+        WHERE ct.collection_id IN (:collectionIds)
+        ORDER BY t.tag_name ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("collectionIds", collectionIds);
+
+    Map<Long, List<TagEntity>> result = new HashMap<>();
+    namedParameterJdbcTemplate.query(
+        sql,
+        params,
+        rs -> {
+          Long collectionId = rs.getLong("collection_id");
+          TagEntity tag =
+              TagEntity.builder()
+                  .id(rs.getLong("id"))
+                  .tagName(rs.getString("tag_name"))
+                  .slug(rs.getString("slug"))
+                  .convertedCollectionId(getLong(rs, "converted_collection_id"))
+                  .createdAt(getLocalDateTime(rs, "created_at"))
+                  .build();
+          result.computeIfAbsent(collectionId, k -> new ArrayList<>()).add(tag);
+        });
+
+    return result;
+  }
+
+  /**
    * Collections carrying the tag within the allowed visibilities, ordered rating- then date-desc.
    * The tag-view's primary members; empty when none.
    */

@@ -239,14 +239,16 @@ public final class ContentModels {
       CollectionType collectionType,
       ContentModels.Image coverImage,
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
-      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionEndDate)
+      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionEndDate,
+      List<Records.Tag> tags)
       implements ContentModel {
 
     /**
      * Build a child-reference block from a basic {@link CollectionModel} (a converted collection,
      * not a content row). Used by synthetic PARENT views (synthetic list slugs and the {@code
      * /user} page) where each child collection becomes a {@code COLLECTION} block pointing back at
-     * itself.
+     * itself. Tags start empty; callers that need per-collection tags for filtering (e.g. synthetic
+     * list views) enrich the block via {@link #withTags}.
      */
     public static Collection fromCollectionModel(CollectionModel c) {
       return new Collection(
@@ -264,7 +266,8 @@ public final class ContentModels {
           c.getType(),
           c.getCoverImage(),
           c.getCollectionDate(),
-          c.getCollectionEndDate());
+          c.getCollectionEndDate(),
+          List.of());
     }
 
     /** Returns a new Collection with {@code orderIndex} replaced (records are immutable). */
@@ -284,7 +287,33 @@ public final class ContentModels {
           collectionType,
           coverImage,
           collectionDate,
-          collectionEndDate);
+          collectionEndDate,
+          tags);
+    }
+
+    /**
+     * Returns a new Collection with {@code tags} replaced (records are immutable). Used by
+     * synthetic list resolvers to attach the referenced collection's tags so the frontend can
+     * filter the list client-side without a per-collection fetch.
+     */
+    public Collection withTags(List<Records.Tag> tags) {
+      return new Collection(
+          id,
+          contentType,
+          title,
+          description,
+          imageUrl,
+          orderIndex,
+          visible,
+          createdAt,
+          updatedAt,
+          referencedCollectionId,
+          slug,
+          collectionType,
+          coverImage,
+          collectionDate,
+          collectionEndDate,
+          tags);
     }
   }
 }
