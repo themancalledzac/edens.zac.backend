@@ -23,6 +23,7 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,9 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
 class CollectionServiceTest {
@@ -1230,6 +1235,18 @@ class CollectionServiceTest {
   @Nested
   class EnforceVisibilityVisibilityRules {
 
+    @AfterEach
+    void clearSecurityContext() {
+      SecurityContextHolder.clearContext();
+    }
+
+    private void setPrincipal(AuthPrincipal principal) {
+      var auth = new UsernamePasswordAuthenticationToken(principal, null, List.of());
+      SecurityContext context = SecurityContextHolder.createEmptyContext();
+      context.setAuthentication(auth);
+      SecurityContextHolder.setContext(context);
+    }
+
     @Test
     void enforceVisibilityHIDDENBlocksProd() {
       CollectionEntity entity =
@@ -1263,6 +1280,64 @@ class CollectionServiceTest {
           .thenReturn(CollectionModel.builder().id(1L).slug("secret").build());
 
       assertThat(service.findMetaBySlug("secret")).isNotNull();
+    }
+
+    @Test
+    void enforceVisibilityHIDDENPassesInProdForAdmin() {
+      setPrincipal(new AuthPrincipal(1L, "admin@ezac.com", true, true));
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(1L)
+              .slug("secret")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.HIDDEN)
+              .build();
+      when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
+      when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
+          .thenReturn(false);
+      when(collectionProcessingUtil.convertToBasicModel(entity))
+          .thenReturn(CollectionModel.builder().id(1L).slug("secret").build());
+
+      assertThat(service.findMetaBySlug("secret")).isNotNull();
+    }
+
+    @Test
+    void enforceVisibilityHIDDENPassesInProdForGrantedUser() {
+      setPrincipal(AuthPrincipal.client(42L, "client@ezac.com", true));
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(9L)
+              .slug("their-gallery")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.HIDDEN)
+              .build();
+      when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
+      when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
+          .thenReturn(false);
+      when(userCollectionService.canView(42L, 9L)).thenReturn(true);
+      when(collectionProcessingUtil.convertToBasicModel(entity))
+          .thenReturn(CollectionModel.builder().id(9L).slug("their-gallery").build());
+
+      assertThat(service.findMetaBySlug("their-gallery")).isNotNull();
+    }
+
+    @Test
+    void enforceVisibilityHIDDENStillBlocksProdForSignedInStranger() {
+      setPrincipal(AuthPrincipal.client(43L, "stranger@ezac.com", true));
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(9L)
+              .slug("their-gallery")
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.HIDDEN)
+              .build();
+      when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
+      when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
+          .thenReturn(false);
+      when(userCollectionService.canView(43L, 9L)).thenReturn(false);
+
+      assertThatThrownBy(() -> service.findMetaBySlug("their-gallery"))
+          .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
