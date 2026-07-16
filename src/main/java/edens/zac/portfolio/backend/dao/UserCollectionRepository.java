@@ -1,7 +1,7 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.UserCollectionEntity;
-import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,7 +29,7 @@ public class UserCollectionRepository extends BaseDao {
           UserCollectionEntity.builder()
               .userId(rs.getLong("user_id"))
               .collectionId(rs.getLong("collection_id"))
-              .role(CollectionRole.valueOf(rs.getString("role")))
+              .role(AccessLevel.valueOf(rs.getString("role")))
               .grantedAt(getLocalDateTime(rs, "granted_at"))
               .grantedBy(getLong(rs, "granted_by"))
               .build();
@@ -83,7 +83,7 @@ public class UserCollectionRepository extends BaseDao {
 
   /** Insert or update the membership role for (user, collection). */
   @Transactional
-  public void upsertRole(Long userId, Long collectionId, CollectionRole role, Long grantedBy) {
+  public void upsertRole(Long userId, Long collectionId, AccessLevel role, Long grantedBy) {
     String sql =
         """
         INSERT INTO user_collection (user_id, collection_id, role, granted_by)

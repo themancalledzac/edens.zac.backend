@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
-import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 public class UserCollectionEntity {
   private Long userId;
   private Long collectionId;
-  private CollectionRole role;
+  private AccessLevel role;
   private LocalDateTime grantedAt;
   private Long grantedBy;
 }

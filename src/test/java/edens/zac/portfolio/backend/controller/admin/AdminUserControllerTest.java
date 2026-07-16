@@ -24,7 +24,7 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
-import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.UserStatus;
@@ -660,7 +660,7 @@ class AdminUserControllerTest {
   class CollectionMembership {
 
     @Test
-    void putCollectionRoleReturns204AndCallsUpsert() throws Exception {
+    void putAccessLevelReturns204AndCallsUpsert() throws Exception {
       mockMvc
           .perform(
               put("/api/admin/users/10/collections/20")
@@ -668,11 +668,11 @@ class AdminUserControllerTest {
                   .content("{\"role\":\"CLIENT\"}"))
           .andExpect(status().isNoContent());
 
-      verify(userCollectionRepository).upsertRole(10L, 20L, CollectionRole.CLIENT, null);
+      verify(userCollectionRepository).upsertRole(10L, 20L, AccessLevel.CLIENT, null);
     }
 
     @Test
-    void deleteCollectionRoleReturns204AndCallsDelete() throws Exception {
+    void deleteAccessLevelReturns204AndCallsDelete() throws Exception {
       mockMvc
           .perform(delete("/api/admin/users/10/collections/20"))
           .andExpect(status().isNoContent());
@@ -718,7 +718,7 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void putCollectionRoleReturns400OnMissingRole() throws Exception {
+    void putAccessLevelReturns400OnMissingRole() throws Exception {
       mockMvc
           .perform(
               put("/api/admin/users/10/collections/20")
@@ -728,7 +728,7 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void putCollectionRoleReturns400OnUnparseableRoleEnum() throws Exception {
+    void putAccessLevelReturns400OnUnparseableRoleEnum() throws Exception {
       // Unknown enum value -> Jackson cannot deserialize the body, so this is an
       // HttpMessageNotReadableException (a malformed body), NOT bean validation. It previously
       // fell through to the catch-all Exception handler and returned 500 instead of 400.

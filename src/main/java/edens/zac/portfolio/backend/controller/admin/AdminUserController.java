@@ -7,7 +7,7 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRespo
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
-import edens.zac.portfolio.backend.controller.admin.UserRequests.SetCollectionRoleRequest;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.SetAccessLevelRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserRequest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.UserCollectionRepository;
@@ -16,7 +16,7 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
-import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -250,7 +250,7 @@ public class AdminUserController {
                     new AdminUserCollection(
                         a.collectionId(),
                         a.title(),
-                        a.role() != null ? CollectionRole.valueOf(a.role()) : null))
+                        a.role() != null ? AccessLevel.valueOf(a.role()) : null))
             .toList();
     return ResponseEntity.ok(rows);
   }
@@ -265,10 +265,10 @@ public class AdminUserController {
    * @return {@code 204 No Content}
    */
   @PutMapping("/{id}/collections/{collectionId}")
-  public ResponseEntity<Void> setCollectionRole(
+  public ResponseEntity<Void> setAccessLevel(
       @PathVariable Long id,
       @PathVariable Long collectionId,
-      @Valid @RequestBody SetCollectionRoleRequest body) {
+      @Valid @RequestBody SetAccessLevelRequest body) {
     userCollectionRepository.upsertRole(id, collectionId, body.role(), null);
     return ResponseEntity.noContent().build();
   }
@@ -281,7 +281,7 @@ public class AdminUserController {
    * @return {@code 204 No Content}
    */
   @DeleteMapping("/{id}/collections/{collectionId}")
-  public ResponseEntity<Void> removeCollectionRole(
+  public ResponseEntity<Void> removeAccessLevel(
       @PathVariable Long id, @PathVariable Long collectionId) {
     userCollectionRepository.delete(id, collectionId);
     return ResponseEntity.noContent().build();

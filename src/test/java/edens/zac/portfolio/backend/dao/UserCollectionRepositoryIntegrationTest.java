@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.UserCollectionRepository.AssociatedCollection;
-import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,11 +35,11 @@ class UserCollectionRepositoryIntegrationTest extends AbstractPostgresIntegratio
     long u = seedUser("Mary");
     long c = seedCollection("g1");
 
-    repo.upsertRole(u, c, CollectionRole.GENERAL, null);
+    repo.upsertRole(u, c, AccessLevel.GENERAL, null);
     assertThat(repo.hasMembership(u, c)).isTrue();
     assertThat(repo.hasClientMembership(u, c)).isFalse();
 
-    repo.upsertRole(u, c, CollectionRole.CLIENT, null);
+    repo.upsertRole(u, c, AccessLevel.CLIENT, null);
     assertThat(repo.hasClientMembership(u, c)).isTrue();
     assertThat(repo.findCollectionIdsByUserId(u)).containsExactly(c);
 
@@ -63,7 +63,7 @@ class UserCollectionRepositoryIntegrationTest extends AbstractPostgresIntegratio
     assertThat(row.role()).isNull();
 
     // Grant membership — role should now appear
-    repo.upsertRole(u, c, CollectionRole.CLIENT, null);
+    repo.upsertRole(u, c, AccessLevel.CLIENT, null);
     List<AssociatedCollection> after = repo.findAssociatedCollections(u);
     assertThat(after).hasSize(1);
     assertThat(after.get(0).role()).isEqualTo("CLIENT");
@@ -75,7 +75,7 @@ class UserCollectionRepositoryIntegrationTest extends AbstractPostgresIntegratio
     long c = seedCollection("member-only");
 
     // Grant membership with no collection_people row
-    repo.upsertRole(u, c, CollectionRole.GENERAL, null);
+    repo.upsertRole(u, c, AccessLevel.GENERAL, null);
 
     List<AssociatedCollection> rows = repo.findAssociatedCollections(u);
     assertThat(rows).hasSize(1);

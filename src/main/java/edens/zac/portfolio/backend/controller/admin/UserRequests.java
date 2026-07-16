@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
-import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -68,7 +68,7 @@ public final class UserRequests {
    * @param title the collection title
    * @param role the membership role, or {@code null} if tagged only
    */
-  public record AdminUserCollection(Long collectionId, String title, CollectionRole role) {}
+  public record AdminUserCollection(Long collectionId, String title, AccessLevel role) {}
 
   /**
    * Body for {@code PUT /api/admin/users/{id}/collections/{collectionId}} — set the membership
@@ -76,7 +76,7 @@ public final class UserRequests {
    *
    * @param role the new membership role (GENERAL or CLIENT)
    */
-  public record SetCollectionRoleRequest(@NotNull CollectionRole role) {}
+  public record SetAccessLevelRequest(@NotNull AccessLevel role) {}
 
   /**
    * Body for {@code POST /api/admin/users/{targetId}/merge} — absorb a tag-only PERSON into the
