@@ -7,22 +7,18 @@ import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.DownloadUrlService;
 import edens.zac.portfolio.backend.services.UserCollectionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,31 +26,26 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 /**
- * Authenticated download endpoints for client galleries. Streams assets directly from S3 to the
- * response so memory stays flat regardless of gallery size.
+ * Authenticated download endpoints for client galleries. Instead of streaming bytes through the
+ * response, these authorize the request and then <strong>302-redirect to a short-lived S3 presigned
+ * URL</strong>, so the browser pulls the actual file straight from S3.
  *
- * <p>This controller stays thin: format/field selection, fallback rules, and filename/MIME
- * decisions all live in {@link ContentService}. The controller is responsible only for HTTP
- * concerns -- parsing parameters, the gallery-access cookie auth gate, and S3 streaming.
+ * <p>This is deliberate: the frontend runs on AWS Amplify Web Compute, whose Next.js BFF caps any
+ * proxied HTTP response at 5.72 MB. A full-resolution image or a multi-image ZIP exceeds that and
+ * is killed at the CloudFront/compute layer (the client-reported {@code 413 Content Too Large}).
+ * The redirect body is a few hundred bytes — it passes the cap — and the presigned URL the browser
+ * then follows hits S3 directly, which has no such limit. See {@link DownloadUrlService}.
  *
  * <p>Endpoints:
  *
  * <ul>
- *   <li>{@code GET /api/read/content/images/{id}/download?format=web} -- single image WebP
- *   <li>{@code GET /api/read/content/images/{id}/download?format=original} -- single image JPEG
- *   <li>{@code GET /api/read/collections/{slug}/download?format=web} -- ZIP of every WebP
- *   <li>{@code GET /api/read/collections/{slug}/download?format=original} -- ZIP of full-res JPEGs
- *       (per-image fallback to WebP when no original is stored)
- *   <li>{@code GET /api/read/collections/{slug}/download?format=web&imageIds=1,2,3} -- ZIP of just
- *       the selected images (optional {@code imageIds} subset; ids not in the collection are
- *       dropped, and the ZIP filename gains a {@code -selection-N} suffix)
+ *   <li>{@code GET /api/read/content/images/{id}/download?format=web|original} — single image
+ *   <li>{@code GET /api/read/collections/{slug}/download?format=web|original} — ZIP of the
+ *       collection
+ *   <li>{@code GET /api/read/collections/{slug}/download?...&imageIds=1,2,3} — ZIP of the selected
+ *       subset (a single selected image redirects straight to that image, no ZIP)
  * </ul>
  */
 @Slf4j
@@ -63,21 +54,18 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 @RequestMapping("/api/read")
 public class ContentDownloadControllerProd {
 
-  private final S3Client s3Client;
   private final CollectionService collectionService;
   private final ContentService contentService;
   private final ClientGalleryAuthService clientGalleryAuthService;
   private final UserCollectionService userCollectionService;
-
-  @Value("${aws.portfolio.s3.bucket}")
-  private String bucketName;
+  private final DownloadUrlService downloadUrlService;
 
   // ---------------------------------------------------------------------------
   //  Image download
   // ---------------------------------------------------------------------------
 
   @GetMapping("/content/images/{id}/download")
-  public ResponseEntity<InputStreamResource> downloadImage(
+  public ResponseEntity<Void> downloadImage(
       @PathVariable Long id,
       @RequestParam(defaultValue = "web") String format,
       HttpServletRequest request) {
@@ -93,21 +81,10 @@ public class ContentDownloadControllerProd {
     }
 
     DownloadResolution resolution = contentService.resolveImageDownload(id, format);
-    GetObjectRequest s3Req =
-        GetObjectRequest.builder().bucket(bucketName).key(resolution.s3Key()).build();
-    ResponseInputStream<GetObjectResponse> stream = s3Client.getObject(s3Req);
-
-    ResponseEntity.BodyBuilder builder =
-        ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(resolution.contentType()))
-            .header(
-                HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + resolution.filename() + "\"");
-    Long contentLength = stream.response().contentLength();
-    if (contentLength != null && contentLength > 0L) {
-      builder = builder.contentLength(contentLength);
-    }
-    return builder.body(new InputStreamResource(stream));
+    URI url =
+        downloadUrlService.presignObject(
+            resolution.s3Key(), resolution.contentType(), resolution.filename());
+    return ResponseEntity.status(HttpStatus.FOUND).location(url).build();
   }
 
   // ---------------------------------------------------------------------------
@@ -126,7 +103,7 @@ public class ContentDownloadControllerProd {
     CollectionEntity collection = collectionService.findEntityBySlug(slug);
 
     if (collection.getGalleryPassword() != null && !isDownloadAuthorized(request, collection)) {
-      log.warn("Unauthorized collection ZIP download (slug={})", slug);
+      log.warn("Unauthorized collection download (slug={})", slug);
       response.sendError(HttpStatus.UNAUTHORIZED.value());
       return;
     }
@@ -134,47 +111,32 @@ public class ContentDownloadControllerProd {
     List<DownloadResolution> entries =
         contentService.resolveCollectionDownloadEntries(collection.getId(), format, imageIds);
 
-    boolean isSubset = imageIds != null && !imageIds.isEmpty();
-    String zipName = contentService.collectionZipFilename(collection.getSlug(), collection.getId());
-    if (isSubset) {
-      // Distinguish a selected-subset ZIP from the whole-collection one so a client who downloads
-      // "all" and then a subset doesn't get two identically named files. Count is an int -- safe.
-      zipName = zipName.replaceFirst("\\.zip$", "-selection-" + imageIds.size() + ".zip");
+    if (entries.isEmpty()) {
+      response.sendError(HttpStatus.NOT_FOUND.value());
+      return;
     }
-    response.setContentType("application/zip");
-    response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipName + "\"");
 
-    try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
-      int seq = 0;
-      for (DownloadResolution entry : entries) {
-        // Defensive against duplicate names within a ZIP (S3 keys are unique, original_filenames
-        // are not). Prefix with a sequence number so ZipOutputStream never throws on duplicates.
-        GetObjectRequest s3Req =
-            GetObjectRequest.builder().bucket(bucketName).key(entry.s3Key()).build();
-        try (ResponseInputStream<GetObjectResponse> in = s3Client.getObject(s3Req)) {
-          ZipEntry zipEntry = new ZipEntry(String.format("%03d_%s", seq++, entry.filename()));
-          zos.putNextEntry(zipEntry);
-          in.transferTo(zos);
-          zos.closeEntry();
-        } catch (SdkException e) {
-          // Per-image failure must not corrupt the rest of the ZIP. Write a placeholder so the
-          // recipient sees something is missing without us tearing down the whole download.
-          log.warn(
-              "Failed to fetch S3 object for ZIP entry (key={}): {}",
-              entry.s3Key(),
-              e.getMessage());
-          ZipEntry errorEntry =
-              new ZipEntry(String.format("%03d_%s.error.txt", seq++, entry.filename()));
-          zos.putNextEntry(errorEntry);
-          zos.write(
-              ("Could not include this image: " + e.getClass().getSimpleName())
-                  .getBytes(StandardCharsets.UTF_8));
-          zos.closeEntry();
-        }
+    boolean isSubset = imageIds != null && !imageIds.isEmpty();
+    URI url;
+    if (entries.size() == 1) {
+      // A single resolved image (including a one-image "Download Selected") skips the ZIP and
+      // redirects straight to that image — the recipient gets the file, not a one-entry archive.
+      DownloadResolution only = entries.get(0);
+      url = downloadUrlService.presignObject(only.s3Key(), only.contentType(), only.filename());
+    } else {
+      String zipName =
+          contentService.collectionZipFilename(collection.getSlug(), collection.getId());
+      if (isSubset) {
+        // Distinguish a selected-subset ZIP from the whole-collection one so a client who downloads
+        // "all" and then a subset doesn't get two identically named files. Count is an int -- safe.
+        zipName = zipName.replaceFirst("\\.zip$", "-selection-" + imageIds.size() + ".zip");
       }
-      zos.finish();
+      url = downloadUrlService.zipToS3AndPresign(entries, zipName);
     }
-    log.info("Streamed ZIP download (slug={}, format={}, count={})", slug, format, entries.size());
+
+    response.setStatus(HttpStatus.FOUND.value());
+    response.setHeader(HttpHeaders.LOCATION, url.toString());
+    log.info("Redirected download (slug={}, format={}, count={})", slug, format, entries.size());
   }
 
   // ---------------------------------------------------------------------------

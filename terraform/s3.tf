@@ -26,8 +26,34 @@ resource "aws_s3_bucket" "portfolio" {
 # NOTE: Versioning is not enabled on this bucket. If needed in the future,
 # add an aws_s3_bucket_versioning resource here.
 
-# NOTE: No lifecycle configuration exists on this bucket. Consider adding one
-# for the db-backups/ prefix (transition to STANDARD_IA after 30d, expire after 90d).
+# Lifecycle: expire the ephemeral download ZIPs the backend builds under downloads-tmp/.
+# The download endpoints stream a collection ZIP into S3 and hand the browser a short-lived
+# presigned URL (to bypass the Amplify 5.72 MB response cap); the object itself is disposable
+# once the client has downloaded it. Expire after 1 day and reap any parts left by an
+# interrupted multipart upload.
+#
+# NOTE: apply required -- `terraform apply` this after merge. If a lifecycle configuration is
+# ever added to this bucket outside terraform, import it first to avoid a conflict.
+resource "aws_s3_bucket_lifecycle_configuration" "portfolio" {
+  bucket = aws_s3_bucket.portfolio.id
+
+  rule {
+    id     = "expire-ephemeral-download-zips"
+    status = "Enabled"
+
+    filter {
+      prefix = "downloads-tmp/"
+    }
+
+    expiration {
+      days = 1
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
 
 resource "aws_s3_bucket_public_access_block" "portfolio" {
   bucket = aws_s3_bucket.portfolio.id

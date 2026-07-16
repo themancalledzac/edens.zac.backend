@@ -13,10 +13,11 @@ import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
+import edens.zac.portfolio.backend.services.DownloadUrlService;
 import edens.zac.portfolio.backend.services.UserCollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -29,30 +30,26 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.http.AbortableInputStream;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 /**
  * Verifies the CLIENT-membership download bypass in {@link ContentDownloadControllerProd}: a
- * principal holding a CLIENT membership sees 200 without a cookie; no CLIENT membership sees 401;
- * and anonymous paths still consult the cookie gate unchanged.
+ * principal holding a CLIENT membership is authorized without a cookie (302 redirect to the
+ * presigned URL); no CLIENT membership yields 401; and anonymous paths still consult the cookie
+ * gate unchanged. Auth semantics only — the redirect target is produced by {@link
+ * DownloadUrlService}, stubbed here.
  */
 @ExtendWith(MockitoExtension.class)
 class ContentDownloadAuthTest {
 
-  private static final String BUCKET = "test-bucket";
+  private static final URI PRESIGNED = URI.create("https://bucket.s3.amazonaws.com/obj?sig=abc");
 
-  @Mock private S3Client s3Client;
   @Mock private CollectionService collectionService;
   @Mock private ContentService contentService;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
   @Mock private UserCollectionService userCollectionService;
+  @Mock private DownloadUrlService downloadUrlService;
 
   @InjectMocks private ContentDownloadControllerProd controller;
 
@@ -60,7 +57,6 @@ class ContentDownloadAuthTest {
 
   @BeforeEach
   void setUp() {
-    ReflectionTestUtils.setField(controller, "bucketName", BUCKET);
     mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
   }
 
@@ -73,12 +69,6 @@ class ContentDownloadAuthTest {
     var principal = new AuthPrincipal(userId, "c@example.com", false, true);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
-  }
-
-  private static ResponseInputStream<GetObjectResponse> fakeStream() {
-    GetObjectResponse meta = GetObjectResponse.builder().contentLength(4L).build();
-    return new ResponseInputStream<>(
-        meta, AbortableInputStream.create(new ByteArrayInputStream(new byte[] {1, 2, 3, 4})));
   }
 
   private static DownloadResolution webResolution(String filename) {
@@ -104,14 +94,14 @@ class ContentDownloadAuthTest {
   class ImageDownloadGrantBypass {
 
     @Test
-    void clientMember_gets200_withoutCookie() throws Exception {
+    void clientMember_redirects_withoutCookie() throws Exception {
       authenticate(7L);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
       when(userCollectionService.isClient(7L, 1L)).thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
-      when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeStream());
+      when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
 
-      mockMvc.perform(get("/api/read/content/images/10/download")).andExpect(status().isOk());
+      mockMvc.perform(get("/api/read/content/images/10/download")).andExpect(status().isFound());
 
       verify(clientGalleryAuthService, never()).validateAccessToken(any(), any());
     }
@@ -121,7 +111,6 @@ class ContentDownloadAuthTest {
       authenticate(7L);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
       when(userCollectionService.isClient(7L, 1L)).thenReturn(false);
-      // No cookie present; cookie gate returns false by default, yielding 401.
 
       mockMvc
           .perform(get("/api/read/content/images/10/download"))
@@ -132,7 +121,6 @@ class ContentDownloadAuthTest {
 
     @Test
     void anonymous_noMembership_noCookie_gets401() throws Exception {
-      // No authentication set; no cookie present — cookie gate default returns false.
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
 
       mockMvc
@@ -143,41 +131,41 @@ class ContentDownloadAuthTest {
     }
 
     @Test
-    void anonymous_validCookie_gets200() throws Exception {
+    void anonymous_validCookie_redirects() throws Exception {
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok")).thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
-      when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeStream());
+      when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
 
       mockMvc
           .perform(
               get("/api/read/content/images/10/download")
                   .cookie(new jakarta.servlet.http.Cookie("gallery_access_smith-wedding", "tok")))
-          .andExpect(status().isOk());
+          .andExpect(status().isFound());
 
       verify(userCollectionService, never()).isClient(any(), any());
     }
   }
 
   // ---------------------------------------------------------------------------
-  //  Collection ZIP download — CLIENT membership bypass
+  //  Collection download — CLIENT membership bypass
   // ---------------------------------------------------------------------------
 
   @Nested
   class CollectionDownloadGrantBypass {
 
     @Test
-    void clientMember_gets200_withoutCookie() throws Exception {
+    void clientMember_redirects_withoutCookie() throws Exception {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
       when(userCollectionService.isClient(7L, 1L)).thenReturn(true);
       when(contentService.resolveCollectionDownloadEntries(1L, "web", null))
           .thenReturn(List.of(webResolution("img.webp")));
-      when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeStream());
+      when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
 
       mockMvc
           .perform(get("/api/read/collections/smith-wedding/download"))
-          .andExpect(status().isOk());
+          .andExpect(status().isFound());
 
       verify(clientGalleryAuthService, never()).validateAccessToken(any(), any());
     }
@@ -187,7 +175,6 @@ class ContentDownloadAuthTest {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
       when(userCollectionService.isClient(7L, 1L)).thenReturn(false);
-      // No cookie present; cookie gate returns false by default, yielding 401.
 
       mockMvc
           .perform(get("/api/read/collections/smith-wedding/download"))
@@ -198,7 +185,6 @@ class ContentDownloadAuthTest {
 
     @Test
     void anonymous_noMembership_noCookie_gets401() throws Exception {
-      // No authentication set; no cookie present — cookie gate default returns false.
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
 
       mockMvc
@@ -209,18 +195,18 @@ class ContentDownloadAuthTest {
     }
 
     @Test
-    void anonymous_validCookie_gets200() throws Exception {
+    void anonymous_validCookie_redirects() throws Exception {
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok")).thenReturn(true);
       when(contentService.resolveCollectionDownloadEntries(1L, "web", null))
           .thenReturn(List.of(webResolution("img.webp")));
-      when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(fakeStream());
+      when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
 
       mockMvc
           .perform(
               get("/api/read/collections/smith-wedding/download")
                   .cookie(new jakarta.servlet.http.Cookie("gallery_access_smith-wedding", "tok")))
-          .andExpect(status().isOk());
+          .andExpect(status().isFound());
 
       verify(userCollectionService, never()).isClient(any(), any());
     }
