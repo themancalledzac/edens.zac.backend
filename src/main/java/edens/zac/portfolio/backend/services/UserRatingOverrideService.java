@@ -9,10 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Per-user rating overrides for client gallery views. The authorization fact is a CLIENT membership
- * in user_collection: only such a client may write an override, and only for the granted
- * collection. Admins are not routed here — they edit the canonical rating via the admin content
- * path. An override never changes {@code content.rating}.
+ * Per-user rating overrides for client gallery views. The authorization fact is a CLIENT grant
+ * reached through one of the user's roles: only such a client may write an override, and only for
+ * the granted collection. Admins are not routed here — they edit the canonical rating via the admin
+ * content path. An override never changes {@code content.rating}.
  */
 @Service
 @RequiredArgsConstructor

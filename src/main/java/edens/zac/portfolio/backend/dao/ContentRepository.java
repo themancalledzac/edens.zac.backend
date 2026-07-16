@@ -249,12 +249,11 @@ public class ContentRepository extends BaseDao {
   /**
    * True iff {@code userId} may SEE {@code imageId}: the image holds at least one visible
    * membership ({@code collection_content.visible = true}) in a collection that is either LISTED or
-   * one the user holds a {@code user_collection} membership for. Mirrors the public-read predicate
-   * used by {@code CollectionRepository.findReferencedCollectionsByParentId} ({@code cc.visible =
-   * true AND c.visibility = 'LISTED'}) and the membership predicate behind {@code
-   * CollectionAccessService.canView}. UNLISTED/HIDDEN-only images are not visible unless the caller
-   * holds an explicit membership. Gates {@code UserSavesService.add} so a viewer cannot save (and
-   * thereby exfiltrate) an image from a gallery they cannot access.
+   * one the user reaches through a role grant. The access EXISTS subquery resolves via {@code
+   * role_member} JOIN {@code role_collection}, matching {@code CollectionAccessService.canView}
+   * (any role the user is a member of that grants the collection). UNLISTED/HIDDEN-only images are
+   * not visible unless the caller holds such a role grant. Gates {@code UserSavesService.add} so a
+   * viewer cannot save (and thereby exfiltrate) an image from a gallery they cannot access.
    */
   @Transactional(readOnly = true)
   public boolean isImageVisibleToUser(Long imageId, Long userId) {
@@ -269,8 +268,9 @@ public class ContentRepository extends BaseDao {
             AND (
               col.visibility = 'LISTED'
               OR EXISTS (
-                SELECT 1 FROM user_collection uc
-                WHERE uc.collection_id = col.id AND uc.user_id = :userId))
+                SELECT 1 FROM role_member rm
+                JOIN role_collection rc ON rc.role_id = rm.role_id
+                WHERE rc.collection_id = col.id AND rm.user_id = :userId))
         )
         """;
     MapSqlParameterSource params =
@@ -310,8 +310,9 @@ public class ContentRepository extends BaseDao {
             + "       AND ("
             + "         col.visibility = 'LISTED'"
             + "         OR EXISTS ("
-            + "           SELECT 1 FROM user_collection uc"
-            + "           WHERE uc.collection_id = col.id AND uc.user_id = :userId)))"
+            + "           SELECT 1 FROM role_member rm"
+            + "           JOIN role_collection rc ON rc.role_id = rm.role_id"
+            + "           WHERE rc.collection_id = col.id AND rm.user_id = :userId)))"
             + " ORDER BY usi.created_at DESC";
     MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);

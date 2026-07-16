@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Per-user Selects (favorites). Authorization mirrors the gallery enforcement path: a non-admin
- * must hold a user_collection membership for a collection to add or list selects in it ({@link
+ * must reach a collection through a role grant to add or list selects in it ({@link
  * CollectionAccessService#canView}). Removal needs no per-collection check — a user may always
  * unselect their own row, and the delete is keyed by {@code (user_id, content_id)} so it can only
  * ever touch the caller's own selects.

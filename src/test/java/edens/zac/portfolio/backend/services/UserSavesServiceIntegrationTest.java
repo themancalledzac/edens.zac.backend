@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
+import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import edens.zac.portfolio.backend.types.RoleKind;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -24,6 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private UserSavesService userSavesService;
+  @Autowired private RoleRepository roleRepository;
   @Autowired private JdbcTemplate jdbcTemplate;
 
   private Long seedUser(String email) {
@@ -68,12 +72,16 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
         visible);
   }
 
-  /** Grant {@code userId} a GENERAL membership on {@code collectionId} (view access). */
+  /**
+   * Grant {@code userId} GENERAL view access on {@code collectionId} through a role (the current
+   * mechanism): a fresh role the user joins, carrying a GENERAL grant on the collection. Access no
+   * longer flows through {@code user_collection}, which V45 froze.
+   */
   private void grantMembership(Long userId, Long collectionId) {
-    jdbcTemplate.update(
-        "INSERT INTO user_collection (user_id, collection_id, role) VALUES (?, ?, 'GENERAL')",
-        userId,
-        collectionId);
+    Long roleId =
+        roleRepository.createRole("saves-grant-" + UUID.randomUUID(), RoleKind.SHARED, null);
+    roleRepository.addMember(roleId, userId, null);
+    roleRepository.setCollectionGrant(roleId, collectionId, AccessLevel.GENERAL, null);
   }
 
   /** Seed an image that is publicly visible (in a LISTED collection, membership visible). */

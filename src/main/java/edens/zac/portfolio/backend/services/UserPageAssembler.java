@@ -27,8 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
  * aggregation of every collection a signed-in user is associated with, plus a cover drawn from
  * their tagged content. The association set is the de-duplicated union of (a) collections the
  * user's linked person is tagged on via {@code collection_people} and (b) collections the user
- * holds a {@code user_collection} membership in. The page-level auth check guarantees the viewer is
- * the owner, so this leans on {@code UNLISTED} visibility rather than a gate.
+ * reaches through a role grant (membership via a role). The page-level auth check guarantees the
+ * viewer is the owner, so this leans on {@code UNLISTED} visibility rather than a gate.
  *
  * <p>Mirrors the block-building shape of {@link SyntheticCollectionResolver} (PARENT model of
  * {@link ContentModels.Collection} blocks via {@link

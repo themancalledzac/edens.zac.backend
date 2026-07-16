@@ -1278,8 +1278,8 @@ public class CollectionService {
    * <ul>
    *   <li>HOME slug always passes (existing exception).
    *   <li>LISTED + UNLISTED both pass for direct slug access.
-   *   <li>HIDDEN passes in a local environment, for an admin principal, or for a viewer with an
-   *       explicit {@code user_collection} grant; otherwise NotFound. Mirrors the scope the
+   *   <li>HIDDEN passes in a local environment, for an admin principal, or for a viewer who reaches
+   *       the collection through a role grant; otherwise NotFound. Mirrors the scope the
    *       permission-aware all-collections list surfaces, so a tile a viewer can see is a tile they
    *       can open.
    * </ul>
@@ -1298,7 +1298,7 @@ public class CollectionService {
     // LISTED and UNLISTED both allow direct slug access.
   }
 
-  /** True when the current viewer is an admin or holds a user_collection grant for the id. */
+  /** True when the current viewer is an admin or reaches the id through a role grant. */
   private boolean viewerMaySeeHidden(Long collectionId) {
     var auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth == null || !(auth.getPrincipal() instanceof AuthPrincipal p) || p.userId() == null) {

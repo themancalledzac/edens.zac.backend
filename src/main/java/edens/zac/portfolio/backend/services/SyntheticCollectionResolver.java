@@ -125,8 +125,8 @@ public class SyntheticCollectionResolver {
   /**
    * Permission-scoped rows for the "all-collections" list. Unlike the other synthetic slugs
    * (environment-scoped), this list widens strictly on server-verified identity: an admin gets
-   * every visibility; a signed-in non-admin gets LISTED plus the specific collections granted in
-   * {@code user_collection} (their client galleries), even when UNLISTED/HIDDEN; anonymous gets
+   * every visibility; a signed-in non-admin gets LISTED plus the specific collections reached
+   * through their role grants (their client galleries), even when UNLISTED/HIDDEN; anonymous gets
    * LISTED only. Nothing client-supplied can widen the scope.
    */
   private List<CollectionEntity> findAllCollectionsForCurrentViewer() {
