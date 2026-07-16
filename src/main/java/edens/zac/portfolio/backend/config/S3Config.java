@@ -10,6 +10,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudfront.CloudFrontClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Slf4j
 @Configuration
@@ -46,6 +47,21 @@ public class S3Config {
       log.error("Failed to create S3Client", e);
       throw e;
     }
+  }
+
+  /**
+   * Presigner for generating short-lived, self-authenticating S3 GET URLs. Downloads redirect (302)
+   * to these so the bytes stream straight from S3 to the client, bypassing the Amplify Web Compute
+   * 5.72 MB response cap that kills anything proxied through the Next.js BFF.
+   */
+  @Bean(destroyMethod = "close")
+  public S3Presigner s3Presigner() {
+    log.info("Creating S3Presigner");
+    AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
+    return S3Presigner.builder()
+        .credentialsProvider(StaticCredentialsProvider.create(credentials))
+        .region(Region.of(region))
+        .build();
   }
 
   @Bean(destroyMethod = "close")
