@@ -6,13 +6,11 @@ import edens.zac.portfolio.backend.controller.admin.RoleRequests.RoleDetail;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.RoleMemberRow;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.RoleSummary;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.SetRoleGrantRequest;
-import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.types.RoleKind;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,8 +36,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminRoleController {
 
   private final RoleRepository roleRepository;
-  private final AppUserRepository appUserRepository;
 
+  /**
+   * List all roles (SHARED before PERSONAL, then by name) for the admin role-management view.
+   *
+   * @return the role summaries
+   */
   @GetMapping
   public List<RoleSummary> listRoles() {
     return roleRepository.findAll().stream()
@@ -47,6 +49,12 @@ public class AdminRoleController {
         .toList();
   }
 
+  /**
+   * Create a new role. Kind defaults to {@code SHARED} when omitted.
+   *
+   * @param body the new role's name and optional kind
+   * @return {@code 201 Created} with the created {@link RoleSummary}
+   */
   @PostMapping
   public ResponseEntity<RoleSummary> createRole(@Valid @RequestBody CreateRoleRequest body) {
     RoleKind kind = body.kind() != null ? body.kind() : RoleKind.SHARED;
@@ -54,6 +62,12 @@ public class AdminRoleController {
     return ResponseEntity.status(HttpStatus.CREATED).body(new RoleSummary(id, body.name(), kind));
   }
 
+  /**
+   * Role detail: the role, its members, and its collection grants, for the role-edit screen.
+   *
+   * @param roleId the role id
+   * @return {@code 200} with {@link RoleDetail}, or {@code 404} if no such role
+   */
   @GetMapping("/{roleId}")
   public ResponseEntity<RoleDetail> getRole(@PathVariable Long roleId) {
     RoleEntity role = roleRepository.findById(roleId).orElse(null);
@@ -61,10 +75,8 @@ public class AdminRoleController {
       return ResponseEntity.notFound().build();
     }
     List<RoleMemberRow> members =
-        roleRepository.memberUserIds(roleId).stream()
-            .map(appUserRepository::findById)
-            .flatMap(Optional::stream)
-            .map(u -> new RoleMemberRow(u.getId(), u.getEmail(), u.getName()))
+        roleRepository.membersForRole(roleId).stream()
+            .map(m -> new RoleMemberRow(m.userId(), m.email(), m.name()))
             .toList();
     List<RoleCollectionRow> collections =
         roleRepository.grantsForRole(roleId).stream()
@@ -74,12 +86,27 @@ public class AdminRoleController {
         new RoleDetail(role.getId(), role.getName(), role.getKind(), members, collections));
   }
 
+  /**
+   * Delete a role (cascades its memberships and grants).
+   *
+   * @param roleId the role id
+   * @return {@code 204 No Content}
+   */
   @DeleteMapping("/{roleId}")
   public ResponseEntity<Void> deleteRole(@PathVariable Long roleId) {
     roleRepository.deleteRole(roleId);
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * Grant a collection to a role at a level (GENERAL or CLIENT). Upserts: creates the grant if
+   * absent, promotes/demotes if present.
+   *
+   * @param roleId the role id
+   * @param collectionId the collection id
+   * @param body the access level to grant
+   * @return {@code 204 No Content}
+   */
   @PutMapping("/{roleId}/collections/{collectionId}")
   public ResponseEntity<Void> setGrant(
       @PathVariable Long roleId,
@@ -89,6 +116,13 @@ public class AdminRoleController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * Revoke a role's grant on a collection.
+   *
+   * @param roleId the role id
+   * @param collectionId the collection id
+   * @return {@code 204 No Content}
+   */
   @DeleteMapping("/{roleId}/collections/{collectionId}")
   public ResponseEntity<Void> removeGrant(
       @PathVariable Long roleId, @PathVariable Long collectionId) {
@@ -96,12 +130,26 @@ public class AdminRoleController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * Add a user to a role (membership). Idempotent.
+   *
+   * @param roleId the role id
+   * @param userId the {@code app_user.id} to add
+   * @return {@code 204 No Content}
+   */
   @PutMapping("/{roleId}/members/{userId}")
   public ResponseEntity<Void> addMember(@PathVariable Long roleId, @PathVariable Long userId) {
     roleRepository.addMember(roleId, userId, null);
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * Remove a user from a role.
+   *
+   * @param roleId the role id
+   * @param userId the {@code app_user.id} to remove
+   * @return {@code 204 No Content}
+   */
   @DeleteMapping("/{roleId}/members/{userId}")
   public ResponseEntity<Void> removeMember(@PathVariable Long roleId, @PathVariable Long userId) {
     roleRepository.removeMember(roleId, userId);

@@ -39,6 +39,9 @@ public class RoleRepository extends BaseDao {
   /** A collection a role grants, at a level. */
   public record RoleCollectionGrant(Long collectionId, String title, AccessLevel level) {}
 
+  /** A member of a role, joined to their account, for the role-detail view. */
+  public record RoleMember(Long userId, String email, String name) {}
+
   // ---- Role CRUD ----
 
   @Transactional
@@ -107,10 +110,17 @@ public class RoleRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<Long> memberUserIds(Long roleId) {
+  public List<RoleMember> membersForRole(Long roleId) {
     return query(
-        "SELECT user_id FROM role_member WHERE role_id = :roleId ORDER BY added_at ASC",
-        (rs, n) -> rs.getLong("user_id"),
+        """
+        SELECT u.id AS user_id, u.email, u.name
+          FROM role_member rm
+          JOIN users u ON u.id = rm.user_id
+         WHERE rm.role_id = :roleId
+         ORDER BY rm.added_at ASC
+        """,
+        (rs, n) ->
+            new RoleMember(rs.getLong("user_id"), rs.getString("email"), rs.getString("name")),
         createParameterSource().addValue("roleId", roleId));
   }
 

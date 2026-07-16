@@ -1,9 +1,11 @@
 package edens.zac.portfolio.backend.dao;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.RoleRepository.EffectiveGrant;
+import edens.zac.portfolio.backend.dao.RoleRepository.RoleMember;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.RoleKind;
@@ -22,6 +24,15 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
         "INSERT INTO users (name, webauthn_user_handle, status) VALUES (?, gen_random_uuid(), 'ACTIVE')",
         name);
     return jdbc.queryForObject("SELECT id FROM users WHERE name=?", Long.class, name);
+  }
+
+  private long seedUserWithEmail(String name, String email) {
+    jdbc.update(
+        "INSERT INTO users (name, email, webauthn_user_handle, status)"
+            + " VALUES (?, ?, gen_random_uuid(), 'ACTIVE')",
+        name,
+        email);
+    return jdbc.queryForObject("SELECT id FROM users WHERE email=?", Long.class, email);
   }
 
   private long seedCollection(String slug) {
@@ -74,6 +85,23 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
     List<RoleEntity> roles = repo.rolesForUser(user);
     assertThat(roles).extracting(RoleEntity::getName).containsExactly("pnwer staff");
+  }
+
+  @Test
+  void membersForRoleJoinsAccountsInAddOrder() {
+    long first = seedUserWithEmail("Nia", "nia-mfr@example.com");
+    long second = seedUserWithEmail("Owen", "owen-mfr@example.com");
+    long roleId = repo.createRole("membersForRole crew", RoleKind.SHARED, null);
+    repo.addMember(roleId, first, null);
+    repo.addMember(roleId, second, null);
+
+    List<RoleMember> members = repo.membersForRole(roleId);
+
+    assertThat(members)
+        .extracting(RoleMember::userId, RoleMember::email, RoleMember::name)
+        .containsExactly(
+            tuple(first, "nia-mfr@example.com", "Nia"),
+            tuple(second, "owen-mfr@example.com", "Owen"));
   }
 
   @Test
