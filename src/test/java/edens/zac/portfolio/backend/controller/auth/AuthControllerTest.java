@@ -14,10 +14,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.LoginRequest;
+import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
@@ -47,7 +47,7 @@ class AuthControllerTest {
   @Mock private SessionService sessionService;
   @Mock private AuthLoginLimiter loginLimiter;
   @Mock private AppUserRepository appUserRepository;
-  @Mock private UserCollectionRepository userCollectionRepository;
+  @Mock private CollectionAccessService collectionAccessService;
   @Mock private PasswordEncoder passwordEncoder;
 
   @InjectMocks private AuthController authController;
@@ -224,7 +224,7 @@ class AuthControllerTest {
         .setAuthentication(
             new UsernamePasswordAuthenticationToken(
                 principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
-    when(userCollectionRepository.findByUserId(1L)).thenReturn(List.of());
+    when(collectionAccessService.effectiveGrants(1L)).thenReturn(List.of());
 
     mockMvc
         .perform(get("/api/auth/me"))
