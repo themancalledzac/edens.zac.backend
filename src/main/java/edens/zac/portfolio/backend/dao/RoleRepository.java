@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -22,7 +23,7 @@ public class RoleRepository extends BaseDao {
     super(jdbcTemplate);
   }
 
-  private static final RowMapper<RoleEntity> ROLE_MAPPER =
+  private static final RowMapper<RoleEntity> ROLE_ROW_MAPPER =
       (rs, n) ->
           RoleEntity.builder()
               .id(rs.getLong("id"))
@@ -53,14 +54,14 @@ public class RoleRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public List<RoleEntity> findAll() {
-    return query("SELECT * FROM role ORDER BY kind DESC, name ASC", ROLE_MAPPER);
+    return query("SELECT * FROM role ORDER BY kind DESC, name ASC", ROLE_ROW_MAPPER);
   }
 
   @Transactional(readOnly = true)
-  public java.util.Optional<RoleEntity> findById(Long roleId) {
+  public Optional<RoleEntity> findById(Long roleId) {
     return queryForObject(
         "SELECT * FROM role WHERE id = :id",
-        ROLE_MAPPER,
+        ROLE_ROW_MAPPER,
         createParameterSource().addValue("id", roleId));
   }
 
@@ -101,7 +102,7 @@ public class RoleRepository extends BaseDao {
          WHERE rm.user_id = :userId
          ORDER BY r.kind DESC, r.name ASC
         """,
-        ROLE_MAPPER,
+        ROLE_ROW_MAPPER,
         createParameterSource().addValue("userId", userId));
   }
 

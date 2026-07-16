@@ -35,7 +35,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void membershipAndGrantResolveThroughRole() {
     long user = seedUser("Mara");
-    long coll = seedCollection("g1");
+    long coll = seedCollection("role-g1");
     long roleId = repo.createRole("edens family", RoleKind.SHARED, null);
 
     repo.addMember(roleId, user, null);
@@ -52,7 +52,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void unionAcrossRolesClientBeatsGeneral() {
     long user = seedUser("Bo");
-    long coll = seedCollection("shared");
+    long coll = seedCollection("role-shared");
     long general = repo.createRole("the bois", RoleKind.SHARED, null);
     long client = repo.createRole("tyler abby", RoleKind.SHARED, null);
     repo.addMember(general, user, null);
@@ -79,7 +79,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void removeMemberRevokesAccess() {
     long user = seedUser("Sam");
-    long coll = seedCollection("revoke");
+    long coll = seedCollection("role-revoke");
     long roleId = repo.createRole("weigel family", RoleKind.SHARED, null);
     repo.addMember(roleId, user, null);
     repo.setCollectionGrant(roleId, coll, AccessLevel.GENERAL, null);
