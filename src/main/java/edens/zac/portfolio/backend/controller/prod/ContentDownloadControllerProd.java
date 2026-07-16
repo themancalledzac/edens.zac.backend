@@ -5,10 +5,10 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
+import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.DownloadUrlService;
-import edens.zac.portfolio.backend.services.UserCollectionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class ContentDownloadControllerProd {
   private final CollectionService collectionService;
   private final ContentService contentService;
   private final ClientGalleryAuthService clientGalleryAuthService;
-  private final UserCollectionService userCollectionService;
+  private final CollectionAccessService collectionAccessService;
   private final DownloadUrlService downloadUrlService;
 
   // ---------------------------------------------------------------------------
@@ -149,7 +149,7 @@ public class ContentDownloadControllerProd {
    */
   private boolean isDownloadAuthorized(HttpServletRequest request, CollectionEntity collection) {
     Long userId = currentUserId();
-    if (userId != null && userCollectionService.isClient(userId, collection.getId())) {
+    if (userId != null && collectionAccessService.isClient(userId, collection.getId())) {
       return true;
     }
     return GalleryAccessCookies.hasValidAccess(

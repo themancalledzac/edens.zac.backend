@@ -252,7 +252,7 @@ public class ContentRepository extends BaseDao {
    * one the user holds a {@code user_collection} membership for. Mirrors the public-read predicate
    * used by {@code CollectionRepository.findReferencedCollectionsByParentId} ({@code cc.visible =
    * true AND c.visibility = 'LISTED'}) and the membership predicate behind {@code
-   * UserCollectionService.canView}. UNLISTED/HIDDEN-only images are not visible unless the caller
+   * CollectionAccessService.canView}. UNLISTED/HIDDEN-only images are not visible unless the caller
    * holds an explicit membership. Gates {@code UserSavesService.add} so a viewer cannot save (and
    * thereby exfiltrate) an image from a gallery they cannot access.
    */

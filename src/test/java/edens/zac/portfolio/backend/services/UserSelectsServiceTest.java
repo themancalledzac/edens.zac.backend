@@ -22,13 +22,13 @@ import org.springframework.security.access.AccessDeniedException;
 class UserSelectsServiceTest {
 
   @Mock private UserSelectRepository userSelectRepository;
-  @Mock private UserCollectionService userCollectionService;
+  @Mock private CollectionAccessService collectionAccessService;
 
   @InjectMocks private UserSelectsService service;
 
   @Test
   void addInsertsWhenUserHoldsMembership() {
-    when(userCollectionService.canView(7L, 3L)).thenReturn(true);
+    when(collectionAccessService.canView(7L, 3L)).thenReturn(true);
 
     service.add(7L, 3L, 42L);
 
@@ -42,7 +42,7 @@ class UserSelectsServiceTest {
 
   @Test
   void addDeniedWhenNoMembership() {
-    when(userCollectionService.canView(7L, 3L)).thenReturn(false);
+    when(collectionAccessService.canView(7L, 3L)).thenReturn(false);
 
     assertThatThrownBy(() -> service.add(7L, 3L, 42L)).isInstanceOf(AccessDeniedException.class);
 
@@ -58,7 +58,7 @@ class UserSelectsServiceTest {
 
   @Test
   void listIdsRequiresMembership() {
-    when(userCollectionService.canView(7L, 3L)).thenReturn(false);
+    when(collectionAccessService.canView(7L, 3L)).thenReturn(false);
 
     assertThatThrownBy(() -> service.listSelectIds(7L, 3L))
         .isInstanceOf(AccessDeniedException.class);
@@ -70,7 +70,7 @@ class UserSelectsServiceTest {
 
   @Test
   void listIdsReturnsForMember() {
-    when(userCollectionService.canView(7L, 3L)).thenReturn(true);
+    when(collectionAccessService.canView(7L, 3L)).thenReturn(true);
     when(userSelectRepository.findContentIdsByUserIdAndCollectionId(7L, 3L))
         .thenReturn(List.of(42L, 43L));
 

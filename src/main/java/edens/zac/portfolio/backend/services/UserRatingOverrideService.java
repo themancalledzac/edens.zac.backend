@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserRatingOverrideService {
 
   private final UserRatingOverrideRepository overrideRepository;
-  private final UserCollectionService userCollectionService;
+  private final CollectionAccessService collectionAccessService;
 
   /**
    * Upsert {@code user}'s override for {@code contentId} in {@code collectionId} to {@code rating}.
@@ -33,7 +33,7 @@ public class UserRatingOverrideService {
     if (rating < 0 || rating > 5) {
       throw new IllegalArgumentException("rating must be between 0 and 5, was " + rating);
     }
-    if (!userCollectionService.isClient(userId, collectionId)) {
+    if (!collectionAccessService.isClient(userId, collectionId)) {
       throw new SecurityException(
           "user " + userId + " may not override ratings in collection " + collectionId);
     }

@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Per-user Selects (favorites). Authorization mirrors the gallery enforcement path: a non-admin
  * must hold a user_collection membership for a collection to add or list selects in it ({@link
- * UserCollectionService#canView}). Removal needs no per-collection check — a user may always
+ * CollectionAccessService#canView}). Removal needs no per-collection check — a user may always
  * unselect their own row, and the delete is keyed by {@code (user_id, content_id)} so it can only
  * ever touch the caller's own selects.
  */
@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserSelectsService {
 
   private final UserSelectRepository userSelectRepository;
-  private final UserCollectionService userCollectionService;
+  private final CollectionAccessService collectionAccessService;
 
   /** Add an image to the user's selects, scoped to the collection. Idempotent. */
   @Transactional
@@ -74,7 +74,7 @@ public class UserSelectsService {
   }
 
   private void requireCollectionAccess(Long userId, Long collectionId) {
-    if (!userCollectionService.canView(userId, collectionId)) {
+    if (!collectionAccessService.canView(userId, collectionId)) {
       throw new AccessDeniedException("No gallery access for collection " + collectionId);
     }
   }

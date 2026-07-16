@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
@@ -58,7 +57,7 @@ public class SyntheticCollectionResolver {
   private final CollectionRepository collectionRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final TagRepository tagRepository;
-  private final UserCollectionRepository userCollectionRepository;
+  private final CollectionAccessService collectionAccessService;
 
   /** Returns true if the slug matches a synthetic-list catalog entry. */
   public boolean isSyntheticSlug(String slug) {
@@ -138,7 +137,7 @@ public class SyntheticCollectionResolver {
     List<Long> ownedIds =
         (principal == null || principal.userId() == null)
             ? List.of()
-            : userCollectionRepository.findCollectionIdsByUserId(principal.userId());
+            : collectionAccessService.memberCollectionIdsForUser(principal.userId());
     return collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
         List.of(CollectionVisibility.LISTED), ownedIds);
   }

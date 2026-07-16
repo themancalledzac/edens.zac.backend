@@ -46,7 +46,7 @@ public class UserPageAssembler {
 
   private final AppUserRepository appUserRepository;
   private final PersonRepository personRepository;
-  private final UserCollectionService userCollectionService;
+  private final CollectionAccessService collectionAccessService;
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
@@ -71,7 +71,7 @@ public class UserPageAssembler {
         identity.map(p -> buildTaggedContentBlocks(p.getId())).orElseGet(List::of);
 
     Set<Long> collectionIds = new LinkedHashSet<>(personCollectionIds);
-    collectionIds.addAll(userCollectionService.memberCollectionIdsForUser(userId));
+    collectionIds.addAll(collectionAccessService.memberCollectionIdsForUser(userId));
 
     List<ContentModel> body = new ArrayList<>(buildCollectionBlocks(collectionIds));
     body.addAll(taggedBlocks);

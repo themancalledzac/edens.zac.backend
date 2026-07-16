@@ -75,7 +75,7 @@ public class CollectionService {
   private final SyntheticCollectionResolver syntheticResolver;
   private final TagViewResolver tagViewResolver;
   private final ClientGalleryAuthService clientGalleryAuthService;
-  private final UserCollectionService userCollectionService;
+  private final CollectionAccessService collectionAccessService;
   private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -467,7 +467,7 @@ public class CollectionService {
         .map(
             entity -> {
               Long userId = currentUserId();
-              if (userId != null && userCollectionService.canView(userId, entity.getId())) {
+              if (userId != null && collectionAccessService.canView(userId, entity.getId())) {
                 return true;
               }
               return GalleryAccessCookies.hasValidAccess(
@@ -1304,7 +1304,7 @@ public class CollectionService {
     if (auth == null || !(auth.getPrincipal() instanceof AuthPrincipal p) || p.userId() == null) {
       return false;
     }
-    return p.isAdmin() || userCollectionService.canView(p.userId(), collectionId);
+    return p.isAdmin() || collectionAccessService.canView(p.userId(), collectionId);
   }
 
   private boolean isLocalEnvironment() {

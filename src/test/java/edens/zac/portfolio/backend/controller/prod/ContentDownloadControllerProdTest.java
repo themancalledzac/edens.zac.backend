@@ -15,10 +15,10 @@ import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
+import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.DownloadUrlService;
-import edens.zac.portfolio.backend.services.UserCollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
@@ -56,7 +56,7 @@ class ContentDownloadControllerProdTest {
   @Mock private CollectionService collectionService;
   @Mock private ContentService contentService;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
-  @Mock private UserCollectionService userCollectionService;
+  @Mock private CollectionAccessService collectionAccessService;
   @Mock private DownloadUrlService downloadUrlService;
 
   @InjectMocks private ContentDownloadControllerProd controller;

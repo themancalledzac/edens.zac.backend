@@ -11,10 +11,10 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
+import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.DownloadUrlService;
-import edens.zac.portfolio.backend.services.UserCollectionService;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.net.URI;
@@ -48,7 +48,7 @@ class ContentDownloadAuthTest {
   @Mock private CollectionService collectionService;
   @Mock private ContentService contentService;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
-  @Mock private UserCollectionService userCollectionService;
+  @Mock private CollectionAccessService collectionAccessService;
   @Mock private DownloadUrlService downloadUrlService;
 
   @InjectMocks private ContentDownloadControllerProd controller;
@@ -97,7 +97,7 @@ class ContentDownloadAuthTest {
     void clientMember_redirects_withoutCookie() throws Exception {
       authenticate(7L);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
-      when(userCollectionService.isClient(7L, 1L)).thenReturn(true);
+      when(collectionAccessService.isClient(7L, 1L)).thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
 
@@ -110,7 +110,7 @@ class ContentDownloadAuthTest {
     void nonClientMember_gets401() throws Exception {
       authenticate(7L);
       when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
-      when(userCollectionService.isClient(7L, 1L)).thenReturn(false);
+      when(collectionAccessService.isClient(7L, 1L)).thenReturn(false);
 
       mockMvc
           .perform(get("/api/read/content/images/10/download"))
@@ -127,7 +127,7 @@ class ContentDownloadAuthTest {
           .perform(get("/api/read/content/images/10/download"))
           .andExpect(status().isUnauthorized());
 
-      verify(userCollectionService, never()).isClient(any(), any());
+      verify(collectionAccessService, never()).isClient(any(), any());
     }
 
     @Test
@@ -143,7 +143,7 @@ class ContentDownloadAuthTest {
                   .cookie(new jakarta.servlet.http.Cookie("gallery_access_smith-wedding", "tok")))
           .andExpect(status().isFound());
 
-      verify(userCollectionService, never()).isClient(any(), any());
+      verify(collectionAccessService, never()).isClient(any(), any());
     }
   }
 
@@ -158,7 +158,7 @@ class ContentDownloadAuthTest {
     void clientMember_redirects_withoutCookie() throws Exception {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
-      when(userCollectionService.isClient(7L, 1L)).thenReturn(true);
+      when(collectionAccessService.isClient(7L, 1L)).thenReturn(true);
       when(contentService.resolveCollectionDownloadEntries(1L, "web", null))
           .thenReturn(List.of(webResolution("img.webp")));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
@@ -174,7 +174,7 @@ class ContentDownloadAuthTest {
     void nonClientMember_gets401() throws Exception {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
-      when(userCollectionService.isClient(7L, 1L)).thenReturn(false);
+      when(collectionAccessService.isClient(7L, 1L)).thenReturn(false);
 
       mockMvc
           .perform(get("/api/read/collections/smith-wedding/download"))
@@ -191,7 +191,7 @@ class ContentDownloadAuthTest {
           .perform(get("/api/read/collections/smith-wedding/download"))
           .andExpect(status().isUnauthorized());
 
-      verify(userCollectionService, never()).isClient(any(), any());
+      verify(collectionAccessService, never()).isClient(any(), any());
     }
 
     @Test
@@ -208,7 +208,7 @@ class ContentDownloadAuthTest {
                   .cookie(new jakarta.servlet.http.Cookie("gallery_access_smith-wedding", "tok")))
           .andExpect(status().isFound());
 
-      verify(userCollectionService, never()).isClient(any(), any());
+      verify(collectionAccessService, never()).isClient(any(), any());
     }
   }
 }

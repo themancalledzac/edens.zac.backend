@@ -49,7 +49,7 @@ class CollectionServiceGalleryBypassTest {
   @Mock private EmailService emailService;
   @Mock private SyntheticCollectionResolver syntheticResolver;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
-  @Mock private UserCollectionService userCollectionService;
+  @Mock private CollectionAccessService collectionAccessService;
   @Mock private org.springframework.core.env.Environment springEnv;
 
   @InjectMocks private CollectionService service;
@@ -78,7 +78,7 @@ class CollectionServiceGalleryBypassTest {
     CollectionEntity entity = protectedCollection(42L, "g");
     when(collectionRepository.findBySlug("g")).thenReturn(Optional.of(entity));
     authenticate(7L);
-    when(userCollectionService.canView(7L, 42L)).thenReturn(true);
+    when(collectionAccessService.canView(7L, 42L)).thenReturn(true);
 
     HttpServletRequest request = new MockHttpServletRequest();
     assertThat(service.isGalleryAccessAuthorized("g", request)).isTrue();
@@ -94,7 +94,7 @@ class CollectionServiceGalleryBypassTest {
     CollectionEntity entity = protectedCollection(42L, "g");
     when(collectionRepository.findBySlug("g")).thenReturn(Optional.of(entity));
     authenticate(7L);
-    when(userCollectionService.canView(7L, 42L)).thenReturn(false);
+    when(collectionAccessService.canView(7L, 42L)).thenReturn(false);
     // No cookie present — cookie gate returns false.
     when(clientGalleryAuthService.validateAccessToken(
             org.mockito.ArgumentMatchers.eq("g"), org.mockito.ArgumentMatchers.any()))
@@ -126,8 +126,8 @@ class CollectionServiceGalleryBypassTest {
         .thenReturn(false);
 
     assertThat(service.isGalleryAccessAuthorized("g", new MockHttpServletRequest())).isFalse();
-    // userCollectionService must not be consulted for anonymous callers.
-    verify(userCollectionService, never())
+    // collectionAccessService must not be consulted for anonymous callers.
+    verify(collectionAccessService, never())
         .canView(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
   }
 
@@ -141,7 +141,7 @@ class CollectionServiceGalleryBypassTest {
     when(clientGalleryAuthService.validateAccessToken("g", "valid-token")).thenReturn(true);
 
     assertThat(service.isGalleryAccessAuthorized("g", request)).isTrue();
-    verify(userCollectionService, never())
+    verify(collectionAccessService, never())
         .canView(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
   }
 
@@ -151,7 +151,7 @@ class CollectionServiceGalleryBypassTest {
     authenticate(7L);
 
     assertThat(service.isGalleryAccessAuthorized("missing", new MockHttpServletRequest())).isTrue();
-    verify(userCollectionService, never())
+    verify(collectionAccessService, never())
         .canView(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
   }
 }
