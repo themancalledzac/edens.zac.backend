@@ -566,7 +566,7 @@ public class CollectionService {
   }
 
   /**
-   * Replace the entire {@code collection_people} list. Membership (user_collection) is not
+   * Replace the entire {@code collection_people} list. Membership (via roles) is not
    * auto-materialized here — it must be granted explicitly via the /admin Users module.
    */
   @Transactional
