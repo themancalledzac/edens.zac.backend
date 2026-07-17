@@ -17,16 +17,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository.AssociatedCollection;
+import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
+import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
-import edens.zac.portfolio.backend.types.CollectionRole;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import edens.zac.portfolio.backend.types.RoleKind;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
 import java.util.Optional;
@@ -48,7 +48,7 @@ class AdminUserControllerTest {
 
   @Mock private AppUserRepository appUserRepository;
   @Mock private UserInviteService userInviteService;
-  @Mock private UserCollectionRepository userCollectionRepository;
+  @Mock private RoleRepository roleRepository;
   @Mock private UserPageAssembler userPageAssembler;
   @Mock private UserMergeService userMergeService;
 
@@ -61,7 +61,7 @@ class AdminUserControllerTest {
         new AdminUserController(
             appUserRepository,
             userInviteService,
-            userCollectionRepository,
+            roleRepository,
             userPageAssembler,
             userMergeService,
             FRONTEND_BASE_URL);
@@ -657,40 +657,33 @@ class AdminUserControllerTest {
   }
 
   @Nested
-  class CollectionMembership {
+  class RoleMembership {
 
     @Test
-    void putCollectionRoleReturns204AndCallsUpsert() throws Exception {
-      mockMvc
-          .perform(
-              put("/api/admin/users/10/collections/20")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content("{\"role\":\"CLIENT\"}"))
-          .andExpect(status().isNoContent());
-
-      verify(userCollectionRepository).upsertRole(10L, 20L, CollectionRole.CLIENT, null);
-    }
-
-    @Test
-    void deleteCollectionRoleReturns204AndCallsDelete() throws Exception {
-      mockMvc
-          .perform(delete("/api/admin/users/10/collections/20"))
-          .andExpect(status().isNoContent());
-
-      verify(userCollectionRepository).delete(10L, 20L);
-    }
-
-    @Test
-    void getCollectionsReturnsAssociatedRowsWithNullRoleBeforeGrant() throws Exception {
-      when(userCollectionRepository.findAssociatedCollections(10L))
-          .thenReturn(List.of(new AssociatedCollection(42L, "Wedding Gallery", null)));
+    void userRolesReturnsMemberships() throws Exception {
+      when(roleRepository.rolesForUser(5L))
+          .thenReturn(
+              List.of(
+                  RoleEntity.builder().id(2L).name("edens family").kind(RoleKind.SHARED).build()));
 
       mockMvc
-          .perform(get("/api/admin/users/10/collections"))
+          .perform(get("/api/admin/users/5/roles"))
           .andExpect(status().isOk())
-          .andExpect(jsonPath("$[0].collectionId", is(42)))
-          .andExpect(jsonPath("$[0].title", is("Wedding Gallery")))
-          .andExpect(jsonPath("$[0].role").doesNotExist());
+          .andExpect(jsonPath("$[0].name").value("edens family"));
+    }
+
+    @Test
+    void addUserToRoleReturns204() throws Exception {
+      mockMvc.perform(put("/api/admin/users/5/roles/2")).andExpect(status().isNoContent());
+
+      verify(roleRepository).addMember(2L, 5L, null);
+    }
+
+    @Test
+    void removeUserFromRoleReturns204() throws Exception {
+      mockMvc.perform(delete("/api/admin/users/5/roles/2")).andExpect(status().isNoContent());
+
+      verify(roleRepository).removeMember(2L, 5L);
     }
 
     @Test
@@ -715,29 +708,6 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$.slug", is("user")))
           .andExpect(jsonPath("$.title", is("Alice")))
           .andExpect(jsonPath("$.type", is("PARENT")));
-    }
-
-    @Test
-    void putCollectionRoleReturns400OnMissingRole() throws Exception {
-      mockMvc
-          .perform(
-              put("/api/admin/users/10/collections/20")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content("{}"))
-          .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void putCollectionRoleReturns400OnUnparseableRoleEnum() throws Exception {
-      // Unknown enum value -> Jackson cannot deserialize the body, so this is an
-      // HttpMessageNotReadableException (a malformed body), NOT bean validation. It previously
-      // fell through to the catch-all Exception handler and returned 500 instead of 400.
-      mockMvc
-          .perform(
-              put("/api/admin/users/10/collections/20")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content("{\"role\":\"INVALID_ROLE\"}"))
-          .andExpect(status().isBadRequest());
     }
   }
 }

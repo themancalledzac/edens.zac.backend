@@ -1,22 +1,20 @@
 package edens.zac.portfolio.backend.controller.admin;
 
-import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserCollection;
+import edens.zac.portfolio.backend.controller.admin.RoleRequests.UserRoleRow;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserSummary;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserResponse;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
-import edens.zac.portfolio.backend.controller.admin.UserRequests.SetCollectionRoleRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserRequest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository;
+import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
-import edens.zac.portfolio.backend.types.CollectionRole;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -60,7 +58,7 @@ public class AdminUserController {
 
   private final AppUserRepository appUserRepository;
   private final UserInviteService userInviteService;
-  private final UserCollectionRepository userCollectionRepository;
+  private final RoleRepository roleRepository;
   private final UserPageAssembler userPageAssembler;
   private final UserMergeService userMergeService;
   private final String frontendBaseUrl;
@@ -68,13 +66,13 @@ public class AdminUserController {
   public AdminUserController(
       AppUserRepository appUserRepository,
       UserInviteService userInviteService,
-      UserCollectionRepository userCollectionRepository,
+      RoleRepository roleRepository,
       UserPageAssembler userPageAssembler,
       UserMergeService userMergeService,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.appUserRepository = appUserRepository;
     this.userInviteService = userInviteService;
-    this.userCollectionRepository = userCollectionRepository;
+    this.roleRepository = roleRepository;
     this.userPageAssembler = userPageAssembler;
     this.userMergeService = userMergeService;
     this.frontendBaseUrl = frontendBaseUrl;
@@ -235,55 +233,44 @@ public class AdminUserController {
   }
 
   /**
-   * Collections the user is associated with (tagged via {@code collection_people} or holding a
-   * {@code user_collection} membership), with current role. Role is {@code null} when tagged only.
+   * The roles this user is a member of, for the admin user detail. Each role links to the role-edit
+   * screen (AdminRoleController). Replaces the old direct-collection-grant view.
    *
    * @param id the {@code app_user.id}
-   * @return the associated collections
+   * @return the user's roles
    */
-  @GetMapping("/{id}/collections")
-  public ResponseEntity<List<AdminUserCollection>> userCollections(@PathVariable Long id) {
-    List<AdminUserCollection> rows =
-        userCollectionRepository.findAssociatedCollections(id).stream()
-            .map(
-                a ->
-                    new AdminUserCollection(
-                        a.collectionId(),
-                        a.title(),
-                        a.role() != null ? CollectionRole.valueOf(a.role()) : null))
+  @GetMapping("/{id}/roles")
+  public ResponseEntity<List<UserRoleRow>> userRoles(@PathVariable Long id) {
+    List<UserRoleRow> rows =
+        roleRepository.rolesForUser(id).stream()
+            .map(r -> new UserRoleRow(r.getId(), r.getName(), r.getKind()))
             .toList();
     return ResponseEntity.ok(rows);
   }
 
   /**
-   * Set the user's membership role on a collection (GENERAL or CLIENT). Creates the membership row
-   * if absent; promotes/demotes if already present.
+   * Add this user to a role (membership). Idempotent.
    *
    * @param id the {@code app_user.id}
-   * @param collectionId the collection id
-   * @param body the new role
+   * @param roleId the role to join
    * @return {@code 204 No Content}
    */
-  @PutMapping("/{id}/collections/{collectionId}")
-  public ResponseEntity<Void> setCollectionRole(
-      @PathVariable Long id,
-      @PathVariable Long collectionId,
-      @Valid @RequestBody SetCollectionRoleRequest body) {
-    userCollectionRepository.upsertRole(id, collectionId, body.role(), null);
+  @PutMapping("/{id}/roles/{roleId}")
+  public ResponseEntity<Void> addUserToRole(@PathVariable Long id, @PathVariable Long roleId) {
+    roleRepository.addMember(roleId, id, null);
     return ResponseEntity.noContent().build();
   }
 
   /**
-   * Remove the user's membership on a collection (revoke all access).
+   * Remove this user from a role.
    *
    * @param id the {@code app_user.id}
-   * @param collectionId the collection id
+   * @param roleId the role to leave
    * @return {@code 204 No Content}
    */
-  @DeleteMapping("/{id}/collections/{collectionId}")
-  public ResponseEntity<Void> removeCollectionRole(
-      @PathVariable Long id, @PathVariable Long collectionId) {
-    userCollectionRepository.delete(id, collectionId);
+  @DeleteMapping("/{id}/roles/{roleId}")
+  public ResponseEntity<Void> removeUserFromRole(@PathVariable Long id, @PathVariable Long roleId) {
+    roleRepository.removeMember(roleId, id);
     return ResponseEntity.noContent().build();
   }
 

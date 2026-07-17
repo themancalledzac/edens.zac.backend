@@ -15,11 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Per-user saved images ("Your Space" bookmarks). A logged-in user may save an image only if they
  * may SEE it — i.e. it holds a visible membership in a LISTED collection or one the caller has an
- * explicit {@code user_collection} membership for (see {@link
- * ContentRepository#isImageVisibleToUser}). This prevents a client-gallery user from POSTing an
- * arbitrary image id to exfiltrate images from HIDDEN/UNLISTED collections or another client's
- * gated gallery via the saved-images read. Auth (identity) is enforced at the controller (principal
- * null-check); this service enforces per-image visibility.
+ * explicit role grant for (see {@link ContentRepository#isImageVisibleToUser}). This prevents a
+ * client-gallery user from POSTing an arbitrary image id to exfiltrate images from HIDDEN/UNLISTED
+ * collections or another client's gated gallery via the saved-images read. Auth (identity) is
+ * enforced at the controller (principal null-check); this service enforces per-image visibility.
  */
 @Service
 @RequiredArgsConstructor

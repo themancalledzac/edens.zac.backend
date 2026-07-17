@@ -413,11 +413,11 @@ public class CollectionRepository extends BaseDao {
 
   /**
    * Permission-scoped variant of {@link #findNonEmptyByVisibilityInOrderByDate}: rows whose
-   * visibility is in {@code allowed} OR whose id is one of the viewer's explicit {@code
-   * user_collection} grants ({@code ownedIds}), so a signed-in client sees their UNLISTED/HIDDEN
-   * galleries alongside the LISTED set. Empty {@code ownedIds} degrades to the scope-only query
-   * (Postgres rejects {@code IN ()}). Same non-empty guard and chronological order as the base
-   * query. Scope widening is decided by the caller from the server-verified principal only.
+   * visibility is in {@code allowed} OR whose id is one of the caller's role-granted collection ids
+   * ({@code ownedIds}), so a signed-in client sees their UNLISTED/HIDDEN galleries alongside the
+   * LISTED set. Empty {@code ownedIds} degrades to the scope-only query (Postgres rejects {@code IN
+   * ()}). Same non-empty guard and chronological order as the base query. Scope widening is decided
+   * by the caller from the server-verified principal only.
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findNonEmptyListedOrOwnedOrderByDate(

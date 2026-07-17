@@ -4,7 +4,7 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository;
+import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.NoSuchElementException;
@@ -22,7 +22,7 @@ public class UserMergeService {
 
   private final AppUserRepository appUserRepository;
   private final PersonRepository personRepository;
-  private final UserCollectionRepository userCollectionRepository;
+  private final RoleRepository roleRepository;
 
   /**
    * Counts what a merge of {@code sourceId} into {@code targetId} would move, without mutating
@@ -74,7 +74,7 @@ public class UserMergeService {
     final int collapsed = personRepository.countCollisions(sourceId, targetId);
 
     personRepository.repointTags(sourceId, targetId);
-    userCollectionRepository.repointMemberships(sourceId, targetId);
+    roleRepository.repointMemberships(sourceId, targetId);
     personRepository.deletePersonById(sourceId);
 
     log.info(

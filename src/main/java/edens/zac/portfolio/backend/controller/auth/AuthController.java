@@ -2,12 +2,12 @@ package edens.zac.portfolio.backend.controller.auth;
 
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.GalleryMembership;
 import edens.zac.portfolio.backend.model.LoginRequest;
 import edens.zac.portfolio.backend.model.MeResponse;
+import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.SessionService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,7 +48,7 @@ public class AuthController {
   private final SessionService sessionService;
   private final AuthLoginLimiter loginLimiter;
   private final AppUserRepository appUserRepository;
-  private final UserCollectionRepository userCollectionRepository;
+  private final CollectionAccessService collectionAccessService;
   private final PasswordEncoder passwordEncoder;
 
   @PostMapping("/login")
@@ -99,8 +99,8 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     List<GalleryMembership> galleries =
-        userCollectionRepository.findByUserId(principal.userId()).stream()
-            .map(m -> new GalleryMembership(m.getCollectionId(), m.getRole()))
+        collectionAccessService.effectiveGrants(principal.userId()).stream()
+            .map(g -> new GalleryMembership(g.collectionId(), g.level()))
             .toList();
     return ResponseEntity.ok(
         new MeResponse(

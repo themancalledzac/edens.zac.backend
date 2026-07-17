@@ -70,7 +70,7 @@ class CollectionServiceTest {
   @Mock private SyntheticCollectionResolver syntheticResolver;
   @Mock private TagViewResolver tagViewResolver;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
-  @Mock private UserCollectionService userCollectionService;
+  @Mock private CollectionAccessService collectionAccessService;
 
   @Mock
   private edens.zac.portfolio.backend.dao.CollectionSiblingRepository collectionSiblingRepository;
@@ -1314,7 +1314,7 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
       when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
           .thenReturn(false);
-      when(userCollectionService.canView(42L, 9L)).thenReturn(true);
+      when(collectionAccessService.canView(42L, 9L)).thenReturn(true);
       when(collectionProcessingUtil.convertToBasicModel(entity))
           .thenReturn(CollectionModel.builder().id(9L).slug("their-gallery").build());
 
@@ -1334,7 +1334,7 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
       when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
           .thenReturn(false);
-      when(userCollectionService.canView(43L, 9L)).thenReturn(false);
+      when(collectionAccessService.canView(43L, 9L)).thenReturn(false);
 
       assertThatThrownBy(() -> service.findMetaBySlug("their-gallery"))
           .isInstanceOf(ResourceNotFoundException.class);

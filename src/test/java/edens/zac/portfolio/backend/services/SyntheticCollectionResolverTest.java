@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
-import edens.zac.portfolio.backend.dao.UserCollectionRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
@@ -37,7 +36,7 @@ class SyntheticCollectionResolverTest {
   @Mock private CollectionRepository collectionRepository;
   @Mock private CollectionProcessingUtil collectionProcessingUtil;
   @Mock private TagRepository tagRepository;
-  @Mock private UserCollectionRepository userCollectionRepository;
+  @Mock private CollectionAccessService collectionAccessService;
 
   @InjectMocks private SyntheticCollectionResolver resolver;
 
@@ -116,13 +115,13 @@ class SyntheticCollectionResolverTest {
 
     verify(collectionRepository)
         .findNonEmptyListedOrOwnedOrderByDate(eq(FULL_SCOPE), eq(List.of()));
-    verify(userCollectionRepository, never()).findCollectionIdsByUserId(any());
+    verify(collectionAccessService, never()).memberCollectionIdsForUser(any());
   }
 
   @Test
   void resolveAllCollectionsForSignedInNonAdminQueriesListedPlusGrants() {
     setPrincipal(AuthPrincipal.client(42L, "client@ezac.com", true));
-    when(userCollectionRepository.findCollectionIdsByUserId(42L)).thenReturn(List.of(7L, 9L));
+    when(collectionAccessService.memberCollectionIdsForUser(42L)).thenReturn(List.of(7L, 9L));
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of(7L, 9L))))
         .thenReturn(List.of(new CollectionEntity()));
@@ -157,7 +156,7 @@ class SyntheticCollectionResolverTest {
   void resolveAllCollectionsNonAdminNeverWidensBeyondListedPlusGrants() {
     // isAdmin=false with mfaSatisfied=true — guards against transposed boolean reads.
     setPrincipal(new AuthPrincipal(42L, "client@ezac.com", false, true));
-    when(userCollectionRepository.findCollectionIdsByUserId(42L)).thenReturn(List.of());
+    when(collectionAccessService.memberCollectionIdsForUser(42L)).thenReturn(List.of());
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of())))
         .thenReturn(List.of());

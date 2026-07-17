@@ -24,15 +24,15 @@ class UserRatingOverrideServiceTest {
   private static final Long CONTENT = 42L;
 
   @Mock private UserRatingOverrideRepository overrideRepository;
-  @Mock private UserCollectionService userCollectionService;
+  @Mock private CollectionAccessService collectionAccessService;
 
   private UserRatingOverrideService service() {
-    return new UserRatingOverrideService(overrideRepository, userCollectionService);
+    return new UserRatingOverrideService(overrideRepository, collectionAccessService);
   }
 
   @Test
   void upsertPersistsWhenClientMembership() {
-    when(userCollectionService.isClient(USER, COLLECTION)).thenReturn(true);
+    when(collectionAccessService.isClient(USER, COLLECTION)).thenReturn(true);
 
     service().upsert(USER, COLLECTION, CONTENT, 4);
 
@@ -48,7 +48,7 @@ class UserRatingOverrideServiceTest {
 
   @Test
   void upsertRejectedWhenNoClientMembership() {
-    when(userCollectionService.isClient(USER, COLLECTION)).thenReturn(false);
+    when(collectionAccessService.isClient(USER, COLLECTION)).thenReturn(false);
 
     assertThatThrownBy(() -> service().upsert(USER, COLLECTION, CONTENT, 4))
         .isInstanceOf(SecurityException.class);

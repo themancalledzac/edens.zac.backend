@@ -1,6 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
-import edens.zac.portfolio.backend.types.CollectionRole;
+import edens.zac.portfolio.backend.types.RoleKind;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserCollectionEntity {
-  private Long userId;
-  private Long collectionId;
-  private CollectionRole role;
-  private LocalDateTime grantedAt;
-  private Long grantedBy;
+public class RoleEntity {
+  private Long id;
+  private String name;
+  private RoleKind kind;
+  private LocalDateTime createdAt;
+  private Long createdBy;
 }

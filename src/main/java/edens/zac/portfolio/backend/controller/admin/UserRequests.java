@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.controller.admin;
 
-import edens.zac.portfolio.backend.types.CollectionRole;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -59,24 +58,6 @@ public final class UserRequests {
       String displayName,
       @NotNull UserStatus status,
       @Size(max = 500) String description) {}
-
-  /**
-   * One associated-collection row in the admin user detail. {@code role} is {@code null} when the
-   * user is tagged via {@code collection_people} but holds no membership (tagged only, no access).
-   *
-   * @param collectionId the collection id
-   * @param title the collection title
-   * @param role the membership role, or {@code null} if tagged only
-   */
-  public record AdminUserCollection(Long collectionId, String title, CollectionRole role) {}
-
-  /**
-   * Body for {@code PUT /api/admin/users/{id}/collections/{collectionId}} — set the membership
-   * role.
-   *
-   * @param role the new membership role (GENERAL or CLIENT)
-   */
-  public record SetCollectionRoleRequest(@NotNull CollectionRole role) {}
 
   /**
    * Body for {@code POST /api/admin/users/{targetId}/merge} — absorb a tag-only PERSON into the

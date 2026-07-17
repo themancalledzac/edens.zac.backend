@@ -52,7 +52,7 @@ class UserMergeIntegrationTest extends AbstractPostgresIntegrationTest {
     return contentId;
   }
 
-  /** A real collection row (idiom mirrors UserCollectionRepositoryIntegrationTest). */
+  /** A real collection row. */
   private Long newCollection() {
     String slug = "merge-test-" + UUID.randomUUID();
     return jdbc.queryForObject(

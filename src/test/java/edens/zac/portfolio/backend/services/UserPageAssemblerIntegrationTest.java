@@ -3,11 +3,14 @@ package edens.zac.portfolio.backend.services;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
+import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import edens.zac.portfolio.backend.types.RoleKind;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,6 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private UserPageAssembler assembler;
+  @Autowired private RoleRepository roleRepository;
   @Autowired private JdbcTemplate jdbc;
 
   // Since the V35 merge, the account and the person tag are one `users` row: the principal's id IS
@@ -66,10 +70,12 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   private void grant(Long userId, Long collectionId) {
-    jdbc.update(
-        "INSERT INTO user_collection (user_id, collection_id, role) VALUES (?, ?, 'GENERAL')",
-        userId,
-        collectionId);
+    // Access flows through roles now (user_collection is frozen): a fresh role the user joins,
+    // carrying a GENERAL grant on the collection.
+    Long roleId =
+        roleRepository.createRole("userpage-grant-" + UUID.randomUUID(), RoleKind.SHARED, null);
+    roleRepository.addMember(roleId, userId, null);
+    roleRepository.setCollectionGrant(roleId, collectionId, AccessLevel.GENERAL, null);
   }
 
   private Long seedTaggedImage(Long personId, String webUrl, LocalDateTime captureDate) {

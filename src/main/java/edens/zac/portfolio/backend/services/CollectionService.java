@@ -75,7 +75,7 @@ public class CollectionService {
   private final SyntheticCollectionResolver syntheticResolver;
   private final TagViewResolver tagViewResolver;
   private final ClientGalleryAuthService clientGalleryAuthService;
-  private final UserCollectionService userCollectionService;
+  private final CollectionAccessService collectionAccessService;
   private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -467,7 +467,7 @@ public class CollectionService {
         .map(
             entity -> {
               Long userId = currentUserId();
-              if (userId != null && userCollectionService.canView(userId, entity.getId())) {
+              if (userId != null && collectionAccessService.canView(userId, entity.getId())) {
                 return true;
               }
               return GalleryAccessCookies.hasValidAccess(
@@ -566,7 +566,7 @@ public class CollectionService {
   }
 
   /**
-   * Replace the entire {@code collection_people} list. Membership (user_collection) is not
+   * Replace the entire {@code collection_people} list. Membership (via roles) is not
    * auto-materialized here — it must be granted explicitly via the /admin Users module.
    */
   @Transactional
@@ -1278,8 +1278,8 @@ public class CollectionService {
    * <ul>
    *   <li>HOME slug always passes (existing exception).
    *   <li>LISTED + UNLISTED both pass for direct slug access.
-   *   <li>HIDDEN passes in a local environment, for an admin principal, or for a viewer with an
-   *       explicit {@code user_collection} grant; otherwise NotFound. Mirrors the scope the
+   *   <li>HIDDEN passes in a local environment, for an admin principal, or for a viewer who reaches
+   *       the collection through a role grant; otherwise NotFound. Mirrors the scope the
    *       permission-aware all-collections list surfaces, so a tile a viewer can see is a tile they
    *       can open.
    * </ul>
@@ -1298,13 +1298,13 @@ public class CollectionService {
     // LISTED and UNLISTED both allow direct slug access.
   }
 
-  /** True when the current viewer is an admin or holds a user_collection grant for the id. */
+  /** True when the current viewer is an admin or reaches the id through a role grant. */
   private boolean viewerMaySeeHidden(Long collectionId) {
     var auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth == null || !(auth.getPrincipal() instanceof AuthPrincipal p) || p.userId() == null) {
       return false;
     }
-    return p.isAdmin() || userCollectionService.canView(p.userId(), collectionId);
+    return p.isAdmin() || collectionAccessService.canView(p.userId(), collectionId);
   }
 
   private boolean isLocalEnvironment() {
