@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -71,6 +72,11 @@ class GlobalExceptionHandlerTest {
       // Empty set — ConstraintViolationException still maps to 400
       Set<ConstraintViolation<?>> violations = Set.of();
       throw new ConstraintViolationException("constraint violated", violations);
+    }
+
+    @GetMapping("/access-denied")
+    String accessDenied() {
+      throw new AccessDeniedException("No gallery access for collection 112");
     }
 
     @GetMapping("/generic")
@@ -199,6 +205,21 @@ class GlobalExceptionHandlerTest {
     String msg = response.getBody().message();
     assert msg.contains("title: must not be blank") : "Expected title error in: " + msg;
     assert msg.contains("type: must not be null") : "Expected type error in: " + msg;
+  }
+
+  @Test
+  void handleAccessDenied_returnsStatus403() throws Exception {
+    // A non-member viewer's per-render selects seed read throws AccessDeniedException from the
+    // controller method, after the security filter chain. Without a dedicated handler it is caught
+    // by the catch-all Exception handler and mis-reported as 500 with a full stack trace; an
+    // authorization denial must be a quiet 403.
+    mockMvc
+        .perform(get("/test/access-denied").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.status").value(403))
+        .andExpect(jsonPath("$.error").value("Forbidden"))
+        .andExpect(jsonPath("$.message").value("No gallery access for collection 112"))
+        .andExpect(jsonPath("$.timestamp").exists());
   }
 
   @Test

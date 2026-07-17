@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -133,6 +134,20 @@ public class GlobalExceptionHandler {
         .body(
             ErrorResponse.of(
                 HttpStatus.CONFLICT, "Data integrity violation: duplicate or invalid data"));
+  }
+
+  /**
+   * Denied gallery/collection access is an expected authorization outcome, not a server error.
+   * Without this handler it is caught by the catch-all {@link #handleGeneric} and mis-reported as
+   * 500 with a full stack trace (e.g. the per-user selects seed read fired for every authenticated
+   * viewer of a CLIENT_GALLERY, including non-members). It must be a quiet 403. Logged at debug
+   * with no stack trace since a denial on this per-render read is expected, not noteworthy.
+   */
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException e) {
+    log.debug("Access denied: {}", e.getMessage());
+    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(ErrorResponse.of(HttpStatus.FORBIDDEN, e.getMessage()));
   }
 
   /** Client disconnected before response was fully sent -- not a server error. */
