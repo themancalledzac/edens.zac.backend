@@ -134,7 +134,14 @@ class AdminRoleControllerTest {
 
   @Test
   void deleteRoleReturns204() throws Exception {
+    when(roleRepository.deleteRole(7L)).thenReturn(1);
     mvc.perform(delete("/api/admin/roles/7")).andExpect(status().isNoContent());
     verify(roleRepository).deleteRole(7L);
+  }
+
+  @Test
+  void deleteRoleReturns404WhenMissing() throws Exception {
+    when(roleRepository.deleteRole(404L)).thenReturn(0);
+    mvc.perform(delete("/api/admin/roles/404")).andExpect(status().isNotFound());
   }
 }

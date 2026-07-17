@@ -8,6 +8,7 @@ import edens.zac.portfolio.backend.controller.admin.RoleRequests.RoleSummary;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.SetRoleGrantRequest;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.RoleEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.types.RoleKind;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,7 +60,7 @@ public class AdminRoleController {
   @PostMapping
   public ResponseEntity<RoleSummary> createRole(@Valid @RequestBody CreateRoleRequest body) {
     RoleKind kind = body.kind() != null ? body.kind() : RoleKind.SHARED;
-    Long id = roleRepository.createRole(body.name(), kind, null);
+    Long id = roleRepository.createRole(body.name(), kind, currentUserId());
     return ResponseEntity.status(HttpStatus.CREATED).body(new RoleSummary(id, body.name(), kind));
   }
 
@@ -90,12 +92,13 @@ public class AdminRoleController {
    * Delete a role (cascades its memberships and grants).
    *
    * @param roleId the role id
-   * @return {@code 204 No Content}
+   * @return {@code 204 No Content}, or {@code 404} if no such role
    */
   @DeleteMapping("/{roleId}")
   public ResponseEntity<Void> deleteRole(@PathVariable Long roleId) {
-    roleRepository.deleteRole(roleId);
-    return ResponseEntity.noContent().build();
+    return roleRepository.deleteRole(roleId) > 0
+        ? ResponseEntity.noContent().build()
+        : ResponseEntity.notFound().build();
   }
 
   /**
@@ -112,7 +115,7 @@ public class AdminRoleController {
       @PathVariable Long roleId,
       @PathVariable Long collectionId,
       @Valid @RequestBody SetRoleGrantRequest body) {
-    roleRepository.setCollectionGrant(roleId, collectionId, body.level(), null);
+    roleRepository.setCollectionGrant(roleId, collectionId, body.level(), currentUserId());
     return ResponseEntity.noContent().build();
   }
 
@@ -139,7 +142,7 @@ public class AdminRoleController {
    */
   @PutMapping("/{roleId}/members/{userId}")
   public ResponseEntity<Void> addMember(@PathVariable Long roleId, @PathVariable Long userId) {
-    roleRepository.addMember(roleId, userId, null);
+    roleRepository.addMember(roleId, userId, currentUserId());
     return ResponseEntity.noContent().build();
   }
 
@@ -154,5 +157,11 @@ public class AdminRoleController {
   public ResponseEntity<Void> removeMember(@PathVariable Long roleId, @PathVariable Long userId) {
     roleRepository.removeMember(roleId, userId);
     return ResponseEntity.noContent().build();
+  }
+
+  /** The acting admin's user id for audit columns, or null in dev where the gate is open. */
+  private static Long currentUserId() {
+    var auth = SecurityContextHolder.getContext().getAuthentication();
+    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 }

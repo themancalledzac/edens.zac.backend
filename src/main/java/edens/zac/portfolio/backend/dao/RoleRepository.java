@@ -69,8 +69,9 @@ public class RoleRepository extends BaseDao {
   }
 
   @Transactional
-  public void deleteRole(Long roleId) {
-    update("DELETE FROM role WHERE id = :id", createParameterSource().addValue("id", roleId));
+  public int deleteRole(Long roleId) {
+    return update(
+        "DELETE FROM role WHERE id = :id", createParameterSource().addValue("id", roleId));
   }
 
   // ---- Membership ----
