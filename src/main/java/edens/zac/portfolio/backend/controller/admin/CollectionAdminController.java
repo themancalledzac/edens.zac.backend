@@ -42,7 +42,15 @@ public class CollectionAdminController {
   @GetMapping("/{id}/roles")
   public List<CollectionRoleGrantRow> collectionRoles(@PathVariable Long id) {
     return roleRepository.rolesGrantingCollection(id).stream()
-        .map(g -> new CollectionRoleGrantRow(g.roleId(), g.name(), g.kind(), g.level()))
+        .map(
+            g ->
+                new CollectionRoleGrantRow(
+                    g.roleId(),
+                    g.name(),
+                    g.kind(),
+                    g.level(),
+                    g.inheritedFromCollectionId(),
+                    g.inheritedFromCollectionTitle()))
         .toList();
   }
 

@@ -38,7 +38,16 @@ public final class RoleRequests {
   /** One role a user belongs to, for the reshaped user-detail view. */
   public record UserRoleRow(Long roleId, String name, RoleKind kind) {}
 
-  /** One role granting a collection, for the collection-edit access panel. */
+  /**
+   * One role granting a collection, for the collection-edit access panel. The provenance pair is
+   * null for direct grants; inherited (waterfalled) rows carry the origin collection's id and title
+   * so the UI can badge them.
+   */
   public record CollectionRoleGrantRow(
-      Long roleId, String name, RoleKind kind, AccessLevel level) {}
+      Long roleId,
+      String name,
+      RoleKind kind,
+      AccessLevel level,
+      Long inheritedFromCollectionId,
+      String inheritedFromCollectionTitle) {}
 }

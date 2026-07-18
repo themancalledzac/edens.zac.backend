@@ -42,8 +42,18 @@ public class RoleRepository extends BaseDao {
   /** A member of a role, joined to their account, for the role-detail view. */
   public record RoleMember(Long userId, String email, String name) {}
 
-  /** One role granting a collection, for the collection-detail (inverse) view. */
-  public record CollectionRoleGrant(Long roleId, String name, RoleKind kind, AccessLevel level) {}
+  /**
+   * One role granting a collection, for the collection-detail (inverse) view. The provenance pair
+   * is null for a direct grant; for an inherited copy it carries the origin collection's id and
+   * title so the admin UI can badge waterfalled rows.
+   */
+  public record CollectionRoleGrant(
+      Long roleId,
+      String name,
+      RoleKind kind,
+      AccessLevel level,
+      Long inheritedFromCollectionId,
+      String inheritedFromCollectionTitle) {}
 
   /**
    * A grant held on a collection: the role, the level, and its provenance. A null {@code
@@ -196,16 +206,20 @@ public class RoleRepository extends BaseDao {
   }
 
   /**
-   * The inverse of {@link #grantsForRole}: every role granting a collection, with its level.
-   * Ordered SHARED before PERSONAL, then by name (matches {@link #findAll}).
+   * The inverse of {@link #grantsForRole}: every role granting a collection, with its level and
+   * waterfall provenance (origin collection id + title, null for direct grants). Ordered SHARED
+   * before PERSONAL, then by name (matches {@link #findAll}).
    */
   @Transactional(readOnly = true)
   public List<CollectionRoleGrant> rolesGrantingCollection(Long collectionId) {
     return query(
         """
-        SELECT rc.role_id, r.name, r.kind, rc.level
+        SELECT rc.role_id, r.name, r.kind, rc.level,
+               rc.inherited_from_collection_id,
+               origin.title AS inherited_from_collection_title
           FROM role_collection rc
           JOIN role r ON r.id = rc.role_id
+          LEFT JOIN collection origin ON origin.id = rc.inherited_from_collection_id
          WHERE rc.collection_id = :collectionId
          ORDER BY r.kind DESC, r.name ASC
         """,
@@ -214,7 +228,9 @@ public class RoleRepository extends BaseDao {
                 rs.getLong("role_id"),
                 rs.getString("name"),
                 RoleKind.valueOf(rs.getString("kind")),
-                AccessLevel.valueOf(rs.getString("level"))),
+                AccessLevel.valueOf(rs.getString("level")),
+                getLong(rs, "inherited_from_collection_id"),
+                rs.getString("inherited_from_collection_title")),
         createParameterSource().addValue("collectionId", collectionId));
   }
 

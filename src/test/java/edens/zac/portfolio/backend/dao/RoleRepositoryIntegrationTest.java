@@ -153,6 +153,34 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(grants)
         .extracting(CollectionRoleGrant::roleId, CollectionRoleGrant::level)
         .containsExactly(tuple(r1, AccessLevel.GENERAL), tuple(r2, AccessLevel.CLIENT));
+    // Direct grants carry no waterfall provenance.
+    assertThat(grants)
+        .allSatisfy(
+            g -> {
+              assertThat(g.inheritedFromCollectionId()).isNull();
+              assertThat(g.inheritedFromCollectionTitle()).isNull();
+            });
+  }
+
+  @Test
+  void rolesGrantingCollectionExposesInheritanceProvenance() {
+    long origin = seedCollection("role-inverse-origin");
+    long child = seedCollection("role-inverse-inherited");
+    long roleId = repo.createRole("waterfall crew", RoleKind.SHARED, null);
+    repo.setCollectionGrant(roleId, origin, AccessLevel.CLIENT, null);
+    repo.insertInheritedGrant(roleId, child, AccessLevel.CLIENT, origin);
+
+    List<CollectionRoleGrant> grants = repo.rolesGrantingCollection(child);
+
+    assertThat(grants)
+        .singleElement()
+        .satisfies(
+            g -> {
+              assertThat(g.roleId()).isEqualTo(roleId);
+              assertThat(g.level()).isEqualTo(AccessLevel.CLIENT);
+              assertThat(g.inheritedFromCollectionId()).isEqualTo(origin);
+              assertThat(g.inheritedFromCollectionTitle()).isEqualTo("role-inverse-origin");
+            });
   }
 
   @Test
