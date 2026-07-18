@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
+import edens.zac.portfolio.backend.dao.RoleRepository.CollectionRoleGrant;
 import edens.zac.portfolio.backend.dao.RoleRepository.EffectiveGrant;
 import edens.zac.portfolio.backend.dao.RoleRepository.RoleMember;
 import edens.zac.portfolio.backend.entity.RoleEntity;
@@ -102,6 +103,56 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
         .containsExactly(
             tuple(first, "nia-mfr@example.com", "Nia"),
             tuple(second, "owen-mfr@example.com", "Owen"));
+  }
+
+  @Test
+  void rolesGrantingCollectionOrdersSharedFirstThenName() {
+    long coll = seedCollection("role-inverse-order");
+    long personal = repo.createRole("aaa personal", RoleKind.PERSONAL, null);
+    long sharedBravo = repo.createRole("bravo crew", RoleKind.SHARED, null);
+    long sharedAlpha = repo.createRole("alpha crew", RoleKind.SHARED, null);
+    repo.setCollectionGrant(personal, coll, AccessLevel.CLIENT, null);
+    repo.setCollectionGrant(sharedBravo, coll, AccessLevel.GENERAL, null);
+    repo.setCollectionGrant(sharedAlpha, coll, AccessLevel.CLIENT, null);
+
+    List<CollectionRoleGrant> grants = repo.rolesGrantingCollection(coll);
+
+    assertThat(grants)
+        .extracting(
+            CollectionRoleGrant::roleId,
+            CollectionRoleGrant::name,
+            CollectionRoleGrant::kind,
+            CollectionRoleGrant::level)
+        .containsExactly(
+            tuple(sharedAlpha, "alpha crew", RoleKind.SHARED, AccessLevel.CLIENT),
+            tuple(sharedBravo, "bravo crew", RoleKind.SHARED, AccessLevel.GENERAL),
+            tuple(personal, "aaa personal", RoleKind.PERSONAL, AccessLevel.CLIENT));
+  }
+
+  @Test
+  void rolesGrantingCollectionEmptyWhenNoGrants() {
+    long coll = seedCollection("role-inverse-empty");
+    repo.createRole("ungranted role", RoleKind.SHARED, null);
+
+    assertThat(repo.rolesGrantingCollection(coll)).isEmpty();
+  }
+
+  @Test
+  void rolesGrantingCollectionReturnsBothRolesAndOnlyThatCollection() {
+    long coll = seedCollection("role-inverse-two");
+    long other = seedCollection("role-inverse-other");
+    long r1 = repo.createRole("family gallery", RoleKind.SHARED, null);
+    long r2 = repo.createRole("wedding party", RoleKind.SHARED, null);
+    long unrelated = repo.createRole("unrelated role", RoleKind.SHARED, null);
+    repo.setCollectionGrant(r1, coll, AccessLevel.GENERAL, null);
+    repo.setCollectionGrant(r2, coll, AccessLevel.CLIENT, null);
+    repo.setCollectionGrant(unrelated, other, AccessLevel.CLIENT, null);
+
+    List<CollectionRoleGrant> grants = repo.rolesGrantingCollection(coll);
+
+    assertThat(grants)
+        .extracting(CollectionRoleGrant::roleId, CollectionRoleGrant::level)
+        .containsExactly(tuple(r1, AccessLevel.GENERAL), tuple(r2, AccessLevel.CLIENT));
   }
 
   @Test

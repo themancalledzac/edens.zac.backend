@@ -3,14 +3,20 @@ package edens.zac.portfolio.backend.controller.admin;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
+import edens.zac.portfolio.backend.dao.RoleRepository;
+import edens.zac.portfolio.backend.dao.RoleRepository.CollectionRoleGrant;
 import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessRequest;
 import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessResponse;
 import edens.zac.portfolio.backend.services.CollectionService;
+import edens.zac.portfolio.backend.types.AccessLevel;
+import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -29,6 +35,8 @@ class CollectionAdminControllerTest {
   private MockMvc mockMvc;
 
   @Mock private CollectionService collectionService;
+
+  @Mock private RoleRepository roleRepository;
 
   @InjectMocks private CollectionAdminController controller;
 
@@ -140,6 +148,44 @@ class CollectionAdminControllerTest {
           .andExpect(jsonPath("$.emailsSent").value(false))
           .andExpect(jsonPath("$.password").doesNotExist())
           .andExpect(jsonPath("$.emails").isEmpty());
+    }
+  }
+
+  @Nested
+  class CollectionRoles {
+
+    @Test
+    void returnsGrantingRolesAsRows() throws Exception {
+      when(roleRepository.rolesGrantingCollection(42L))
+          .thenReturn(
+              List.of(
+                  new CollectionRoleGrant(
+                      7L, "family gallery", RoleKind.SHARED, AccessLevel.CLIENT),
+                  new CollectionRoleGrant(
+                      9L, "mara personal", RoleKind.PERSONAL, AccessLevel.GENERAL)));
+
+      mockMvc
+          .perform(get("/api/admin/collections/42/roles"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(2))
+          .andExpect(jsonPath("$[0].roleId").value(7))
+          .andExpect(jsonPath("$[0].name").value("family gallery"))
+          .andExpect(jsonPath("$[0].kind").value("SHARED"))
+          .andExpect(jsonPath("$[0].level").value("CLIENT"))
+          .andExpect(jsonPath("$[1].roleId").value(9))
+          .andExpect(jsonPath("$[1].name").value("mara personal"))
+          .andExpect(jsonPath("$[1].kind").value("PERSONAL"))
+          .andExpect(jsonPath("$[1].level").value("GENERAL"));
+    }
+
+    @Test
+    void returnsEmptyArrayWhenNoRolesGrant() throws Exception {
+      when(roleRepository.rolesGrantingCollection(42L)).thenReturn(List.of());
+
+      mockMvc
+          .perform(get("/api/admin/collections/42/roles"))
+          .andExpect(status().isOk())
+          .andExpect(content().json("[]"));
     }
   }
 

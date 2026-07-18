@@ -37,4 +37,8 @@ public final class RoleRequests {
 
   /** One role a user belongs to, for the reshaped user-detail view. */
   public record UserRoleRow(Long roleId, String name, RoleKind kind) {}
+
+  /** One role granting a collection, for the collection-edit access panel. */
+  public record CollectionRoleGrantRow(
+      Long roleId, String name, RoleKind kind, AccessLevel level) {}
 }
