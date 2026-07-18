@@ -11,6 +11,7 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserReque
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
@@ -25,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -257,7 +259,7 @@ public class AdminUserController {
    */
   @PutMapping("/{id}/roles/{roleId}")
   public ResponseEntity<Void> addUserToRole(@PathVariable Long id, @PathVariable Long roleId) {
-    roleRepository.addMember(roleId, id, null);
+    roleRepository.addMember(roleId, id, currentUserId());
     return ResponseEntity.noContent().build();
   }
 
@@ -335,5 +337,11 @@ public class AdminUserController {
   /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */
   private String buildInviteUrl(String rawToken) {
     return frontendBaseUrl.replaceAll("/+$", "") + "/invite/" + rawToken;
+  }
+
+  /** The acting admin's user id for audit columns, or null in dev where the gate is open. */
+  private static Long currentUserId() {
+    var auth = SecurityContextHolder.getContext().getAuthentication();
+    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 }
