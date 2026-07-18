@@ -42,6 +42,9 @@ public class RoleRepository extends BaseDao {
   /** A member of a role, joined to their account, for the role-detail view. */
   public record RoleMember(Long userId, String email, String name) {}
 
+  /** One role granting a collection, for the collection-detail (inverse) view. */
+  public record CollectionRoleGrant(Long roleId, String name, RoleKind kind, AccessLevel level) {}
+
   // ---- Role CRUD ----
 
   @Transactional
@@ -166,6 +169,29 @@ public class RoleRepository extends BaseDao {
                 rs.getString("title"),
                 AccessLevel.valueOf(rs.getString("level"))),
         createParameterSource().addValue("roleId", roleId));
+  }
+
+  /**
+   * The inverse of {@link #grantsForRole}: every role granting a collection, with its level.
+   * Ordered SHARED before PERSONAL, then by name (matches {@link #findAll}).
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionRoleGrant> rolesGrantingCollection(Long collectionId) {
+    return query(
+        """
+        SELECT rc.role_id, r.name, r.kind, rc.level
+          FROM role_collection rc
+          JOIN role r ON r.id = rc.role_id
+         WHERE rc.collection_id = :collectionId
+         ORDER BY r.kind DESC, r.name ASC
+        """,
+        (rs, n) ->
+            new CollectionRoleGrant(
+                rs.getLong("role_id"),
+                rs.getString("name"),
+                RoleKind.valueOf(rs.getString("kind")),
+                AccessLevel.valueOf(rs.getString("level"))),
+        createParameterSource().addValue("collectionId", collectionId));
   }
 
   // ---- Resolution (the seam) ----
