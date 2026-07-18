@@ -214,6 +214,29 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
+   * Ids of children linked under a parent through a VISIBLE membership row ({@code cc.visible =
+   * true}), regardless of the child collection's own {@code visibility}. Role-grant propagation
+   * follows only visible links (mirroring the V47 backfill gate); removal walks use the
+   * visibility-agnostic {@link #findAllReferencedCollectionsByParentId} instead so stale copies are
+   * always stripped.
+   */
+  @Transactional(readOnly = true)
+  public List<Long> findVisibleReferencedCollectionIdsByParentId(Long parentId) {
+    String sql =
+        """
+        SELECT cct.referenced_collection_id
+        FROM collection_content cc
+        JOIN content_collection cct ON cct.id = cc.content_id
+        WHERE cc.collection_id = :parentId
+          AND cc.visible = true
+          AND cct.referenced_collection_id IS NOT NULL
+        ORDER BY cc.order_index ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
+    return query(sql, (rs, n) -> rs.getLong("referenced_collection_id"), params);
+  }
+
+  /**
    * Inverse of {@link #findAllReferencedCollectionsByParentId}: given a child collection, find
    * every parent collection that references it. Walks child -> content_collection ->
    * collection_content -> parent. Admin-context query: filters neither {@code c.visibility} nor

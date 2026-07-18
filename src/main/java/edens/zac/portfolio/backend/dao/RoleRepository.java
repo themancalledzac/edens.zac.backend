@@ -45,6 +45,24 @@ public class RoleRepository extends BaseDao {
   /** One role granting a collection, for the collection-detail (inverse) view. */
   public record CollectionRoleGrant(Long roleId, String name, RoleKind kind, AccessLevel level) {}
 
+  /**
+   * A grant held on a collection: the role, the level, and its provenance. A null {@code
+   * inheritedFromCollectionId} means the grant is direct; otherwise it is an inherited copy whose
+   * origin (the collection holding the direct grant) is that id.
+   */
+  public record CollectionGrant(Long roleId, AccessLevel level, Long inheritedFromCollectionId) {
+    public boolean direct() {
+      return inheritedFromCollectionId == null;
+    }
+  }
+
+  private static final RowMapper<CollectionGrant> COLLECTION_GRANT_ROW_MAPPER =
+      (rs, n) ->
+          new CollectionGrant(
+              rs.getLong("role_id"),
+              AccessLevel.valueOf(rs.getString("level")),
+              getLong(rs, "inherited_from_collection_id"));
+
   // ---- Role CRUD ----
 
   @Transactional
@@ -130,6 +148,11 @@ public class RoleRepository extends BaseDao {
 
   // ---- Collection grants on a role ----
 
+  /**
+   * Upsert a DIRECT grant. Clearing {@code inherited_from_collection_id} on conflict converts an
+   * inherited copy into a direct grant, so an explicit admin grant is never mistaken for (or later
+   * swept away with) waterfalled rows.
+   */
   @Transactional
   public void setCollectionGrant(
       Long roleId, Long collectionId, AccessLevel level, Long grantedBy) {
@@ -137,7 +160,8 @@ public class RoleRepository extends BaseDao {
         """
         INSERT INTO role_collection (role_id, collection_id, level, granted_by)
         VALUES (:roleId, :collectionId, :level, :grantedBy)
-        ON CONFLICT (role_id, collection_id) DO UPDATE SET level = EXCLUDED.level
+        ON CONFLICT (role_id, collection_id)
+          DO UPDATE SET level = EXCLUDED.level, inherited_from_collection_id = NULL
         """,
         createParameterSource()
             .addValue("roleId", roleId)
@@ -191,6 +215,92 @@ public class RoleRepository extends BaseDao {
                 rs.getString("name"),
                 RoleKind.valueOf(rs.getString("kind")),
                 AccessLevel.valueOf(rs.getString("level"))),
+        createParameterSource().addValue("collectionId", collectionId));
+  }
+
+  // ---- Waterfall provenance (inherited copies of direct grants) ----
+
+  /**
+   * Upsert an INHERITED copy of a direct grant held on {@code originCollectionId}. Never clobbers a
+   * direct row, and never downgrades: an existing inherited row is only rewritten when the incoming
+   * level is strictly higher (CLIENT over GENERAL), in which case the origin moves with it.
+   * Everything else is a no-op, keeping direct grants sticky.
+   */
+  @Transactional
+  public void insertInheritedGrant(
+      Long roleId, Long collectionId, AccessLevel level, Long originCollectionId) {
+    update(
+        """
+        INSERT INTO role_collection (role_id, collection_id, level, inherited_from_collection_id)
+        VALUES (:roleId, :collectionId, :level, :originId)
+        ON CONFLICT (role_id, collection_id) DO UPDATE
+           SET level = EXCLUDED.level,
+               inherited_from_collection_id = EXCLUDED.inherited_from_collection_id
+         WHERE role_collection.inherited_from_collection_id IS NOT NULL
+           AND role_collection.level = 'GENERAL'
+           AND EXCLUDED.level = 'CLIENT'
+        """,
+        createParameterSource()
+            .addValue("roleId", roleId)
+            .addValue("collectionId", collectionId)
+            .addValue("level", level.name())
+            .addValue("originId", originCollectionId));
+  }
+
+  /** Delete every inherited copy of the role's direct grant on the origin, tree-wide. */
+  @Transactional
+  public void removeInheritedGrantsByOrigin(Long roleId, Long originCollectionId) {
+    update(
+        """
+        DELETE FROM role_collection
+         WHERE role_id = :roleId AND inherited_from_collection_id = :originId
+        """,
+        createParameterSource()
+            .addValue("roleId", roleId)
+            .addValue("originId", originCollectionId));
+  }
+
+  /** Delete one collection's inherited copy for a specific origin (used by the unlink hook). */
+  @Transactional
+  public void removeInheritedGrantsForCollectionByOrigin(
+      Long roleId, Long collectionId, Long originCollectionId) {
+    update(
+        """
+        DELETE FROM role_collection
+         WHERE role_id = :roleId AND collection_id = :collectionId
+           AND inherited_from_collection_id = :originId
+        """,
+        createParameterSource()
+            .addValue("roleId", roleId)
+            .addValue("collectionId", collectionId)
+            .addValue("originId", originCollectionId));
+  }
+
+  /** The DIRECT grants held on a collection (provenance null), across all roles. */
+  @Transactional(readOnly = true)
+  public List<CollectionGrant> directGrantsForCollection(Long collectionId) {
+    return query(
+        """
+        SELECT role_id, level, inherited_from_collection_id
+          FROM role_collection
+         WHERE collection_id = :collectionId AND inherited_from_collection_id IS NULL
+         ORDER BY role_id ASC
+        """,
+        COLLECTION_GRANT_ROW_MAPPER,
+        createParameterSource().addValue("collectionId", collectionId));
+  }
+
+  /** Every grant held on a collection -- direct and inherited -- across all roles. */
+  @Transactional(readOnly = true)
+  public List<CollectionGrant> allGrantsForCollection(Long collectionId) {
+    return query(
+        """
+        SELECT role_id, level, inherited_from_collection_id
+          FROM role_collection
+         WHERE collection_id = :collectionId
+         ORDER BY role_id ASC
+        """,
+        COLLECTION_GRANT_ROW_MAPPER,
         createParameterSource().addValue("collectionId", collectionId));
   }
 
