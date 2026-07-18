@@ -272,6 +272,34 @@ class RoleGrantPropagationServiceIntegrationTest extends AbstractPostgresIntegra
   }
 
   @Test
+  void demotingParentGrantLowersInheritedCopiesButDirectChildGrantSurvives() {
+    long user = seedUser("Wf-Demote");
+    long parent = seedCollection("wf-dm-parent");
+    long child = seedCollection("wf-dm-child");
+    long grandchild = seedCollection("wf-dm-grandchild");
+    long directChild = seedCollection("wf-dm-direct");
+    collectionService.linkCollectionToParent(parent, child);
+    collectionService.linkCollectionToParent(child, grandchild);
+    collectionService.linkCollectionToParent(parent, directChild);
+    long roleId = seedMemberRole("role:wf-dm", user);
+    propagation.setGrant(roleId, parent, AccessLevel.CLIENT, null);
+    propagation.setGrant(roleId, directChild, AccessLevel.CLIENT, null);
+    assertThat(roleRepository.isClient(user, grandchild)).isTrue();
+
+    propagation.setGrant(roleId, parent, AccessLevel.GENERAL, null);
+
+    // Inherited copies follow the demotion through the real resolution path.
+    assertThat(roleRepository.canView(user, child)).isTrue();
+    assertThat(roleRepository.isClient(user, child)).isFalse();
+    assertThat(roleRepository.canView(user, grandchild)).isTrue();
+    assertThat(roleRepository.isClient(user, grandchild)).isFalse();
+    assertThat(inheritedFrom(roleId, child)).isEqualTo(parent);
+    // A child's own direct CLIENT grant is sticky through the demotion.
+    assertThat(roleRepository.isClient(user, directChild)).isTrue();
+    assertThat(inheritedFrom(roleId, directChild)).isNull();
+  }
+
+  @Test
   void removingDirectChildGrantRematerializesInheritedCopy() {
     long user = seedUser("Wf-Sticky");
     long parent = seedCollection("wf-st-parent");

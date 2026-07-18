@@ -34,11 +34,19 @@ public class RoleGrantPropagationService {
   private final RoleRepository roleRepository;
   private final CollectionRepository collectionRepository;
 
-  /** Grant/raise hook: upsert the direct grant, then materialize it onto visible descendants. */
+  /**
+   * Grant/raise/demote hook: upsert the direct grant, then rebuild this origin's inherited copies
+   * at the new level. Stripping before re-propagating is what makes DEMOTION stick -- the
+   * inherited-grant upsert never downgrades, so stale CLIENT copies must be deleted first.
+   * Surviving ancestor grants are then re-materialized so a descendant also covered by a higher
+   * ancestor grant keeps its higher level.
+   */
   @Transactional
   public void setGrant(Long roleId, Long collectionId, AccessLevel level, Long grantedBy) {
     roleRepository.setCollectionGrant(roleId, collectionId, level, grantedBy);
+    roleRepository.removeInheritedGrantsByOrigin(roleId, collectionId);
     propagateToVisibleSubtree(roleId, level, collectionId, collectionId);
+    rematerializeSubtreeFromAncestors(roleId, collectionId);
     log.info(
         "Set {} grant for role {} on collection {} and waterfalled to descendants",
         level,
@@ -54,11 +62,7 @@ public class RoleGrantPropagationService {
   public void removeGrant(Long roleId, Long collectionId) {
     roleRepository.removeCollectionGrant(roleId, collectionId);
     roleRepository.removeInheritedGrantsByOrigin(roleId, collectionId);
-    for (Long ancestorId : ancestorsOf(collectionId)) {
-      roleRepository.directGrantsForCollection(ancestorId).stream()
-          .filter(g -> g.roleId().equals(roleId))
-          .forEach(g -> propagateToVisibleSubtree(roleId, g.level(), ancestorId, ancestorId));
-    }
+    rematerializeSubtreeFromAncestors(roleId, collectionId);
     log.info(
         "Removed grant for role {} on collection {} along with its inherited copies",
         roleId,
@@ -114,6 +118,28 @@ public class RoleGrantPropagationService {
     }
   }
 
+  /**
+   * Re-materialize, within {@code collectionId}'s subtree only, the inherited copies still due from
+   * surviving ancestor grants. Rows carrying a given origin exist only inside that origin's
+   * subtree, so after stripping origin = {@code collectionId} nothing OUTSIDE its subtree can need
+   * rewriting -- rooting the walk here instead of at each ancestor keeps the write set minimal.
+   * Only ancestors connected to the collection through an unbroken chain of visible links qualify:
+   * a hidden link on the way down blocks re-materialization exactly as it blocks forward
+   * propagation. The root itself is upserted too (a no-op right after {@code setGrant}, where it
+   * holds a fresh direct row; the re-inherited copy after {@code removeGrant}).
+   */
+  private void rematerializeSubtreeFromAncestors(Long roleId, Long collectionId) {
+    for (Long ancestorId : visiblyLinkedAncestorsOf(collectionId)) {
+      roleRepository.directGrantsForCollection(ancestorId).stream()
+          .filter(g -> g.roleId().equals(roleId))
+          .forEach(
+              g -> {
+                roleRepository.insertInheritedGrant(roleId, collectionId, g.level(), ancestorId);
+                propagateToVisibleSubtree(roleId, g.level(), ancestorId, collectionId);
+              });
+    }
+  }
+
   /** Every ancestor of the collection through the content graph (any depth), cycle-guarded. */
   private Set<Long> ancestorsOf(Long collectionId) {
     Set<Long> visited = new HashSet<>();
@@ -147,6 +173,29 @@ public class RoleGrantPropagationService {
       pending.addAll(childIdsOf(current));
     }
     return visited;
+  }
+
+  /**
+   * Ancestors reachable from the collection through an unbroken upward chain of VISIBLE links,
+   * cycle-guarded. Only these can waterfall grants down to it (single-parent trees; multi-parent
+   * inheritance is a declared non-goal).
+   */
+  private Set<Long> visiblyLinkedAncestorsOf(Long collectionId) {
+    Set<Long> visited = new HashSet<>();
+    visited.add(collectionId);
+    Set<Long> ancestors = new LinkedHashSet<>();
+    Deque<Long> pending =
+        new ArrayDeque<>(
+            collectionRepository.findVisibleParentCollectionIdsByChildId(collectionId));
+    while (!pending.isEmpty()) {
+      Long current = pending.poll();
+      if (!visited.add(current)) {
+        continue;
+      }
+      ancestors.add(current);
+      pending.addAll(collectionRepository.findVisibleParentCollectionIdsByChildId(current));
+    }
+    return ancestors;
   }
 
   private List<Long> parentIdsOf(Long collectionId) {

@@ -181,6 +181,21 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
               assertThat(g.inheritedFromCollectionId()).isEqualTo(origin);
               assertThat(g.inheritedFromCollectionTitle()).isEqualTo("role-inverse-origin");
             });
+
+    // Converting the inherited copy to a direct grant records the acting admin, not the
+    // inherited row's null actor.
+    long actor = seedUser("Provenance Admin");
+    repo.setCollectionGrant(roleId, child, AccessLevel.CLIENT, actor);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT granted_by FROM role_collection WHERE role_id=? AND collection_id=?",
+                Long.class,
+                roleId,
+                child))
+        .isEqualTo(actor);
+    assertThat(repo.rolesGrantingCollection(child))
+        .singleElement()
+        .satisfies(g -> assertThat(g.inheritedFromCollectionId()).isNull());
   }
 
   @Test

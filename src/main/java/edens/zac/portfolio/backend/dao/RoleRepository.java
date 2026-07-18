@@ -161,7 +161,9 @@ public class RoleRepository extends BaseDao {
   /**
    * Upsert a DIRECT grant. Clearing {@code inherited_from_collection_id} on conflict converts an
    * inherited copy into a direct grant, so an explicit admin grant is never mistaken for (or later
-   * swept away with) waterfalled rows.
+   * swept away with) waterfalled rows. The audit pair is refreshed on conflict too: the row records
+   * who set the CURRENT level and when (an inherited copy carries a null actor, which must not
+   * survive its promotion to direct).
    */
   @Transactional
   public void setCollectionGrant(
@@ -171,7 +173,10 @@ public class RoleRepository extends BaseDao {
         INSERT INTO role_collection (role_id, collection_id, level, granted_by)
         VALUES (:roleId, :collectionId, :level, :grantedBy)
         ON CONFLICT (role_id, collection_id)
-          DO UPDATE SET level = EXCLUDED.level, inherited_from_collection_id = NULL
+          DO UPDATE SET level = EXCLUDED.level,
+                        granted_by = EXCLUDED.granted_by,
+                        granted_at = EXCLUDED.granted_at,
+                        inherited_from_collection_id = NULL
         """,
         createParameterSource()
             .addValue("roleId", roleId)
