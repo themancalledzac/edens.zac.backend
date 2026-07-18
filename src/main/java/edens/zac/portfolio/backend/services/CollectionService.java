@@ -76,6 +76,7 @@ public class CollectionService {
   private final TagViewResolver tagViewResolver;
   private final ClientGalleryAuthService clientGalleryAuthService;
   private final CollectionAccessService collectionAccessService;
+  private final RoleGrantPropagationService roleGrantPropagationService;
   private final Environment springEnv;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -409,6 +410,9 @@ public class CollectionService {
         childCollectionId,
         parentId,
         orderIndex);
+
+    // Waterfall: the new child inherits every grant the parent holds (origin preserved).
+    roleGrantPropagationService.onChildLinked(parentId, childCollectionId);
   }
 
   @Transactional(readOnly = true)
@@ -846,6 +850,16 @@ public class CollectionService {
             "Removed {} collection references from parent collection {}",
             contentIdsToRemove.size(),
             parentCollection.getId());
+
+        // Waterfall: each unlinked child subtree loses the grants it inherited through this
+        // parent (origins at/above it); grants with origins inside the subtree survive.
+        contentColEntities.stream()
+            .map(ContentCollectionEntity::getReferencedCollection)
+            .filter(Objects::nonNull)
+            .map(CollectionEntity::getId)
+            .forEach(
+                childId ->
+                    roleGrantPropagationService.onChildUnlinked(parentCollection.getId(), childId));
       } else {
         log.debug(
             "No matching content collections found to remove from collection {}",
@@ -902,6 +916,13 @@ public class CollectionService {
               childCollectionEntity.getId(),
               parentCollection.getId(),
               orderIndex);
+
+          // Waterfall: a visibly linked child inherits the parent's grants. Hidden links do not
+          // waterfall (mirrors the cc.visible gate used by propagation and the V47 backfill).
+          if (Boolean.TRUE.equals(newEntry.getVisible())) {
+            roleGrantPropagationService.onChildLinked(
+                parentCollection.getId(), childCollectionEntity.getId());
+          }
         } else {
           // Update existing entry
           if (childCollection.orderIndex() != null) {
