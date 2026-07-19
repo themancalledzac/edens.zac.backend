@@ -568,7 +568,10 @@ public class CollectionProcessingUtil {
     entity.setDescription(request.description() != null ? request.description() : "");
     entity.setCollectionDate(
         request.collectionDate() != null ? request.collectionDate() : LocalDate.now());
-    entity.setVisibility(CollectionVisibility.HIDDEN);
+    // Privacy-first default: new collections are UNLISTED (reachable by direct slug, absent
+    // from public listings) until an admin explicitly lists them. The Create request carries
+    // no visibility field, so every create lands here regardless of type.
+    entity.setVisibility(CollectionVisibility.UNLISTED);
     entity.setTotalContent(0);
     if (request.type().isParentType()) {
       // Parent-type collections don't use pagination or row layout
@@ -581,7 +584,7 @@ public class CollectionProcessingUtil {
       entity.setDisplayMode(
           request.type() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED);
     }
-    // Apply type-specific defaults (may adjust visibility etc.)
+    // Apply type-specific defaults (pagination sizing)
     return applyTypeSpecificDefaults(entity);
   }
 
@@ -870,7 +873,9 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Update entity with type-specific defaults.
+   * Update entity with type-specific defaults (pagination sizing). Visibility is intentionally NOT
+   * touched here: new collections default to UNLISTED in {@link #toEntity} regardless of type
+   * (privacy-first), and updates only change visibility when explicitly requested.
    *
    * @param entity The entity to update
    * @return The updated entity
@@ -885,15 +890,6 @@ public class CollectionProcessingUtil {
       if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
         entity.setContentPerPage(DefaultValues.default_content_per_page);
       }
-    }
-
-    // Set type-specific visibility defaults (only when entity still at HIDDEN default)
-    if (entity.getVisibility() == CollectionVisibility.HIDDEN) {
-      // Client galleries are private (UNLISTED) by default; everything else surfaces as LISTED.
-      entity.setVisibility(
-          entity.getType() == CollectionType.CLIENT_GALLERY
-              ? CollectionVisibility.UNLISTED
-              : CollectionVisibility.LISTED);
     }
 
     return entity;

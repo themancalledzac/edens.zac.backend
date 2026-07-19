@@ -7,6 +7,8 @@ import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
+import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.services.CollectionProcessingUtil;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
@@ -28,6 +30,7 @@ class CollectionListReadRepositoryIntegrationTest extends AbstractPostgresIntegr
   @Autowired private CollectionRepository collectionRepository;
   @Autowired private TagRepository tagRepository;
   @Autowired private ContentRepository contentRepository;
+  @Autowired private CollectionProcessingUtil collectionProcessingUtil;
 
   private CollectionEntity saveCollection(String slug, LocalDate date, CollectionVisibility vis) {
     return collectionRepository.save(
@@ -129,6 +132,38 @@ class CollectionListReadRepositoryIntegrationTest extends AbstractPostgresIntegr
             .map(CollectionEntity::getId)
             .toList();
     assertThat(includingHidden).contains(hidden.getId());
+  }
+
+  @Test
+  void createdCollectionWithUnspecifiedVisibility_doesNotSurfaceInProdListedOnlyListing() {
+    // Prod reads scope listings to LISTED only (CollectionVisibility.visibleScope(false));
+    // the dev scope includes UNLISTED and HIDDEN, which masks this behavior locally. A
+    // collection created without an explicit visibility must default to UNLISTED and stay
+    // out of the LISTED-only listing until an admin explicitly lists it.
+    CollectionEntity created =
+        collectionRepository.save(
+            collectionProcessingUtil.toEntity(
+                new CollectionRequests.Create(CollectionType.BLOG, "Create Default Vis"), 30));
+    attachVisibleContent(created.getId());
+
+    assertThat(created.getVisibility()).isEqualTo(CollectionVisibility.UNLISTED);
+
+    List<Long> prodListing =
+        collectionRepository
+            .findNonEmptyByVisibilityInOrderByDate(CollectionVisibility.visibleScope(false))
+            .stream()
+            .map(CollectionEntity::getId)
+            .toList();
+    assertThat(prodListing).doesNotContain(created.getId());
+
+    // Dev/local scope still surfaces it -- the reason this drift was invisible in dev.
+    List<Long> devListing =
+        collectionRepository
+            .findNonEmptyByVisibilityInOrderByDate(CollectionVisibility.visibleScope(true))
+            .stream()
+            .map(CollectionEntity::getId)
+            .toList();
+    assertThat(devListing).contains(created.getId());
   }
 
   @Test

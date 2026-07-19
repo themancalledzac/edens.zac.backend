@@ -147,7 +147,6 @@ class CollectionProcessingUtilTest {
     // Arrange
     CollectionEntity entity = new CollectionEntity();
     entity.setType(CollectionType.CLIENT_GALLERY);
-    // Reset to HIDDEN (the field default) so the type-specific override applies.
     entity.setVisibility(CollectionVisibility.HIDDEN);
 
     // Act
@@ -156,8 +155,39 @@ class CollectionProcessingUtilTest {
     // Assert
     // Config JSON removed; ensure other defaults still apply
     assertEquals(30, result.getContentPerPage());
-    // Client galleries are private by default -> UNLISTED (direct slug access only).
-    assertEquals(CollectionVisibility.UNLISTED, result.getVisibility());
+    // Visibility is no longer touched here: the create-path default (UNLISTED) lives in
+    // toEntity, and this method must not flip an entity's visibility.
+    assertEquals(CollectionVisibility.HIDDEN, result.getVisibility());
+  }
+
+  @Test
+  void toEntity_createWithoutVisibility_defaultsToUnlisted() {
+    // Create request carries no visibility field -> privacy-first UNLISTED default.
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+    CollectionRequests.Create request =
+        new CollectionRequests.Create(CollectionType.PORTFOLIO, "New Portfolio");
+
+    CollectionEntity entity = util.toEntity(request, 30);
+
+    assertEquals(CollectionVisibility.UNLISTED, entity.getVisibility());
+  }
+
+  @Test
+  void toEntity_unlistedDefaultAppliesToAllTypes() {
+    // The old CLIENT_GALLERY special case is gone: UNLISTED is the universal create default.
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+
+    for (CollectionType type : CollectionType.values()) {
+      CollectionRequests.Create request =
+          new CollectionRequests.Create(type, "Typed " + type.name());
+
+      CollectionEntity entity = util.toEntity(request, 30);
+
+      assertEquals(
+          CollectionVisibility.UNLISTED,
+          entity.getVisibility(),
+          "Create default for type " + type + " must be UNLISTED");
+    }
   }
 
   @Test
