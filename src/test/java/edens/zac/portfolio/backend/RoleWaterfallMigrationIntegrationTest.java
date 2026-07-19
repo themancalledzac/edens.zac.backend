@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import edens.zac.portfolio.backend.types.RoleKind;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -98,7 +97,7 @@ class RoleWaterfallMigrationIntegrationTest extends AbstractPostgresIntegrationT
 
     // Pre-waterfall state: direct rows only, written straight through the repository (which does
     // not propagate) -- the shape the table had the moment V47's ALTER ran in prod.
-    long roleId = roleRepository.createRole("role:bf-pnwer", RoleKind.SHARED, null);
+    long roleId = roleRepository.createRole("role:bf-pnwer", null);
     roleRepository.addMember(roleId, user, null);
     roleRepository.setCollectionGrant(roleId, parent, AccessLevel.CLIENT, null);
     roleRepository.setCollectionGrant(roleId, selfGranted, AccessLevel.GENERAL, null);

@@ -9,7 +9,6 @@ import edens.zac.portfolio.backend.dao.RoleRepository.EffectiveGrant;
 import edens.zac.portfolio.backend.dao.RoleRepository.RoleMember;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +47,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   void membershipAndGrantResolveThroughRole() {
     long user = seedUser("Mara");
     long coll = seedCollection("role-g1");
-    long roleId = repo.createRole("edens family", RoleKind.SHARED, null);
+    long roleId = repo.createRole("edens family", null);
 
     repo.addMember(roleId, user, null);
     repo.setCollectionGrant(roleId, coll, AccessLevel.GENERAL, null);
@@ -65,8 +64,8 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   void unionAcrossRolesClientBeatsGeneral() {
     long user = seedUser("Bo");
     long coll = seedCollection("role-shared");
-    long general = repo.createRole("the bois", RoleKind.SHARED, null);
-    long client = repo.createRole("tyler abby", RoleKind.SHARED, null);
+    long general = repo.createRole("the bois", null);
+    long client = repo.createRole("tyler abby", null);
     repo.addMember(general, user, null);
     repo.addMember(client, user, null);
     repo.setCollectionGrant(general, coll, AccessLevel.GENERAL, null);
@@ -81,7 +80,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void rolesForUserListsMemberships() {
     long user = seedUser("Pat");
-    long r1 = repo.createRole("pnwer staff", RoleKind.SHARED, null);
+    long r1 = repo.createRole("pnwer staff", null);
     repo.addMember(r1, user, null);
 
     List<RoleEntity> roles = repo.rolesForUser(user);
@@ -92,7 +91,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   void membersForRoleJoinsAccountsInAddOrder() {
     long first = seedUserWithEmail("Nia", "nia-mfr@example.com");
     long second = seedUserWithEmail("Owen", "owen-mfr@example.com");
-    long roleId = repo.createRole("membersForRole crew", RoleKind.SHARED, null);
+    long roleId = repo.createRole("membersForRole crew", null);
     repo.addMember(roleId, first, null);
     repo.addMember(roleId, second, null);
 
@@ -106,33 +105,30 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
-  void rolesGrantingCollectionOrdersSharedFirstThenName() {
+  void rolesGrantingCollectionOrdersByName() {
     long coll = seedCollection("role-inverse-order");
-    long personal = repo.createRole("aaa personal", RoleKind.PERSONAL, null);
-    long sharedBravo = repo.createRole("bravo crew", RoleKind.SHARED, null);
-    long sharedAlpha = repo.createRole("alpha crew", RoleKind.SHARED, null);
-    repo.setCollectionGrant(personal, coll, AccessLevel.CLIENT, null);
-    repo.setCollectionGrant(sharedBravo, coll, AccessLevel.GENERAL, null);
-    repo.setCollectionGrant(sharedAlpha, coll, AccessLevel.CLIENT, null);
+    long aaaCrew = repo.createRole("aaa crew", null);
+    long bravoCrew = repo.createRole("bravo crew", null);
+    long alphaCrew = repo.createRole("alpha crew", null);
+    repo.setCollectionGrant(aaaCrew, coll, AccessLevel.CLIENT, null);
+    repo.setCollectionGrant(bravoCrew, coll, AccessLevel.GENERAL, null);
+    repo.setCollectionGrant(alphaCrew, coll, AccessLevel.CLIENT, null);
 
     List<CollectionRoleGrant> grants = repo.rolesGrantingCollection(coll);
 
     assertThat(grants)
         .extracting(
-            CollectionRoleGrant::roleId,
-            CollectionRoleGrant::name,
-            CollectionRoleGrant::kind,
-            CollectionRoleGrant::level)
+            CollectionRoleGrant::roleId, CollectionRoleGrant::name, CollectionRoleGrant::level)
         .containsExactly(
-            tuple(sharedAlpha, "alpha crew", RoleKind.SHARED, AccessLevel.CLIENT),
-            tuple(sharedBravo, "bravo crew", RoleKind.SHARED, AccessLevel.GENERAL),
-            tuple(personal, "aaa personal", RoleKind.PERSONAL, AccessLevel.CLIENT));
+            tuple(aaaCrew, "aaa crew", AccessLevel.CLIENT),
+            tuple(alphaCrew, "alpha crew", AccessLevel.CLIENT),
+            tuple(bravoCrew, "bravo crew", AccessLevel.GENERAL));
   }
 
   @Test
   void rolesGrantingCollectionEmptyWhenNoGrants() {
     long coll = seedCollection("role-inverse-empty");
-    repo.createRole("ungranted role", RoleKind.SHARED, null);
+    repo.createRole("ungranted role", null);
 
     assertThat(repo.rolesGrantingCollection(coll)).isEmpty();
   }
@@ -141,9 +137,9 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   void rolesGrantingCollectionReturnsBothRolesAndOnlyThatCollection() {
     long coll = seedCollection("role-inverse-two");
     long other = seedCollection("role-inverse-other");
-    long r1 = repo.createRole("family gallery", RoleKind.SHARED, null);
-    long r2 = repo.createRole("wedding party", RoleKind.SHARED, null);
-    long unrelated = repo.createRole("unrelated role", RoleKind.SHARED, null);
+    long r1 = repo.createRole("family gallery", null);
+    long r2 = repo.createRole("wedding party", null);
+    long unrelated = repo.createRole("unrelated role", null);
     repo.setCollectionGrant(r1, coll, AccessLevel.GENERAL, null);
     repo.setCollectionGrant(r2, coll, AccessLevel.CLIENT, null);
     repo.setCollectionGrant(unrelated, other, AccessLevel.CLIENT, null);
@@ -166,7 +162,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   void rolesGrantingCollectionExposesInheritanceProvenance() {
     long origin = seedCollection("role-inverse-origin");
     long child = seedCollection("role-inverse-inherited");
-    long roleId = repo.createRole("waterfall crew", RoleKind.SHARED, null);
+    long roleId = repo.createRole("waterfall crew", null);
     repo.setCollectionGrant(roleId, origin, AccessLevel.CLIENT, null);
     repo.insertInheritedGrant(roleId, child, AccessLevel.CLIENT, origin);
 
@@ -202,7 +198,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   void removeMemberRevokesAccess() {
     long user = seedUser("Sam");
     long coll = seedCollection("role-revoke");
-    long roleId = repo.createRole("weigel family", RoleKind.SHARED, null);
+    long roleId = repo.createRole("weigel family", null);
     repo.addMember(roleId, user, null);
     repo.setCollectionGrant(roleId, coll, AccessLevel.GENERAL, null);
     assertThat(repo.canView(user, coll)).isTrue();

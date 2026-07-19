@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +44,7 @@ class RoleGrantVisibilityToggleIntegrationTest extends AbstractPostgresIntegrati
   }
 
   private long seedMemberRole(String roleName, long userId) {
-    long roleId = roleRepository.createRole(roleName, RoleKind.SHARED, null);
+    long roleId = roleRepository.createRole(roleName, null);
     roleRepository.addMember(roleId, userId, null);
     return roleId;
   }

@@ -10,7 +10,6 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -72,8 +71,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   private void grant(Long userId, Long collectionId) {
     // Access flows through roles now (user_collection is frozen): a fresh role the user joins,
     // carrying a GENERAL grant on the collection.
-    Long roleId =
-        roleRepository.createRole("userpage-grant-" + UUID.randomUUID(), RoleKind.SHARED, null);
+    Long roleId = roleRepository.createRole("userpage-grant-" + UUID.randomUUID(), null);
     roleRepository.addMember(roleId, userId, null);
     roleRepository.setCollectionGrant(roleId, collectionId, AccessLevel.GENERAL, null);
   }

@@ -10,7 +10,6 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.RoleGrantPropagationService;
-import edens.zac.portfolio.backend.types.RoleKind;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -42,28 +41,33 @@ public class AdminRoleController {
   private final RoleGrantPropagationService roleGrantPropagationService;
 
   /**
-   * List all roles (SHARED before PERSONAL, then by name) for the admin role-management view.
+   * List all roles (by name) for the admin role-management view.
    *
    * @return the role summaries
    */
   @GetMapping
   public List<RoleSummary> listRoles() {
     return roleRepository.findAll().stream()
-        .map(r -> new RoleSummary(r.getId(), r.getName(), r.getKind()))
+        .map(r -> new RoleSummary(r.getId(), r.getName()))
         .toList();
   }
 
   /**
-   * Create a new role. Kind defaults to {@code SHARED} when omitted.
+   * Create a new role. All roles are SHARED. Names with the reserved {@code user:} prefix
+   * (case-insensitive) are rejected with {@code 400}: that prefix was the deleted per-user role
+   * scaffolding and must never be minted again (spec invariant 1).
    *
-   * @param body the new role's name and optional kind
+   * @param body the new role's name
    * @return {@code 201 Created} with the created {@link RoleSummary}
    */
   @PostMapping
   public ResponseEntity<RoleSummary> createRole(@Valid @RequestBody CreateRoleRequest body) {
-    RoleKind kind = body.kind() != null ? body.kind() : RoleKind.SHARED;
-    Long id = roleRepository.createRole(body.name(), kind, currentUserId());
-    return ResponseEntity.status(HttpStatus.CREATED).body(new RoleSummary(id, body.name(), kind));
+    String name = body.name().trim();
+    if (name.regionMatches(true, 0, "user:", 0, 5)) {
+      throw new IllegalArgumentException("Role names with the 'user:' prefix are reserved");
+    }
+    Long id = roleRepository.createRole(name, currentUserId());
+    return ResponseEntity.status(HttpStatus.CREATED).body(new RoleSummary(id, name));
   }
 
   /**
@@ -86,8 +90,7 @@ public class AdminRoleController {
         roleRepository.grantsForRole(roleId).stream()
             .map(g -> new RoleCollectionRow(g.collectionId(), g.title(), g.level()))
             .toList();
-    return ResponseEntity.ok(
-        new RoleDetail(role.getId(), role.getName(), role.getKind(), members, collections));
+    return ResponseEntity.ok(new RoleDetail(role.getId(), role.getName(), members, collections));
   }
 
   /**

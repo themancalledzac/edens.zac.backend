@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.entity;
 
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +13,6 @@ import lombok.NoArgsConstructor;
 public class RoleEntity {
   private Long id;
   private String name;
-  private RoleKind kind;
   private LocalDateTime createdAt;
   private Long createdBy;
 }
