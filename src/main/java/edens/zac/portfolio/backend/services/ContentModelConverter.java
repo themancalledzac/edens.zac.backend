@@ -492,6 +492,76 @@ class ContentModelConverter {
       }
     }
 
+    return buildCollectionRecord(contentEntity, referencedCollection, joinEntry, coverImage);
+  }
+
+  /**
+   * Batch-aware variant of {@link #convertCollectionToModel}. Resolves the referenced collection
+   * and its cover image (including the cover image's tags/people/locations) from pre-fetched maps
+   * rather than issuing per-tile queries. Used by the paginated collection read path so a
+   * parent/home collection with N child-collection tiles stays at a constant query count instead of
+   * an N+1.
+   *
+   * @param contentEntity The collection-reference content block to convert
+   * @param joinEntry The join table entry with collection-specific metadata (orderIndex, visible)
+   * @param referencedCollectionsById Pre-loaded referenced collections keyed by id
+   * @param coverImagesById Pre-loaded cover image entities keyed by id
+   * @param tagsByContentId Pre-loaded tags grouped by content id (covers cover-image ids)
+   * @param peopleByContentId Pre-loaded people grouped by content id (covers cover-image ids)
+   * @param locationsByContentId Pre-loaded locations grouped by content id (covers cover-image ids)
+   * @return The corresponding collection content model
+   */
+  public ContentModels.Collection buildCollectionModelWithBatchData(
+      ContentCollectionEntity contentEntity,
+      CollectionContentEntity joinEntry,
+      Map<Long, CollectionEntity> referencedCollectionsById,
+      Map<Long, ContentImageEntity> coverImagesById,
+      Map<Long, List<TagEntity>> tagsByContentId,
+      Map<Long, List<ContentPersonEntity>> peopleByContentId,
+      Map<Long, List<LocationEntity>> locationsByContentId) {
+    if (contentEntity == null) {
+      return null;
+    }
+
+    CollectionEntity referencedCollection = contentEntity.getReferencedCollection();
+    if (referencedCollection == null) {
+      log.error("ContentCollectionEntity {} has null referencedCollection", contentEntity.getId());
+      return null;
+    }
+
+    Long referencedCollectionId = referencedCollection.getId();
+    if (referencedCollectionId != null) {
+      referencedCollection =
+          referencedCollectionsById.getOrDefault(referencedCollectionId, referencedCollection);
+    }
+
+    ContentModels.Image coverImage = null;
+    Long coverImageId = referencedCollection.getCoverImageId();
+    if (coverImageId != null) {
+      ContentImageEntity coverImageEntity = coverImagesById.get(coverImageId);
+      if (coverImageEntity != null) {
+        coverImage =
+            buildImageModelWithBatchData(
+                coverImageEntity,
+                null,
+                null,
+                tagsByContentId,
+                peopleByContentId,
+                locationsByContentId);
+      }
+    }
+
+    return buildCollectionRecord(contentEntity, referencedCollection, joinEntry, coverImage);
+  }
+
+  /**
+   * Assemble the {@link ContentModels.Collection} record shared by the singular and batch paths.
+   */
+  private ContentModels.Collection buildCollectionRecord(
+      ContentCollectionEntity contentEntity,
+      CollectionEntity referencedCollection,
+      CollectionContentEntity joinEntry,
+      ContentModels.Image coverImage) {
     return new ContentModels.Collection(
         contentEntity.getId(),
         contentEntity.getContentType(),
