@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -160,9 +161,9 @@ class CollectionAdminControllerTest {
           .thenReturn(
               List.of(
                   new CollectionRoleGrant(
-                      7L, "family gallery", RoleKind.SHARED, AccessLevel.CLIENT),
+                      7L, "family gallery", RoleKind.SHARED, AccessLevel.CLIENT, null, null),
                   new CollectionRoleGrant(
-                      9L, "mara personal", RoleKind.PERSONAL, AccessLevel.GENERAL)));
+                      9L, "mara personal", RoleKind.PERSONAL, AccessLevel.GENERAL, null, null)));
 
       mockMvc
           .perform(get("/api/admin/collections/42/roles"))
@@ -172,10 +173,30 @@ class CollectionAdminControllerTest {
           .andExpect(jsonPath("$[0].name").value("family gallery"))
           .andExpect(jsonPath("$[0].kind").value("SHARED"))
           .andExpect(jsonPath("$[0].level").value("CLIENT"))
+          .andExpect(jsonPath("$[0].inheritedFromCollectionId").value(nullValue()))
+          .andExpect(jsonPath("$[0].inheritedFromCollectionTitle").value(nullValue()))
           .andExpect(jsonPath("$[1].roleId").value(9))
           .andExpect(jsonPath("$[1].name").value("mara personal"))
           .andExpect(jsonPath("$[1].kind").value("PERSONAL"))
           .andExpect(jsonPath("$[1].level").value("GENERAL"));
+    }
+
+    @Test
+    void returnsInheritanceProvenanceForWaterfalledRows() throws Exception {
+      when(roleRepository.rolesGrantingCollection(43L))
+          .thenReturn(
+              List.of(
+                  new CollectionRoleGrant(
+                      7L, "pnwer crew", RoleKind.SHARED, AccessLevel.CLIENT, 12L, "PNWER Parent")));
+
+      mockMvc
+          .perform(get("/api/admin/collections/43/roles"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(1))
+          .andExpect(jsonPath("$[0].roleId").value(7))
+          .andExpect(jsonPath("$[0].level").value("CLIENT"))
+          .andExpect(jsonPath("$[0].inheritedFromCollectionId").value(12))
+          .andExpect(jsonPath("$[0].inheritedFromCollectionTitle").value("PNWER Parent"));
     }
 
     @Test

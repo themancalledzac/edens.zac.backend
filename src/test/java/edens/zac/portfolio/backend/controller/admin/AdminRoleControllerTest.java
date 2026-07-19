@@ -17,6 +17,7 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository.RoleCollectionGrant;
 import edens.zac.portfolio.backend.dao.RoleRepository.RoleMember;
 import edens.zac.portfolio.backend.entity.RoleEntity;
+import edens.zac.portfolio.backend.services.RoleGrantPropagationService;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.List;
@@ -30,14 +31,17 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class AdminRoleControllerTest {
 
   private RoleRepository roleRepository;
+  private RoleGrantPropagationService roleGrantPropagationService;
   private MockMvc mvc;
   private final ObjectMapper json = new ObjectMapper();
 
   @BeforeEach
   void setup() {
     roleRepository = Mockito.mock(RoleRepository.class);
+    roleGrantPropagationService = Mockito.mock(RoleGrantPropagationService.class);
     mvc =
-        MockMvcBuilders.standaloneSetup(new AdminRoleController(roleRepository))
+        MockMvcBuilders.standaloneSetup(
+                new AdminRoleController(roleRepository, roleGrantPropagationService))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
@@ -92,7 +96,7 @@ class AdminRoleControllerTest {
   }
 
   @Test
-  void setGrantReturns204AndUpserts() throws Exception {
+  void setGrantReturns204AndUpsertsWithPropagation() throws Exception {
     mvc.perform(
             put("/api/admin/roles/7/collections/9")
                 .contentType("application/json")
@@ -100,7 +104,7 @@ class AdminRoleControllerTest {
                     json.writeValueAsString(
                         new RoleRequests.SetRoleGrantRequest(AccessLevel.CLIENT))))
         .andExpect(status().isNoContent());
-    verify(roleRepository).setCollectionGrant(7L, 9L, AccessLevel.CLIENT, null);
+    verify(roleGrantPropagationService).setGrant(7L, 9L, AccessLevel.CLIENT, null);
   }
 
   @Test
@@ -115,9 +119,9 @@ class AdminRoleControllerTest {
   }
 
   @Test
-  void removeGrantReturns204() throws Exception {
+  void removeGrantReturns204WithPropagation() throws Exception {
     mvc.perform(delete("/api/admin/roles/7/collections/9")).andExpect(status().isNoContent());
-    verify(roleRepository).removeCollectionGrant(7L, 9L);
+    verify(roleGrantPropagationService).removeGrant(7L, 9L);
   }
 
   @Test

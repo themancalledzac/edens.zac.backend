@@ -71,6 +71,7 @@ class CollectionServiceTest {
   @Mock private TagViewResolver tagViewResolver;
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
   @Mock private CollectionAccessService collectionAccessService;
+  @Mock private RoleGrantPropagationService roleGrantPropagationService;
 
   @Mock
   private edens.zac.portfolio.backend.dao.CollectionSiblingRepository collectionSiblingRepository;

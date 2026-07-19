@@ -9,6 +9,7 @@ import edens.zac.portfolio.backend.controller.admin.RoleRequests.SetRoleGrantReq
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.services.RoleGrantPropagationService;
 import edens.zac.portfolio.backend.types.RoleKind;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminRoleController {
 
   private final RoleRepository roleRepository;
+  private final RoleGrantPropagationService roleGrantPropagationService;
 
   /**
    * List all roles (SHARED before PERSONAL, then by name) for the admin role-management view.
@@ -103,7 +105,8 @@ public class AdminRoleController {
 
   /**
    * Grant a collection to a role at a level (GENERAL or CLIENT). Upserts: creates the grant if
-   * absent, promotes/demotes if present.
+   * absent, promotes/demotes if present. The grant waterfalls: it is also materialized onto every
+   * visible descendant collection as an inherited copy.
    *
    * @param roleId the role id
    * @param collectionId the collection id
@@ -115,12 +118,13 @@ public class AdminRoleController {
       @PathVariable Long roleId,
       @PathVariable Long collectionId,
       @Valid @RequestBody SetRoleGrantRequest body) {
-    roleRepository.setCollectionGrant(roleId, collectionId, body.level(), currentUserId());
+    roleGrantPropagationService.setGrant(roleId, collectionId, body.level(), currentUserId());
     return ResponseEntity.noContent().build();
   }
 
   /**
-   * Revoke a role's grant on a collection.
+   * Revoke a role's grant on a collection, along with the inherited copies it waterfalled onto
+   * descendants. Copies still inherited from a surviving ancestor grant are re-materialized.
    *
    * @param roleId the role id
    * @param collectionId the collection id
@@ -129,7 +133,7 @@ public class AdminRoleController {
   @DeleteMapping("/{roleId}/collections/{collectionId}")
   public ResponseEntity<Void> removeGrant(
       @PathVariable Long roleId, @PathVariable Long collectionId) {
-    roleRepository.removeCollectionGrant(roleId, collectionId);
+    roleGrantPropagationService.removeGrant(roleId, collectionId);
     return ResponseEntity.noContent().build();
   }
 
