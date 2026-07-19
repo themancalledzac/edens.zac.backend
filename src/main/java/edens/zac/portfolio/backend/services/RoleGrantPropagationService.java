@@ -95,6 +95,30 @@ public class RoleGrantPropagationService {
   }
 
   /**
+   * Visibility-toggle hook: an existing parent-to-child link flipping {@code visible} re-syncs the
+   * child subtree's inherited grants. Revealing (hidden -&gt; visible) has link semantics -- the
+   * subtree now inherits, so materialize exactly as {@link #onChildLinked}; hiding (visible -&gt;
+   * hidden) has unlink semantics -- the subtree no longer inherits through this link, so strip
+   * exactly as {@link #onChildUnlinked}. No-op when the flag did not actually change. Without this
+   * hook a toggle would drift from the {@code cc.visible = true} gate shared by the V47 backfill
+   * and every other propagation path: hiding would leave the subtree silently over-granted (stale
+   * inherited rows) and revealing would leave it under-granted (nothing materialized until an
+   * unrelated write).
+   */
+  @Transactional
+  public void onChildVisibilityToggled(
+      Long parentId, Long childId, boolean wasVisible, boolean nowVisible) {
+    if (wasVisible == nowVisible) {
+      return;
+    }
+    if (nowVisible) {
+      onChildLinked(parentId, childId);
+    } else {
+      onChildUnlinked(parentId, childId);
+    }
+  }
+
+  /**
    * Insert inherited copies of the origin's direct grant on every collection reachable from {@code
    * rootId} through visible links, cycle-guarded. The root itself is not written -- for a grant it
    * already holds the direct row, and for a link the caller inserts the child's copy before
