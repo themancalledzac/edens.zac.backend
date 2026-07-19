@@ -8,6 +8,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,6 +50,9 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -77,6 +83,8 @@ class CollectionServiceTest {
   private edens.zac.portfolio.backend.dao.CollectionSiblingRepository collectionSiblingRepository;
 
   @Mock private org.springframework.core.env.Environment springEnv;
+  @Mock private CacheManager cacheManager;
+  @Mock private ObjectProvider<CollectionService> selfProvider;
 
   @InjectMocks private CollectionService service;
 
@@ -104,6 +112,10 @@ class CollectionServiceTest {
             .type(CollectionType.PORTFOLIO)
             .visibility(CollectionVisibility.LISTED)
             .build();
+
+    // Route the metadata proxy call back to the service under test. Lenient because not every
+    // test exercises the getGeneralMetadata path.
+    lenient().when(selfProvider.getObject()).thenReturn(service);
   }
 
   @Nested
@@ -360,6 +372,105 @@ class CollectionServiceTest {
       service.updateContentWithMetadata(collectionId, updateDTO);
 
       verify(collectionProcessingUtil).applyBasicUpdates(testCollection, updateDTO);
+    }
+
+    @Test
+    void updateContentWithMetadata_identityUnchanged_doesNotEvictMetadataCache() {
+      Long collectionId = 1L;
+      // Description-only update: title and slug are null, so identity does not change and the
+      // shared generalMetadata cache must be left intact (this is the hot-path optimization).
+      CollectionRequests.Update updateDTO =
+          new CollectionRequests.Update(
+              collectionId,
+              null,
+              null,
+              null,
+              "New desc",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
+
+      CollectionModel model =
+          CollectionModel.builder().id(1L).title("Test Collection").slug("test-collection").build();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(collectionRepository.countContentByCollectionId(collectionId)).thenReturn(0L);
+      when(collectionRepository.save(any(CollectionEntity.class))).thenReturn(testCollection);
+      when(collectionProcessingUtil.convertToBasicModel(any(CollectionEntity.class)))
+          .thenReturn(model);
+      when(collectionProcessingUtil.convertToFullModel(any(CollectionEntity.class)))
+          .thenReturn(model);
+      when(collectionRepository.findBySlug("test-collection"))
+          .thenReturn(Optional.of(testCollection));
+      stubEmptyMetadata();
+
+      service.updateContentWithMetadata(collectionId, updateDTO);
+
+      verify(cacheManager, never()).getCache(anyString());
+    }
+
+    @Test
+    void updateContentWithMetadata_titleOrSlugChanged_evictsMetadataCache() {
+      Long collectionId = 1L;
+      CollectionRequests.Update updateDTO =
+          new CollectionRequests.Update(
+              collectionId,
+              null,
+              "New Title",
+              "new-slug",
+              "New desc",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
+
+      CollectionModel model =
+          CollectionModel.builder().id(1L).title("New Title").slug("new-slug").build();
+      Cache metadataCache = mock(Cache.class);
+
+      // applyBasicUpdates is mocked, so make it actually mutate identity to simulate a rename.
+      doAnswer(
+              invocation -> {
+                testCollection.setTitle("New Title");
+                testCollection.setSlug("new-slug");
+                return null;
+              })
+          .when(collectionProcessingUtil)
+          .applyBasicUpdates(eq(testCollection), any(CollectionRequests.Update.class));
+
+      when(cacheManager.getCache("generalMetadata")).thenReturn(metadataCache);
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(collectionRepository.countContentByCollectionId(collectionId)).thenReturn(0L);
+      when(collectionRepository.save(any(CollectionEntity.class))).thenReturn(testCollection);
+      when(collectionProcessingUtil.convertToBasicModel(any(CollectionEntity.class)))
+          .thenReturn(model);
+      when(collectionProcessingUtil.convertToFullModel(any(CollectionEntity.class)))
+          .thenReturn(model);
+      when(collectionRepository.findBySlug("new-slug")).thenReturn(Optional.of(testCollection));
+      stubEmptyMetadata();
+
+      service.updateContentWithMetadata(collectionId, updateDTO);
+
+      verify(metadataCache).clear();
     }
   }
 

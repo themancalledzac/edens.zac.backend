@@ -44,6 +44,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.env.Environment;
@@ -78,6 +80,13 @@ public class CollectionService {
   private final CollectionAccessService collectionAccessService;
   private final RoleGrantPropagationService roleGrantPropagationService;
   private final Environment springEnv;
+  private final CacheManager cacheManager;
+
+  // Self-reference through the Spring proxy. Required so internal calls to the @Cacheable
+  // getGeneralMetadata() are intercepted by the caching aspect; a direct this.getGeneralMetadata()
+  // is self-invoked and silently bypasses the cache. ObjectProvider is resolved lazily, so this
+  // does not create a circular-dependency failure at startup.
+  private final ObjectProvider<CollectionService> selfProvider;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
   private static final String HOME_SLUG = "home";
@@ -487,10 +496,6 @@ public class CollectionService {
   }
 
   @Transactional
-  @CacheEvict(
-      value = "generalMetadata",
-      allEntries = true,
-      condition = "#updateDTO != null && (#updateDTO.title != null || #updateDTO.slug != null)")
   public CollectionModel updateContent(Long id, CollectionRequests.Update updateDTO) {
     log.debug("Updating collection with ID: {}", id);
 
@@ -500,6 +505,14 @@ public class CollectionService {
             .findById(id)
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with ID: " + id));
+
+    // Capture identity fields before mutation. The shared generalMetadata cache embeds the
+    // collection id/title/slug list, so it only needs invalidating when one of those actually
+    // changes. The previous blanket @CacheEvict fired on every save that merely included a title
+    // or slug in its payload (which the manage page always does), forcing a cold rebuild of all
+    // tags/people/locations metadata mid-save.
+    final String previousTitle = entity.getTitle();
+    final String previousSlug = entity.getSlug();
 
     // Update basic properties via utility helper
     collectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
@@ -532,25 +545,53 @@ public class CollectionService {
     // Save updated entity
     CollectionEntity savedEntity = collectionRepository.save(entity);
 
+    // Only invalidate the shared metadata cache when the identity fields it embeds changed.
+    // applyBasicUpdates already mutated the managed entity, so compare against it directly.
+    if (!Objects.equals(previousTitle, entity.getTitle())
+        || !Objects.equals(previousSlug, entity.getSlug())) {
+      evictGeneralMetadataCache();
+    }
+
     // Return lightweight model without loading all content to avoid N+1 queries
     // Frontend can refetch full content if needed
     return collectionProcessingUtil.convertToBasicModel(savedEntity);
   }
 
+  /**
+   * Manually evict the shared {@code generalMetadata} cache. Used from methods that update it via
+   * self-invocation, where Spring's proxy-based {@link CacheEvict} cannot intercept.
+   */
+  private void evictGeneralMetadataCache() {
+    var cache = cacheManager.getCache("generalMetadata");
+    if (cache != null) {
+      cache.clear();
+      log.debug("Evicted generalMetadata cache after collection identity change");
+    }
+  }
+
   @Transactional
-  @CacheEvict(
-      value = "generalMetadata",
-      allEntries = true,
-      condition = "#updateDTO != null && (#updateDTO.title != null || #updateDTO.slug != null)")
   public CollectionRequests.UpdateResponse updateContentWithMetadata(
       Long id, CollectionRequests.Update updateDTO) {
     log.debug("Updating collection with ID: {} (with metadata response)", id);
 
-    // Perform the update
+    // Perform the update (handles its own conditional metadata-cache invalidation)
+    long writeStart = System.nanoTime();
     CollectionModel updatedCollection = updateContent(id, updateDTO);
+    long writeEnd = System.nanoTime();
 
     // Get the full update response with metadata using the new slug
-    return getUpdateCollectionData(updatedCollection.getSlug());
+    CollectionRequests.UpdateResponse response =
+        getUpdateCollectionData(updatedCollection.getSlug());
+    long refetchEnd = System.nanoTime();
+
+    log.info(
+        "updateContentWithMetadata timing [collection {}]: write={}ms refetch={}ms total={}ms",
+        id,
+        (writeEnd - writeStart) / 1_000_000,
+        (refetchEnd - writeEnd) / 1_000_000,
+        (refetchEnd - writeStart) / 1_000_000);
+
+    return response;
   }
 
   /**
@@ -670,14 +711,25 @@ public class CollectionService {
   public CollectionRequests.UpdateResponse getUpdateCollectionData(String slug) {
     log.debug("Getting update collection data for slug: {}", slug);
 
-    // Get the collection
+    // Get the collection (loads the full, unpaginated content list)
+    long contentStart = System.nanoTime();
     CollectionModel collection =
         findBySlug(slug)
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
+    long contentEnd = System.nanoTime();
 
-    // Get all general metadata using helper method
-    final GeneralMetadataDTO metadata = getGeneralMetadata();
+    // Get all general metadata. Routed through the Spring proxy (selfProvider) so the @Cacheable
+    // on getGeneralMetadata is honored -- a direct this.getGeneralMetadata() is self-invoked and
+    // bypasses the cache, running every metadata query on each request.
+    final GeneralMetadataDTO metadata = selfProvider.getObject().getGeneralMetadata();
+    long metadataEnd = System.nanoTime();
+
+    log.info(
+        "getUpdateCollectionData timing [slug {}]: contentLoad={}ms metadata={}ms",
+        slug,
+        (contentEnd - contentStart) / 1_000_000,
+        (metadataEnd - contentEnd) / 1_000_000);
 
     // For parent-type collections, aggregate images from child collections
     List<ContentModels.Image> childCollectionImages = null;
