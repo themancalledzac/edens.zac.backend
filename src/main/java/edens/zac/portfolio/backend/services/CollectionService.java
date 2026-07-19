@@ -930,8 +930,17 @@ public class CollectionService {
                 existingJoinEntry.getId(), childCollection.orderIndex());
           }
           if (childCollection.visible() != null) {
+            boolean wasVisible = Boolean.TRUE.equals(existingJoinEntry.getVisible());
             collectionRepository.updateContentVisible(
                 existingJoinEntry.getId(), childCollection.visible());
+            // Waterfall: flipping an existing link's visibility re-syncs the child subtree's
+            // inherited grants (materialize on reveal, strip on hide) -- the toggle otherwise
+            // bypasses propagation and drifts from the cc.visible gate.
+            roleGrantPropagationService.onChildVisibilityToggled(
+                parentCollection.getId(),
+                childCollectionEntity.getId(),
+                wasVisible,
+                childCollection.visible());
           }
           log.info(
               "Updated existing collection reference in parent collection {}",
@@ -965,7 +974,12 @@ public class CollectionService {
             collectionRepository.updateContentOrderIndex(joinEntry.getId(), prev.orderIndex());
           }
           if (prev.visible() != null) {
+            boolean wasVisible = Boolean.TRUE.equals(joinEntry.getVisible());
             collectionRepository.updateContentVisible(joinEntry.getId(), prev.visible());
+            // Waterfall: same visibility re-sync as the newValue path (materialize on reveal,
+            // strip on hide).
+            roleGrantPropagationService.onChildVisibilityToggled(
+                parentCollection.getId(), prev.collectionId(), wasVisible, prev.visible());
           }
           log.debug(
               "Updated existing collection reference {} in parent collection {}",
