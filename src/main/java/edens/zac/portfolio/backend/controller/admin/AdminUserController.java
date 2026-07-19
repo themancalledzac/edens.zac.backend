@@ -245,7 +245,7 @@ public class AdminUserController {
   public ResponseEntity<List<UserRoleRow>> userRoles(@PathVariable Long id) {
     List<UserRoleRow> rows =
         roleRepository.rolesForUser(id).stream()
-            .map(r -> new UserRoleRow(r.getId(), r.getName(), r.getKind()))
+            .map(r -> new UserRoleRow(r.getId(), r.getName()))
             .toList();
     return ResponseEntity.ok(rows);
   }

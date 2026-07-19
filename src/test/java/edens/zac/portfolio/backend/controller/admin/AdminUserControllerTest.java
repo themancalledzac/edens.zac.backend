@@ -26,7 +26,6 @@ import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.RoleKind;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
 import java.util.Optional;
@@ -662,9 +661,7 @@ class AdminUserControllerTest {
     @Test
     void userRolesReturnsMemberships() throws Exception {
       when(roleRepository.rolesForUser(5L))
-          .thenReturn(
-              List.of(
-                  RoleEntity.builder().id(2L).name("edens family").kind(RoleKind.SHARED).build()));
+          .thenReturn(List.of(RoleEntity.builder().id(2L).name("edens family").build()));
 
       mockMvc
           .perform(get("/api/admin/users/5/roles"))

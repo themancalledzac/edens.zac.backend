@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,7 +73,7 @@ class ContentRepositoryRoleVisibilityIntegrationTest extends AbstractPostgresInt
 
     // Access is granted ONLY through a role -> role_member + role_collection. No user_collection
     // row.
-    Long roleId = roleRepository.createRole("contentvis role", RoleKind.SHARED, null);
+    Long roleId = roleRepository.createRole("contentvis role", null);
     roleRepository.addMember(roleId, userId, null);
     roleRepository.setCollectionGrant(roleId, collectionId, AccessLevel.GENERAL, null);
 
@@ -89,7 +88,7 @@ class ContentRepositoryRoleVisibilityIntegrationTest extends AbstractPostgresInt
     addVisibleMembership(collectionId, imageId);
 
     // A role exists but does NOT grant this collection, and the user is not otherwise granted.
-    Long roleId = roleRepository.createRole("contentvis empty role", RoleKind.SHARED, null);
+    Long roleId = roleRepository.createRole("contentvis empty role", null);
     roleRepository.addMember(roleId, userId, null);
 
     assertThat(contentRepository.isImageVisibleToUser(imageId, userId)).isFalse();

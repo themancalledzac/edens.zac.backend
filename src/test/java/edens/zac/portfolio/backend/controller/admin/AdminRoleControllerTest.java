@@ -19,7 +19,6 @@ import edens.zac.portfolio.backend.dao.RoleRepository.RoleMember;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.services.RoleGrantPropagationService;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,9 +48,7 @@ class AdminRoleControllerTest {
   @Test
   void listRolesReturnsSummaries() throws Exception {
     when(roleRepository.findAll())
-        .thenReturn(
-            List.of(
-                RoleEntity.builder().id(1L).name("edens family").kind(RoleKind.SHARED).build()));
+        .thenReturn(List.of(RoleEntity.builder().id(1L).name("edens family").build()));
     mvc.perform(get("/api/admin/roles"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].name").value("edens family"));
@@ -59,22 +56,37 @@ class AdminRoleControllerTest {
 
   @Test
   void createRoleReturns201WithId() throws Exception {
-    when(roleRepository.createRole(eq("the bois"), eq(RoleKind.SHARED), any())).thenReturn(7L);
+    when(roleRepository.createRole(eq("the bois"), any())).thenReturn(7L);
     mvc.perform(
             post("/api/admin/roles")
                 .contentType("application/json")
-                .content(
-                    json.writeValueAsString(new RoleRequests.CreateRoleRequest("the bois", null))))
+                .content(json.writeValueAsString(new RoleRequests.CreateRoleRequest("the bois"))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(7));
   }
 
   @Test
+  void createRole_rejectsReservedUserPrefix() throws Exception {
+    mvc.perform(
+            post("/api/admin/roles")
+                .contentType("application/json")
+                .content("{\"name\":\"user:7\"}"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void createRole_rejectsReservedUserPrefixCaseInsensitive() throws Exception {
+    mvc.perform(
+            post("/api/admin/roles")
+                .contentType("application/json")
+                .content("{\"name\":\"USER:anything\"}"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void getRoleReturnsDetailWithMembersAndCollections() throws Exception {
     when(roleRepository.findById(7L))
-        .thenReturn(
-            Optional.of(
-                RoleEntity.builder().id(7L).name("edens family").kind(RoleKind.SHARED).build()));
+        .thenReturn(Optional.of(RoleEntity.builder().id(7L).name("edens family").build()));
     when(roleRepository.membersForRole(7L))
         .thenReturn(List.of(new RoleMember(3L, "mara@example.com", "Mara")));
     when(roleRepository.grantsForRole(7L))

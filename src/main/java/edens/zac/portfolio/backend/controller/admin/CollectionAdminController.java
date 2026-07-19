@@ -37,7 +37,7 @@ public class CollectionAdminController {
    * collection-edit access panel. Bare array to match the sibling RBAC list endpoints.
    *
    * @param id the collection id
-   * @return the granting roles, SHARED before PERSONAL, then by name
+   * @return the granting roles, by name
    */
   @GetMapping("/{id}/roles")
   public List<CollectionRoleGrantRow> collectionRoles(@PathVariable Long id) {
@@ -47,7 +47,6 @@ public class CollectionAdminController {
                 new CollectionRoleGrantRow(
                     g.roleId(),
                     g.name(),
-                    g.kind(),
                     g.level(),
                     g.inheritedFromCollectionId(),
                     g.inheritedFromCollectionTitle()))

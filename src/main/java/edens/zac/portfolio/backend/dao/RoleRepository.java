@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +27,6 @@ public class RoleRepository extends BaseDao {
           RoleEntity.builder()
               .id(rs.getLong("id"))
               .name(rs.getString("name"))
-              .kind(RoleKind.valueOf(rs.getString("kind")))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .createdBy(getLong(rs, "created_by"))
               .build();
@@ -50,7 +48,6 @@ public class RoleRepository extends BaseDao {
   public record CollectionRoleGrant(
       Long roleId,
       String name,
-      RoleKind kind,
       AccessLevel level,
       Long inheritedFromCollectionId,
       String inheritedFromCollectionTitle) {}
@@ -75,20 +72,22 @@ public class RoleRepository extends BaseDao {
 
   // ---- Role CRUD ----
 
+  /**
+   * Create a role. All roles are SHARED, so the {@code kind} column is written the constant {@code
+   * 'SHARED'} literal (the column stays NOT NULL with a CHECK accepting only 'SHARED' post-V48; it
+   * is dropped in V49).
+   */
   @Transactional
-  public Long createRole(String name, RoleKind kind, Long createdBy) {
+  public Long createRole(String name, Long createdBy) {
     return insertAndReturnId(
-        "INSERT INTO role (name, kind, created_by) VALUES (:name, :kind, :createdBy)",
+        "INSERT INTO role (name, kind, created_by) VALUES (:name, 'SHARED', :createdBy)",
         "id",
-        createParameterSource()
-            .addValue("name", name)
-            .addValue("kind", kind.name())
-            .addValue("createdBy", createdBy));
+        createParameterSource().addValue("name", name).addValue("createdBy", createdBy));
   }
 
   @Transactional(readOnly = true)
   public List<RoleEntity> findAll() {
-    return query("SELECT * FROM role ORDER BY kind DESC, name ASC", ROLE_ROW_MAPPER);
+    return query("SELECT * FROM role ORDER BY name ASC", ROLE_ROW_MAPPER);
   }
 
   @Transactional(readOnly = true)
@@ -135,7 +134,7 @@ public class RoleRepository extends BaseDao {
         SELECT r.* FROM role r
           JOIN role_member rm ON rm.role_id = r.id
          WHERE rm.user_id = :userId
-         ORDER BY r.kind DESC, r.name ASC
+         ORDER BY r.name ASC
         """,
         ROLE_ROW_MAPPER,
         createParameterSource().addValue("userId", userId));
@@ -212,27 +211,26 @@ public class RoleRepository extends BaseDao {
 
   /**
    * The inverse of {@link #grantsForRole}: every role granting a collection, with its level and
-   * waterfall provenance (origin collection id + title, null for direct grants). Ordered SHARED
-   * before PERSONAL, then by name (matches {@link #findAll}).
+   * waterfall provenance (origin collection id + title, null for direct grants). Ordered by name
+   * (matches {@link #findAll}).
    */
   @Transactional(readOnly = true)
   public List<CollectionRoleGrant> rolesGrantingCollection(Long collectionId) {
     return query(
         """
-        SELECT rc.role_id, r.name, r.kind, rc.level,
+        SELECT rc.role_id, r.name, rc.level,
                rc.inherited_from_collection_id,
                origin.title AS inherited_from_collection_title
           FROM role_collection rc
           JOIN role r ON r.id = rc.role_id
           LEFT JOIN collection origin ON origin.id = rc.inherited_from_collection_id
          WHERE rc.collection_id = :collectionId
-         ORDER BY r.kind DESC, r.name ASC
+         ORDER BY r.name ASC
         """,
         (rs, n) ->
             new CollectionRoleGrant(
                 rs.getLong("role_id"),
                 rs.getString("name"),
-                RoleKind.valueOf(rs.getString("kind")),
                 AccessLevel.valueOf(rs.getString("level")),
                 getLong(rs, "inherited_from_collection_id"),
                 rs.getString("inherited_from_collection_title")),

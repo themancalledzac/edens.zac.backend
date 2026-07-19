@@ -9,7 +9,6 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.RoleKind;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -78,8 +77,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
    * longer flows through {@code user_collection}, which V45 froze.
    */
   private void grantMembership(Long userId, Long collectionId) {
-    Long roleId =
-        roleRepository.createRole("saves-grant-" + UUID.randomUUID(), RoleKind.SHARED, null);
+    Long roleId = roleRepository.createRole("saves-grant-" + UUID.randomUUID(), null);
     roleRepository.addMember(roleId, userId, null);
     roleRepository.setCollectionGrant(roleId, collectionId, AccessLevel.GENERAL, null);
   }
