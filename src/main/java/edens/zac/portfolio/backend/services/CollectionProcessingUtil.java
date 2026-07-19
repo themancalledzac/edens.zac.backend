@@ -10,6 +10,7 @@ import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
@@ -239,18 +240,52 @@ public class CollectionProcessingUtil {
       contentMap = new HashMap<>();
     }
 
-    // Batch-load tags, people, and locations for all IMAGE content to avoid N+1 queries
+    // Batch-load referenced collections and their cover images for any child-collection tile
+    // blocks, so a parent/home collection with N tiles stays at a constant query count instead of
+    // firing findById + findImageById (+ per-image metadata) for every tile.
+    List<Long> referencedCollectionIds =
+        contentMap.values().stream()
+            .filter(ContentCollectionEntity.class::isInstance)
+            .map(c -> ((ContentCollectionEntity) c).getReferencedCollection())
+            .filter(Objects::nonNull)
+            .map(CollectionEntity::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<Long, CollectionEntity> referencedCollectionsById =
+        referencedCollectionIds.isEmpty()
+            ? Map.of()
+            : collectionRepository.findByIds(referencedCollectionIds).stream()
+                .collect(Collectors.toMap(CollectionEntity::getId, c -> c));
+    List<Long> coverImageIds =
+        referencedCollectionsById.values().stream()
+            .map(CollectionEntity::getCoverImageId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    Map<Long, ContentImageEntity> coverImagesById =
+        coverImageIds.isEmpty()
+            ? Map.of()
+            : contentRepository.findImagesByIds(coverImageIds).stream()
+                .collect(Collectors.toMap(ContentImageEntity::getId, img -> img));
+
+    // Batch-load tags, people, and locations for all IMAGE content AND all tile cover images in
+    // three queries total, to avoid N+1 queries.
     List<Long> imageContentIds =
         contentMap.values().stream()
             .filter(c -> c.getContentType() == ContentType.IMAGE)
             .map(ContentEntity::getId)
             .toList();
+    List<Long> metadataContentIds = new ArrayList<>(imageContentIds);
+    coverImageIds.stream()
+        .filter(id -> !metadataContentIds.contains(id))
+        .forEach(metadataContentIds::add);
     Map<Long, List<TagEntity>> tagsByContentId =
-        tagRepository.findTagsByContentIds(imageContentIds);
+        tagRepository.findTagsByContentIds(metadataContentIds);
     Map<Long, List<ContentPersonEntity>> peopleByContentId =
-        personRepository.findPeopleByContentIds(imageContentIds);
+        personRepository.findPeopleByContentIds(metadataContentIds);
     Map<Long, List<LocationEntity>> locationsByContentId =
-        locationRepository.findLocationsByContentIds(imageContentIds);
+        locationRepository.findLocationsByContentIds(metadataContentIds);
 
     // Convert join table entries to content models with collection-specific metadata
     List<ContentModel> contents =
@@ -277,7 +312,19 @@ public class CollectionProcessingUtil {
                         peopleByContentId,
                         locationsByContentId);
                   }
-                  // For other content types, use the standard conversion
+                  // For child-collection tiles, use batch-loaded referenced collections + cover
+                  // images to avoid per-tile N+1 queries.
+                  if (content instanceof ContentCollectionEntity collectionContent) {
+                    return contentModelConverter.buildCollectionModelWithBatchData(
+                        collectionContent,
+                        cc,
+                        referencedCollectionsById,
+                        coverImagesById,
+                        tagsByContentId,
+                        peopleByContentId,
+                        locationsByContentId);
+                  }
+                  // For other content types (TEXT, GIF), use the standard conversion
                   return contentModelConverter.convertBulkLoadedContentToModel(content, cc);
                 })
             .filter(Objects::nonNull)
