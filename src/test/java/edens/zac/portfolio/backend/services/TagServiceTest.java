@@ -132,6 +132,33 @@ class TagServiceTest {
   }
 
   @Test
+  void convertTagToCollection_passesClientBlogBooleansThroughToCreate() {
+    TagEntity tag = unconvertedTag();
+    when(tagRepository.findById(5L)).thenReturn(Optional.of(tag));
+    when(collectionRepository.findBySlug("landscape")).thenReturn(Optional.empty());
+    when(collectionService.createCollection(any())).thenReturn(responseWithId(99L, "landscape-1"));
+    CollectionEntity created = new CollectionEntity();
+    created.setId(99L);
+    when(collectionRepository.findById(99L)).thenReturn(Optional.of(created));
+    when(tagRepository.findCollectionsByTagId(eq(5L), anyList())).thenReturn(List.of());
+    when(tagRepository.findImageContentByTagId(eq(5L), anyList())).thenReturn(List.of());
+    when(collectionService.getUpdateCollectionData("landscape"))
+        .thenReturn(responseWithId(99L, "landscape"));
+
+    tagService.convertTagToCollection(
+        5L, new SaveAsCollectionRequest(null, null, null, true, null));
+
+    ArgumentCaptor<CollectionRequests.Create> createCaptor =
+        ArgumentCaptor.forClass(CollectionRequests.Create.class);
+    verify(collectionService).createCollection(createCaptor.capture());
+    // Booleans flow through untouched; the defaulted PORTFOLIO type rides along and
+    // CollectionTypeCompat resolves the pair downstream (isClient wins over the default).
+    assertThat(createCaptor.getValue().isClient()).isTrue();
+    assertThat(createCaptor.getValue().isBlog()).isNull();
+    assertThat(createCaptor.getValue().type()).isEqualTo(CollectionType.PORTFOLIO);
+  }
+
+  @Test
   void convertTagToCollection_defaultScope_excludesHiddenAndSkipsPasswordGatedMembers() {
     TagEntity tag = unconvertedTag();
     when(tagRepository.findById(5L)).thenReturn(Optional.of(tag));

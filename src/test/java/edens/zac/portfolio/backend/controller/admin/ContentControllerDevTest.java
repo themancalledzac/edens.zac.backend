@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -366,6 +368,40 @@ class ContentControllerDevTest {
 
     verify(imageUploadPipelineService)
         .createCollectionWithImages(any(CollectionRequests.Create.class), anyList(), anyMap());
+  }
+
+  @Test
+  @DisplayName(
+      "POST /content/images/create-collection should accept booleans without legacy type param")
+  void createCollectionWithImages_typeOmitted_acceptsClientBlogBooleans() throws Exception {
+    // Arrange
+    MockMultipartFile file =
+        new MockMultipartFile("files", "photo.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes());
+
+    ImageUploadResult uploadResult = new ImageUploadResult(43L, testImages, List.of(), List.of());
+
+    when(imageUploadPipelineService.createCollectionWithImages(
+            any(CollectionRequests.Create.class), anyList(), anyMap()))
+        .thenReturn(uploadResult);
+
+    // Act & Assert: new FE sends only title + booleans (no legacy type param).
+    mockMvc
+        .perform(
+            multipart("/api/admin/content/images/create-collection")
+                .file(file)
+                .param("title", "Smith Wedding")
+                .param("isClient", "true")
+                .param("isBlog", "false"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.collectionId", is(43)));
+
+    ArgumentCaptor<CollectionRequests.Create> createCaptor =
+        ArgumentCaptor.forClass(CollectionRequests.Create.class);
+    verify(imageUploadPipelineService)
+        .createCollectionWithImages(createCaptor.capture(), anyList(), anyMap());
+    assertThat(createCaptor.getValue().type()).isNull();
+    assertThat(createCaptor.getValue().isClient()).isTrue();
+    assertThat(createCaptor.getValue().isBlog()).isFalse();
   }
 
   // ============== POST /api/admin/content/images/{collectionId}/from-disk ==============

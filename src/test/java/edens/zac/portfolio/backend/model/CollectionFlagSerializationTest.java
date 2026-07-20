@@ -136,6 +136,36 @@ class CollectionFlagSerializationTest {
   }
 
   @Test
+  @DisplayName("SaveAsCollectionRequest deserializes isClient/isBlog from exactly those names")
+  void saveAsCollectionRequest_deserializesFlags() throws Exception {
+    String json =
+        """
+        {"isClient": true, "isBlog": false}
+        """;
+
+    SaveAsCollectionRequest request = objectMapper.readValue(json, SaveAsCollectionRequest.class);
+
+    assertThat(request.isClient()).isTrue();
+    assertThat(request.isBlog()).isFalse();
+    assertThat(request.type()).isNull();
+  }
+
+  @Test
+  @DisplayName("SaveAsCollectionRequest without booleans leaves them null (legacy payload)")
+  void saveAsCollectionRequest_legacyPayloadLeavesFlagsNull() throws Exception {
+    String json =
+        """
+        {"type": "PORTFOLIO"}
+        """;
+
+    SaveAsCollectionRequest request = objectMapper.readValue(json, SaveAsCollectionRequest.class);
+
+    assertThat(request.type()).isEqualTo(CollectionType.PORTFOLIO);
+    assertThat(request.isClient()).isNull();
+    assertThat(request.isBlog()).isNull();
+  }
+
+  @Test
   @DisplayName("Update request deserializes isClient/isBlog from exactly those names")
   void updateRequest_deserializesFlags() throws Exception {
     String json =
