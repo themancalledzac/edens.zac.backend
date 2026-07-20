@@ -21,7 +21,6 @@ import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
@@ -145,6 +144,8 @@ public class CollectionProcessingUtil {
     CollectionModel model = new CollectionModel();
     model.setId(entity.getId());
     model.setType(entity.getType());
+    model.setIsClient(entity.isClient());
+    model.setIsBlog(entity.isBlog());
     model.setTitle(entity.getTitle());
     model.setSlug(entity.getSlug());
     model.setDescription(entity.getDescription());
@@ -185,10 +186,11 @@ public class CollectionProcessingUtil {
 
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
+    // D10: chronological is the universal fallback when no display mode is stored; ORDERED is a
+    // per-collection opt-in (explicit displayMode in a request is always respected and persisted).
     DisplayMode mode = entity.getDisplayMode();
     if (mode == null) {
-      mode =
-          entity.getType() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED;
+      mode = DisplayMode.CHRONOLOGICAL;
     }
     model.setDisplayMode(mode);
     model.setContentCount(entity.getTotalContent());
@@ -503,7 +505,14 @@ public class CollectionProcessingUtil {
                           ? coverImageUrlsById.get(row.coverImageId())
                           : null;
                   return new Records.CollectionList(
-                      row.id(), row.name(), row.slug(), row.type(), null, coverImageUrl);
+                      row.id(),
+                      row.name(),
+                      row.slug(),
+                      row.type(),
+                      null,
+                      coverImageUrl,
+                      row.isClient(),
+                      row.isBlog());
                 })
             .toList();
 
@@ -552,15 +561,21 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Create a CollectionEntity from a Create request. Required fields: type, title. Optional fields:
-   * description, locationId/locationName, collectionDate — use defaults when not provided.
+   * Create a CollectionEntity from a Create request. Required field: title. Optional fields: type,
+   * isClient/isBlog, description, locationId/locationName, collectionDate — use defaults when not
+   * provided. The booleans win over the legacy type when both are present; a create with neither
+   * lands on MISC (see {@link CollectionTypeCompat#resolve}).
    */
   public CollectionEntity toEntity(CollectionRequests.Create request, int defaultPageSize) {
     if (request == null) {
       throw new IllegalArgumentException("Create request cannot be null");
     }
     CollectionEntity entity = new CollectionEntity();
-    entity.setType(request.type());
+    CollectionTypeCompat.Resolved resolved =
+        CollectionTypeCompat.resolve(request.isClient(), request.isBlog(), request.type(), null);
+    entity.setType(resolved.type());
+    entity.setClient(resolved.isClient());
+    entity.setBlog(resolved.isBlog());
     entity.setTitle(request.title());
     String baseSlug = generateSlug(request.title());
     String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
@@ -573,17 +588,16 @@ public class CollectionProcessingUtil {
     // no visibility field, so every create lands here regardless of type.
     entity.setVisibility(CollectionVisibility.UNLISTED);
     entity.setTotalContent(0);
-    if (request.type().isParentType()) {
+    if (resolved.type().isParentType()) {
       // Parent-type collections don't use pagination or row layout
       entity.setContentPerPage(null);
       entity.setRowsWide(null);
-      entity.setDisplayMode(DisplayMode.ORDERED);
     } else {
       entity.setContentPerPage(defaultPageSize);
-      // Set default displayMode based on type
-      entity.setDisplayMode(
-          request.type() == CollectionType.BLOG ? DisplayMode.CHRONOLOGICAL : DisplayMode.ORDERED);
     }
+    // D10: every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
+    // explicit opt-in via a later update request (Create carries no displayMode field).
+    entity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
     // Apply type-specific defaults (pagination sizing)
     return applyTypeSpecificDefaults(entity);
   }
@@ -612,8 +626,15 @@ public class CollectionProcessingUtil {
     if (updateDTO.description() != null) {
       entity.setDescription(updateDTO.description());
     }
-    if (updateDTO.type() != null) {
-      entity.setType(updateDTO.type());
+    // Dual-compat type/flag handling: the booleans win when present; a legacy type-only request
+    // derives the booleans; a request with neither leaves type and flags untouched.
+    if (updateDTO.isClient() != null || updateDTO.isBlog() != null || updateDTO.type() != null) {
+      CollectionTypeCompat.Resolved resolved =
+          CollectionTypeCompat.resolve(
+              updateDTO.isClient(), updateDTO.isBlog(), updateDTO.type(), entity.getType());
+      entity.setType(resolved.type());
+      entity.setClient(resolved.isClient());
+      entity.setBlog(resolved.isBlog());
     }
     // Handle location update using prev/new/remove pattern (many-to-many)
     if (updateDTO.locations() != null) {

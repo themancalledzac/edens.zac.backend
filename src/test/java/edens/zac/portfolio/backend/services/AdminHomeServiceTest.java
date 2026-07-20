@@ -12,7 +12,6 @@ import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -109,13 +108,11 @@ class AdminHomeServiceTest {
           .thenReturn(Optional.of("https://cdn/example/random-image.webp"));
 
       var blog = collectionWithCoverImage(31L, "trip", "https://cdn/example/blog.webp", 900, 600);
-      when(collectionService.findVisibleByTypeOrderByDate(CollectionType.BLOG))
-          .thenReturn(List.of(blog));
+      when(collectionService.findVisibleBlogsOrderedByDate()).thenReturn(List.of(blog));
 
       var gallery =
           collectionWithCoverImage(41L, "smith", "https://cdn/example/gallery.webp", 1400, 933);
-      when(collectionService.findByTypeForAdminCovers(CollectionType.CLIENT_GALLERY))
-          .thenReturn(List.of(gallery));
+      when(collectionService.findClientGalleriesForAdminCovers()).thenReturn(List.of(gallery));
 
       List<Records.AdminHomeTileResponse> tiles = service.getTiles();
 
@@ -189,8 +186,7 @@ class AdminHomeServiceTest {
     @Test
     void emptyCandidatesYieldNullCover() {
       when(tileRepository.findAllOrderedByDisplay()).thenReturn(List.of(new TileRow("blogs", 5)));
-      when(collectionService.findVisibleByTypeOrderByDate(CollectionType.BLOG))
-          .thenReturn(List.of());
+      when(collectionService.findVisibleBlogsOrderedByDate()).thenReturn(List.of());
 
       List<Records.AdminHomeTileResponse> tiles = service.getTiles();
 

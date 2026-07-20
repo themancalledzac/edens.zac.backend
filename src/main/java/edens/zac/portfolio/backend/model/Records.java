@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import edens.zac.portfolio.backend.types.CollectionType;
 import java.time.LocalDate;
 
@@ -76,19 +77,32 @@ public final class Records {
       String slug,
       CollectionType type,
       LocalDate collectionDate,
-      String coverImageUrl) {
+      String coverImageUrl,
+      @JsonProperty("isClient") Boolean isClient,
+      @JsonProperty("isBlog") Boolean isBlog) {
+
+    /** Backwards-compatible constructor for callers that omit the client/blog flags. */
+    public CollectionList(
+        Long id,
+        String name,
+        String slug,
+        CollectionType type,
+        LocalDate collectionDate,
+        String coverImageUrl) {
+      this(id, name, slug, type, collectionDate, coverImageUrl, null, null);
+    }
 
     /** Backwards-compatible constructor for callers that omit the cover image URL. */
     public CollectionList(
         Long id, String name, String slug, CollectionType type, LocalDate collectionDate) {
-      this(id, name, slug, type, collectionDate, null);
+      this(id, name, slug, type, collectionDate, null, null, null);
     }
 
     /**
      * Backwards-compatible constructor for callers that omit the collection date and cover image.
      */
     public CollectionList(Long id, String name, String slug, CollectionType type) {
-      this(id, name, slug, type, null, null);
+      this(id, name, slug, type, null, null, null, null);
     }
   }
 
@@ -99,7 +113,19 @@ public final class Records {
    * serialized to API responses directly.
    */
   public record SiblingRow(
-      Long id, String name, String slug, CollectionType type, Long coverImageId) {}
+      Long id,
+      String name,
+      String slug,
+      CollectionType type,
+      Long coverImageId,
+      boolean isClient,
+      boolean isBlog) {
+
+    /** Backwards-compatible constructor for callers that omit the client/blog flags. */
+    public SiblingRow(Long id, String name, String slug, CollectionType type, Long coverImageId) {
+      this(id, name, slug, type, coverImageId, false, false);
+    }
+  }
 
   /**
    * DTO for admin hub tile configuration. coverImageUrl and dimensions are null when no image is

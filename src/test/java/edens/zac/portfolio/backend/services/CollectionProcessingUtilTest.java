@@ -22,6 +22,7 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
+import edens.zac.portfolio.backend.types.DisplayMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -259,9 +260,10 @@ class CollectionProcessingUtilTest {
 
   /**
    * Build an Update that only carries date-range fields (everything else null). Canonical 21-arg
-   * order: id, type, title, slug, description, locations, collectionDate, collectionEndDate,
-   * clearCollectionDate, clearCollectionEndDate, visibility, rating, displayMode, contentPerPage,
-   * rowsWide, coverImageId, tags, people, collections, siblings, parents.
+   * order: id, type, isClient, isBlog, title, slug, description, locations, collectionDate,
+   * collectionEndDate, clearCollectionDate, clearCollectionEndDate, visibility, rating,
+   * displayMode, contentPerPage, rowsWide, coverImageId, tags, people, collections, siblings,
+   * parents.
    */
   private static CollectionRequests.Update dateRangeUpdate(
       LocalDate collectionDate,
@@ -270,6 +272,8 @@ class CollectionProcessingUtilTest {
       Boolean clearCollectionEndDate) {
     return new CollectionRequests.Update(
         1L,
+        null,
+        null,
         null,
         null,
         null,
@@ -359,5 +363,210 @@ class CollectionProcessingUtilTest {
     CollectionModel model = util.convertToBasicModel(testEntity);
 
     assertEquals(LocalDate.of(2026, 3, 7), model.getCollectionEndDate());
+  }
+
+  // =============================================================================
+  // D10: chronological default display mode
+  // =============================================================================
+
+  @Test
+  void toEntity_defaultsDisplayModeToChronologicalForEveryType() {
+    // D10: the type-keyed default (BLOG -> CHRONOLOGICAL, everything else -> ORDERED) is gone.
+    // Every create without an explicit displayMode lands on CHRONOLOGICAL; ORDERED is opt-in
+    // via a later update.
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+
+    for (CollectionType type : CollectionType.values()) {
+      CollectionRequests.Create request =
+          new CollectionRequests.Create(type, "Typed " + type.name());
+
+      CollectionEntity entity = util.toEntity(request, 30);
+
+      assertEquals(
+          DisplayMode.CHRONOLOGICAL,
+          entity.getDisplayMode(),
+          "Create default displayMode for type " + type + " must be CHRONOLOGICAL");
+    }
+  }
+
+  @Test
+  void applyBasicUpdates_explicitOrderedDisplayModeIsRespected() {
+    testEntity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
+
+    util.applyBasicUpdates(
+        testEntity,
+        new CollectionRequests.Update(
+            1L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            DisplayMode.ORDERED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null));
+
+    assertEquals(DisplayMode.ORDERED, testEntity.getDisplayMode());
+  }
+
+  @Test
+  void convertToBasicModel_nullDisplayModeFallsBackToChronologicalRegardlessOfType() {
+    testEntity.setType(CollectionType.PORTFOLIO);
+    testEntity.setDisplayMode(null);
+
+    CollectionModel model = util.convertToBasicModel(testEntity);
+
+    assertEquals(DisplayMode.CHRONOLOGICAL, model.getDisplayMode());
+  }
+
+  @Test
+  void convertToBasicModel_storedOrderedDisplayModeIsPreserved() {
+    // Existing rows are NOT backfilled: a stored ORDERED mode must survive conversion.
+    testEntity.setDisplayMode(DisplayMode.ORDERED);
+
+    CollectionModel model = util.convertToBasicModel(testEntity);
+
+    assertEquals(DisplayMode.ORDERED, model.getDisplayMode());
+  }
+
+  // =============================================================================
+  // Dual-compat type/flag resolution on create and update
+  // =============================================================================
+
+  @Test
+  void toEntity_isClientTrue_setsClientGalleryTypeAndFlags() {
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+    CollectionRequests.Create request =
+        new CollectionRequests.Create(null, "Boolean Gallery", null, null, null, null, true, false);
+
+    CollectionEntity entity = util.toEntity(request, 30);
+
+    assertEquals(CollectionType.CLIENT_GALLERY, entity.getType());
+    assertTrue(entity.isClient());
+    assertFalse(entity.isBlog());
+  }
+
+  @Test
+  void toEntity_legacyBlogType_derivesIsBlog() {
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+    CollectionRequests.Create request =
+        new CollectionRequests.Create(CollectionType.BLOG, "Legacy Blog");
+
+    CollectionEntity entity = util.toEntity(request, 30);
+
+    assertEquals(CollectionType.BLOG, entity.getType());
+    assertFalse(entity.isClient());
+    assertTrue(entity.isBlog());
+  }
+
+  @Test
+  void toEntity_neitherTypeNorBooleans_landsOnMisc() {
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+    CollectionRequests.Create request = new CollectionRequests.Create(null, "Untyped Create");
+
+    CollectionEntity entity = util.toEntity(request, 30);
+
+    assertEquals(CollectionType.MISC, entity.getType());
+    assertFalse(entity.isClient());
+    assertFalse(entity.isBlog());
+  }
+
+  @Test
+  void applyBasicUpdates_isBlogTrue_setsBlogTypeAndFlags() {
+    testEntity.setType(CollectionType.MISC);
+
+    util.applyBasicUpdates(
+        testEntity,
+        new CollectionRequests.Update(
+            1L, null, false, true, null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null));
+
+    assertEquals(CollectionType.BLOG, testEntity.getType());
+    assertTrue(testEntity.isBlog());
+    assertFalse(testEntity.isClient());
+  }
+
+  @Test
+  void applyBasicUpdates_legacyClientGalleryType_derivesIsClient() {
+    testEntity.setType(CollectionType.MISC);
+
+    util.applyBasicUpdates(
+        testEntity,
+        new CollectionRequests.Update(
+            1L,
+            CollectionType.CLIENT_GALLERY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null));
+
+    assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
+    assertTrue(testEntity.isClient());
+    assertFalse(testEntity.isBlog());
+  }
+
+  @Test
+  void applyBasicUpdates_bothFlagsTrue_isRejected() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            util.applyBasicUpdates(
+                testEntity,
+                new CollectionRequests.Update(
+                    1L, null, true, true, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null)));
+  }
+
+  @Test
+  void applyBasicUpdates_noTypeOrFlagsInRequest_leavesTypeAndFlagsUntouched() {
+    testEntity.setType(CollectionType.BLOG);
+    testEntity.setBlog(true);
+
+    // Description-only update: no type field and no booleans in the request.
+    util.applyBasicUpdates(
+        testEntity,
+        new CollectionRequests.Update(
+            1L,
+            null,
+            null,
+            null,
+            "New description",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null));
+
+    assertEquals(CollectionType.BLOG, testEntity.getType());
+    assertTrue(testEntity.isBlog());
   }
 }

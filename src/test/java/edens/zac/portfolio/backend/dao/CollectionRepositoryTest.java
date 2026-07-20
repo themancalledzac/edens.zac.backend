@@ -150,22 +150,20 @@ class CollectionRepositoryTest {
   }
 
   @Nested
-  class FindByTypeAndListedOrdered {
+  class FindListedBlogsOrdered {
 
     @SuppressWarnings("unchecked")
     @Test
-    void findByTypeAndListedOrderedSqlOrdersByRatingThenDate() {
-      when(namedParameterJdbcTemplate.query(
-              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+    void findListedBlogsOrderedSqlFiltersOnIsBlogAndOrdersByRatingThenDate() {
+      when(namedParameterJdbcTemplate.query(anyString(), any(RowMapper.class)))
           .thenReturn(List.of());
 
-      collectionRepository.findByTypeAndListedOrdered(CollectionType.BLOG);
+      collectionRepository.findListedBlogsOrdered();
 
-      verify(namedParameterJdbcTemplate)
-          .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+      verify(namedParameterJdbcTemplate).query(sqlCaptor.capture(), any(RowMapper.class));
       String sql = sqlCaptor.getValue();
       assertThat(sql).containsIgnoringCase("ORDER BY rating DESC NULLS LAST, collection_date DESC");
-      assertThat(sql).containsIgnoringCase("WHERE type = :type AND visibility = 'LISTED'");
+      assertThat(sql).containsIgnoringCase("WHERE is_blog = true AND visibility = 'LISTED'");
     }
   }
 

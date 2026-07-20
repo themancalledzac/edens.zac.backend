@@ -1041,6 +1041,8 @@ class CollectionServiceTest {
               20L,
               "portfolio",
               CollectionType.PORTFOLIO,
+              false,
+              false,
               null,
               null,
               null,
@@ -1287,6 +1289,8 @@ class CollectionServiceTest {
           childId,
           "child-" + childId,
           type,
+          false,
+          false,
           null,
           null,
           null,
@@ -1805,9 +1809,11 @@ class CollectionServiceTest {
 
     private CollectionRequests.Update updateWithParents(
         CollectionRequests.CollectionUpdate parents) {
-      // Canonical 21-arg constructor: id + 19 nulls + parents (last).
+      // Canonical 23-arg constructor: id + 21 nulls + parents (last).
       return new CollectionRequests.Update(
           current.getId(),
+          null,
+          null,
           null,
           null,
           null,

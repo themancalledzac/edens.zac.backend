@@ -21,12 +21,15 @@ public class CollectionSiblingRepository extends BaseDao {
   private static final RowMapper<Records.SiblingRow> SIBLING_ROW_MAPPER =
       (rs, rowNum) -> {
         long coverImageId = rs.getLong("cover_image_id");
+        Long coverImageIdOrNull = rs.wasNull() ? null : coverImageId;
         return new Records.SiblingRow(
             rs.getLong("id"),
             rs.getString("name"),
             rs.getString("slug"),
             CollectionType.valueOf(rs.getString("type")),
-            rs.wasNull() ? null : coverImageId);
+            coverImageIdOrNull,
+            rs.getBoolean("is_client"),
+            rs.getBoolean("is_blog"));
       };
 
   public CollectionSiblingRepository(JdbcTemplate jdbcTemplate) {
@@ -66,7 +69,7 @@ public class CollectionSiblingRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<Records.SiblingRow> findSiblings(Long collectionId, boolean listedOnly) {
     String sql =
-        "SELECT c.id, c.title AS name, c.slug, c.type, c.cover_image_id "
+        "SELECT c.id, c.title AS name, c.slug, c.type, c.cover_image_id, c.is_client, c.is_blog "
             + "FROM collection_sibling cs "
             + "JOIN collection c ON c.id = cs.sibling_collection_id "
             + "WHERE cs.collection_id = :id "

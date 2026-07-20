@@ -728,10 +728,8 @@ class ImageUploadPipelineServiceTest {
       when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
           .thenReturn(createResult(101L))
           .thenReturn(createResult(102L));
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day1))
-          .thenReturn(List.of());
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day2))
-          .thenReturn(List.of());
+      when(collectionRepository.findBlogsByCollectionDate(day1)).thenReturn(List.of());
+      when(collectionRepository.findBlogsByCollectionDate(day2)).thenReturn(List.of());
       when(collectionService.createCollection(any()))
           .thenReturn(blogResponse(1L, day1))
           .thenReturn(blogResponse(2L, day2));
@@ -772,8 +770,7 @@ class ImageUploadPipelineServiceTest {
           .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
       when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
           .thenReturn(createResult(101L));
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day))
-          .thenReturn(List.of(existingBlog));
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of(existingBlog));
 
       // Act
       service.ingestFilesGroupedByDay(request);
@@ -805,8 +802,7 @@ class ImageUploadPipelineServiceTest {
           .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
       when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
           .thenReturn(createResult(101L));
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day))
-          .thenReturn(List.of(oldest, newer));
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of(oldest, newer));
 
       // Act
       service.ingestFilesGroupedByDay(request);
@@ -832,8 +828,7 @@ class ImageUploadPipelineServiceTest {
           .thenReturn(prepared("a.jpg", exifDay, List.of(), List.of()));
       when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
           .thenReturn(createResult(101L));
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, exifDay))
-          .thenReturn(List.of());
+      when(collectionRepository.findBlogsByCollectionDate(exifDay)).thenReturn(List.of());
       when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, exifDay));
 
       // Act
@@ -865,8 +860,7 @@ class ImageUploadPipelineServiceTest {
           .thenReturn(prepared("b.jpg", day, List.of(), List.of()));
       when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
           .thenReturn(createResult(102L));
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day))
-          .thenReturn(List.of());
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of());
       when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, day));
 
       // Act
@@ -901,8 +895,7 @@ class ImageUploadPipelineServiceTest {
           .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
       when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
           .thenReturn(createResult(101L));
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day))
-          .thenReturn(List.of());
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of());
       when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, day));
 
       // Act
@@ -939,8 +932,7 @@ class ImageUploadPipelineServiceTest {
           .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
       when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
           .thenReturn(createResult(101L));
-      when(collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day))
-          .thenReturn(List.of());
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of());
       when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, day));
 
       // Act

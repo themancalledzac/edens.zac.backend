@@ -6,7 +6,6 @@ import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -79,11 +78,9 @@ public class AdminHomeService {
         yield url != null ? urlOnlyCoverImage(url) : null;
       }
       case "blogs" ->
-          randomCoverImageFromCollections(
-              collectionService.findVisibleByTypeOrderByDate(CollectionType.BLOG));
+          randomCoverImageFromCollections(collectionService.findVisibleBlogsOrderedByDate());
       case "client-galleries" ->
-          randomCoverImageFromCollections(
-              collectionService.findByTypeForAdminCovers(CollectionType.CLIENT_GALLERY));
+          randomCoverImageFromCollections(collectionService.findClientGalleriesForAdminCovers());
       default -> null;
     };
   }
