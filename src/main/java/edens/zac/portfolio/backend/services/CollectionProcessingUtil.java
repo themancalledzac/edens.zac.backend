@@ -626,8 +626,10 @@ public class CollectionProcessingUtil {
     if (updateDTO.description() != null) {
       entity.setDescription(updateDTO.description());
     }
-    // Dual-compat type/flag handling: the booleans win when present; a legacy type-only request
-    // derives the booleans; a request with neither leaves type and flags untouched.
+    // Dual-compat type/flag handling: an explicit boolean wins; a null boolean is left
+    // untouched (inherited from the effective type, so partial updates never silently demote);
+    // a legacy type-only request derives the booleans; a request with neither leaves type and
+    // flags untouched.
     if (updateDTO.isClient() != null || updateDTO.isBlog() != null || updateDTO.type() != null) {
       CollectionTypeCompat.Resolved resolved =
           CollectionTypeCompat.resolve(

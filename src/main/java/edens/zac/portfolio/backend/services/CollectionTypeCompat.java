@@ -11,15 +11,20 @@ import edens.zac.portfolio.backend.types.CollectionType;
  * <p>Resolution rules:
  *
  * <ul>
- *   <li>Request provides booleans (either field non-null) -&gt; booleans win. {@code isClient}
- *       derives {@code CLIENT_GALLERY}, {@code isBlog} derives {@code BLOG}; neither true -&gt; if
- *       the effective base type is {@code CLIENT_GALLERY}/{@code BLOG} (or absent) it becomes
- *       {@code MISC}, otherwise the base type is preserved.
+ *   <li>An explicit {@code true} flag wins over everything: {@code isClient} derives {@code
+ *       CLIENT_GALLERY}, {@code isBlog} derives {@code BLOG}, and the other flag is cleared (mutual
+ *       exclusion).
+ *   <li>A {@code null} flag means "leave it untouched": it inherits its value from the effective
+ *       base type (the requested legacy type when present, else the current type). Partial updates
+ *       therefore never silently demote a client gallery or blog.
+ *   <li>Only an explicit {@code false} clears a flag. When neither flag ends up true, a base type
+ *       of {@code CLIENT_GALLERY}/{@code BLOG} (or absent) folds to {@code MISC}, otherwise the
+ *       base type is preserved.
  *   <li>Request provides only a legacy type -&gt; booleans are derived from it ({@code
  *       CLIENT_GALLERY} -&gt; client, {@code BLOG} -&gt; blog, everything else false/false).
- *   <li>Request provides neither -&gt; the current type is preserved (create without type -&gt;
- *       {@code MISC}).
- *   <li>{@code isClient && isBlog} is a nonsense combination and is rejected with {@link
+ *   <li>Request provides neither flags nor type -&gt; the current type is preserved (create without
+ *       type -&gt; {@code MISC}).
+ *   <li>Explicit {@code isClient && isBlog} is a nonsense combination and is rejected with {@link
  *       IllegalArgumentException} (400 via GlobalExceptionHandler).
  * </ul>
  */
@@ -47,21 +52,32 @@ public final class CollectionTypeCompat {
       CollectionType currentType) {
     boolean flagsProvided = isClientRequested != null || isBlogRequested != null;
     if (flagsProvided) {
-      boolean client = Boolean.TRUE.equals(isClientRequested);
-      boolean blog = Boolean.TRUE.equals(isBlogRequested);
-      if (client && blog) {
+      if (Boolean.TRUE.equals(isClientRequested) && Boolean.TRUE.equals(isBlogRequested)) {
         throw new IllegalArgumentException(
             "isClient and isBlog are mutually exclusive; a collection cannot be both");
       }
+      // An explicit true is a category change: it wins over the legacy type and clears the
+      // other flag (mutual exclusion), whether that flag was absent or explicitly false.
+      if (Boolean.TRUE.equals(isClientRequested)) {
+        return new Resolved(CollectionType.CLIENT_GALLERY, true, false);
+      }
+      if (Boolean.TRUE.equals(isBlogRequested)) {
+        return new Resolved(CollectionType.BLOG, false, true);
+      }
+      // Remaining flags are explicit false (clear) or null (leave untouched). A null flag
+      // inherits its value from the effective base type so a partial update like
+      // {"isBlog": false} never silently demotes a client gallery.
+      CollectionType base = requestedType != null ? requestedType : currentType;
+      boolean client = isClientRequested == null && base != null && deriveIsClient(base);
+      boolean blog = isBlogRequested == null && base != null && deriveIsBlog(base);
       if (client) {
         return new Resolved(CollectionType.CLIENT_GALLERY, true, false);
       }
       if (blog) {
         return new Resolved(CollectionType.BLOG, false, true);
       }
-      // Neither flag set: preserve the effective base type unless it encoded client/blog,
-      // which the booleans just disclaimed -- that folds to MISC.
-      CollectionType base = requestedType != null ? requestedType : currentType;
+      // Neither flag survives: preserve the base type unless it encoded client/blog, which
+      // was just explicitly disclaimed -- that folds to MISC.
       if (base == null || base == CollectionType.CLIENT_GALLERY || base == CollectionType.BLOG) {
         base = CollectionType.MISC;
       }

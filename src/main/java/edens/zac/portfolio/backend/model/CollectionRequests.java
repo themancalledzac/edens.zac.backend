@@ -62,10 +62,14 @@ public final class CollectionRequests {
       /** Legacy collection type; the booleans win when both are present (dual-compat window). */
       CollectionType type,
       /**
-       * Set/clear the client-gallery flag. Null leaves it untouched (unless {@code type} is set).
+       * Set/clear the client-gallery flag. Null leaves it untouched (unless {@code type} is set,
+       * which then derives it). Setting it true clears {@code isBlog}.
        */
       @JsonProperty("isClient") Boolean isClient,
-      /** Set/clear the blog flag. Null leaves it untouched (unless {@code type} is set). */
+      /**
+       * Set/clear the blog flag. Null leaves it untouched (unless {@code type} is set, which then
+       * derives it). Setting it true clears {@code isClient}.
+       */
       @JsonProperty("isBlog") Boolean isBlog,
       /** Collection title */
       @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,

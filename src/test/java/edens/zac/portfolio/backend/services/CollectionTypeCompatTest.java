@@ -89,11 +89,54 @@ class CollectionTypeCompatTest {
     }
 
     @Test
-    void singleFalseFlagCountsAsProvided() {
-      // isClient=false alone (isBlog absent) still enters the booleans-win path: flags were
-      // provided and neither is true, so a stored BLOG type folds to MISC.
+    void nullFlagInheritsFromCurrentType_partialUpdateDoesNotDemote() {
+      // isClient=false alone (isBlog absent) leaves isBlog untouched: it inherits true from
+      // the stored BLOG type, so the collection stays a blog.
       var resolved = CollectionTypeCompat.resolve(false, null, null, CollectionType.BLOG);
+      assertThat(resolved.type()).isEqualTo(CollectionType.BLOG);
+      assertThat(resolved.isClient()).isFalse();
+      assertThat(resolved.isBlog()).isTrue();
+    }
+
+    @Test
+    void partialIsBlogFalse_onClientGallery_staysClientGallery() {
+      // The partial-update contract: {"isBlog": false} on a CLIENT_GALLERY must not clear the
+      // untouched isClient flag (which would silently demote the collection to MISC).
+      var resolved = CollectionTypeCompat.resolve(null, false, null, CollectionType.CLIENT_GALLERY);
+      assertThat(resolved.type()).isEqualTo(CollectionType.CLIENT_GALLERY);
+      assertThat(resolved.isClient()).isTrue();
+      assertThat(resolved.isBlog()).isFalse();
+    }
+
+    @Test
+    void explicitTrueClearsTheOtherInheritedFlag() {
+      // Setting isBlog=true on a CLIENT_GALLERY switches category: the untouched isClient
+      // would inherit true, but an explicit true wins and clears it (no 400).
+      var resolved = CollectionTypeCompat.resolve(null, true, null, CollectionType.CLIENT_GALLERY);
+      assertThat(resolved.type()).isEqualTo(CollectionType.BLOG);
+      assertThat(resolved.isClient()).isFalse();
+      assertThat(resolved.isBlog()).isTrue();
+    }
+
+    @Test
+    void explicitFalseOnTheEncodingFlagDemotesToMisc() {
+      // isClient=false alone on a CLIENT_GALLERY explicitly clears the flag that encoded the
+      // type; the untouched isBlog inherits false, so the collection folds to MISC.
+      var resolved = CollectionTypeCompat.resolve(false, null, null, CollectionType.CLIENT_GALLERY);
       assertThat(resolved.type()).isEqualTo(CollectionType.MISC);
+      assertThat(resolved.isClient()).isFalse();
+      assertThat(resolved.isBlog()).isFalse();
+    }
+
+    @Test
+    void nullFlagInheritsFromRequestedTypeOverCurrentType() {
+      // "Unless type is set": a request carrying a legacy type derives the untouched flag from
+      // that type, not from the entity's current type.
+      var resolved =
+          CollectionTypeCompat.resolve(
+              null, false, CollectionType.CLIENT_GALLERY, CollectionType.MISC);
+      assertThat(resolved.type()).isEqualTo(CollectionType.CLIENT_GALLERY);
+      assertThat(resolved.isClient()).isTrue();
       assertThat(resolved.isBlog()).isFalse();
     }
 
