@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDateTime;
 
 /** Consolidated request DTOs for Content operations. Uses Java records for immutability. */
 public final class ContentRequests {
@@ -60,6 +61,7 @@ public final class ContentRequests {
   public record UpdateGif(
       @Size(max = 200, message = "Title must be 200 characters or less") String title,
       @Min(value = 0, message = "Rating must be between 0 and 5") @Max(value = 5, message = "Rating must be between 0 and 5") Integer rating,
+      LocalDateTime captureDate,
       CollectionRequests.TagUpdate tags,
       CollectionRequests.PersonUpdate people,
       CollectionRequests.LocationUpdate locations,

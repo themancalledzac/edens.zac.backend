@@ -549,6 +549,9 @@ public class ContentService {
     if (request.rating() != null) {
       gif.setRating(request.rating());
     }
+    if (request.captureDate() != null) {
+      gif.setCaptureDate(request.captureDate());
+    }
 
     // Tags: reuse the optimized image-tag helper — it only needs the content id + current tag
     // list + the prev/newValue/remove update payload. ContentGifEntity also exposes setTags.
