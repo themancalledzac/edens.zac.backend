@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.entity;
 
 import edens.zac.portfolio.backend.types.ContentType;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.Builder;
@@ -54,6 +55,12 @@ public class ContentGifEntity extends ContentEntity {
 
   /** Column: create_date (VARCHAR) */
   private String createDate;
+
+  /**
+   * Column: capture_date (TIMESTAMP, nullable) - the photographic capture time, copied from a
+   * reference image so the gif can participate in the chronological sort.
+   */
+  private LocalDateTime captureDate;
 
   /**
    * Column: rating (INT, 0-5 or NULL).
