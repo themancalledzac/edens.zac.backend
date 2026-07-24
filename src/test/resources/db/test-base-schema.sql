@@ -117,7 +117,8 @@ CREATE TABLE content_gif (
     width         INTEGER,
     height        INTEGER,
     author        VARCHAR(100),
-    create_date   VARCHAR(50)
+    create_date   VARCHAR(50),
+    capture_date  TIMESTAMP
     -- rating added in V24
 );
 
