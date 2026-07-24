@@ -117,9 +117,9 @@ CREATE TABLE content_gif (
     width         INTEGER,
     height        INTEGER,
     author        VARCHAR(100),
-    create_date   VARCHAR(50),
-    capture_date  TIMESTAMP
+    create_date   VARCHAR(50)
     -- rating added in V24
+    -- capture_date added in V49
 );
 
 -- Collection-reference content (child of content)

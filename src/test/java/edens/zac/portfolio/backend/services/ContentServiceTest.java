@@ -185,6 +185,7 @@ class ContentServiceTest {
   }
 
   @Test
+  @DisplayName("updateGif applies captureDate to the saved entity")
   void updateGif_appliesCaptureDate() {
     Long gifId = 42L;
     ContentGifEntity existing = ContentGifEntity.builder().id(gifId).gifUrl("u").build();
