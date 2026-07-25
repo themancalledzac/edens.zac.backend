@@ -16,10 +16,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Integration coverage for the V49 is_client / is_blog boolean predicates. Runs the real V49
+ * Integration coverage for the V50 is_client / is_blog boolean predicates. Runs the real V50
  * migration on Testcontainers Postgres. Verifies: the boolean-keyed repository queries key on the
  * flags (NOT the legacy type column), the derived parent-of-galleries query (no parent-side type
- * filter), the blog-by-date get-or-create key, save round-tripping of the flags, and the V49
+ * filter), the blog-by-date get-or-create key, save round-tripping of the flags, and the V50
  * label-tag seeds.
  */
 class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
@@ -66,7 +66,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
 
   @Test
   void migrationSeedsLabelTags() {
-    // V49 idempotently ensures the art-gallery and portfolio label tags exist so grouping
+    // V50 idempotently ensures the art-gallery and portfolio label tags exist so grouping
     // survives the eventual type-column drop.
     List<String> slugs =
         jdbc.queryForList(

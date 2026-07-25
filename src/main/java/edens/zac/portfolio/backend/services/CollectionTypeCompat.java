@@ -4,7 +4,7 @@ import edens.zac.portfolio.backend.types.CollectionType;
 
 /**
  * Dual-compat mapping between the new {@code isClient}/{@code isBlog} booleans and the legacy
- * {@link CollectionType} column during the V49 transition window. The booleans are the storage
+ * {@link CollectionType} column during the V50 transition window. The booleans are the storage
  * truth; the legacy {@code type} column (and API field) is kept in sync on every write so old
  * frontends keep working until the type column is dropped in a later release.
  *

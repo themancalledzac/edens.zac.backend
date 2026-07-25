@@ -1,4 +1,4 @@
--- V49: introduce is_client / is_blog booleans as the storage truth for what
+-- V50: introduce is_client / is_blog booleans as the storage truth for what
 -- CollectionType.CLIENT_GALLERY / BLOG mean today.
 --
 -- Dual-compat window: the legacy `type` column is NOT dropped or altered here. The
