@@ -452,6 +452,7 @@ class ContentModelConverter {
         entity.getHeight(),
         entity.getAuthor(),
         entity.getCreateDate(),
+        entity.getCaptureDate(),
         entity.getRating(),
         convertTagsToModels(tags),
         convertPeopleToModels(people),

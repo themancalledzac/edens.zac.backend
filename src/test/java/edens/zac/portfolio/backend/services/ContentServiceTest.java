@@ -26,6 +26,7 @@ import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -165,6 +166,7 @@ class ContentServiceTest {
             null,
             null,
             null,
+            null,
             new CollectionRequests.PersonUpdate(List.of(7L), null, null),
             new CollectionRequests.LocationUpdate(List.of(3L), null, null),
             null);
@@ -182,11 +184,34 @@ class ContentServiceTest {
     assertThat(locationIdsCaptor.getValue()).containsExactly(3L);
   }
 
+  @Test
+  @DisplayName("updateGif applies captureDate to the saved entity")
+  void updateGif_appliesCaptureDate() {
+    Long gifId = 42L;
+    ContentGifEntity existing = ContentGifEntity.builder().id(gifId).gifUrl("u").build();
+    when(contentRepository.findGifById(gifId)).thenReturn(Optional.of(existing));
+    when(contentRepository.saveGif(any(ContentGifEntity.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+    when(contentModelConverter.convertEntityToModel(any(CollectionContentEntity.class)))
+        .thenReturn(stubGifModel(gifId));
+
+    LocalDateTime date = LocalDateTime.of(2024, 6, 14, 0, 0);
+    ContentRequests.UpdateGif request =
+        new ContentRequests.UpdateGif(null, null, date, null, null, null, null);
+
+    service.updateGif(gifId, request);
+
+    ArgumentCaptor<ContentGifEntity> captor = ArgumentCaptor.forClass(ContentGifEntity.class);
+    verify(contentRepository).saveGif(captor.capture());
+    assertThat(captor.getValue().getCaptureDate()).isEqualTo(date);
+  }
+
   /** Minimal Gif model stub; the test asserts on the repository invocations, not this return. */
   private ContentModels.Gif stubGifModel(Long id) {
     return new ContentModels.Gif(
         id,
         ContentType.GIF,
+        null,
         null,
         null,
         null,

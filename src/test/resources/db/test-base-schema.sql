@@ -119,6 +119,7 @@ CREATE TABLE content_gif (
     author        VARCHAR(100),
     create_date   VARCHAR(50)
     -- rating added in V24
+    -- capture_date added in V49
 );
 
 -- Collection-reference content (child of content)
