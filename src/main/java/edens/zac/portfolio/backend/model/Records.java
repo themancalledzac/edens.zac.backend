@@ -65,13 +65,11 @@ public final class Records {
   public record CollectionSummary(Long id, String title) {}
 
   /**
-   * Model representing a collection for list views. Contains the collection's ID, name, slug, type,
-   * collection date (serialized as an ISO date string; null when not projected), and an optional
-   * cover image URL (null when the collection has no cover image or it was not projected). The
+   * Model representing a collection for list views. {@code collectionDate} and {@code
+   * coverImageUrl} are null when the collection has none or the query did not project them; the
    * cover image lets the frontend render related/sibling collections as image cards rather than
-   * text links. {@code isClient}/{@code isBlog} are primitive: the wire contract is a required
-   * boolean, and the back-compat overloads that defaulted them to null are gone so no call site can
-   * emit an absent flag.
+   * text links. The flags are primitive because the wire contract is a required boolean -- the
+   * back-compat overloads that defaulted them to null are gone.
    */
   public record CollectionList(
       Long id,

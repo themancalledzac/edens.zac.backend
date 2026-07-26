@@ -598,7 +598,6 @@ public class CollectionProcessingUtil {
     // Every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
     // explicit opt-in via a later update request (Create carries no displayMode field).
     entity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
-    // Apply type-specific defaults (pagination sizing)
     return applyTypeSpecificDefaults(entity);
   }
 
@@ -607,11 +606,11 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Apply basic property updates from updateDTO to the given entity. This mirrors the simple field
-   * updates and slug/password logic from the service. - title, description, location,
-   * collectionDate, visible, priority, coverImageUrl - slug uniqueness handling (keeps same entity
-   * allowed) - configJson - blocksPerPage (>=1) - client gallery password updates via provided
-   * password hasher
+   * Apply partial-field updates from updateDTO to the given entity: title (auto-regenerating the
+   * slug unless an explicit one is supplied), slug, description, the type/flag compat resolution,
+   * locations, collection start/end dates and their explicit clear flags, visibility, rating,
+   * displayMode, contentPerPage/rowsWide (skipped for parent types) and coverImageId. Null request
+   * fields leave the entity untouched.
    */
   public void applyBasicUpdates(CollectionEntity entity, CollectionRequests.Update updateDTO) {
     if (updateDTO.title() != null) {
@@ -626,10 +625,8 @@ public class CollectionProcessingUtil {
     if (updateDTO.description() != null) {
       entity.setDescription(updateDTO.description());
     }
-    // Dual-compat type/flag handling: an explicit boolean wins; a null boolean is left
-    // untouched (inherited from the effective type, so partial updates never silently demote);
-    // a legacy type-only request derives the booleans; a request with neither leaves type and
-    // flags untouched.
+    // Guard only: a request carrying none of the three leaves type and flags untouched.
+    // Resolution rules live in CollectionTypeCompat.
     if (updateDTO.isClient() != null || updateDTO.isBlog() != null || updateDTO.type() != null) {
       boolean wasClient = entity.isClient();
       CollectionTypeCompat.Resolved resolved =

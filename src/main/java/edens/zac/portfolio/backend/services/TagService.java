@@ -66,9 +66,8 @@ public class TagService {
             : CollectionVisibility.UNLISTED;
 
     // Create the collection, then take over the tag's slug and requested visibility. The
-    // isClient/isBlog booleans pass through to the create path, where CollectionTypeCompat
-    // resolves them against the (defaulted) legacy type: booleans win when provided, and the
-    // PORTFOLIO default is preserved when neither flag is true.
+    // isClient/isBlog booleans pass straight through to the create path's CollectionTypeCompat
+    // resolution against the PORTFOLIO-defaulted legacy type.
     CollectionRequests.UpdateResponse created =
         collectionService.createCollection(
             new CollectionRequests.Create(

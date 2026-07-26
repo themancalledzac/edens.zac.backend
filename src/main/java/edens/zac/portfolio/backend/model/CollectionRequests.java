@@ -61,15 +61,9 @@ public final class CollectionRequests {
       @NotNull(message = "Collection ID is required for updates") Long id,
       /** Legacy collection type; the booleans win when both are present (dual-compat window). */
       CollectionType type,
-      /**
-       * Set/clear the client-gallery flag. Null leaves it untouched (unless {@code type} is set,
-       * which then derives it). Setting it true clears {@code isBlog}.
-       */
+      /** Tri-state client-gallery flag; resolution rules in {@code CollectionTypeCompat}. */
       @JsonProperty("isClient") Boolean isClient,
-      /**
-       * Set/clear the blog flag. Null leaves it untouched (unless {@code type} is set, which then
-       * derives it). Setting it true clears {@code isClient}.
-       */
+      /** Tri-state blog flag; resolution rules in {@code CollectionTypeCompat}. */
       @JsonProperty("isBlog") Boolean isBlog,
       /** Collection title */
       @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,
@@ -130,9 +124,9 @@ public final class CollectionRequests {
       CollectionUpdate parents) {
 
     /**
-     * Backwards-compatible constructor for callers predating the {@code collectionEndDate}/{@code
-     * clearCollectionEndDate} and {@code parents} fields. Delegates to the canonical constructor
-     * with those three set to {@code null}.
+     * Backwards-compatible constructor for callers predating the {@code isClient}/{@code isBlog},
+     * {@code collectionEndDate}/{@code clearCollectionEndDate} and {@code parents} fields.
+     * Delegates to the canonical constructor with all five set to {@code null}.
      */
     public Update(
         Long id,

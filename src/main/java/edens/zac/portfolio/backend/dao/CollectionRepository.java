@@ -530,8 +530,8 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
-   * Persist a CollectionEntity. INSERT writes all columns; UPDATE intentionally omits {@code
-   * gallery_password} and {@code recipient_emails} — those are owned exclusively by {@link
+   * Persist a CollectionEntity. Neither branch writes {@code recipient_emails}, and UPDATE also
+   * omits {@code gallery_password}: both columns are owned exclusively by {@link
    * #saveGalleryAccess}, which writes them atomically as a pair.
    */
   @Transactional

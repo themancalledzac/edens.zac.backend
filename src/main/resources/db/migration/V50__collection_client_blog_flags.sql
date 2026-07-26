@@ -2,8 +2,21 @@
 -- CollectionType.CLIENT_GALLERY / BLOG mean today.
 --
 -- Dual-compat window: the legacy `type` column is NOT dropped or altered here. The
--- application keeps `type` and the new booleans in sync on every write; a later
--- cleanup migration drops `type` after both deploys (BE then FE) verify.
+-- application keeps `type` and the new booleans in sync on every write.
+--
+-- PHASE 2 (this comment is currently the only record of it -- a tracking issue is
+-- still to be opened). After the backend and then the frontend deploy and verify:
+--   DROP:   collection.type (this migration's dual-compat reason for existing)
+--   DELETE: CollectionTypeCompat and its test; the legacy `type` field on
+--           CollectionModel / CollectionRequests.Create / CollectionRequests.Update /
+--           SaveAsCollectionRequest / Records.CollectionList / Records.SiblingRow /
+--           ContentModels.Collection; the `type` multipart param on the admin
+--           create-collection endpoint.
+--   RE-KEY: CollectionRepository.findNonEmptyOrderedByVisibilityIn's typeFilter and
+--           the SyntheticCollectionResolver catalog entries that still pass a
+--           CollectionType (notably /all-blogs, which must move to is_blog).
+--   MOVE:   PORTFOLIO / ART_GALLERY grouping onto the label tags seeded below;
+--           PARENT / HOME structure onto the collection graph and the home slug.
 --
 -- Audit queries -- run manually before deploying (see V15 for the same convention):
 --

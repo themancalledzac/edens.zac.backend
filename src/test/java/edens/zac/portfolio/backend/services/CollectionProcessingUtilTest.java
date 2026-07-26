@@ -154,7 +154,6 @@ class CollectionProcessingUtilTest {
     CollectionEntity result = util.applyTypeSpecificDefaults(entity);
 
     // Assert
-    // Config JSON removed; ensure other defaults still apply
     assertEquals(30, result.getContentPerPage());
     // Visibility is no longer touched here: the create-path default (UNLISTED) lives in
     // toEntity, and this method must not flip an entity's visibility.
@@ -163,7 +162,7 @@ class CollectionProcessingUtilTest {
 
   @Test
   void toEntity_unlistedDefaultAppliesToAllTypes() {
-    // The old CLIENT_GALLERY special case is gone: UNLISTED is the universal create default.
+    // UNLISTED is the universal create default -- no type is exempt.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
     for (CollectionType type : CollectionType.values()) {
@@ -247,7 +246,7 @@ class CollectionProcessingUtilTest {
   }
 
   /**
-   * Build an Update that only carries date-range fields (everything else null). Canonical 21-arg
+   * Build an Update that only carries date-range fields (everything else null). Canonical 23-arg
    * order: id, type, isClient, isBlog, title, slug, description, locations, collectionDate,
    * collectionEndDate, clearCollectionDate, clearCollectionEndDate, visibility, rating,
    * displayMode, contentPerPage, rowsWide, coverImageId, tags, people, collections, siblings,
@@ -359,9 +358,8 @@ class CollectionProcessingUtilTest {
 
   @Test
   void toEntity_defaultsDisplayModeToChronologicalForEveryType() {
-    // The type-keyed default (BLOG -> CHRONOLOGICAL, everything else -> ORDERED) is gone.
-    // Every create without an explicit displayMode lands on CHRONOLOGICAL; ORDERED is opt-in
-    // via a later update.
+    // Every create without an explicit displayMode lands on CHRONOLOGICAL regardless of type;
+    // ORDERED is opt-in via a later update.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
     for (CollectionType type : CollectionType.values()) {
