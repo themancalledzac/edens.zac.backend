@@ -3,13 +3,9 @@ package edens.zac.portfolio.backend.dao;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.services.SlugUtil;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import edens.zac.portfolio.backend.types.DisplayMode;
-import java.sql.Array;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,50 +38,6 @@ public class TagRepository extends BaseDao {
               .convertedCollectionId(getLong(rs, "converted_collection_id"))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
-
-  /** Collection row mapper for {@link #findCollectionsByTagId}. */
-  private static final RowMapper<CollectionEntity> COLLECTION_ROW_MAPPER =
-      (rs, rowNum) -> {
-        CollectionEntity entity = new CollectionEntity();
-        entity.setId(rs.getLong("id"));
-        entity.setType(CollectionType.valueOf(rs.getString("type")));
-        entity.setClient(rs.getBoolean("is_client"));
-        entity.setBlog(rs.getBoolean("is_blog"));
-        entity.setTitle(rs.getString("title"));
-        entity.setSlug(rs.getString("slug"));
-        entity.setDescription(rs.getString("description"));
-        entity.setCollectionDate(getLocalDate(rs, "collection_date"));
-        entity.setVisibility(CollectionVisibility.valueOf(rs.getString("visibility")));
-
-        String displayMode = rs.getString("display_mode");
-        if (displayMode != null) {
-          try {
-            entity.setDisplayMode(DisplayMode.valueOf(displayMode));
-          } catch (IllegalArgumentException e) {
-            log.warn("Invalid display_mode value: {}", displayMode);
-          }
-        }
-
-        Long coverImageId = getLong(rs, "cover_image_id");
-        if (coverImageId != null) {
-          entity.setCoverImageId(coverImageId);
-        }
-
-        entity.setContentPerPage(getInteger(rs, "content_per_page"));
-        entity.setTotalContent(getInteger(rs, "total_content"));
-        entity.setRowsWide(getInteger(rs, "rows_wide"));
-        entity.setGalleryPassword(rs.getString("gallery_password"));
-        Array emailsArray = rs.getArray("recipient_emails");
-        entity.setRecipientEmails(
-            emailsArray != null
-                ? new ArrayList<>(Arrays.asList((String[]) emailsArray.getArray()))
-                : new ArrayList<>());
-        entity.setRating(getInteger(rs, "rating"));
-        entity.setCreatedAt(getLocalDateTime(rs, "created_at"));
-        entity.setUpdatedAt(getLocalDateTime(rs, "updated_at"));
-
-        return entity;
-      };
 
   // ============================================================
   // Tag CRUD Operations
@@ -331,10 +283,10 @@ public class TagRepository extends BaseDao {
       return List.of();
     }
     String sql =
-        """
-        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date,
-               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        "SELECT "
+            + CollectionRepository.collectionColumns("c")
+            + "\n"
+            + """
         FROM collection c
         JOIN collection_tags ct ON ct.collection_id = c.id
         WHERE ct.tag_id = :tagId
@@ -345,7 +297,7 @@ public class TagRepository extends BaseDao {
         createParameterSource()
             .addValue("tagId", tagId)
             .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
-    return query(sql, COLLECTION_ROW_MAPPER, params);
+    return query(sql, CollectionRepository.COLLECTION_ROW_MAPPER, params);
   }
 
   /**

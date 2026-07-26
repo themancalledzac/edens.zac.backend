@@ -156,7 +156,8 @@ class CollectionListReadRepositoryIntegrationTest extends AbstractPostgresIntegr
             .toList();
     assertThat(prodListing).doesNotContain(created.getId());
 
-    // Dev/local scope still surfaces it -- the reason this drift was invisible in dev.
+    // Dev scope is LISTED+UNLISTED+HIDDEN while prod is LISTED-only, so a dev run never sees
+    // the omission that costs the collection its place in the prod listing.
     List<Long> devListing =
         collectionRepository
             .findNonEmptyByVisibilityInOrderByDate(CollectionVisibility.visibleScope(true))

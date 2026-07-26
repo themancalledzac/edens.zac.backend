@@ -23,7 +23,12 @@ public class CollectionEntity {
   /** Column: id (BIGINT, PRIMARY KEY, auto-generated) */
   private Long id;
 
-  /** Column: type (VARCHAR, NOT NULL) - enum: BLOG, CLIENT_GALLERY, PORTFOLIO, MISC */
+  /**
+   * Column: type (VARCHAR, NOT NULL) - legacy {@link CollectionType} discriminator, kept in sync
+   * with {@code isClient}/{@code isBlog} for the dual-compat window and dropped in phase 2. The
+   * booleans are the storage truth; the remaining structural values (PARENT/HOME) and label values
+   * (PORTFOLIO/ART_GALLERY/MISC) move to the collection graph and label tags respectively.
+   */
   @NotNull private CollectionType type;
 
   /**
@@ -56,7 +61,10 @@ public class CollectionEntity {
   private LocalDate collectionEndDate;
 
   /**
-   * Column: visibility (VARCHAR, NOT NULL) - LISTED, UNLISTED, or HIDDEN. New rows default HIDDEN.
+   * Column: visibility (VARCHAR, NOT NULL) - LISTED, UNLISTED, or HIDDEN. The field default is
+   * fail-closed HIDDEN (an entity built without one is never public); the create path in {@code
+   * CollectionProcessingUtil.toEntity} overrides it to UNLISTED so a new collection is reachable by
+   * direct slug but absent from public listings.
    */
   @NotNull @Builder.Default private CollectionVisibility visibility = CollectionVisibility.HIDDEN;
 

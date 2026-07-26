@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.CollectionType;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.annotation.PreDestroy;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -559,6 +560,11 @@ public class ImageUploadPipelineService {
    * use the oldest and log a warning; otherwise create a new blog whose title/slug derive from the
    * ISO date. Creation still writes the legacy {@code type=BLOG} for dual-compat (the mapping layer
    * derives {@code is_blog=true} from it).
+   *
+   * <p>The shared create path is privacy-first (every new collection lands UNLISTED). Ingested day
+   * blogs are auto-published, so visibility is promoted to LISTED explicitly right after create --
+   * without it the blog is invisible to {@link CollectionRepository#findListedBlogsOrdered} and to
+   * the public {@code /all-blogs} listing, and the pipeline would silently never publish.
    */
   private Long getOrCreateBlogForDay(LocalDate day) {
     List<CollectionEntity> existing = collectionRepository.findBlogsByCollectionDate(day);
@@ -574,10 +580,12 @@ public class ImageUploadPipelineService {
     }
 
     var createRequest =
-        new CollectionRequests.Create(CollectionType.BLOG, day.toString(), null, null, null, day);
+        new CollectionRequests.Create(
+            CollectionType.BLOG, day.toString(), null, null, null, day, null, null);
     CollectionRequests.UpdateResponse created = collectionService.createCollection(createRequest);
     Long newId = created.collection().getId();
-    log.info("Created BLOG collection {} for capture day {}", newId, day);
+    collectionRepository.updateVisibility(newId, CollectionVisibility.LISTED);
+    log.info("Created LISTED BLOG collection {} for capture day {}", newId, day);
     return newId;
   }
 

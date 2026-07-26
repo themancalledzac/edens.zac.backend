@@ -65,11 +65,11 @@ public final class Records {
   public record CollectionSummary(Long id, String title) {}
 
   /**
-   * Model representing a collection for list views. Contains the collection's ID, name, slug, type,
-   * collection date (serialized as an ISO date string; null when not projected), and an optional
-   * cover image URL (null when the collection has no cover image or it was not projected). The
+   * Model representing a collection for list views. {@code collectionDate} and {@code
+   * coverImageUrl} are null when the collection has none or the query did not project them; the
    * cover image lets the frontend render related/sibling collections as image cards rather than
-   * text links.
+   * text links. The flags are primitive because the wire contract is a required boolean -- the
+   * back-compat overloads that defaulted them to null are gone.
    */
   public record CollectionList(
       Long id,
@@ -78,31 +78,23 @@ public final class Records {
       CollectionType type,
       LocalDate collectionDate,
       String coverImageUrl,
-      @JsonProperty("isClient") Boolean isClient,
-      @JsonProperty("isBlog") Boolean isBlog) {
-
-    /** Backwards-compatible constructor for callers that omit the client/blog flags. */
-    public CollectionList(
-        Long id,
-        String name,
-        String slug,
-        CollectionType type,
-        LocalDate collectionDate,
-        String coverImageUrl) {
-      this(id, name, slug, type, collectionDate, coverImageUrl, null, null);
-    }
-
-    /** Backwards-compatible constructor for callers that omit the cover image URL. */
-    public CollectionList(
-        Long id, String name, String slug, CollectionType type, LocalDate collectionDate) {
-      this(id, name, slug, type, collectionDate, null, null, null);
-    }
+      @JsonProperty("isClient") boolean isClient,
+      @JsonProperty("isBlog") boolean isBlog) {
 
     /**
-     * Backwards-compatible constructor for callers that omit the collection date and cover image.
+     * Project a {@link SiblingRow} into a list entry, pairing it with the cover image URL the
+     * caller resolved in batch. Siblings carry no collection date, so that component is null.
      */
-    public CollectionList(Long id, String name, String slug, CollectionType type) {
-      this(id, name, slug, type, null, null, null, null);
+    public static CollectionList fromSibling(SiblingRow row, String coverImageUrl) {
+      return new CollectionList(
+          row.id(),
+          row.name(),
+          row.slug(),
+          row.type(),
+          null,
+          coverImageUrl,
+          row.isClient(),
+          row.isBlog());
     }
   }
 
@@ -119,13 +111,7 @@ public final class Records {
       CollectionType type,
       Long coverImageId,
       boolean isClient,
-      boolean isBlog) {
-
-    /** Backwards-compatible constructor for callers that omit the client/blog flags. */
-    public SiblingRow(Long id, String name, String slug, CollectionType type, Long coverImageId) {
-      this(id, name, slug, type, coverImageId, false, false);
-    }
-  }
+      boolean isBlog) {}
 
   /**
    * DTO for admin hub tile configuration. coverImageUrl and dimensions are null when no image is

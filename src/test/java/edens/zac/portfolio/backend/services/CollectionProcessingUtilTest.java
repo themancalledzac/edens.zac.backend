@@ -144,17 +144,16 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void applyTypeSpecificDefaults_shouldSetDefaultsBasedOnType() {
+  void applyPaginationDefaults_setsPaginationOnly_leavesVisibilityUntouched() {
     // Arrange
     CollectionEntity entity = new CollectionEntity();
     entity.setType(CollectionType.CLIENT_GALLERY);
     entity.setVisibility(CollectionVisibility.HIDDEN);
 
     // Act
-    CollectionEntity result = util.applyTypeSpecificDefaults(entity);
+    CollectionEntity result = util.applyPaginationDefaults(entity);
 
     // Assert
-    // Config JSON removed; ensure other defaults still apply
     assertEquals(30, result.getContentPerPage());
     // Visibility is no longer touched here: the create-path default (UNLISTED) lives in
     // toEntity, and this method must not flip an entity's visibility.
@@ -162,20 +161,8 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void toEntity_createWithoutVisibility_defaultsToUnlisted() {
-    // Create request carries no visibility field -> privacy-first UNLISTED default.
-    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
-    CollectionRequests.Create request =
-        new CollectionRequests.Create(CollectionType.PORTFOLIO, "New Portfolio");
-
-    CollectionEntity entity = util.toEntity(request, 30);
-
-    assertEquals(CollectionVisibility.UNLISTED, entity.getVisibility());
-  }
-
-  @Test
   void toEntity_unlistedDefaultAppliesToAllTypes() {
-    // The old CLIENT_GALLERY special case is gone: UNLISTED is the universal create default.
+    // UNLISTED is the universal create default -- no type is exempt.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
     for (CollectionType type : CollectionType.values()) {
@@ -198,9 +185,15 @@ class CollectionProcessingUtilTest {
     List<Records.SiblingRow> rows =
         List.of(
             new Records.SiblingRow(
-                9L, "Dolomites Film", "dolomites-film", CollectionType.PORTFOLIO, 100L),
+                9L,
+                "Dolomites Film",
+                "dolomites-film",
+                CollectionType.PORTFOLIO,
+                100L,
+                false,
+                false),
             new Records.SiblingRow(
-                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null));
+                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null, false, false));
     when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
 
     ContentImageEntity cover =
@@ -235,7 +228,7 @@ class CollectionProcessingUtilTest {
     List<Records.SiblingRow> rows =
         List.of(
             new Records.SiblingRow(
-                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null));
+                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null, false, false));
     when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
 
     util.populateSiblings(model, false);
@@ -259,7 +252,7 @@ class CollectionProcessingUtilTest {
   }
 
   /**
-   * Build an Update that only carries date-range fields (everything else null). Canonical 21-arg
+   * Build an Update that only carries date-range fields (everything else null). Canonical 23-arg
    * order: id, type, isClient, isBlog, title, slug, description, locations, collectionDate,
    * collectionEndDate, clearCollectionDate, clearCollectionEndDate, visibility, rating,
    * displayMode, contentPerPage, rowsWide, coverImageId, tags, people, collections, siblings,
@@ -366,14 +359,13 @@ class CollectionProcessingUtilTest {
   }
 
   // =============================================================================
-  // D10: chronological default display mode
+  // Chronological default display mode
   // =============================================================================
 
   @Test
   void toEntity_defaultsDisplayModeToChronologicalForEveryType() {
-    // D10: the type-keyed default (BLOG -> CHRONOLOGICAL, everything else -> ORDERED) is gone.
-    // Every create without an explicit displayMode lands on CHRONOLOGICAL; ORDERED is opt-in
-    // via a later update.
+    // Every create without an explicit displayMode lands on CHRONOLOGICAL regardless of type;
+    // ORDERED is opt-in via a later update.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
     for (CollectionType type : CollectionType.values()) {
@@ -484,11 +476,7 @@ class CollectionProcessingUtilTest {
   void applyBasicUpdates_isBlogTrue_setsBlogTypeAndFlags() {
     testEntity.setType(CollectionType.MISC);
 
-    util.applyBasicUpdates(
-        testEntity,
-        new CollectionRequests.Update(
-            1L, null, false, true, null, null, null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null));
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, false, true));
 
     assertEquals(CollectionType.BLOG, testEntity.getType());
     assertTrue(testEntity.isBlog());
@@ -499,27 +487,46 @@ class CollectionProcessingUtilTest {
   void applyBasicUpdates_legacyClientGalleryType_derivesIsClient() {
     testEntity.setType(CollectionType.MISC);
 
-    util.applyBasicUpdates(
-        testEntity,
-        new CollectionRequests.Update(
-            1L,
-            CollectionType.CLIENT_GALLERY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null));
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(CollectionType.CLIENT_GALLERY, null, null));
+
+    assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
+    assertTrue(testEntity.isClient());
+    assertFalse(testEntity.isBlog());
+  }
+
+  /**
+   * Build an Update that carries only the type/flag triple (everything else null), so the flag
+   * tests do not inline the wide canonical constructor at mixed arities.
+   */
+  private static CollectionRequests.Update typeFlagsUpdate(
+      CollectionType type, Boolean isClient, Boolean isBlog) {
+    return new CollectionRequests.Update(
+        1L, type, isClient, isBlog, null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null);
+  }
+
+  @Test
+  void toEntity_bothFlagsTrue_isRejected() {
+    // The both-true 400 was pinned on the update path only. All three create surfaces (JSON
+    // create, child create, multipart create) funnel through toEntity, so this one unit test
+    // covers them; a MockMvc variant would only re-test GlobalExceptionHandler's IAE -> 400.
+    CollectionRequests.Create request =
+        new CollectionRequests.Create(null, "Both Flags", null, null, null, null, true, true);
+
+    assertThrows(IllegalArgumentException.class, () -> util.toEntity(request, 30));
+  }
+
+  @Test
+  void applyBasicUpdates_partialIsBlogFalse_onClientGallery_doesNotDemote() {
+    // Wiring-seam pin: applyBasicUpdates must hand the entity's CURRENT booleans to the compat
+    // resolver, not just its legacy type column. Without that, {"isBlog": false} alone clears
+    // is_client on a drifted row today, and demotes every client gallery once phase 2 nulls the
+    // type column. Mutating entity.getType() to null must not change the outcome.
+    testEntity.setType(CollectionType.CLIENT_GALLERY);
+    testEntity.setClient(true);
+    testEntity.setBlog(false);
+
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, null, false));
 
     assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
     assertTrue(testEntity.isClient());
@@ -527,15 +534,29 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
+  void applyBasicUpdates_isClientDemotion_clearsGalleryAccess() {
+    // updateGalleryAccess refuses non-CLIENT_GALLERY/PARENT targets and the read gate keys on
+    // galleryPassword != null, so a demoted collection would otherwise keep an enforced password
+    // that no endpoint can clear.
+    testEntity.setType(CollectionType.CLIENT_GALLERY);
+    testEntity.setClient(true);
+    testEntity.setGalleryPassword("secret");
+    testEntity.setRecipientEmails(new ArrayList<>(List.of("client@example.com")));
+
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, false, null));
+
+    assertEquals(CollectionType.MISC, testEntity.getType());
+    assertFalse(testEntity.isClient());
+    assertNull(testEntity.getGalleryPassword());
+    assertTrue(testEntity.getRecipientEmails().isEmpty());
+    verify(collectionRepository).saveGalleryAccess(1L, null, List.of());
+  }
+
+  @Test
   void applyBasicUpdates_bothFlagsTrue_isRejected() {
     assertThrows(
         IllegalArgumentException.class,
-        () ->
-            util.applyBasicUpdates(
-                testEntity,
-                new CollectionRequests.Update(
-                    1L, null, true, true, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null)));
+        () -> util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, true, true)));
   }
 
   @Test

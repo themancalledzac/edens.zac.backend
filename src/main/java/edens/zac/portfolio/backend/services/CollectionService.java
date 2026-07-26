@@ -1387,12 +1387,15 @@ public class CollectionService {
 
   /**
    * Remove child collection content items that reference children the viewer should not see in this
-   * context. Default scope (e.g. PARENT-of-portfolios) drops UNLISTED + HIDDEN children so
-   * directories don't leak unlisted work. Client-gallery context — viewing a CLIENT_GALLERY
-   * directly, or a PARENT that contains at least one CLIENT_GALLERY child — drops only HIDDEN, so
-   * UNLISTED client galleries (the typical visibility for password-protected work) remain visible
-   * to viewers who have already navigated into the parent. Authentication is enforced upstream;
-   * this method runs only for already-authorized responses.
+   * context. Default scope (e.g. a directory of portfolios) drops UNLISTED + HIDDEN children so
+   * directories don't leak unlisted work. Client-gallery context -- the collection is itself a
+   * client gallery, or ANY collection (not just a legacy PARENT) that contains at least one client
+   * gallery child -- drops only HIDDEN, so UNLISTED client galleries (the typical visibility for
+   * password-protected work) remain visible to viewers who have already navigated into the wrapper.
+   * The flag-keyed derivation mirrors {@code findClientGalleriesAndQualifyingParents}, which admits
+   * the same derived parents into the listing; keying on {@code type == PARENT} here would strip
+   * every child out of a non-PARENT wrapper and render an empty tile. Authentication is enforced
+   * upstream; this method runs only for already-authorized responses.
    */
   private void filterNonListedChildCollections(CollectionModel model) {
     if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
@@ -1417,9 +1420,7 @@ public class CollectionService {
     List<CollectionEntity> children = collectionRepository.findByIds(referencedIds);
 
     boolean isClientGalleryContext =
-        model.getType() == CollectionType.CLIENT_GALLERY
-            || (model.getType() == CollectionType.PARENT
-                && children.stream().anyMatch(c -> c.getType() == CollectionType.CLIENT_GALLERY));
+        model.isClient() || children.stream().anyMatch(CollectionEntity::isClient);
 
     Set<Long> excludedIds =
         children.stream()

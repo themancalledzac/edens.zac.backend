@@ -21,6 +21,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * flags (NOT the legacy type column), the derived parent-of-galleries query (no parent-side type
  * filter), the blog-by-date get-or-create key, save round-tripping of the flags, and the V50
  * label-tag seeds.
+ *
+ * <p>This class inserts roughly 20 collections into the SHARED singleton container, whose harness
+ * truncates only auth tables. Assertions here are therefore containment-based, never exact counts,
+ * and any future exact-count test in this package must seed its own container.
  */
 class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
@@ -65,7 +69,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   }
 
   @Test
-  void migrationSeedsLabelTags() {
+  void migration_v50_seedsArtGalleryAndPortfolioLabelTags() {
     // V50 idempotently ensures the art-gallery and portfolio label tags exist so grouping
     // survives the eventual type-column drop.
     List<String> slugs =
@@ -76,7 +80,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   }
 
   @Test
-  void saveRoundTripsFlags() {
+  void save_clientGallery_roundTripsFlagsAndType() {
     CollectionEntity saved =
         saveCollection(
             "flag-roundtrip",
@@ -358,5 +362,151 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
             parentOfNonClient.getId(),
             hiddenChild.getId(),
             nonClientChild.getId());
+  }
+
+  @Test
+  void everySharedColumnListQueryParsesAndMapsAgainstPostgres() {
+    // The joined reads project the shared canonical column list rather than a hand-written one.
+    // Their own tests mock the JdbcTemplate, so a malformed column list (e.g. a missing separator
+    // before FROM) would pass everywhere and only fail in production. Executing each one against
+    // real Postgres forces a parse; the round-trip below also proves column/mapper alignment.
+    CollectionEntity parent =
+        saveCollection(
+            "flag-cols-parent",
+            CollectionType.PARENT,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 8, 1));
+    CollectionEntity child =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.CLIENT_GALLERY)
+                .isClient(true)
+                .title("Flag cols child")
+                .slug("flag-cols-child")
+                .description("described")
+                .collectionDate(LocalDate.of(2026, 8, 2))
+                .collectionEndDate(LocalDate.of(2026, 8, 4))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(4)
+                .contentPerPage(25)
+                .rowsWide(3)
+                .totalContent(0)
+                .build());
+    linkChild(parent.getId(), child.getId(), true);
+
+    assertThat(collectionRepository.findReferencedCollectionsByParentId(parent.getId()))
+        .extracting(CollectionEntity::getId)
+        .contains(child.getId());
+    assertThat(collectionRepository.findAllReferencedCollectionsByParentId(parent.getId()))
+        .extracting(CollectionEntity::getId)
+        .contains(child.getId());
+    assertThat(collectionRepository.findListedByLocationName("no-such-location", 10, 0)).isEmpty();
+
+    // Every column in the shared list survives the join projection and the shared row mapper.
+    CollectionEntity viaParentLookup =
+        collectionRepository.findAllParentCollectionsByChildId(child.getId()).stream()
+            .filter(c -> c.getId().equals(parent.getId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(viaParentLookup.getSlug()).isEqualTo("flag-cols-parent");
+    assertThat(viaParentLookup.getType()).isEqualTo(CollectionType.PARENT);
+
+    CollectionEntity viaJoin =
+        collectionRepository.findReferencedCollectionsByParentId(parent.getId()).stream()
+            .filter(c -> c.getId().equals(child.getId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(viaJoin.isClient()).isTrue();
+    assertThat(viaJoin.isBlog()).isFalse();
+    assertThat(viaJoin.getDescription()).isEqualTo("described");
+    assertThat(viaJoin.getCollectionDate()).isEqualTo(LocalDate.of(2026, 8, 2));
+    assertThat(viaJoin.getCollectionEndDate()).isEqualTo(LocalDate.of(2026, 8, 4));
+    assertThat(viaJoin.getRating()).isEqualTo(4);
+    assertThat(viaJoin.getContentPerPage()).isEqualTo(25);
+    assertThat(viaJoin.getRowsWide()).isEqualTo(3);
+    assertThat(viaJoin.getCreatedAt()).isNotNull();
+  }
+
+  @Test
+  void findClientGalleriesAndQualifyingParents_dualRoleCollectionAppearsOnce() {
+    // A collection that satisfies BOTH arms of the OR (it is itself is_client AND it parents a
+    // visible client child) must not be duplicated in the listing.
+    List<CollectionVisibility> scope = List.of(CollectionVisibility.LISTED);
+
+    CollectionEntity dualRole =
+        saveCollection(
+            "flag-dual-role",
+            CollectionType.CLIENT_GALLERY,
+            true,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 6, 1));
+    CollectionEntity dualRoleChild =
+        saveCollection(
+            "flag-dual-role-child",
+            CollectionType.CLIENT_GALLERY,
+            true,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 6, 2));
+    linkChild(dualRole.getId(), dualRoleChild.getId(), true);
+
+    List<Long> ids =
+        collectionRepository.findClientGalleriesAndQualifyingParents(scope).stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids).contains(dualRole.getId()).doesNotHaveDuplicates();
+  }
+
+  @Test
+  void findListedBlogsOrdered_ordersByRatingThenDate() {
+    // The ORDER BY is otherwise unpinned on real Postgres: rating first (NULLS LAST), then
+    // newest collection_date.
+    CollectionEntity lowRated =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.BLOG)
+                .isBlog(true)
+                .title("Flag order low")
+                .slug("flag-order-low")
+                .collectionDate(LocalDate.of(2026, 7, 3))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(1)
+                .totalContent(0)
+                .build());
+    CollectionEntity highRated =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.BLOG)
+                .isBlog(true)
+                .title("Flag order high")
+                .slug("flag-order-high")
+                .collectionDate(LocalDate.of(2026, 7, 1))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(5)
+                .totalContent(0)
+                .build());
+    CollectionEntity midRatedNewer =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.BLOG)
+                .isBlog(true)
+                .title("Flag order mid")
+                .slug("flag-order-mid")
+                .collectionDate(LocalDate.of(2026, 7, 2))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(3)
+                .totalContent(0)
+                .build());
+
+    List<Long> ids =
+        collectionRepository.findListedBlogsOrdered().stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids).containsSubsequence(highRated.getId(), midRatedNewer.getId(), lowRated.getId());
   }
 }

@@ -13,9 +13,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Base class for DB-touching integration tests. Boots a real Postgres 16 container once per JVM run
  * (singleton pattern — Ryuk reaps it at JVM exit), seeds the pre-Flyway base schema via {@code
  * db/test-base-schema.sql}, and wires the container URL/credentials into the Spring DataSource via
- * {@link DynamicPropertySource}. Flyway then baselines the non-empty DB at 0 and applies V2..V29 on
- * top — exactly mirroring prod. All subclasses share the same container so the Spring TestContext
- * cache never points at a stopped container. Requires Docker to be running.
+ * {@link DynamicPropertySource}. Flyway then baselines the non-empty DB at 0 and applies all V2+
+ * migrations on top — exactly mirroring prod. All subclasses share the same container so the Spring
+ * TestContext cache never points at a stopped container. Requires Docker to be running.
  *
  * <p>After each test method, auth tables are truncated so every test starts from a clean slate,
  * eliminating order-dependent failures (e.g. row counts leaking from a previous test class).

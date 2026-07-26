@@ -404,6 +404,38 @@ class ContentControllerDevTest {
     assertThat(createCaptor.getValue().isBlog()).isFalse();
   }
 
+  @Test
+  @DisplayName(
+      "POST /content/images/create-collection with neither type nor booleans binds all three null")
+  void createCollectionWithImages_neitherTypeNorBooleans_bindsAllNull() throws Exception {
+    // Multipart is the only write surface where the MISC fold is unobservable in-band, so pin
+    // that an omitted type and omitted booleans reach the service as null (the compat layer,
+    // not the binder, is what decides the fold).
+    MockMultipartFile file =
+        new MockMultipartFile("files", "photo.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes());
+
+    ImageUploadResult uploadResult = new ImageUploadResult(44L, testImages, List.of(), List.of());
+
+    when(imageUploadPipelineService.createCollectionWithImages(
+            any(CollectionRequests.Create.class), anyList(), anyMap()))
+        .thenReturn(uploadResult);
+
+    mockMvc
+        .perform(
+            multipart("/api/admin/content/images/create-collection")
+                .file(file)
+                .param("title", "Untyped Upload"))
+        .andExpect(status().isCreated());
+
+    ArgumentCaptor<CollectionRequests.Create> createCaptor =
+        ArgumentCaptor.forClass(CollectionRequests.Create.class);
+    verify(imageUploadPipelineService)
+        .createCollectionWithImages(createCaptor.capture(), anyList(), anyMap());
+    assertThat(createCaptor.getValue().type()).isNull();
+    assertThat(createCaptor.getValue().isClient()).isNull();
+    assertThat(createCaptor.getValue().isBlog()).isNull();
+  }
+
   // ============== POST /api/admin/content/images/{collectionId}/from-disk ==============
 
   @Test
