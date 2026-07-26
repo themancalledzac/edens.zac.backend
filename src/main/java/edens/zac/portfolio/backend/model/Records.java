@@ -79,7 +79,24 @@ public final class Records {
       LocalDate collectionDate,
       String coverImageUrl,
       @JsonProperty("isClient") boolean isClient,
-      @JsonProperty("isBlog") boolean isBlog) {}
+      @JsonProperty("isBlog") boolean isBlog) {
+
+    /**
+     * Project a {@link SiblingRow} into a list entry, pairing it with the cover image URL the
+     * caller resolved in batch. Siblings carry no collection date, so that component is null.
+     */
+    public static CollectionList fromSibling(SiblingRow row, String coverImageUrl) {
+      return new CollectionList(
+          row.id(),
+          row.name(),
+          row.slug(),
+          row.type(),
+          null,
+          coverImageUrl,
+          row.isClient(),
+          row.isBlog());
+    }
+  }
 
   /**
    * Internal projection of a sibling collection row. Carries the raw {@code coverImageId} (FK to
@@ -94,13 +111,7 @@ public final class Records {
       CollectionType type,
       Long coverImageId,
       boolean isClient,
-      boolean isBlog) {
-
-    /** Backwards-compatible constructor for callers that omit the client/blog flags. */
-    public SiblingRow(Long id, String name, String slug, CollectionType type, Long coverImageId) {
-      this(id, name, slug, type, coverImageId, false, false);
-    }
-  }
+      boolean isBlog) {}
 
   /**
    * DTO for admin hub tile configuration. coverImageUrl and dimensions are null when no image is

@@ -185,9 +185,15 @@ class CollectionProcessingUtilTest {
     List<Records.SiblingRow> rows =
         List.of(
             new Records.SiblingRow(
-                9L, "Dolomites Film", "dolomites-film", CollectionType.PORTFOLIO, 100L),
+                9L,
+                "Dolomites Film",
+                "dolomites-film",
+                CollectionType.PORTFOLIO,
+                100L,
+                false,
+                false),
             new Records.SiblingRow(
-                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null));
+                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null, false, false));
     when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
 
     ContentImageEntity cover =
@@ -222,7 +228,7 @@ class CollectionProcessingUtilTest {
     List<Records.SiblingRow> rows =
         List.of(
             new Records.SiblingRow(
-                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null));
+                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null, false, false));
     when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
 
     util.populateSiblings(model, false);

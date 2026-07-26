@@ -93,8 +93,6 @@ public class UserPageAssembler {
         .title(title)
         .description(description)
         .type(CollectionType.PARENT)
-        .isClient(false)
-        .isBlog(false)
         .visibility(CollectionVisibility.UNLISTED)
         .coverImage(cover)
         .content(body)

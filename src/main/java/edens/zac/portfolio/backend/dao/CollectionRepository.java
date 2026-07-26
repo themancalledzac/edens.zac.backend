@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -37,15 +38,49 @@ public class CollectionRepository extends BaseDao {
   // Collection RowMapper & SQL
   // ============================================================
 
-  private static final String SELECT_COLLECTION =
-      """
-      SELECT id, type, is_client, is_blog, title, slug, description, collection_date, collection_end_date,
-             visibility, display_mode, cover_image_id, content_per_page, total_content,
-             rows_wide, gallery_password, recipient_emails, rating, created_at, updated_at
-      FROM collection
-      """;
+  /**
+   * The single canonical column list for a full {@code collection} row. Every query that feeds
+   * {@link #COLLECTION_ROW_MAPPER} must project exactly these, so adding a column is a one-line
+   * change here instead of a hand-edit of six copies (including the one in {@link TagRepository}).
+   */
+  private static final List<String> COLLECTION_COLUMN_NAMES =
+      List.of(
+          "id",
+          "type",
+          "is_client",
+          "is_blog",
+          "title",
+          "slug",
+          "description",
+          "collection_date",
+          "collection_end_date",
+          "visibility",
+          "display_mode",
+          "cover_image_id",
+          "content_per_page",
+          "total_content",
+          "rows_wide",
+          "gallery_password",
+          "recipient_emails",
+          "rating",
+          "created_at",
+          "updated_at");
 
-  private static final RowMapper<CollectionEntity> COLLECTION_ROW_MAPPER =
+  /**
+   * The canonical column list, each column prefixed with {@code alias.} when an alias is given (for
+   * joined queries) and unprefixed otherwise.
+   */
+  static String collectionColumns(String alias) {
+    String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
+    return COLLECTION_COLUMN_NAMES.stream()
+        .map(column -> prefix + column)
+        .collect(Collectors.joining(", "));
+  }
+
+  private static final String SELECT_COLLECTION =
+      "SELECT " + collectionColumns(null) + " FROM collection ";
+
+  static final RowMapper<CollectionEntity> COLLECTION_ROW_MAPPER =
       (rs, rowNum) -> {
         CollectionEntity entity = new CollectionEntity();
         entity.setId(rs.getLong("id"));
@@ -157,10 +192,10 @@ public class CollectionRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<CollectionEntity> findReferencedCollectionsByParentId(Long parentId) {
     String sql =
-        """
-        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
-               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        "SELECT "
+            + collectionColumns("c")
+            + "\n"
+            + """
         FROM collection c
         JOIN content_collection cct ON cct.referenced_collection_id = c.id
         JOIN collection_content cc ON cc.content_id = cct.id
@@ -182,10 +217,10 @@ public class CollectionRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<CollectionEntity> findAllReferencedCollectionsByParentId(Long parentId) {
     String sql =
-        """
-        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
-               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        "SELECT "
+            + collectionColumns("c")
+            + "\n"
+            + """
         FROM collection c
         JOIN content_collection cct ON cct.referenced_collection_id = c.id
         JOIN collection_content cc ON cc.content_id = cct.id
@@ -251,10 +286,10 @@ public class CollectionRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<CollectionEntity> findAllParentCollectionsByChildId(Long childId) {
     String sql =
-        """
-        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
-               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        "SELECT "
+            + collectionColumns("c")
+            + "\n"
+            + """
         FROM collection c
         JOIN collection_content cc ON cc.collection_id = c.id
         JOIN content_collection cct ON cct.id = cc.content_id
@@ -279,10 +314,10 @@ public class CollectionRepository extends BaseDao {
   public List<CollectionEntity> findListedByLocationName(
       String locationName, int limit, int offset) {
     String sql =
-        """
-        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
-               c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
-               c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
+        "SELECT "
+            + collectionColumns("c")
+            + "\n"
+            + """
         FROM collection c
         JOIN collection_locations cl ON c.id = cl.collection_id
         JOIN location l ON cl.location_id = l.id

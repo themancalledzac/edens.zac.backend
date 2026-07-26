@@ -34,17 +34,6 @@ public final class CollectionRequests {
       @JsonProperty("isClient") Boolean isClient,
       @JsonProperty("isBlog") Boolean isBlog) {
 
-    /** Backwards-compatible constructor for callers predating the client/blog booleans. */
-    public Create(
-        CollectionType type,
-        String title,
-        String description,
-        List<Long> locationIds,
-        List<String> locationNames,
-        LocalDate collectionDate) {
-      this(type, title, description, locationIds, locationNames, collectionDate, null, null);
-    }
-
     /** Backwards-compatible constructor for callers that only provide type and title. */
     public Create(CollectionType type, String title) {
       this(type, title, null, null, null, null, null, null);

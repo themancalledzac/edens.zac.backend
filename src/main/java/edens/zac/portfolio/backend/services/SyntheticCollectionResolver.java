@@ -115,8 +115,6 @@ public class SyntheticCollectionResolver {
         .slug(slug)
         .title(spec.title())
         .type(CollectionType.PARENT)
-        .isClient(false)
-        .isBlog(false)
         .visibility(CollectionVisibility.LISTED)
         .content(content)
         .contentCount(content.size())

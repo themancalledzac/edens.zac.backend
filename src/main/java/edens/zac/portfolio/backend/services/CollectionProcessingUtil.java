@@ -499,21 +499,12 @@ public class CollectionProcessingUtil {
     List<Records.CollectionList> siblings =
         siblingRows.stream()
             .map(
-                row -> {
-                  String coverImageUrl =
-                      row.coverImageId() != null
-                          ? coverImageUrlsById.get(row.coverImageId())
-                          : null;
-                  return new Records.CollectionList(
-                      row.id(),
-                      row.name(),
-                      row.slug(),
-                      row.type(),
-                      null,
-                      coverImageUrl,
-                      row.isClient(),
-                      row.isBlog());
-                })
+                row ->
+                    Records.CollectionList.fromSibling(
+                        row,
+                        row.coverImageId() != null
+                            ? coverImageUrlsById.get(row.coverImageId())
+                            : null))
             .toList();
 
     model.setSiblings(siblings);

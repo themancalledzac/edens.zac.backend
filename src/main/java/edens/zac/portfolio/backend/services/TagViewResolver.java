@@ -98,8 +98,6 @@ public class TagViewResolver {
             .slug(tag.getSlug())
             .title(tag.getTagName())
             .type(CollectionType.PARENT)
-            .isClient(false)
-            .isBlog(false)
             .derived(true)
             .visibility(CollectionVisibility.LISTED)
             .coverImage(representativeCover(memberCollections, memberImages))

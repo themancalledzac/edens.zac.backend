@@ -365,6 +365,71 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   }
 
   @Test
+  void everySharedColumnListQueryParsesAndMapsAgainstPostgres() {
+    // The joined reads project the shared canonical column list rather than a hand-written one.
+    // Their own tests mock the JdbcTemplate, so a malformed column list (e.g. a missing separator
+    // before FROM) would pass everywhere and only fail in production. Executing each one against
+    // real Postgres forces a parse; the round-trip below also proves column/mapper alignment.
+    CollectionEntity parent =
+        saveCollection(
+            "flag-cols-parent",
+            CollectionType.PARENT,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 8, 1));
+    CollectionEntity child =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.CLIENT_GALLERY)
+                .isClient(true)
+                .title("Flag cols child")
+                .slug("flag-cols-child")
+                .description("described")
+                .collectionDate(LocalDate.of(2026, 8, 2))
+                .collectionEndDate(LocalDate.of(2026, 8, 4))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(4)
+                .contentPerPage(25)
+                .rowsWide(3)
+                .totalContent(0)
+                .build());
+    linkChild(parent.getId(), child.getId(), true);
+
+    assertThat(collectionRepository.findReferencedCollectionsByParentId(parent.getId()))
+        .extracting(CollectionEntity::getId)
+        .contains(child.getId());
+    assertThat(collectionRepository.findAllReferencedCollectionsByParentId(parent.getId()))
+        .extracting(CollectionEntity::getId)
+        .contains(child.getId());
+    assertThat(collectionRepository.findListedByLocationName("no-such-location", 10, 0)).isEmpty();
+
+    // Every column in the shared list survives the join projection and the shared row mapper.
+    CollectionEntity viaParentLookup =
+        collectionRepository.findAllParentCollectionsByChildId(child.getId()).stream()
+            .filter(c -> c.getId().equals(parent.getId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(viaParentLookup.getSlug()).isEqualTo("flag-cols-parent");
+    assertThat(viaParentLookup.getType()).isEqualTo(CollectionType.PARENT);
+
+    CollectionEntity viaJoin =
+        collectionRepository.findReferencedCollectionsByParentId(parent.getId()).stream()
+            .filter(c -> c.getId().equals(child.getId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(viaJoin.isClient()).isTrue();
+    assertThat(viaJoin.isBlog()).isFalse();
+    assertThat(viaJoin.getDescription()).isEqualTo("described");
+    assertThat(viaJoin.getCollectionDate()).isEqualTo(LocalDate.of(2026, 8, 2));
+    assertThat(viaJoin.getCollectionEndDate()).isEqualTo(LocalDate.of(2026, 8, 4));
+    assertThat(viaJoin.getRating()).isEqualTo(4);
+    assertThat(viaJoin.getContentPerPage()).isEqualTo(25);
+    assertThat(viaJoin.getRowsWide()).isEqualTo(3);
+    assertThat(viaJoin.getCreatedAt()).isNotNull();
+  }
+
+  @Test
   void findClientGalleriesAndQualifyingParents_dualRoleCollectionAppearsOnce() {
     // A collection that satisfies BOTH arms of the OR (it is itself is_client AND it parents a
     // visible client child) must not be duplicated in the listing.
