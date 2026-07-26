@@ -54,19 +54,16 @@ class V50BackfillMigrationIntegrationTest {
           type.toLowerCase().replace('_', '-'),
           type);
     }
-    // A pre-existing label tag that already holds the target slug: V50 must reuse it, not
-    // duplicate it.
+    // A pre-existing tag holding the label NAME under an operator-chosen slug. This is the
+    // shape that broke the old slug-keyed seed: the slug guard passed, the tag_name unique
+    // constraint rejected the INSERT, and the slug join then attached zero rows while the
+    // migration reported success. V50 must attach to this tag and leave its slug alone.
     jdbc.update(
         "INSERT INTO tag (tag_name, slug, created_at) VALUES (?, ?, NOW())",
         "Portfolio",
-        "portfolio");
-    // A pre-existing tag holding the target NAME but a drifted slug: the slug guard alone would
-    // let the INSERT through, the tag_name unique constraint would reject it, and the slug join
-    // would then attach zero rows. V50 repairs the slug instead.
-    jdbc.update(
-        "INSERT INTO tag (tag_name, slug, created_at) VALUES (?, ?, NOW())",
-        "Art Gallery",
-        "art-gallery-old");
+        "portfolio-work");
+    // 'Art Gallery' is deliberately NOT seeded, so the other branch is covered too: V50
+    // creates it itself and it gets the canonical slug.
 
     migrateTo(dataSource, "latest");
   }
@@ -117,22 +114,36 @@ class V50BackfillMigrationIntegrationTest {
   }
 
   @Test
-  void labelTagsAreSeededOnceAndAttachedOnlyToTheirType() {
+  void existingLabelTagKeepsItsSlugAndStillReceivesItsCollections() {
+    // The operator's slug is untouched -- rewriting it would break whatever public /{slug}
+    // tag-view URL they chose.
     assertThat(
-            jdbc.queryForObject("SELECT count(*) FROM tag WHERE slug = 'portfolio'", Integer.class))
-        .isEqualTo(1);
+            jdbc.queryForObject("SELECT slug FROM tag WHERE tag_name = 'Portfolio'", String.class))
+        .isEqualTo("portfolio-work");
+    // And no duplicate was created under the canonical slug.
     assertThat(
             jdbc.queryForObject(
-                "SELECT count(*) FROM tag WHERE slug = 'art-gallery'", Integer.class))
+                "SELECT count(*) FROM tag WHERE tag_name = 'Portfolio'", Integer.class))
         .isEqualTo(1);
-    // The name-colliding tag was repaired in place rather than duplicated under a second name.
+    assertThat(
+            jdbc.queryForObject("SELECT count(*) FROM tag WHERE slug = 'portfolio'", Integer.class))
+        .isZero();
+    // The grouping the design depends on is attached anyway -- this is the B8 defect, and it is
+    // what the old slug-keyed join silently failed to do.
+    assertThat(taggedCollectionSlugs("Portfolio")).containsExactly("portfolio");
+  }
+
+  @Test
+  void absentLabelTagIsCreatedWithTheCanonicalSlugAndAttached() {
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM tag WHERE tag_name = 'Art Gallery'", Integer.class))
         .isEqualTo(1);
-
-    assertThat(taggedSlugs("art-gallery")).containsExactly("art-gallery");
-    assertThat(taggedSlugs("portfolio")).containsExactly("portfolio");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT slug FROM tag WHERE tag_name = 'Art Gallery'", String.class))
+        .isEqualTo("art-gallery");
+    assertThat(taggedCollectionSlugs("Art Gallery")).containsExactly("art-gallery");
   }
 
   @Test
@@ -142,7 +153,9 @@ class V50BackfillMigrationIntegrationTest {
     int before = jdbc.queryForObject("SELECT count(*) FROM collection_tags", Integer.class);
     jdbc.update(
         "INSERT INTO collection_tags (collection_id, tag_id) "
-            + "SELECT c.id, t.id FROM collection c JOIN tag t ON t.slug = 'portfolio' "
+            + "SELECT c.id, t.id FROM collection c JOIN tag t ON t.id = COALESCE("
+            + "(SELECT id FROM tag WHERE tag_name = 'Portfolio'), "
+            + "(SELECT id FROM tag WHERE slug = 'portfolio')) "
             + "WHERE c.type = 'PORTFOLIO' AND NOT EXISTS (SELECT 1 FROM collection_tags ct "
             + "WHERE ct.collection_id = c.id AND ct.tag_id = t.id)");
     assertThat(jdbc.queryForObject("SELECT count(*) FROM collection_tags", Integer.class))
@@ -159,11 +172,12 @@ class V50BackfillMigrationIntegrationTest {
         .isEqualTo(1);
   }
 
-  private List<String> taggedSlugs(String tagSlug) {
+  /** Slugs of the collections attached to the label tag with this name, whatever its slug is. */
+  private List<String> taggedCollectionSlugs(String tagName) {
     return jdbc.queryForList(
         "SELECT c.slug FROM collection c JOIN collection_tags ct ON ct.collection_id = c.id "
-            + "JOIN tag t ON t.id = ct.tag_id WHERE t.slug = ? ORDER BY c.slug",
+            + "JOIN tag t ON t.id = ct.tag_id WHERE t.tag_name = ? ORDER BY c.slug",
         String.class,
-        tagSlug);
+        tagName);
   }
 }

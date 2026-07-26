@@ -20,12 +20,14 @@
 --
 -- Audit queries -- run manually before deploying (see V15 for the same convention):
 --
--- -- 1. Tag seeding collisions: a tag already named 'Art Gallery'/'Portfolio' with a
--- --    hand-edited slug is repaired below; a *converted* tag (saved as a collection)
--- --    holding either slug would shadow the tag view entirely (TagViewResolver
--- --    returns empty for converted tags), which this migration cannot repair.
--- SELECT * FROM tag WHERE slug IN ('art-gallery','portfolio')
---                      OR tag_name IN ('Art Gallery','Portfolio');
+-- -- 1. Tag seeding collisions. A tag already named 'Art Gallery'/'Portfolio' with a
+-- --    hand-edited slug is reused as-is (its slug is NOT rewritten -- see the note
+-- --    above the seed below). A *converted* tag (saved as a collection) holding either
+-- --    name or slug would shadow the tag view entirely (TagViewResolver returns empty
+-- --    for converted tags); this migration cannot repair that, so check for it here.
+-- SELECT id, tag_name, slug, converted_collection_id FROM tag
+-- WHERE slug IN ('art-gallery','portfolio')
+--    OR tag_name IN ('Art Gallery','Portfolio');
 --
 -- -- 2. Scope of the display_mode backfill below (rows that would otherwise flip
 -- --    ORDERED -> CHRONOLOGICAL on their next read):
@@ -63,37 +65,41 @@ WHERE display_mode IS NULL
 --
 -- Idempotent + collision-safe without depending on any constraint of the pre-Flyway
 -- `tag` / `collection_tags` tables (a missing unique index would make an ON CONFLICT
--- target abort V50 and block application boot), so no ON CONFLICT is used at all:
---   * the UPDATE repairs a tag that already carries the name but drifted off the slug
---     -- otherwise its slug guard passes, the name unique constraint rejects the
---     INSERT, and the slug-join below silently attaches zero rows;
---   * the INSERT fires only when neither the slug nor the name exists;
+-- target abort V50 and block application boot), so no ON CONFLICT is used at all, and
+-- WITHOUT mutating any existing row:
+--   * the INSERT fires only when neither the name nor the canonical slug is taken, so
+--     it can never violate either unique constraint;
+--   * the attach resolves the label tag by tag_name FIRST, falling back to whichever
+--     tag holds the canonical slug. Resolving by slug alone was the bug: a tag already
+--     named 'Portfolio' with an operator-edited slug passes the slug guard, the
+--     tag_name unique constraint rejects the INSERT, and the slug-join then attaches
+--     zero rows while the migration reports success. Both subqueries return at most one
+--     row (tag_name and slug are each UNIQUE), so there is no fan-out;
 --   * the join-table inserts use NOT EXISTS instead of ON CONFLICT (collection_id, tag_id).
-
-UPDATE tag SET slug = 'art-gallery'
-WHERE tag_name = 'Art Gallery'
-  AND slug IS DISTINCT FROM 'art-gallery'
-  AND NOT EXISTS (SELECT 1 FROM tag t2 WHERE t2.slug = 'art-gallery');
+--
+-- This migration deliberately does NOT rewrite an existing tag's slug: that would break
+-- whatever public /{slug} tag-view URL the operator chose. Consequence for the tag-view
+-- routes (amends 132-C11): the canonical /art-gallery and /portfolio routes only appear
+-- when V50 creates the tag itself. If a differently-slugged tag already carries the name,
+-- the label grouping is attached to it and its existing route keeps working. Moving it to
+-- the canonical slug is a deliberate manual change, not a migration side effect.
 
 INSERT INTO tag (tag_name, slug, created_at)
 SELECT 'Art Gallery', 'art-gallery', NOW()
-WHERE NOT EXISTS (SELECT 1 FROM tag WHERE slug = 'art-gallery')
-  AND NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = 'Art Gallery');
-
-UPDATE tag SET slug = 'portfolio'
-WHERE tag_name = 'Portfolio'
-  AND slug IS DISTINCT FROM 'portfolio'
-  AND NOT EXISTS (SELECT 1 FROM tag t2 WHERE t2.slug = 'portfolio');
+WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = 'Art Gallery')
+  AND NOT EXISTS (SELECT 1 FROM tag WHERE slug = 'art-gallery');
 
 INSERT INTO tag (tag_name, slug, created_at)
 SELECT 'Portfolio', 'portfolio', NOW()
-WHERE NOT EXISTS (SELECT 1 FROM tag WHERE slug = 'portfolio')
-  AND NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = 'Portfolio');
+WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = 'Portfolio')
+  AND NOT EXISTS (SELECT 1 FROM tag WHERE slug = 'portfolio');
 
 INSERT INTO collection_tags (collection_id, tag_id)
 SELECT c.id, t.id
 FROM collection c
-JOIN tag t ON t.slug = 'art-gallery'
+JOIN tag t ON t.id = COALESCE(
+    (SELECT id FROM tag WHERE tag_name = 'Art Gallery'),
+    (SELECT id FROM tag WHERE slug = 'art-gallery'))
 WHERE c.type = 'ART_GALLERY'
   AND NOT EXISTS (SELECT 1 FROM collection_tags ct
                   WHERE ct.collection_id = c.id AND ct.tag_id = t.id);
@@ -101,7 +107,9 @@ WHERE c.type = 'ART_GALLERY'
 INSERT INTO collection_tags (collection_id, tag_id)
 SELECT c.id, t.id
 FROM collection c
-JOIN tag t ON t.slug = 'portfolio'
+JOIN tag t ON t.id = COALESCE(
+    (SELECT id FROM tag WHERE tag_name = 'Portfolio'),
+    (SELECT id FROM tag WHERE slug = 'portfolio'))
 WHERE c.type = 'PORTFOLIO'
   AND NOT EXISTS (SELECT 1 FROM collection_tags ct
                   WHERE ct.collection_id = c.id AND ct.tag_id = t.id);
