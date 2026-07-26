@@ -144,8 +144,8 @@ public class CollectionProcessingUtil {
     CollectionModel model = new CollectionModel();
     model.setId(entity.getId());
     model.setType(entity.getType());
-    model.setIsClient(entity.isClient());
-    model.setIsBlog(entity.isBlog());
+    model.setClient(entity.isClient());
+    model.setBlog(entity.isBlog());
     model.setTitle(entity.getTitle());
     model.setSlug(entity.getSlug());
     model.setDescription(entity.getDescription());
@@ -186,7 +186,7 @@ public class CollectionProcessingUtil {
 
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
-    // D10: chronological is the universal fallback when no display mode is stored; ORDERED is a
+    // Chronological is the universal fallback when no display mode is stored; ORDERED is a
     // per-collection opt-in (explicit displayMode in a request is always respected and persisted).
     DisplayMode mode = entity.getDisplayMode();
     if (mode == null) {
@@ -572,7 +572,7 @@ public class CollectionProcessingUtil {
     }
     CollectionEntity entity = new CollectionEntity();
     CollectionTypeCompat.Resolved resolved =
-        CollectionTypeCompat.resolve(request.isClient(), request.isBlog(), request.type(), null);
+        CollectionTypeCompat.forCreate(request.isClient(), request.isBlog(), request.type());
     entity.setType(resolved.type());
     entity.setClient(resolved.isClient());
     entity.setBlog(resolved.isBlog());
@@ -595,7 +595,7 @@ public class CollectionProcessingUtil {
     } else {
       entity.setContentPerPage(defaultPageSize);
     }
-    // D10: every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
+    // Every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
     // explicit opt-in via a later update request (Create carries no displayMode field).
     entity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
     // Apply type-specific defaults (pagination sizing)
@@ -631,12 +631,14 @@ public class CollectionProcessingUtil {
     // a legacy type-only request derives the booleans; a request with neither leaves type and
     // flags untouched.
     if (updateDTO.isClient() != null || updateDTO.isBlog() != null || updateDTO.type() != null) {
+      boolean wasClient = entity.isClient();
       CollectionTypeCompat.Resolved resolved =
-          CollectionTypeCompat.resolve(
-              updateDTO.isClient(), updateDTO.isBlog(), updateDTO.type(), entity.getType());
+          CollectionTypeCompat.forUpdate(
+              updateDTO.isClient(), updateDTO.isBlog(), updateDTO.type(), entity);
       entity.setType(resolved.type());
       entity.setClient(resolved.isClient());
       entity.setBlog(resolved.isBlog());
+      clearGalleryAccessOnClientDemotion(entity, wasClient, resolved.isClient());
     }
     // Handle location update using prev/new/remove pattern (many-to-many)
     if (updateDTO.locations() != null) {
@@ -705,6 +707,28 @@ public class CollectionProcessingUtil {
         entity.setCoverImageId(updateDTO.coverImageId());
       }
     }
+  }
+
+  /**
+   * Clear the gallery password and recipient list when an update demotes a collection out of
+   * client-gallery status. The public read gate keys on {@code galleryPassword != null}, and {@link
+   * CollectionService#updateGalleryAccess} refuses non-CLIENT_GALLERY/PARENT targets -- so without
+   * this a demoted collection would keep an enforced password that no endpoint can clear. Written
+   * through {@code saveGalleryAccess}, the sole owner of the password/recipients pair ({@link
+   * edens.zac.portfolio.backend.dao.CollectionRepository#save} deliberately omits them on UPDATE).
+   */
+  private void clearGalleryAccessOnClientDemotion(
+      CollectionEntity entity, boolean wasClient, boolean isClient) {
+    if (!wasClient || isClient || entity.getId() == null || entity.getGalleryPassword() == null) {
+      return;
+    }
+    collectionRepository.saveGalleryAccess(entity.getId(), null, List.of());
+    entity.setGalleryPassword(null);
+    entity.setRecipientEmails(new ArrayList<>());
+    log.info(
+        "Cleared gallery password and recipients after isClient demotion (id={}, slug={})",
+        entity.getId(),
+        entity.getSlug());
   }
 
   /**

@@ -1420,8 +1420,7 @@ public class CollectionService {
     List<CollectionEntity> children = collectionRepository.findByIds(referencedIds);
 
     boolean isClientGalleryContext =
-        Boolean.TRUE.equals(model.getIsClient())
-            || children.stream().anyMatch(CollectionEntity::isClient);
+        model.isClient() || children.stream().anyMatch(CollectionEntity::isClient);
 
     Set<Long> excludedIds =
         children.stream()

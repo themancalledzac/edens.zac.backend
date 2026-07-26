@@ -38,15 +38,17 @@ public class CollectionModel {
   private CollectionType type;
 
   /**
-   * True when this collection is a client gallery. Serializes as exactly {@code "isClient"} (the
-   * explicit JsonProperty guards against the Lombok/Jackson boolean-getter rename trap).
+   * True when this collection is a client gallery. Primitive because the wire contract is a
+   * required boolean (V50 makes the column NOT NULL and emission is total). Serializes as exactly
+   * {@code "isClient"} (the explicit JsonProperty guards against the Lombok/Jackson boolean-getter
+   * rename trap).
    */
   @JsonProperty("isClient")
-  private Boolean isClient;
+  private boolean isClient;
 
   /** True when this collection is a blog. Serializes as exactly {@code "isBlog"}. */
   @JsonProperty("isBlog")
-  private Boolean isBlog;
+  private boolean isBlog;
 
   @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") private String title;
 

@@ -262,9 +262,18 @@ class CollectionControllerProdTest {
                         "dolomites-film",
                         CollectionType.PORTFOLIO,
                         null,
-                        "https://cdn.example.com/dolomites-film-cover.jpg"),
+                        "https://cdn.example.com/dolomites-film-cover.jpg",
+                        false,
+                        false),
                     new Records.CollectionList(
-                        3L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO)))
+                        3L,
+                        "Alps Digital",
+                        "alps-digital",
+                        CollectionType.PORTFOLIO,
+                        null,
+                        null,
+                        false,
+                        false)))
             .build();
     when(collectionService.getCollectionWithPagination(eq("dolomites"), anyInt(), anyInt()))
         .thenReturn(model);

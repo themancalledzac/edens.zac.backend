@@ -366,12 +366,12 @@ class CollectionProcessingUtilTest {
   }
 
   // =============================================================================
-  // D10: chronological default display mode
+  // Chronological default display mode
   // =============================================================================
 
   @Test
   void toEntity_defaultsDisplayModeToChronologicalForEveryType() {
-    // D10: the type-keyed default (BLOG -> CHRONOLOGICAL, everything else -> ORDERED) is gone.
+    // The type-keyed default (BLOG -> CHRONOLOGICAL, everything else -> ORDERED) is gone.
     // Every create without an explicit displayMode lands on CHRONOLOGICAL; ORDERED is opt-in
     // via a later update.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
@@ -524,6 +524,50 @@ class CollectionProcessingUtilTest {
     assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
     assertTrue(testEntity.isClient());
     assertFalse(testEntity.isBlog());
+  }
+
+  @Test
+  void applyBasicUpdates_partialIsBlogFalse_onClientGallery_doesNotDemote() {
+    // Wiring-seam pin: applyBasicUpdates must hand the entity's CURRENT booleans to the compat
+    // resolver, not just its legacy type column. Without that, {"isBlog": false} alone clears
+    // is_client on a drifted row today, and demotes every client gallery once phase 2 nulls the
+    // type column. Mutating entity.getType() to null must not change the outcome.
+    testEntity.setType(CollectionType.CLIENT_GALLERY);
+    testEntity.setClient(true);
+    testEntity.setBlog(false);
+
+    util.applyBasicUpdates(
+        testEntity,
+        new CollectionRequests.Update(
+            1L, null, null, false, null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null));
+
+    assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
+    assertTrue(testEntity.isClient());
+    assertFalse(testEntity.isBlog());
+  }
+
+  @Test
+  void applyBasicUpdates_isClientDemotion_clearsGalleryAccess() {
+    // updateGalleryAccess refuses non-CLIENT_GALLERY/PARENT targets and the read gate keys on
+    // galleryPassword != null, so a demoted collection would otherwise keep an enforced password
+    // that no endpoint can clear.
+    testEntity.setType(CollectionType.CLIENT_GALLERY);
+    testEntity.setClient(true);
+    testEntity.setGalleryPassword("secret");
+    testEntity.setRecipientEmails(new ArrayList<>(List.of("client@example.com")));
+
+    util.applyBasicUpdates(
+        testEntity,
+        new CollectionRequests.Update(
+            1L, null, false, null, null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null));
+
+    assertEquals(CollectionType.MISC, testEntity.getType());
+    assertFalse(testEntity.isClient());
+    assertNull(testEntity.getGalleryPassword());
+    assertTrue(testEntity.getRecipientEmails().isEmpty());
+    verify(collectionRepository).saveGalleryAccess(1L, null, List.of());
   }
 
   @Test

@@ -69,7 +69,9 @@ public final class Records {
    * collection date (serialized as an ISO date string; null when not projected), and an optional
    * cover image URL (null when the collection has no cover image or it was not projected). The
    * cover image lets the frontend render related/sibling collections as image cards rather than
-   * text links.
+   * text links. {@code isClient}/{@code isBlog} are primitive: the wire contract is a required
+   * boolean, and the back-compat overloads that defaulted them to null are gone so no call site can
+   * emit an absent flag.
    */
   public record CollectionList(
       Long id,
@@ -78,33 +80,8 @@ public final class Records {
       CollectionType type,
       LocalDate collectionDate,
       String coverImageUrl,
-      @JsonProperty("isClient") Boolean isClient,
-      @JsonProperty("isBlog") Boolean isBlog) {
-
-    /** Backwards-compatible constructor for callers that omit the client/blog flags. */
-    public CollectionList(
-        Long id,
-        String name,
-        String slug,
-        CollectionType type,
-        LocalDate collectionDate,
-        String coverImageUrl) {
-      this(id, name, slug, type, collectionDate, coverImageUrl, null, null);
-    }
-
-    /** Backwards-compatible constructor for callers that omit the cover image URL. */
-    public CollectionList(
-        Long id, String name, String slug, CollectionType type, LocalDate collectionDate) {
-      this(id, name, slug, type, collectionDate, null, null, null);
-    }
-
-    /**
-     * Backwards-compatible constructor for callers that omit the collection date and cover image.
-     */
-    public CollectionList(Long id, String name, String slug, CollectionType type) {
-      this(id, name, slug, type, null, null, null, null);
-    }
-  }
+      @JsonProperty("isClient") boolean isClient,
+      @JsonProperty("isBlog") boolean isBlog) {}
 
   /**
    * Internal projection of a sibling collection row. Carries the raw {@code coverImageId} (FK to
