@@ -49,6 +49,8 @@ public class TagRepository extends BaseDao {
         CollectionEntity entity = new CollectionEntity();
         entity.setId(rs.getLong("id"));
         entity.setType(CollectionType.valueOf(rs.getString("type")));
+        entity.setClient(rs.getBoolean("is_client"));
+        entity.setBlog(rs.getBoolean("is_blog"));
         entity.setTitle(rs.getString("title"));
         entity.setSlug(rs.getString("slug"));
         entity.setDescription(rs.getString("description"));
@@ -330,7 +332,7 @@ public class TagRepository extends BaseDao {
     }
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date,
+        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c

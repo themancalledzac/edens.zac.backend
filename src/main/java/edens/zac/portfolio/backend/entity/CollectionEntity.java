@@ -26,6 +26,18 @@ public class CollectionEntity {
   /** Column: type (VARCHAR, NOT NULL) - enum: BLOG, CLIENT_GALLERY, PORTFOLIO, MISC */
   @NotNull private CollectionType type;
 
+  /**
+   * Column: is_client (BOOLEAN, NOT NULL, default false) - storage truth for what {@code
+   * type=CLIENT_GALLERY} means; kept in sync with {@code type} during the dual-compat window.
+   */
+  private boolean isClient;
+
+  /**
+   * Column: is_blog (BOOLEAN, NOT NULL, default false) - storage truth for what {@code type=BLOG}
+   * means; kept in sync with {@code type} during the dual-compat window.
+   */
+  private boolean isBlog;
+
   /** Column: title (VARCHAR(100), NOT NULL) */
   @NotBlank @Size(min = 3, max = 100) private String title;
 

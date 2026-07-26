@@ -39,7 +39,7 @@ public class CollectionRepository extends BaseDao {
 
   private static final String SELECT_COLLECTION =
       """
-      SELECT id, type, title, slug, description, collection_date, collection_end_date,
+      SELECT id, type, is_client, is_blog, title, slug, description, collection_date, collection_end_date,
              visibility, display_mode, cover_image_id, content_per_page, total_content,
              rows_wide, gallery_password, recipient_emails, rating, created_at, updated_at
       FROM collection
@@ -50,6 +50,8 @@ public class CollectionRepository extends BaseDao {
         CollectionEntity entity = new CollectionEntity();
         entity.setId(rs.getLong("id"));
         entity.setType(CollectionType.valueOf(rs.getString("type")));
+        entity.setClient(rs.getBoolean("is_client"));
+        entity.setBlog(rs.getBoolean("is_blog"));
         entity.setTitle(rs.getString("title"));
         entity.setSlug(rs.getString("slug"));
         entity.setDescription(rs.getString("description"));
@@ -120,49 +122,30 @@ public class CollectionRepository extends BaseDao {
     return queryForObject(sql, COLLECTION_ROW_MAPPER, params);
   }
 
+  /** Find LISTED blog collections ({@code is_blog = true}), rating-first then newest. */
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findByTypeAndListedOrdered(CollectionType type) {
+  public List<CollectionEntity> findListedBlogsOrdered() {
     String sql =
         SELECT_COLLECTION
-            + " WHERE type = :type AND visibility = 'LISTED' "
+            + " WHERE is_blog = true AND visibility = 'LISTED' "
             + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST";
-    MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
-    return query(sql, COLLECTION_ROW_MAPPER, params);
+    return query(sql, COLLECTION_ROW_MAPPER);
   }
 
   /**
-   * Find collections of a given type on an exact collection_date, oldest first. Used by the
-   * tag-first ingest flow to get-or-create the per-day BLOG collection keyed on {@code (type=BLOG,
-   * collection_date=day)}. Ordering by {@code created_at ASC} means callers can take the first
-   * result as the canonical (oldest) collection when duplicates unexpectedly exist.
+   * Find blog collections ({@code is_blog = true}) on an exact collection_date, oldest first. Used
+   * by the tag-first ingest flow to get-or-create the per-day blog collection keyed on {@code
+   * (is_blog=true, collection_date=day)}. Ordering by {@code created_at ASC} means callers can take
+   * the first result as the canonical (oldest) collection when duplicates unexpectedly exist.
    */
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findByTypeAndCollectionDate(
-      CollectionType type, LocalDate collectionDate) {
+  public List<CollectionEntity> findBlogsByCollectionDate(LocalDate collectionDate) {
     String sql =
         SELECT_COLLECTION
-            + " WHERE type = :type AND collection_date = :collectionDate "
+            + " WHERE is_blog = true AND collection_date = :collectionDate "
             + "ORDER BY created_at ASC";
     MapSqlParameterSource params =
-        createParameterSource()
-            .addValue("type", type.name())
-            .addValue("collectionDate", collectionDate);
-    return query(sql, COLLECTION_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<CollectionEntity> findByTypeOrderByCollectionDateDesc(
-      CollectionType type, int limit, int offset) {
-    String sql =
-        SELECT_COLLECTION
-            + " WHERE type = :type AND visibility = 'LISTED' "
-            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST "
-            + "LIMIT :limit OFFSET :offset";
-    MapSqlParameterSource params =
-        createParameterSource()
-            .addValue("type", type.name())
-            .addValue("limit", limit)
-            .addValue("offset", offset);
+        createParameterSource().addValue("collectionDate", collectionDate);
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
@@ -175,7 +158,7 @@ public class CollectionRepository extends BaseDao {
   public List<CollectionEntity> findReferencedCollectionsByParentId(Long parentId) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
+        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -200,7 +183,7 @@ public class CollectionRepository extends BaseDao {
   public List<CollectionEntity> findAllReferencedCollectionsByParentId(Long parentId) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
+        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -269,7 +252,7 @@ public class CollectionRepository extends BaseDao {
   public List<CollectionEntity> findAllParentCollectionsByChildId(Long childId) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
+        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -293,19 +276,11 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public long countByType(CollectionType type) {
-    String sql = "SELECT COUNT(*) FROM collection WHERE type = :type AND visibility = 'LISTED'";
-    MapSqlParameterSource params = createParameterSource().addValue("type", type.name());
-    Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
-    return count != null ? count : 0L;
-  }
-
-  @Transactional(readOnly = true)
   public List<CollectionEntity> findListedByLocationName(
       String locationName, int limit, int offset) {
     String sql =
         """
-        SELECT c.id, c.type, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
+        SELECT c.id, c.type, c.is_client, c.is_blog, c.title, c.slug, c.description, c.collection_date, c.collection_end_date,
                c.visibility, c.display_mode, c.cover_image_id, c.content_per_page, c.total_content,
                c.rows_wide, c.gallery_password, c.recipient_emails, c.rating, c.created_at, c.updated_at
         FROM collection c
@@ -376,32 +351,30 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
-   * Find collections whose visibility is in the supplied set, optionally filtered by type, ordered
-   * by rating then collection_date. Used by synthetic-slug list views (env-aware visibility scope:
-   * dev includes all, prod includes only LISTED).
+   * Find client-gallery collections ({@code is_client = true}) whose visibility is in the supplied
+   * set, ordered by rating then collection_date. Includes empty collections — used by admin-cover
+   * candidate selection where content is irrelevant.
    */
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findOrderedByVisibilityIn(
-      List<CollectionVisibility> allowed, CollectionType typeFilter) {
-    StringBuilder sql =
-        new StringBuilder(SELECT_COLLECTION).append(" WHERE visibility IN (:visibilities) ");
+  public List<CollectionEntity> findClientGalleriesByVisibilityIn(
+      List<CollectionVisibility> allowed) {
+    String sql =
+        SELECT_COLLECTION
+            + " WHERE visibility IN (:visibilities) AND is_client = true "
+            + "ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST";
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
-    if (typeFilter != null) {
-      sql.append(" AND type = :type ");
-      params.addValue("type", typeFilter.name());
-    }
-    sql.append(" ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST");
-    return query(sql.toString(), COLLECTION_ROW_MAPPER, params);
+    return query(sql, COLLECTION_ROW_MAPPER, params);
   }
 
   /**
-   * Same as {@link #findOrderedByVisibilityIn} but additionally drops collections that have zero
-   * non-soft-removed entries in {@code collection_content}. Used by synthetic-list endpoints (e.g.
-   * {@code /all-collections}, {@code /all-blogs}) so the listing never renders empty tiles.
-   * Admin-only flows that need empty collections (e.g. cover-image picking) should keep using
-   * {@link #findOrderedByVisibilityIn}.
+   * Find collections whose visibility is in the supplied set, optionally filtered by legacy type,
+   * dropping collections that have zero non-soft-removed entries in {@code collection_content}.
+   * Used by synthetic-list endpoints (e.g. {@code /all-collections}, {@code /all-blogs}) so the
+   * listing never renders empty tiles. Admin-only flows that need empty collections (e.g.
+   * cover-image picking) should use {@link #findClientGalleriesByVisibilityIn}. The type filter
+   * remains legacy-keyed for the synthetic-slug catalog, which a later task prunes.
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findNonEmptyOrderedByVisibilityIn(
@@ -488,13 +461,14 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
-   * Find every CLIENT_GALLERY plus every PARENT that has at least one CLIENT_GALLERY child, all
-   * within the supplied visibility set, ordered by rating then collection_date. The PARENT branch
-   * walks the same join chain as {@link #findReferencedCollectionsByParentId} (parent ->
+   * Find every client gallery ({@code is_client = true}) plus every collection that has at least
+   * one visible client-gallery child (a "derived parent" — no parent-side type filter), all within
+   * the supplied visibility set, ordered by rating then collection_date. The parent branch walks
+   * the same join chain as {@link #findReferencedCollectionsByParentId} (parent ->
    * collection_content -> content_collection -> child) and applies the same visibility scope to the
-   * child rows so PARENTs whose only matching child is HIDDEN do not appear. Used by the
-   * "all-client-galleries" synthetic listing where PARENT-of-galleries (e.g. wedding wrappers)
-   * should appear alongside standalone CLIENT_GALLERYs.
+   * child rows so parents whose only matching child is HIDDEN do not appear. Used by the
+   * "all-client-galleries" synthetic listing where parents-of-galleries (e.g. wedding wrappers)
+   * should appear alongside standalone client galleries.
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findClientGalleriesAndQualifyingParents(
@@ -504,18 +478,15 @@ public class CollectionRepository extends BaseDao {
             + """
              WHERE visibility IN (:visibilities)
                AND (
-                 type = 'CLIENT_GALLERY'
-                 OR (
-                   type = 'PARENT'
-                   AND id IN (
-                     SELECT cc.collection_id
-                     FROM collection_content cc
-                     JOIN content_collection cct ON cct.id = cc.content_id
-                     JOIN collection child ON child.id = cct.referenced_collection_id
-                     WHERE child.type = 'CLIENT_GALLERY'
-                       AND child.visibility IN (:visibilities)
-                       AND cc.visible = true
-                   )
+                 is_client = true
+                 OR id IN (
+                   SELECT cc.collection_id
+                   FROM collection_content cc
+                   JOIN content_collection cct ON cct.id = cc.content_id
+                   JOIN collection child ON child.id = cct.referenced_collection_id
+                   WHERE child.is_client = true
+                     AND child.visibility IN (:visibilities)
+                     AND cc.visible = true
                  )
                )
              ORDER BY rating DESC NULLS LAST, collection_date DESC NULLS LAST
@@ -542,7 +513,8 @@ public class CollectionRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public List<Records.CollectionList> findIdTitleSlugAndType() {
-    String sql = "SELECT id, title, slug, type FROM collection ORDER BY title ASC";
+    String sql =
+        "SELECT id, title, slug, type, is_client, is_blog FROM collection ORDER BY title ASC";
     return jdbcTemplate.query(
         sql,
         (rs, rowNum) ->
@@ -550,7 +522,11 @@ public class CollectionRepository extends BaseDao {
                 rs.getLong("id"),
                 rs.getString("title"),
                 rs.getString("slug"),
-                CollectionType.valueOf(rs.getString("type"))));
+                CollectionType.valueOf(rs.getString("type")),
+                null,
+                null,
+                rs.getBoolean("is_client"),
+                rs.getBoolean("is_blog")));
   }
 
   /**
@@ -563,10 +539,10 @@ public class CollectionRepository extends BaseDao {
     if (entity.getId() == null) {
       String sql =
           """
-          INSERT INTO collection (type, title, slug, description, collection_date, collection_end_date,
+          INSERT INTO collection (type, is_client, is_blog, title, slug, description, collection_date, collection_end_date,
                                  visibility, display_mode, cover_image_id, content_per_page, total_content,
                                  rows_wide, gallery_password, rating, created_at, updated_at)
-          VALUES (:type, :title, :slug, :description, :collectionDate, :collectionEndDate,
+          VALUES (:type, :isClient, :isBlog, :title, :slug, :description, :collectionDate, :collectionEndDate,
                   :visibility, :displayMode, :coverImageId, :contentPerPage, :totalContent,
                   :rowsWide, :galleryPassword, :rating, :createdAt, :updatedAt)
           """;
@@ -574,6 +550,8 @@ public class CollectionRepository extends BaseDao {
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("type", entity.getType().name())
+              .addValue("isClient", entity.isClient())
+              .addValue("isBlog", entity.isBlog())
               .addValue("title", entity.getTitle())
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())
@@ -605,7 +583,7 @@ public class CollectionRepository extends BaseDao {
       String sql =
           """
           UPDATE collection
-          SET type = :type, title = :title, slug = :slug, description = :description,
+          SET type = :type, is_client = :isClient, is_blog = :isBlog, title = :title, slug = :slug, description = :description,
               collection_date = :collectionDate, collection_end_date = :collectionEndDate,
               visibility = :visibility, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
@@ -617,6 +595,8 @@ public class CollectionRepository extends BaseDao {
           createParameterSource()
               .addValue("id", entity.getId())
               .addValue("type", entity.getType().name())
+              .addValue("isClient", entity.isClient())
+              .addValue("isBlog", entity.isBlog())
               .addValue("title", entity.getTitle())
               .addValue("slug", entity.getSlug())
               .addValue("description", entity.getDescription())

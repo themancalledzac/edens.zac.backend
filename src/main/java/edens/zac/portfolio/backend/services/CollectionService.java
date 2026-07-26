@@ -157,49 +157,29 @@ public class CollectionService {
     return model;
   }
 
-  @Transactional(readOnly = true)
-  public Page<CollectionModel> findByType(CollectionType type, Pageable pageable) {
-    log.debug("Finding collections by type: {}", type);
-
-    // Get total count
-    long totalElements = collectionRepository.countByType(type);
-
-    // Get paginated collections directly from DB
-    int page = pageable.getPageNumber();
-    int size = pageable.getPageSize();
-    List<CollectionEntity> paginatedCollections =
-        collectionRepository.findByTypeOrderByCollectionDateDesc(type, size, page * size);
-
-    // Convert to models using batch loading
-    List<CollectionModel> models =
-        collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
-
-    return new PageImpl<>(models, pageable, totalElements);
-  }
-
   /**
-   * Find LISTED collections of a given type, ordered by rating then collection_date. Used by
-   * AdminHomeService to pick cover images for type-specific admin home tiles.
+   * Find LISTED blog collections ({@code is_blog = true}), ordered by rating then collection_date.
+   * Used by AdminHomeService to pick cover images for the blogs admin home tile.
    */
   @Transactional(readOnly = true)
-  public List<CollectionModel> findVisibleByTypeOrderByDate(CollectionType type) {
-    log.debug("Finding visible collections by type ordered by date: {}", type);
-    List<CollectionEntity> collections = collectionRepository.findByTypeAndListedOrdered(type);
+  public List<CollectionModel> findVisibleBlogsOrderedByDate() {
+    log.debug("Finding visible blog collections ordered by date");
+    List<CollectionEntity> collections = collectionRepository.findListedBlogsOrdered();
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
   /**
-   * Find non-HIDDEN collections of a given type (LISTED + UNLISTED) for admin-only contexts where
-   * UNLISTED is acceptable to surface. Used by {@link AdminHomeService} to pick cover images for
-   * tiles like {@code client-galleries}, where the typical visibility is UNLISTED — the regular
-   * "visible" lookup would return no candidates and the tile would render with no cover.
+   * Find non-HIDDEN client galleries ({@code is_client = true}, LISTED + UNLISTED) for admin-only
+   * contexts where UNLISTED is acceptable to surface. Used by {@link AdminHomeService} to pick
+   * cover images for the {@code client-galleries} tile, where the typical visibility is UNLISTED —
+   * a LISTED-only lookup would return no candidates and the tile would render with no cover.
    */
   @Transactional(readOnly = true)
-  public List<CollectionModel> findByTypeForAdminCovers(CollectionType type) {
-    log.debug("Finding admin-cover candidates by type: {}", type);
+  public List<CollectionModel> findClientGalleriesForAdminCovers() {
+    log.debug("Finding admin-cover candidates for client galleries");
     List<CollectionEntity> collections =
-        collectionRepository.findOrderedByVisibilityIn(
-            List.of(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED), type);
+        collectionRepository.findClientGalleriesByVisibilityIn(
+            List.of(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED));
     return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
@@ -765,7 +745,14 @@ public class CollectionService {
             .map(
                 p ->
                     new Records.CollectionList(
-                        p.getId(), p.getTitle(), p.getSlug(), p.getType(), p.getCollectionDate()))
+                        p.getId(),
+                        p.getTitle(),
+                        p.getSlug(),
+                        p.getType(),
+                        p.getCollectionDate(),
+                        null,
+                        p.isClient(),
+                        p.isBlog()))
             .toList());
 
     return new CollectionRequests.UpdateResponse(collection, metadata, childCollectionImages);

@@ -554,14 +554,14 @@ public class ImageUploadPipelineService {
   }
 
   /**
-   * Get-or-create the BLOG collection for a capture day, keyed on {@code (type=BLOG,
+   * Get-or-create the blog collection for a capture day, keyed on {@code (is_blog=true,
    * collectionDate=day)}. If exactly one exists, reuse it; if multiple exist (should not happen),
-   * use the oldest and log a warning; otherwise create a new BLOG whose title/slug derive from the
-   * ISO date.
+   * use the oldest and log a warning; otherwise create a new blog whose title/slug derive from the
+   * ISO date. Creation still writes the legacy {@code type=BLOG} for dual-compat (the mapping layer
+   * derives {@code is_blog=true} from it).
    */
   private Long getOrCreateBlogForDay(LocalDate day) {
-    List<CollectionEntity> existing =
-        collectionRepository.findByTypeAndCollectionDate(CollectionType.BLOG, day);
+    List<CollectionEntity> existing = collectionRepository.findBlogsByCollectionDate(day);
     if (!existing.isEmpty()) {
       if (existing.size() > 1) {
         log.warn(

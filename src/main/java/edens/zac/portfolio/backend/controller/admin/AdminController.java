@@ -378,13 +378,20 @@ class AdminController {
     return ResponseEntity.ok(Map.of("deletedId", deletedId));
   }
 
-  /** Create a new collection and upload images to it in one request. */
+  /**
+   * Create a new collection and upload images to it in one request. During the dual-compat window
+   * the legacy {@code type} param is optional and the {@code isClient}/{@code isBlog} booleans are
+   * accepted (booleans win; neither type nor booleans lands on MISC -- see {@code
+   * CollectionTypeCompat}).
+   */
   @PostMapping(
       value = "/content/images/create-collection",
       consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
   public ResponseEntity<ImageUploadResult> createCollectionWithImages(
       @RequestParam("title") String title,
-      @RequestParam("type") String type,
+      @RequestParam(value = "type", required = false) String type,
+      @RequestParam(value = "isClient", required = false) Boolean isClient,
+      @RequestParam(value = "isBlog", required = false) Boolean isBlog,
       @RequestParam(value = "description", required = false) String description,
       @RequestParam(value = "locationIds", required = false) List<Long> locationIds,
       @RequestParam(value = "locationNames", required = false) List<String> locationNames,
@@ -398,11 +405,18 @@ class AdminController {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    CollectionType collectionType = CollectionType.forValue(type);
+    CollectionType collectionType = type != null ? CollectionType.forValue(type) : null;
 
     CollectionRequests.Create createRequest =
         new CollectionRequests.Create(
-            collectionType, title, description, locationIds, locationNames, collectionDate);
+            collectionType,
+            title,
+            description,
+            locationIds,
+            locationNames,
+            collectionDate,
+            isClient,
+            isBlog);
 
     Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
     ImageUploadResult result =

@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
@@ -18,20 +19,35 @@ public final class CollectionRequests {
   private CollectionRequests() {} // Prevent instantiation
 
   /**
-   * Request for creating a new ContentCollection. Type and title are required; all other fields are
-   * optional and will use defaults if not provided.
+   * Request for creating a new ContentCollection. Title is required; all other fields are optional
+   * and use defaults if not provided. During the dual-compat window the legacy {@code type} is
+   * optional (new frontends send only the booleans + title; a create with neither type nor booleans
+   * lands on MISC). {@code isClient}/{@code isBlog} win over {@code type} when provided.
    */
   public record Create(
-      @NotNull(message = "Type is required") CollectionType type,
+      CollectionType type,
       @NotNull(message = "Title is required") @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,
       @Size(max = 500, message = "Description cannot exceed 500 characters") String description,
       List<Long> locationIds,
       List<String> locationNames,
-      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate) {
+      @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
+      @JsonProperty("isClient") Boolean isClient,
+      @JsonProperty("isBlog") Boolean isBlog) {
+
+    /** Backwards-compatible constructor for callers predating the client/blog booleans. */
+    public Create(
+        CollectionType type,
+        String title,
+        String description,
+        List<Long> locationIds,
+        List<String> locationNames,
+        LocalDate collectionDate) {
+      this(type, title, description, locationIds, locationNames, collectionDate, null, null);
+    }
 
     /** Backwards-compatible constructor for callers that only provide type and title. */
     public Create(CollectionType type, String title) {
-      this(type, title, null, null, null, null);
+      this(type, title, null, null, null, null, null, null);
     }
   }
 
@@ -43,8 +59,18 @@ public final class CollectionRequests {
   public record Update(
       /** The ID of the collection to update (required) */
       @NotNull(message = "Collection ID is required for updates") Long id,
-      /** Collection type */
+      /** Legacy collection type; the booleans win when both are present (dual-compat window). */
       CollectionType type,
+      /**
+       * Set/clear the client-gallery flag. Null leaves it untouched (unless {@code type} is set,
+       * which then derives it). Setting it true clears {@code isBlog}.
+       */
+      @JsonProperty("isClient") Boolean isClient,
+      /**
+       * Set/clear the blog flag. Null leaves it untouched (unless {@code type} is set, which then
+       * derives it). Setting it true clears {@code isClient}.
+       */
+      @JsonProperty("isBlog") Boolean isBlog,
       /** Collection title */
       @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,
       /** Collection slug */
@@ -130,6 +156,8 @@ public final class CollectionRequests {
       this(
           id,
           type,
+          null,
+          null,
           title,
           slug,
           description,
