@@ -237,6 +237,21 @@ class CollectionTypeCompatTest {
       assertThat(resolved.isBlog()).isTrue();
     }
 
+    @ParameterizedTest
+    @EnumSource(
+        value = CollectionType.class,
+        names = {"PARENT", "HOME", "PORTFOLIO", "ART_GALLERY"})
+    void typeWithoutFlags_isAcceptedAndPreserved(CollectionType type) {
+      // The frontend keeps sending the legacy `type` alongside the booleans for the whole compat
+      // window, because booleans can only express CLIENT_GALLERY and BLOG. So type-only writes are
+      // the PRIMARY path for PARENT/HOME/PORTFOLIO/ART_GALLERY, not a stale-client fallback: they
+      // must never hit the parent-type guard (which fires only on an explicit true flag).
+      assertThat(CollectionTypeCompat.forCreate(null, null, type).type()).isEqualTo(type);
+      assertThat(
+              CollectionTypeCompat.forUpdate(null, null, type, current(CollectionType.MISC)).type())
+          .isEqualTo(type);
+    }
+
     @Test
     void nothingProvidedAtAll_landsOnMisc() {
       var resolved = CollectionTypeCompat.forCreate(null, null, null);

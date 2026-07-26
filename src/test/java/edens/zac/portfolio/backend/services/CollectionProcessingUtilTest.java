@@ -144,14 +144,14 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void applyTypeSpecificDefaults_shouldSetDefaultsBasedOnType() {
+  void applyPaginationDefaults_setsPaginationOnly_leavesVisibilityUntouched() {
     // Arrange
     CollectionEntity entity = new CollectionEntity();
     entity.setType(CollectionType.CLIENT_GALLERY);
     entity.setVisibility(CollectionVisibility.HIDDEN);
 
     // Act
-    CollectionEntity result = util.applyTypeSpecificDefaults(entity);
+    CollectionEntity result = util.applyPaginationDefaults(entity);
 
     // Assert
     assertEquals(30, result.getContentPerPage());

@@ -573,9 +573,7 @@ public class CollectionProcessingUtil {
     CollectionEntity entity = new CollectionEntity();
     CollectionTypeCompat.Resolved resolved =
         CollectionTypeCompat.forCreate(request.isClient(), request.isBlog(), request.type());
-    entity.setType(resolved.type());
-    entity.setClient(resolved.isClient());
-    entity.setBlog(resolved.isBlog());
+    resolved.applyTo(entity);
     if (request.type() == null && request.isClient() == null && request.isBlog() == null) {
       log.info(
           "Create for '{}' carried neither type nor flags -- landing on MISC", request.title());
@@ -602,7 +600,7 @@ public class CollectionProcessingUtil {
     // Every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
     // explicit opt-in via a later update request (Create carries no displayMode field).
     entity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
-    return applyTypeSpecificDefaults(entity);
+    return applyPaginationDefaults(entity);
   }
 
   // =============================================================================
@@ -647,9 +645,7 @@ public class CollectionProcessingUtil {
             entity.isBlog(),
             resolved.isBlog());
       }
-      entity.setType(resolved.type());
-      entity.setClient(resolved.isClient());
-      entity.setBlog(resolved.isBlog());
+      resolved.applyTo(entity);
       clearGalleryAccessOnClientDemotion(entity, wasClient, resolved.isClient());
     }
     // Handle location update using prev/new/remove pattern (many-to-many)
@@ -932,14 +928,15 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Update entity with type-specific defaults (pagination sizing). Visibility is intentionally NOT
-   * touched here: new collections default to UNLISTED in {@link #toEntity} regardless of type
-   * (privacy-first), and updates only change visibility when explicitly requested.
+   * Fill in the default pagination size for a non-parent collection that has none. Visibility is
+   * intentionally NOT touched here: new collections default to UNLISTED in {@link #toEntity}
+   * regardless of type (privacy-first), and updates only change visibility when explicitly
+   * requested.
    *
    * @param entity The entity to update
    * @return The updated entity
    */
-  public CollectionEntity applyTypeSpecificDefaults(CollectionEntity entity) {
+  public CollectionEntity applyPaginationDefaults(CollectionEntity entity) {
     if (entity == null || entity.getType() == null) {
       return entity;
     }

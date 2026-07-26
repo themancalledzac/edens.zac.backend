@@ -43,12 +43,22 @@ public final class CollectionTypeCompat {
 
   private CollectionTypeCompat() {} // Prevent instantiation
 
+  private static final Resolved CLIENT = new Resolved(CollectionType.CLIENT_GALLERY, true, false);
+  private static final Resolved BLOG = new Resolved(CollectionType.BLOG, false, true);
+
   /**
    * The resolved legacy type plus the boolean flags. The compact constructor enforces the
    * consistency the rest of the codebase assumes, so no caller can construct (or a future rule
    * branch return) a triple such as {@code (BLOG, true, false)}.
    */
   public record Resolved(CollectionType type, boolean isClient, boolean isBlog) {
+
+    /** Apply the whole triple to an entity, so no call site can half-apply it. */
+    public void applyTo(CollectionEntity entity) {
+      entity.setType(type);
+      entity.setClient(isClient);
+      entity.setBlog(isBlog);
+    }
 
     /** Rejects any triple whose flags disagree with the type. */
     public Resolved {
@@ -136,10 +146,10 @@ public final class CollectionTypeCompat {
       // An explicit true is a category change: it wins over the legacy type and clears the
       // other flag (mutual exclusion), whether that flag was absent or explicitly false.
       if (Boolean.TRUE.equals(isClientRequested)) {
-        return new Resolved(CollectionType.CLIENT_GALLERY, true, false);
+        return CLIENT;
       }
       if (Boolean.TRUE.equals(isBlogRequested)) {
-        return new Resolved(CollectionType.BLOG, false, true);
+        return BLOG;
       }
       // Remaining flags are explicit false (clear) or null (leave untouched). A null flag
       // inherits the entity's current boolean, unless the request also names a legacy type --
@@ -148,10 +158,10 @@ public final class CollectionTypeCompat {
           requestedType != null ? deriveIsClient(requestedType) : currentIsClient;
       boolean baseIsBlog = requestedType != null ? deriveIsBlog(requestedType) : currentIsBlog;
       if (isClientRequested == null && baseIsClient) {
-        return new Resolved(CollectionType.CLIENT_GALLERY, true, false);
+        return CLIENT;
       }
       if (isBlogRequested == null && baseIsBlog) {
-        return new Resolved(CollectionType.BLOG, false, true);
+        return BLOG;
       }
       // Neither flag survives: preserve the base type unless it encoded client/blog, which
       // was just explicitly disclaimed -- that folds to MISC.
@@ -163,16 +173,20 @@ public final class CollectionTypeCompat {
 
     // Legacy path: no booleans in the request. Type field (or current type) drives the flags.
     CollectionType type = base != null ? base : CollectionType.MISC;
-    return new Resolved(type, deriveIsClient(type), deriveIsBlog(type));
+    return switch (type) {
+      case CLIENT_GALLERY -> CLIENT;
+      case BLOG -> BLOG;
+      case PORTFOLIO, ART_GALLERY, HOME, PARENT, MISC -> new Resolved(type, false, false);
+    };
   }
 
   /** True when the legacy type encodes a client gallery. */
-  public static boolean deriveIsClient(CollectionType type) {
+  private static boolean deriveIsClient(CollectionType type) {
     return type == CollectionType.CLIENT_GALLERY;
   }
 
   /** True when the legacy type encodes a blog. */
-  public static boolean deriveIsBlog(CollectionType type) {
+  private static boolean deriveIsBlog(CollectionType type) {
     return type == CollectionType.BLOG;
   }
 }
