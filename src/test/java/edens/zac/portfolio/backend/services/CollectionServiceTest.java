@@ -1275,6 +1275,53 @@ class CollectionServiceTest {
               301L, 302L, 303L); // gallery + both non-hidden portfolios kept; HIDDEN dropped
     }
 
+    @Test
+    void nonParentWrapperOfClientGalleries_keepsUnlistedChildren() {
+      // Regression pin: findClientGalleriesAndQualifyingParents admits ANY collection with a
+      // visible client child (no parent-side type filter), so the render path must key the
+      // client-gallery context on the flags too. Keying it on type == PARENT stripped every
+      // UNLISTED child out of a MISC/PORTFOLIO wrapper (e.g. the auto-linked 'staging'
+      // collection) and rendered an empty tile.
+      String slug = "staging";
+      CollectionEntity wrapper =
+          CollectionEntity.builder()
+              .id(80L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection unlistedGallery =
+          childCollectionContent(401L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection hiddenGallery =
+          childCollectionContent(402L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(80L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .isClient(false)
+              .content(new java.util.ArrayList<>(List.of(unlistedGallery, hiddenGallery)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(wrapper));
+      when(collectionProcessingUtil.convertToModel(
+              eq(wrapper), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(401L, 402L)))
+          .thenReturn(
+              List.of(
+                  childEntity(401L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED),
+                  childEntity(402L, CollectionType.CLIENT_GALLERY, CollectionVisibility.HIDDEN)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(401L); // UNLISTED kept even though the wrapper is not a PARENT
+    }
+
     private ContentModels.Collection childCollectionContent(Long childId, CollectionType type) {
       return new ContentModels.Collection(
           childId,
@@ -1299,7 +1346,14 @@ class CollectionServiceTest {
 
     private CollectionEntity childEntity(
         Long id, CollectionType type, CollectionVisibility visibility) {
-      return CollectionEntity.builder().id(id).type(type).visibility(visibility).build();
+      // Flags are the storage truth and are kept in sync with type on every write, so a
+      // non-drifted CLIENT_GALLERY row always carries is_client = true.
+      return CollectionEntity.builder()
+          .id(id)
+          .type(type)
+          .isClient(type == CollectionType.CLIENT_GALLERY)
+          .visibility(visibility)
+          .build();
     }
   }
 

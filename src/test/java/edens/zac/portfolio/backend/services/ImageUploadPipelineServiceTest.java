@@ -747,6 +747,34 @@ class ImageUploadPipelineServiceTest {
     }
 
     @Test
+    void ingest_newBlogForDay_isPromotedToListed() throws Exception {
+      // Regression pin: the shared create path is privacy-first UNLISTED, and UNLISTED blogs are
+      // invisible to findListedBlogsOrdered and to the public /all-blogs listing. Without the
+      // explicit promotion the daily-blog pipeline logs success and never publishes anything.
+      LocalDate day = LocalDate.of(2024, 3, 24);
+      var request =
+          new DiskUploadRequest(
+              List.of(
+                  new DiskUploadRequest.FileEntry(
+                      "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
+              null);
+      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      when(jobTrackingService.createJob(1)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(createResult(101L));
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of());
+      when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, day));
+
+      service.ingestFilesGroupedByDay(request);
+      awaitCompletion(job);
+
+      verify(collectionRepository).updateVisibility(1L, CollectionVisibility.LISTED);
+    }
+
+    @Test
     void ingest_existingBlogForDay_appendsWithoutCreating() throws Exception {
       // Arrange -- a BLOG already exists for the capture day; should append, not create.
       LocalDate day = LocalDate.of(2024, 3, 24);

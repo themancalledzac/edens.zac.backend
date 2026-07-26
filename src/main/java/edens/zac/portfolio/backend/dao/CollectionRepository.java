@@ -630,6 +630,22 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
+   * Update only the visibility column for a collection. Used by pipelines that create a collection
+   * through the shared create path (which is privacy-first UNLISTED) but need a different published
+   * state -- e.g. the Lightroom day-blog ingest, whose blogs must be LISTED to appear in {@link
+   * #findListedBlogsOrdered} and on the public {@code /all-blogs} listing. Returns affected row
+   * count.
+   */
+  @Transactional
+  public int updateVisibility(Long id, CollectionVisibility visibility) {
+    String sql =
+        "UPDATE collection SET visibility = :visibility, updated_at = NOW() WHERE id = :id";
+    MapSqlParameterSource params =
+        createParameterSource().addValue("id", id).addValue("visibility", visibility.name());
+    return update(sql, params);
+  }
+
+  /**
    * Update only the gallery_password column for a collection. Used by the parent-password
    * trickle-down path (which writes the password to each CLIENT_GALLERY child without touching
    * recipient_emails). Returns affected row count.

@@ -17,10 +17,12 @@ SET is_client = (type = 'CLIENT_GALLERY'),
 -- type drop, so each such collection gets a label tag. MISC gets nothing (untagged
 -- IS its meaning); PARENT/HOME get nothing (the graph/slug carry them).
 --
--- Idempotent + collision-safe: tag inserts are guarded on slug existence (tag.slug
--- has a unique index, idx_tag_slug from V8) with ON CONFLICT DO NOTHING as a final
--- guard against any concurrent/unique-name collision; join-table inserts rely on
--- the (collection_id, tag_id) primary key of collection_tags.
+-- Idempotent + collision-safe, without depending on any constraint of the pre-Flyway
+-- `collection_tags` table: the join-table inserts use NOT EXISTS rather than
+-- ON CONFLICT (collection_id, tag_id), which would require a unique index that no
+-- migration declares (a missing index would abort V50 and block application boot).
+-- Tag inserts are guarded on slug existence (tag.slug has a unique index, idx_tag_slug
+-- from V8) with ON CONFLICT DO NOTHING as a final guard against a unique-name collision.
 
 INSERT INTO tag (tag_name, slug, created_at)
 SELECT 'Art Gallery', 'art-gallery', NOW()
@@ -37,11 +39,13 @@ SELECT c.id, t.id
 FROM collection c
 JOIN tag t ON t.slug = 'art-gallery'
 WHERE c.type = 'ART_GALLERY'
-ON CONFLICT (collection_id, tag_id) DO NOTHING;
+  AND NOT EXISTS (SELECT 1 FROM collection_tags ct
+                  WHERE ct.collection_id = c.id AND ct.tag_id = t.id);
 
 INSERT INTO collection_tags (collection_id, tag_id)
 SELECT c.id, t.id
 FROM collection c
 JOIN tag t ON t.slug = 'portfolio'
 WHERE c.type = 'PORTFOLIO'
-ON CONFLICT (collection_id, tag_id) DO NOTHING;
+  AND NOT EXISTS (SELECT 1 FROM collection_tags ct
+                  WHERE ct.collection_id = c.id AND ct.tag_id = t.id);
