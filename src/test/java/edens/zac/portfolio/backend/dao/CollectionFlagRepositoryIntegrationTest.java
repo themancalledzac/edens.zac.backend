@@ -65,7 +65,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   }
 
   @Test
-  void migrationSeedsLabelTags() {
+  void migration_v50_seedsArtGalleryAndPortfolioLabelTags() {
     // V50 idempotently ensures the art-gallery and portfolio label tags exist so grouping
     // survives the eventual type-column drop.
     List<String> slugs =
@@ -76,7 +76,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   }
 
   @Test
-  void saveRoundTripsFlags() {
+  void save_clientGallery_roundTripsFlagsAndType() {
     CollectionEntity saved =
         saveCollection(
             "flag-roundtrip",
@@ -358,5 +358,86 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
             parentOfNonClient.getId(),
             hiddenChild.getId(),
             nonClientChild.getId());
+  }
+
+  @Test
+  void findClientGalleriesAndQualifyingParents_dualRoleCollectionAppearsOnce() {
+    // A collection that satisfies BOTH arms of the OR (it is itself is_client AND it parents a
+    // visible client child) must not be duplicated in the listing.
+    List<CollectionVisibility> scope = List.of(CollectionVisibility.LISTED);
+
+    CollectionEntity dualRole =
+        saveCollection(
+            "flag-dual-role",
+            CollectionType.CLIENT_GALLERY,
+            true,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 6, 1));
+    CollectionEntity dualRoleChild =
+        saveCollection(
+            "flag-dual-role-child",
+            CollectionType.CLIENT_GALLERY,
+            true,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 6, 2));
+    linkChild(dualRole.getId(), dualRoleChild.getId(), true);
+
+    List<Long> ids =
+        collectionRepository.findClientGalleriesAndQualifyingParents(scope).stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids).contains(dualRole.getId()).doesNotHaveDuplicates();
+  }
+
+  @Test
+  void findListedBlogsOrdered_ordersByRatingThenDate() {
+    // The ORDER BY is otherwise unpinned on real Postgres: rating first (NULLS LAST), then
+    // newest collection_date.
+    CollectionEntity lowRated =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.BLOG)
+                .isBlog(true)
+                .title("Flag order low")
+                .slug("flag-order-low")
+                .collectionDate(LocalDate.of(2026, 7, 3))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(1)
+                .totalContent(0)
+                .build());
+    CollectionEntity highRated =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.BLOG)
+                .isBlog(true)
+                .title("Flag order high")
+                .slug("flag-order-high")
+                .collectionDate(LocalDate.of(2026, 7, 1))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(5)
+                .totalContent(0)
+                .build());
+    CollectionEntity midRatedNewer =
+        collectionRepository.save(
+            CollectionEntity.builder()
+                .type(CollectionType.BLOG)
+                .isBlog(true)
+                .title("Flag order mid")
+                .slug("flag-order-mid")
+                .collectionDate(LocalDate.of(2026, 7, 2))
+                .visibility(CollectionVisibility.LISTED)
+                .rating(3)
+                .totalContent(0)
+                .build());
+
+    List<Long> ids =
+        collectionRepository.findListedBlogsOrdered().stream()
+            .map(CollectionEntity::getId)
+            .toList();
+
+    assertThat(ids).containsSubsequence(highRated.getId(), midRatedNewer.getId(), lowRated.getId());
   }
 }

@@ -162,18 +162,6 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void toEntity_createWithoutVisibility_defaultsToUnlisted() {
-    // Create request carries no visibility field -> privacy-first UNLISTED default.
-    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
-    CollectionRequests.Create request =
-        new CollectionRequests.Create(CollectionType.PORTFOLIO, "New Portfolio");
-
-    CollectionEntity entity = util.toEntity(request, 30);
-
-    assertEquals(CollectionVisibility.UNLISTED, entity.getVisibility());
-  }
-
-  @Test
   void toEntity_unlistedDefaultAppliesToAllTypes() {
     // The old CLIENT_GALLERY special case is gone: UNLISTED is the universal create default.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
@@ -484,11 +472,7 @@ class CollectionProcessingUtilTest {
   void applyBasicUpdates_isBlogTrue_setsBlogTypeAndFlags() {
     testEntity.setType(CollectionType.MISC);
 
-    util.applyBasicUpdates(
-        testEntity,
-        new CollectionRequests.Update(
-            1L, null, false, true, null, null, null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null));
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, false, true));
 
     assertEquals(CollectionType.BLOG, testEntity.getType());
     assertTrue(testEntity.isBlog());
@@ -499,31 +483,33 @@ class CollectionProcessingUtilTest {
   void applyBasicUpdates_legacyClientGalleryType_derivesIsClient() {
     testEntity.setType(CollectionType.MISC);
 
-    util.applyBasicUpdates(
-        testEntity,
-        new CollectionRequests.Update(
-            1L,
-            CollectionType.CLIENT_GALLERY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null));
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(CollectionType.CLIENT_GALLERY, null, null));
 
     assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
     assertTrue(testEntity.isClient());
     assertFalse(testEntity.isBlog());
+  }
+
+  /**
+   * Build an Update that carries only the type/flag triple (everything else null), so the flag
+   * tests do not inline the wide canonical constructor at mixed arities.
+   */
+  private static CollectionRequests.Update typeFlagsUpdate(
+      CollectionType type, Boolean isClient, Boolean isBlog) {
+    return new CollectionRequests.Update(
+        1L, type, isClient, isBlog, null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null, null);
+  }
+
+  @Test
+  void toEntity_bothFlagsTrue_isRejected() {
+    // The both-true 400 was pinned on the update path only. All three create surfaces (JSON
+    // create, child create, multipart create) funnel through toEntity, so this one unit test
+    // covers them; a MockMvc variant would only re-test GlobalExceptionHandler's IAE -> 400.
+    CollectionRequests.Create request =
+        new CollectionRequests.Create(null, "Both Flags", null, null, null, null, true, true);
+
+    assertThrows(IllegalArgumentException.class, () -> util.toEntity(request, 30));
   }
 
   @Test
@@ -536,11 +522,7 @@ class CollectionProcessingUtilTest {
     testEntity.setClient(true);
     testEntity.setBlog(false);
 
-    util.applyBasicUpdates(
-        testEntity,
-        new CollectionRequests.Update(
-            1L, null, null, false, null, null, null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null));
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, null, false));
 
     assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
     assertTrue(testEntity.isClient());
@@ -557,11 +539,7 @@ class CollectionProcessingUtilTest {
     testEntity.setGalleryPassword("secret");
     testEntity.setRecipientEmails(new ArrayList<>(List.of("client@example.com")));
 
-    util.applyBasicUpdates(
-        testEntity,
-        new CollectionRequests.Update(
-            1L, null, false, null, null, null, null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null));
+    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, false, null));
 
     assertEquals(CollectionType.MISC, testEntity.getType());
     assertFalse(testEntity.isClient());
@@ -574,12 +552,7 @@ class CollectionProcessingUtilTest {
   void applyBasicUpdates_bothFlagsTrue_isRejected() {
     assertThrows(
         IllegalArgumentException.class,
-        () ->
-            util.applyBasicUpdates(
-                testEntity,
-                new CollectionRequests.Update(
-                    1L, null, true, true, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null)));
+        () -> util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, true, true)));
   }
 
   @Test

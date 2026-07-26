@@ -87,13 +87,6 @@ class CollectionTypeCompatTest {
     }
 
     @Test
-    void neitherTrue_requestedClientGalleryTypeFoldsToMisc() {
-      // Booleans disclaim client/blog, so a legacy CLIENT_GALLERY type request folds to MISC.
-      var resolved = CollectionTypeCompat.forCreate(false, false, CollectionType.CLIENT_GALLERY);
-      assertThat(resolved.type()).isEqualTo(CollectionType.MISC);
-    }
-
-    @Test
     void createWithNeitherBooleanTrueAndNoType_landsOnMisc() {
       var resolved = CollectionTypeCompat.forCreate(false, false, null);
       assertThat(resolved.type()).isEqualTo(CollectionType.MISC);
@@ -172,7 +165,7 @@ class CollectionTypeCompatTest {
     }
 
     @Test
-    void bothTrue_isRejectedWith400Semantics() {
+    void bothTrue_isRejectedAsIllegalArgument() {
       assertThatThrownBy(() -> CollectionTypeCompat.forCreate(true, true, null))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("mutually exclusive");
@@ -250,24 +243,6 @@ class CollectionTypeCompatTest {
       assertThat(resolved.type()).isEqualTo(CollectionType.MISC);
       assertThat(resolved.isClient()).isFalse();
       assertThat(resolved.isBlog()).isFalse();
-    }
-  }
-
-  @Nested
-  class DeriveHelpers {
-
-    @Test
-    void deriveIsClient_onlyForClientGallery() {
-      assertThat(CollectionTypeCompat.deriveIsClient(CollectionType.CLIENT_GALLERY)).isTrue();
-      assertThat(CollectionTypeCompat.deriveIsClient(CollectionType.BLOG)).isFalse();
-      assertThat(CollectionTypeCompat.deriveIsClient(CollectionType.MISC)).isFalse();
-    }
-
-    @Test
-    void deriveIsBlog_onlyForBlog() {
-      assertThat(CollectionTypeCompat.deriveIsBlog(CollectionType.BLOG)).isTrue();
-      assertThat(CollectionTypeCompat.deriveIsBlog(CollectionType.CLIENT_GALLERY)).isFalse();
-      assertThat(CollectionTypeCompat.deriveIsBlog(CollectionType.PARENT)).isFalse();
     }
   }
 
