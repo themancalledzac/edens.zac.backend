@@ -576,6 +576,10 @@ public class CollectionProcessingUtil {
     entity.setType(resolved.type());
     entity.setClient(resolved.isClient());
     entity.setBlog(resolved.isBlog());
+    if (request.type() == null && request.isClient() == null && request.isBlog() == null) {
+      log.info(
+          "Create for '{}' carried neither type nor flags -- landing on MISC", request.title());
+    }
     entity.setTitle(request.title());
     String baseSlug = generateSlug(request.title());
     String uniqueSlug = validateAndEnsureUniqueSlug(baseSlug, null);
@@ -632,6 +636,17 @@ public class CollectionProcessingUtil {
       CollectionTypeCompat.Resolved resolved =
           CollectionTypeCompat.forUpdate(
               updateDTO.isClient(), updateDTO.isBlog(), updateDTO.type(), entity);
+      if (resolved.type() != entity.getType()) {
+        log.info(
+            "Collection {} category change: {} -> {} (isClient {} -> {}, isBlog {} -> {})",
+            entity.getId(),
+            entity.getType(),
+            resolved.type(),
+            wasClient,
+            resolved.isClient(),
+            entity.isBlog(),
+            resolved.isBlog());
+      }
       entity.setType(resolved.type());
       entity.setClient(resolved.isClient());
       entity.setBlog(resolved.isBlog());

@@ -21,6 +21,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * flags (NOT the legacy type column), the derived parent-of-galleries query (no parent-side type
  * filter), the blog-by-date get-or-create key, save round-tripping of the flags, and the V50
  * label-tag seeds.
+ *
+ * <p>This class inserts roughly 20 collections into the SHARED singleton container, whose harness
+ * truncates only auth tables. Assertions here are therefore containment-based, never exact counts,
+ * and any future exact-count test in this package must seed its own container.
  */
 class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 

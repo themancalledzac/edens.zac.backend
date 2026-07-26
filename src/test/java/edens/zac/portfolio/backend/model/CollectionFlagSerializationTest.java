@@ -21,6 +21,8 @@ class CollectionFlagSerializationTest {
 
   @BeforeEach
   void setUp() {
+    // A bespoke mapper is equivalent to Boot's here because src/main declares no property
+    // naming strategy; if one is ever added, switch to @JsonTest.
     objectMapper = new ObjectMapper();
     objectMapper.findAndRegisterModules();
   }

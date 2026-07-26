@@ -44,7 +44,9 @@ public class SyntheticCollectionResolver {
           "all-portfolios",
           new Synthetic("Portfolios", CollectionType.PORTFOLIO),
           ALL_CLIENT_GALLERIES,
-          new Synthetic("Client Galleries", CollectionType.CLIENT_GALLERY),
+          // Null typeFilter: this slug is served by findClientGalleriesAndQualifyingParents,
+          // which is flag-keyed and never reads the filter.
+          new Synthetic("Client Galleries", null),
           "all-art-galleries",
           new Synthetic("Art Galleries", CollectionType.ART_GALLERY),
           "all-misc",

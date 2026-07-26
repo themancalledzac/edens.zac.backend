@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.admin;
 import edens.zac.portfolio.backend.model.CollectionRequests.UpdateResponse;
 import edens.zac.portfolio.backend.model.SaveAsCollectionRequest;
 import edens.zac.portfolio.backend.services.TagService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -27,7 +28,8 @@ public class TagAdminController {
 
   @PostMapping("/{id}/save-as-collection")
   public ResponseEntity<UpdateResponse> saveAsCollection(
-      @PathVariable Long id, @RequestBody(required = false) SaveAsCollectionRequest request) {
+      @PathVariable Long id,
+      @Valid @RequestBody(required = false) SaveAsCollectionRequest request) {
     return ResponseEntity.ok(tagService.convertTagToCollection(id, request));
   }
 }
