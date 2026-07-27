@@ -923,7 +923,11 @@ public class CollectionRepository extends BaseDao {
     if (contentIds == null || contentIds.isEmpty()) {
       return List.of();
     }
-    String sql = SELECT_COLLECTION_CONTENT + " WHERE content_id IN (:contentIds)";
+    // ORDER BY is load-bearing, not cosmetic: without it Postgres returns rows in an arbitrary
+    // order and any caller that resolves "the" parent of a piece of content picks a different
+    // collection on different requests (S1).
+    String sql =
+        SELECT_COLLECTION_CONTENT + " WHERE content_id IN (:contentIds) ORDER BY collection_id";
     MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
     return query(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
   }

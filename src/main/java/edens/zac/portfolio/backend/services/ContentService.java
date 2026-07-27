@@ -704,6 +704,30 @@ public class ContentService {
     return collectionRepository.findById(collectionId);
   }
 
+  /**
+   * Every password-protected collection that contains this image. The per-image download endpoint
+   * must satisfy the gate for ALL of them: an image can belong to several collections at once
+   * (many-to-many via {@code collection_content}), and resolving a single arbitrary parent let an
+   * unprotected wrapper waive a protected gallery's password on a nondeterministic fraction of
+   * requests. Returns an empty list when the image is orphaned or every parent is unprotected.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findProtectedCollectionsForImage(Long imageId) {
+    log.debug("Finding protected parent collections for image ID: {}", imageId);
+    List<Long> collectionIds =
+        collectionRepository.findContentByContentIdsIn(List.of(imageId)).stream()
+            .map(CollectionContentEntity::getCollectionId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    if (collectionIds.isEmpty()) {
+      return List.of();
+    }
+    return collectionRepository.findByIds(collectionIds).stream()
+        .filter(collection -> collection.getGalleryPassword() != null)
+        .toList();
+  }
+
   // ---------------------------------------------------------------------------
   //  Download resolution
   // ---------------------------------------------------------------------------
