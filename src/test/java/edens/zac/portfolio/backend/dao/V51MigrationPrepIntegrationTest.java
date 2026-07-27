@@ -222,4 +222,57 @@ class V51MigrationPrepIntegrationTest {
     return jdbc.queryForObject(
         "SELECT content_per_page FROM collection WHERE slug = ?", Integer.class, slug);
   }
+
+  @Test
+  @DisplayName("the label tag V50 created is deleted outright, memberships first")
+  void v50CreatedLabelTagIsDeleted() {
+    // V50 inserted this one itself, so it holds BOTH the canonical name and the canonical slug.
+    // Left behind it would be an orphaned public /art-gallery tag-view route backed by a
+    // grouping nothing will ever write again.
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM tag WHERE tag_name = 'Art Gallery' OR slug = 'art-gallery'",
+                Integer.class))
+        .isZero();
+    assertThat(taggedCollectionSlugs("Art Gallery")).isEmpty();
+  }
+
+  @Test
+  @DisplayName("an operator tag V50 reused survives, detached from its label collections")
+  void reusedOperatorTagIsDetachedButKept() {
+    // Its slug is not the canonical one, so V50 cannot have created it. Deleting it would
+    // destroy the operator's own tag and whatever public /{slug} route they chose.
+    assertThat(
+            jdbc.queryForObject("SELECT slug FROM tag WHERE tag_name = 'Portfolio'", String.class))
+        .isEqualTo("portfolio-work");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM tag WHERE tag_name = 'Portfolio'", Integer.class))
+        .isEqualTo(1);
+    // The label grouping itself is gone -- only the collection_tags rows are detached.
+    assertThat(taggedCollectionSlugs("Portfolio")).isEmpty();
+  }
+
+  @Test
+  @DisplayName("a converted tag squatting the canonical slug is left entirely alone")
+  void convertedTagAndItsMembershipsAreUntouched() {
+    // TagViewResolver returns empty for a converted tag, so it is not an orphaned route, and
+    // its memberships are the operator's own curation.
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM tag WHERE slug = 'portfolio' "
+                    + "AND converted_collection_id IS NOT NULL",
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(taggedCollectionSlugs("Portfolio Prints")).containsExactly("misc");
+  }
+
+  /** Slugs of the collections attached to the tag with this name, whatever its slug is. */
+  private List<String> taggedCollectionSlugs(String tagName) {
+    return jdbc.queryForList(
+        "SELECT c.slug FROM collection c JOIN collection_tags ct ON ct.collection_id = c.id "
+            + "JOIN tag t ON t.id = ct.tag_id WHERE t.tag_name = ? ORDER BY c.slug",
+        String.class,
+        tagName);
+  }
 }
