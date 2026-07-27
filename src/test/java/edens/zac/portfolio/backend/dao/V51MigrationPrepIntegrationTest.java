@@ -156,4 +156,42 @@ class V51MigrationPrepIntegrationTest {
                 "SELECT type FROM collection WHERE slug = 'null-type-probe'", String.class))
         .isNull();
   }
+
+  @Test
+  @DisplayName("collection_type_archive snapshots one row per collection, types and flags intact")
+  void archiveTableCapturesEveryLegacyType() {
+    // A literal 7, not a live count of `collection`: sibling tests in this class insert probe
+    // rows after the migration, and the archive is a snapshot taken at migration time.
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM collection_type_archive", Integer.class))
+        .isEqualTo(7);
+    assertThat(
+            jdbc.queryForList(
+                "SELECT slug FROM collection_type_archive ORDER BY slug", String.class))
+        .containsExactly(
+            "art-gallery", "blog", "client-gallery", "home", "misc", "parent", "portfolio");
+
+    assertThat(archived("parent")).containsEntry("type", "PARENT");
+    assertThat(archived("home")).containsEntry("type", "HOME");
+    assertThat(archived("client-gallery"))
+        .containsEntry("type", "CLIENT_GALLERY")
+        .containsEntry("is_client", true)
+        .containsEntry("is_blog", false);
+    assertThat(archived("blog")).containsEntry("type", "BLOG").containsEntry("is_blog", true);
+    assertThat(archived("portfolio").get("archived_at")).isNotNull();
+
+    // The whole reason the archive has to exist: these five are mutually indistinguishable from
+    // the flags alone, so U5's DROP COLUMN destroys them unless they are copied out first.
+    for (String slug : List.of("portfolio", "art-gallery", "home", "parent", "misc")) {
+      assertThat(archived(slug))
+          .as(slug)
+          .containsEntry("is_client", false)
+          .containsEntry("is_blog", false);
+    }
+  }
+
+  private Map<String, Object> archived(String slug) {
+    return jdbc.queryForMap(
+        "SELECT type, is_client, is_blog, archived_at FROM collection_type_archive WHERE slug = ?",
+        slug);
+  }
 }
