@@ -15,15 +15,17 @@ import software.amazon.awssdk.services.sesv2.model.SendEmailRequest;
 import software.amazon.awssdk.services.sesv2.model.SesV2Exception;
 
 /**
- * Sends transactional gallery emails via AWS SES v2.
+ * Sends transactional emails via AWS SES v2.
  *
- * <p>One public method today: {@link #sendGalleryPasswordEmail}, which delivers a clickable gallery
- * URL plus the plaintext password the admin just set. Returns a typed {@link SendResult} so the
- * caller can surface "email-disabled" or "ses-error" reasons without leaking exception detail.
+ * <p>Two public methods: {@link #sendGalleryPasswordEmail}, which delivers a clickable gallery URL
+ * plus the plaintext password the admin just set, and {@link #sendInviteEmail}, which delivers a
+ * single-use account-setup link to a newly invited client. Both return a typed {@link SendResult}
+ * so the caller can surface "email-disabled" or "ses-error" reasons without leaking exception
+ * detail.
  *
  * <p>The {@code email.enabled} flag short-circuits the whole flow before any AWS call. This lets
  * the rest of the password admin endpoint ship while SES domain verification and sandbox-removal
- * are in flight.
+ * are in flight — invite creation still returns a copyable link, so nothing depends on delivery.
  */
 @Service
 @Slf4j
@@ -74,6 +76,44 @@ public class EmailService {
     String htmlBody = buildHtml(collectionTitle, galleryUrl, plaintextPassword);
     String textBody = buildText(collectionTitle, galleryUrl, plaintextPassword);
 
+    return dispatch(
+        toEmail, subject, htmlBody, textBody, "gallery password email (slug=" + slug + ")");
+  }
+
+  /**
+   * Send the "you've been invited" email carrying a single-use account-setup link.
+   *
+   * <p>The invite URL is built by the caller rather than from {@code frontendBaseUrl} here, because
+   * the controller already owns that join (and strips a trailing slash), so the emailed link is
+   * guaranteed byte-identical to the one returned in the API response for copy-linking.
+   *
+   * <p>The link is a bearer credential: it is never logged, and the whole body is escaped.
+   *
+   * @param toEmail recipient address (the invited account's email)
+   * @param displayName invitee's display name for the greeting; may be null or blank
+   * @param inviteUrl the fully-built {@code <origin>/invite/<token>} link
+   * @return {@link SendResult} with {@code sent=true} on success, otherwise a reason code
+   */
+  public SendResult sendInviteEmail(String toEmail, String displayName, String inviteUrl) {
+    if (!enabled) {
+      log.info("Email disabled -- skipping invite email (to={})", toEmail);
+      return new SendResult(false, "email-disabled");
+    }
+
+    String subject = "You've been invited to Zac Eden Photography";
+    String htmlBody = buildInviteHtml(displayName, inviteUrl);
+    String textBody = buildInviteText(displayName, inviteUrl);
+
+    return dispatch(toEmail, subject, htmlBody, textBody, "invite email");
+  }
+
+  /**
+   * Build and send one SES message, mapping both failure families onto {@code "ses-error"}.
+   *
+   * @param label short description used only for logging; never include a token or password
+   */
+  private SendResult dispatch(
+      String toEmail, String subject, String htmlBody, String textBody, String label) {
     SendEmailRequest request =
         SendEmailRequest.builder()
             .fromEmailAddress(fromAddress)
@@ -94,14 +134,14 @@ public class EmailService {
 
     try {
       sesClient.sendEmail(request);
-      log.info("Sent gallery password email (slug={}, to={})", slug, toEmail);
+      log.info("Sent {} (to={})", label, toEmail);
       return new SendResult(true, null);
     } catch (SesV2Exception | SdkClientException e) {
       // SesV2Exception = SES API rejected the request (verification, sandbox, recipient).
       // SdkClientException = client-side failure (timeout, credentials, region, network).
       log.error(
-          "Failed to send gallery password email (slug={}, to={}, kind={}): {}",
-          slug,
+          "Failed to send {} (to={}, kind={}): {}",
+          label,
           toEmail,
           e.getClass().getSimpleName(),
           e.getMessage());
@@ -159,6 +199,65 @@ public class EmailService {
         + "<hr style=\"border:0;border-top:1px solid #eeeeee;margin:32px 0;\">"
         + "<p style=\"margin:0;font-size:12px;color:#888888;\">Zac Eden Photography</p>"
         + "</td></tr></table></body></html>";
+  }
+
+  /**
+   * Hardcoded inline-styled HTML invite body, mirroring {@link #buildHtml}. Every interpolated
+   * value is HTML-escaped — the display name is admin-supplied and the URL carries a token.
+   */
+  private String buildInviteHtml(String displayName, String inviteUrl) {
+    String safeUrl = HtmlUtils.htmlEscape(inviteUrl);
+    String greeting =
+        isBlank(displayName) ? "Hello," : "Hi " + HtmlUtils.htmlEscape(displayName.trim()) + ",";
+    return "<!DOCTYPE html>"
+        + "<html lang=\"en\"><head><meta charset=\"UTF-8\">"
+        + "<title>You've been invited</title></head>"
+        + "<body style=\"margin:0;padding:0;background:#ffffff;color:#111111;"
+        + "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\">"
+        + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+        + "border=\"0\" style=\"max-width:560px;margin:0 auto;padding:32px 24px;\">"
+        + "<tr><td>"
+        + "<h1 style=\"margin:0 0 16px 0;font-size:20px;font-weight:600;color:#111111;\">"
+        + "You've been invited"
+        + "</h1>"
+        + "<p style=\"margin:0 0 24px 0;font-size:15px;line-height:1.5;color:#333333;\">"
+        + greeting
+        + " Set up your account to view the galleries and photos shared with you."
+        + "</p>"
+        + "<p style=\"margin:0 0 32px 0;\">"
+        + "<a href=\""
+        + safeUrl
+        + "\" "
+        + "style=\"display:inline-block;padding:12px 24px;background:#111111;color:#ffffff;"
+        + "text-decoration:none;font-size:15px;font-weight:500;border-radius:2px;\">"
+        + "Set up your account"
+        + "</a>"
+        + "</p>"
+        + "<p style=\"margin:0 0 16px 0;font-size:13px;color:#666666;line-height:1.5;\">"
+        + "This link works once and expires in 7 days. Do not forward it — anyone with the link "
+        + "can claim the account. If you were not expecting this, you can ignore this email."
+        + "</p>"
+        + "<hr style=\"border:0;border-top:1px solid #eeeeee;margin:32px 0;\">"
+        + "<p style=\"margin:0;font-size:12px;color:#888888;\">Zac Eden Photography</p>"
+        + "</td></tr></table></body></html>";
+  }
+
+  /** Plain-text invite body. Same content, no styling. */
+  private String buildInviteText(String displayName, String inviteUrl) {
+    String greeting = isBlank(displayName) ? "Hello," : "Hi " + displayName.trim() + ",";
+    return greeting
+        + "\n\n"
+        + "You've been invited to Zac Eden Photography. Set up your account to view the galleries "
+        + "and photos shared with you:\n\n"
+        + inviteUrl
+        + "\n\n"
+        + "This link works once and expires in 7 days. Do not forward it -- anyone with the link "
+        + "can claim the account. If you were not expecting this, you can ignore this email.\n\n"
+        + "-- Zac Eden Photography";
+  }
+
+  private static boolean isBlank(String value) {
+    return value == null || value.isBlank();
   }
 
   /** Plain-text fallback body. Same content, no styling, raw password (no escaping needed). */

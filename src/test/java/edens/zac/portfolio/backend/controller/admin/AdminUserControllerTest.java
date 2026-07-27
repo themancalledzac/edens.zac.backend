@@ -21,6 +21,7 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.services.EmailService;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
@@ -50,6 +51,7 @@ class AdminUserControllerTest {
   @Mock private RoleRepository roleRepository;
   @Mock private UserPageAssembler userPageAssembler;
   @Mock private UserMergeService userMergeService;
+  @Mock private EmailService emailService;
 
   // Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join.
   private static final String FRONTEND_BASE_URL = "https://app.example.com/";
@@ -63,6 +65,7 @@ class AdminUserControllerTest {
             roleRepository,
             userPageAssembler,
             userMergeService,
+            emailService,
             FRONTEND_BASE_URL);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
@@ -88,6 +91,27 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$.userId").value(42))
           // Trailing slash on the base URL must not produce a double slash before "invite".
           .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/raw-token-abc"));
+
+      // The invitee is emailed the same link that is returned for copy-linking.
+      verify(emailService)
+          .sendInviteEmail(
+              "alice@example.com", "Alice", "https://app.example.com/invite/raw-token-abc");
+    }
+
+    @Test
+    void createUserDoesNotEmailWhenEmailAlreadyExists() throws Exception {
+      when(appUserRepository.findByEmail("taken@example.com"))
+          .thenReturn(
+              Optional.of(AppUserEntity.builder().id(1L).email("taken@example.com").build()));
+
+      mockMvc
+          .perform(
+              post("/api/admin/users")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"taken@example.com\",\"displayName\":\"Taken\"}"))
+          .andExpect(status().isConflict());
+
+      verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
     }
 
     @Test
@@ -214,6 +238,7 @@ class AdminUserControllerTest {
           AppUserEntity.builder()
               .id(5L)
               .email("bob@example.com")
+              .name("Bob")
               .status(UserStatus.INVITED)
               .build();
       when(appUserRepository.findById(5L)).thenReturn(Optional.of(bob));
@@ -224,6 +249,10 @@ class AdminUserControllerTest {
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.userId").value(5))
           .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/fresh-token"));
+
+      // A re-issued invite is emailed too, so a resend reaches the invitee without a manual copy.
+      verify(emailService)
+          .sendInviteEmail("bob@example.com", "Bob", "https://app.example.com/invite/fresh-token");
     }
 
     @Test
@@ -233,6 +262,7 @@ class AdminUserControllerTest {
       mockMvc.perform(post("/api/admin/users/999/invite")).andExpect(status().isNotFound());
 
       verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
+      verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
     }
   }
 
