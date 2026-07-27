@@ -18,7 +18,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Exercises V50 against actual data, which no other test does: the shared harness migrates an empty
  * collection table, so the backfill UPDATEs and the tag-attachment joins are never executed against
  * a single row. This test owns a dedicated container, migrates to V49, seeds one collection per
- * legacy type plus a colliding tag, then migrates to latest and asserts the outcome.
+ * legacy type plus a colliding tag, then migrates to V50 (NOT latest -- see the target below) and
+ * asserts the outcome.
  *
  * <p>The V50 DML is deliberately NOT re-run inside the shared singleton container: its global
  * UPDATE would rewrite the divergent-flag rows other fixtures depend on, producing order-dependent
@@ -65,7 +66,11 @@ class V50BackfillMigrationIntegrationTest {
     // 'Art Gallery' is deliberately NOT seeded, so the other branch is covered too: V50
     // creates it itself and it gets the canonical slug.
 
-    migrateTo(dataSource, "latest");
+    // Deliberately "50", not "latest": V51 deletes the 'Art Gallery' tag outright and detaches
+    // every collection_tags row this class pins, so running it here would break three tests
+    // that exist to pin V50 in isolation. V51's own behaviour is pinned, against the same three
+    // tag shapes plus a converted tag, by V51MigrationPrepIntegrationTest.
+    migrateTo(dataSource, "50");
   }
 
   private void migrateTo(DataSource dataSource, String target) {
