@@ -51,9 +51,13 @@ services:
       WEBAUTHN_ALLOWED_ORIGINS: ${WEBAUTHN_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
 
       # Email (AWS SES v2) — disabled by default; flip EMAIL_ENABLED=true once SES domain + from-address are verified.
+      # These defaults are PRODUCTION values: compose injects the variable unconditionally, so an
+      # env-var default here SHADOWS the Spring properties default and wins on every deploy. A
+      # localhost default would silently put localhost links in real invite/gallery emails. For
+      # local work, run the dev profile (application-dev.properties) or set the vars in .env.
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
-      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@edens.zac}
-      EMAIL_FRONTEND_BASE_URL: ${EMAIL_FRONTEND_BASE_URL:-http://localhost:3000}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@zacedens.com}
+      EMAIL_FRONTEND_BASE_URL: ${EMAIL_FRONTEND_BASE_URL:-https://zacedens.com}
 
       # JVM memory: local dev uses 1g (48GB machine), EC2 prod uses 384m (1GB instance)
       # EC2 prod override: JAVA_OPTS=-Xmx384m -Xms256m

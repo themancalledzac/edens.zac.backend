@@ -42,6 +42,21 @@ class EmailServiceTest {
       assertThat(result.reason()).isEqualTo("email-disabled");
       verify(sesClient, never()).sendEmail(any(SendEmailRequest.class));
     }
+
+    @Test
+    void inviteShortCircuitsWithoutCallingSes() {
+      EmailService service = newService(false);
+
+      EmailService.SendResult result =
+          service.sendInviteEmail(
+              "invitee@example.com", "Dana", "https://edens.zac/invite/tok-123");
+
+      // Invites must stay shippable while SES verification is in flight: the send no-ops and the
+      // caller still returns the copyable link.
+      assertThat(result.sent()).isFalse();
+      assertThat(result.reason()).isEqualTo("email-disabled");
+      verify(sesClient, never()).sendEmail(any(SendEmailRequest.class));
+    }
   }
 
   @Nested
@@ -113,6 +128,77 @@ class EmailServiceTest {
 
       // Text body: raw password (no HTML, no escaping needed).
       assertThat(textBody).contains("p<>&\"'word");
+    }
+
+    @Test
+    void sendsInviteRequestWithExpectedShape() {
+      EmailService service = newService(true);
+
+      EmailService.SendResult result =
+          service.sendInviteEmail(
+              "invitee@example.com", "Dana", "https://edens.zac/invite/tok-123");
+
+      ArgumentCaptor<SendEmailRequest> captor = ArgumentCaptor.forClass(SendEmailRequest.class);
+      verify(sesClient).sendEmail(captor.capture());
+
+      SendEmailRequest sent = captor.getValue();
+      assertThat(sent.fromEmailAddress()).isEqualTo("no-reply@edens.zac");
+      assertThat(sent.destination().toAddresses()).containsExactly("invitee@example.com");
+      assertThat(sent.content().simple().subject().data()).contains("invited");
+
+      Body body = sent.content().simple().body();
+      // The caller-built URL is used verbatim in both bodies — it must match the copyable link.
+      assertThat(body.html().data()).contains("https://edens.zac/invite/tok-123");
+      assertThat(body.text().data()).contains("https://edens.zac/invite/tok-123");
+      assertThat(body.html().data()).contains("Dana");
+      assertThat(body.text().data()).contains("Dana");
+
+      assertThat(result.sent()).isTrue();
+      assertThat(result.reason()).isNull();
+    }
+
+    @Test
+    void inviteFallsBackToGenericGreetingWhenDisplayNameMissing() {
+      EmailService service = newService(true);
+
+      service.sendInviteEmail("invitee@example.com", null, "https://edens.zac/invite/tok-123");
+
+      ArgumentCaptor<SendEmailRequest> captor = ArgumentCaptor.forClass(SendEmailRequest.class);
+      verify(sesClient).sendEmail(captor.capture());
+      Body body = captor.getValue().content().simple().body();
+
+      assertThat(body.text().data()).startsWith("Hello,");
+      assertThat(body.html().data()).contains("Hello,");
+      assertThat(body.text().data()).doesNotContain("null");
+      assertThat(body.html().data()).doesNotContain("null");
+    }
+
+    @Test
+    void inviteHtmlEscapesDisplayName() {
+      EmailService service = newService(true);
+
+      service.sendInviteEmail(
+          "invitee@example.com", "<script>alert('xss')</script>", "https://edens.zac/invite/tok");
+
+      ArgumentCaptor<SendEmailRequest> captor = ArgumentCaptor.forClass(SendEmailRequest.class);
+      verify(sesClient).sendEmail(captor.capture());
+      String htmlBody = captor.getValue().content().simple().body().html().data();
+
+      assertThat(htmlBody).doesNotContain("<script>alert('xss')</script>");
+      assertThat(htmlBody).contains("&lt;script&gt;");
+    }
+
+    @Test
+    void inviteSesExceptionReturnsErrorReason() {
+      EmailService service = newService(true);
+      when(sesClient.sendEmail(any(SendEmailRequest.class)))
+          .thenThrow(SesV2Exception.builder().message("rejected").build());
+
+      EmailService.SendResult result =
+          service.sendInviteEmail("invitee@example.com", "Dana", "https://edens.zac/invite/tok");
+
+      assertThat(result.sent()).isFalse();
+      assertThat(result.reason()).isEqualTo("ses-error");
     }
 
     @Test
