@@ -28,7 +28,6 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
@@ -1466,23 +1465,23 @@ public class CollectionService {
    *   <li>password set, emails non-empty: set password and send one email per recipient
    * </ul>
    *
-   * <p>Accepted target types are {@link CollectionType#CLIENT_GALLERY} and {@link
-   * CollectionType#PARENT}. For PARENT targets, when {@link
+   * <p>Eligibility is derived, not typed: the target must either be a client gallery itself ({@code
+   * is_client}) or reference at least one client-gallery child ({@link
+   * edens.zac.portfolio.backend.dao.CollectionRepository#hasClientGalleryChildren}). When {@link
    * GalleryAccessRequest#propagateToChildren()} is {@code true}, the same password is batch-written
-   * to every {@link CollectionType#CLIENT_GALLERY} child referenced by the PARENT (other child
-   * types are skipped). Recipient emails are NOT propagated. Returns {@code
-   * GalleryAccessResponse(saved=false, reason="not-eligible-type")} for any other type.
+   * to every {@code is_client} child referenced by the target; non-client children are skipped.
+   * Recipient emails are NOT propagated. Returns {@code GalleryAccessResponse(saved=false,
+   * reason="not-eligible-type")} for an ineligible target.
    */
   @Transactional
   public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
     CollectionEntity entity = findEntityById(id);
 
-    if (entity.getType() != CollectionType.CLIENT_GALLERY
-        && entity.getType() != CollectionType.PARENT) {
+    if (!entity.isClient() && !collectionRepository.hasClientGalleryChildren(id)) {
       log.warn(
-          "Refusing gallery-access update on ineligible collection (id={}, type={})",
+          "Refusing gallery-access update on ineligible collection (id={}, slug={})",
           id,
-          entity.getType());
+          entity.getSlug());
       return new GalleryAccessResponse(false, false, "not-eligible-type", null, List.of());
     }
 
@@ -1525,37 +1524,36 @@ public class CollectionService {
   }
 
   /**
-   * When {@code request.propagateToChildren()} is {@code true} AND {@code parent} is of type {@link
-   * CollectionType#PARENT}, batch-update the same password on every {@link
-   * CollectionType#CLIENT_GALLERY} child referenced by that PARENT. Other child types (other
-   * PARENTs, PORTFOLIOs, BLOGs, etc.) are skipped.
+   * When {@code request.propagateToChildren()} is {@code true}, batch-update the same password on
+   * every {@code is_client} child referenced by the parent. Non-client children are skipped.
+   *
+   * <p>There is no parent-side gate any more. Parent-ness is derived from the content graph, so "is
+   * this a wrapper" is not a question this method can or should ask -- eligibility already answered
+   * it upstream, and a target with no client children simply writes nothing.
    */
   private void propagatePasswordToChildrenIfRequested(
       CollectionEntity parent, GalleryAccessRequest request) {
-    if (!Boolean.TRUE.equals(request.propagateToChildren())
-        || parent.getType() != CollectionType.PARENT) {
+    if (!Boolean.TRUE.equals(request.propagateToChildren())) {
       log.debug(
-          "Skipping password propagation (parentId={}, propagate={}, type={})",
+          "Skipping password propagation (parentId={}, propagate={})",
           parent.getId(),
-          request.propagateToChildren(),
-          parent.getType());
+          request.propagateToChildren());
       return;
     }
     List<CollectionEntity> children =
         collectionRepository.findAllReferencedCollectionsByParentId(parent.getId());
-    long clientGalleryCount =
-        children.stream().filter(c -> c.getType() == CollectionType.CLIENT_GALLERY).count();
+    long clientGalleryCount = children.stream().filter(CollectionEntity::isClient).count();
     log.info(
-        "Propagating password from parent (id={}, slug={}): {} children found, {} are CLIENT_GALLERY",
+        "Propagating password from parent (id={}, slug={}): {} children found, {} are client galleries",
         parent.getId(),
         parent.getSlug(),
         children.size(),
         clientGalleryCount);
     for (CollectionEntity child : children) {
-      if (child.getType() == CollectionType.CLIENT_GALLERY) {
+      if (child.isClient()) {
         collectionRepository.updateGalleryPassword(child.getId(), request.password());
         log.info(
-            "Propagated parent (id={}) gallery password to CLIENT_GALLERY child (id={}, slug={})",
+            "Propagated parent (id={}) gallery password to client child (id={}, slug={})",
             parent.getId(),
             child.getId(),
             child.getSlug());
