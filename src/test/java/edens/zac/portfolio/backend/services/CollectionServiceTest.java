@@ -1217,13 +1217,11 @@ class CollectionServiceTest {
     }
 
     @Test
-    void parentOfMixedClientGalleryAndPortfolio_appliesClientGalleryContextToAllChildren() {
-      // Pinning current behavior: a PARENT with at least one CLIENT_GALLERY child flips the entire
-      // response into "client gallery context" — only HIDDEN children are dropped, regardless of
-      // the sibling child's type. So an UNLISTED PORTFOLIO sibling stays visible because the viewer
-      // is already inside the password-gated parent. The alternative (per-child context) is much
-      // more complex; this test pins the simpler whole-PARENT rule so a future refactor has to
-      // consciously change it.
+    void parentOfMixedClientGalleryAndPortfolio_dropsUnlistedNonClientSibling() {
+      // INVERTED PIN (was appliesClientGalleryContextToAllChildren). One client-gallery child used
+      // to flip the whole response into "keep UNLISTED children" mode, so linking a single gallery
+      // under a wrapper un-hid every unrelated work-in-progress sibling. The relaxation is now per
+      // child: an UNLISTED child survives only if it is itself a client gallery.
       String slug = "smith-wedding";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1271,8 +1269,7 @@ class CollectionServiceTest {
 
       assertThat(result.getContent())
           .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
-          .containsExactly(
-              301L, 302L, 303L); // gallery + both non-hidden portfolios kept; HIDDEN dropped
+          .containsExactly(301L, 303L); // client gallery + LISTED sibling; UNLISTED and HIDDEN gone
     }
 
     @Test
@@ -1322,6 +1319,104 @@ class CollectionServiceTest {
           .containsExactly(401L); // UNLISTED kept even though the wrapper is not a PARENT
     }
 
+    @Test
+    void unprotectedParent_dropsPasswordProtectedChild() {
+      // S3: ContentModels.Collection carries title, description, coverImage and dates but no
+      // isPasswordProtected, so the frontend cannot render a locked tile. An unprotected,
+      // crawlable, hour-cached parent page would publish the gallery's cover and client name.
+      String slug = "public-wrapper";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(90L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection lockedChild =
+          childCollectionContent(501L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection openChild =
+          childCollectionContent(502L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(90L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .isPasswordProtected(false)
+              .content(new java.util.ArrayList<>(List.of(lockedChild, openChild)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(501L, 502L)))
+          .thenReturn(
+              List.of(
+                  childEntity(
+                      501L,
+                      CollectionType.CLIENT_GALLERY,
+                      CollectionVisibility.UNLISTED,
+                      "sunshine"),
+                  childEntity(
+                      502L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED, null)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(502L);
+    }
+
+    @Test
+    void protectedParent_keepsPasswordProtectedChild() {
+      // The viewer is already behind the parent's own gate, so its protected children stay.
+      String slug = "locked-wrapper";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(91L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection lockedChild =
+          childCollectionContent(511L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection openChild =
+          childCollectionContent(512L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(91L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .isPasswordProtected(true)
+              .content(new java.util.ArrayList<>(List.of(lockedChild, openChild)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(511L, 512L)))
+          .thenReturn(
+              List.of(
+                  childEntity(
+                      511L,
+                      CollectionType.CLIENT_GALLERY,
+                      CollectionVisibility.UNLISTED,
+                      "sunshine"),
+                  childEntity(
+                      512L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED, null)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(511L, 512L);
+    }
+
     private ContentModels.Collection childCollectionContent(Long childId, CollectionType type) {
       return new ContentModels.Collection(
           childId,
@@ -1346,6 +1441,11 @@ class CollectionServiceTest {
 
     private CollectionEntity childEntity(
         Long id, CollectionType type, CollectionVisibility visibility) {
+      return childEntity(id, type, visibility, null);
+    }
+
+    private CollectionEntity childEntity(
+        Long id, CollectionType type, CollectionVisibility visibility, String galleryPassword) {
       // Flags are the storage truth and are kept in sync with type on every write, so a
       // non-drifted CLIENT_GALLERY row always carries is_client = true.
       return CollectionEntity.builder()
@@ -1353,6 +1453,7 @@ class CollectionServiceTest {
           .type(type)
           .isClient(type == CollectionType.CLIENT_GALLERY)
           .visibility(visibility)
+          .galleryPassword(galleryPassword)
           .build();
     }
   }

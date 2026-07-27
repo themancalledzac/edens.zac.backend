@@ -1418,16 +1418,23 @@ public class CollectionService {
     // Batch-load referenced children once — used for both context detection and visibility filter
     List<CollectionEntity> children = collectionRepository.findByIds(referencedIds);
 
-    boolean isClientGalleryContext =
-        model.isClient() || children.stream().anyMatch(CollectionEntity::isClient);
+    boolean parentIsProtected = Boolean.TRUE.equals(model.getIsPasswordProtected());
 
     Set<Long> excludedIds =
         children.stream()
             .filter(
                 c ->
-                    isClientGalleryContext
-                        ? c.getVisibility() == CollectionVisibility.HIDDEN
-                        : !c.getVisibility().appearsInLists())
+                    // S3: an unprotected parent must not publish a password-protected child's
+                    // title, description or cover image. Chosen over the alternative fix (add
+                    // isPasswordProtected to ContentModels.Collection and null out
+                    // coverImage/description) because that is a wire-format change requiring a
+                    // matching frontend locked-tile state, and this unit ships without one.
+                    (!parentIsProtected && c.getGalleryPassword() != null)
+                        // S4: relax per child, not model-wide. One client-gallery child used to
+                        // flip the whole response into "keep UNLISTED children" mode, un-hiding
+                        // every unrelated work-in-progress sibling under the same wrapper.
+                        || c.getVisibility() == CollectionVisibility.HIDDEN
+                        || (!c.isClient() && !c.getVisibility().appearsInLists()))
             .map(CollectionEntity::getId)
             .collect(Collectors.toSet());
 
@@ -1448,10 +1455,10 @@ public class CollectionService {
 
     model.setContent(filtered);
     log.debug(
-        "Filtered {} child collections from response (parent={}, clientGalleryContext={})",
+        "Filtered {} child collections from response (parent={}, parentIsProtected={})",
         excludedIds.size(),
         model.getSlug(),
-        isClientGalleryContext);
+        parentIsProtected);
   }
 
   /**
