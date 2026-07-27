@@ -683,28 +683,6 @@ public class ContentService {
   }
 
   /**
-   * Resolve a parent {@link CollectionEntity} for an image, used by the per-image download endpoint
-   * to decide whether to enforce a {@code passwordHash}-gated cookie. Images can belong to multiple
-   * collections (many-to-many via {@code collection_content}); this returns any matching parent
-   * (deterministic via {@code findContentByContentIdsIn} ordering). Returns empty when the image is
-   * orphaned.
-   */
-  @Transactional(readOnly = true)
-  public Optional<CollectionEntity> findCollectionForImage(Long imageId) {
-    log.debug("Finding parent collection for image ID: {}", imageId);
-    List<CollectionContentEntity> joinEntries =
-        collectionRepository.findContentByContentIdsIn(List.of(imageId));
-    if (joinEntries.isEmpty()) {
-      return Optional.empty();
-    }
-    Long collectionId = joinEntries.getFirst().getCollectionId();
-    if (collectionId == null) {
-      return Optional.empty();
-    }
-    return collectionRepository.findById(collectionId);
-  }
-
-  /**
    * Every password-protected collection that contains this image. The per-image download endpoint
    * must satisfy the gate for ALL of them: an image can belong to several collections at once
    * (many-to-many via {@code collection_content}), and resolving a single arbitrary parent let an
