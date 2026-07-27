@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.services.EmailService;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
@@ -28,6 +29,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -63,6 +66,7 @@ public class AdminUserController {
   private final RoleRepository roleRepository;
   private final UserPageAssembler userPageAssembler;
   private final UserMergeService userMergeService;
+  private final EmailService emailService;
   private final String frontendBaseUrl;
 
   public AdminUserController(
@@ -71,12 +75,14 @@ public class AdminUserController {
       RoleRepository roleRepository,
       UserPageAssembler userPageAssembler,
       UserMergeService userMergeService,
+      EmailService emailService,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.appUserRepository = appUserRepository;
     this.userInviteService = userInviteService;
     this.roleRepository = roleRepository;
     this.userPageAssembler = userPageAssembler;
     this.userMergeService = userMergeService;
+    this.emailService = emailService;
     this.frontendBaseUrl = frontendBaseUrl;
   }
 
@@ -114,6 +120,7 @@ public class AdminUserController {
     Long userId = appUserRepository.insert(newUser);
     String rawToken = userInviteService.createInvite(userId, email);
     String inviteUrl = buildInviteUrl(rawToken);
+    sendInviteEmailAfterCommit(email, request.displayName(), inviteUrl);
 
     log.info("Admin created user (userId={}, email={})", userId, email);
     return ResponseEntity.status(HttpStatus.CREATED)
@@ -159,8 +166,10 @@ public class AdminUserController {
     }
     AppUserEntity user = maybeUser.get();
     String rawToken = userInviteService.regenerateInvite(user.getId(), user.getEmail());
+    String inviteUrl = buildInviteUrl(rawToken);
+    sendInviteEmailAfterCommit(user.getEmail(), user.getName(), inviteUrl);
     log.info("Admin regenerated invite (userId={})", user.getId());
-    return ResponseEntity.ok(new CreateUserResponse(user.getId(), buildInviteUrl(rawToken)));
+    return ResponseEntity.ok(new CreateUserResponse(user.getId(), inviteUrl));
   }
 
   /**
@@ -337,6 +346,36 @@ public class AdminUserController {
   /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */
   private String buildInviteUrl(String rawToken) {
     return frontendBaseUrl.replaceAll("/+$", "") + "/invite/" + rawToken;
+  }
+
+  /**
+   * Send the invite email only once the surrounding transaction commits.
+   *
+   * <p>Both invite endpoints are {@code @Transactional}. Sending inline would mail a live link for
+   * a token that a rollback then erases, and would hold a database transaction open across an SES
+   * round-trip. Registering an {@code afterCommit} hook keeps the invite row and the email
+   * consistent: no commit, no email.
+   *
+   * <p>Delivery is best-effort and deliberately never fails the request — {@link EmailService}
+   * returns a typed reason rather than throwing, and while {@code email.enabled} is false it
+   * short-circuits to a log line. The response still carries {@code inviteUrl}, so the admin
+   * copy-link flow works identically whether or not email is switched on.
+   *
+   * <p>With no active transaction (standalone MockMvc tests) there is nothing to wait for, so the
+   * send happens immediately.
+   */
+  private void sendInviteEmailAfterCommit(String email, String displayName, String inviteUrl) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      emailService.sendInviteEmail(email, displayName, inviteUrl);
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            emailService.sendInviteEmail(email, displayName, inviteUrl);
+          }
+        });
   }
 
   /** The acting admin's user id for audit columns, or null in dev where the gate is open. */

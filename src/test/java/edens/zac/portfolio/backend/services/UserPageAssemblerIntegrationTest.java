@@ -61,6 +61,22 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
         date == null ? null : Timestamp.valueOf(date));
   }
 
+  /**
+   * Seed an image and make it the collection's cover. Deliberately tags nobody — the fallback
+   * exists precisely for users who are tagged in nothing, so a tagged cover would not exercise it.
+   */
+  private void seedCollectionCover(Long collectionId, String webUrl) {
+    Long contentId =
+        jdbc.queryForObject(
+            "INSERT INTO content (content_type) VALUES ('IMAGE') RETURNING id", Long.class);
+    jdbc.update(
+        "INSERT INTO content_image (id, title, image_url_web, image_width, image_height) "
+            + "VALUES (?, 'cover', ?, 1600, 1200)",
+        contentId,
+        webUrl);
+    jdbc.update("UPDATE collection SET cover_image_id = ? WHERE id = ?", contentId, collectionId);
+  }
+
   private void tagCollection(Long collectionId, Long personId) {
     jdbc.update(
         "INSERT INTO collection_people (collection_id, person_id) VALUES (?, ?)",
@@ -197,7 +213,46 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
     assertThat(referencedCollectionIds(model)).containsExactly(granted);
     assertThat(model.getTitle()).isEqualTo("Your Galleries");
+    // The granted collection carries no cover of its own, so there is nothing to fall back to.
     assertThat(model.getCoverImage()).isNull();
+  }
+
+  @Test
+  void grantOnlyUserFallsBackToGrantedCollectionCover() {
+    Long userId = seedUser("grantcover-" + UUID.randomUUID() + "@example.com");
+    Long granted = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    seedCollectionCover(granted, "https://cdn/granted-cover.webp");
+    grant(userId, granted);
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    // Tagged in nothing, but a role grant reaches a collection that has a cover — so the page gets
+    // an entry-point image instead of a blank header.
+    assertThat(model.getCoverImage()).isNotNull();
+    assertThat(model.getCoverImage().imageUrl()).isEqualTo("https://cdn/granted-cover.webp");
+    assertThat(model.getCoverImage().imageWidth()).isEqualTo(1600);
+    assertThat(model.getCoverImage().imageHeight()).isEqualTo(1200);
+    assertThat(model.getTitle()).isEqualTo("Your Galleries");
+  }
+
+  @Test
+  void coverFallbackPicksNewestCollectionThatHasACover() {
+    Long userId = seedUser("newestcover-" + UUID.randomUUID() + "@example.com");
+    Long older = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(30));
+    Long newer = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(2));
+    Long newestWithoutCover = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    seedCollectionCover(older, "https://cdn/older-cover.webp");
+    seedCollectionCover(newer, "https://cdn/newer-cover.webp");
+    grant(userId, older);
+    grant(userId, newer);
+    grant(userId, newestWithoutCover);
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    // Body order is collection-date desc, so the fallback is the newest collection that actually
+    // has a cover — the even newer coverless one is skipped rather than yielding null.
+    assertThat(model.getCoverImage()).isNotNull();
+    assertThat(model.getCoverImage().imageUrl()).isEqualTo("https://cdn/newer-cover.webp");
   }
 
   @Test
@@ -215,8 +270,26 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
-  void linkedPersonWithoutTaggedImageHasNullCover() {
+  void linkedPersonWithoutTaggedImageFallsBackToCollectionCover() {
     Long userId = seedUserNamed("No Cover Person");
+    Long tagged = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    seedCollectionCover(tagged, "https://cdn/tagged-collection-cover.webp");
+    tagCollection(tagged, userId);
+
+    CollectionModel model = assembler.assembleForUser(userId);
+
+    // Tagged on the collection but on none of its images, so resolveCover finds nothing; the
+    // collection's own cover stands in. The person title still applies (they ARE a tagged person).
+    assertThat(referencedCollectionIds(model)).containsExactly(tagged);
+    assertThat(model.getCoverImage()).isNotNull();
+    assertThat(model.getCoverImage().imageUrl())
+        .isEqualTo("https://cdn/tagged-collection-cover.webp");
+    assertThat(model.getTitle()).isEqualTo("No Cover Person");
+  }
+
+  @Test
+  void linkedPersonWithoutTaggedImageOrCollectionCoverStillHasNullCover() {
+    Long userId = seedUserNamed("Nothing Anywhere");
     Long tagged = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
     tagCollection(tagged, userId);
 
@@ -224,7 +297,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
     assertThat(referencedCollectionIds(model)).containsExactly(tagged);
     assertThat(model.getCoverImage()).isNull();
-    assertThat(model.getTitle()).isEqualTo("No Cover Person");
+    assertThat(model.getTitle()).isEqualTo("Nothing Anywhere");
   }
 
   @Test

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Builds the {@code /user} synthetic {@link CollectionModel}: a self-only, PARENT-shaped
  * aggregation of every collection a signed-in user is associated with, plus a cover drawn from
- * their tagged content. The association set is the de-duplicated union of (a) collections the
- * user's linked person is tagged on via {@code collection_people} and (b) collections the user
- * reaches through a role grant (membership via a role). The page-level auth check guarantees the
- * viewer is the owner, so this leans on {@code UNLISTED} visibility rather than a gate.
+ * their tagged content (falling back to an associated collection's own cover when they are tagged
+ * in nothing). The association set is the de-duplicated union of (a) collections the user's linked
+ * person is tagged on via {@code collection_people} and (b) collections the user reaches through a
+ * role grant (membership via a role). The page-level auth check guarantees the viewer is the owner,
+ * so this leans on {@code UNLISTED} visibility rather than a gate.
  *
  * <p>Mirrors the block-building shape of {@link SyntheticCollectionResolver} (PARENT model of
  * {@link ContentModels.Collection} blocks via {@link
@@ -77,11 +79,14 @@ public class UserPageAssembler {
     body.addAll(taggedBlocks);
     reindexSequentially(body);
 
-    // Cover and title only apply when the viewer is an actual tagged person (has tagged collections
-    // or tagged standalone content); a grant-only viewer keeps the generic title and no cover.
+    // The title only applies when the viewer is an actual tagged person (has tagged collections or
+    // tagged standalone content); a grant-only viewer keeps the generic title. The cover, however,
+    // always falls back to one of the viewer's associated collections, so a user who has an account
+    // but is tagged in nothing still gets an entry-point image instead of a blank header.
     Optional<ContentPersonEntity> person =
         identity.filter(p -> !personCollectionIds.isEmpty() || !taggedBlocks.isEmpty());
-    ContentModels.Image cover = person.flatMap(p -> resolveCover(p.getId())).orElse(null);
+    ContentModels.Image cover =
+        person.flatMap(p -> resolveCover(p.getId())).orElseGet(() -> firstCollectionCover(body));
     String title = person.map(ContentPersonEntity::getPersonName).orElse(DEFAULT_TITLE);
 
     // Description is set unconditionally from the user account row, independent of person tagging.
@@ -161,5 +166,26 @@ public class UserPageAssembler {
         .findRandomImageIdByPersonId(personId)
         .flatMap(contentRepository::findImageById)
         .map(contentModelConverter::convertImageEntityToModel);
+  }
+
+  /**
+   * Fallback cover for a viewer with no self-tagged image: the cover of the newest associated
+   * collection that has one, or {@code null} when the viewer has no collections (or none of them
+   * carry a cover).
+   *
+   * <p>Costs no additional query — {@link #buildCollectionBlocks} already hydrates each block's
+   * cover through {@link CollectionProcessingUtil#batchConvertToBasicModels}, which batch-loads
+   * them to avoid an N+1. The body is already ordered collection-date desc, so "first" means
+   * "newest", which keeps the choice deterministic across requests (unlike {@link #resolveCover},
+   * which is deliberately random over the viewer's tagged images).
+   */
+  private static ContentModels.Image firstCollectionCover(List<ContentModel> body) {
+    return body.stream()
+        .filter(ContentModels.Collection.class::isInstance)
+        .map(ContentModels.Collection.class::cast)
+        .map(ContentModels.Collection::coverImage)
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElse(null);
   }
 }
