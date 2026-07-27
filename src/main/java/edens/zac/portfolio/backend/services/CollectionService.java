@@ -1422,19 +1422,7 @@ public class CollectionService {
 
     Set<Long> excludedIds =
         children.stream()
-            .filter(
-                c ->
-                    // S3: an unprotected parent must not publish a password-protected child's
-                    // title, description or cover image. Chosen over the alternative fix (add
-                    // isPasswordProtected to ContentModels.Collection and null out
-                    // coverImage/description) because that is a wire-format change requiring a
-                    // matching frontend locked-tile state, and this unit ships without one.
-                    (!parentIsProtected && c.getGalleryPassword() != null)
-                        // S4: relax per child, not model-wide. One client-gallery child used to
-                        // flip the whole response into "keep UNLISTED children" mode, un-hiding
-                        // every unrelated work-in-progress sibling under the same wrapper.
-                        || c.getVisibility() == CollectionVisibility.HIDDEN
-                        || (!c.isClient() && !c.getVisibility().appearsInLists()))
+            .filter(c -> isChildExcluded(c, parentIsProtected))
             .map(CollectionEntity::getId)
             .collect(Collectors.toSet());
 
@@ -1459,6 +1447,35 @@ public class CollectionService {
         excludedIds.size(),
         model.getSlug(),
         parentIsProtected);
+  }
+
+  /**
+   * Whether a referenced child collection must be stripped from a public parent's response.
+   *
+   * <p>Three independent reasons, each pinned by its own test:
+   *
+   * <ul>
+   *   <li>HIDDEN children never render publicly.
+   *   <li>S3: an unprotected parent must not publish a password-protected child's title,
+   *       description or cover image. {@code ContentModels.Collection} has no {@code
+   *       isPasswordProtected} field, so the frontend cannot render a locked tile -- dropping the
+   *       block is the only correct behaviour available without a wire change, and this unit is
+   *       specified as a no-model-change unit. The alternative (emit {@code isPasswordProtected}
+   *       and null out {@code coverImage}/{@code description}) is deliberately NOT implemented;
+   *       there is no second code path.
+   *   <li>S4: the UNLISTED relaxation is per child, not per model. It used to be computed once from
+   *       the whole response ("any child is a client gallery"), so linking a single gallery under a
+   *       wrapper un-hid every unrelated UNLISTED work-in-progress sibling.
+   * </ul>
+   */
+  private static boolean isChildExcluded(CollectionEntity child, boolean parentIsProtected) {
+    if (child.getVisibility() == CollectionVisibility.HIDDEN) {
+      return true;
+    }
+    if (!parentIsProtected && child.getGalleryPassword() != null) {
+      return true;
+    }
+    return !child.isClient() && !child.getVisibility().appearsInLists();
   }
 
   /**

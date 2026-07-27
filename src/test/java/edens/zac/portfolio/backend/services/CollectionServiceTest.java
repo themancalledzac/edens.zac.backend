@@ -1417,6 +1417,50 @@ class CollectionServiceTest {
           .containsExactly(511L, 512L);
     }
 
+    @Test
+    void clientGalleryWrapper_dropsUnlistedNonClientChild() {
+      // S4 from the other direction: the parent is itself a client gallery, which used to be
+      // enough to keep every UNLISTED child. Only the client-gallery child survives now.
+      String slug = "gallery-wrapper";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(92L)
+              .slug(slug)
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection unlistedPortfolio =
+          childCollectionContent(521L, CollectionType.PORTFOLIO);
+      ContentModels.Collection unlistedGallery =
+          childCollectionContent(522L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(92L)
+              .slug(slug)
+              .type(CollectionType.CLIENT_GALLERY)
+              .isClient(true)
+              .content(new java.util.ArrayList<>(List.of(unlistedPortfolio, unlistedGallery)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(521L, 522L)))
+          .thenReturn(
+              List.of(
+                  childEntity(521L, CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED),
+                  childEntity(522L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(522L);
+    }
+
     private ContentModels.Collection childCollectionContent(Long childId, CollectionType type) {
       return new ContentModels.Collection(
           childId,
