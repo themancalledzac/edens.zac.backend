@@ -194,4 +194,32 @@ class V51MigrationPrepIntegrationTest {
         "SELECT type, is_client, is_blog, archived_at FROM collection_type_archive WHERE slug = ?",
         slug);
   }
+
+  @Test
+  @DisplayName("content_per_page is backfilled to 30 only where it was NULL")
+  void contentPerPageBackfillFillsNullsAndLeavesSetValuesAlone() {
+    // D1: /home stops taking the unpaginated COLLECTION-only branch
+    // (CollectionService.java:130-141), so every row needs a usable page size. Nothing repairs
+    // an existing row on its own -- applyPaginationDefaults is reachable only from the create
+    // path (CollectionProcessingUtil.java:594).
+    for (String slug :
+        List.of("client-gallery", "portfolio", "art-gallery", "home", "parent", "misc")) {
+      assertThat(contentPerPage(slug)).as(slug).isEqualTo(30);
+    }
+    // Set before the migration ran -- the backfill must not overwrite it.
+    assertThat(contentPerPage("blog")).isEqualTo(50);
+    // No seeded row is left NULL. The `-probe` rows are inserted by a sibling test after the
+    // migration, so they are excluded rather than asserted on.
+    assertThat(
+            jdbc.queryForList(
+                "SELECT slug FROM collection WHERE content_per_page IS NULL "
+                    + "AND slug NOT LIKE '%-probe' ORDER BY slug",
+                String.class))
+        .isEmpty();
+  }
+
+  private Integer contentPerPage(String slug) {
+    return jdbc.queryForObject(
+        "SELECT content_per_page FROM collection WHERE slug = ?", Integer.class, slug);
+  }
 }
