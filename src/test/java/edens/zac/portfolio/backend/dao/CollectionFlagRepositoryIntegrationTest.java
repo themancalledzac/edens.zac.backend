@@ -69,14 +69,20 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   }
 
   @Test
-  void migration_v50_seedsArtGalleryAndPortfolioLabelTags() {
-    // V50 idempotently ensures the art-gallery and portfolio label tags exist so grouping
-    // survives the eventual type-column drop.
+  void migration_v51_removesTheV50ArtGalleryAndPortfolioLabelTags() {
+    // V50 seeded these label tags so the Portfolio / Art Gallery grouping would survive the
+    // type-column drop. Spec D6 reversed that: the grouping is deleted outright rather than
+    // preserved as tags, because TagViewResolver turns any tag slug into a live public page and
+    // nothing will ever write that grouping again. V51 step 4b removes them.
+    //
+    // This assertion has real rows behind it even though the shared container seeds no
+    // collections: V50's two `INSERT INTO tag` statements are unconditional, and only its
+    // `INSERT INTO collection_tags` attach depends on collections existing.
     List<String> slugs =
         jdbc.queryForList(
             "SELECT slug FROM tag WHERE slug IN ('art-gallery', 'portfolio') ORDER BY slug",
             String.class);
-    assertThat(slugs).containsExactly("art-gallery", "portfolio");
+    assertThat(slugs).isEmpty();
   }
 
   @Test
