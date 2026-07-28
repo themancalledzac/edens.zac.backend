@@ -824,7 +824,15 @@ public class CollectionService {
                         p.isBlog()))
             .toList());
 
-    return new CollectionRequests.UpdateResponse(collection, metadata, childCollectionImages);
+    List<Long> allChildCollectionIds =
+        collectionRepository.findAllReferencedCollectionIdsByParentId(entity.getId());
+
+    return new CollectionRequests.UpdateResponse(
+        collection,
+        metadata,
+        childCollectionImages,
+        !allChildCollectionIds.isEmpty(),
+        allChildCollectionIds);
   }
 
   @Transactional(readOnly = true)

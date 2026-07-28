@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -2250,6 +2251,60 @@ class CollectionServiceTest {
       assertThatThrownBy(() -> service.updateContent(current.getId(), updateWithParents(parents)))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Cycle detected");
+    }
+  }
+
+  @Nested
+  class DerivedParentNessOnManagePayload {
+
+    @Test
+    @DisplayName("getUpdateCollectionData reports hasChildren and the full child id list")
+    void getUpdateCollectionData_reportsDerivedChildren() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(7L)
+              .slug("wrapper")
+              .title("Wrapper")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionModel model =
+          CollectionModel.builder().id(7L).slug("wrapper").title("Wrapper").build();
+
+      when(collectionRepository.findBySlug("wrapper")).thenReturn(Optional.of(entity));
+      when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
+      stubEmptyMetadata();
+      when(collectionRepository.findAllReferencedCollectionIdsByParentId(7L))
+          .thenReturn(List.of(11L, 12L));
+
+      CollectionRequests.UpdateResponse response = service.getUpdateCollectionData("wrapper");
+
+      assertThat(response.hasChildren()).isTrue();
+      assertThat(response.childCollectionIds()).containsExactly(11L, 12L);
+    }
+
+    @Test
+    @DisplayName("getUpdateCollectionData reports hasChildren=false and an empty id list")
+    void getUpdateCollectionData_noChildren() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(8L)
+              .slug("leaf")
+              .title("Leaf")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionModel model = CollectionModel.builder().id(8L).slug("leaf").title("Leaf").build();
+
+      when(collectionRepository.findBySlug("leaf")).thenReturn(Optional.of(entity));
+      when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
+      stubEmptyMetadata();
+      when(collectionRepository.findAllReferencedCollectionIdsByParentId(8L)).thenReturn(List.of());
+
+      CollectionRequests.UpdateResponse response = service.getUpdateCollectionData("leaf");
+
+      assertThat(response.hasChildren()).isFalse();
+      assertThat(response.childCollectionIds()).isEmpty();
     }
   }
 }

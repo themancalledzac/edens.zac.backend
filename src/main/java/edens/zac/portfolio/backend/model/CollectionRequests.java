@@ -196,15 +196,25 @@ public final class CollectionRequests {
        */
       @JsonUnwrapped GeneralMetadataDTO metadata,
       /**
-       * Aggregated images from all child collections. Only populated for parent-type collections
-       * (PARENT, HOME) to enable cover image selection and child content management. Null for
-       * non-parent collections.
+       * Aggregated images from every child collection, for cover-image selection and child content
+       * management. Null when the collection holds no child collections.
        */
-      List<ContentModels.Image> childCollectionImages) {
+      List<ContentModels.Image> childCollectionImages,
+      /**
+       * Derived parent-ness, computed server-side over the whole content graph. The frontend cannot
+       * derive this reliably from {@code collection.content}, which is bounded by the page window.
+       */
+      boolean hasChildren,
+      /**
+       * Every child collection id linked under this collection, in {@code order_index} order.
+       * Complete, not page-bounded: the Structure tab's saved-children checkboxes read from this,
+       * and a truncated list would read as an intentional removal on the next save.
+       */
+      List<Long> childCollectionIds) {
 
-    /** Constructor for non-parent collections (backwards compatible). */
+    /** Convenience constructor for collections with no children. */
     public UpdateResponse(CollectionModel collection, GeneralMetadataDTO metadata) {
-      this(collection, metadata, null);
+      this(collection, metadata, null, false, List.of());
     }
   }
 
