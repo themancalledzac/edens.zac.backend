@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,12 +16,12 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -60,10 +61,18 @@ class SyntheticCollectionResolverTest {
   void recognizesAllCatalogSlugs() {
     assertThat(resolver.isSyntheticSlug("all-collections")).isTrue();
     assertThat(resolver.isSyntheticSlug("all-blogs")).isTrue();
-    assertThat(resolver.isSyntheticSlug("all-portfolios")).isTrue();
+    assertThat(resolver.isSyntheticSlug("all-portfolios")).isFalse();
     assertThat(resolver.isSyntheticSlug("all-client-galleries")).isTrue();
-    assertThat(resolver.isSyntheticSlug("all-art-galleries")).isTrue();
-    assertThat(resolver.isSyntheticSlug("all-misc")).isTrue();
+    assertThat(resolver.isSyntheticSlug("all-art-galleries")).isFalse();
+    assertThat(resolver.isSyntheticSlug("all-misc")).isFalse();
+  }
+
+  @Test
+  @DisplayName("resolve rejects a pruned catalog slug")
+  void resolve_prunedSlug_throws() {
+    assertThatThrownBy(() -> resolver.resolve("all-misc", false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Not a synthetic slug");
   }
 
   @Test
@@ -84,14 +93,13 @@ class SyntheticCollectionResolverTest {
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
             List.of(
-                CollectionModel.builder().id(1L).slug("a").type(CollectionType.PORTFOLIO).build(),
-                CollectionModel.builder().id(2L).slug("b").type(CollectionType.BLOG).build()));
+                CollectionModel.builder().id(1L).slug("a").build(),
+                CollectionModel.builder().id(2L).slug("b").build()));
 
     CollectionModel out = resolver.resolve("all-collections", false);
 
     assertThat(out.getSlug()).isEqualTo("all-collections");
     assertThat(out.getTitle()).isEqualTo("All Collections");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getVisibility()).isEqualTo(CollectionVisibility.LISTED);
     assertThat(out.getContent()).hasSize(2);
     assertThat(out.getContent().get(0)).isInstanceOf(ContentModels.Collection.class);
@@ -99,7 +107,6 @@ class SyntheticCollectionResolverTest {
     assertThat(first.contentType()).isEqualTo(ContentType.COLLECTION);
     assertThat(first.referencedCollectionId()).isEqualTo(1L);
     assertThat(first.slug()).isEqualTo("a");
-    assertThat(first.collectionType()).isEqualTo(CollectionType.PORTFOLIO);
   }
 
   @Test
@@ -108,8 +115,7 @@ class SyntheticCollectionResolverTest {
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(eq(FULL_SCOPE), eq(List.of())))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(CollectionModel.builder().id(1L).slug("a").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(1L).slug("a").build()));
 
     resolver.resolve("all-collections", false);
 
@@ -126,8 +132,7 @@ class SyntheticCollectionResolverTest {
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of(7L, 9L))))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(CollectionModel.builder().id(7L).slug("g").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(7L).slug("g").build()));
 
     resolver.resolve("all-collections", false);
 
@@ -180,7 +185,6 @@ class SyntheticCollectionResolverTest {
                 CollectionModel.builder()
                     .id(7L)
                     .slug("spring-trip")
-                    .type(CollectionType.BLOG)
                     .collectionDate(java.time.LocalDate.of(2026, 3, 5))
                     .collectionEndDate(java.time.LocalDate.of(2026, 3, 7))
                     .build()));
@@ -198,15 +202,14 @@ class SyntheticCollectionResolverTest {
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of())))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(CollectionModel.builder().id(1L).slug("x").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(1L).slug("x").build()));
 
     resolver.resolve("all-collections", false);
 
     verify(collectionRepository)
         .findNonEmptyListedOrOwnedOrderByDate(
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of()));
-    verify(collectionRepository, never()).findNonEmptyOrderedByVisibilityIn(any(), any());
+    verify(collectionRepository, never()).findNonEmptyOrderedByVisibilityIn(any(), anyBoolean());
   }
 
   @Test
@@ -216,9 +219,7 @@ class SyntheticCollectionResolverTest {
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(
-                CollectionModel.builder().id(7L).slug("trip").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(7L).slug("trip").build()));
     when(tagRepository.findTagsByCollectionIds(List.of(7L)))
         .thenReturn(
             Map.of(
@@ -239,9 +240,7 @@ class SyntheticCollectionResolverTest {
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(
-                CollectionModel.builder().id(9L).slug("bare").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(9L).slug("bare").build()));
     // tagRepository.findTagsByCollectionIds returns an empty map by default (Mockito) -> no tags.
 
     CollectionModel out = resolver.resolve("all-collections", true);
@@ -253,18 +252,15 @@ class SyntheticCollectionResolverTest {
   @Test
   void resolveAllBlogsInProdFiltersToBlogTypeAndListedOnly() {
     when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
-            eq(List.of(CollectionVisibility.LISTED)), eq(CollectionType.BLOG)))
+            eq(List.of(CollectionVisibility.LISTED)), eq(true)))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(
-                CollectionModel.builder().id(11L).slug("trip").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(11L).slug("trip").build()));
 
     CollectionModel out = resolver.resolve("all-blogs", false);
 
     assertThat(out.getSlug()).isEqualTo("all-blogs");
     assertThat(out.getTitle()).isEqualTo("Blogs");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getContent()).hasSize(1);
   }
 
@@ -283,29 +279,24 @@ class SyntheticCollectionResolverTest {
                     .id(50L)
                     .slug("smith-wedding")
                     .title("Smith Wedding")
-                    .type(CollectionType.PARENT)
                     .build(),
                 CollectionModel.builder()
                     .id(51L)
                     .slug("jones-engagement")
                     .title("Jones Engagement")
-                    .type(CollectionType.CLIENT_GALLERY)
                     .build()));
 
     CollectionModel out = resolver.resolve("all-client-galleries", false);
 
     assertThat(out.getSlug()).isEqualTo("all-client-galleries");
     assertThat(out.getTitle()).isEqualTo("Client Galleries");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getContent()).hasSize(2);
 
     ContentModels.Collection parentTile = (ContentModels.Collection) out.getContent().get(0);
     assertThat(parentTile.slug()).isEqualTo("smith-wedding");
-    assertThat(parentTile.collectionType()).isEqualTo(CollectionType.PARENT);
 
     ContentModels.Collection galleryTile = (ContentModels.Collection) out.getContent().get(1);
     assertThat(galleryTile.slug()).isEqualTo("jones-engagement");
-    assertThat(galleryTile.collectionType()).isEqualTo(CollectionType.CLIENT_GALLERY);
   }
 
   @Test

@@ -29,7 +29,6 @@ import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.types.ContentType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -692,8 +691,49 @@ public class ContentService {
   @Transactional(readOnly = true)
   public List<CollectionEntity> findProtectedCollectionsForImage(Long imageId) {
     log.debug("Finding protected parent collections for image ID: {}", imageId);
+    return findProtectedCollectionsForContent(List.of(imageId));
+  }
+
+  /**
+   * Every password-protected collection that gates any image a collection ZIP download would
+   * return. The password on the slug in the URL is only half the question: under Rule B the same
+   * image may sit in a public wrapper and a protected gallery at once, so authorizing the requested
+   * collection alone let the wrapper waive the gallery's password -- the exact defect S1 closed on
+   * the per-image endpoint, on the endpoint that hands out whole ZIPs and, for a one-image subset,
+   * a 302 straight to a presigned full-resolution original.
+   *
+   * <p>Resolves precisely the images the download would serve (collection membership, then the
+   * optional {@code imageIds} subset filter, mirroring {@link #resolveCollectionDownloadEntries}),
+   * then batch-loads every collection those images belong to and keeps the protected ones. The
+   * membership read is deliberately repeated rather than threaded through the resolver: a download
+   * is rare and dominated by the ZIP itself, and an auth pass that computes its own answer cannot
+   * silently drift from the resolver's.
+   *
+   * <p>Returns an empty list when nothing the download would serve is gated.
+   */
+  @Transactional(readOnly = true)
+  public List<CollectionEntity> findProtectedCollectionsForCollectionDownload(
+      Long collectionId, Collection<Long> imageIds) {
+    log.debug("Finding protected parent collections for collection download {}", collectionId);
+    List<Long> resolvedIds =
+        findImagesForCollection(collectionId).stream().map(ContentImageEntity::getId).toList();
+    if (imageIds != null && !imageIds.isEmpty()) {
+      Set<Long> wanted = new HashSet<>(imageIds);
+      resolvedIds = resolvedIds.stream().filter(wanted::contains).toList();
+    }
+    return findProtectedCollectionsForContent(resolvedIds);
+  }
+
+  /**
+   * Shared fail-closed lookup behind both download gates: every password-protected collection that
+   * any of these content ids belongs to, batch-loaded in two queries regardless of id count.
+   */
+  private List<CollectionEntity> findProtectedCollectionsForContent(List<Long> contentIds) {
+    if (contentIds.isEmpty()) {
+      return List.of();
+    }
     List<Long> collectionIds =
-        collectionRepository.findContentByContentIdsIn(List.of(imageId)).stream()
+        collectionRepository.findContentByContentIdsIn(contentIds).stream()
             .map(CollectionContentEntity::getCollectionId)
             .filter(Objects::nonNull)
             .distinct()
@@ -910,24 +950,11 @@ public class ContentService {
    * @param visible Whether the content is visible in the collection
    */
   void linkContentToCollection(Long collectionId, Long contentId, int orderIndex, boolean visible) {
-    CollectionEntity collection =
-        collectionRepository
-            .findById(collectionId)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
-
-    if (collection.getType().isParentType()) {
-      ContentType contentType =
-          contentRepository
-              .findContentTypeById(contentId)
-              .orElseThrow(() -> new ResourceNotFoundException("Content not found: " + contentId));
-      if (contentType != ContentType.COLLECTION) {
-        throw new IllegalArgumentException(
-            "Parent-type collections can only contain child collections, not "
-                + contentType
-                + " content");
-      }
-    }
+    // Existence check only -- any collection may hold any content type (Rule B), so nothing about
+    // the collection itself is inspected beyond it existing.
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     CollectionContentEntity joinEntry =
         CollectionContentEntity.builder()

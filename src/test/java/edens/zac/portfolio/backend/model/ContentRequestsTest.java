@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -202,7 +201,7 @@ class ContentRequestsTest {
 
   @Test
   void collectionCreate_valid_noViolations() {
-    var create = new CollectionRequests.Create(CollectionType.BLOG, "My Blog");
+    var create = new CollectionRequests.Create("My Blog");
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
     assertThat(violations).isEmpty();
   }
@@ -211,14 +210,14 @@ class ContentRequestsTest {
   void collectionCreate_nullType_isValid() {
     // Dual-compat window: type is optional (new frontends send only booleans + title; a create
     // with neither type nor booleans resolves to MISC in the mapping layer).
-    var create = new CollectionRequests.Create(null, "My Blog");
+    var create = new CollectionRequests.Create("My Blog");
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
     assertThat(violations).isEmpty();
   }
 
   @Test
   void collectionCreate_nullTitle_hasViolation() {
-    var create = new CollectionRequests.Create(CollectionType.BLOG, null);
+    var create = new CollectionRequests.Create(null);
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
     assertThat(violations).isNotEmpty();
     assertThat(violations).anyMatch(v -> v.getMessage().contains("Title is required"));
@@ -226,7 +225,7 @@ class ContentRequestsTest {
 
   @Test
   void collectionCreate_titleTooShort_hasViolation() {
-    var create = new CollectionRequests.Create(CollectionType.BLOG, "AB");
+    var create = new CollectionRequests.Create("AB");
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
     assertThat(violations).isNotEmpty();
     assertThat(violations)
@@ -235,7 +234,7 @@ class ContentRequestsTest {
 
   @Test
   void collectionCreate_titleExactly3Chars_noViolations() {
-    var create = new CollectionRequests.Create(CollectionType.BLOG, "ABC");
+    var create = new CollectionRequests.Create("ABC");
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
     assertThat(violations).isEmpty();
   }
@@ -243,7 +242,7 @@ class ContentRequestsTest {
   @Test
   void collectionCreate_titleExceeds100Chars_hasViolation() {
     String longTitle = "a".repeat(101);
-    var create = new CollectionRequests.Create(CollectionType.BLOG, longTitle);
+    var create = new CollectionRequests.Create(longTitle);
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
     assertThat(violations).isNotEmpty();
     assertThat(violations)
@@ -253,7 +252,7 @@ class ContentRequestsTest {
   @Test
   void collectionCreate_titleExactly100Chars_noViolations() {
     String exactTitle = "a".repeat(100);
-    var create = new CollectionRequests.Create(CollectionType.BLOG, exactTitle);
+    var create = new CollectionRequests.Create(exactTitle);
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
     assertThat(violations).isEmpty();
   }

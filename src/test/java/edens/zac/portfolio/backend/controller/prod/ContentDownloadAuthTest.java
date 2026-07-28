@@ -15,7 +15,6 @@ import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.DownloadUrlService;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.net.URI;
 import java.util.List;
@@ -77,7 +76,6 @@ class ContentDownloadAuthTest {
   private static CollectionEntity protectedGallery() {
     return CollectionEntity.builder()
         .id(1L)
-        .type(CollectionType.CLIENT_GALLERY)
         .title("Smith Wedding")
         .slug("smith-wedding")
         .visibility(CollectionVisibility.UNLISTED)

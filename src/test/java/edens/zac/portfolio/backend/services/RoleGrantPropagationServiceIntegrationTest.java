@@ -94,7 +94,6 @@ class RoleGrantPropagationServiceIntegrationTest extends AbstractPostgresIntegra
         null,
         null,
         null,
-        null,
         new CollectionRequests.CollectionUpdate(null, null, childIds),
         null);
   }
@@ -106,7 +105,6 @@ class RoleGrantPropagationServiceIntegrationTest extends AbstractPostgresIntegra
         new Records.ChildCollection(childId, null, null, null, visible, null);
     return new CollectionRequests.Update(
         parentId,
-        null,
         null,
         null,
         null,

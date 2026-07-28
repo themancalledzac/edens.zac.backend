@@ -100,7 +100,7 @@ class CollectionSiblingRepositoryTest {
           .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
       String sql = sqlCaptor.getValue();
       assertThat(sql)
-          .containsIgnoringCase("SELECT c.id, c.title AS name, c.slug, c.type, c.cover_image_id");
+          .containsIgnoringCase("SELECT c.id, c.title AS name, c.slug, c.cover_image_id");
       assertThat(sql).containsIgnoringCase("FROM collection_sibling cs");
       assertThat(sql).containsIgnoringCase("JOIN collection c ON c.id = cs.sibling_collection_id");
       assertThat(sql).containsIgnoringCase("WHERE cs.collection_id = :id");

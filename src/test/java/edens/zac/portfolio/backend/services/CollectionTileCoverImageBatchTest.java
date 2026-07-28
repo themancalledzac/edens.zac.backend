@@ -23,7 +23,6 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +101,6 @@ class CollectionTileCoverImageBatchTest {
   void convertToModel_homeWithChildTiles_batchesCoverImagesWithoutPerTileQueries() {
     CollectionEntity home = new CollectionEntity();
     home.setId(34L);
-    home.setType(CollectionType.HOME);
     home.setTitle("Home");
     home.setSlug("home");
 
@@ -113,19 +111,12 @@ class CollectionTileCoverImageBatchTest {
 
     // Referenced collections, each with a cover image (301/302/303).
     CollectionEntity c201 =
-        CollectionEntity.builder()
-            .id(201L)
-            .title("Film")
-            .slug("film")
-            .type(CollectionType.PORTFOLIO)
-            .coverImageId(301L)
-            .build();
+        CollectionEntity.builder().id(201L).title("Film").slug("film").coverImageId(301L).build();
     CollectionEntity c202 =
         CollectionEntity.builder()
             .id(202L)
             .title("Adventure")
             .slug("adventure")
-            .type(CollectionType.PORTFOLIO)
             .coverImageId(302L)
             .build();
     CollectionEntity c203 =
@@ -133,7 +124,6 @@ class CollectionTileCoverImageBatchTest {
             .id(203L)
             .title("Travel")
             .slug("travel")
-            .type(CollectionType.PORTFOLIO)
             .coverImageId(303L)
             .build();
     lenient()

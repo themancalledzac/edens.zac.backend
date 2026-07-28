@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -24,7 +23,6 @@ class CollectionDateRangeRepositoryIntegrationTest extends AbstractPostgresInteg
 
   private CollectionEntity newCollection(String slug, LocalDate start, LocalDate end) {
     return CollectionEntity.builder()
-        .type(CollectionType.BLOG)
         .title("Date Range " + slug)
         .slug(slug)
         .collectionDate(start)

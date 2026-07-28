@@ -34,7 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 @ExtendWith(MockitoExtension.class)
-class ContentControllerDevTest {
+class AdminControllerTest {
 
   private MockMvc mockMvc;
 
@@ -44,7 +44,7 @@ class ContentControllerDevTest {
 
   @Mock private JobTrackingService jobTrackingService;
 
-  @InjectMocks private AdminController contentController;
+  @InjectMocks private AdminController adminController;
 
   private ObjectMapper objectMapper;
 
@@ -56,7 +56,7 @@ class ContentControllerDevTest {
     objectMapper.findAndRegisterModules();
 
     mockMvc =
-        MockMvcBuilders.standaloneSetup(contentController)
+        MockMvcBuilders.standaloneSetup(adminController)
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -399,7 +399,6 @@ class ContentControllerDevTest {
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(imageUploadPipelineService)
         .createCollectionWithImages(createCaptor.capture(), anyList(), anyMap());
-    assertThat(createCaptor.getValue().type()).isNull();
     assertThat(createCaptor.getValue().isClient()).isTrue();
     assertThat(createCaptor.getValue().isBlog()).isFalse();
   }
@@ -431,7 +430,6 @@ class ContentControllerDevTest {
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(imageUploadPipelineService)
         .createCollectionWithImages(createCaptor.capture(), anyList(), anyMap());
-    assertThat(createCaptor.getValue().type()).isNull();
     assertThat(createCaptor.getValue().isClient()).isNull();
     assertThat(createCaptor.getValue().isBlog()).isNull();
   }

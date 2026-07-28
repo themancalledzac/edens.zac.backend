@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.dao;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import java.sql.Array;
@@ -46,7 +45,6 @@ public class CollectionRepository extends BaseDao {
   private static final List<String> COLLECTION_COLUMN_NAMES =
       List.of(
           "id",
-          "type",
           "is_client",
           "is_blog",
           "title",
@@ -84,7 +82,6 @@ public class CollectionRepository extends BaseDao {
       (rs, rowNum) -> {
         CollectionEntity entity = new CollectionEntity();
         entity.setId(rs.getLong("id"));
-        entity.setType(CollectionType.valueOf(rs.getString("type")));
         entity.setClient(rs.getBoolean("is_client"));
         entity.setBlog(rs.getBoolean("is_blog"));
         entity.setTitle(rs.getString("title"));
@@ -254,6 +251,58 @@ public class CollectionRepository extends BaseDao {
         """;
     MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
     return queryForObject(sql, (rs, rowNum) -> rs.getBoolean(1), params).orElse(false);
+  }
+
+  /**
+   * Derived parent-ness: true when this collection holds at least one COLLECTION content block.
+   * Visibility-agnostic on both the membership row and the child's own visibility, because this
+   * answers a structural question ("does this collection contain child collections") rather than a
+   * rendering one. Replaces the stored {@code CollectionType.PARENT} discriminator.
+   */
+  @Transactional(readOnly = true)
+  public boolean hasChildCollections(Long collectionId) {
+    if (collectionId == null) {
+      return false;
+    }
+    String sql =
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM collection_content cc
+          JOIN content_collection cct ON cct.id = cc.content_id
+          WHERE cc.collection_id = :collectionId
+            AND cct.referenced_collection_id IS NOT NULL
+        )
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
+    // Same idiom as hasClientGalleryChildren (U2): BaseDao's queryForObject takes a RowMapper,
+    // not a Class, and returns Optional.
+    return queryForObject(sql, (rs, rowNum) -> rs.getBoolean(1), params).orElse(false);
+  }
+
+  /**
+   * Every child collection id linked under this parent, ordered by {@code cc.order_index}, ignoring
+   * both the membership {@code visible} flag and the child's own visibility. The admin manage
+   * payload needs the COMPLETE list: the frontend otherwise derives it from the paginated content
+   * array, which is bounded by the 500-item page window, and a truncated list reads as an
+   * intentional child removal on the next save.
+   */
+  @Transactional(readOnly = true)
+  public List<Long> findAllReferencedCollectionIdsByParentId(Long parentId) {
+    if (parentId == null) {
+      return List.of();
+    }
+    String sql =
+        """
+        SELECT cct.referenced_collection_id
+        FROM collection_content cc
+        JOIN content_collection cct ON cct.id = cc.content_id
+        WHERE cc.collection_id = :parentId
+          AND cct.referenced_collection_id IS NOT NULL
+        ORDER BY cc.order_index ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
+    return query(sql, (rs, n) -> rs.getLong("referenced_collection_id"), params);
   }
 
   /**
@@ -429,24 +478,25 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
-   * Find collections whose visibility is in the supplied set, optionally filtered by legacy type,
-   * dropping collections that have zero non-soft-removed entries in {@code collection_content}.
-   * Used by synthetic-list endpoints (e.g. {@code /all-collections}, {@code /all-blogs}) so the
-   * listing never renders empty tiles. Admin-only flows that need empty collections (e.g.
-   * cover-image picking) should use {@link #findClientGalleriesByVisibilityIn}. The type filter
-   * remains legacy-keyed for the synthetic-slug catalog, which a later task prunes.
+   * Find collections whose visibility is in the supplied set, dropping collections that have zero
+   * non-soft-removed entries in {@code collection_content}. Used by synthetic-list endpoints (e.g.
+   * {@code /all-collections}, {@code /all-blogs}) so the listing never renders empty tiles.
+   * Admin-only flows that need empty collections (e.g. cover-image picking) should use {@link
+   * #findClientGalleriesByVisibilityIn}.
+   *
+   * @param blogsOnly when true, restrict to {@code is_blog = true} -- the single definition of
+   *     "blog", shared with the admin blogs tile
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findNonEmptyOrderedByVisibilityIn(
-      List<CollectionVisibility> allowed, CollectionType typeFilter) {
+      List<CollectionVisibility> allowed, boolean blogsOnly) {
     StringBuilder sql =
         new StringBuilder(SELECT_COLLECTION).append(" WHERE visibility IN (:visibilities) ");
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
-    if (typeFilter != null) {
-      sql.append(" AND type = :type ");
-      params.addValue("type", typeFilter.name());
+    if (blogsOnly) {
+      sql.append(" AND is_blog = true ");
     }
     sql.append(
         """
@@ -572,9 +622,8 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<Records.CollectionList> findIdTitleSlugAndType() {
-    String sql =
-        "SELECT id, title, slug, type, is_client, is_blog FROM collection ORDER BY title ASC";
+  public List<Records.CollectionList> findIdTitleAndSlug() {
+    String sql = "SELECT id, title, slug, is_client, is_blog FROM collection ORDER BY title ASC";
     return jdbcTemplate.query(
         sql,
         (rs, rowNum) ->
@@ -582,7 +631,6 @@ public class CollectionRepository extends BaseDao {
                 rs.getLong("id"),
                 rs.getString("title"),
                 rs.getString("slug"),
-                CollectionType.valueOf(rs.getString("type")),
                 null,
                 null,
                 rs.getBoolean("is_client"),
@@ -592,24 +640,25 @@ public class CollectionRepository extends BaseDao {
   /**
    * Persist a CollectionEntity. Neither branch writes {@code recipient_emails}, and UPDATE also
    * omits {@code gallery_password}: both columns are owned exclusively by {@link
-   * #saveGalleryAccess}, which writes them atomically as a pair.
+   * #saveGalleryAccess}, which writes them atomically as a pair. Neither branch touches {@code
+   * type} -- the column is retained for one release as a rollback artifact and carries a DEFAULT
+   * from V51.
    */
   @Transactional
   public CollectionEntity save(CollectionEntity entity) {
     if (entity.getId() == null) {
       String sql =
           """
-          INSERT INTO collection (type, is_client, is_blog, title, slug, description, collection_date, collection_end_date,
+          INSERT INTO collection (is_client, is_blog, title, slug, description, collection_date, collection_end_date,
                                  visibility, display_mode, cover_image_id, content_per_page, total_content,
                                  rows_wide, gallery_password, rating, created_at, updated_at)
-          VALUES (:type, :isClient, :isBlog, :title, :slug, :description, :collectionDate, :collectionEndDate,
+          VALUES (:isClient, :isBlog, :title, :slug, :description, :collectionDate, :collectionEndDate,
                   :visibility, :displayMode, :coverImageId, :contentPerPage, :totalContent,
                   :rowsWide, :galleryPassword, :rating, :createdAt, :updatedAt)
           """;
 
       MapSqlParameterSource params =
           createParameterSource()
-              .addValue("type", entity.getType().name())
               .addValue("isClient", entity.isClient())
               .addValue("isBlog", entity.isBlog())
               .addValue("title", entity.getTitle())
@@ -643,7 +692,7 @@ public class CollectionRepository extends BaseDao {
       String sql =
           """
           UPDATE collection
-          SET type = :type, is_client = :isClient, is_blog = :isBlog, title = :title, slug = :slug, description = :description,
+          SET is_client = :isClient, is_blog = :isBlog, title = :title, slug = :slug, description = :description,
               collection_date = :collectionDate, collection_end_date = :collectionEndDate,
               visibility = :visibility, display_mode = :displayMode,
               cover_image_id = :coverImageId, content_per_page = :contentPerPage, total_content = :totalContent,
@@ -654,7 +703,6 @@ public class CollectionRepository extends BaseDao {
       MapSqlParameterSource params =
           createParameterSource()
               .addValue("id", entity.getId())
-              .addValue("type", entity.getType().name())
               .addValue("isClient", entity.isClient())
               .addValue("isBlog", entity.isBlog())
               .addValue("title", entity.getTitle())

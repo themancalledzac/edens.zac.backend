@@ -6,7 +6,6 @@ import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,14 +33,12 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
 
   private CollectionEntity saveCollection(
       String slug,
-      CollectionType type,
       boolean isClient,
       boolean isBlog,
       CollectionVisibility visibility,
       LocalDate date) {
     return collectionRepository.save(
         CollectionEntity.builder()
-            .type(type)
             .isClient(isClient)
             .isBlog(isBlog)
             .title("Flag " + slug)
@@ -89,18 +86,12 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   void save_clientGallery_roundTripsFlagsAndType() {
     CollectionEntity saved =
         saveCollection(
-            "flag-roundtrip",
-            CollectionType.CLIENT_GALLERY,
-            true,
-            false,
-            CollectionVisibility.LISTED,
-            LocalDate.of(2026, 1, 5));
+            "flag-roundtrip", true, false, CollectionVisibility.LISTED, LocalDate.of(2026, 1, 5));
 
     CollectionEntity reloaded = collectionRepository.findById(saved.getId()).orElseThrow();
 
     assertThat(reloaded.isClient()).isTrue();
     assertThat(reloaded.isBlog()).isFalse();
-    assertThat(reloaded.getType()).isEqualTo(CollectionType.CLIENT_GALLERY);
   }
 
   @Test
@@ -108,7 +99,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity blogFlagged =
         saveCollection(
             "flag-blog-flagged",
-            CollectionType.BLOG,
             false,
             true,
             CollectionVisibility.LISTED,
@@ -117,7 +107,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity miscButBlog =
         saveCollection(
             "flag-misc-but-blog",
-            CollectionType.MISC,
             false,
             true,
             CollectionVisibility.LISTED,
@@ -126,7 +115,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity blogTypeNoFlag =
         saveCollection(
             "flag-blog-type-no-flag",
-            CollectionType.BLOG,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -134,7 +122,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity unlistedBlog =
         saveCollection(
             "flag-unlisted-blog",
-            CollectionType.BLOG,
             false,
             true,
             CollectionVisibility.UNLISTED,
@@ -155,7 +142,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity older =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.BLOG)
                 .isBlog(true)
                 .title("Flag blog older")
                 .slug("flag-blog-day-older")
@@ -167,7 +153,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity newer =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.BLOG)
                 .isBlog(true)
                 .title("Flag blog newer")
                 .slug("flag-blog-day-newer")
@@ -178,13 +163,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
                 .build());
     // Same day but is_blog=false: must not be part of the get-or-create key.
     CollectionEntity sameDayNotBlog =
-        saveCollection(
-            "flag-day-not-blog",
-            CollectionType.MISC,
-            false,
-            false,
-            CollectionVisibility.LISTED,
-            day);
+        saveCollection("flag-day-not-blog", false, false, CollectionVisibility.LISTED, day);
 
     List<CollectionEntity> found = collectionRepository.findBlogsByCollectionDate(day);
 
@@ -197,32 +176,20 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   void findClientGalleriesByVisibilityIn_keysOnIsClient() {
     CollectionEntity listedGallery =
         saveCollection(
-            "flag-cg-listed",
-            CollectionType.CLIENT_GALLERY,
-            true,
-            false,
-            CollectionVisibility.LISTED,
-            LocalDate.of(2026, 4, 1));
+            "flag-cg-listed", true, false, CollectionVisibility.LISTED, LocalDate.of(2026, 4, 1));
     CollectionEntity unlistedGallery =
         saveCollection(
             "flag-cg-unlisted",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.UNLISTED,
             LocalDate.of(2026, 4, 2));
     CollectionEntity hiddenGallery =
         saveCollection(
-            "flag-cg-hidden",
-            CollectionType.CLIENT_GALLERY,
-            true,
-            false,
-            CollectionVisibility.HIDDEN,
-            LocalDate.of(2026, 4, 3));
+            "flag-cg-hidden", true, false, CollectionVisibility.HIDDEN, LocalDate.of(2026, 4, 3));
     CollectionEntity notClient =
         saveCollection(
             "flag-cg-not-client",
-            CollectionType.PORTFOLIO,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -247,7 +214,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity standaloneGallery =
         saveCollection(
             "flag-parent-standalone",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.LISTED,
@@ -257,7 +223,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity parentTyped =
         saveCollection(
             "flag-parent-typed",
-            CollectionType.PARENT,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -265,7 +230,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity childOfParentTyped =
         saveCollection(
             "flag-parent-typed-child",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.LISTED,
@@ -276,7 +240,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity derivedParent =
         saveCollection(
             "flag-parent-derived",
-            CollectionType.MISC,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -284,7 +247,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity childOfDerived =
         saveCollection(
             "flag-parent-derived-child",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.LISTED,
@@ -295,7 +257,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity parentOfHiddenChild =
         saveCollection(
             "flag-parent-hidden-child",
-            CollectionType.PARENT,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -303,7 +264,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity hiddenChild =
         saveCollection(
             "flag-parent-hidden-child-c",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.HIDDEN,
@@ -314,7 +274,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity parentOfSoftRemoved =
         saveCollection(
             "flag-parent-soft-removed",
-            CollectionType.PARENT,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -322,7 +281,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity softRemovedChild =
         saveCollection(
             "flag-parent-soft-removed-c",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.LISTED,
@@ -333,7 +291,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity parentOfNonClient =
         saveCollection(
             "flag-parent-non-client",
-            CollectionType.PARENT,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -341,7 +298,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity nonClientChild =
         saveCollection(
             "flag-parent-non-client-c",
-            CollectionType.PORTFOLIO,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -379,7 +335,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity parent =
         saveCollection(
             "flag-cols-parent",
-            CollectionType.PARENT,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -387,7 +342,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity child =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.CLIENT_GALLERY)
                 .isClient(true)
                 .title("Flag cols child")
                 .slug("flag-cols-child")
@@ -417,7 +371,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
             .findFirst()
             .orElseThrow();
     assertThat(viaParentLookup.getSlug()).isEqualTo("flag-cols-parent");
-    assertThat(viaParentLookup.getType()).isEqualTo(CollectionType.PARENT);
 
     CollectionEntity viaJoin =
         collectionRepository.findReferencedCollectionsByParentId(parent.getId()).stream()
@@ -443,16 +396,10 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
 
     CollectionEntity dualRole =
         saveCollection(
-            "flag-dual-role",
-            CollectionType.CLIENT_GALLERY,
-            true,
-            false,
-            CollectionVisibility.LISTED,
-            LocalDate.of(2026, 6, 1));
+            "flag-dual-role", true, false, CollectionVisibility.LISTED, LocalDate.of(2026, 6, 1));
     CollectionEntity dualRoleChild =
         saveCollection(
             "flag-dual-role-child",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.LISTED,
@@ -474,7 +421,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity lowRated =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.BLOG)
                 .isBlog(true)
                 .title("Flag order low")
                 .slug("flag-order-low")
@@ -486,7 +432,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity highRated =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.BLOG)
                 .isBlog(true)
                 .title("Flag order high")
                 .slug("flag-order-high")
@@ -498,7 +443,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity midRatedNewer =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.BLOG)
                 .isBlog(true)
                 .title("Flag order mid")
                 .slug("flag-order-mid")
@@ -521,7 +465,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity wrapper =
         saveCollection(
             "s2-wrapper-with-client",
-            CollectionType.MISC,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -529,7 +472,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity clientChild =
         saveCollection(
             "s2-wrapper-client-child",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.UNLISTED,
@@ -547,7 +489,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity wrapper =
         saveCollection(
             "s2-wrapper-hidden-child",
-            CollectionType.MISC,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -555,7 +496,6 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity hiddenChild =
         saveCollection(
             "s2-hidden-client-child",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             CollectionVisibility.HIDDEN,
@@ -572,23 +512,16 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     CollectionEntity wrapper =
         saveCollection(
             "s2-wrapper-no-client",
-            CollectionType.MISC,
             false,
             false,
             CollectionVisibility.LISTED,
             LocalDate.of(2026, 9, 5));
     CollectionEntity plainChild =
         saveCollection(
-            "s2-plain-child",
-            CollectionType.PORTFOLIO,
-            false,
-            false,
-            CollectionVisibility.LISTED,
-            LocalDate.of(2026, 9, 6));
+            "s2-plain-child", false, false, CollectionVisibility.LISTED, LocalDate.of(2026, 9, 6));
     CollectionEntity driftedChild =
         saveCollection(
             "s2-drifted-child",
-            CollectionType.CLIENT_GALLERY,
             false,
             false,
             CollectionVisibility.LISTED,
@@ -603,12 +536,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   void hasClientGalleryChildren_falseForACollectionWithNoChildren() {
     CollectionEntity leaf =
         saveCollection(
-            "s2-leaf",
-            CollectionType.MISC,
-            false,
-            false,
-            CollectionVisibility.LISTED,
-            LocalDate.of(2026, 9, 8));
+            "s2-leaf", false, false, CollectionVisibility.LISTED, LocalDate.of(2026, 9, 8));
 
     assertThat(collectionRepository.hasClientGalleryChildren(leaf.getId())).isFalse();
   }

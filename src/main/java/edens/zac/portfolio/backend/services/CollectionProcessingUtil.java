@@ -143,7 +143,6 @@ public class CollectionProcessingUtil {
       Map<Long, List<LocationEntity>> coverLocationsByContentId) {
     CollectionModel model = new CollectionModel();
     model.setId(entity.getId());
-    model.setType(entity.getType());
     model.setClient(entity.isClient());
     model.setBlog(entity.isBlog());
     model.setTitle(entity.getTitle());
@@ -552,22 +551,20 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Create a CollectionEntity from a Create request. Required field: title. Optional fields: type,
-   * isClient/isBlog, description, locationId/locationName, collectionDate — use defaults when not
-   * provided. The booleans win over the legacy type when both are present; a create with neither
-   * lands on MISC (see {@link CollectionTypeCompat#resolve}).
+   * Create a CollectionEntity from a Create request. Required field: title. Optional fields:
+   * isClient/isBlog, description, locationId/locationName, collectionDate -- use defaults when not
+   * provided. The two flags are mutually exclusive (see {@link CollectionFlags}).
    */
   public CollectionEntity toEntity(CollectionRequests.Create request, int defaultPageSize) {
     if (request == null) {
       throw new IllegalArgumentException("Create request cannot be null");
     }
     CollectionEntity entity = new CollectionEntity();
-    CollectionTypeCompat.Resolved resolved =
-        CollectionTypeCompat.forCreate(request.isClient(), request.isBlog(), request.type());
+    CollectionFlags.Resolved resolved =
+        CollectionFlags.forCreate(request.isClient(), request.isBlog());
     resolved.applyTo(entity);
-    if (request.type() == null && request.isClient() == null && request.isBlog() == null) {
-      log.info(
-          "Create for '{}' carried neither type nor flags -- landing on MISC", request.title());
+    if (request.isClient() == null && request.isBlog() == null) {
+      log.info("Create for '{}' carried no flags -- neither client nor blog", request.title());
     }
     entity.setTitle(request.title());
     String baseSlug = generateSlug(request.title());
@@ -581,13 +578,7 @@ public class CollectionProcessingUtil {
     // no visibility field, so every create lands here regardless of type.
     entity.setVisibility(CollectionVisibility.UNLISTED);
     entity.setTotalContent(0);
-    if (resolved.type().isParentType()) {
-      // Parent-type collections don't use pagination or row layout
-      entity.setContentPerPage(null);
-      entity.setRowsWide(null);
-    } else {
-      entity.setContentPerPage(defaultPageSize);
-    }
+    entity.setContentPerPage(defaultPageSize);
     // Every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
     // explicit opt-in via a later update request (Create carries no displayMode field).
     entity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
@@ -600,10 +591,13 @@ public class CollectionProcessingUtil {
 
   /**
    * Apply partial-field updates from updateDTO to the given entity: title (auto-regenerating the
-   * slug unless an explicit one is supplied), slug, description, the type/flag compat resolution,
-   * locations, collection start/end dates and their explicit clear flags, visibility, rating,
-   * displayMode, contentPerPage/rowsWide (skipped for parent types) and coverImageId. Null request
-   * fields leave the entity untouched.
+   * slug unless an explicit one is supplied), slug, description, the isClient/isBlog flag
+   * resolution (see {@link CollectionFlags}), locations, collection start/end dates and their
+   * explicit clear flags, visibility, rating, displayMode, contentPerPage/rowsWide and
+   * coverImageId. Null request fields leave the entity untouched.
+   *
+   * <p>Layout fields are written for every collection: the old suppression on parent types went out
+   * with {@code CollectionType}, since any collection may now hold any mix of content.
    */
   public void applyBasicUpdates(CollectionEntity entity, CollectionRequests.Update updateDTO) {
     if (updateDTO.title() != null) {
@@ -618,22 +612,20 @@ public class CollectionProcessingUtil {
     if (updateDTO.description() != null) {
       entity.setDescription(updateDTO.description());
     }
-    // Guard only: a request carrying none of the three leaves type and flags untouched.
-    // Resolution rules live in CollectionTypeCompat.
-    if (updateDTO.isClient() != null || updateDTO.isBlog() != null || updateDTO.type() != null) {
+    // Guard only: a request carrying neither flag leaves both untouched.
+    // Resolution rules live in CollectionFlags.
+    if (updateDTO.isClient() != null || updateDTO.isBlog() != null) {
       boolean wasClient = entity.isClient();
-      CollectionTypeCompat.Resolved resolved =
-          CollectionTypeCompat.forUpdate(
-              updateDTO.isClient(), updateDTO.isBlog(), updateDTO.type(), entity);
-      if (resolved.type() != entity.getType()) {
+      boolean wasBlog = entity.isBlog();
+      CollectionFlags.Resolved resolved =
+          CollectionFlags.forUpdate(updateDTO.isClient(), updateDTO.isBlog(), entity);
+      if (resolved.isClient() != wasClient || resolved.isBlog() != wasBlog) {
         log.info(
-            "Collection {} category change: {} -> {} (isClient {} -> {}, isBlog {} -> {})",
+            "Collection {} category change: isClient {} -> {}, isBlog {} -> {}",
             entity.getId(),
-            entity.getType(),
-            resolved.type(),
             wasClient,
             resolved.isClient(),
-            entity.isBlog(),
+            wasBlog,
             resolved.isBlog());
       }
       resolved.applyTo(entity);
@@ -677,14 +669,11 @@ public class CollectionProcessingUtil {
       String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());
       entity.setSlug(uniqueSlug);
     }
-    // Parent-type collections don't use pagination or row layout
-    if (!entity.getType().isParentType()) {
-      if (updateDTO.contentPerPage() != null && updateDTO.contentPerPage() >= 1) {
-        entity.setContentPerPage(updateDTO.contentPerPage());
-      }
-      if (updateDTO.rowsWide() != null) {
-        entity.setRowsWide(updateDTO.rowsWide());
-      }
+    if (updateDTO.contentPerPage() != null && updateDTO.contentPerPage() >= 1) {
+      entity.setContentPerPage(updateDTO.contentPerPage());
+    }
+    if (updateDTO.rowsWide() != null) {
+      entity.setRowsWide(updateDTO.rowsWide());
     }
     if (updateDTO.displayMode() != null) {
       entity.setDisplayMode(updateDTO.displayMode());
@@ -711,9 +700,10 @@ public class CollectionProcessingUtil {
   /**
    * Clear the gallery password and recipient list when an update demotes a collection out of
    * client-gallery status. The public read gate keys on {@code galleryPassword != null}, and {@link
-   * CollectionService#updateGalleryAccess} refuses non-CLIENT_GALLERY/PARENT targets -- so without
-   * this a demoted collection would keep an enforced password that no endpoint can clear. Written
-   * through {@code saveGalleryAccess}, the sole owner of the password/recipients pair ({@link
+   * CollectionService#updateGalleryAccess} only *sets* a password on a collection that {@code
+   * isClient() || hasClientGalleryChildren(id)} -- so without this a demoted collection would keep
+   * an enforced password that only the D8 clear path could remove. Written through {@code
+   * saveGalleryAccess}, the sole owner of the password/recipients pair ({@link
    * edens.zac.portfolio.backend.dao.CollectionRepository#save} deliberately omits them on UPDATE).
    */
   private void clearGalleryAccessOnClientDemotion(
@@ -919,26 +909,20 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Fill in the default pagination size for a non-parent collection that has none. Visibility is
-   * intentionally NOT touched here: new collections default to UNLISTED in {@link #toEntity}
-   * regardless of type (privacy-first), and updates only change visibility when explicitly
-   * requested.
+   * Fill in the default pagination size for a collection that has none. Visibility is intentionally
+   * NOT touched here: new collections default to UNLISTED in {@link #toEntity} (privacy-first), and
+   * updates only change visibility when explicitly requested.
    *
    * @param entity The entity to update
    * @return The updated entity
    */
   public CollectionEntity applyPaginationDefaults(CollectionEntity entity) {
-    if (entity == null || entity.getType() == null) {
+    if (entity == null) {
       return entity;
     }
-
-    // Parent-type collections don't use pagination
-    if (!entity.getType().isParentType()) {
-      if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
-        entity.setContentPerPage(DefaultValues.default_content_per_page);
-      }
+    if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
+      entity.setContentPerPage(DefaultValues.default_content_per_page);
     }
-
     return entity;
   }
 }

@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.constraints.*;
@@ -23,24 +22,10 @@ public class CollectionEntity {
   /** Column: id (BIGINT, PRIMARY KEY, auto-generated) */
   private Long id;
 
-  /**
-   * Column: type (VARCHAR, NOT NULL) - legacy {@link CollectionType} discriminator, kept in sync
-   * with {@code isClient}/{@code isBlog} for the dual-compat window and dropped in phase 2. The
-   * booleans are the storage truth; the remaining structural values (PARENT/HOME) and label values
-   * (PORTFOLIO/ART_GALLERY/MISC) move to the collection graph and label tags respectively.
-   */
-  @NotNull private CollectionType type;
-
-  /**
-   * Column: is_client (BOOLEAN, NOT NULL, default false) - storage truth for what {@code
-   * type=CLIENT_GALLERY} means; kept in sync with {@code type} during the dual-compat window.
-   */
+  /** Column: is_client (BOOLEAN, NOT NULL, default false) - client gallery: password/role gated. */
   private boolean isClient;
 
-  /**
-   * Column: is_blog (BOOLEAN, NOT NULL, default false) - storage truth for what {@code type=BLOG}
-   * means; kept in sync with {@code type} during the dual-compat window.
-   */
+  /** Column: is_blog (BOOLEAN, NOT NULL, default false) - blog: appears in blog listings. */
   private boolean isBlog;
 
   /** Column: title (VARCHAR(100), NOT NULL) */

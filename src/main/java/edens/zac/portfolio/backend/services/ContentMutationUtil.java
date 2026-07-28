@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
-import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
@@ -130,18 +129,14 @@ public class ContentMutationUtil {
         continue;
       }
 
-      CollectionEntity collection =
-          collectionRepository
-              .findById(childCollection.collectionId())
-              .orElseThrow(
-                  () ->
-                      new ResourceNotFoundException(
-                          "Collection not found: " + childCollection.collectionId()));
-
-      if (collection.getType().isParentType()) {
-        throw new IllegalArgumentException(
-            "Cannot add content to parent-type collection: " + collection.getTitle());
-      }
+      // Existence check only -- any collection may hold any content type (Rule B), so nothing
+      // about the target collection is inspected beyond it existing.
+      collectionRepository
+          .findById(childCollection.collectionId())
+          .orElseThrow(
+              () ->
+                  new ResourceNotFoundException(
+                      "Collection not found: " + childCollection.collectionId()));
 
       Optional<CollectionContentEntity> existingOpt =
           collectionRepository.findContentByCollectionIdAndContentId(

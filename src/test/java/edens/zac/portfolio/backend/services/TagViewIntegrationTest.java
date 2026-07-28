@@ -9,7 +9,6 @@ import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -206,7 +205,6 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
 
     CollectionModel model = collectionService.getCollectionWithPagination("travel", 0, 30);
 
-    assertThat(model.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(model.getSlug()).isEqualTo("travel");
     assertThat(model.getContent()).hasSize(2);
     // Collections render before images.
@@ -243,8 +241,8 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
     tagCollection(member, tag);
 
     CollectionModel model = collectionService.getCollectionWithPagination(slug, 0, 30);
-    // Real collection wins: it is type BLOG, not the synthetic PARENT tag-view.
-    assertThat(model.getType()).isEqualTo(CollectionType.BLOG);
+    // Real collection wins: it is a stored row, not the synthetic tag-view.
+    assertThat(model.isDerived()).isFalse();
     assertThat(model.getSlug()).isEqualTo(slug);
   }
 }

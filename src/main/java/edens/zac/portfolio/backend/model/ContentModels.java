@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDate;
@@ -240,7 +239,6 @@ public final class ContentModels {
       LocalDateTime updatedAt,
       Long referencedCollectionId,
       String slug,
-      CollectionType collectionType,
       @JsonProperty("isClient") boolean isClient,
       @JsonProperty("isBlog") boolean isBlog,
       ContentModels.Image coverImage,
@@ -269,7 +267,6 @@ public final class ContentModels {
           c.getUpdatedAt(),
           c.getId(),
           c.getSlug(),
-          c.getType(),
           c.isClient(),
           c.isBlog(),
           c.getCoverImage(),
@@ -292,7 +289,6 @@ public final class ContentModels {
           updatedAt,
           referencedCollectionId,
           slug,
-          collectionType,
           isClient,
           isBlog,
           coverImage,
@@ -319,7 +315,6 @@ public final class ContentModels {
           updatedAt,
           referencedCollectionId,
           slug,
-          collectionType,
           isClient,
           isBlog,
           coverImage,

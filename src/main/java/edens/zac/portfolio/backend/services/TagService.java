@@ -8,7 +8,6 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.SaveAsCollectionRequest;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,7 +39,7 @@ public class TagService {
    * the tag's current members into it, and flags the tag converted so its tag-view stops rendering.
    *
    * @param tagId tag to convert
-   * @param request optional type/visibility (default PORTFOLIO / UNLISTED)
+   * @param request optional client/blog flags and visibility (default UNLISTED)
    * @return the new collection in the same shape {@code createChildCollection} returns
    */
   @Transactional
@@ -58,20 +57,16 @@ public class TagService {
       throw new IllegalStateException("A collection already owns slug '" + tag.getSlug() + "'");
     }
 
-    CollectionType type =
-        request != null && request.type() != null ? request.type() : CollectionType.PORTFOLIO;
     CollectionVisibility visibility =
         request != null && request.visibility() != null
             ? request.visibility()
             : CollectionVisibility.UNLISTED;
 
     // Create the collection, then take over the tag's slug and requested visibility. The
-    // isClient/isBlog booleans pass straight through to the create path's CollectionTypeCompat
-    // resolution against the PORTFOLIO-defaulted legacy type.
+    // isClient/isBlog booleans pass straight through to the create path.
     CollectionRequests.UpdateResponse created =
         collectionService.createCollection(
             new CollectionRequests.Create(
-                type,
                 tag.getTagName(),
                 null,
                 null,
