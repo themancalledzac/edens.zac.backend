@@ -266,6 +266,177 @@ class AdminUserControllerTest {
   }
 
   @Nested
+  class UpgradeUser {
+
+    private AppUserEntity person(Long id) {
+      return AppUserEntity.builder().id(id).name("Abby Bennett").status(UserStatus.PERSON).build();
+    }
+
+    @Test
+    void upgradeReturns200WithUserIdAndInviteUrl() throws Exception {
+      when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
+      when(appUserRepository.findByEmail("person@example.com")).thenReturn(Optional.empty());
+      when(userInviteService.regenerateInvite(5L, "person@example.com")).thenReturn("raw-token");
+
+      mockMvc
+          .perform(
+              post("/api/admin/users/5/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"person@example.com\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.userId").value(5))
+          .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/raw-token"));
+
+      verify(appUserRepository).updateEmail(5L, "person@example.com");
+      verify(appUserRepository).updateStatus(5L, UserStatus.INVITED);
+    }
+
+    @Test
+    void upgradeEmailsTheInviteToTheUpgradedPerson() throws Exception {
+      // Upgrade is an invite-minting endpoint like create-user and regenerate-invite, so it must
+      // deliver the link too -- the person's existing tag name is the greeting name.
+      when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
+      when(appUserRepository.findByEmail("person@example.com")).thenReturn(Optional.empty());
+      when(userInviteService.regenerateInvite(5L, "person@example.com")).thenReturn("raw-token");
+
+      mockMvc
+          .perform(
+              post("/api/admin/users/5/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"person@example.com\"}"))
+          .andExpect(status().isOk());
+
+      verify(emailService)
+          .sendInviteEmail(
+              "person@example.com", "Abby Bennett", "https://app.example.com/invite/raw-token");
+    }
+
+    @Test
+    void upgradeNormalizesEmailToLowercase() throws Exception {
+      when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
+      when(appUserRepository.findByEmail("person@example.com")).thenReturn(Optional.empty());
+      when(userInviteService.regenerateInvite(5L, "person@example.com")).thenReturn("raw-token");
+
+      mockMvc
+          .perform(
+              post("/api/admin/users/5/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"PERSON@EXAMPLE.COM\"}"))
+          .andExpect(status().isOk());
+
+      // Both the duplicate check and the write must see the lowercased email.
+      verify(appUserRepository).findByEmail("person@example.com");
+      verify(appUserRepository).updateEmail(5L, "person@example.com");
+    }
+
+    @Test
+    void upgradeUnknownUserReturns404() throws Exception {
+      when(appUserRepository.findById(999L)).thenReturn(Optional.empty());
+
+      mockMvc
+          .perform(
+              post("/api/admin/users/999/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"person@example.com\"}"))
+          .andExpect(status().isNotFound());
+
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
+      verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
+    }
+
+    @Test
+    void upgradeNonPersonUserReturns409() throws Exception {
+      // Only a tag-only PERSON can be upgraded: an ACTIVE/INVITED/DISABLED row is already an
+      // account, so upgrading it (clobbering its email, resetting its status) is a conflict.
+      for (UserStatus status :
+          new UserStatus[] {UserStatus.ACTIVE, UserStatus.INVITED, UserStatus.DISABLED}) {
+        AppUserEntity account =
+            AppUserEntity.builder().id(5L).email("real@example.com").status(status).build();
+        when(appUserRepository.findById(5L)).thenReturn(Optional.of(account));
+
+        mockMvc
+            .perform(
+                post("/api/admin/users/5/upgrade")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"person@example.com\"}"))
+            .andExpect(status().isConflict());
+      }
+
+      verify(appUserRepository, never()).findByEmail(anyString());
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
+      verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
+    }
+
+    @Test
+    void upgradeEmailOwnedByAnotherUserReturns409() throws Exception {
+      when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
+      when(appUserRepository.findByEmail("person@example.com"))
+          .thenReturn(Optional.of(AppUserEntity.builder().id(1L).build()));
+
+      mockMvc
+          .perform(
+              post("/api/admin/users/5/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"person@example.com\"}"))
+          .andExpect(status().isConflict());
+
+      // 409 is a normal return, so @Transactional commits this path: NO field may have been
+      // written by the time the conflict is detected, or a partial upgrade would persist.
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
+      verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
+    }
+
+    @Test
+    void upgradeMissingEmailReturns400() throws Exception {
+      mockMvc
+          .perform(
+              post("/api/admin/users/5/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{}"))
+          .andExpect(status().isBadRequest());
+
+      verify(appUserRepository, never()).findById(anyLong());
+      verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+    }
+
+    @Test
+    void upgradeInvalidEmailReturns400() throws Exception {
+      mockMvc
+          .perform(
+              post("/api/admin/users/5/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"not-an-email\"}"))
+          .andExpect(status().isBadRequest());
+
+      verify(appUserRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void upgradeFlipsStatusToInvitedAndLeavesNameUntouched() throws Exception {
+      when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
+      when(appUserRepository.findByEmail("person@example.com")).thenReturn(Optional.empty());
+      when(userInviteService.regenerateInvite(5L, "person@example.com")).thenReturn("raw-token");
+
+      mockMvc
+          .perform(
+              post("/api/admin/users/5/upgrade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"person@example.com\"}"))
+          .andExpect(status().isOk());
+
+      // The person's tagged name is preserved as the account display name — never overwritten.
+      verify(appUserRepository).updateStatus(5L, UserStatus.INVITED);
+      verify(appUserRepository, never()).updateName(anyLong(), anyString());
+    }
+  }
+
+  @Nested
   class GetUser {
 
     @Test

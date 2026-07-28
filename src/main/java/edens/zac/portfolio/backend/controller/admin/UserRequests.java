@@ -42,6 +42,16 @@ public final class UserRequests {
   public record CreateUserResponse(Long userId, String inviteUrl) {}
 
   /**
+   * Body for {@code POST /api/admin/users/{id}/upgrade} — upgrade a tag-only PERSON identity in
+   * place into an INVITED account. Only the email is supplied; the existing PERSON {@code name}
+   * (which is NOT NULL) becomes the account display name and the invitee may override it at accept
+   * time.
+   *
+   * @param email the invitee's email address (normalized to lowercase by the controller)
+   */
+  public record UpgradeUserRequest(@NotBlank @Email String email) {}
+
+  /**
    * Body for {@code PATCH /api/admin/users/{id}} — updates the admin-editable fields. {@code email}
    * is optional: {@code null}, empty, or omitted leaves the login email unchanged (whitespace-only
    * fails the {@code @Email} constraint with {@code 400}); when non-empty the controller normalizes
