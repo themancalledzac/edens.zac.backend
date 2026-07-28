@@ -129,18 +129,11 @@ public class CollectionService {
     List<CollectionContentEntity> collectionContentList;
     long totalElements;
 
-    if (collection.getType().isParentType()) {
-      // Parent-type collections only show child collection content
-      collectionContentList =
-          collectionRepository.findContentByCollectionIdAndContentType(
-              collection.getId(), "COLLECTION");
-      totalElements = collectionContentList.size();
-    } else {
-      totalElements = collectionRepository.countContentByCollectionId(collection.getId());
-      collectionContentList =
-          collectionRepository.findContentByCollectionId(
-              collection.getId(), normalizedSize, offset);
-    }
+    // Every collection paginates identically -- there is no children-only read shape any more
+    // (spec D1). Rows written before V51 have content_per_page backfilled by that migration.
+    totalElements = collectionRepository.countContentByCollectionId(collection.getId());
+    collectionContentList =
+        collectionRepository.findContentByCollectionId(collection.getId(), normalizedSize, offset);
 
     // Convert to model (now using join table data)
     CollectionModel model =

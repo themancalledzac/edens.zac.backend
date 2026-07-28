@@ -949,74 +949,6 @@ class CollectionServiceTest {
   class ParentTypeCollections {
 
     @Test
-    void getCollectionWithPagination_parentType_filtersToCollectionContentOnly() {
-      String slug = "photography";
-      CollectionEntity parentCollection =
-          CollectionEntity.builder()
-              .id(10L)
-              .title("Photography")
-              .slug(slug)
-              .type(CollectionType.PARENT)
-              .visibility(CollectionVisibility.LISTED)
-              .build();
-
-      List<CollectionContentEntity> collectionContent =
-          List.of(
-              CollectionContentEntity.builder()
-                  .id(1L)
-                  .collectionId(10L)
-                  .contentId(100L)
-                  .orderIndex(0)
-                  .visible(true)
-                  .build());
-
-      CollectionModel model = CollectionModel.builder().id(10L).title("Photography").build();
-
-      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parentCollection));
-      when(collectionRepository.findContentByCollectionIdAndContentType(10L, "COLLECTION"))
-          .thenReturn(collectionContent);
-      when(collectionProcessingUtil.convertToModel(
-              eq(parentCollection), eq(collectionContent), anyInt(), anyInt(), eq(1L)))
-          .thenReturn(model);
-
-      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
-
-      assertThat(result).isNotNull();
-      // Should use content-type filtered query, not the generic one
-      verify(collectionRepository).findContentByCollectionIdAndContentType(10L, "COLLECTION");
-      verify(collectionRepository, never()).countContentByCollectionId(anyLong());
-      verify(collectionRepository, never())
-          .findContentByCollectionId(anyLong(), anyInt(), anyInt());
-    }
-
-    @Test
-    void getCollectionWithPagination_homeType_alsoFiltersToCollectionContent() {
-      String slug = "home";
-      CollectionEntity homeCollection =
-          CollectionEntity.builder()
-              .id(1L)
-              .title("Home")
-              .slug(slug)
-              .type(CollectionType.HOME)
-              .visibility(CollectionVisibility.LISTED)
-              .build();
-
-      CollectionModel model = CollectionModel.builder().id(1L).title("Home").build();
-
-      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(homeCollection));
-      when(collectionRepository.findContentByCollectionIdAndContentType(1L, "COLLECTION"))
-          .thenReturn(Collections.emptyList());
-      when(collectionProcessingUtil.convertToModel(
-              eq(homeCollection), any(), anyInt(), anyInt(), eq(0L)))
-          .thenReturn(model);
-
-      service.getCollectionWithPagination(slug, 0, 10);
-
-      verify(collectionRepository).findContentByCollectionIdAndContentType(1L, "COLLECTION");
-      verify(collectionRepository, never()).countContentByCollectionId(anyLong());
-    }
-
-    @Test
     void getUpdateCollectionData_parentType_aggregatesChildCollectionImages() {
       String slug = "photography";
       CollectionEntity parentEntity =
@@ -1155,7 +1087,8 @@ class CollectionServiceTest {
               .build();
 
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
-      when(collectionRepository.findContentByCollectionIdAndContentType(50L, "COLLECTION"))
+      when(collectionRepository.countContentByCollectionId(50L)).thenReturn(0L);
+      when(collectionRepository.findContentByCollectionId(eq(50L), anyInt(), anyInt()))
           .thenReturn(List.of());
       when(collectionProcessingUtil.convertToModel(
               eq(parent), any(), anyInt(), anyInt(), anyLong()))
@@ -1199,7 +1132,8 @@ class CollectionServiceTest {
               .build();
 
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
-      when(collectionRepository.findContentByCollectionIdAndContentType(60L, "COLLECTION"))
+      when(collectionRepository.countContentByCollectionId(60L)).thenReturn(0L);
+      when(collectionRepository.findContentByCollectionId(eq(60L), anyInt(), anyInt()))
           .thenReturn(List.of());
       when(collectionProcessingUtil.convertToModel(
               eq(parent), any(), anyInt(), anyInt(), anyLong()))
@@ -1253,7 +1187,8 @@ class CollectionServiceTest {
               .build();
 
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
-      when(collectionRepository.findContentByCollectionIdAndContentType(70L, "COLLECTION"))
+      when(collectionRepository.countContentByCollectionId(70L)).thenReturn(0L);
+      when(collectionRepository.findContentByCollectionId(eq(70L), anyInt(), anyInt()))
           .thenReturn(List.of());
       when(collectionProcessingUtil.convertToModel(
               eq(parent), any(), anyInt(), anyInt(), anyLong()))
@@ -2251,6 +2186,41 @@ class CollectionServiceTest {
       assertThatThrownBy(() -> service.updateContent(current.getId(), updateWithParents(parents)))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Cycle detected");
+    }
+  }
+
+  @Nested
+  class MixedCollectionReadPath {
+
+    @Test
+    @DisplayName("a collection holding children reads through the paginated content query")
+    void getCollectionWithPagination_wrapper_usesPaginatedQuery() {
+      CollectionEntity wrapper =
+          CollectionEntity.builder()
+              .id(21L)
+              .slug("wrapper")
+              .title("Wrapper")
+              .type(CollectionType.PARENT)
+              .visibility(CollectionVisibility.LISTED)
+              .contentPerPage(30)
+              .build();
+      CollectionModel model =
+          CollectionModel.builder().id(21L).slug("wrapper").title("Wrapper").build();
+
+      when(collectionRepository.findBySlug("wrapper")).thenReturn(Optional.of(wrapper));
+      when(collectionRepository.countContentByCollectionId(21L)).thenReturn(3L);
+      when(collectionRepository.findContentByCollectionId(eq(21L), anyInt(), anyInt()))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToModel(
+              eq(wrapper), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+
+      service.getCollectionWithPagination("wrapper", 0, 30);
+
+      verify(collectionRepository).countContentByCollectionId(21L);
+      verify(collectionRepository).findContentByCollectionId(eq(21L), anyInt(), anyInt());
+      verify(collectionRepository, never())
+          .findContentByCollectionIdAndContentType(anyLong(), anyString());
     }
   }
 
