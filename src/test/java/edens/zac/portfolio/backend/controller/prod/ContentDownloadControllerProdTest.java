@@ -412,5 +412,40 @@ class ContentDownloadControllerProdTest {
           .andExpect(status().isFound())
           .andExpect(header().string("Location", ZIP_PRESIGNED.toString()));
     }
+
+    @Test
+    void protectedCollection_cookieForItself_butImageAlsoInAnotherGallery_returns401()
+        throws Exception {
+      // "EVERY protected parent", not "any" -- the collection-ZIP mirror of the per-image rule: a
+      // cookie for smith-wedding must not unlock images that also live in jones-wedding. Satisfying
+      // the slug in the URL is necessary, never sufficient.
+      CollectionEntity otherGallery =
+          CollectionEntity.builder()
+              .id(3L)
+              .title("Jones Wedding")
+              .slug("jones-wedding")
+              .visibility(CollectionVisibility.UNLISTED)
+              .galleryPassword("moonlight")
+              .build();
+      when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
+      when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
+          .thenReturn(true);
+      // jones-wedding is deliberately NOT stubbed: with no gallery_access_jones-wedding cookie,
+      // GalleryAccessCookies.hasValidAccess calls validateAccessToken with a NULL token. Stubbing
+      // it for "tok-123" would be an argument mismatch that STRICT_STUBS turns into a failure.
+      when(contentService.findProtectedCollectionsForCollectionDownload(eq(1L), any()))
+          .thenReturn(List.of(protectedGallery(), otherGallery));
+
+      mockMvc
+          .perform(
+              get("/api/read/collections/smith-wedding/download")
+                  .param("format", "original")
+                  .cookie(new Cookie("gallery_access_smith-wedding", "tok-123")))
+          .andExpect(status().isUnauthorized());
+
+      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any(), any());
+      verify(downloadUrlService, never()).presignObject(any(), any(), any());
+      verify(downloadUrlService, never()).zipToS3AndPresign(any(), any());
+    }
   }
 }

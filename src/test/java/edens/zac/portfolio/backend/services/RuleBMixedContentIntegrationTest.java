@@ -42,8 +42,8 @@ class RuleBMixedContentIntegrationTest extends AbstractPostgresIntegrationTest {
 
   private Long seedCollection(String slug) {
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility, is_client, is_blog)"
-            + " VALUES (?, ?, 'MISC', 'LISTED', false, false)",
+        "INSERT INTO collection (title, slug, visibility, is_client, is_blog)"
+            + " VALUES (?, ?, 'LISTED', false, false)",
         slug,
         slug);
     return jdbc.queryForObject("SELECT id FROM collection WHERE slug = ?", Long.class, slug);

@@ -50,8 +50,8 @@ class ContentRepositoryRoleVisibilityIntegrationTest extends AbstractPostgresInt
   private Long seedUnlistedCollection() {
     String slug = "contentvis-" + UUID.randomUUID();
     return jdbcTemplate.queryForObject(
-        "INSERT INTO collection (title, slug, type, visibility) "
-            + "VALUES (?, ?, 'CLIENT_GALLERY', 'UNLISTED') RETURNING id",
+        "INSERT INTO collection (title, slug, visibility) "
+            + "VALUES (?, ?, 'UNLISTED') RETURNING id",
         Long.class,
         slug,
         slug);

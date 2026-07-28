@@ -83,6 +83,16 @@ class ContentDownloadAuthTest {
         .build();
   }
 
+  private static CollectionEntity openCollection() {
+    return CollectionEntity.builder()
+        .id(2L)
+        .title("Open Portfolio")
+        .slug("open-portfolio")
+        .visibility(CollectionVisibility.LISTED)
+        .galleryPassword(null)
+        .build();
+  }
+
   // ---------------------------------------------------------------------------
   //  Image download — CLIENT membership bypass
   // ---------------------------------------------------------------------------
@@ -210,6 +220,47 @@ class ContentDownloadAuthTest {
           .andExpect(status().isFound());
 
       verify(collectionAccessService, never()).isClient(any(), any());
+    }
+
+    @Test
+    void clientOfTheForeignGallery_redirects_throughAPublicWrapper() throws Exception {
+      // The requested slug is an unprotected wrapper, so its own password gate is a no-op and the
+      // CLIENT grant is consumed by the SECOND gate instead: the protected gallery that also holds
+      // the images this download would serve. Fail-closed must not mean fail-always -- a grant that
+      // satisfies the gating gallery still gets the download through the wrapper.
+      authenticate(7L);
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.findProtectedCollectionsForCollectionDownload(2L, null))
+          .thenReturn(List.of(protectedGallery()));
+      when(collectionAccessService.isClient(7L, 1L)).thenReturn(true);
+      when(contentService.resolveCollectionDownloadEntries(2L, "web", null))
+          .thenReturn(List.of(webResolution("img.webp")));
+      when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
+
+      mockMvc
+          .perform(get("/api/read/collections/open-portfolio/download"))
+          .andExpect(status().isFound());
+
+      verify(clientGalleryAuthService, never()).validateAccessToken(any(), any());
+    }
+
+    @Test
+    void nonClientOfTheForeignGallery_gets401_throughAPublicWrapper() throws Exception {
+      // Same wrapper, no CLIENT grant on the gating gallery: the second gate refuses. The gate runs
+      // before resolution, so nothing is even resolved for an unauthorized caller.
+      authenticate(7L);
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.findProtectedCollectionsForCollectionDownload(2L, null))
+          .thenReturn(List.of(protectedGallery()));
+      when(collectionAccessService.isClient(7L, 1L)).thenReturn(false);
+
+      mockMvc
+          .perform(get("/api/read/collections/open-portfolio/download"))
+          .andExpect(status().isUnauthorized());
+
+      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any(), any());
+      verify(downloadUrlService, never()).presignObject(any(), any(), any());
+      verify(downloadUrlService, never()).zipToS3AndPresign(any(), any());
     }
   }
 }

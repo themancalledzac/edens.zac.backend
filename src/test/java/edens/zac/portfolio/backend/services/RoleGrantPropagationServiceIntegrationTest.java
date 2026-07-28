@@ -36,9 +36,7 @@ class RoleGrantPropagationServiceIntegrationTest extends AbstractPostgresIntegra
 
   private long seedCollection(String slug) {
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility) VALUES (?, ?, 'CLIENT_GALLERY', 'UNLISTED')",
-        slug,
-        slug);
+        "INSERT INTO collection (title, slug, visibility) VALUES (?, ?, 'UNLISTED')", slug, slug);
     return jdbc.queryForObject("SELECT id FROM collection WHERE slug=?", Long.class, slug);
   }
 

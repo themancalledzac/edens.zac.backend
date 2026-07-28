@@ -54,8 +54,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
   private Long seedCollection(CollectionVisibility visibility) {
     String slug = "coll-" + UUID.randomUUID();
     return jdbcTemplate.queryForObject(
-        "INSERT INTO collection (title, slug, type, visibility) "
-            + "VALUES (?, ?, 'BLOG', ?) RETURNING id",
+        "INSERT INTO collection (title, slug, visibility) " + "VALUES (?, ?, ?) RETURNING id",
         Long.class,
         slug,
         slug,

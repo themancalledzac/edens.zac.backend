@@ -30,7 +30,7 @@ class TagConversionIntegrationTest extends AbstractPostgresIntegrationTest {
 
   private long seedCollection(String slug, CollectionVisibility visibility, Integer rating) {
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility, rating) VALUES (?, ?, 'BLOG', ?, ?)",
+        "INSERT INTO collection (title, slug, visibility, rating) VALUES (?, ?, ?, ?)",
         slug,
         slug,
         visibility.name(),

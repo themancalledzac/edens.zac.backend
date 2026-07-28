@@ -33,8 +33,8 @@ class CollectionLinkSecurityIntegrationTest extends AbstractPostgresIntegrationT
 
   private long seed(String slug, boolean isClient, String galleryPassword) {
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility, is_client, is_blog,"
-            + " gallery_password) VALUES (?, ?, 'MISC', 'LISTED', ?, false, ?)",
+        "INSERT INTO collection (title, slug, visibility, is_client, is_blog,"
+            + " gallery_password) VALUES (?, ?, 'LISTED', ?, false, ?)",
         slug,
         slug,
         isClient,

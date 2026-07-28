@@ -53,8 +53,8 @@ class ContentDownloadGateIntegrationTest extends AbstractPostgresIntegrationTest
 
   private Long seedCollection(String slug, String galleryPassword) {
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility, is_client, is_blog,"
-            + " gallery_password) VALUES (?, ?, 'MISC', 'LISTED', false, false, ?)",
+        "INSERT INTO collection (title, slug, visibility, is_client, is_blog,"
+            + " gallery_password) VALUES (?, ?, 'LISTED', false, false, ?)",
         slug,
         slug,
         galleryPassword);
@@ -192,5 +192,28 @@ class ContentDownloadGateIntegrationTest extends AbstractPostgresIntegrationTest
 
     assertThat(contentService.findProtectedCollectionsForCollectionDownload(publicWrapper, null))
         .isEmpty();
+  }
+
+  @Test
+  void collectionDownloadGate_unionsEveryProtectedParentAcrossTheWholeCollection() {
+    // A whole-collection ZIP is gated on the UNION over every image it serves: one unprotected
+    // image does not dilute another image's protected parent, and a gallery that gates two of the
+    // images is still reported once. Distinct from the subset case above, which narrows instead.
+    Long imageInBothGalleries = seedImage("s1zip-union-both");
+    Long imageInOneGallery = seedImage("s1zip-union-one");
+    Long openImage = seedImage("s1zip-union-open");
+    Long wrapper = seedCollection("s1zip-union-wrapper", null);
+    Long galleryOne = seedCollection("s1zip-union-alpha", "alpha");
+    Long galleryTwo = seedCollection("s1zip-union-bravo", "bravo");
+    link(wrapper, imageInBothGalleries);
+    link(wrapper, imageInOneGallery);
+    link(wrapper, openImage);
+    link(galleryOne, imageInBothGalleries);
+    link(galleryTwo, imageInBothGalleries);
+    link(galleryOne, imageInOneGallery);
+
+    assertThat(contentService.findProtectedCollectionsForCollectionDownload(wrapper, null))
+        .extracting(CollectionEntity::getId)
+        .containsExactlyInAnyOrder(galleryOne, galleryTwo);
   }
 }
