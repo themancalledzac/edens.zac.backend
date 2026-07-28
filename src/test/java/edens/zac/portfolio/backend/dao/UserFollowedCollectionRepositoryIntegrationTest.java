@@ -29,8 +29,8 @@ class UserFollowedCollectionRepositoryIntegrationTest extends AbstractPostgresIn
 
   private Long seedCollection(String slug) {
     return jdbcTemplate.queryForObject(
-        "INSERT INTO collection (type, title, slug, visibility) "
-            + "VALUES ('CLIENT_GALLERY', ?, ?, 'HIDDEN') RETURNING id",
+        "INSERT INTO collection (title, slug, visibility) "
+            + "VALUES (?, ?, 'HIDDEN') RETURNING id",
         Long.class,
         "Title " + slug,
         slug);

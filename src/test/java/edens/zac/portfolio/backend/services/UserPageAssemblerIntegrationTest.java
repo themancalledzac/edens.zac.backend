@@ -50,13 +50,12 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
         name.toLowerCase().replace(' ', '-') + "-" + UUID.randomUUID() + "@example.com");
   }
 
-  private Long seedCollection(String type, LocalDateTime date) {
+  private Long seedCollection(LocalDateTime date) {
     return jdbc.queryForObject(
-        "INSERT INTO collection (title, slug, type, visibility, collection_date) "
-            + "VALUES ('Gallery', ?, ?, 'UNLISTED', ?) RETURNING id",
+        "INSERT INTO collection (title, slug, visibility, collection_date) "
+            + "VALUES ('Gallery', ?, 'UNLISTED', ?) RETURNING id",
         Long.class,
         "g-" + UUID.randomUUID(),
-        type,
         date == null ? null : Timestamp.valueOf(date));
   }
 
@@ -150,14 +149,14 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     // The account row IS the person identity: tag and grant against the same id.
     Long userId = seedUserNamed("Jane Doe");
 
-    Long tagged = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(5));
+    Long tagged = seedCollection(LocalDateTime.now().minusDays(5));
     tagCollection(tagged, userId);
 
-    Long granted = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    Long granted = seedCollection(LocalDateTime.now().minusDays(1));
     grant(userId, granted);
 
     // A collection both tagged AND granted must collapse to a single block (de-dupe).
-    Long both = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(3));
+    Long both = seedCollection(LocalDateTime.now().minusDays(3));
     tagCollection(both, userId);
     grant(userId, both);
 
@@ -204,7 +203,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void memberOnlyUserWithNoPersonLinkStillGetsMemberCollections() {
     Long userId = seedUser("grantonly-" + UUID.randomUUID() + "@example.com");
-    Long granted = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    Long granted = seedCollection(LocalDateTime.now().minusDays(1));
     grant(userId, granted);
 
     CollectionModel model = assembler.assembleForUser(userId);
@@ -218,7 +217,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void grantOnlyUserFallsBackToGrantedCollectionCover() {
     Long userId = seedUser("grantcover-" + UUID.randomUUID() + "@example.com");
-    Long granted = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    Long granted = seedCollection(LocalDateTime.now().minusDays(1));
     seedCollectionCover(granted, "https://cdn/granted-cover.webp");
     grant(userId, granted);
 
@@ -236,9 +235,9 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void coverFallbackPicksNewestCollectionThatHasACover() {
     Long userId = seedUser("newestcover-" + UUID.randomUUID() + "@example.com");
-    Long older = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(30));
-    Long newer = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(2));
-    Long newestWithoutCover = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    Long older = seedCollection(LocalDateTime.now().minusDays(30));
+    Long newer = seedCollection(LocalDateTime.now().minusDays(2));
+    Long newestWithoutCover = seedCollection(LocalDateTime.now().minusDays(1));
     seedCollectionCover(older, "https://cdn/older-cover.webp");
     seedCollectionCover(newer, "https://cdn/newer-cover.webp");
     grant(userId, older);
@@ -269,7 +268,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void linkedPersonWithoutTaggedImageFallsBackToCollectionCover() {
     Long userId = seedUserNamed("No Cover Person");
-    Long tagged = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    Long tagged = seedCollection(LocalDateTime.now().minusDays(1));
     seedCollectionCover(tagged, "https://cdn/tagged-collection-cover.webp");
     tagCollection(tagged, userId);
 
@@ -287,7 +286,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void linkedPersonWithoutTaggedImageOrCollectionCoverStillHasNullCover() {
     Long userId = seedUserNamed("Nothing Anywhere");
-    Long tagged = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(1));
+    Long tagged = seedCollection(LocalDateTime.now().minusDays(1));
     tagCollection(tagged, userId);
 
     CollectionModel model = assembler.assembleForUser(userId);
@@ -331,7 +330,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
   void bodyOrderingIsCollectionsThenContentBothDateDesc() {
     Long userId = seedUserNamed("Order Person");
 
-    Long collection = seedCollection("CLIENT_GALLERY", LocalDateTime.now().minusDays(2));
+    Long collection = seedCollection(LocalDateTime.now().minusDays(2));
     tagCollection(collection, userId);
     seedTaggedImage(userId, "https://cdn/img.webp", LocalDateTime.now().minusDays(3));
     seedTaggedGif(userId, "https://cdn/g.gif");

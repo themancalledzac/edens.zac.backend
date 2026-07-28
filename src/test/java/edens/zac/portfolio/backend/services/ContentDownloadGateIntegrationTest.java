@@ -38,8 +38,8 @@ class ContentDownloadGateIntegrationTest extends AbstractPostgresIntegrationTest
 
   private Long seedCollection(String slug, String galleryPassword) {
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility, is_client, is_blog,"
-            + " gallery_password) VALUES (?, ?, 'MISC', 'LISTED', false, false, ?)",
+        "INSERT INTO collection (title, slug, visibility, is_client, is_blog,"
+            + " gallery_password) VALUES (?, ?, 'LISTED', false, false, ?)",
         slug,
         slug,
         galleryPassword);

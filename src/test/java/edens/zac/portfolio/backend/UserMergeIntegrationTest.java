@@ -56,8 +56,8 @@ class UserMergeIntegrationTest extends AbstractPostgresIntegrationTest {
   private Long newCollection() {
     String slug = "merge-test-" + UUID.randomUUID();
     return jdbc.queryForObject(
-        "INSERT INTO collection (title, slug, type, visibility) "
-            + "VALUES (?, ?, 'CLIENT_GALLERY', 'UNLISTED') RETURNING id",
+        "INSERT INTO collection (title, slug, visibility) "
+            + "VALUES (?, ?, 'UNLISTED') RETURNING id",
         Long.class,
         slug,
         slug);

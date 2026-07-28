@@ -43,7 +43,7 @@ class UserCollectionMigrationIntegrationTest extends AbstractPostgresIntegration
         "INSERT INTO users (name, webauthn_user_handle, status) VALUES ('Member Mary', gen_random_uuid(), 'ACTIVE')");
     Long userId = jdbc.queryForObject("SELECT id FROM users WHERE name='Member Mary'", Long.class);
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility) VALUES ('C', 'c-slug', 'CLIENT_GALLERY', 'UNLISTED')");
+        "INSERT INTO collection (title, slug, visibility) VALUES ('C', 'c-slug', 'UNLISTED')");
     Long collectionId =
         jdbc.queryForObject("SELECT id FROM collection WHERE slug='c-slug'", Long.class);
 
@@ -62,7 +62,7 @@ class UserCollectionMigrationIntegrationTest extends AbstractPostgresIntegration
     // Seed a second collection so the bad-role insert is a fresh (user, collection) pair —
     // ensures only the CHECK constraint can throw, not a PK unique-violation on the same pair.
     jdbc.update(
-        "INSERT INTO collection (title, slug, type, visibility) VALUES ('C2', 'c2-slug', 'CLIENT_GALLERY', 'UNLISTED')");
+        "INSERT INTO collection (title, slug, visibility) VALUES ('C2', 'c2-slug', 'UNLISTED')");
     Long collectionId2 =
         jdbc.queryForObject("SELECT id FROM collection WHERE slug='c2-slug'", Long.class);
     org.assertj.core.api.Assertions.assertThatThrownBy(
