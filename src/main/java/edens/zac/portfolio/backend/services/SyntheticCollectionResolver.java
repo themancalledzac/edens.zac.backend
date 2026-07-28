@@ -43,15 +43,11 @@ public class SyntheticCollectionResolver {
   private static final Map<String, Synthetic> CATALOG =
       Map.of(
           ALL_COLLECTIONS,
-          // Null typeFilter: served by findAllCollectionsForCurrentViewer, which is
-          // permission-scoped and never reads the filter.
-          new Synthetic("All Collections", null),
+          new Synthetic("All Collections", false),
           ALL_BLOGS,
-          new Synthetic("Blogs", CollectionType.BLOG),
+          new Synthetic("Blogs", true),
           ALL_CLIENT_GALLERIES,
-          // Null typeFilter: served by findClientGalleriesAndQualifyingParents, which is
-          // flag-keyed and never reads the filter.
-          new Synthetic("Client Galleries", null));
+          new Synthetic("Client Galleries", false));
 
   private static final List<CollectionVisibility> ADMIN_SCOPE =
       List.of(
@@ -84,8 +80,8 @@ public class SyntheticCollectionResolver {
     // (e.g. wedding wrappers with ceremony/reception sub-galleries) so they appear alongside
     // standalone CLIENT_GALLERYs. "all-collections" is permission-scoped by the caller's verified
     // identity (NOT the environment) and stays chronological (newest first) for its first paint;
-    // the frontend reorders client-side thereafter. Other synthetic slugs use the simple type
-    // filter with rating-first ordering and the env-based scope. All non-gallery slugs exclude
+    // the frontend reorders client-side thereafter. all-blogs keys on is_blog with rating-first
+    // ordering and the env-based scope. All non-gallery slugs exclude
     // collections that have zero content rows so the listing never shows empty tiles.
     List<CollectionEntity> rows;
     if (ALL_CLIENT_GALLERIES.equals(slug)) {
@@ -93,7 +89,7 @@ public class SyntheticCollectionResolver {
     } else if (ALL_COLLECTIONS.equals(slug)) {
       rows = findAllCollectionsForCurrentViewer();
     } else {
-      rows = collectionRepository.findNonEmptyOrderedByVisibilityIn(allowed, spec.typeFilter());
+      rows = collectionRepository.findNonEmptyOrderedByVisibilityIn(allowed, spec.blogsOnly());
     }
     List<CollectionModel> children = collectionProcessingUtil.batchConvertToBasicModels(rows);
 
@@ -159,5 +155,5 @@ public class SyntheticCollectionResolver {
     return tags.stream().map(t -> new Records.Tag(t.getId(), t.getTagName(), t.getSlug())).toList();
   }
 
-  private record Synthetic(String title, CollectionType typeFilter) {}
+  private record Synthetic(String title, boolean blogsOnly) {}
 }

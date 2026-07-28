@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.services;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -215,7 +216,7 @@ class SyntheticCollectionResolverTest {
     verify(collectionRepository)
         .findNonEmptyListedOrOwnedOrderByDate(
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of()));
-    verify(collectionRepository, never()).findNonEmptyOrderedByVisibilityIn(any(), any());
+    verify(collectionRepository, never()).findNonEmptyOrderedByVisibilityIn(any(), anyBoolean());
   }
 
   @Test
@@ -262,7 +263,7 @@ class SyntheticCollectionResolverTest {
   @Test
   void resolveAllBlogsInProdFiltersToBlogTypeAndListedOnly() {
     when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
-            eq(List.of(CollectionVisibility.LISTED)), eq(CollectionType.BLOG)))
+            eq(List.of(CollectionVisibility.LISTED)), eq(true)))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(

@@ -157,15 +157,14 @@ class CollectionRepositoryTest {
     void sqlGatesOnExistsCollectionContentRowsAndPassesVisibilities() {
       // Pin the SQL: caller relies on the EXISTS gate to drop empty collections from
       // synthetic listings (/all-collections, /all-blogs, etc.). Soft-removed memberships
-      // (cc.visible=false) must NOT count as content — must mirror the gate used by
+      // (cc.visible=false) must NOT count as content -- must mirror the gate used by
       // findReferencedCollectionsByParentId.
       when(namedParameterJdbcTemplate.query(
               anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
           .thenReturn(List.of());
 
       collectionRepository.findNonEmptyOrderedByVisibilityIn(
-          List.of(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED),
-          CollectionType.PORTFOLIO);
+          List.of(CollectionVisibility.LISTED, CollectionVisibility.UNLISTED), true);
 
       verify(namedParameterJdbcTemplate)
           .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
@@ -175,28 +174,30 @@ class CollectionRepositoryTest {
       assertThat(sql).containsIgnoringCase("cc.collection_id = collection.id");
       assertThat(sql).containsIgnoringCase("cc.visible = true");
       assertThat(sql).containsIgnoringCase("WHERE visibility IN (:visibilities)");
-      assertThat(sql).containsIgnoringCase("AND type = :type");
+      assertThat(sql).containsIgnoringCase("AND is_blog = true");
       assertThat(sql).containsIgnoringCase("ORDER BY rating DESC NULLS LAST, collection_date DESC");
       MapSqlParameterSource params = paramsCaptor.getValue();
       assertThat((List<String>) params.getValue("visibilities"))
           .containsExactly("LISTED", "UNLISTED");
-      assertThat(params.getValue("type")).isEqualTo("PORTFOLIO");
+      // hasValue, not getValue: MapSqlParameterSource.getValue throws on an unregistered key.
+      assertThat(params.hasValue("type")).isFalse();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
-    void sqlOmitsTypePredicateWhenTypeFilterIsNull() {
+    void sqlOmitsBlogPredicateWhenBlogsOnlyIsFalse() {
       when(namedParameterJdbcTemplate.query(
               anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
           .thenReturn(List.of());
 
       collectionRepository.findNonEmptyOrderedByVisibilityIn(
-          List.of(CollectionVisibility.LISTED), null);
+          List.of(CollectionVisibility.LISTED), false);
 
       verify(namedParameterJdbcTemplate)
           .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
       String sql = sqlCaptor.getValue();
       assertThat(sql).containsIgnoringCase("EXISTS");
+      // Not a bare "is_blog": the canonical column list projects it in the SELECT.
+      assertThat(sql).doesNotContainIgnoringCase("AND is_blog = true");
       assertThat(sql).doesNotContainIgnoringCase("type = :type");
     }
   }

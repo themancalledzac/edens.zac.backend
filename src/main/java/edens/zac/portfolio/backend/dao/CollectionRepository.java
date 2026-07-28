@@ -481,24 +481,25 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
-   * Find collections whose visibility is in the supplied set, optionally filtered by legacy type,
-   * dropping collections that have zero non-soft-removed entries in {@code collection_content}.
-   * Used by synthetic-list endpoints (e.g. {@code /all-collections}, {@code /all-blogs}) so the
-   * listing never renders empty tiles. Admin-only flows that need empty collections (e.g.
-   * cover-image picking) should use {@link #findClientGalleriesByVisibilityIn}. The type filter
-   * remains legacy-keyed for the synthetic-slug catalog, which a later task prunes.
+   * Find collections whose visibility is in the supplied set, dropping collections that have zero
+   * non-soft-removed entries in {@code collection_content}. Used by synthetic-list endpoints (e.g.
+   * {@code /all-collections}, {@code /all-blogs}) so the listing never renders empty tiles.
+   * Admin-only flows that need empty collections (e.g. cover-image picking) should use {@link
+   * #findClientGalleriesByVisibilityIn}.
+   *
+   * @param blogsOnly when true, restrict to {@code is_blog = true} -- the single definition of
+   *     "blog", shared with the admin blogs tile
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findNonEmptyOrderedByVisibilityIn(
-      List<CollectionVisibility> allowed, CollectionType typeFilter) {
+      List<CollectionVisibility> allowed, boolean blogsOnly) {
     StringBuilder sql =
         new StringBuilder(SELECT_COLLECTION).append(" WHERE visibility IN (:visibilities) ");
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("visibilities", allowed.stream().map(CollectionVisibility::name).toList());
-    if (typeFilter != null) {
-      sql.append(" AND type = :type ");
-      params.addValue("type", typeFilter.name());
+    if (blogsOnly) {
+      sql.append(" AND is_blog = true ");
     }
     sql.append(
         """
