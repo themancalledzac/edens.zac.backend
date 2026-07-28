@@ -207,15 +207,6 @@ class ContentRequestsTest {
   }
 
   @Test
-  void collectionCreate_nullType_isValid() {
-    // Dual-compat window: type is optional (new frontends send only booleans + title; a create
-    // with neither type nor booleans resolves to MISC in the mapping layer).
-    var create = new CollectionRequests.Create("My Blog");
-    Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);
-    assertThat(violations).isEmpty();
-  }
-
-  @Test
   void collectionCreate_nullTitle_hasViolation() {
     var create = new CollectionRequests.Create(null);
     Set<ConstraintViolation<CollectionRequests.Create>> violations = validator.validate(create);

@@ -929,10 +929,10 @@ class CollectionServiceTest {
   }
 
   @Nested
-  class ParentTypeCollections {
+  class ParentCollections {
 
     @Test
-    void getUpdateCollectionData_parentType_aggregatesChildCollectionImages() {
+    void getUpdateCollectionData_derivedParent_aggregatesChildCollectionImages() {
       String slug = "photography";
       CollectionEntity parentEntity =
           CollectionEntity.builder()
@@ -1177,10 +1177,10 @@ class CollectionServiceTest {
     @Test
     void nonParentWrapperOfClientGalleries_keepsUnlistedChildren() {
       // Regression pin: findClientGalleriesAndQualifyingParents admits ANY collection with a
-      // visible client child (no parent-side type filter), so the render path must key the
-      // client-gallery context on the flags too. Keying it on type == PARENT stripped every
-      // UNLISTED child out of a MISC/PORTFOLIO wrapper (e.g. the auto-linked 'staging'
-      // collection) and rendered an empty tile.
+      // visible client child, applying no discriminator to the parent side, so the render path
+      // must key the client-gallery context on the child flags too. A parent-side gate stripped
+      // every UNLISTED child out of an ordinary wrapper carrying neither flag (e.g. the
+      // auto-linked 'staging' collection) and rendered an empty tile.
       String slug = "staging";
       CollectionEntity wrapper =
           CollectionEntity.builder()

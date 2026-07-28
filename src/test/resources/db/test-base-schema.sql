@@ -2,8 +2,10 @@
 -- Reconstructs the tables that pre-dated Flyway in prod, so a fresh Postgres
 -- Testcontainers container has the base schema BEFORE Flyway connects. The container
 -- runs this via withInitScript(); Flyway (baseline-on-migrate=true) then baselines the
--- non-empty DB at 0 and applies V2..V29 on top — producing the same end schema while
--- leaving the prod Flyway path (V2..V30, already baselined at 0) completely untouched.
+-- non-empty DB at 0 and applies V2..V52 on top — producing the same end schema while
+-- leaving the prod Flyway path (V2..V52, already baselined at 0) completely untouched.
+-- Columns below that later migrations drop (notably collection.type, dropped by V52) are
+-- deliberately kept here: this file is the pre-Flyway starting state, not the end state.
 -- V2's "CREATE TABLE IF NOT EXISTS location" makes this layering safe.
 
 -- Reference lookup tables

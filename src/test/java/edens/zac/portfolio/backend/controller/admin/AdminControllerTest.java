@@ -371,9 +371,8 @@ class AdminControllerTest {
   }
 
   @Test
-  @DisplayName(
-      "POST /content/images/create-collection should accept booleans without legacy type param")
-  void createCollectionWithImages_typeOmitted_acceptsClientBlogBooleans() throws Exception {
+  @DisplayName("POST /content/images/create-collection should accept the isClient/isBlog booleans")
+  void createCollectionWithImages_acceptsClientBlogBooleans() throws Exception {
     // Arrange
     MockMultipartFile file =
         new MockMultipartFile("files", "photo.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes());
@@ -384,7 +383,7 @@ class AdminControllerTest {
             any(CollectionRequests.Create.class), anyList(), anyMap()))
         .thenReturn(uploadResult);
 
-    // Act & Assert: new FE sends only title + booleans (no legacy type param).
+    // Act & Assert: the frontend sends title + the two booleans, and nothing else.
     mockMvc
         .perform(
             multipart("/api/admin/content/images/create-collection")
@@ -404,12 +403,11 @@ class AdminControllerTest {
   }
 
   @Test
-  @DisplayName(
-      "POST /content/images/create-collection with neither type nor booleans binds all three null")
-  void createCollectionWithImages_neitherTypeNorBooleans_bindsAllNull() throws Exception {
-    // Multipart is the only write surface where the MISC fold is unobservable in-band, so pin
-    // that an omitted type and omitted booleans reach the service as null (the compat layer,
-    // not the binder, is what decides the fold).
+  @DisplayName("POST /content/images/create-collection with no booleans binds both of them null")
+  void createCollectionWithImages_noBooleans_bindsBothNull() throws Exception {
+    // Multipart is the only write surface where "neither flag" is unobservable in-band, so pin
+    // that omitted booleans reach the service as null rather than false: CollectionFlags, not the
+    // binder, is what turns a null into a stored false.
     MockMultipartFile file =
         new MockMultipartFile("files", "photo.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes());
 

@@ -463,10 +463,11 @@ class CollectionProcessingUtilTest {
 
   @Test
   void applyBasicUpdates_partialIsBlogFalse_onClientGallery_doesNotDemote() {
-    // Wiring-seam pin: applyBasicUpdates must hand the entity's CURRENT booleans to the compat
-    // resolver, not just its legacy type column. Without that, {"isBlog": false} alone clears
-    // is_client on a drifted row today, and demotes every client gallery once phase 2 nulls the
-    // type column. Mutating entity.getType() to null must not change the outcome.
+    // Wiring-seam pin: applyBasicUpdates must hand the entity's CURRENT booleans to
+    // CollectionFlags.
+    // The flags are the only stored discriminators, so a partial update that names one of them must
+    // read the other off the entity -- otherwise {"isBlog": false} alone clears is_client and
+    // demotes every client gallery.
     testEntity.setClient(true);
     testEntity.setBlog(false);
 
@@ -477,9 +478,9 @@ class CollectionProcessingUtilTest {
 
   @Test
   void applyBasicUpdates_isClientDemotion_clearsGalleryAccess() {
-    // updateGalleryAccess refuses non-CLIENT_GALLERY/PARENT targets and the read gate keys on
-    // galleryPassword != null, so a demoted collection would otherwise keep an enforced password
-    // that no endpoint can clear.
+    // updateGalleryAccess only accepts a collection that is itself a client gallery or holds one
+    // (isClient() || hasClientGalleryChildren), and the read gate keys on galleryPassword != null,
+    // so a demoted collection would otherwise keep an enforced password that no endpoint can clear.
     testEntity.setClient(true);
     testEntity.setGalleryPassword("secret");
     testEntity.setRecipientEmails(new ArrayList<>(List.of("client@example.com")));
@@ -499,10 +500,10 @@ class CollectionProcessingUtilTest {
   }
 
   @Test
-  void applyBasicUpdates_noTypeOrFlagsInRequest_leavesTypeAndFlagsUntouched() {
+  void applyBasicUpdates_noFlagsInRequest_leavesFlagsUntouched() {
     testEntity.setBlog(true);
 
-    // Description-only update: no type field and no booleans in the request.
+    // Description-only update: neither boolean is present in the request.
     util.applyBasicUpdates(
         testEntity,
         new CollectionRequests.Update(
