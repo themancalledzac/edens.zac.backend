@@ -87,7 +87,7 @@ src/main/java/edens/zac/portfolio/backend/
   dao/                Data access (JDBC, NamedParameterJdbcTemplate)
   entity/             Database entities (*Entity suffix)
   model/              DTOs, requests, responses (*Model, *Request, Records)
-  types/              Enums (CollectionType, ContentType, DisplayMode)
+  types/              Enums (ContentType, DisplayMode, CollectionVisibility)
   config/             Spring configuration, exception handling
 src/main/resources/
   db/migration/       Flyway SQL migrations (V1-V5)

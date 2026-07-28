@@ -233,8 +233,8 @@ class CollectionProcessingUtilTest {
   }
 
   /**
-   * Build an Update that only carries date-range fields (everything else null). Canonical 23-arg
-   * order: id, type, isClient, isBlog, title, slug, description, locations, collectionDate,
+   * Build an Update that only carries date-range fields (everything else null). Canonical 22-arg
+   * order: id, isClient, isBlog, title, slug, description, locations, collectionDate,
    * collectionEndDate, clearCollectionDate, clearCollectionEndDate, visibility, rating,
    * displayMode, contentPerPage, rowsWide, coverImageId, tags, people, collections, siblings,
    * parents.

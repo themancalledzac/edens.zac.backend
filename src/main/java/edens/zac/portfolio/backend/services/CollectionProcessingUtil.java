@@ -591,10 +591,13 @@ public class CollectionProcessingUtil {
 
   /**
    * Apply partial-field updates from updateDTO to the given entity: title (auto-regenerating the
-   * slug unless an explicit one is supplied), slug, description, the type/flag compat resolution,
-   * locations, collection start/end dates and their explicit clear flags, visibility, rating,
-   * displayMode, contentPerPage/rowsWide (skipped for parent types) and coverImageId. Null request
-   * fields leave the entity untouched.
+   * slug unless an explicit one is supplied), slug, description, the isClient/isBlog flag
+   * resolution (see {@link CollectionFlags}), locations, collection start/end dates and their
+   * explicit clear flags, visibility, rating, displayMode, contentPerPage/rowsWide and
+   * coverImageId. Null request fields leave the entity untouched.
+   *
+   * <p>Layout fields are written for every collection: the old suppression on parent types went out
+   * with {@code CollectionType}, since any collection may now hold any mix of content.
    */
   public void applyBasicUpdates(CollectionEntity entity, CollectionRequests.Update updateDTO) {
     if (updateDTO.title() != null) {
@@ -697,9 +700,10 @@ public class CollectionProcessingUtil {
   /**
    * Clear the gallery password and recipient list when an update demotes a collection out of
    * client-gallery status. The public read gate keys on {@code galleryPassword != null}, and {@link
-   * CollectionService#updateGalleryAccess} refuses non-CLIENT_GALLERY/PARENT targets -- so without
-   * this a demoted collection would keep an enforced password that no endpoint can clear. Written
-   * through {@code saveGalleryAccess}, the sole owner of the password/recipients pair ({@link
+   * CollectionService#updateGalleryAccess} only *sets* a password on a collection that {@code
+   * isClient() || hasClientGalleryChildren(id)} -- so without this a demoted collection would keep
+   * an enforced password that only the D8 clear path could remove. Written through {@code
+   * saveGalleryAccess}, the sole owner of the password/recipients pair ({@link
    * edens.zac.portfolio.backend.dao.CollectionRepository#save} deliberately omits them on UPDATE).
    */
   private void clearGalleryAccessOnClientDemotion(

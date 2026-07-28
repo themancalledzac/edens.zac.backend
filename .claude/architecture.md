@@ -59,8 +59,9 @@ A single image can belong to multiple collections with different ordering/captio
 - `ContentImageEntity` --> `ContentFilmTypeEntity` (embedded)
 
 ### Collection Hierarchy
-- Collections can contain any ContentEntity type
-- CollectionType enum: `BLOG`, `PORTFOLIO`, `ART_GALLERY`, `CLIENT_GALLERY`, `HOME`, `MISC`
+- Collections can contain any ContentEntity type, in any mix — including references to other collections
+- Collections carry no type discriminator. Two stored booleans: `is_client` (password/role gated) and `is_blog` (appears in blog listings); mutually exclusive
+- Parent-ness is derived (holds >= 1 COLLECTION content block), never stored; `home` is derived from `slug = 'home'`
 - Collections have: slug, title, coverImage, date, visibility flags
 
 ## Data Flow: Image Upload
