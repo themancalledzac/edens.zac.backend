@@ -33,7 +33,6 @@ class CollectionFlagSerializationTest {
     CollectionModel model =
         CollectionModel.builder()
             .id(1L)
-            .type(CollectionType.CLIENT_GALLERY)
             .isClient(true)
             .isBlog(false)
             .title("Smith Wedding")
@@ -49,16 +48,13 @@ class CollectionFlagSerializationTest {
     // The boolean-getter rename trap would emit these instead:
     assertThat(json.has("client")).isFalse();
     assertThat(json.has("blog")).isFalse();
-    // Legacy type still emitted during the dual-compat window.
-    assertThat(json.get("type").asText()).isEqualTo("CLIENT_GALLERY");
   }
 
   @Test
   @DisplayName("Records.CollectionList serializes isClient/isBlog under exactly those names")
   void collectionList_serializesExactFlagNames() throws Exception {
     Records.CollectionList list =
-        new Records.CollectionList(
-            2L, "Daily Blog", "daily-blog", CollectionType.BLOG, null, null, false, true);
+        new Records.CollectionList(2L, "Daily Blog", "daily-blog", null, null, false, true);
 
     JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(list));
 
@@ -86,7 +82,6 @@ class CollectionFlagSerializationTest {
             null,
             30L,
             "wrapped-gallery",
-            CollectionType.CLIENT_GALLERY,
             true,
             false,
             null,

@@ -71,7 +71,6 @@ class ImageUploadPipelineServiceTest {
             .id(1L)
             .title("Test Collection")
             .slug("test-collection")
-            .type(CollectionType.PORTFOLIO)
             .visibility(CollectionVisibility.LISTED)
             .build();
   }
@@ -387,12 +386,7 @@ class ImageUploadPipelineServiceTest {
     @DisplayName("processFilesFromDisk accepts a collection that holds child collections")
     void processFilesFromDisk_wrapperTarget_isAccepted() {
       CollectionEntity wrapper =
-          CollectionEntity.builder()
-              .id(31L)
-              .slug("wrapper")
-              .title("Wrapper")
-              .type(CollectionType.PARENT)
-              .build();
+          CollectionEntity.builder().id(31L).slug("wrapper").title("Wrapper").build();
       when(collectionRepository.findById(31L)).thenReturn(Optional.of(wrapper));
 
       assertThatCode(
@@ -800,7 +794,6 @@ class ImageUploadPipelineServiceTest {
       var existingBlog =
           CollectionEntity.builder()
               .id(7L)
-              .type(CollectionType.BLOG)
               .collectionDate(day)
               .visibility(CollectionVisibility.LISTED)
               .build();
@@ -832,10 +825,8 @@ class ImageUploadPipelineServiceTest {
     void ingest_multipleBlogsForDay_usesOldest() throws Exception {
       // Arrange -- two BLOGs exist for the day (finder returns oldest first); use the oldest.
       LocalDate day = LocalDate.of(2024, 3, 24);
-      var oldest =
-          CollectionEntity.builder().id(3L).type(CollectionType.BLOG).collectionDate(day).build();
-      var newer =
-          CollectionEntity.builder().id(9L).type(CollectionType.BLOG).collectionDate(day).build();
+      var oldest = CollectionEntity.builder().id(3L).collectionDate(day).build();
+      var newer = CollectionEntity.builder().id(9L).collectionDate(day).build();
       var request =
           new DiskUploadRequest(
               List.of(

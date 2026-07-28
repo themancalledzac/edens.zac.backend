@@ -110,7 +110,6 @@ class TagConversionIntegrationTest extends AbstractPostgresIntegrationTest {
     // (c) Resolution returns the real collection (not the synthetic tag-view).
     CollectionModel resolved = collectionService.getCollectionWithPagination("sunsets", 0, 30);
     assertThat(resolved.getId()).isEqualTo(newCollectionId);
-    assertThat(resolved.getType()).isEqualTo(CollectionType.PORTFOLIO);
     assertThat(resolved.isDerived()).isFalse();
 
     // (d) The tag is flagged converted and no longer resolves a tag-view.

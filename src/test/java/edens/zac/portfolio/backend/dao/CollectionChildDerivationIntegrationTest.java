@@ -6,7 +6,6 @@ import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +25,6 @@ class CollectionChildDerivationIntegrationTest extends AbstractPostgresIntegrati
   private CollectionEntity save(String slug) {
     return collectionRepository.save(
         CollectionEntity.builder()
-            .type(CollectionType.MISC)
             .isClient(false)
             .isBlog(false)
             .title("Derivation " + slug)

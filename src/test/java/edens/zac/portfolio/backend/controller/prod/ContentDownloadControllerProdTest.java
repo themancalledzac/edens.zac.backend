@@ -19,7 +19,6 @@ import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.DownloadUrlService;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
 import java.net.URI;
@@ -80,7 +79,6 @@ class ContentDownloadControllerProdTest {
   private static CollectionEntity protectedGallery() {
     return CollectionEntity.builder()
         .id(1L)
-        .type(CollectionType.CLIENT_GALLERY)
         .title("Smith Wedding")
         .slug("smith-wedding")
         .visibility(CollectionVisibility.UNLISTED)
@@ -91,7 +89,6 @@ class ContentDownloadControllerProdTest {
   private static CollectionEntity openCollection() {
     return CollectionEntity.builder()
         .id(2L)
-        .type(CollectionType.PORTFOLIO)
         .title("Open Portfolio")
         .slug("open-portfolio")
         .visibility(CollectionVisibility.LISTED)
@@ -225,7 +222,6 @@ class ContentDownloadControllerProdTest {
       CollectionEntity otherGallery =
           CollectionEntity.builder()
               .id(3L)
-              .type(CollectionType.CLIENT_GALLERY)
               .title("Jones Wedding")
               .slug("jones-wedding")
               .visibility(CollectionVisibility.UNLISTED)

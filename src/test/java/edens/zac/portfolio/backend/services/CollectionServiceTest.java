@@ -100,7 +100,7 @@ class CollectionServiceTest {
     when(metadataService.getAllCameras()).thenReturn(List.of());
     when(metadataService.getAllLenses()).thenReturn(List.of());
     when(metadataService.getAllFilmTypes()).thenReturn(List.of());
-    when(collectionRepository.findIdTitleSlugAndType()).thenReturn(List.of());
+    when(collectionRepository.findIdTitleAndSlug()).thenReturn(List.of());
   }
 
   @BeforeEach
@@ -110,7 +110,6 @@ class CollectionServiceTest {
             .id(1L)
             .title("Test Collection")
             .slug("test-collection")
-            .type(CollectionType.PORTFOLIO)
             .visibility(CollectionVisibility.LISTED)
             .build();
 
@@ -132,7 +131,6 @@ class CollectionServiceTest {
               .id(10L)
               .title("New Collection")
               .slug("new-collection")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
@@ -163,7 +161,6 @@ class CollectionServiceTest {
               .id(5L)
               .title("My Blog")
               .slug("my-blog")
-              .type(CollectionType.BLOG)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
@@ -534,8 +531,7 @@ class CollectionServiceTest {
     @Test
     void getCollectionWithPagination_tagFallbackHit_returnsTagView() {
       String slug = "travel";
-      CollectionModel tagView =
-          CollectionModel.builder().slug(slug).type(CollectionType.PARENT).build();
+      CollectionModel tagView = CollectionModel.builder().slug(slug).build();
 
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.empty());
       when(tagViewResolver.resolveTagView(eq(slug), anyBoolean())).thenReturn(Optional.of(tagView));
@@ -578,8 +574,7 @@ class CollectionServiceTest {
 
     @Test
     void getCollectionWithPagination_syntheticSlug_delegatesToResolver() {
-      CollectionModel synthetic =
-          CollectionModel.builder().slug("all-collections").type(CollectionType.PARENT).build();
+      CollectionModel synthetic = CollectionModel.builder().slug("all-collections").build();
       when(syntheticResolver.isSyntheticSlug("all-collections")).thenReturn(true);
       when(syntheticResolver.resolve(eq("all-collections"), anyBoolean())).thenReturn(synthetic);
 
@@ -775,7 +770,6 @@ class CollectionServiceTest {
               .id(10L)
               .title("Seattle Trip")
               .slug("seattle-trip")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
@@ -911,12 +905,7 @@ class CollectionServiceTest {
       // Arrange
       String slug = "test-collection";
       CollectionModel basicModel =
-          CollectionModel.builder()
-              .id(1L)
-              .title("Test Collection")
-              .slug(slug)
-              .type(CollectionType.PORTFOLIO)
-              .build();
+          CollectionModel.builder().id(1L).title("Test Collection").slug(slug).build();
 
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
       when(collectionProcessingUtil.convertToBasicModel(testCollection)).thenReturn(basicModel);
@@ -956,7 +945,6 @@ class CollectionServiceTest {
               .id(10L)
               .title("Photography")
               .slug(slug)
-              .type(CollectionType.PARENT)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
@@ -973,7 +961,6 @@ class CollectionServiceTest {
               null,
               20L,
               "portfolio",
-              CollectionType.PORTFOLIO,
               false,
               false,
               null,
@@ -1028,7 +1015,6 @@ class CollectionServiceTest {
               .id(7L)
               .slug(slug)
               .title("Child")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.LISTED)
               .build();
       CollectionModel model = CollectionModel.builder().id(7L).slug(slug).title("Child").build();
@@ -1037,7 +1023,6 @@ class CollectionServiceTest {
               .id(42L)
               .title("Parent")
               .slug("parent")
-              .type(CollectionType.PARENT)
               .collectionDate(LocalDate.of(2026, 1, 1))
               .build();
 
@@ -1066,22 +1051,17 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(50L)
               .slug(slug)
-              .type(CollectionType.PARENT)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
-      ContentModels.Collection unlistedGallery =
-          childCollectionContent(101L, CollectionType.CLIENT_GALLERY);
-      ContentModels.Collection hiddenGallery =
-          childCollectionContent(102L, CollectionType.CLIENT_GALLERY);
-      ContentModels.Collection listedGallery =
-          childCollectionContent(103L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection unlistedGallery = childCollectionContent(101L);
+      ContentModels.Collection hiddenGallery = childCollectionContent(102L);
+      ContentModels.Collection listedGallery = childCollectionContent(103L);
 
       CollectionModel model =
           CollectionModel.builder()
               .id(50L)
               .slug(slug)
-              .type(CollectionType.PARENT)
               .content(
                   new java.util.ArrayList<>(List.of(unlistedGallery, hiddenGallery, listedGallery)))
               .build();
@@ -1096,9 +1076,9 @@ class CollectionServiceTest {
       when(collectionRepository.findByIds(List.of(101L, 102L, 103L)))
           .thenReturn(
               List.of(
-                  childEntity(101L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED),
-                  childEntity(102L, CollectionType.CLIENT_GALLERY, CollectionVisibility.HIDDEN),
-                  childEntity(103L, CollectionType.CLIENT_GALLERY, CollectionVisibility.LISTED)));
+                  childEntity(101L, true, CollectionVisibility.UNLISTED),
+                  childEntity(102L, true, CollectionVisibility.HIDDEN),
+                  childEntity(103L, true, CollectionVisibility.LISTED)));
 
       CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
 
@@ -1116,18 +1096,16 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(60L)
               .slug(slug)
-              .type(CollectionType.PARENT)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
-      ContentModels.Collection listed = childCollectionContent(201L, CollectionType.PORTFOLIO);
-      ContentModels.Collection unlisted = childCollectionContent(202L, CollectionType.PORTFOLIO);
+      ContentModels.Collection listed = childCollectionContent(201L);
+      ContentModels.Collection unlisted = childCollectionContent(202L);
 
       CollectionModel model =
           CollectionModel.builder()
               .id(60L)
               .slug(slug)
-              .type(CollectionType.PARENT)
               .content(new java.util.ArrayList<>(List.of(listed, unlisted)))
               .build();
 
@@ -1141,8 +1119,8 @@ class CollectionServiceTest {
       when(collectionRepository.findByIds(List.of(201L, 202L)))
           .thenReturn(
               List.of(
-                  childEntity(201L, CollectionType.PORTFOLIO, CollectionVisibility.LISTED),
-                  childEntity(202L, CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED)));
+                  childEntity(201L, false, CollectionVisibility.LISTED),
+                  childEntity(202L, false, CollectionVisibility.UNLISTED)));
 
       CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
 
@@ -1162,24 +1140,18 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(70L)
               .slug(slug)
-              .type(CollectionType.PARENT)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
-      ContentModels.Collection unlistedGallery =
-          childCollectionContent(301L, CollectionType.CLIENT_GALLERY);
-      ContentModels.Collection unlistedPortfolio =
-          childCollectionContent(302L, CollectionType.PORTFOLIO);
-      ContentModels.Collection listedPortfolio =
-          childCollectionContent(303L, CollectionType.PORTFOLIO);
-      ContentModels.Collection hiddenPortfolio =
-          childCollectionContent(304L, CollectionType.PORTFOLIO);
+      ContentModels.Collection unlistedGallery = childCollectionContent(301L);
+      ContentModels.Collection unlistedPortfolio = childCollectionContent(302L);
+      ContentModels.Collection listedPortfolio = childCollectionContent(303L);
+      ContentModels.Collection hiddenPortfolio = childCollectionContent(304L);
 
       CollectionModel model =
           CollectionModel.builder()
               .id(70L)
               .slug(slug)
-              .type(CollectionType.PARENT)
               .content(
                   new java.util.ArrayList<>(
                       List.of(
@@ -1196,10 +1168,10 @@ class CollectionServiceTest {
       when(collectionRepository.findByIds(List.of(301L, 302L, 303L, 304L)))
           .thenReturn(
               List.of(
-                  childEntity(301L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED),
-                  childEntity(302L, CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED),
-                  childEntity(303L, CollectionType.PORTFOLIO, CollectionVisibility.LISTED),
-                  childEntity(304L, CollectionType.PORTFOLIO, CollectionVisibility.HIDDEN)));
+                  childEntity(301L, true, CollectionVisibility.UNLISTED),
+                  childEntity(302L, false, CollectionVisibility.UNLISTED),
+                  childEntity(303L, false, CollectionVisibility.LISTED),
+                  childEntity(304L, false, CollectionVisibility.HIDDEN)));
 
       CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
 
@@ -1220,20 +1192,16 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(80L)
               .slug(slug)
-              .type(CollectionType.MISC)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
-      ContentModels.Collection unlistedGallery =
-          childCollectionContent(401L, CollectionType.CLIENT_GALLERY);
-      ContentModels.Collection hiddenGallery =
-          childCollectionContent(402L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection unlistedGallery = childCollectionContent(401L);
+      ContentModels.Collection hiddenGallery = childCollectionContent(402L);
 
       CollectionModel model =
           CollectionModel.builder()
               .id(80L)
               .slug(slug)
-              .type(CollectionType.MISC)
               .isClient(false)
               .content(new java.util.ArrayList<>(List.of(unlistedGallery, hiddenGallery)))
               .build();
@@ -1245,8 +1213,8 @@ class CollectionServiceTest {
       when(collectionRepository.findByIds(List.of(401L, 402L)))
           .thenReturn(
               List.of(
-                  childEntity(401L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED),
-                  childEntity(402L, CollectionType.CLIENT_GALLERY, CollectionVisibility.HIDDEN)));
+                  childEntity(401L, true, CollectionVisibility.UNLISTED),
+                  childEntity(402L, true, CollectionVisibility.HIDDEN)));
 
       CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
 
@@ -1265,20 +1233,16 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(90L)
               .slug(slug)
-              .type(CollectionType.MISC)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
-      ContentModels.Collection lockedChild =
-          childCollectionContent(501L, CollectionType.CLIENT_GALLERY);
-      ContentModels.Collection openChild =
-          childCollectionContent(502L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection lockedChild = childCollectionContent(501L);
+      ContentModels.Collection openChild = childCollectionContent(502L);
 
       CollectionModel model =
           CollectionModel.builder()
               .id(90L)
               .slug(slug)
-              .type(CollectionType.MISC)
               .isPasswordProtected(false)
               .content(new java.util.ArrayList<>(List.of(lockedChild, openChild)))
               .build();
@@ -1290,13 +1254,8 @@ class CollectionServiceTest {
       when(collectionRepository.findByIds(List.of(501L, 502L)))
           .thenReturn(
               List.of(
-                  childEntity(
-                      501L,
-                      CollectionType.CLIENT_GALLERY,
-                      CollectionVisibility.UNLISTED,
-                      "sunshine"),
-                  childEntity(
-                      502L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED, null)));
+                  childEntity(501L, true, CollectionVisibility.UNLISTED, "sunshine"),
+                  childEntity(502L, true, CollectionVisibility.UNLISTED, null)));
 
       CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
 
@@ -1313,20 +1272,16 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(91L)
               .slug(slug)
-              .type(CollectionType.MISC)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
-      ContentModels.Collection lockedChild =
-          childCollectionContent(511L, CollectionType.CLIENT_GALLERY);
-      ContentModels.Collection openChild =
-          childCollectionContent(512L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection lockedChild = childCollectionContent(511L);
+      ContentModels.Collection openChild = childCollectionContent(512L);
 
       CollectionModel model =
           CollectionModel.builder()
               .id(91L)
               .slug(slug)
-              .type(CollectionType.MISC)
               .isPasswordProtected(true)
               .content(new java.util.ArrayList<>(List.of(lockedChild, openChild)))
               .build();
@@ -1338,13 +1293,8 @@ class CollectionServiceTest {
       when(collectionRepository.findByIds(List.of(511L, 512L)))
           .thenReturn(
               List.of(
-                  childEntity(
-                      511L,
-                      CollectionType.CLIENT_GALLERY,
-                      CollectionVisibility.UNLISTED,
-                      "sunshine"),
-                  childEntity(
-                      512L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED, null)));
+                  childEntity(511L, true, CollectionVisibility.UNLISTED, "sunshine"),
+                  childEntity(512L, true, CollectionVisibility.UNLISTED, null)));
 
       CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
 
@@ -1362,20 +1312,16 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(92L)
               .slug(slug)
-              .type(CollectionType.CLIENT_GALLERY)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
-      ContentModels.Collection unlistedPortfolio =
-          childCollectionContent(521L, CollectionType.PORTFOLIO);
-      ContentModels.Collection unlistedGallery =
-          childCollectionContent(522L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection unlistedPortfolio = childCollectionContent(521L);
+      ContentModels.Collection unlistedGallery = childCollectionContent(522L);
 
       CollectionModel model =
           CollectionModel.builder()
               .id(92L)
               .slug(slug)
-              .type(CollectionType.CLIENT_GALLERY)
               .isClient(true)
               .content(new java.util.ArrayList<>(List.of(unlistedPortfolio, unlistedGallery)))
               .build();
@@ -1387,8 +1333,8 @@ class CollectionServiceTest {
       when(collectionRepository.findByIds(List.of(521L, 522L)))
           .thenReturn(
               List.of(
-                  childEntity(521L, CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED),
-                  childEntity(522L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED)));
+                  childEntity(521L, false, CollectionVisibility.UNLISTED),
+                  childEntity(522L, true, CollectionVisibility.UNLISTED)));
 
       CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
 
@@ -1397,7 +1343,7 @@ class CollectionServiceTest {
           .containsExactly(522L);
     }
 
-    private ContentModels.Collection childCollectionContent(Long childId, CollectionType type) {
+    private ContentModels.Collection childCollectionContent(Long childId) {
       return new ContentModels.Collection(
           childId,
           edens.zac.portfolio.backend.types.ContentType.COLLECTION,
@@ -1410,7 +1356,6 @@ class CollectionServiceTest {
           null,
           childId,
           "child-" + childId,
-          type,
           false,
           false,
           null,
@@ -1420,18 +1365,16 @@ class CollectionServiceTest {
     }
 
     private CollectionEntity childEntity(
-        Long id, CollectionType type, CollectionVisibility visibility) {
-      return childEntity(id, type, visibility, null);
+        Long id, boolean isClient, CollectionVisibility visibility) {
+      return childEntity(id, isClient, visibility, null);
     }
 
     private CollectionEntity childEntity(
-        Long id, CollectionType type, CollectionVisibility visibility, String galleryPassword) {
-      // Flags are the storage truth and are kept in sync with type on every write, so a
-      // non-drifted CLIENT_GALLERY row always carries is_client = true.
+        Long id, boolean isClient, CollectionVisibility visibility, String galleryPassword) {
+      // is_client is the storage truth for client-gallery status.
       return CollectionEntity.builder()
           .id(id)
-          .type(type)
-          .isClient(type == CollectionType.CLIENT_GALLERY)
+          .isClient(isClient)
           .visibility(visibility)
           .galleryPassword(galleryPassword)
           .build();
@@ -1450,8 +1393,7 @@ class CollectionServiceTest {
 
     @Test
     void returnsBatchConvertedChildrenForVisibleHomeReferences() {
-      CollectionEntity home =
-          CollectionEntity.builder().id(1L).slug("home").type(CollectionType.HOME).build();
+      CollectionEntity home = CollectionEntity.builder().id(1L).slug("home").build();
       when(collectionRepository.findBySlug("home")).thenReturn(Optional.of(home));
 
       CollectionEntity child =
@@ -1504,7 +1446,6 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(1L)
               .slug("secret")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.HIDDEN)
               .build();
       when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
@@ -1521,7 +1462,6 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(1L)
               .slug("secret")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.HIDDEN)
               .build();
       when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
@@ -1540,7 +1480,6 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(1L)
               .slug("secret")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.HIDDEN)
               .build();
       when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
@@ -1559,7 +1498,6 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(9L)
               .slug("their-gallery")
-              .type(CollectionType.CLIENT_GALLERY)
               .visibility(CollectionVisibility.HIDDEN)
               .build();
       when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
@@ -1579,7 +1517,6 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(9L)
               .slug("their-gallery")
-              .type(CollectionType.CLIENT_GALLERY)
               .visibility(CollectionVisibility.HIDDEN)
               .build();
       when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
@@ -1597,7 +1534,6 @@ class CollectionServiceTest {
           CollectionEntity.builder()
               .id(1L)
               .slug("private-gallery")
-              .type(CollectionType.CLIENT_GALLERY)
               .visibility(CollectionVisibility.UNLISTED)
               .build();
       when(collectionRepository.findBySlug("private-gallery")).thenReturn(Optional.of(entity));
@@ -2200,7 +2136,6 @@ class CollectionServiceTest {
               .id(21L)
               .slug("wrapper")
               .title("Wrapper")
-              .type(CollectionType.PARENT)
               .visibility(CollectionVisibility.LISTED)
               .contentPerPage(30)
               .build();
@@ -2235,7 +2170,6 @@ class CollectionServiceTest {
               .id(7L)
               .slug("wrapper")
               .title("Wrapper")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.LISTED)
               .build();
       CollectionModel model =
@@ -2261,7 +2195,6 @@ class CollectionServiceTest {
               .id(8L)
               .slug("leaf")
               .title("Leaf")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.LISTED)
               .build();
       CollectionModel model = CollectionModel.builder().id(8L).slug("leaf").title("Leaf").build();
@@ -2285,7 +2218,6 @@ class CollectionServiceTest {
               .id(13L)
               .slug("mixed")
               .title("Mixed")
-              .type(CollectionType.PORTFOLIO)
               .visibility(CollectionVisibility.LISTED)
               .build();
 
@@ -2302,7 +2234,6 @@ class CollectionServiceTest {
               null,
               51L,
               "child",
-              CollectionType.PORTFOLIO,
               false,
               false,
               null,

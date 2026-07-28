@@ -143,7 +143,6 @@ public class CollectionProcessingUtil {
       Map<Long, List<LocationEntity>> coverLocationsByContentId) {
     CollectionModel model = new CollectionModel();
     model.setId(entity.getId());
-    model.setType(entity.getType());
     model.setClient(entity.isClient());
     model.setBlog(entity.isBlog());
     model.setTitle(entity.getTitle());
@@ -552,22 +551,20 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Create a CollectionEntity from a Create request. Required field: title. Optional fields: type,
-   * isClient/isBlog, description, locationId/locationName, collectionDate — use defaults when not
-   * provided. The booleans win over the legacy type when both are present; a create with neither
-   * lands on MISC (see {@link CollectionTypeCompat#resolve}).
+   * Create a CollectionEntity from a Create request. Required field: title. Optional fields:
+   * isClient/isBlog, description, locationId/locationName, collectionDate -- use defaults when not
+   * provided. The two flags are mutually exclusive (see {@link CollectionFlags}).
    */
   public CollectionEntity toEntity(CollectionRequests.Create request, int defaultPageSize) {
     if (request == null) {
       throw new IllegalArgumentException("Create request cannot be null");
     }
     CollectionEntity entity = new CollectionEntity();
-    CollectionTypeCompat.Resolved resolved =
-        CollectionTypeCompat.forCreate(request.isClient(), request.isBlog(), request.type());
+    CollectionFlags.Resolved resolved =
+        CollectionFlags.forCreate(request.isClient(), request.isBlog());
     resolved.applyTo(entity);
-    if (request.type() == null && request.isClient() == null && request.isBlog() == null) {
-      log.info(
-          "Create for '{}' carried neither type nor flags -- landing on MISC", request.title());
+    if (request.isClient() == null && request.isBlog() == null) {
+      log.info("Create for '{}' carried no flags -- neither client nor blog", request.title());
     }
     entity.setTitle(request.title());
     String baseSlug = generateSlug(request.title());
@@ -612,22 +609,20 @@ public class CollectionProcessingUtil {
     if (updateDTO.description() != null) {
       entity.setDescription(updateDTO.description());
     }
-    // Guard only: a request carrying none of the three leaves type and flags untouched.
-    // Resolution rules live in CollectionTypeCompat.
-    if (updateDTO.isClient() != null || updateDTO.isBlog() != null || updateDTO.type() != null) {
+    // Guard only: a request carrying neither flag leaves both untouched.
+    // Resolution rules live in CollectionFlags.
+    if (updateDTO.isClient() != null || updateDTO.isBlog() != null) {
       boolean wasClient = entity.isClient();
-      CollectionTypeCompat.Resolved resolved =
-          CollectionTypeCompat.forUpdate(
-              updateDTO.isClient(), updateDTO.isBlog(), updateDTO.type(), entity);
-      if (resolved.type() != entity.getType()) {
+      boolean wasBlog = entity.isBlog();
+      CollectionFlags.Resolved resolved =
+          CollectionFlags.forUpdate(updateDTO.isClient(), updateDTO.isBlog(), entity);
+      if (resolved.isClient() != wasClient || resolved.isBlog() != wasBlog) {
         log.info(
-            "Collection {} category change: {} -> {} (isClient {} -> {}, isBlog {} -> {})",
+            "Collection {} category change: isClient {} -> {}, isBlog {} -> {}",
             entity.getId(),
-            entity.getType(),
-            resolved.type(),
             wasClient,
             resolved.isClient(),
-            entity.isBlog(),
+            wasBlog,
             resolved.isBlog());
       }
       resolved.applyTo(entity);

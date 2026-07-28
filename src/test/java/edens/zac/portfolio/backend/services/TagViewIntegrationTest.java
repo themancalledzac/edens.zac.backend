@@ -243,8 +243,8 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
     tagCollection(member, tag);
 
     CollectionModel model = collectionService.getCollectionWithPagination(slug, 0, 30);
-    // Real collection wins: it is type BLOG, not the synthetic PARENT tag-view.
-    assertThat(model.getType()).isEqualTo(CollectionType.BLOG);
+    // Real collection wins: it is a stored row, not the synthetic tag-view.
+    assertThat(model.isDerived()).isFalse();
     assertThat(model.getSlug()).isEqualTo(slug);
   }
 }

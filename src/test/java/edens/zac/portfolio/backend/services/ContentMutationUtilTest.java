@@ -18,7 +18,6 @@ import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -280,8 +279,7 @@ class ContentMutationUtilTest {
   @Test
   void handleAddToCollections_addsImageToCollection() {
     ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
-    CollectionEntity collection =
-        CollectionEntity.builder().id(5L).title("Test").type(CollectionType.BLOG).build();
+    CollectionEntity collection = CollectionEntity.builder().id(5L).title("Test").build();
     when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
         .thenReturn(Optional.empty());
@@ -297,8 +295,7 @@ class ContentMutationUtilTest {
   @Test
   void handleAddToCollections_skipsDuplicate() {
     ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
-    CollectionEntity collection =
-        CollectionEntity.builder().id(5L).title("Test").type(CollectionType.BLOG).build();
+    CollectionEntity collection = CollectionEntity.builder().id(5L).title("Test").build();
     when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
     CollectionContentEntity existing = CollectionContentEntity.builder().id(10L).build();
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))

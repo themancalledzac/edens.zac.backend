@@ -6,7 +6,6 @@ import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -27,7 +26,6 @@ class CollectionBlogListIntegrationTest extends AbstractPostgresIntegrationTest 
     CollectionEntity parent =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.MISC)
                 .isClient(false)
                 .isBlog(isBlog)
                 .title("Blog list " + slug)
@@ -38,7 +36,6 @@ class CollectionBlogListIntegrationTest extends AbstractPostgresIntegrationTest 
     CollectionEntity child =
         collectionRepository.save(
             CollectionEntity.builder()
-                .type(CollectionType.MISC)
                 .isClient(false)
                 .isBlog(false)
                 .title("Blog list child " + slug)

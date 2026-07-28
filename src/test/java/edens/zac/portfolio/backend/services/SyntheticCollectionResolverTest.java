@@ -94,8 +94,8 @@ class SyntheticCollectionResolverTest {
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(
             List.of(
-                CollectionModel.builder().id(1L).slug("a").type(CollectionType.PORTFOLIO).build(),
-                CollectionModel.builder().id(2L).slug("b").type(CollectionType.BLOG).build()));
+                CollectionModel.builder().id(1L).slug("a").build(),
+                CollectionModel.builder().id(2L).slug("b").build()));
 
     CollectionModel out = resolver.resolve("all-collections", false);
 
@@ -109,7 +109,6 @@ class SyntheticCollectionResolverTest {
     assertThat(first.contentType()).isEqualTo(ContentType.COLLECTION);
     assertThat(first.referencedCollectionId()).isEqualTo(1L);
     assertThat(first.slug()).isEqualTo("a");
-    assertThat(first.collectionType()).isEqualTo(CollectionType.PORTFOLIO);
   }
 
   @Test
@@ -118,8 +117,7 @@ class SyntheticCollectionResolverTest {
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(eq(FULL_SCOPE), eq(List.of())))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(CollectionModel.builder().id(1L).slug("a").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(1L).slug("a").build()));
 
     resolver.resolve("all-collections", false);
 
@@ -136,8 +134,7 @@ class SyntheticCollectionResolverTest {
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of(7L, 9L))))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(CollectionModel.builder().id(7L).slug("g").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(7L).slug("g").build()));
 
     resolver.resolve("all-collections", false);
 
@@ -190,7 +187,6 @@ class SyntheticCollectionResolverTest {
                 CollectionModel.builder()
                     .id(7L)
                     .slug("spring-trip")
-                    .type(CollectionType.BLOG)
                     .collectionDate(java.time.LocalDate.of(2026, 3, 5))
                     .collectionEndDate(java.time.LocalDate.of(2026, 3, 7))
                     .build()));
@@ -208,8 +204,7 @@ class SyntheticCollectionResolverTest {
             eq(List.of(CollectionVisibility.LISTED)), eq(List.of())))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(CollectionModel.builder().id(1L).slug("x").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(1L).slug("x").build()));
 
     resolver.resolve("all-collections", false);
 
@@ -226,9 +221,7 @@ class SyntheticCollectionResolverTest {
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(
-                CollectionModel.builder().id(7L).slug("trip").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(7L).slug("trip").build()));
     when(tagRepository.findTagsByCollectionIds(List.of(7L)))
         .thenReturn(
             Map.of(
@@ -249,9 +242,7 @@ class SyntheticCollectionResolverTest {
     when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(
-                CollectionModel.builder().id(9L).slug("bare").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(9L).slug("bare").build()));
     // tagRepository.findTagsByCollectionIds returns an empty map by default (Mockito) -> no tags.
 
     CollectionModel out = resolver.resolve("all-collections", true);
@@ -266,9 +257,7 @@ class SyntheticCollectionResolverTest {
             eq(List.of(CollectionVisibility.LISTED)), eq(true)))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(
-                CollectionModel.builder().id(11L).slug("trip").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(11L).slug("trip").build()));
 
     CollectionModel out = resolver.resolve("all-blogs", false);
 
@@ -293,13 +282,11 @@ class SyntheticCollectionResolverTest {
                     .id(50L)
                     .slug("smith-wedding")
                     .title("Smith Wedding")
-                    .type(CollectionType.PARENT)
                     .build(),
                 CollectionModel.builder()
                     .id(51L)
                     .slug("jones-engagement")
                     .title("Jones Engagement")
-                    .type(CollectionType.CLIENT_GALLERY)
                     .build()));
 
     CollectionModel out = resolver.resolve("all-client-galleries", false);
@@ -311,11 +298,9 @@ class SyntheticCollectionResolverTest {
 
     ContentModels.Collection parentTile = (ContentModels.Collection) out.getContent().get(0);
     assertThat(parentTile.slug()).isEqualTo("smith-wedding");
-    assertThat(parentTile.collectionType()).isEqualTo(CollectionType.PARENT);
 
     ContentModels.Collection galleryTile = (ContentModels.Collection) out.getContent().get(1);
     assertThat(galleryTile.slug()).isEqualTo("jones-engagement");
-    assertThat(galleryTile.collectionType()).isEqualTo(CollectionType.CLIENT_GALLERY);
   }
 
   @Test

@@ -35,7 +35,6 @@ class CollectionListReadRepositoryIntegrationTest extends AbstractPostgresIntegr
   private CollectionEntity saveCollection(String slug, LocalDate date, CollectionVisibility vis) {
     return collectionRepository.save(
         CollectionEntity.builder()
-            .type(CollectionType.BLOG)
             .title("List Read " + slug)
             .slug(slug)
             .collectionDate(date)

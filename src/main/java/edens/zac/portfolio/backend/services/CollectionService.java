@@ -810,7 +810,6 @@ public class CollectionService {
                         p.getId(),
                         p.getTitle(),
                         p.getSlug(),
-                        p.getType(),
                         p.getCollectionDate(),
                         null,
                         p.isClient(),
@@ -843,7 +842,7 @@ public class CollectionService {
 
     // Get all collections as Records.CollectionList (using projection for
     // efficiency)
-    List<Records.CollectionList> collections = collectionRepository.findIdTitleSlugAndType();
+    List<Records.CollectionList> collections = collectionRepository.findIdTitleAndSlug();
 
     // Convert FilmFormat enums to DTOs
     List<Records.FilmFormat> filmFormats =

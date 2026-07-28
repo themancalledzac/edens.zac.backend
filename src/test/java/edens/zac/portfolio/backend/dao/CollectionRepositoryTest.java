@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.entity.CollectionEntity;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.HashMap;
 import java.util.List;
@@ -236,7 +235,6 @@ class CollectionRepositoryTest {
       CollectionEntity entity =
           CollectionEntity.builder()
               .id(5L)
-              .type(CollectionType.BLOG)
               .title("Trip")
               .slug("trip")
               .collectionDate(java.time.LocalDate.of(2026, 3, 5))

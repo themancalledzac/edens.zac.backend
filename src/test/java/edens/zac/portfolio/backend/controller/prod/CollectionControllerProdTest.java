@@ -24,7 +24,6 @@ import edens.zac.portfolio.backend.model.PasswordRequest;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionService;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
@@ -81,7 +80,6 @@ class CollectionControllerProdTest {
     CollectionModel blog =
         CollectionModel.builder()
             .id(1L)
-            .type(CollectionType.BLOG)
             .title("Test Blog")
             .slug("test-blog")
             .visibility(CollectionVisibility.LISTED)
@@ -94,7 +92,6 @@ class CollectionControllerProdTest {
     CollectionModel artGallery =
         CollectionModel.builder()
             .id(2L)
-            .type(CollectionType.ART_GALLERY)
             .title("Test Art Gallery")
             .slug("test-art-gallery")
             .visibility(CollectionVisibility.LISTED)
@@ -107,7 +104,6 @@ class CollectionControllerProdTest {
     CollectionModel clientGallery =
         CollectionModel.builder()
             .id(3L)
-            .type(CollectionType.CLIENT_GALLERY)
             .title("Test Client Gallery")
             .slug("test-client-gallery")
             .visibility(CollectionVisibility.LISTED)
@@ -161,7 +157,6 @@ class CollectionControllerProdTest {
         .id(3L)
         .title("Client Gallery")
         .slug("client-gallery")
-        .type(CollectionType.CLIENT_GALLERY)
         .visibility(CollectionVisibility.LISTED)
         .isPasswordProtected(true)
         .contentCount(5)
@@ -237,7 +232,6 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.id", is(1)))
         .andExpect(jsonPath("$.title", is("Test Blog")))
         .andExpect(jsonPath("$.slug", is("test-blog")))
-        .andExpect(jsonPath("$.type", is("BLOG")))
         .andExpect(jsonPath("$.contentCount", is(5)))
         .andExpect(jsonPath("$.totalPages", is(1)))
         .andExpect(jsonPath("$.currentPage", is(0)));
@@ -250,7 +244,6 @@ class CollectionControllerProdTest {
     CollectionModel model =
         CollectionModel.builder()
             .id(1L)
-            .type(CollectionType.PORTFOLIO)
             .title("Dolomites")
             .slug("dolomites")
             .visibility(CollectionVisibility.LISTED)
@@ -260,20 +253,12 @@ class CollectionControllerProdTest {
                         2L,
                         "Dolomites Film",
                         "dolomites-film",
-                        CollectionType.PORTFOLIO,
                         null,
                         "https://cdn.example.com/dolomites-film-cover.jpg",
                         false,
                         false),
                     new Records.CollectionList(
-                        3L,
-                        "Alps Digital",
-                        "alps-digital",
-                        CollectionType.PORTFOLIO,
-                        null,
-                        null,
-                        false,
-                        false)))
+                        3L, "Alps Digital", "alps-digital", null, null, false, false)))
             .build();
     when(collectionService.getCollectionWithPagination(eq("dolomites"), anyInt(), anyInt()))
         .thenReturn(model);
@@ -285,7 +270,6 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.siblings", hasSize(2)))
         .andExpect(jsonPath("$.siblings[0].slug", is("dolomites-film")))
         .andExpect(jsonPath("$.siblings[0].name", is("Dolomites Film")))
-        .andExpect(jsonPath("$.siblings[0].type", is("PORTFOLIO")))
         .andExpect(
             jsonPath(
                 "$.siblings[0].coverImageUrl",
@@ -553,7 +537,6 @@ class CollectionControllerProdTest {
             .id(1L)
             .title("Seattle Trip")
             .slug("seattle-trip")
-            .type(CollectionType.PORTFOLIO)
             .visibility(CollectionVisibility.LISTED)
             .build();
 
@@ -589,7 +572,6 @@ class CollectionControllerProdTest {
             .id(1L)
             .title("Test Blog")
             .slug("test-blog")
-            .type(CollectionType.BLOG)
             .visibility(CollectionVisibility.LISTED)
             .build();
 
@@ -681,7 +663,6 @@ class CollectionControllerProdTest {
             .id(1L)
             .title("Public Gallery")
             .slug("public-gallery")
-            .type(CollectionType.PORTFOLIO)
             .visibility(CollectionVisibility.LISTED)
             .isPasswordProtected(false)
             .content(new ArrayList<>(List.of(createStubImage(99L, "Stub"))))
@@ -903,7 +884,6 @@ class CollectionControllerProdTest {
     CollectionModel protectedGallery =
         CollectionModel.builder()
             .id(10L)
-            .type(CollectionType.CLIENT_GALLERY)
             .title("Protected Gallery")
             .slug("protected-gallery")
             .visibility(CollectionVisibility.LISTED)
@@ -922,7 +902,6 @@ class CollectionControllerProdTest {
         .perform(get("/api/read/collections").contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content", hasSize(1)))
-        .andExpect(jsonPath("$.content[0].type", is("CLIENT_GALLERY")))
         .andExpect(jsonPath("$.content[0].isPasswordProtected", is(true)))
         .andExpect(jsonPath("$.content[0].coverImage").doesNotExist());
   }

@@ -63,7 +63,6 @@ class CollectionControllerDevTest {
     // Create test collection model (for updateContent, addContents)
     testCollection = new CollectionModel();
     testCollection.setId(1L);
-    testCollection.setType(CollectionType.BLOG);
     testCollection.setTitle("Test Blog");
     testCollection.setSlug("test-blog");
     testCollection.setDescription("A test blog collection");
@@ -130,8 +129,7 @@ class CollectionControllerDevTest {
                 .content(objectMapper.writeValueAsString(testCreateRequest)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.collection.id", is(1)))
-        .andExpect(jsonPath("$.collection.title", is("Test Blog")))
-        .andExpect(jsonPath("$.collection.type", is("BLOG")));
+        .andExpect(jsonPath("$.collection.title", is("Test Blog")));
 
     verify(collectionService).createCollection(any(CollectionRequests.Create.class));
   }

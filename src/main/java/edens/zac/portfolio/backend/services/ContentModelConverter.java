@@ -575,7 +575,6 @@ class ContentModelConverter {
         contentEntity.getUpdatedAt(),
         referencedCollection.getId(),
         referencedCollection.getSlug(),
-        referencedCollection.getType(),
         referencedCollection.isClient(),
         referencedCollection.isBlog(),
         coverImage,
