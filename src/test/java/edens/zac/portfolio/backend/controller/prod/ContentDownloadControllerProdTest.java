@@ -351,5 +351,66 @@ class ContentDownloadControllerProdTest {
           .resolveCollectionDownloadEntries(eq(1L), eq("web"), idsCaptor.capture());
       assertThat(idsCaptor.getValue()).containsExactly(1L, 3L);
     }
+
+    @Test
+    void sharedImage_requestedViaThePublicCollection_returns401() throws Exception {
+      // The ZIP sibling of S1. Under Rule B the same image sits in public 'open-portfolio' and
+      // protected 'smith-wedding'. open-portfolio carries no password, so the slug-level check
+      // above passes -- the gate must still fail closed on the gallery that owns the image.
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.findProtectedCollectionsForCollectionDownload(eq(2L), any()))
+          .thenReturn(List.of(protectedGallery()));
+
+      mockMvc
+          .perform(get("/api/read/collections/open-portfolio/download"))
+          .andExpect(status().isUnauthorized());
+
+      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any(), any());
+      verify(downloadUrlService, never()).zipToS3AndPresign(any(), any());
+      verify(downloadUrlService, never()).presignObject(any(), any(), any());
+    }
+
+    @Test
+    void sharedImage_singleIdSubsetViaThePublicCollection_returns401() throws Exception {
+      // The sharpest form: a one-image subset skips the ZIP entirely and 302s to a presigned
+      // full-resolution ORIGINAL -- a byte stream exposed by no response model anywhere else.
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.findProtectedCollectionsForCollectionDownload(eq(2L), any()))
+          .thenReturn(List.of(protectedGallery()));
+
+      mockMvc
+          .perform(
+              get("/api/read/collections/open-portfolio/download")
+                  .param("format", "original")
+                  .param("imageIds", "42"))
+          .andExpect(status().isUnauthorized());
+
+      verify(contentService, never()).resolveCollectionDownloadEntries(any(), any(), any());
+      verify(downloadUrlService, never()).presignObject(any(), any(), any());
+    }
+
+    @Test
+    void sharedImage_withTheGallerysCookie_isAllowed() throws Exception {
+      // Fail-closed must not mean fail-always: a caller who can satisfy the gating gallery still
+      // gets the download through the public collection.
+      when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
+      when(contentService.findProtectedCollectionsForCollectionDownload(eq(2L), any()))
+          .thenReturn(List.of(protectedGallery()));
+      when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
+          .thenReturn(true);
+      when(contentService.resolveCollectionDownloadEntries(2L, "web", null))
+          .thenReturn(List.of(webResolution("first.webp"), webResolution("second.webp")));
+      when(contentService.collectionZipFilename("open-portfolio", 2L))
+          .thenReturn("open-portfolio-2.zip");
+      when(downloadUrlService.zipToS3AndPresign(any(), eq("open-portfolio-2.zip")))
+          .thenReturn(ZIP_PRESIGNED);
+
+      mockMvc
+          .perform(
+              get("/api/read/collections/open-portfolio/download")
+                  .cookie(new Cookie("gallery_access_smith-wedding", "tok-123")))
+          .andExpect(status().isFound())
+          .andExpect(header().string("Location", ZIP_PRESIGNED.toString()));
+    }
   }
 }
