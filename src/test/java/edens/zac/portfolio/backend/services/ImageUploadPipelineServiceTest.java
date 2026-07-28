@@ -36,6 +36,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -382,11 +383,14 @@ class ImageUploadPipelineServiceTest {
     }
 
     @Test
-    @DisplayName("processFilesFromDisk accepts a collection that holds child collections")
-    void processFilesFromDisk_wrapperTarget_isAccepted() {
-      CollectionEntity wrapper =
-          CollectionEntity.builder().id(31L).slug("wrapper").title("Wrapper").build();
-      when(collectionRepository.findById(31L)).thenReturn(Optional.of(wrapper));
+    @DisplayName("processFilesFromDisk inspects nothing about the target beyond its existence")
+    void processFilesFromDisk_anyExistingCollection_isAccepted() {
+      // Scope: the EXISTENCE check only. It cannot pin Rule B -- parent-ness is derived from the
+      // collection_content join and collectionRepository is a mock here, so no builder-built
+      // fixture is a wrapper. RuleBMixedContentIntegrationTest is the real pin.
+      CollectionEntity target =
+          CollectionEntity.builder().id(31L).slug("target").title("Target").build();
+      when(collectionRepository.findById(31L)).thenReturn(Optional.of(target));
 
       assertThatCode(
               () -> service.processFilesFromDisk(31L, new DiskUploadRequest(List.of(), null)))
@@ -784,6 +788,40 @@ class ImageUploadPipelineServiceTest {
       awaitCompletion(job);
 
       verify(collectionRepository).updateVisibility(1L, CollectionVisibility.LISTED);
+    }
+
+    @Test
+    void ingest_newBlogForDay_createsItWithTheBlogFlagSet() throws Exception {
+      // Regression pin for the one token that keeps the day-blog get-after-create round trip
+      // closed. findBlogsByCollectionDate reads `is_blog = true` and nothing derives blog-ness
+      // from the title or date, so a create that omits isBlog is invisible to the very lookup
+      // that runs first next batch -- every batch would mint another slug-suffixed public blog.
+      LocalDate day = LocalDate.of(2024, 3, 24);
+      var request =
+          new DiskUploadRequest(
+              List.of(
+                  new DiskUploadRequest.FileEntry(
+                      "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
+              null);
+      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      when(jobTrackingService.createJob(1)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(createResult(101L));
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of());
+      when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, day));
+
+      service.ingestFilesGroupedByDay(request);
+      awaitCompletion(job);
+
+      ArgumentCaptor<CollectionRequests.Create> createCaptor =
+          ArgumentCaptor.forClass(CollectionRequests.Create.class);
+      verify(collectionService).createCollection(createCaptor.capture());
+      assertThat(createCaptor.getValue().isBlog()).isTrue();
+      assertThat(createCaptor.getValue().isClient()).isNull();
+      assertThat(createCaptor.getValue().collectionDate()).isEqualTo(day);
     }
 
     @Test
