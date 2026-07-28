@@ -6,12 +6,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.Records;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * S5 and S6 on the single link funnel {@link CollectionService#linkCollectionToParent}: an ancestor
+ * S5 and S6 on BOTH writers that create a parent-to-child join row: {@link
+ * CollectionService#linkCollectionToParent} (createChildCollection, the staging auto-link, tag
+ * conversion) and the admin Structure tab, which routes {@code PUT /api/admin/collections/{id}}
+ * through {@code handleCollectionToCollectionUpdates} and builds the join row inline. An ancestor
  * may never be re-linked as a descendant, and a password already set on the parent waterfalls onto
  * a client-gallery child at link time. Real Postgres because both walk the collection_content ->
  * content_collection join chain.
@@ -34,6 +40,37 @@ class CollectionLinkSecurityIntegrationTest extends AbstractPostgresIntegrationT
         isClient,
         galleryPassword);
     return jdbc.queryForObject("SELECT id FROM collection WHERE slug = ?", Long.class, slug);
+  }
+
+  /**
+   * Exactly what the admin Structure tab sends: a partial update carrying only {@code collections
+   * .newValue}, which {@code handleCollectionToCollectionUpdates} turns into a join row without
+   * ever calling {@code linkCollectionToParent}.
+   */
+  private void linkViaStructureTab(long parentId, long childId) {
+    collectionService.updateContent(
+        parentId,
+        new CollectionRequests.Update(
+            parentId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new CollectionRequests.CollectionUpdate(
+                null,
+                List.of(new Records.ChildCollection(childId, null, null, null, true, null)),
+                null),
+            null));
   }
 
   // --- S5: cycle validation ---------------------------------------------------
@@ -129,6 +166,82 @@ class CollectionLinkSecurityIntegrationTest extends AbstractPostgresIntegrationT
     long child = seed("s6-client-child-open", true, null);
 
     collectionService.linkCollectionToParent(parent, child);
+
+    assertThat(collectionRepository.findById(child).orElseThrow().getGalleryPassword()).isNull();
+  }
+
+  // --- The admin Structure tab: same two guards on the `collections` field -------
+
+  @Test
+  void structureTabSelfLink_isRejected() {
+    long only = seed("s5-struct-self", false, null);
+
+    assertThatThrownBy(() -> linkViaStructureTab(only, only))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("cannot be its own parent");
+  }
+
+  @Test
+  void structureTabTwoCycle_isRejected() {
+    // Two ordinary admin saves: PUT A {collections.newValue:[B]}, then PUT B
+    // {collections.newValue:[A]}. This closed an A<->B cycle with zero validation, and
+    // onChildLinked fired on both saves, merging role grants across both subtrees.
+    long a = seed("s5-struct-two-a", false, null);
+    long b = seed("s5-struct-two-b", false, null);
+    linkViaStructureTab(a, b);
+
+    assertThatThrownBy(() -> linkViaStructureTab(b, a))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cycle detected");
+  }
+
+  @Test
+  void structureTabThreeCycle_isRejected() {
+    long a = seed("s5-struct-three-a", false, null);
+    long b = seed("s5-struct-three-b", false, null);
+    long c = seed("s5-struct-three-c", false, null);
+    linkViaStructureTab(a, b);
+    linkViaStructureTab(b, c);
+
+    assertThatThrownBy(() -> linkViaStructureTab(c, a))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cycle detected");
+  }
+
+  @Test
+  void structureTabDiamond_isAllowed() {
+    long left = seed("s5-struct-diamond-left", false, null);
+    long right = seed("s5-struct-diamond-right", false, null);
+    long shared = seed("s5-struct-diamond-shared", false, null);
+    linkViaStructureTab(left, shared);
+
+    linkViaStructureTab(right, shared);
+
+    assertThat(collectionRepository.findAllParentCollectionsByChildId(shared))
+        .extracting(CollectionEntity::getId)
+        .containsExactlyInAnyOrder(left, right);
+  }
+
+  @Test
+  void structureTabLinkingClientChildUnderPasswordedParent_copiesPasswordDown() {
+    // Without this the child keeps a null gallery_password: isPasswordProtected stays false, the
+    // parent read never strips its content, UNLISTED direct-slug access is permitted and the
+    // download gate is skipped.
+    long parent = seed("s6-struct-parent", false, "smith2026");
+    long child = seed("s6-struct-client-child", true, null);
+
+    linkViaStructureTab(parent, child);
+
+    assertThat(collectionRepository.findById(child).orElseThrow().getGalleryPassword())
+        .isEqualTo("smith2026");
+  }
+
+  @Test
+  void structureTabLinkingNonClientChildUnderPasswordedParent_doesNotCopyPassword() {
+    long parent = seed("s6-struct-parent-nonclient", false, "parentpw");
+    long child = seed("s6-struct-plain-child", false, null);
+
+    linkViaStructureTab(parent, child);
 
     assertThat(collectionRepository.findById(child).orElseThrow().getGalleryPassword()).isNull();
   }
