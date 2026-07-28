@@ -671,14 +671,11 @@ public class CollectionProcessingUtil {
       String uniqueSlug = validateAndEnsureUniqueSlug(updateDTO.slug().trim(), entity.getId());
       entity.setSlug(uniqueSlug);
     }
-    // Parent-type collections don't use pagination or row layout
-    if (!entity.getType().isParentType()) {
-      if (updateDTO.contentPerPage() != null && updateDTO.contentPerPage() >= 1) {
-        entity.setContentPerPage(updateDTO.contentPerPage());
-      }
-      if (updateDTO.rowsWide() != null) {
-        entity.setRowsWide(updateDTO.rowsWide());
-      }
+    if (updateDTO.contentPerPage() != null && updateDTO.contentPerPage() >= 1) {
+      entity.setContentPerPage(updateDTO.contentPerPage());
+    }
+    if (updateDTO.rowsWide() != null) {
+      entity.setRowsWide(updateDTO.rowsWide());
     }
     if (updateDTO.displayMode() != null) {
       entity.setDisplayMode(updateDTO.displayMode());
@@ -913,26 +910,20 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Fill in the default pagination size for a non-parent collection that has none. Visibility is
-   * intentionally NOT touched here: new collections default to UNLISTED in {@link #toEntity}
-   * regardless of type (privacy-first), and updates only change visibility when explicitly
-   * requested.
+   * Fill in the default pagination size for a collection that has none. Visibility is intentionally
+   * NOT touched here: new collections default to UNLISTED in {@link #toEntity} (privacy-first), and
+   * updates only change visibility when explicitly requested.
    *
    * @param entity The entity to update
    * @return The updated entity
    */
   public CollectionEntity applyPaginationDefaults(CollectionEntity entity) {
-    if (entity == null || entity.getType() == null) {
+    if (entity == null) {
       return entity;
     }
-
-    // Parent-type collections don't use pagination
-    if (!entity.getType().isParentType()) {
-      if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
-        entity.setContentPerPage(DefaultValues.default_content_per_page);
-      }
+    if (entity.getContentPerPage() == null || entity.getContentPerPage() <= 0) {
+      entity.setContentPerPage(DefaultValues.default_content_per_page);
     }
-
     return entity;
   }
 }

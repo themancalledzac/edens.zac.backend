@@ -603,4 +603,50 @@ class CollectionProcessingUtilTest {
 
     assertEquals(30, entity.getContentPerPage());
   }
+
+  @Test
+  @DisplayName("applyBasicUpdates accepts contentPerPage and rowsWide on any collection")
+  void applyBasicUpdates_acceptsLayoutFieldsOnWrapper() {
+    testEntity.setType(CollectionType.PARENT);
+
+    util.applyBasicUpdates(testEntity, contentPerPageAndRowsWideUpdate(45, 6));
+
+    assertEquals(45, testEntity.getContentPerPage());
+    assertEquals(6, testEntity.getRowsWide());
+  }
+
+  @Test
+  @DisplayName("applyPaginationDefaults fills contentPerPage on any collection")
+  void applyPaginationDefaults_fillsOnAnyCollection() {
+    CollectionEntity entity = new CollectionEntity();
+    entity.setType(CollectionType.PARENT);
+    entity.setContentPerPage(null);
+
+    util.applyPaginationDefaults(entity);
+
+    assertNotNull(entity.getContentPerPage());
+  }
+
+  private CollectionRequests.Update contentPerPageAndRowsWideUpdate(
+      Integer contentPerPage, Integer rowsWide) {
+    return new CollectionRequests.Update(
+        1L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        contentPerPage,
+        rowsWide,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
 }
