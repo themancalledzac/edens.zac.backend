@@ -1915,7 +1915,8 @@ class CollectionServiceTest {
 
     private CollectionRequests.Update updateWithSiblings(
         Long id, CollectionRequests.CollectionUpdate siblings) {
-      // 18 positional args: id first, siblings last, everything else null
+      // 17 positional args (the back-compat overload): id first, siblings last, everything else
+      // null
       return new CollectionRequests.Update(
           id, null, null, null, null, null, null, null, null, null, null, null, null, null,
           null, /* collections */ null, /* siblings */ siblings);
@@ -1982,7 +1983,7 @@ class CollectionServiceTest {
 
     private CollectionRequests.Update updateWithParents(
         CollectionRequests.CollectionUpdate parents) {
-      // Canonical 23-arg constructor: id + 21 nulls + parents (last).
+      // Canonical 22-arg constructor: id + 20 nulls + parents (last).
       return new CollectionRequests.Update(
           current.getId(),
           null,

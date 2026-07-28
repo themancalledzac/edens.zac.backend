@@ -439,11 +439,14 @@ class ContentMutationUtilTest {
   }
 
   @Test
-  @DisplayName("handleAddToCollections adds content to a collection that holds child collections")
-  void handleAddToCollections_wrapperTarget_isPersisted() {
-    CollectionEntity wrapper =
-        CollectionEntity.builder().id(9L).slug("wrapper").title("Wrapper").build();
-    when(collectionRepository.findById(9L)).thenReturn(Optional.of(wrapper));
+  @DisplayName("handleAddToCollections appends after the target's existing content")
+  void handleAddToCollections_nullOrderIndex_appendsAfterMax() {
+    // Scope: the orderIndex=null append path (max + 1). It cannot pin Rule B -- parent-ness is
+    // derived from the collection_content join and collectionRepository is a mock here, so no
+    // builder-built fixture is a wrapper. RuleBMixedContentIntegrationTest is the real pin.
+    CollectionEntity target =
+        CollectionEntity.builder().id(9L).slug("target").title("Target").build();
+    when(collectionRepository.findById(9L)).thenReturn(Optional.of(target));
     when(collectionRepository.findContentByCollectionIdAndContentId(9L, 77L))
         .thenReturn(Optional.empty());
     when(collectionRepository.getMaxOrderIndexForCollection(9L)).thenReturn(2);
@@ -451,6 +454,9 @@ class ContentMutationUtilTest {
     contentMutationUtil.handleAddToCollections(
         77L, List.of(new Records.ChildCollection(9L, null, null, null, true, null)));
 
-    verify(collectionRepository).saveContent(any(CollectionContentEntity.class));
+    ArgumentCaptor<CollectionContentEntity> captor =
+        ArgumentCaptor.forClass(CollectionContentEntity.class);
+    verify(collectionRepository).saveContent(captor.capture());
+    assertEquals(3, captor.getValue().getOrderIndex().intValue());
   }
 }

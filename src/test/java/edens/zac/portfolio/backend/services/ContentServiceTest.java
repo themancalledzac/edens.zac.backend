@@ -271,11 +271,14 @@ class ContentServiceTest {
   }
 
   @Test
-  @DisplayName("linkContentToCollection links IMAGE content into a collection that holds children")
-  void linkContentToCollection_imageIntoWrapper_isPersisted() {
-    CollectionEntity wrapper =
-        CollectionEntity.builder().id(1L).slug("wrapper").title("Wrapper").build();
-    when(collectionRepository.findById(1L)).thenReturn(Optional.of(wrapper));
+  @DisplayName("linkContentToCollection inspects nothing about the target beyond its existence")
+  void linkContentToCollection_anyExistingCollection_isPersisted() {
+    // Scope: this pins the EXISTENCE check only. It cannot pin Rule B -- parent-ness is derived
+    // from the collection_content join and collectionRepository is a mock here, so no builder-built
+    // fixture is a wrapper. RuleBMixedContentIntegrationTest is the real pin.
+    CollectionEntity target =
+        CollectionEntity.builder().id(1L).slug("target").title("Target").build();
+    when(collectionRepository.findById(1L)).thenReturn(Optional.of(target));
 
     service.linkContentToCollection(1L, 42L, 3, true);
 

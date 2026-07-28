@@ -36,6 +36,21 @@ class ContentDownloadGateIntegrationTest extends AbstractPostgresIntegrationTest
         Long.class);
   }
 
+  /**
+   * A full IMAGE row (content + content_image). The collection-download gate resolves the images
+   * the ZIP would serve through {@code findImagesForCollection}, which joins content_image, so the
+   * bare content row above is not enough here.
+   */
+  private Long seedImage(String title) {
+    Long contentId = seedImageContent();
+    jdbc.update(
+        "INSERT INTO content_image (id, title, image_url_web) VALUES (?, ?, ?)",
+        contentId,
+        title,
+        "https://cdn.example.com/Image/Web/" + title + ".webp");
+    return contentId;
+  }
+
   private Long seedCollection(String slug, String galleryPassword) {
     jdbc.update(
         "INSERT INTO collection (title, slug, visibility, is_client, is_blog,"
@@ -126,5 +141,56 @@ class ContentDownloadGateIntegrationTest extends AbstractPostgresIntegrationTest
     Long contentId = seedImageContent();
 
     assertThat(contentService.findProtectedCollectionsForImage(contentId)).isEmpty();
+  }
+
+  // --- The ZIP sibling of S1 ---------------------------------------------------
+
+  @Test
+  void collectionDownloadGate_seesTheGalleryThatAlsoOwnsThePublicCollectionsImage() {
+    // Request arrives for the PUBLIC wrapper, which carries no password of its own. The image it
+    // serves also lives in a protected gallery, so the gate must surface that gallery.
+    Long imageId = seedImage("s1zip-shared");
+    Long publicWrapper = seedCollection("s1zip-public", null);
+    Long protectedGallery = seedCollection("s1zip-gallery", "sunshine");
+    link(publicWrapper, imageId);
+    link(protectedGallery, imageId);
+
+    assertThat(
+            contentService.findProtectedCollectionsForCollectionDownload(publicWrapper, List.of()))
+        .extracting(CollectionEntity::getId)
+        .containsExactly(protectedGallery);
+  }
+
+  @Test
+  void collectionDownloadGate_subsetNarrowsToTheRequestedImagesGates() {
+    // ?imageIds=<open image only> must not drag in the gallery that gates a DIFFERENT image of
+    // the same wrapper -- fail-closed, but only on what the request actually asks for.
+    Long gatedImage = seedImage("s1zip-subset-gated");
+    Long openImage = seedImage("s1zip-subset-open");
+    Long publicWrapper = seedCollection("s1zip-subset-public", null);
+    Long protectedGallery = seedCollection("s1zip-subset-gallery", "sunshine");
+    link(publicWrapper, gatedImage);
+    link(publicWrapper, openImage);
+    link(protectedGallery, gatedImage);
+
+    assertThat(
+            contentService.findProtectedCollectionsForCollectionDownload(
+                publicWrapper, List.of(gatedImage)))
+        .extracting(CollectionEntity::getId)
+        .containsExactly(protectedGallery);
+    assertThat(
+            contentService.findProtectedCollectionsForCollectionDownload(
+                publicWrapper, List.of(openImage)))
+        .isEmpty();
+  }
+
+  @Test
+  void collectionDownloadGate_returnsEmptyWhenNothingServedIsGated() {
+    Long imageId = seedImage("s1zip-open");
+    Long publicWrapper = seedCollection("s1zip-open-wrapper", null);
+    link(publicWrapper, imageId);
+
+    assertThat(contentService.findProtectedCollectionsForCollectionDownload(publicWrapper, null))
+        .isEmpty();
   }
 }

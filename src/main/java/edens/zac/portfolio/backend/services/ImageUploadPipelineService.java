@@ -148,9 +148,9 @@ public class ImageUploadPipelineService {
 
   /**
    * Tag-first ingest: accept file paths with per-file name-based metadata and process them in
-   * background, auto-deriving a date-based BLOG collection per capture day. No collectionId is
-   * supplied -- the day's BLOG (get-or-create keyed on {@code (type=BLOG, collectionDate=day)}) is
-   * the storage home. Returns a JobStatus immediately for the caller to return 202.
+   * background, auto-deriving a date-based blog collection per capture day. No collectionId is
+   * supplied -- the day's blog (get-or-create keyed on {@code (is_blog = true, collectionDate =
+   * day)}) is the storage home. Returns a JobStatus immediately for the caller to return 202.
    *
    * @param request File paths plus optional per-file people/tags/locations/captureDate
    * @return JobStatus with jobId for polling
