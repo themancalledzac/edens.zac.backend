@@ -103,10 +103,6 @@ public class ImageUploadPipelineService {
       CollectionRequests.Create createRequest,
       List<MultipartFile> files,
       Map<String, String> rawFilePathMap) {
-    if (createRequest.type() != null && createRequest.type().isParentType()) {
-      throw new IllegalArgumentException("Cannot upload images to parent-type collection");
-    }
-
     CollectionRequests.UpdateResponse collectionResponse =
         collectionService.createCollection(createRequest);
     Long newCollectionId = collectionResponse.collection().getId();
@@ -133,16 +129,10 @@ public class ImageUploadPipelineService {
   public JobTrackingService.JobStatus processFilesFromDisk(
       Long collectionId, DiskUploadRequest request) {
     // Verify collection exists before starting
-    CollectionEntity collection =
-        collectionRepository
-            .findById(collectionId)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
-
-    if (collection.getType() != null && collection.getType().isParentType()) {
-      throw new IllegalArgumentException(
-          "Cannot upload images to parent-type collection: " + collection.getTitle());
-    }
+    // Existence check only -- any collection may receive uploaded images (Rule B).
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // Optionally set collection locations if provided and not already set
     if (request.locationIds() != null && !request.locationIds().isEmpty()) {
@@ -200,16 +190,10 @@ public class ImageUploadPipelineService {
     contentValidator.validateFiles(files);
 
     // Verify collection exists (outside transaction)
-    CollectionEntity collection =
-        collectionRepository
-            .findById(collectionId)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
-
-    if (collection.getType() != null && collection.getType().isParentType()) {
-      throw new IllegalArgumentException(
-          "Cannot upload images to parent-type collection: " + collection.getTitle());
-    }
+    // Existence check only -- any collection may receive uploaded images (Rule B).
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // Acquire semaphore to prevent concurrent upload requests from OOM-ing.
     // If another upload is in progress, this request blocks until it finishes.

@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -379,6 +381,23 @@ class ImageUploadPipelineServiceTest {
       // Assert -- XMP-extracted tags used since plugin sent none.
       verify(contentMutationUtil)
           .associateExtractedKeywords(eq(101L), eq(List.of("mountains", "hike")), eq(List.of()));
+    }
+
+    @Test
+    @DisplayName("processFilesFromDisk accepts a collection that holds child collections")
+    void processFilesFromDisk_wrapperTarget_isAccepted() {
+      CollectionEntity wrapper =
+          CollectionEntity.builder()
+              .id(31L)
+              .slug("wrapper")
+              .title("Wrapper")
+              .type(CollectionType.PARENT)
+              .build();
+      when(collectionRepository.findById(31L)).thenReturn(Optional.of(wrapper));
+
+      assertThatCode(
+              () -> service.processFilesFromDisk(31L, new DiskUploadRequest(List.of(), null)))
+          .doesNotThrowAnyException();
     }
   }
 
