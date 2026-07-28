@@ -2276,5 +2276,60 @@ class CollectionServiceTest {
       assertThat(response.hasChildren()).isFalse();
       assertThat(response.childCollectionIds()).isEmpty();
     }
+
+    @Test
+    @DisplayName("childCollectionImages is aggregated for any collection holding child blocks")
+    void getUpdateCollectionData_aggregatesChildImagesWithoutTypeGate() {
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(13L)
+              .slug("mixed")
+              .title("Mixed")
+              .type(CollectionType.PORTFOLIO)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection childBlock =
+          new ContentModels.Collection(
+              900L,
+              edens.zac.portfolio.backend.types.ContentType.COLLECTION,
+              "Child",
+              null,
+              null,
+              0,
+              true,
+              null,
+              null,
+              51L,
+              "child",
+              CollectionType.PORTFOLIO,
+              false,
+              false,
+              null,
+              null,
+              null,
+              List.of());
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(13L)
+              .slug("mixed")
+              .title("Mixed")
+              .content(List.of(childBlock))
+              .build();
+
+      when(collectionRepository.findBySlug("mixed")).thenReturn(Optional.of(entity));
+      when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
+      stubEmptyMetadata();
+      when(collectionRepository.findAllReferencedCollectionIdsByParentId(13L))
+          .thenReturn(List.of(51L));
+      when(collectionProcessingUtil.loadImagesFromChildCollections(List.of(51L)))
+          .thenReturn(List.of());
+
+      CollectionRequests.UpdateResponse response = service.getUpdateCollectionData("mixed");
+
+      assertThat(response.childCollectionImages()).isNotNull();
+      verify(collectionProcessingUtil).loadImagesFromChildCollections(List.of(51L));
+    }
   }
 }

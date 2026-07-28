@@ -773,7 +773,7 @@ public class CollectionService {
         (contentEnd - contentStart) / 1_000_000,
         (metadataEnd - contentEnd) / 1_000_000);
 
-    // For parent-type collections, aggregate images from child collections
+    // Aggregate images from every referenced child collection, if any.
     List<ContentModels.Image> childCollectionImages = null;
     CollectionEntity entity =
         collectionRepository
@@ -781,7 +781,7 @@ public class CollectionService {
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
-    if (entity.getType().isParentType() && collection.getContent() != null) {
+    if (collection.getContent() != null) {
       List<Long> childCollectionIds =
           collection.getContent().stream()
               .filter(c -> c instanceof ContentModels.Collection)
