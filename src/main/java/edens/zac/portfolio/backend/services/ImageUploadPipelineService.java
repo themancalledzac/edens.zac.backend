@@ -12,7 +12,6 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.annotation.PreDestroy;
 import java.nio.file.Path;
@@ -542,8 +541,9 @@ public class ImageUploadPipelineService {
    * Get-or-create the blog collection for a capture day, keyed on {@code (is_blog=true,
    * collectionDate=day)}. If exactly one exists, reuse it; if multiple exist (should not happen),
    * use the oldest and log a warning; otherwise create a new blog whose title/slug derive from the
-   * ISO date. Creation still writes the legacy {@code type=BLOG} for dual-compat (the mapping layer
-   * derives {@code is_blog=true} from it).
+   * ISO date. Creation sets {@code isBlog=true} explicitly: the get-after-create lookup keys on
+   * {@code is_blog}, so an implicit derivation would silently produce a duplicate day blog on every
+   * batch.
    *
    * <p>The shared create path is privacy-first (every new collection lands UNLISTED). Ingested day
    * blogs are auto-published, so visibility is promoted to LISTED explicitly right after create --
@@ -565,7 +565,7 @@ public class ImageUploadPipelineService {
 
     var createRequest =
         new CollectionRequests.Create(
-            CollectionType.BLOG, day.toString(), null, null, null, day, null, null);
+            null, day.toString(), null, null, null, day, null, Boolean.TRUE);
     CollectionRequests.UpdateResponse created = collectionService.createCollection(createRequest);
     Long newId = created.collection().getId();
     collectionRepository.updateVisibility(newId, CollectionVisibility.LISTED);
