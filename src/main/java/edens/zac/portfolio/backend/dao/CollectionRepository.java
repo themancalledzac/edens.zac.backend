@@ -641,8 +641,9 @@ public class CollectionRepository extends BaseDao {
    * Persist a CollectionEntity. Neither branch writes {@code recipient_emails}, and UPDATE also
    * omits {@code gallery_password}: both columns are owned exclusively by {@link
    * #saveGalleryAccess}, which writes them atomically as a pair. Neither branch touches {@code
-   * type} -- the column is retained for one release as a rollback artifact and carries a DEFAULT
-   * from V51.
+   * type}: V52 dropped the column outright, so naming it here again fails at runtime on every
+   * create and update. Restoring it takes {@code collection_type_archive} (V51) plus a pre-U4
+   * application build -- see {@code V52__drop_collection_type.sql}.
    */
   @Transactional
   public CollectionEntity save(CollectionEntity entity) {

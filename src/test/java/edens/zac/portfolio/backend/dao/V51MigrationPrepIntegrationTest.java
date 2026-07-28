@@ -20,7 +20,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * collection table, so V51's backfill UPDATE and its tag DELETEs would never touch a single row.
  * This test owns a dedicated container, migrates to V49, seeds one collection per legacy type plus
  * the operator tag V50 must reuse, migrates to V50 so the real label-tag backfill runs, seeds a
- * converted tag squatting the canonical slug, then migrates to latest and asserts V51's outcome.
+ * converted tag squatting the canonical slug, then migrates to V51 (NOT latest -- see the target
+ * below) and asserts V51's outcome. Migrations after V51 are deliberately out of this container's
+ * scope: V52 drops collection.type, which these assertions read.
  *
  * <p>V51's DML is deliberately NOT re-run inside the shared singleton container: its global
  * content_per_page UPDATE would rewrite the rows sibling fixtures depend on, producing
