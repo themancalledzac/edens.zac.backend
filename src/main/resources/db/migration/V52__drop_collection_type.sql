@@ -1,0 +1,69 @@
+-- V52: drop collection.type. THIS IS IRREVERSIBLE.
+--
+-- Closes the sequence begun by V50 (add is_client/is_blog) and V51 (make type nullable,
+-- snapshot it into collection_type_archive). U4 removed the last application read and write
+-- of this column; nothing in src/main references it. See
+-- docs/superpowers/specs/2026-07-26-typeless-collection.md, unit U5.
+--
+-- WHERE EACH FORMER ENUM VALUE LIVES NOW
+-- --------------------------------------
+--   CLIENT_GALLERY -> collection.is_client = true          (stored, V50; NOT NULL)
+--   BLOG           -> collection.is_blog   = true          (stored, V50; NOT NULL)
+--   PARENT         -> DERIVED, never stored. A collection is a parent iff it holds at
+--                     least one COLLECTION content block:
+--                       EXISTS (SELECT 1 FROM collection_content cc
+--                               JOIN content_collection cct ON cct.id = cc.content_id
+--                               WHERE cc.collection_id = :id
+--                                 AND cct.referenced_collection_id IS NOT NULL)
+--   HOME           -> DERIVED, never stored: slug = 'home'. V41's unique index on slug
+--                     guarantees at most one such row.
+--   PORTFOLIO      -> GONE. No successor concept. V50 seeded a 'Portfolio' label tag as a
+--                     transitional grouping; V51 removed those rows per decision D6.
+--   ART_GALLERY    -> GONE. No successor concept. Same 'Art Gallery' tag story as above.
+--   MISC           -> GONE. No successor concept: carrying neither flag IS the meaning.
+--
+-- IRREVERSIBLE, AND WHY THE FLAGS CANNOT RECONSTRUCT IT
+-- ----------------------------------------------------
+-- is_client and is_blog are BOTH false for PORTFOLIO, ART_GALLERY, PARENT, HOME and MISC.
+-- Five distinct former values collapse onto one flag pair, so a rollback that re-derives
+-- `type` from the flags produces garbage for every row that was not a client gallery or a
+-- blog. Do NOT attempt it. collection_type_archive (V51) is the only faithful source.
+--
+-- ROLLBACK RECIPE -- restore BY ID FROM collection_type_archive, never from the flags:
+--
+--   ALTER TABLE collection ADD COLUMN type VARCHAR(50);
+--   UPDATE collection c SET type = a.type
+--     FROM collection_type_archive a WHERE a.id = c.id;
+--   -- Rows created after V51 took its snapshot have no archive row. Their original value is
+--   -- unrecoverable; 'MISC' is the same default V51 gave the column, so this is lossless in
+--   -- practice for them (they were created by an app that no longer set the column at all).
+--   UPDATE collection SET type = 'MISC' WHERE type IS NULL;
+--   ALTER TABLE collection ALTER COLUMN type SET DEFAULT 'MISC';
+--   ALTER TABLE collection ALTER COLUMN type SET NOT NULL;
+--   CREATE INDEX idx_collection_type ON collection (type);   -- auto-dropped below; recreate it
+--
+-- A rollback also requires reverting the application to a pre-U4 build, because U4 deleted
+-- CollectionType, CollectionTypeCompat and every SQL site that projected the column. Restoring
+-- the column alone buys nothing.
+--
+-- NO "DROP INDEX" STATEMENT HERE, DELIBERATELY
+-- --------------------------------------------
+-- Postgres drops every index that depends on a dropped column, so `idx_collection_type` goes
+-- with the column below. Do NOT add a defensive
+--     DROP INDEX idx_collection_type_visible_date;
+-- -- that index was already auto-dropped by V20's `ALTER TABLE collection DROP COLUMN visible`
+-- (it was a partial index WHERE visible = true, created by V9). A bare DROP INDEX on a
+-- non-existent index aborts the migration and blocks application boot. If a future migration
+-- ever needs one, it must use IF EXISTS.
+--
+-- Audit query -- run manually before deploying (V15 and V50 established this convention).
+-- Records the final distribution being destroyed, and confirms the archive covers it:
+--
+-- SELECT c.type, c.is_client, c.is_blog, count(*) AS rows,
+--        count(a.id) AS archived
+-- FROM collection c LEFT JOIN collection_type_archive a ON a.id = c.id
+-- GROUP BY 1, 2, 3 ORDER BY 1;
+
+-- IF EXISTS so that re-running against an environment where the column is already gone is a
+-- no-op rather than a boot-blocking failure -- the same class of hazard as the DROP INDEX note.
+ALTER TABLE collection DROP COLUMN IF EXISTS type;

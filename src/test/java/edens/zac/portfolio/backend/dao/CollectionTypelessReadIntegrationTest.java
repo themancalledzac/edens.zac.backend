@@ -14,10 +14,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Proof that no read path projects collection.type any more. Each test seeds a row whose type
- * column holds a value no Java enum would ever have accepted; every query below must return it
- * without inspecting the column. Real Postgres because mocked JdbcTemplate cannot catch text-block
- * or StringBuilder-concatenation syntax errors in these hand-written statements.
+ * Proof that no read or write path names collection.type any more. U4 stopped projecting the
+ * column; V52 (U5) dropped it outright, so Postgres itself now rejects any statement that
+ * reintroduces it -- every test below fails loudly the moment one does. Real Postgres because a
+ * mocked JdbcTemplate cannot catch text-block or StringBuilder-concatenation syntax errors in these
+ * hand-written statements.
  */
 class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationTest {
 
@@ -25,20 +26,19 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
   @Autowired private CollectionSiblingRepository collectionSiblingRepository;
   @Autowired private JdbcTemplate jdbc;
 
-  private Long seedLegacyRow(String slug) {
+  private Long seedRow(String slug) {
     jdbc.update(
-        "INSERT INTO collection (type, is_client, is_blog, title, slug, visibility, total_content,"
-            + " created_at, updated_at) VALUES ('LEGACY_GONE', false, false, ?, ?, 'LISTED', 0,"
-            + " NOW(), NOW())",
+        "INSERT INTO collection (is_client, is_blog, title, slug, visibility, total_content,"
+            + " created_at, updated_at) VALUES (false, false, ?, ?, 'LISTED', 0, NOW(), NOW())",
         "Legacy " + slug,
         slug);
     return jdbc.queryForObject("SELECT id FROM collection WHERE slug = ?", Long.class, slug);
   }
 
   @Test
-  @DisplayName("findBySlug reads a row whose type column holds an unknown legacy value")
-  void findBySlug_legacyTypeValue_reads() {
-    seedLegacyRow("legacy-find-by-slug");
+  @DisplayName("findBySlug reads a row from a schema with no type column")
+  void findBySlug_typelessSchema_reads() {
+    seedRow("legacy-find-by-slug");
 
     Optional<CollectionEntity> found = collectionRepository.findBySlug("legacy-find-by-slug");
 
@@ -47,9 +47,9 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
   }
 
   @Test
-  @DisplayName("findIdTitleAndSlug reads a row whose type column holds an unknown legacy value")
-  void findIdTitleAndSlug_legacyTypeValue_reads() {
-    Long id = seedLegacyRow("legacy-id-title-slug");
+  @DisplayName("findIdTitleAndSlug reads a row from a schema with no type column")
+  void findIdTitleAndSlug_typelessSchema_reads() {
+    Long id = seedRow("legacy-id-title-slug");
 
     List<Records.CollectionList> rows = collectionRepository.findIdTitleAndSlug();
 
@@ -57,10 +57,10 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
   }
 
   @Test
-  @DisplayName("findSiblings reads a sibling whose type column holds an unknown legacy value")
-  void findSiblings_legacyTypeValue_reads() {
-    Long a = seedLegacyRow("legacy-sibling-a");
-    Long b = seedLegacyRow("legacy-sibling-b");
+  @DisplayName("findSiblings reads a sibling from a schema with no type column")
+  void findSiblings_typelessSchema_reads() {
+    Long a = seedRow("legacy-sibling-a");
+    Long b = seedRow("legacy-sibling-b");
     collectionSiblingRepository.addSibling(a, b);
 
     List<Records.SiblingRow> siblings = collectionSiblingRepository.findSiblings(a, true);
@@ -69,8 +69,8 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
   }
 
   @Test
-  @DisplayName("save INSERT omits type and relies on the V51 column default")
-  void save_insert_omitsTypeColumn() {
+  @DisplayName("save INSERT succeeds against a schema with no type column")
+  void save_insert_doesNotNameTheDroppedColumn() {
     CollectionEntity saved =
         collectionRepository.save(
             CollectionEntity.builder()
@@ -83,25 +83,31 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
                 .build());
 
     assertThat(saved.getId()).isNotNull();
-    String storedType =
-        jdbc.queryForObject(
-            "SELECT type FROM collection WHERE id = ?", String.class, saved.getId());
-    assertThat(storedType).isEqualTo("MISC");
+    assertThat(collectionRepository.findById(saved.getId()).orElseThrow().getSlug())
+        .isEqualTo("typeless-insert");
   }
 
   @Test
-  @DisplayName("save UPDATE omits type and leaves the stored legacy value untouched")
-  void save_update_leavesTypeColumnUntouched() {
-    Long id = seedLegacyRow("legacy-update");
+  @DisplayName("save UPDATE succeeds against a schema with no type column")
+  void save_update_doesNotNameTheDroppedColumn() {
+    Long id = seedRow("legacy-update");
     CollectionEntity entity = collectionRepository.findById(id).orElseThrow();
     entity.setTitle("Legacy Renamed");
 
     collectionRepository.save(entity);
 
-    String storedType =
-        jdbc.queryForObject("SELECT type FROM collection WHERE id = ?", String.class, id);
-    assertThat(storedType).isEqualTo("LEGACY_GONE");
     assertThat(collectionRepository.findById(id).orElseThrow().getTitle())
         .isEqualTo("Legacy Renamed");
+  }
+
+  @Test
+  @DisplayName("the dropped column really is absent, so the tests above are not vacuous")
+  void typeColumnIsAbsentFromTheSchema() {
+    Integer columns =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public'"
+                + " AND table_name = 'collection' AND column_name = 'type'",
+            Integer.class);
+    assertThat(columns).isZero();
   }
 }
