@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -294,20 +295,6 @@ class ContentMutationUtilTest {
   }
 
   @Test
-  void handleAddToCollections_rejectsParentTypeCollection() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
-    CollectionEntity collection =
-        CollectionEntity.builder().id(5L).title("Parent").type(CollectionType.PARENT).build();
-    when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
-
-    Records.ChildCollection childCollection =
-        new Records.ChildCollection(5L, null, null, null, true, null);
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> contentMutationUtil.handleAddToCollections(image, List.of(childCollection)));
-  }
-
-  @Test
   void handleAddToCollections_skipsDuplicate() {
     ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     CollectionEntity collection =
@@ -452,5 +439,21 @@ class ContentMutationUtilTest {
 
     assertTrue(image.getLocations().isEmpty());
     verify(locationRepository).saveContentLocations(eq(1L), anyList());
+  }
+
+  @Test
+  @DisplayName("handleAddToCollections adds content to a collection that holds child collections")
+  void handleAddToCollections_wrapperTarget_isPersisted() {
+    CollectionEntity wrapper =
+        CollectionEntity.builder().id(9L).slug("wrapper").title("Wrapper").build();
+    when(collectionRepository.findById(9L)).thenReturn(Optional.of(wrapper));
+    when(collectionRepository.findContentByCollectionIdAndContentId(9L, 77L))
+        .thenReturn(Optional.empty());
+    when(collectionRepository.getMaxOrderIndexForCollection(9L)).thenReturn(2);
+
+    contentMutationUtil.handleAddToCollections(
+        77L, List.of(new Records.ChildCollection(9L, null, null, null, true, null)));
+
+    verify(collectionRepository).saveContent(any(CollectionContentEntity.class));
   }
 }
