@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -26,7 +25,6 @@ public class CollectionSiblingRepository extends BaseDao {
             rs.getLong("id"),
             rs.getString("name"),
             rs.getString("slug"),
-            CollectionType.valueOf(rs.getString("type")),
             coverImageIdOrNull,
             rs.getBoolean("is_client"),
             rs.getBoolean("is_blog"));
@@ -69,7 +67,7 @@ public class CollectionSiblingRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<Records.SiblingRow> findSiblings(Long collectionId, boolean listedOnly) {
     String sql =
-        "SELECT c.id, c.title AS name, c.slug, c.type, c.cover_image_id, c.is_client, c.is_blog "
+        "SELECT c.id, c.title AS name, c.slug, c.cover_image_id, c.is_client, c.is_blog "
             + "FROM collection_sibling cs "
             + "JOIN collection c ON c.id = cs.sibling_collection_id "
             + "WHERE cs.collection_id = :id "

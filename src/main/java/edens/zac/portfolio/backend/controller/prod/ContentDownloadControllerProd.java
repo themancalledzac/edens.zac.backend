@@ -108,6 +108,24 @@ public class ContentDownloadControllerProd {
       return;
     }
 
+    // Second half of the same gate, and the sibling of S1 above: the images this download would
+    // return may ALSO live in other password-protected collections. Checking only the slug in the
+    // URL let a public wrapper waive a protected gallery's password -- and with `?imageIds=<one>`
+    // the response is not even a ZIP but a 302 to a presigned full-resolution original. Fail closed
+    // on EVERY protected parent of every image served, exactly like the per-image endpoint.
+    for (CollectionEntity gatingCollection :
+        contentService.findProtectedCollectionsForCollectionDownload(
+            collection.getId(), imageIds)) {
+      if (!isDownloadAuthorized(request, gatingCollection)) {
+        log.warn(
+            "Unauthorized collection download (slug={}, gatedBy={})",
+            slug,
+            gatingCollection.getSlug());
+        response.sendError(HttpStatus.UNAUTHORIZED.value());
+        return;
+      }
+    }
+
     List<DownloadResolution> entries =
         contentService.resolveCollectionDownloadEntries(collection.getId(), format, imageIds);
 

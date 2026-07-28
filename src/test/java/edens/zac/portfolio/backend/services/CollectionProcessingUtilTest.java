@@ -19,7 +19,6 @@ import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
@@ -29,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -64,7 +64,6 @@ class CollectionProcessingUtilTest {
     // Create test entity
     testEntity = new CollectionEntity();
     testEntity.setId(1L);
-    testEntity.setType(CollectionType.BLOG);
     testEntity.setTitle("Test Blog");
     testEntity.setSlug("test-blog");
     testEntity.setDescription("Test description");
@@ -104,7 +103,6 @@ class CollectionProcessingUtilTest {
     // Assert
     assertNotNull(model);
     assertEquals(testEntity.getId(), model.getId());
-    assertEquals(testEntity.getType(), model.getType());
     assertEquals(testEntity.getTitle(), model.getTitle());
     assertEquals(testEntity.getSlug(), model.getSlug());
     assertEquals(testEntity.getDescription(), model.getDescription());
@@ -147,7 +145,6 @@ class CollectionProcessingUtilTest {
   void applyPaginationDefaults_setsPaginationOnly_leavesVisibilityUntouched() {
     // Arrange
     CollectionEntity entity = new CollectionEntity();
-    entity.setType(CollectionType.CLIENT_GALLERY);
     entity.setVisibility(CollectionVisibility.HIDDEN);
 
     // Act
@@ -165,17 +162,12 @@ class CollectionProcessingUtilTest {
     // UNLISTED is the universal create default -- no type is exempt.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
-    for (CollectionType type : CollectionType.values()) {
-      CollectionRequests.Create request =
-          new CollectionRequests.Create(type, "Typed " + type.name());
+    CollectionRequests.Create request = new CollectionRequests.Create("Default Visibility");
 
-      CollectionEntity entity = util.toEntity(request, 30);
+    CollectionEntity entity = util.toEntity(request, 30);
 
-      assertEquals(
-          CollectionVisibility.UNLISTED,
-          entity.getVisibility(),
-          "Create default for type " + type + " must be UNLISTED");
-    }
+    assertEquals(
+        CollectionVisibility.UNLISTED, entity.getVisibility(), "Create default must be UNLISTED");
   }
 
   @Test
@@ -184,16 +176,8 @@ class CollectionProcessingUtilTest {
     // Sibling 9 has cover image 100; sibling 11 has none.
     List<Records.SiblingRow> rows =
         List.of(
-            new Records.SiblingRow(
-                9L,
-                "Dolomites Film",
-                "dolomites-film",
-                CollectionType.PORTFOLIO,
-                100L,
-                false,
-                false),
-            new Records.SiblingRow(
-                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null, false, false));
+            new Records.SiblingRow(9L, "Dolomites Film", "dolomites-film", 100L, false, false),
+            new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false));
     when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
 
     ContentImageEntity cover =
@@ -210,7 +194,6 @@ class CollectionProcessingUtilTest {
     assertThat(withCover.id()).isEqualTo(9L);
     assertThat(withCover.name()).isEqualTo("Dolomites Film");
     assertThat(withCover.slug()).isEqualTo("dolomites-film");
-    assertThat(withCover.type()).isEqualTo(CollectionType.PORTFOLIO);
     assertThat(withCover.coverImageUrl())
         .isEqualTo("https://cdn.example.com/dolomites-film-cover.jpg");
 
@@ -226,9 +209,7 @@ class CollectionProcessingUtilTest {
   void populateSiblings_noCoverImages_skipsImageLookup() {
     CollectionModel model = CollectionModel.builder().id(5L).build();
     List<Records.SiblingRow> rows =
-        List.of(
-            new Records.SiblingRow(
-                11L, "Alps Digital", "alps-digital", CollectionType.PORTFOLIO, null, false, false));
+        List.of(new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false));
     when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
 
     util.populateSiblings(model, false);
@@ -252,8 +233,8 @@ class CollectionProcessingUtilTest {
   }
 
   /**
-   * Build an Update that only carries date-range fields (everything else null). Canonical 23-arg
-   * order: id, type, isClient, isBlog, title, slug, description, locations, collectionDate,
+   * Build an Update that only carries date-range fields (everything else null). Canonical 22-arg
+   * order: id, isClient, isBlog, title, slug, description, locations, collectionDate,
    * collectionEndDate, clearCollectionDate, clearCollectionEndDate, visibility, rating,
    * displayMode, contentPerPage, rowsWide, coverImageId, tags, people, collections, siblings,
    * parents.
@@ -265,7 +246,6 @@ class CollectionProcessingUtilTest {
       Boolean clearCollectionEndDate) {
     return new CollectionRequests.Update(
         1L,
-        null,
         null,
         null,
         null,
@@ -368,17 +348,14 @@ class CollectionProcessingUtilTest {
     // ORDERED is opt-in via a later update.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
-    for (CollectionType type : CollectionType.values()) {
-      CollectionRequests.Create request =
-          new CollectionRequests.Create(type, "Typed " + type.name());
+    CollectionRequests.Create request = new CollectionRequests.Create("Default DisplayMode");
 
-      CollectionEntity entity = util.toEntity(request, 30);
+    CollectionEntity entity = util.toEntity(request, 30);
 
-      assertEquals(
-          DisplayMode.CHRONOLOGICAL,
-          entity.getDisplayMode(),
-          "Create default displayMode for type " + type + " must be CHRONOLOGICAL");
-    }
+    assertEquals(
+        DisplayMode.CHRONOLOGICAL,
+        entity.getDisplayMode(),
+        "Create default displayMode must be CHRONOLOGICAL");
   }
 
   @Test
@@ -389,7 +366,6 @@ class CollectionProcessingUtilTest {
         testEntity,
         new CollectionRequests.Update(
             1L,
-            null,
             null,
             null,
             null,
@@ -412,7 +388,6 @@ class CollectionProcessingUtilTest {
 
   @Test
   void convertToBasicModel_nullDisplayModeFallsBackToChronologicalRegardlessOfType() {
-    testEntity.setType(CollectionType.PORTFOLIO);
     testEntity.setDisplayMode(null);
 
     CollectionModel model = util.convertToBasicModel(testEntity);
@@ -438,71 +413,41 @@ class CollectionProcessingUtilTest {
   void toEntity_isClientTrue_setsClientGalleryTypeAndFlags() {
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
     CollectionRequests.Create request =
-        new CollectionRequests.Create(null, "Boolean Gallery", null, null, null, null, true, false);
+        new CollectionRequests.Create("Boolean Gallery", null, null, null, null, true, false);
 
     CollectionEntity entity = util.toEntity(request, 30);
 
-    assertEquals(CollectionType.CLIENT_GALLERY, entity.getType());
     assertTrue(entity.isClient());
     assertFalse(entity.isBlog());
   }
 
   @Test
-  void toEntity_legacyBlogType_derivesIsBlog() {
+  void toEntity_noBooleans_landsOnNeitherFlag() {
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
-    CollectionRequests.Create request =
-        new CollectionRequests.Create(CollectionType.BLOG, "Legacy Blog");
+    CollectionRequests.Create request = new CollectionRequests.Create("Untyped Create");
 
     CollectionEntity entity = util.toEntity(request, 30);
 
-    assertEquals(CollectionType.BLOG, entity.getType());
-    assertFalse(entity.isClient());
-    assertTrue(entity.isBlog());
-  }
-
-  @Test
-  void toEntity_neitherTypeNorBooleans_landsOnMisc() {
-    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
-    CollectionRequests.Create request = new CollectionRequests.Create(null, "Untyped Create");
-
-    CollectionEntity entity = util.toEntity(request, 30);
-
-    assertEquals(CollectionType.MISC, entity.getType());
     assertFalse(entity.isClient());
     assertFalse(entity.isBlog());
   }
 
   @Test
   void applyBasicUpdates_isBlogTrue_setsBlogTypeAndFlags() {
-    testEntity.setType(CollectionType.MISC);
 
-    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, false, true));
-
-    assertEquals(CollectionType.BLOG, testEntity.getType());
+    util.applyBasicUpdates(testEntity, flagsUpdate(false, true));
     assertTrue(testEntity.isBlog());
     assertFalse(testEntity.isClient());
   }
 
-  @Test
-  void applyBasicUpdates_legacyClientGalleryType_derivesIsClient() {
-    testEntity.setType(CollectionType.MISC);
-
-    util.applyBasicUpdates(testEntity, typeFlagsUpdate(CollectionType.CLIENT_GALLERY, null, null));
-
-    assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
-    assertTrue(testEntity.isClient());
-    assertFalse(testEntity.isBlog());
-  }
-
   /**
-   * Build an Update that carries only the type/flag triple (everything else null), so the flag
-   * tests do not inline the wide canonical constructor at mixed arities.
+   * Build an Update that carries only the flag pair (everything else null), so the flag tests do
+   * not inline the wide canonical constructor at mixed arities.
    */
-  private static CollectionRequests.Update typeFlagsUpdate(
-      CollectionType type, Boolean isClient, Boolean isBlog) {
+  private static CollectionRequests.Update flagsUpdate(Boolean isClient, Boolean isBlog) {
     return new CollectionRequests.Update(
-        1L, type, isClient, isBlog, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null);
+        1L, isClient, isBlog, null, null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null);
   }
 
   @Test
@@ -511,7 +456,7 @@ class CollectionProcessingUtilTest {
     // create, child create, multipart create) funnel through toEntity, so this one unit test
     // covers them; a MockMvc variant would only re-test GlobalExceptionHandler's IAE -> 400.
     CollectionRequests.Create request =
-        new CollectionRequests.Create(null, "Both Flags", null, null, null, null, true, true);
+        new CollectionRequests.Create("Both Flags", null, null, null, null, true, true);
 
     assertThrows(IllegalArgumentException.class, () -> util.toEntity(request, 30));
   }
@@ -522,13 +467,10 @@ class CollectionProcessingUtilTest {
     // resolver, not just its legacy type column. Without that, {"isBlog": false} alone clears
     // is_client on a drifted row today, and demotes every client gallery once phase 2 nulls the
     // type column. Mutating entity.getType() to null must not change the outcome.
-    testEntity.setType(CollectionType.CLIENT_GALLERY);
     testEntity.setClient(true);
     testEntity.setBlog(false);
 
-    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, null, false));
-
-    assertEquals(CollectionType.CLIENT_GALLERY, testEntity.getType());
+    util.applyBasicUpdates(testEntity, flagsUpdate(null, false));
     assertTrue(testEntity.isClient());
     assertFalse(testEntity.isBlog());
   }
@@ -538,14 +480,11 @@ class CollectionProcessingUtilTest {
     // updateGalleryAccess refuses non-CLIENT_GALLERY/PARENT targets and the read gate keys on
     // galleryPassword != null, so a demoted collection would otherwise keep an enforced password
     // that no endpoint can clear.
-    testEntity.setType(CollectionType.CLIENT_GALLERY);
     testEntity.setClient(true);
     testEntity.setGalleryPassword("secret");
     testEntity.setRecipientEmails(new ArrayList<>(List.of("client@example.com")));
 
-    util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, false, null));
-
-    assertEquals(CollectionType.MISC, testEntity.getType());
+    util.applyBasicUpdates(testEntity, flagsUpdate(false, null));
     assertFalse(testEntity.isClient());
     assertNull(testEntity.getGalleryPassword());
     assertTrue(testEntity.getRecipientEmails().isEmpty());
@@ -556,12 +495,11 @@ class CollectionProcessingUtilTest {
   void applyBasicUpdates_bothFlagsTrue_isRejected() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> util.applyBasicUpdates(testEntity, typeFlagsUpdate(null, true, true)));
+        () -> util.applyBasicUpdates(testEntity, flagsUpdate(true, true)));
   }
 
   @Test
   void applyBasicUpdates_noTypeOrFlagsInRequest_leavesTypeAndFlagsUntouched() {
-    testEntity.setType(CollectionType.BLOG);
     testEntity.setBlog(true);
 
     // Description-only update: no type field and no booleans in the request.
@@ -569,7 +507,6 @@ class CollectionProcessingUtilTest {
         testEntity,
         new CollectionRequests.Update(
             1L,
-            null,
             null,
             null,
             "New description",
@@ -586,8 +523,60 @@ class CollectionProcessingUtilTest {
             null,
             null,
             null));
-
-    assertEquals(CollectionType.BLOG, testEntity.getType());
     assertTrue(testEntity.isBlog());
+  }
+
+  @Test
+  @DisplayName("toEntity always sets the default contentPerPage")
+  void toEntity_alwaysSetsContentPerPage() {
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+    CollectionRequests.Create request = new CollectionRequests.Create("Any Create");
+
+    CollectionEntity entity = util.toEntity(request, 30);
+
+    assertEquals(30, entity.getContentPerPage());
+  }
+
+  @Test
+  @DisplayName("applyBasicUpdates accepts contentPerPage and rowsWide on any collection")
+  void applyBasicUpdates_acceptsLayoutFieldsOnWrapper() {
+
+    util.applyBasicUpdates(testEntity, contentPerPageAndRowsWideUpdate(45, 6));
+
+    assertEquals(45, testEntity.getContentPerPage());
+    assertEquals(6, testEntity.getRowsWide());
+  }
+
+  @Test
+  @DisplayName("applyPaginationDefaults fills contentPerPage on any collection")
+  void applyPaginationDefaults_fillsOnAnyCollection() {
+    CollectionEntity entity = new CollectionEntity();
+    entity.setContentPerPage(null);
+
+    util.applyPaginationDefaults(entity);
+
+    assertNotNull(entity.getContentPerPage());
+  }
+
+  private CollectionRequests.Update contentPerPageAndRowsWideUpdate(
+      Integer contentPerPage, Integer rowsWide) {
+    return new CollectionRequests.Update(
+        1L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        contentPerPage,
+        rowsWide,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 }

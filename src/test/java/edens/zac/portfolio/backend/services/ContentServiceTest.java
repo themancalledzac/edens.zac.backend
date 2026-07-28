@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
@@ -267,5 +268,24 @@ class ContentServiceTest {
         null,
         null,
         List.of());
+  }
+
+  @Test
+  @DisplayName("linkContentToCollection inspects nothing about the target beyond its existence")
+  void linkContentToCollection_anyExistingCollection_isPersisted() {
+    // Scope: this pins the EXISTENCE check only. It cannot pin Rule B -- parent-ness is derived
+    // from the collection_content join and collectionRepository is a mock here, so no builder-built
+    // fixture is a wrapper. RuleBMixedContentIntegrationTest is the real pin.
+    CollectionEntity target =
+        CollectionEntity.builder().id(1L).slug("target").title("Target").build();
+    when(collectionRepository.findById(1L)).thenReturn(Optional.of(target));
+
+    service.linkContentToCollection(1L, 42L, 3, true);
+
+    ArgumentCaptor<CollectionContentEntity> captor =
+        ArgumentCaptor.forClass(CollectionContentEntity.class);
+    verify(collectionRepository).saveContent(captor.capture());
+    assertThat(captor.getValue().getContentId()).isEqualTo(42L);
+    assertThat(captor.getValue().getOrderIndex()).isEqualTo(3);
   }
 }

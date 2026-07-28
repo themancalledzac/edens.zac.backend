@@ -25,7 +25,6 @@ import edens.zac.portfolio.backend.services.EmailService;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
@@ -719,7 +718,6 @@ class AdminUserControllerTest {
           CollectionModel.builder()
               .slug("user")
               .title("Alice")
-              .type(CollectionType.PARENT)
               .visibility(CollectionVisibility.UNLISTED)
               .content(List.of())
               .contentCount(0)
@@ -733,8 +731,7 @@ class AdminUserControllerTest {
           .perform(get("/api/admin/users/10/page"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.slug", is("user")))
-          .andExpect(jsonPath("$.title", is("Alice")))
-          .andExpect(jsonPath("$.type", is("PARENT")));
+          .andExpect(jsonPath("$.title", is("Alice")));
     }
   }
 }

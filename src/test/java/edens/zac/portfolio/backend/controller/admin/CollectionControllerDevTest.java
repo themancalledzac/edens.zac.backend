@@ -14,7 +14,6 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.services.CollectionService;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -63,7 +62,6 @@ class CollectionControllerDevTest {
     // Create test collection model (for updateContent, addContents)
     testCollection = new CollectionModel();
     testCollection.setId(1L);
-    testCollection.setType(CollectionType.BLOG);
     testCollection.setTitle("Test Blog");
     testCollection.setSlug("test-blog");
     testCollection.setDescription("A test blog collection");
@@ -90,13 +88,12 @@ class CollectionControllerDevTest {
     testCollectionUpdateResponse = new CollectionRequests.UpdateResponse(testCollection, metadata);
 
     // Create minimal test create request
-    testCreateRequest = new CollectionRequests.Create(CollectionType.BLOG, "New Test Blog");
+    testCreateRequest = new CollectionRequests.Create("New Test Blog");
 
     // Create test update DTO
     testUpdateDTO =
         new CollectionRequests.Update(
             1L,
-            null,
             "Updated Test Blog",
             null,
             "An updated test blog collection",
@@ -130,8 +127,7 @@ class CollectionControllerDevTest {
                 .content(objectMapper.writeValueAsString(testCreateRequest)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.collection.id", is(1)))
-        .andExpect(jsonPath("$.collection.title", is("Test Blog")))
-        .andExpect(jsonPath("$.collection.type", is("BLOG")));
+        .andExpect(jsonPath("$.collection.title", is("Test Blog")));
 
     verify(collectionService).createCollection(any(CollectionRequests.Create.class));
   }
@@ -183,7 +179,6 @@ class CollectionControllerDevTest {
     CollectionRequests.Update notFoundUpdateDTO =
         new CollectionRequests.Update(
             999L,
-            null,
             "Updated Test Blog",
             null,
             null,
@@ -367,7 +362,6 @@ class CollectionControllerDevTest {
     CollectionRequests.Update updateRequest =
         new CollectionRequests.Update(
             1L,
-            null,
             "Updated Blog with Tags",
             null,
             null,
@@ -414,7 +408,6 @@ class CollectionControllerDevTest {
     CollectionRequests.Update updateRequest =
         new CollectionRequests.Update(
             1L,
-            null,
             "Updated Blog with People",
             null,
             null,
@@ -462,7 +455,6 @@ class CollectionControllerDevTest {
     CollectionRequests.Update updateRequest =
         new CollectionRequests.Update(
             1L,
-            null,
             "Updated Blog with Tags and People",
             null,
             null,

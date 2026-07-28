@@ -9,7 +9,6 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Recognizes the synthetic admin/list slugs ("all-collections", "all-blogs", etc.) and synthesizes
- * a PARENT-shaped {@link CollectionModel} populated with {@link ContentModels.Collection} content
- * blocks pointing to each child. Bypasses the regular DB lookup in {@code
+ * a container-shaped {@link CollectionModel} populated with {@link ContentModels.Collection}
+ * content blocks pointing to each child. Bypasses the regular DB lookup in {@code
  * CollectionService.getCollectionWithPagination}.
  *
  * <p>Depends on {@link CollectionRepository} + {@link CollectionProcessingUtil} directly (NOT on
@@ -34,23 +33,20 @@ public class SyntheticCollectionResolver {
 
   static final String ALL_CLIENT_GALLERIES = "all-client-galleries";
   static final String ALL_COLLECTIONS = "all-collections";
+  static final String ALL_BLOGS = "all-blogs";
 
+  // PORTFOLIO / ART_GALLERY / MISC had no successor concept, so all-portfolios,
+  // all-art-galleries and all-misc are gone rather than re-keyed (spec D5). Re-pointing
+  // all-misc at a null filter would have been an exposure: findNonEmptyOrderedByVisibilityIn
+  // is only environment-scoped, unlike all-collections which is permission-scoped.
   private static final Map<String, Synthetic> CATALOG =
       Map.of(
           ALL_COLLECTIONS,
-          new Synthetic("All Collections", null),
-          "all-blogs",
-          new Synthetic("Blogs", CollectionType.BLOG),
-          "all-portfolios",
-          new Synthetic("Portfolios", CollectionType.PORTFOLIO),
+          new Synthetic("All Collections", false),
+          ALL_BLOGS,
+          new Synthetic("Blogs", true),
           ALL_CLIENT_GALLERIES,
-          // Null typeFilter: this slug is served by findClientGalleriesAndQualifyingParents,
-          // which is flag-keyed and never reads the filter.
-          new Synthetic("Client Galleries", null),
-          "all-art-galleries",
-          new Synthetic("Art Galleries", CollectionType.ART_GALLERY),
-          "all-misc",
-          new Synthetic("Misc", CollectionType.MISC));
+          new Synthetic("Client Galleries", false));
 
   private static final List<CollectionVisibility> ADMIN_SCOPE =
       List.of(
@@ -67,7 +63,7 @@ public class SyntheticCollectionResolver {
   }
 
   /**
-   * Resolve a synthetic slug into a PARENT-shaped {@link CollectionModel}. Caller is responsible
+   * Resolve a synthetic slug into a container-shaped {@link CollectionModel}. Caller is responsible
    * for verifying the slug via {@link #isSyntheticSlug(String)} first.
    */
   @Transactional(readOnly = true)
@@ -79,12 +75,12 @@ public class SyntheticCollectionResolver {
 
     List<CollectionVisibility> allowed = CollectionVisibility.visibleScope(isLocalEnvironment);
 
-    // "all-client-galleries" includes PARENT collections that have ≥1 CLIENT_GALLERY child
+    // "all-client-galleries" includes wrapper collections holding >=1 client-gallery child
     // (e.g. wedding wrappers with ceremony/reception sub-galleries) so they appear alongside
-    // standalone CLIENT_GALLERYs. "all-collections" is permission-scoped by the caller's verified
+    // standalone client galleries. "all-collections" is permission-scoped by the caller's verified
     // identity (NOT the environment) and stays chronological (newest first) for its first paint;
-    // the frontend reorders client-side thereafter. Other synthetic slugs use the simple type
-    // filter with rating-first ordering and the env-based scope. All non-gallery slugs exclude
+    // the frontend reorders client-side thereafter. all-blogs keys on is_blog with rating-first
+    // ordering and the env-based scope. All non-gallery slugs exclude
     // collections that have zero content rows so the listing never shows empty tiles.
     List<CollectionEntity> rows;
     if (ALL_CLIENT_GALLERIES.equals(slug)) {
@@ -92,7 +88,7 @@ public class SyntheticCollectionResolver {
     } else if (ALL_COLLECTIONS.equals(slug)) {
       rows = findAllCollectionsForCurrentViewer();
     } else {
-      rows = collectionRepository.findNonEmptyOrderedByVisibilityIn(allowed, spec.typeFilter());
+      rows = collectionRepository.findNonEmptyOrderedByVisibilityIn(allowed, spec.blogsOnly());
     }
     List<CollectionModel> children = collectionProcessingUtil.batchConvertToBasicModels(rows);
 
@@ -114,7 +110,6 @@ public class SyntheticCollectionResolver {
     return CollectionModel.builder()
         .slug(slug)
         .title(spec.title())
-        .type(CollectionType.PARENT)
         .visibility(CollectionVisibility.LISTED)
         .content(content)
         .contentCount(content.size())
@@ -158,5 +153,5 @@ public class SyntheticCollectionResolver {
     return tags.stream().map(t -> new Records.Tag(t.getId(), t.getTagName(), t.getSlug())).toList();
   }
 
-  private record Synthetic(String title, CollectionType typeFilter) {}
+  private record Synthetic(String title, boolean blogsOnly) {}
 }

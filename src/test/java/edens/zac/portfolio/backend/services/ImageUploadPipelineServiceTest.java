@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -23,7 +24,6 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -32,9 +32,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -69,7 +71,6 @@ class ImageUploadPipelineServiceTest {
             .id(1L)
             .title("Test Collection")
             .slug("test-collection")
-            .type(CollectionType.PORTFOLIO)
             .visibility(CollectionVisibility.LISTED)
             .build();
   }
@@ -119,7 +120,7 @@ class ImageUploadPipelineServiceTest {
     @Test
     void createCollectionWithImages_happyPath_returnsResultWithCollectionId() throws Exception {
       // Arrange
-      var createRequest = new CollectionRequests.Create(CollectionType.PORTFOLIO, "New Album");
+      var createRequest = new CollectionRequests.Create("New Album");
       var files = List.<MultipartFile>of(createMockFile("photo1.jpg"));
       Map<String, String> rawMap = Collections.emptyMap();
 
@@ -174,7 +175,7 @@ class ImageUploadPipelineServiceTest {
     void createCollectionWithImages_noSuccessfulImages_skipsPostUploadProcessing()
         throws Exception {
       // Arrange
-      var createRequest = new CollectionRequests.Create(CollectionType.PORTFOLIO, "Empty Album");
+      var createRequest = new CollectionRequests.Create("Empty Album");
       var files = List.<MultipartFile>of(createMockFile("bad.gif"));
       Map<String, String> rawMap = Collections.emptyMap();
 
@@ -379,6 +380,21 @@ class ImageUploadPipelineServiceTest {
       // Assert -- XMP-extracted tags used since plugin sent none.
       verify(contentMutationUtil)
           .associateExtractedKeywords(eq(101L), eq(List.of("mountains", "hike")), eq(List.of()));
+    }
+
+    @Test
+    @DisplayName("processFilesFromDisk inspects nothing about the target beyond its existence")
+    void processFilesFromDisk_anyExistingCollection_isAccepted() {
+      // Scope: the EXISTENCE check only. It cannot pin Rule B -- parent-ness is derived from the
+      // collection_content join and collectionRepository is a mock here, so no builder-built
+      // fixture is a wrapper. RuleBMixedContentIntegrationTest is the real pin.
+      CollectionEntity target =
+          CollectionEntity.builder().id(31L).slug("target").title("Target").build();
+      when(collectionRepository.findById(31L)).thenReturn(Optional.of(target));
+
+      assertThatCode(
+              () -> service.processFilesFromDisk(31L, new DiskUploadRequest(List.of(), null)))
+          .doesNotThrowAnyException();
     }
   }
 
@@ -775,13 +791,46 @@ class ImageUploadPipelineServiceTest {
     }
 
     @Test
+    void ingest_newBlogForDay_createsItWithTheBlogFlagSet() throws Exception {
+      // Regression pin for the one token that keeps the day-blog get-after-create round trip
+      // closed. findBlogsByCollectionDate reads `is_blog = true` and nothing derives blog-ness
+      // from the title or date, so a create that omits isBlog is invisible to the very lookup
+      // that runs first next batch -- every batch would mint another slug-suffixed public blog.
+      LocalDate day = LocalDate.of(2024, 3, 24);
+      var request =
+          new DiskUploadRequest(
+              List.of(
+                  new DiskUploadRequest.FileEntry(
+                      "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
+              null);
+      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      when(jobTrackingService.createJob(1)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(createResult(101L));
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of());
+      when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, day));
+
+      service.ingestFilesGroupedByDay(request);
+      awaitCompletion(job);
+
+      ArgumentCaptor<CollectionRequests.Create> createCaptor =
+          ArgumentCaptor.forClass(CollectionRequests.Create.class);
+      verify(collectionService).createCollection(createCaptor.capture());
+      assertThat(createCaptor.getValue().isBlog()).isTrue();
+      assertThat(createCaptor.getValue().isClient()).isNull();
+      assertThat(createCaptor.getValue().collectionDate()).isEqualTo(day);
+    }
+
+    @Test
     void ingest_existingBlogForDay_appendsWithoutCreating() throws Exception {
       // Arrange -- a BLOG already exists for the capture day; should append, not create.
       LocalDate day = LocalDate.of(2024, 3, 24);
       var existingBlog =
           CollectionEntity.builder()
               .id(7L)
-              .type(CollectionType.BLOG)
               .collectionDate(day)
               .visibility(CollectionVisibility.LISTED)
               .build();
@@ -813,10 +862,8 @@ class ImageUploadPipelineServiceTest {
     void ingest_multipleBlogsForDay_usesOldest() throws Exception {
       // Arrange -- two BLOGs exist for the day (finder returns oldest first); use the oldest.
       LocalDate day = LocalDate.of(2024, 3, 24);
-      var oldest =
-          CollectionEntity.builder().id(3L).type(CollectionType.BLOG).collectionDate(day).build();
-      var newer =
-          CollectionEntity.builder().id(9L).type(CollectionType.BLOG).collectionDate(day).build();
+      var oldest = CollectionEntity.builder().id(3L).collectionDate(day).build();
+      var newer = CollectionEntity.builder().id(9L).collectionDate(day).build();
       var request =
           new DiskUploadRequest(
               List.of(

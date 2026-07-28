@@ -10,7 +10,6 @@ import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -97,7 +96,6 @@ public class UserPageAssembler {
         .slug("user")
         .title(title)
         .description(description)
-        .type(CollectionType.PARENT)
         .visibility(CollectionVisibility.UNLISTED)
         .coverImage(cover)
         .content(body)

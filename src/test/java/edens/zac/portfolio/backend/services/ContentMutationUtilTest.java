@@ -18,12 +18,12 @@ import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -279,8 +279,7 @@ class ContentMutationUtilTest {
   @Test
   void handleAddToCollections_addsImageToCollection() {
     ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
-    CollectionEntity collection =
-        CollectionEntity.builder().id(5L).title("Test").type(CollectionType.BLOG).build();
+    CollectionEntity collection = CollectionEntity.builder().id(5L).title("Test").build();
     when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
         .thenReturn(Optional.empty());
@@ -294,24 +293,9 @@ class ContentMutationUtilTest {
   }
 
   @Test
-  void handleAddToCollections_rejectsParentTypeCollection() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
-    CollectionEntity collection =
-        CollectionEntity.builder().id(5L).title("Parent").type(CollectionType.PARENT).build();
-    when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
-
-    Records.ChildCollection childCollection =
-        new Records.ChildCollection(5L, null, null, null, true, null);
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> contentMutationUtil.handleAddToCollections(image, List.of(childCollection)));
-  }
-
-  @Test
   void handleAddToCollections_skipsDuplicate() {
     ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
-    CollectionEntity collection =
-        CollectionEntity.builder().id(5L).title("Test").type(CollectionType.BLOG).build();
+    CollectionEntity collection = CollectionEntity.builder().id(5L).title("Test").build();
     when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
     CollectionContentEntity existing = CollectionContentEntity.builder().id(10L).build();
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
@@ -452,5 +436,27 @@ class ContentMutationUtilTest {
 
     assertTrue(image.getLocations().isEmpty());
     verify(locationRepository).saveContentLocations(eq(1L), anyList());
+  }
+
+  @Test
+  @DisplayName("handleAddToCollections appends after the target's existing content")
+  void handleAddToCollections_nullOrderIndex_appendsAfterMax() {
+    // Scope: the orderIndex=null append path (max + 1). It cannot pin Rule B -- parent-ness is
+    // derived from the collection_content join and collectionRepository is a mock here, so no
+    // builder-built fixture is a wrapper. RuleBMixedContentIntegrationTest is the real pin.
+    CollectionEntity target =
+        CollectionEntity.builder().id(9L).slug("target").title("Target").build();
+    when(collectionRepository.findById(9L)).thenReturn(Optional.of(target));
+    when(collectionRepository.findContentByCollectionIdAndContentId(9L, 77L))
+        .thenReturn(Optional.empty());
+    when(collectionRepository.getMaxOrderIndexForCollection(9L)).thenReturn(2);
+
+    contentMutationUtil.handleAddToCollections(
+        77L, List.of(new Records.ChildCollection(9L, null, null, null, true, null)));
+
+    ArgumentCaptor<CollectionContentEntity> captor =
+        ArgumentCaptor.forClass(CollectionContentEntity.class);
+    verify(collectionRepository).saveContent(captor.capture());
+    assertEquals(3, captor.getValue().getOrderIndex().intValue());
   }
 }

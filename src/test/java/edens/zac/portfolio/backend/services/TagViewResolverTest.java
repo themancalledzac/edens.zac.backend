@@ -13,7 +13,6 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
@@ -94,14 +93,8 @@ class TagViewResolverTest {
     when(tagRepository.findCollectionsByTagId(eq(7L), eq(PROD_VISIBILITIES)))
         .thenReturn(List.of(new CollectionEntity(), new CollectionEntity()));
     CollectionModel coll1 =
-        CollectionModel.builder()
-            .id(1L)
-            .slug("chamonix")
-            .type(CollectionType.BLOG)
-            .coverImage(imageModel(100L))
-            .build();
-    CollectionModel coll2 =
-        CollectionModel.builder().id(2L).slug("iceland").type(CollectionType.PORTFOLIO).build();
+        CollectionModel.builder().id(1L).slug("chamonix").coverImage(imageModel(100L)).build();
+    CollectionModel coll2 = CollectionModel.builder().id(2L).slug("iceland").build();
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
         .thenReturn(List.of(coll1, coll2));
 
@@ -118,7 +111,6 @@ class TagViewResolverTest {
 
     assertThat(out.getSlug()).isEqualTo("travel");
     assertThat(out.getTitle()).isEqualTo("Travel");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getVisibility()).isEqualTo(CollectionVisibility.LISTED);
 
     // collections-first ordering: 2 collection blocks then 2 image blocks
@@ -210,8 +202,7 @@ class TagViewResolverTest {
     when(tagRepository.findCollectionsByTagId(eq(7L), eq(DEV_VISIBILITIES)))
         .thenReturn(List.of(new CollectionEntity()));
     when(collectionProcessingUtil.batchConvertToBasicModels(any()))
-        .thenReturn(
-            List.of(CollectionModel.builder().id(1L).slug("c").type(CollectionType.BLOG).build()));
+        .thenReturn(List.of(CollectionModel.builder().id(1L).slug("c").build()));
     when(tagRepository.findImageContentByTagId(eq(7L), eq(DEV_VISIBILITIES))).thenReturn(List.of());
 
     CollectionModel out = resolver.resolveTagView("travel", true).orElseThrow();

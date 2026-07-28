@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import edens.zac.portfolio.backend.types.CollectionType;
 import java.time.LocalDate;
 
 /**
@@ -75,7 +74,6 @@ public final class Records {
       Long id,
       String name,
       String slug,
-      CollectionType type,
       LocalDate collectionDate,
       String coverImageUrl,
       @JsonProperty("isClient") boolean isClient,
@@ -87,14 +85,7 @@ public final class Records {
      */
     public static CollectionList fromSibling(SiblingRow row, String coverImageUrl) {
       return new CollectionList(
-          row.id(),
-          row.name(),
-          row.slug(),
-          row.type(),
-          null,
-          coverImageUrl,
-          row.isClient(),
-          row.isBlog());
+          row.id(), row.name(), row.slug(), null, coverImageUrl, row.isClient(), row.isBlog());
     }
   }
 
@@ -105,13 +96,7 @@ public final class Records {
    * serialized to API responses directly.
    */
   public record SiblingRow(
-      Long id,
-      String name,
-      String slug,
-      CollectionType type,
-      Long coverImageId,
-      boolean isClient,
-      boolean isBlog) {}
+      Long id, String name, String slug, Long coverImageId, boolean isClient, boolean isBlog) {}
 
   /**
    * DTO for admin hub tile configuration. coverImageUrl and dimensions are null when no image is

@@ -129,18 +129,11 @@ public class CollectionService {
     List<CollectionContentEntity> collectionContentList;
     long totalElements;
 
-    if (collection.getType().isParentType()) {
-      // Parent-type collections only show child collection content
-      collectionContentList =
-          collectionRepository.findContentByCollectionIdAndContentType(
-              collection.getId(), "COLLECTION");
-      totalElements = collectionContentList.size();
-    } else {
-      totalElements = collectionRepository.countContentByCollectionId(collection.getId());
-      collectionContentList =
-          collectionRepository.findContentByCollectionId(
-              collection.getId(), normalizedSize, offset);
-    }
+    // Every collection paginates identically -- there is no children-only read shape any more
+    // (spec D1). Rows written before V51 have content_per_page backfilled by that migration.
+    totalElements = collectionRepository.countContentByCollectionId(collection.getId());
+    collectionContentList =
+        collectionRepository.findContentByCollectionId(collection.getId(), normalizedSize, offset);
 
     // Convert to model (now using join table data)
     CollectionModel model =
@@ -357,6 +350,9 @@ public class CollectionService {
     // `final` is load-bearing for checkstyle's VariableDeclarationUsageDistance: the parent is
     // resolved up front (it must exist before anything else happens) but is not read until the
     // S6 password propagation at the end of the method.
+    // NOTE: this is not the only writer of a parent-to-child join row --
+    // handleCollectionToCollectionUpdates builds one inline for the admin Structure tab. Both must
+    // run validateNoLinkCycle and propagateGalleryPasswordOnLink.
     final CollectionEntity parentEntity =
         collectionRepository
             .findById(parentId)
@@ -412,27 +408,40 @@ public class CollectionService {
     // Waterfall: the new child inherits every grant the parent holds (origin preserved).
     roleGrantPropagationService.onChildLinked(parentId, childCollectionId);
 
-    // S6: linkage is a password-propagation trigger too, symmetric with the grant waterfall
-    // above. updateGalleryAccess was the only writer, so a client gallery linked after the
-    // password was set kept a null password -- and a null password means isPasswordProtected is
-    // false, content is never stripped, UNLISTED direct-slug access is permitted, and the download
-    // gate is skipped. Under a derived parent model, password-then-link is the routine ordering.
-    if (parentEntity.getGalleryPassword() != null
-        && childEntity.isClient()
-        && childEntity.getGalleryPassword() == null) {
-      collectionRepository.updateGalleryPassword(
-          childCollectionId, parentEntity.getGalleryPassword());
-      log.info(
-          "Propagated parent (id={}) gallery password to newly linked client child (id={}, slug={})",
-          parentId,
-          childCollectionId,
-          childEntity.getSlug());
-    }
+    propagateGalleryPasswordOnLink(parentEntity, childEntity);
   }
 
   /**
-   * Reject a link that would close a cycle, at the one funnel every child link passes through
-   * ({@code createChildCollection}, the staging auto-link, and tag conversion all call it).
+   * S6: linkage is a password-propagation trigger, symmetric with the role-grant waterfall. {@code
+   * updateGalleryAccess} was the only writer, so a client gallery linked after the parent's
+   * password was set kept a null password -- and a null password means {@code isPasswordProtected}
+   * is false, content is never stripped, UNLISTED direct-slug access is permitted, and the download
+   * gate is skipped. Under a derived parent model, password-then-link is the routine ordering.
+   *
+   * <p>Deliberately independent of the link's {@code visible} flag: a hidden membership still makes
+   * the child a gated gallery's descendant, and this direction only ever adds protection.
+   */
+  private void propagateGalleryPasswordOnLink(
+      CollectionEntity parentEntity, CollectionEntity childEntity) {
+    if (parentEntity.getGalleryPassword() == null
+        || !childEntity.isClient()
+        || childEntity.getGalleryPassword() != null) {
+      return;
+    }
+    collectionRepository.updateGalleryPassword(
+        childEntity.getId(), parentEntity.getGalleryPassword());
+    log.info(
+        "Propagated parent (id={}) gallery password to newly linked client child (id={}, slug={})",
+        parentEntity.getId(),
+        childEntity.getId(),
+        childEntity.getSlug());
+  }
+
+  /**
+   * Reject a link that would close a cycle. Called from both writers that create a parent-to-child
+   * join row: {@link #linkCollectionToParent} (createChildCollection, the staging auto-link and tag
+   * conversion) and {@code handleCollectionToCollectionUpdates} (the admin Structure tab, which
+   * builds the join row inline).
    *
    * <p>The pre-existing {@code validateNoParentCycles} runs only on the inverse {@code parents}
    * path and catches only self- and 2-cycles by its own admission. This is a full ancestor walk,
@@ -780,7 +789,7 @@ public class CollectionService {
         (contentEnd - contentStart) / 1_000_000,
         (metadataEnd - contentEnd) / 1_000_000);
 
-    // For parent-type collections, aggregate images from child collections
+    // Aggregate images from every referenced child collection, if any.
     List<ContentModels.Image> childCollectionImages = null;
     CollectionEntity entity =
         collectionRepository
@@ -788,7 +797,7 @@ public class CollectionService {
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
-    if (entity.getType().isParentType() && collection.getContent() != null) {
+    if (collection.getContent() != null) {
       List<Long> childCollectionIds =
           collection.getContent().stream()
               .filter(c -> c instanceof ContentModels.Collection)
@@ -817,14 +826,21 @@ public class CollectionService {
                         p.getId(),
                         p.getTitle(),
                         p.getSlug(),
-                        p.getType(),
                         p.getCollectionDate(),
                         null,
                         p.isClient(),
                         p.isBlog()))
             .toList());
 
-    return new CollectionRequests.UpdateResponse(collection, metadata, childCollectionImages);
+    List<Long> allChildCollectionIds =
+        collectionRepository.findAllReferencedCollectionIdsByParentId(entity.getId());
+
+    return new CollectionRequests.UpdateResponse(
+        collection,
+        metadata,
+        childCollectionImages,
+        !allChildCollectionIds.isEmpty(),
+        allChildCollectionIds);
   }
 
   @Transactional(readOnly = true)
@@ -842,7 +858,7 @@ public class CollectionService {
 
     // Get all collections as Records.CollectionList (using projection for
     // efficiency)
-    List<Records.CollectionList> collections = collectionRepository.findIdTitleSlugAndType();
+    List<Records.CollectionList> collections = collectionRepository.findIdTitleAndSlug();
 
     // Convert FilmFormat enums to DTOs
     List<Records.FilmFormat> filmFormats =
@@ -987,6 +1003,12 @@ public class CollectionService {
                         new ResourceNotFoundException(
                             "Child collection not found: " + childCollection.collectionId()));
 
+        // S5: this branch creates a join row directly rather than going through
+        // linkCollectionToParent, so the ancestor walk has to run here too. Without it, two admin
+        // saves (A.collections += B, then B.collections += A) close a cycle and onChildLinked
+        // merges role grants across both subtrees.
+        validateNoLinkCycle(parentCollection.getId(), childCollectionEntity.getId());
+
         // Check if ContentCollectionEntity already exists for this referenced
         // collection
         ContentCollectionEntity existingContentCollection =
@@ -1031,6 +1053,11 @@ public class CollectionService {
             roleGrantPropagationService.onChildLinked(
                 parentCollection.getId(), childCollectionEntity.getId());
           }
+
+          // S6: same trigger as linkCollectionToParent -- a client-gallery child linked under a
+          // passworded wrapper here would otherwise keep a null gallery_password, leaving
+          // isPasswordProtected false and the download gate skipped.
+          propagateGalleryPasswordOnLink(parentCollection, childCollectionEntity);
         } else {
           // Update existing entry
           if (childCollection.orderIndex() != null) {

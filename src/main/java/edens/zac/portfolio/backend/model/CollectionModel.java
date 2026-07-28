@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import edens.zac.portfolio.backend.config.DefaultValues;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.Valid;
@@ -30,12 +29,6 @@ public class CollectionModel {
   // === Identity ===
 
   private Long id;
-
-  /**
-   * Legacy type field, still emitted and accepted during the dual-compat window. The booleans below
-   * are the source of truth; a later release drops this field.
-   */
-  private CollectionType type;
 
   /** Client gallery. JsonProperty pins the wire name against the Lombok is-getter rename. */
   @JsonProperty("isClient")

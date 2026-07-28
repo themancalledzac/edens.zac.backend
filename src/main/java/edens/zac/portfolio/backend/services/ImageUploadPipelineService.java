@@ -12,7 +12,6 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.annotation.PreDestroy;
 import java.nio.file.Path;
@@ -103,10 +102,6 @@ public class ImageUploadPipelineService {
       CollectionRequests.Create createRequest,
       List<MultipartFile> files,
       Map<String, String> rawFilePathMap) {
-    if (createRequest.type() != null && createRequest.type().isParentType()) {
-      throw new IllegalArgumentException("Cannot upload images to parent-type collection");
-    }
-
     CollectionRequests.UpdateResponse collectionResponse =
         collectionService.createCollection(createRequest);
     Long newCollectionId = collectionResponse.collection().getId();
@@ -133,16 +128,10 @@ public class ImageUploadPipelineService {
   public JobTrackingService.JobStatus processFilesFromDisk(
       Long collectionId, DiskUploadRequest request) {
     // Verify collection exists before starting
-    CollectionEntity collection =
-        collectionRepository
-            .findById(collectionId)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
-
-    if (collection.getType() != null && collection.getType().isParentType()) {
-      throw new IllegalArgumentException(
-          "Cannot upload images to parent-type collection: " + collection.getTitle());
-    }
+    // Existence check only -- any collection may receive uploaded images (Rule B).
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // Optionally set collection locations if provided and not already set
     if (request.locationIds() != null && !request.locationIds().isEmpty()) {
@@ -159,9 +148,9 @@ public class ImageUploadPipelineService {
 
   /**
    * Tag-first ingest: accept file paths with per-file name-based metadata and process them in
-   * background, auto-deriving a date-based BLOG collection per capture day. No collectionId is
-   * supplied -- the day's BLOG (get-or-create keyed on {@code (type=BLOG, collectionDate=day)}) is
-   * the storage home. Returns a JobStatus immediately for the caller to return 202.
+   * background, auto-deriving a date-based blog collection per capture day. No collectionId is
+   * supplied -- the day's blog (get-or-create keyed on {@code (is_blog = true, collectionDate =
+   * day)}) is the storage home. Returns a JobStatus immediately for the caller to return 202.
    *
    * @param request File paths plus optional per-file people/tags/locations/captureDate
    * @return JobStatus with jobId for polling
@@ -200,16 +189,10 @@ public class ImageUploadPipelineService {
     contentValidator.validateFiles(files);
 
     // Verify collection exists (outside transaction)
-    CollectionEntity collection =
-        collectionRepository
-            .findById(collectionId)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
-
-    if (collection.getType() != null && collection.getType().isParentType()) {
-      throw new IllegalArgumentException(
-          "Cannot upload images to parent-type collection: " + collection.getTitle());
-    }
+    // Existence check only -- any collection may receive uploaded images (Rule B).
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     // Acquire semaphore to prevent concurrent upload requests from OOM-ing.
     // If another upload is in progress, this request blocks until it finishes.
@@ -558,8 +541,9 @@ public class ImageUploadPipelineService {
    * Get-or-create the blog collection for a capture day, keyed on {@code (is_blog=true,
    * collectionDate=day)}. If exactly one exists, reuse it; if multiple exist (should not happen),
    * use the oldest and log a warning; otherwise create a new blog whose title/slug derive from the
-   * ISO date. Creation still writes the legacy {@code type=BLOG} for dual-compat (the mapping layer
-   * derives {@code is_blog=true} from it).
+   * ISO date. Creation sets {@code isBlog=true} explicitly: the get-after-create lookup keys on
+   * {@code is_blog}, so an implicit derivation would silently produce a duplicate day blog on every
+   * batch.
    *
    * <p>The shared create path is privacy-first (every new collection lands UNLISTED). Ingested day
    * blogs are auto-published, so visibility is promoted to LISTED explicitly right after create --
@@ -580,8 +564,7 @@ public class ImageUploadPipelineService {
     }
 
     var createRequest =
-        new CollectionRequests.Create(
-            CollectionType.BLOG, day.toString(), null, null, null, day, null, null);
+        new CollectionRequests.Create(day.toString(), null, null, null, day, null, Boolean.TRUE);
     CollectionRequests.UpdateResponse created = collectionService.createCollection(createRequest);
     Long newId = created.collection().getId();
     collectionRepository.updateVisibility(newId, CollectionVisibility.LISTED);

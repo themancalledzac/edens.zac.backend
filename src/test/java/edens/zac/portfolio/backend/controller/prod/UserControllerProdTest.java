@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -74,7 +73,6 @@ class UserControllerProdTest {
         CollectionModel.builder()
             .slug("user")
             .title("Jane Doe")
-            .type(CollectionType.PARENT)
             .visibility(CollectionVisibility.UNLISTED)
             .contentCount(0)
             .contentPerPage(0)
@@ -88,8 +86,7 @@ class UserControllerProdTest {
         .perform(get("/api/read/user/me/page").with(asUser(user)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.slug", is("user")))
-        .andExpect(jsonPath("$.title", is("Jane Doe")))
-        .andExpect(jsonPath("$.type", is("PARENT")));
+        .andExpect(jsonPath("$.title", is("Jane Doe")));
 
     verify(userPageAssembler).assembleForUser(7L);
   }

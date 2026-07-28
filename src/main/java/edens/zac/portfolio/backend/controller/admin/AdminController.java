@@ -21,7 +21,6 @@ import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
 import edens.zac.portfolio.backend.services.JobTrackingService;
 import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
-import edens.zac.portfolio.backend.types.CollectionType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -379,17 +378,15 @@ class AdminController {
   }
 
   /**
-   * Create a new collection and upload images to it in one request. During the dual-compat window
-   * the legacy {@code type} param is optional and the {@code isClient}/{@code isBlog} booleans are
-   * accepted (booleans win; neither type nor booleans lands on MISC -- see {@code
-   * CollectionTypeCompat}).
+   * Create a new collection and upload images to it in one request. The {@code isClient}/{@code
+   * isBlog} booleans are optional and mutually exclusive; a create with neither is neither a client
+   * gallery nor a blog (see {@code CollectionFlags}).
    */
   @PostMapping(
       value = "/content/images/create-collection",
       consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
   public ResponseEntity<ImageUploadResult> createCollectionWithImages(
       @RequestParam("title") String title,
-      @RequestParam(value = "type", required = false) String type,
       @RequestParam(value = "isClient", required = false) Boolean isClient,
       @RequestParam(value = "isBlog", required = false) Boolean isBlog,
       @RequestParam(value = "description", required = false) String description,
@@ -405,18 +402,9 @@ class AdminController {
           "No files provided. Use 'files' part with one or more images.");
     }
 
-    CollectionType collectionType = type != null ? CollectionType.forValue(type) : null;
-
     CollectionRequests.Create createRequest =
         new CollectionRequests.Create(
-            collectionType,
-            title,
-            description,
-            locationIds,
-            locationNames,
-            collectionDate,
-            isClient,
-            isBlog);
+            title, description, locationIds, locationNames, collectionDate, isClient, isBlog);
 
     Map<String, String> rawFilePathMap = parseRawFilePaths(rawFilePaths);
     ImageUploadResult result =
