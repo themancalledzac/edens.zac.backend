@@ -17,7 +17,6 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.SaveAsCollectionRequest;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import java.util.Optional;
@@ -72,7 +71,7 @@ class TagServiceTest {
 
     CollectionRequests.UpdateResponse result =
         tagService.convertTagToCollection(
-            5L, new SaveAsCollectionRequest(null, CollectionVisibility.UNLISTED, null));
+            5L, new SaveAsCollectionRequest(CollectionVisibility.UNLISTED, null, null, null));
 
     // Create used the tag NAME as title.
     ArgumentCaptor<CollectionRequests.Create> createCaptor =
@@ -142,8 +141,7 @@ class TagServiceTest {
     when(collectionService.getUpdateCollectionData("landscape"))
         .thenReturn(responseWithId(99L, "landscape"));
 
-    tagService.convertTagToCollection(
-        5L, new SaveAsCollectionRequest(null, null, null, true, null));
+    tagService.convertTagToCollection(5L, new SaveAsCollectionRequest(null, null, true, null));
 
     ArgumentCaptor<CollectionRequests.Create> createCaptor =
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
@@ -178,8 +176,7 @@ class TagServiceTest {
         .thenReturn(responseWithId(99L, "landscape"));
 
     tagService.convertTagToCollection(
-        5L,
-        new SaveAsCollectionRequest(CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED, null));
+        5L, new SaveAsCollectionRequest(CollectionVisibility.UNLISTED, null, null, null));
 
     // Default scope is LISTED + UNLISTED (HIDDEN excluded).
     assertThat(scopeCaptor.getValue())
@@ -212,8 +209,7 @@ class TagServiceTest {
         .thenReturn(responseWithId(99L, "landscape"));
 
     tagService.convertTagToCollection(
-        5L,
-        new SaveAsCollectionRequest(CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED, true));
+        5L, new SaveAsCollectionRequest(CollectionVisibility.UNLISTED, true, null, null));
 
     // Opt-in widens scope to include HIDDEN and keeps the password-gated member.
     assertThat(scopeCaptor.getValue())
@@ -283,6 +279,5 @@ class TagServiceTest {
     verify(collectionService).createCollection(createCaptor.capture());
     assertThat(createCaptor.getValue().isClient()).isNull();
     assertThat(createCaptor.getValue().isBlog()).isNull();
-    assertThat(createCaptor.getValue().type()).isNull();
   }
 }

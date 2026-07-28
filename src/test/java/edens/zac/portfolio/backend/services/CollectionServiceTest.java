@@ -32,7 +32,6 @@ import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -123,8 +122,7 @@ class CollectionServiceTest {
 
     @Test
     void createCollection_happyPath_savesAndReturnsUpdateResponse() {
-      CollectionRequests.Create request =
-          new CollectionRequests.Create(CollectionType.PORTFOLIO, "New Collection");
+      CollectionRequests.Create request = new CollectionRequests.Create("New Collection");
 
       CollectionEntity savedEntity =
           CollectionEntity.builder()
@@ -153,8 +151,7 @@ class CollectionServiceTest {
 
     @Test
     void createCollection_verifiesEntityCreatedViaUtil() {
-      CollectionRequests.Create request =
-          new CollectionRequests.Create(CollectionType.BLOG, "My Blog");
+      CollectionRequests.Create request = new CollectionRequests.Create("My Blog");
 
       CollectionEntity entity =
           CollectionEntity.builder()
@@ -258,7 +255,6 @@ class CollectionServiceTest {
       CollectionRequests.Update updateDTO =
           new CollectionRequests.Update(
               collectionId,
-              null,
               "Updated Title",
               null,
               null,
@@ -319,7 +315,6 @@ class CollectionServiceTest {
               null,
               null,
               null,
-              null,
               null);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.empty());
@@ -335,7 +330,6 @@ class CollectionServiceTest {
       CollectionRequests.Update updateDTO =
           new CollectionRequests.Update(
               collectionId,
-              null,
               "New Title",
               "new-slug",
               "New desc",
@@ -382,7 +376,6 @@ class CollectionServiceTest {
               collectionId,
               null,
               null,
-              null,
               "New desc",
               null,
               null,
@@ -423,7 +416,6 @@ class CollectionServiceTest {
       CollectionRequests.Update updateDTO =
           new CollectionRequests.Update(
               collectionId,
-              null,
               "New Title",
               "new-slug",
               "New desc",
@@ -1925,7 +1917,7 @@ class CollectionServiceTest {
         Long id, CollectionRequests.CollectionUpdate siblings) {
       // 18 positional args: id first, siblings last, everything else null
       return new CollectionRequests.Update(
-          id, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+          id, null, null, null, null, null, null, null, null, null, null, null, null, null,
           null, /* collections */ null, /* siblings */ siblings);
     }
 
@@ -1993,7 +1985,6 @@ class CollectionServiceTest {
       // Canonical 23-arg constructor: id + 21 nulls + parents (last).
       return new CollectionRequests.Update(
           current.getId(),
-          null,
           null,
           null,
           null,

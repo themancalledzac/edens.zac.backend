@@ -564,8 +564,7 @@ public class ImageUploadPipelineService {
     }
 
     var createRequest =
-        new CollectionRequests.Create(
-            null, day.toString(), null, null, null, day, null, Boolean.TRUE);
+        new CollectionRequests.Create(day.toString(), null, null, null, day, null, Boolean.TRUE);
     CollectionRequests.UpdateResponse created = collectionService.createCollection(createRequest);
     Long newId = created.collection().getId();
     collectionRepository.updateVisibility(newId, CollectionVisibility.LISTED);

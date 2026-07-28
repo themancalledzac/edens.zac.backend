@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edens.zac.portfolio.backend.types.CollectionType;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -112,24 +111,7 @@ class CollectionFlagSerializationTest {
 
     assertThat(create.isClient()).isTrue();
     assertThat(create.isBlog()).isFalse();
-    assertThat(create.type()).isNull();
     assertThat(create.title()).isEqualTo("New Gallery");
-  }
-
-  @Test
-  @DisplayName("Create request without booleans leaves them null (legacy type-only payload)")
-  void createRequest_legacyPayloadLeavesFlagsNull() throws Exception {
-    String json =
-        """
-        {"type": "BLOG", "title": "Legacy Blog"}
-        """;
-
-    CollectionRequests.Create create =
-        objectMapper.readValue(json, CollectionRequests.Create.class);
-
-    assertThat(create.type()).isEqualTo(CollectionType.BLOG);
-    assertThat(create.isClient()).isNull();
-    assertThat(create.isBlog()).isNull();
   }
 
   @Test
@@ -144,22 +126,6 @@ class CollectionFlagSerializationTest {
 
     assertThat(request.isClient()).isTrue();
     assertThat(request.isBlog()).isFalse();
-    assertThat(request.type()).isNull();
-  }
-
-  @Test
-  @DisplayName("SaveAsCollectionRequest without booleans leaves them null (legacy payload)")
-  void saveAsCollectionRequest_legacyPayloadLeavesFlagsNull() throws Exception {
-    String json =
-        """
-        {"type": "PORTFOLIO"}
-        """;
-
-    SaveAsCollectionRequest request = objectMapper.readValue(json, SaveAsCollectionRequest.class);
-
-    assertThat(request.type()).isEqualTo(CollectionType.PORTFOLIO);
-    assertThat(request.isClient()).isNull();
-    assertThat(request.isBlog()).isNull();
   }
 
   @Test
@@ -176,6 +142,5 @@ class CollectionFlagSerializationTest {
     assertThat(update.id()).isEqualTo(9L);
     assertThat(update.isClient()).isFalse();
     assertThat(update.isBlog()).isTrue();
-    assertThat(update.type()).isNull();
   }
 }

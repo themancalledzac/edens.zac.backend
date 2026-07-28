@@ -8,7 +8,6 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.ArrayList;
 import java.util.List;
@@ -97,7 +96,6 @@ public class TagViewResolver {
         CollectionModel.builder()
             .slug(tag.getSlug())
             .title(tag.getTagName())
-            .type(CollectionType.PARENT)
             .derived(true)
             .visibility(CollectionVisibility.LISTED)
             .coverImage(representativeCover(memberCollections, memberImages))

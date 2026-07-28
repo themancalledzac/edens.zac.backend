@@ -3,7 +3,6 @@ package edens.zac.portfolio.backend.model;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.Valid;
@@ -20,12 +19,10 @@ public final class CollectionRequests {
 
   /**
    * Request for creating a new ContentCollection. Title is required; all other fields are optional
-   * and use defaults if not provided. During the dual-compat window the legacy {@code type} is
-   * optional (new frontends send only the booleans + title; a create with neither type nor booleans
-   * lands on MISC). {@code isClient}/{@code isBlog} win over {@code type} when provided.
+   * and use defaults if not provided. {@code isClient}/{@code isBlog} are mutually exclusive; a
+   * create with neither is neither a client gallery nor a blog.
    */
   public record Create(
-      CollectionType type,
       @NotNull(message = "Title is required") @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,
       @Size(max = 500, message = "Description cannot exceed 500 characters") String description,
       List<Long> locationIds,
@@ -34,9 +31,9 @@ public final class CollectionRequests {
       @JsonProperty("isClient") Boolean isClient,
       @JsonProperty("isBlog") Boolean isBlog) {
 
-    /** Backwards-compatible constructor for callers that only provide type and title. */
-    public Create(CollectionType type, String title) {
-      this(type, title, null, null, null, null, null, null);
+    /** Convenience constructor for callers that provide only a title. */
+    public Create(String title) {
+      this(title, null, null, null, null, null, null);
     }
   }
 
@@ -48,11 +45,9 @@ public final class CollectionRequests {
   public record Update(
       /** The ID of the collection to update (required) */
       @NotNull(message = "Collection ID is required for updates") Long id,
-      /** Legacy collection type; the booleans win when both are present (dual-compat window). */
-      CollectionType type,
-      /** Tri-state client-gallery flag; resolution rules in {@code CollectionTypeCompat}. */
+      /** Tri-state client-gallery flag; resolution rules in {@code CollectionFlags}. */
       @JsonProperty("isClient") Boolean isClient,
-      /** Tri-state blog flag; resolution rules in {@code CollectionTypeCompat}. */
+      /** Tri-state blog flag; resolution rules in {@code CollectionFlags}. */
       @JsonProperty("isBlog") Boolean isBlog,
       /** Collection title */
       @Size(min = 3, max = 100, message = "Title must be between 3 and 100 characters") String title,
@@ -119,7 +114,6 @@ public final class CollectionRequests {
      */
     public Update(
         Long id,
-        CollectionType type,
         String title,
         String slug,
         String description,
@@ -138,7 +132,6 @@ public final class CollectionRequests {
         CollectionUpdate siblings) {
       this(
           id,
-          type,
           null,
           null,
           title,
@@ -293,11 +286,9 @@ public final class CollectionRequests {
    *   <li>password null: clear password and recipient list
    * </ul>
    *
-   * <p>{@code propagateToChildren} only applies when the target collection is a {@link
-   * CollectionType#PARENT}. When {@code true}, the same password is also written to every {@link
-   * CollectionType#CLIENT_GALLERY} child referenced by the PARENT. Defaults to {@code false} (treat
-   * null as false) so existing callers do not accidentally cascade. The frontend opts in explicitly
-   * after a confirm dialog.
+   * <p>When {@code propagateToChildren} is {@code true}, the same password is also written to every
+   * client-gallery child of the target. Defaults to {@code false} (treat null as false) so existing
+   * callers do not accidentally cascade. The frontend opts in explicitly after a confirm dialog.
    */
   public record GalleryAccessRequest(
       @Size(min = 4, max = 100, message = "Password must be between 4 and 100 characters") String password,

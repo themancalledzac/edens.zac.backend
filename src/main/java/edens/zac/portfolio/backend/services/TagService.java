@@ -67,7 +67,6 @@ public class TagService {
     CollectionRequests.UpdateResponse created =
         collectionService.createCollection(
             new CollectionRequests.Create(
-                null,
                 tag.getTagName(),
                 null,
                 null,

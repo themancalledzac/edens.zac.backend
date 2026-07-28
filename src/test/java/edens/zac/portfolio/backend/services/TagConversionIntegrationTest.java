@@ -7,7 +7,6 @@ import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.SaveAsCollectionRequest;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,9 +79,7 @@ class TagConversionIntegrationTest extends AbstractPostgresIntegrationTest {
 
     CollectionRequests.UpdateResponse response =
         tagService.convertTagToCollection(
-            tag,
-            new SaveAsCollectionRequest(
-                CollectionType.PORTFOLIO, CollectionVisibility.LISTED, null));
+            tag, new SaveAsCollectionRequest(CollectionVisibility.LISTED, null, null, null));
 
     Long newCollectionId = response.collection().getId();
 
@@ -147,9 +144,7 @@ class TagConversionIntegrationTest extends AbstractPostgresIntegrationTest {
 
     CollectionRequests.UpdateResponse response =
         tagService.convertTagToCollection(
-            tag,
-            new SaveAsCollectionRequest(
-                CollectionType.PORTFOLIO, CollectionVisibility.LISTED, null));
+            tag, new SaveAsCollectionRequest(CollectionVisibility.LISTED, null, null, null));
     Long newCollectionId = response.collection().getId();
 
     // The HIDDEN-only image is NOT snapshotted.

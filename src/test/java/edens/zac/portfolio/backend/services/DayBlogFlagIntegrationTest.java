@@ -27,8 +27,7 @@ class DayBlogFlagIntegrationTest extends AbstractPostgresIntegrationTest {
     LocalDate day = LocalDate.of(2019, 3, 14);
 
     CollectionRequests.Create request =
-        new CollectionRequests.Create(
-            null, day.toString(), null, null, null, day, null, Boolean.TRUE);
+        new CollectionRequests.Create(day.toString(), null, null, null, day, null, Boolean.TRUE);
     collectionService.createCollection(request);
 
     List<CollectionEntity> found = collectionRepository.findBlogsByCollectionDate(day);

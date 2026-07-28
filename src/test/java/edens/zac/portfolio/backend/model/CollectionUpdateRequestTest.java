@@ -50,7 +50,6 @@ class CollectionUpdateRequestTest {
       CollectionRequests.CollectionUpdate collections) {
     return new CollectionRequests.Update(
         id,
-        type,
         title,
         slug,
         description,
@@ -105,7 +104,6 @@ class CollectionUpdateRequestTest {
 
       assertNotNull(dto);
       assertEquals(1L, dto.id());
-      assertEquals(CollectionType.CLIENT_GALLERY, dto.type());
       assertEquals("Updated Client Gallery", dto.title());
       assertEquals("updated-client-gallery", dto.slug());
       assertEquals("Updated professional client gallery", dto.description());
@@ -141,7 +139,6 @@ class CollectionUpdateRequestTest {
       assertNotNull(dto);
       assertEquals(1L, dto.id());
       assertEquals("Updated Title", dto.title());
-      assertNull(dto.type());
       assertNull(dto.slug());
       assertNull(dto.contentPerPage());
     }
@@ -169,7 +166,6 @@ class CollectionUpdateRequestTest {
 
       assertNotNull(dto);
       assertNull(dto.id());
-      assertNull(dto.type());
       assertNull(dto.title());
       assertNull(dto.contentPerPage());
     }

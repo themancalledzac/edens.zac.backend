@@ -9,7 +9,6 @@ import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.services.CollectionProcessingUtil;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.time.LocalDate;
@@ -142,7 +141,7 @@ class CollectionListReadRepositoryIntegrationTest extends AbstractPostgresIntegr
     CollectionEntity created =
         collectionRepository.save(
             collectionProcessingUtil.toEntity(
-                new CollectionRequests.Create(CollectionType.BLOG, "Create Default Vis"), 30));
+                new CollectionRequests.Create("Create Default Vis"), 30));
     attachVisibleContent(created.getId());
 
     assertThat(created.getVisibility()).isEqualTo(CollectionVisibility.UNLISTED);

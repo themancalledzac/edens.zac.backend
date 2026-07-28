@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.model;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -494,26 +493,6 @@ class CollectionModelTest {
   @Nested
   @DisplayName("Type-Specific Tests")
   class TypeSpecificTests {
-
-    @Test
-    @DisplayName("Should work with all collection types")
-    void shouldWorkWithAllCollectionTypes() {
-      for (CollectionType type : CollectionType.values()) {
-        CollectionModel model =
-            CollectionModel.builder()
-                .type(type)
-                .title("Test " + type.getDisplayName())
-                .slug("test-" + type.name().toLowerCase())
-                .contentPerPage(30)
-                .contentCount(100)
-                .currentPage(1)
-                .totalPages(4)
-                .build();
-
-        Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-        assertTrue(violations.isEmpty(), "Collection type " + type + " should be valid");
-      }
-    }
 
     @Test
     @DisplayName("Should handle client gallery with pagination")

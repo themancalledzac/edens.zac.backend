@@ -24,7 +24,6 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -120,7 +119,7 @@ class ImageUploadPipelineServiceTest {
     @Test
     void createCollectionWithImages_happyPath_returnsResultWithCollectionId() throws Exception {
       // Arrange
-      var createRequest = new CollectionRequests.Create(CollectionType.PORTFOLIO, "New Album");
+      var createRequest = new CollectionRequests.Create("New Album");
       var files = List.<MultipartFile>of(createMockFile("photo1.jpg"));
       Map<String, String> rawMap = Collections.emptyMap();
 
@@ -175,7 +174,7 @@ class ImageUploadPipelineServiceTest {
     void createCollectionWithImages_noSuccessfulImages_skipsPostUploadProcessing()
         throws Exception {
       // Arrange
-      var createRequest = new CollectionRequests.Create(CollectionType.PORTFOLIO, "Empty Album");
+      var createRequest = new CollectionRequests.Create("Empty Album");
       var files = List.<MultipartFile>of(createMockFile("bad.gif"));
       Map<String, String> rawMap = Collections.emptyMap();
 

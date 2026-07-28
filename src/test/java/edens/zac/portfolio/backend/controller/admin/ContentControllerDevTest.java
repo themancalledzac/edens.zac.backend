@@ -399,7 +399,6 @@ class ContentControllerDevTest {
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(imageUploadPipelineService)
         .createCollectionWithImages(createCaptor.capture(), anyList(), anyMap());
-    assertThat(createCaptor.getValue().type()).isNull();
     assertThat(createCaptor.getValue().isClient()).isTrue();
     assertThat(createCaptor.getValue().isBlog()).isFalse();
   }
@@ -431,7 +430,6 @@ class ContentControllerDevTest {
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(imageUploadPipelineService)
         .createCollectionWithImages(createCaptor.capture(), anyList(), anyMap());
-    assertThat(createCaptor.getValue().type()).isNull();
     assertThat(createCaptor.getValue().isClient()).isNull();
     assertThat(createCaptor.getValue().isBlog()).isNull();
   }

@@ -19,7 +19,6 @@ import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.DisplayMode;
@@ -163,7 +162,7 @@ class CollectionProcessingUtilTest {
     // UNLISTED is the universal create default -- no type is exempt.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
-    CollectionRequests.Create request = new CollectionRequests.Create(null, "Default Visibility");
+    CollectionRequests.Create request = new CollectionRequests.Create("Default Visibility");
 
     CollectionEntity entity = util.toEntity(request, 30);
 
@@ -247,7 +246,6 @@ class CollectionProcessingUtilTest {
       Boolean clearCollectionEndDate) {
     return new CollectionRequests.Update(
         1L,
-        null,
         null,
         null,
         null,
@@ -350,7 +348,7 @@ class CollectionProcessingUtilTest {
     // ORDERED is opt-in via a later update.
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
 
-    CollectionRequests.Create request = new CollectionRequests.Create(null, "Default DisplayMode");
+    CollectionRequests.Create request = new CollectionRequests.Create("Default DisplayMode");
 
     CollectionEntity entity = util.toEntity(request, 30);
 
@@ -368,7 +366,6 @@ class CollectionProcessingUtilTest {
         testEntity,
         new CollectionRequests.Update(
             1L,
-            null,
             null,
             null,
             null,
@@ -416,7 +413,7 @@ class CollectionProcessingUtilTest {
   void toEntity_isClientTrue_setsClientGalleryTypeAndFlags() {
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
     CollectionRequests.Create request =
-        new CollectionRequests.Create(null, "Boolean Gallery", null, null, null, null, true, false);
+        new CollectionRequests.Create("Boolean Gallery", null, null, null, null, true, false);
 
     CollectionEntity entity = util.toEntity(request, 30);
 
@@ -427,7 +424,7 @@ class CollectionProcessingUtilTest {
   @Test
   void toEntity_noBooleans_landsOnNeitherFlag() {
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
-    CollectionRequests.Create request = new CollectionRequests.Create(null, "Untyped Create");
+    CollectionRequests.Create request = new CollectionRequests.Create("Untyped Create");
 
     CollectionEntity entity = util.toEntity(request, 30);
 
@@ -449,8 +446,8 @@ class CollectionProcessingUtilTest {
    */
   private static CollectionRequests.Update flagsUpdate(Boolean isClient, Boolean isBlog) {
     return new CollectionRequests.Update(
-        1L, null, isClient, isBlog, null, null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null);
+        1L, isClient, isBlog, null, null, null, null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null);
   }
 
   @Test
@@ -459,7 +456,7 @@ class CollectionProcessingUtilTest {
     // create, child create, multipart create) funnel through toEntity, so this one unit test
     // covers them; a MockMvc variant would only re-test GlobalExceptionHandler's IAE -> 400.
     CollectionRequests.Create request =
-        new CollectionRequests.Create(null, "Both Flags", null, null, null, null, true, true);
+        new CollectionRequests.Create("Both Flags", null, null, null, null, true, true);
 
     assertThrows(IllegalArgumentException.class, () -> util.toEntity(request, 30));
   }
@@ -512,7 +509,6 @@ class CollectionProcessingUtilTest {
             1L,
             null,
             null,
-            null,
             "New description",
             null,
             null,
@@ -534,8 +530,7 @@ class CollectionProcessingUtilTest {
   @DisplayName("toEntity always sets the default contentPerPage")
   void toEntity_alwaysSetsContentPerPage() {
     when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
-    CollectionRequests.Create request =
-        new CollectionRequests.Create(CollectionType.PARENT, "Any Create");
+    CollectionRequests.Create request = new CollectionRequests.Create("Any Create");
 
     CollectionEntity entity = util.toEntity(request, 30);
 
@@ -567,7 +562,6 @@ class CollectionProcessingUtilTest {
       Integer contentPerPage, Integer rowsWide) {
     return new CollectionRequests.Update(
         1L,
-        null,
         null,
         null,
         null,

@@ -99,7 +99,6 @@ class RoleGrantVisibilityToggleIntegrationTest extends AbstractPostgresIntegrati
         null,
         null,
         null,
-        null,
         collections,
         null);
   }

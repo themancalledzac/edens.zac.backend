@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.model;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -398,33 +397,6 @@ class CollectionBaseModelTest {
 
         Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
         assertTrue(violations.isEmpty(), "Priority " + priority + " should be valid");
-      }
-    }
-
-    @Nested
-    @DisplayName("Collection Type Tests")
-    class CollectionTypeTests {
-
-      @Test
-      @DisplayName("Should accept all collection types")
-      void shouldAcceptAllCollectionTypes() {
-        for (CollectionType type : CollectionType.values()) {
-          CollectionModel model =
-              CollectionModel.builder().type(type).title("Valid Title").slug("valid-slug").build();
-
-          Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-          assertTrue(violations.isEmpty(), "Collection type " + type + " should be valid");
-        }
-      }
-
-      @Test
-      @DisplayName("Should accept null collection type")
-      void shouldAcceptNullCollectionType() {
-        CollectionModel model =
-            CollectionModel.builder().type(null).title("Valid Title").slug("valid-slug").build();
-
-        Set<ConstraintViolation<CollectionModel>> violations = validator.validate(model);
-        assertTrue(violations.isEmpty());
       }
     }
 

@@ -13,7 +13,6 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
@@ -112,7 +111,6 @@ class TagViewResolverTest {
 
     assertThat(out.getSlug()).isEqualTo("travel");
     assertThat(out.getTitle()).isEqualTo("Travel");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getVisibility()).isEqualTo(CollectionVisibility.LISTED);
 
     // collections-first ordering: 2 collection blocks then 2 image blocks

@@ -16,7 +16,6 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
@@ -101,7 +100,6 @@ class SyntheticCollectionResolverTest {
 
     assertThat(out.getSlug()).isEqualTo("all-collections");
     assertThat(out.getTitle()).isEqualTo("All Collections");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getVisibility()).isEqualTo(CollectionVisibility.LISTED);
     assertThat(out.getContent()).hasSize(2);
     assertThat(out.getContent().get(0)).isInstanceOf(ContentModels.Collection.class);
@@ -263,7 +261,6 @@ class SyntheticCollectionResolverTest {
 
     assertThat(out.getSlug()).isEqualTo("all-blogs");
     assertThat(out.getTitle()).isEqualTo("Blogs");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getContent()).hasSize(1);
   }
 
@@ -293,7 +290,6 @@ class SyntheticCollectionResolverTest {
 
     assertThat(out.getSlug()).isEqualTo("all-client-galleries");
     assertThat(out.getTitle()).isEqualTo("Client Galleries");
-    assertThat(out.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(out.getContent()).hasSize(2);
 
     ContentModels.Collection parentTile = (ContentModels.Collection) out.getContent().get(0);

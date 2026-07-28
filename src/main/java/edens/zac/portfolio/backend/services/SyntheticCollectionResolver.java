@@ -9,7 +9,6 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Recognizes the synthetic admin/list slugs ("all-collections", "all-blogs", etc.) and synthesizes
- * a PARENT-shaped {@link CollectionModel} populated with {@link ContentModels.Collection} content
- * blocks pointing to each child. Bypasses the regular DB lookup in {@code
+ * a container-shaped {@link CollectionModel} populated with {@link ContentModels.Collection}
+ * content blocks pointing to each child. Bypasses the regular DB lookup in {@code
  * CollectionService.getCollectionWithPagination}.
  *
  * <p>Depends on {@link CollectionRepository} + {@link CollectionProcessingUtil} directly (NOT on
@@ -64,7 +63,7 @@ public class SyntheticCollectionResolver {
   }
 
   /**
-   * Resolve a synthetic slug into a PARENT-shaped {@link CollectionModel}. Caller is responsible
+   * Resolve a synthetic slug into a container-shaped {@link CollectionModel}. Caller is responsible
    * for verifying the slug via {@link #isSyntheticSlug(String)} first.
    */
   @Transactional(readOnly = true)
@@ -76,9 +75,9 @@ public class SyntheticCollectionResolver {
 
     List<CollectionVisibility> allowed = CollectionVisibility.visibleScope(isLocalEnvironment);
 
-    // "all-client-galleries" includes PARENT collections that have ≥1 CLIENT_GALLERY child
+    // "all-client-galleries" includes wrapper collections holding >=1 client-gallery child
     // (e.g. wedding wrappers with ceremony/reception sub-galleries) so they appear alongside
-    // standalone CLIENT_GALLERYs. "all-collections" is permission-scoped by the caller's verified
+    // standalone client galleries. "all-collections" is permission-scoped by the caller's verified
     // identity (NOT the environment) and stays chronological (newest first) for its first paint;
     // the frontend reorders client-side thereafter. all-blogs keys on is_blog with rating-first
     // ordering and the env-based scope. All non-gallery slugs exclude
@@ -111,7 +110,6 @@ public class SyntheticCollectionResolver {
     return CollectionModel.builder()
         .slug(slug)
         .title(spec.title())
-        .type(CollectionType.PARENT)
         .visibility(CollectionVisibility.LISTED)
         .content(content)
         .contentCount(content.size())

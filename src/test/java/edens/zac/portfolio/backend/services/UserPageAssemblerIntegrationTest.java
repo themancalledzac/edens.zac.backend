@@ -8,7 +8,6 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -169,7 +168,6 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
     assertThat(model.getSlug()).isEqualTo("user");
     assertThat(model.getTitle()).isEqualTo("Jane Doe");
-    assertThat(model.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(model.getVisibility()).isEqualTo(CollectionVisibility.UNLISTED);
 
     List<Long> referenced = referencedCollectionIds(model);
@@ -265,7 +263,6 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(model.getContentCount()).isZero();
     assertThat(model.getCoverImage()).isNull();
     assertThat(model.getTitle()).isEqualTo("Your Galleries");
-    assertThat(model.getType()).isEqualTo(CollectionType.PARENT);
     assertThat(model.getVisibility()).isEqualTo(CollectionVisibility.UNLISTED);
   }
 
