@@ -32,9 +32,12 @@ import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -351,11 +354,18 @@ public class CollectionService {
    */
   @Transactional
   public void linkCollectionToParent(Long parentId, Long childCollectionId) {
-    collectionRepository
-        .findById(parentId)
-        .orElseThrow(
-            () ->
-                new ResourceNotFoundException("Parent collection not found with ID: " + parentId));
+    // `final` is load-bearing for checkstyle's VariableDeclarationUsageDistance: the parent is
+    // resolved up front (it must exist before anything else happens) but is not read until the
+    // S6 password propagation at the end of the method.
+    final CollectionEntity parentEntity =
+        collectionRepository
+            .findById(parentId)
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        "Parent collection not found with ID: " + parentId));
+
+    validateNoLinkCycle(parentId, childCollectionId);
 
     CollectionEntity childEntity =
         collectionRepository
@@ -401,6 +411,66 @@ public class CollectionService {
 
     // Waterfall: the new child inherits every grant the parent holds (origin preserved).
     roleGrantPropagationService.onChildLinked(parentId, childCollectionId);
+
+    // S6: linkage is a password-propagation trigger too, symmetric with the grant waterfall
+    // above. updateGalleryAccess was the only writer, so a client gallery linked after the
+    // password was set kept a null password -- and a null password means isPasswordProtected is
+    // false, content is never stripped, UNLISTED direct-slug access is permitted, and the download
+    // gate is skipped. Under a derived parent model, password-then-link is the routine ordering.
+    if (parentEntity.getGalleryPassword() != null
+        && childEntity.isClient()
+        && childEntity.getGalleryPassword() == null) {
+      collectionRepository.updateGalleryPassword(
+          childCollectionId, parentEntity.getGalleryPassword());
+      log.info(
+          "Propagated parent (id={}) gallery password to newly linked client child (id={}, slug={})",
+          parentId,
+          childCollectionId,
+          childEntity.getSlug());
+    }
+  }
+
+  /**
+   * Reject a link that would close a cycle, at the one funnel every child link passes through
+   * ({@code createChildCollection}, the staging auto-link, and tag conversion all call it).
+   *
+   * <p>The pre-existing {@code validateNoParentCycles} runs only on the inverse {@code parents}
+   * path and catches only self- and 2-cycles by its own admission. This is a full ancestor walk,
+   * cycle-guarded with a visited set exactly like {@code RoleGrantPropagationService#subtreeOf}, so
+   * an existing cycle in the data cannot make the guard itself loop. A cycle matters because every
+   * member becomes simultaneously an ancestor and a descendant of every other, so role grants merge
+   * across it -- a client gallery's grants would waterfall onto a public collection.
+   */
+  private void validateNoLinkCycle(Long parentId, Long childCollectionId) {
+    if (parentId.equals(childCollectionId)) {
+      throw new IllegalArgumentException(
+          "A collection cannot be its own parent (id=" + parentId + ")");
+    }
+    Set<Long> visited = new HashSet<>();
+    visited.add(parentId);
+    Deque<Long> pending = new ArrayDeque<>(parentIdsOf(parentId));
+    while (!pending.isEmpty()) {
+      Long current = pending.poll();
+      if (!visited.add(current)) {
+        continue;
+      }
+      if (current.equals(childCollectionId)) {
+        throw new IllegalArgumentException(
+            "Cycle detected: collection "
+                + childCollectionId
+                + " is already an ancestor of "
+                + parentId
+                + " and cannot also be its child");
+      }
+      pending.addAll(parentIdsOf(current));
+    }
+  }
+
+  /** Ids of every collection referencing this one as a child, regardless of link visibility. */
+  private List<Long> parentIdsOf(Long collectionId) {
+    return collectionRepository.findAllParentCollectionsByChildId(collectionId).stream()
+        .map(CollectionEntity::getId)
+        .toList();
   }
 
   @Transactional(readOnly = true)
