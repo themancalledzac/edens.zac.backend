@@ -29,7 +29,6 @@ import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
-import edens.zac.portfolio.backend.types.ContentType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -910,24 +909,11 @@ public class ContentService {
    * @param visible Whether the content is visible in the collection
    */
   void linkContentToCollection(Long collectionId, Long contentId, int orderIndex, boolean visible) {
-    CollectionEntity collection =
-        collectionRepository
-            .findById(collectionId)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found: " + collectionId));
-
-    if (collection.getType().isParentType()) {
-      ContentType contentType =
-          contentRepository
-              .findContentTypeById(contentId)
-              .orElseThrow(() -> new ResourceNotFoundException("Content not found: " + contentId));
-      if (contentType != ContentType.COLLECTION) {
-        throw new IllegalArgumentException(
-            "Parent-type collections can only contain child collections, not "
-                + contentType
-                + " content");
-      }
-    }
+    // Existence check only -- any collection may hold any content type (Rule B), so nothing about
+    // the collection itself is inspected beyond it existing.
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
     CollectionContentEntity joinEntry =
         CollectionContentEntity.builder()

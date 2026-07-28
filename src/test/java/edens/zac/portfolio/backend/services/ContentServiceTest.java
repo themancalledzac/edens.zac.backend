@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
@@ -267,5 +268,21 @@ class ContentServiceTest {
         null,
         null,
         List.of());
+  }
+
+  @Test
+  @DisplayName("linkContentToCollection links IMAGE content into a collection that holds children")
+  void linkContentToCollection_imageIntoWrapper_isPersisted() {
+    CollectionEntity wrapper =
+        CollectionEntity.builder().id(1L).slug("wrapper").title("Wrapper").build();
+    when(collectionRepository.findById(1L)).thenReturn(Optional.of(wrapper));
+
+    service.linkContentToCollection(1L, 42L, 3, true);
+
+    ArgumentCaptor<CollectionContentEntity> captor =
+        ArgumentCaptor.forClass(CollectionContentEntity.class);
+    verify(collectionRepository).saveContent(captor.capture());
+    assertThat(captor.getValue().getContentId()).isEqualTo(42L);
+    assertThat(captor.getValue().getOrderIndex()).isEqualTo(3);
   }
 }
