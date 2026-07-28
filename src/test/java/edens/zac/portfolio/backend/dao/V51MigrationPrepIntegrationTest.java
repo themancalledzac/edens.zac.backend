@@ -90,7 +90,9 @@ class V51MigrationPrepIntegrationTest {
         miscId,
         convertedTagId);
 
-    migrateTo(dataSource, "latest");
+    // Pinned to 51, not "latest": this class asserts on collection.type, which V52 drops. A
+    // V51 test must be scoped to V51 regardless -- later migrations are other tests' business.
+    migrateTo(dataSource, "51");
   }
 
   private static String slugOf(String type) {
