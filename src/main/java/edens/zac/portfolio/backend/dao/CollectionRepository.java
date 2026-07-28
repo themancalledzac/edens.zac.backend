@@ -257,6 +257,58 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
+   * Derived parent-ness: true when this collection holds at least one COLLECTION content block.
+   * Visibility-agnostic on both the membership row and the child's own visibility, because this
+   * answers a structural question ("does this collection contain child collections") rather than a
+   * rendering one. Replaces the stored {@code CollectionType.PARENT} discriminator.
+   */
+  @Transactional(readOnly = true)
+  public boolean hasChildCollections(Long collectionId) {
+    if (collectionId == null) {
+      return false;
+    }
+    String sql =
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM collection_content cc
+          JOIN content_collection cct ON cct.id = cc.content_id
+          WHERE cc.collection_id = :collectionId
+            AND cct.referenced_collection_id IS NOT NULL
+        )
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
+    // Same idiom as hasClientGalleryChildren (U2): BaseDao's queryForObject takes a RowMapper,
+    // not a Class, and returns Optional.
+    return queryForObject(sql, (rs, rowNum) -> rs.getBoolean(1), params).orElse(false);
+  }
+
+  /**
+   * Every child collection id linked under this parent, ordered by {@code cc.order_index}, ignoring
+   * both the membership {@code visible} flag and the child's own visibility. The admin manage
+   * payload needs the COMPLETE list: the frontend otherwise derives it from the paginated content
+   * array, which is bounded by the 500-item page window, and a truncated list reads as an
+   * intentional child removal on the next save.
+   */
+  @Transactional(readOnly = true)
+  public List<Long> findAllReferencedCollectionIdsByParentId(Long parentId) {
+    if (parentId == null) {
+      return List.of();
+    }
+    String sql =
+        """
+        SELECT cct.referenced_collection_id
+        FROM collection_content cc
+        JOIN content_collection cct ON cct.id = cc.content_id
+        WHERE cc.collection_id = :parentId
+          AND cct.referenced_collection_id IS NOT NULL
+        ORDER BY cc.order_index ASC
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
+    return query(sql, (rs, n) -> rs.getLong("referenced_collection_id"), params);
+  }
+
+  /**
    * Ids of children linked under a parent through a VISIBLE membership row ({@code cc.visible =
    * true}), regardless of the child collection's own {@code visibility}. Role-grant propagation
    * follows only visible links (mirroring the V47 backfill gate); removal walks use the
