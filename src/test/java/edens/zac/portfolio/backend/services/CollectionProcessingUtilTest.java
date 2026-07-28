@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -589,5 +590,17 @@ class CollectionProcessingUtilTest {
 
     assertEquals(CollectionType.BLOG, testEntity.getType());
     assertTrue(testEntity.isBlog());
+  }
+
+  @Test
+  @DisplayName("toEntity always sets the default contentPerPage")
+  void toEntity_alwaysSetsContentPerPage() {
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+    CollectionRequests.Create request =
+        new CollectionRequests.Create(CollectionType.PARENT, "Any Create");
+
+    CollectionEntity entity = util.toEntity(request, 30);
+
+    assertEquals(30, entity.getContentPerPage());
   }
 }

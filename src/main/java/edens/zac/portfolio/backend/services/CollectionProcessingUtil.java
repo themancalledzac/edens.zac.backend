@@ -581,13 +581,7 @@ public class CollectionProcessingUtil {
     // no visibility field, so every create lands here regardless of type.
     entity.setVisibility(CollectionVisibility.UNLISTED);
     entity.setTotalContent(0);
-    if (resolved.type().isParentType()) {
-      // Parent-type collections don't use pagination or row layout
-      entity.setContentPerPage(null);
-      entity.setRowsWide(null);
-    } else {
-      entity.setContentPerPage(defaultPageSize);
-    }
+    entity.setContentPerPage(defaultPageSize);
     // Every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
     // explicit opt-in via a later update request (Create carries no displayMode field).
     entity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
