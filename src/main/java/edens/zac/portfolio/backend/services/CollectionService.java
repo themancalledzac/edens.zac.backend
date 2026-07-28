@@ -875,34 +875,36 @@ public class CollectionService {
    * Update collection tags using prev/new/remove pattern. Uses shared utility method from
    * ContentMutationUtil.
    *
+   * <p>Current tags are loaded as FULLY populated entities. {@link TagEntity} keys {@code
+   * equals}/{@code hashCode} on {@code tagName}, so a partially built tag carrying only an id
+   * hashes to 0 and never compares equal to anything. This method used to fabricate exactly such
+   * id-only entities, which meant a RETAINED tag — one present in both the current set and the
+   * request's {@code prev} list, where {@code updateTags} re-adds it fully loaded from the
+   * repository — landed in two different hash buckets and survived twice. That duplicate id then
+   * collided on the {@code collection_tags} primary key, and since {@code updateContent} is
+   * transactional the rollback discarded the entire save rather than just the tags. Loading full
+   * entities keeps this path identical to the content-side equivalent, {@link
+   * ContentMutationUtil#updateImageTagsOptimized}, which never had the bug because it already
+   * passes fully loaded tags.
+   *
    * @param collection The collection to update
    * @param tagUpdate The tag update containing remove/prev/newValue operations
    */
   private void updateCollectionTags(
       CollectionEntity collection, CollectionRequests.TagUpdate tagUpdate) {
-    // Load current tags
-    List<Long> tagIds = tagRepository.findCollectionTagIds(collection.getId());
     Set<TagEntity> currentTags =
-        tagIds.stream()
-            .map(
-                tagId -> {
-                  // Create minimal tag entity with just ID - full loading not needed for update
-                  TagEntity tag = new TagEntity();
-                  tag.setId(tagId);
-                  return tag;
-                })
-            .collect(Collectors.toSet());
+        new HashSet<>(tagRepository.findCollectionTags(collection.getId()));
 
     Set<TagEntity> updatedTags =
         contentMutationUtil.updateTags(
             currentTags, tagUpdate, null // No tracking needed for collection updates
             );
 
-    // Save updated tags
     List<Long> updatedTagIds =
         updatedTags.stream()
             .map(TagEntity::getId)
             .filter(Objects::nonNull)
+            .distinct()
             .collect(Collectors.toList());
     tagRepository.saveCollectionTags(collection.getId(), updatedTagIds);
     log.info("Updated tags for collection {}", collection.getId());

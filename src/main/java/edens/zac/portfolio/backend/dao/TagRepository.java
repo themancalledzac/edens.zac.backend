@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -184,6 +185,15 @@ public class TagRepository extends BaseDao {
   // Collection Tags Operations
   // ============================================================
 
+  /**
+   * Replace the tag set attached to a collection.
+   *
+   * <p>The incoming ids are deduplicated and the insert is idempotent. {@code collection_tags} is
+   * keyed on {@code (collection_id, tag_id)}, so a repeated id would otherwise abort the batch with
+   * a {@code DataIntegrityViolationException} and — because callers run inside a transaction — roll
+   * back far more than the tags. This mirrors {@link #saveContentTags} and {@link
+   * #addCollectionTag}, which were already hardened this way; only this method had been missed.
+   */
   @Transactional
   public void saveCollectionTags(Long collectionId, List<Long> tagIds) {
     String deleteSql = "DELETE FROM collection_tags WHERE collection_id = :collectionId";
@@ -193,9 +203,11 @@ public class TagRepository extends BaseDao {
 
     if (tagIds != null && !tagIds.isEmpty()) {
       String insertSql =
-          "INSERT INTO collection_tags (collection_id, tag_id) VALUES (:collectionId, :tagId)";
+          "INSERT INTO collection_tags (collection_id, tag_id) VALUES (:collectionId, :tagId) ON CONFLICT DO NOTHING";
       MapSqlParameterSource[] batchParams =
           tagIds.stream()
+              .filter(Objects::nonNull)
+              .distinct()
               .map(
                   tagId ->
                       createParameterSource()
@@ -204,13 +216,6 @@ public class TagRepository extends BaseDao {
               .toArray(MapSqlParameterSource[]::new);
       batchUpdate(insertSql, batchParams);
     }
-  }
-
-  @Transactional(readOnly = true)
-  public List<Long> findCollectionTagIds(Long collectionId) {
-    String sql = "SELECT tag_id FROM collection_tags WHERE collection_id = :collectionId";
-    MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
-    return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
 
   @Transactional(readOnly = true)

@@ -3,9 +3,12 @@ package edens.zac.portfolio.backend.dao;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +29,7 @@ class TagRepositoryTest {
 
   @Captor private ArgumentCaptor<String> sqlCaptor;
   @Captor private ArgumentCaptor<SqlParameterSource> paramsCaptor;
+  @Captor private ArgumentCaptor<SqlParameterSource[]> batchCaptor;
 
   private TagRepository tagRepository;
 
@@ -73,5 +77,34 @@ class TagRepositoryTest {
     verify(namedParameterJdbcTemplate).update(anyString(), paramsCaptor.capture());
     MapSqlParameterSource params = (MapSqlParameterSource) paramsCaptor.getValue();
     assertThat(params.getValue("collectionId")).isNull();
+  }
+
+  /**
+   * {@code collection_tags} is keyed on {@code (collection_id, tag_id)}. A repeated id used to
+   * abort the whole batch with a {@code DataIntegrityViolationException}, rolling back the caller's
+   * entire transaction. The insert must be both deduplicated and idempotent.
+   */
+  @Test
+  void saveCollectionTags_duplicateIds_insertedOnceAndIdempotently() {
+    tagRepository.saveCollectionTags(5L, Arrays.asList(72L, 72L, 9L, null));
+
+    verify(namedParameterJdbcTemplate).batchUpdate(sqlCaptor.capture(), batchCaptor.capture());
+
+    assertThat(sqlCaptor.getValue()).contains("ON CONFLICT DO NOTHING");
+    SqlParameterSource[] batch = batchCaptor.getValue();
+    assertThat(batch).hasSize(2);
+    assertThat(Arrays.stream(batch).map(p -> p.getValue("tagId")))
+        .containsExactlyInAnyOrder(72L, 9L);
+    assertThat(Arrays.stream(batch).map(p -> p.getValue("collectionId"))).containsOnly(5L);
+  }
+
+  @Test
+  void saveCollectionTags_emptyList_deletesButSkipsInsert() {
+    tagRepository.saveCollectionTags(5L, List.of());
+
+    verify(namedParameterJdbcTemplate).update(sqlCaptor.capture(), any(SqlParameterSource.class));
+    assertThat(sqlCaptor.getValue()).startsWith("DELETE FROM collection_tags");
+    verify(namedParameterJdbcTemplate, never())
+        .batchUpdate(anyString(), any(SqlParameterSource[].class));
   }
 }
