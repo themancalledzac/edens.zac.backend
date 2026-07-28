@@ -34,23 +34,24 @@ public class SyntheticCollectionResolver {
 
   static final String ALL_CLIENT_GALLERIES = "all-client-galleries";
   static final String ALL_COLLECTIONS = "all-collections";
+  static final String ALL_BLOGS = "all-blogs";
 
+  // PORTFOLIO / ART_GALLERY / MISC had no successor concept, so all-portfolios,
+  // all-art-galleries and all-misc are gone rather than re-keyed (spec D5). Re-pointing
+  // all-misc at a null filter would have been an exposure: findNonEmptyOrderedByVisibilityIn
+  // is only environment-scoped, unlike all-collections which is permission-scoped.
   private static final Map<String, Synthetic> CATALOG =
       Map.of(
           ALL_COLLECTIONS,
+          // Null typeFilter: served by findAllCollectionsForCurrentViewer, which is
+          // permission-scoped and never reads the filter.
           new Synthetic("All Collections", null),
-          "all-blogs",
+          ALL_BLOGS,
           new Synthetic("Blogs", CollectionType.BLOG),
-          "all-portfolios",
-          new Synthetic("Portfolios", CollectionType.PORTFOLIO),
           ALL_CLIENT_GALLERIES,
-          // Null typeFilter: this slug is served by findClientGalleriesAndQualifyingParents,
-          // which is flag-keyed and never reads the filter.
-          new Synthetic("Client Galleries", null),
-          "all-art-galleries",
-          new Synthetic("Art Galleries", CollectionType.ART_GALLERY),
-          "all-misc",
-          new Synthetic("Misc", CollectionType.MISC));
+          // Null typeFilter: served by findClientGalleriesAndQualifyingParents, which is
+          // flag-keyed and never reads the filter.
+          new Synthetic("Client Galleries", null));
 
   private static final List<CollectionVisibility> ADMIN_SCOPE =
       List.of(

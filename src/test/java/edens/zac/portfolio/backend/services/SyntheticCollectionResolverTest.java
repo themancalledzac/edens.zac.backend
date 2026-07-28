@@ -21,6 +21,7 @@ import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -60,10 +61,18 @@ class SyntheticCollectionResolverTest {
   void recognizesAllCatalogSlugs() {
     assertThat(resolver.isSyntheticSlug("all-collections")).isTrue();
     assertThat(resolver.isSyntheticSlug("all-blogs")).isTrue();
-    assertThat(resolver.isSyntheticSlug("all-portfolios")).isTrue();
+    assertThat(resolver.isSyntheticSlug("all-portfolios")).isFalse();
     assertThat(resolver.isSyntheticSlug("all-client-galleries")).isTrue();
-    assertThat(resolver.isSyntheticSlug("all-art-galleries")).isTrue();
-    assertThat(resolver.isSyntheticSlug("all-misc")).isTrue();
+    assertThat(resolver.isSyntheticSlug("all-art-galleries")).isFalse();
+    assertThat(resolver.isSyntheticSlug("all-misc")).isFalse();
+  }
+
+  @Test
+  @DisplayName("resolve rejects a pruned catalog slug")
+  void resolve_prunedSlug_throws() {
+    assertThatThrownBy(() -> resolver.resolve("all-misc", false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Not a synthetic slug");
   }
 
   @Test
