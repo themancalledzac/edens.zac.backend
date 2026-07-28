@@ -21,6 +21,7 @@ import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -71,16 +72,13 @@ class TagServiceTest {
 
     CollectionRequests.UpdateResponse result =
         tagService.convertTagToCollection(
-            5L,
-            new SaveAsCollectionRequest(
-                CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED, null));
+            5L, new SaveAsCollectionRequest(null, CollectionVisibility.UNLISTED, null));
 
     // Create used the tag NAME as title.
     ArgumentCaptor<CollectionRequests.Create> createCaptor =
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(collectionService).createCollection(createCaptor.capture());
     assertThat(createCaptor.getValue().title()).isEqualTo("Landscape");
-    assertThat(createCaptor.getValue().type()).isEqualTo(CollectionType.PORTFOLIO);
 
     // New collection took over the tag slug and requested visibility.
     ArgumentCaptor<CollectionEntity> saveCaptor = ArgumentCaptor.forClass(CollectionEntity.class);
@@ -124,7 +122,6 @@ class TagServiceTest {
     ArgumentCaptor<CollectionRequests.Create> createCaptor =
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(collectionService).createCollection(createCaptor.capture());
-    assertThat(createCaptor.getValue().type()).isEqualTo(CollectionType.PORTFOLIO);
 
     ArgumentCaptor<CollectionEntity> saveCaptor = ArgumentCaptor.forClass(CollectionEntity.class);
     verify(collectionRepository).save(saveCaptor.capture());
@@ -151,11 +148,9 @@ class TagServiceTest {
     ArgumentCaptor<CollectionRequests.Create> createCaptor =
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(collectionService).createCollection(createCaptor.capture());
-    // Booleans flow through untouched; the defaulted PORTFOLIO type rides along and
-    // CollectionTypeCompat resolves the pair downstream (isClient wins over the default).
+    // Booleans flow through untouched; no legacy type rides along any more.
     assertThat(createCaptor.getValue().isClient()).isTrue();
     assertThat(createCaptor.getValue().isBlog()).isNull();
-    assertThat(createCaptor.getValue().type()).isEqualTo(CollectionType.PORTFOLIO);
   }
 
   @Test
@@ -264,5 +259,30 @@ class TagServiceTest {
     assertThatThrownBy(() -> tagService.convertTagToCollection(5L, null))
         .isInstanceOf(IllegalStateException.class);
     verify(collectionService, never()).createCollection(any());
+  }
+
+  @Test
+  @DisplayName("convertTagToCollection sends no legacy type and no flags by default")
+  void convertTagToCollection_noTypeDefault() {
+    TagEntity tag = unconvertedTag();
+    when(tagRepository.findById(5L)).thenReturn(Optional.of(tag));
+    when(collectionRepository.findBySlug("landscape")).thenReturn(Optional.empty());
+    when(collectionService.createCollection(any())).thenReturn(responseWithId(99L, "landscape-1"));
+
+    CollectionEntity created = new CollectionEntity();
+    created.setId(99L);
+    created.setSlug("landscape-1");
+    when(collectionRepository.findById(99L)).thenReturn(Optional.of(created));
+    when(collectionService.getUpdateCollectionData("landscape"))
+        .thenReturn(responseWithId(99L, "landscape"));
+
+    tagService.convertTagToCollection(5L, null);
+
+    ArgumentCaptor<CollectionRequests.Create> createCaptor =
+        ArgumentCaptor.forClass(CollectionRequests.Create.class);
+    verify(collectionService).createCollection(createCaptor.capture());
+    assertThat(createCaptor.getValue().isClient()).isNull();
+    assertThat(createCaptor.getValue().isBlog()).isNull();
+    assertThat(createCaptor.getValue().type()).isNull();
   }
 }
