@@ -19,7 +19,6 @@ import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.net.URI;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -96,7 +95,8 @@ class ContentDownloadAuthTest {
     @Test
     void clientMember_redirects_withoutCookie() throws Exception {
       authenticate(7L);
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
       when(collectionAccessService.isClient(7L, 1L)).thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
@@ -109,7 +109,8 @@ class ContentDownloadAuthTest {
     @Test
     void nonClientMember_gets401() throws Exception {
       authenticate(7L);
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
       when(collectionAccessService.isClient(7L, 1L)).thenReturn(false);
 
       mockMvc
@@ -121,7 +122,8 @@ class ContentDownloadAuthTest {
 
     @Test
     void anonymous_noMembership_noCookie_gets401() throws Exception {
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
 
       mockMvc
           .perform(get("/api/read/content/images/10/download"))
@@ -132,7 +134,8 @@ class ContentDownloadAuthTest {
 
     @Test
     void anonymous_validCookie_redirects() throws Exception {
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok")).thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);

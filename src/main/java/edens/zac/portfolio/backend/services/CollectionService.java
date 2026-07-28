@@ -28,14 +28,16 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
-import edens.zac.portfolio.backend.types.CollectionType;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -352,11 +354,18 @@ public class CollectionService {
    */
   @Transactional
   public void linkCollectionToParent(Long parentId, Long childCollectionId) {
-    collectionRepository
-        .findById(parentId)
-        .orElseThrow(
-            () ->
-                new ResourceNotFoundException("Parent collection not found with ID: " + parentId));
+    // `final` is load-bearing for checkstyle's VariableDeclarationUsageDistance: the parent is
+    // resolved up front (it must exist before anything else happens) but is not read until the
+    // S6 password propagation at the end of the method.
+    final CollectionEntity parentEntity =
+        collectionRepository
+            .findById(parentId)
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        "Parent collection not found with ID: " + parentId));
+
+    validateNoLinkCycle(parentId, childCollectionId);
 
     CollectionEntity childEntity =
         collectionRepository
@@ -402,6 +411,66 @@ public class CollectionService {
 
     // Waterfall: the new child inherits every grant the parent holds (origin preserved).
     roleGrantPropagationService.onChildLinked(parentId, childCollectionId);
+
+    // S6: linkage is a password-propagation trigger too, symmetric with the grant waterfall
+    // above. updateGalleryAccess was the only writer, so a client gallery linked after the
+    // password was set kept a null password -- and a null password means isPasswordProtected is
+    // false, content is never stripped, UNLISTED direct-slug access is permitted, and the download
+    // gate is skipped. Under a derived parent model, password-then-link is the routine ordering.
+    if (parentEntity.getGalleryPassword() != null
+        && childEntity.isClient()
+        && childEntity.getGalleryPassword() == null) {
+      collectionRepository.updateGalleryPassword(
+          childCollectionId, parentEntity.getGalleryPassword());
+      log.info(
+          "Propagated parent (id={}) gallery password to newly linked client child (id={}, slug={})",
+          parentId,
+          childCollectionId,
+          childEntity.getSlug());
+    }
+  }
+
+  /**
+   * Reject a link that would close a cycle, at the one funnel every child link passes through
+   * ({@code createChildCollection}, the staging auto-link, and tag conversion all call it).
+   *
+   * <p>The pre-existing {@code validateNoParentCycles} runs only on the inverse {@code parents}
+   * path and catches only self- and 2-cycles by its own admission. This is a full ancestor walk,
+   * cycle-guarded with a visited set exactly like {@code RoleGrantPropagationService#subtreeOf}, so
+   * an existing cycle in the data cannot make the guard itself loop. A cycle matters because every
+   * member becomes simultaneously an ancestor and a descendant of every other, so role grants merge
+   * across it -- a client gallery's grants would waterfall onto a public collection.
+   */
+  private void validateNoLinkCycle(Long parentId, Long childCollectionId) {
+    if (parentId.equals(childCollectionId)) {
+      throw new IllegalArgumentException(
+          "A collection cannot be its own parent (id=" + parentId + ")");
+    }
+    Set<Long> visited = new HashSet<>();
+    visited.add(parentId);
+    Deque<Long> pending = new ArrayDeque<>(parentIdsOf(parentId));
+    while (!pending.isEmpty()) {
+      Long current = pending.poll();
+      if (!visited.add(current)) {
+        continue;
+      }
+      if (current.equals(childCollectionId)) {
+        throw new IllegalArgumentException(
+            "Cycle detected: collection "
+                + childCollectionId
+                + " is already an ancestor of "
+                + parentId
+                + " and cannot also be its child");
+      }
+      pending.addAll(parentIdsOf(current));
+    }
+  }
+
+  /** Ids of every collection referencing this one as a child, regardless of link visibility. */
+  private List<Long> parentIdsOf(Long collectionId) {
+    return collectionRepository.findAllParentCollectionsByChildId(collectionId).stream()
+        .map(CollectionEntity::getId)
+        .toList();
   }
 
   @Transactional(readOnly = true)
@@ -1419,16 +1488,11 @@ public class CollectionService {
     // Batch-load referenced children once — used for both context detection and visibility filter
     List<CollectionEntity> children = collectionRepository.findByIds(referencedIds);
 
-    boolean isClientGalleryContext =
-        model.isClient() || children.stream().anyMatch(CollectionEntity::isClient);
+    boolean parentIsProtected = Boolean.TRUE.equals(model.getIsPasswordProtected());
 
     Set<Long> excludedIds =
         children.stream()
-            .filter(
-                c ->
-                    isClientGalleryContext
-                        ? c.getVisibility() == CollectionVisibility.HIDDEN
-                        : !c.getVisibility().appearsInLists())
+            .filter(c -> isChildExcluded(c, parentIsProtected))
             .map(CollectionEntity::getId)
             .collect(Collectors.toSet());
 
@@ -1449,10 +1513,39 @@ public class CollectionService {
 
     model.setContent(filtered);
     log.debug(
-        "Filtered {} child collections from response (parent={}, clientGalleryContext={})",
+        "Filtered {} child collections from response (parent={}, parentIsProtected={})",
         excludedIds.size(),
         model.getSlug(),
-        isClientGalleryContext);
+        parentIsProtected);
+  }
+
+  /**
+   * Whether a referenced child collection must be stripped from a public parent's response.
+   *
+   * <p>Three independent reasons, each pinned by its own test:
+   *
+   * <ul>
+   *   <li>HIDDEN children never render publicly.
+   *   <li>S3: an unprotected parent must not publish a password-protected child's title,
+   *       description or cover image. {@code ContentModels.Collection} has no {@code
+   *       isPasswordProtected} field, so the frontend cannot render a locked tile -- dropping the
+   *       block is the only correct behaviour available without a wire change, and this unit is
+   *       specified as a no-model-change unit. The alternative (emit {@code isPasswordProtected}
+   *       and null out {@code coverImage}/{@code description}) is deliberately NOT implemented;
+   *       there is no second code path.
+   *   <li>S4: the UNLISTED relaxation is per child, not per model. It used to be computed once from
+   *       the whole response ("any child is a client gallery"), so linking a single gallery under a
+   *       wrapper un-hid every unrelated UNLISTED work-in-progress sibling.
+   * </ul>
+   */
+  private static boolean isChildExcluded(CollectionEntity child, boolean parentIsProtected) {
+    if (child.getVisibility() == CollectionVisibility.HIDDEN) {
+      return true;
+    }
+    if (!parentIsProtected && child.getGalleryPassword() != null) {
+      return true;
+    }
+    return !child.isClient() && !child.getVisibility().appearsInLists();
   }
 
   /**
@@ -1466,34 +1559,47 @@ public class CollectionService {
    *   <li>password set, emails non-empty: set password and send one email per recipient
    * </ul>
    *
-   * <p>Accepted target types are {@link CollectionType#CLIENT_GALLERY} and {@link
-   * CollectionType#PARENT}. For PARENT targets, when {@link
+   * <p>Eligibility is derived, not typed: the target must either be a client gallery itself ({@code
+   * is_client}) or reference at least one client-gallery child ({@link
+   * edens.zac.portfolio.backend.dao.CollectionRepository#hasClientGalleryChildren}). When {@link
    * GalleryAccessRequest#propagateToChildren()} is {@code true}, the same password is batch-written
-   * to every {@link CollectionType#CLIENT_GALLERY} child referenced by the PARENT (other child
-   * types are skipped). Recipient emails are NOT propagated. Returns {@code
-   * GalleryAccessResponse(saved=false, reason="not-eligible-type")} for any other type.
+   * to every {@code is_client} child referenced by the target; non-client children are skipped.
+   * Recipient emails are NOT propagated. Returns {@code GalleryAccessResponse(saved=false,
+   * reason="not-eligible-type")} for an ineligible target.
+   *
+   * <p>Eligibility gates only the SET path (D8). A {@code null} password is accepted on ANY
+   * collection: this method is the only writer that can clear {@code gallery_password} (see {@code
+   * CollectionRepository.save}, which omits the column on UPDATE), so a gated clear path would
+   * strand a row behind a password nothing could remove. Clearing cannot widen access beyond "no
+   * password", so it needs no gate.
    */
   @Transactional
   public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
     CollectionEntity entity = findEntityById(id);
 
-    if (entity.getType() != CollectionType.CLIENT_GALLERY
-        && entity.getType() != CollectionType.PARENT) {
-      log.warn(
-          "Refusing gallery-access update on ineligible collection (id={}, type={})",
-          id,
-          entity.getType());
-      return new GalleryAccessResponse(false, false, "not-eligible-type", null, List.of());
-    }
-
-    List<String> emails =
-        request.emails() != null && !request.emails().isEmpty() ? request.emails() : List.of();
-
+    // D8: clearing is unconditional and comes first. This method is the only writer that can
+    // clear gallery_password -- CollectionRepository.save deliberately omits the column on
+    // UPDATE -- so gating the clear path strands every row that holds an enforced password while
+    // failing the derived eligibility test below: a wrapper whose last client-gallery child was
+    // unlinked, and the gallery_password IS NOT NULL AND is_client = false rows U0's
+    // reconnaissance enumerates. Such a row keeps serving behind a password no endpoint can
+    // remove. A clear cannot widen access beyond "no password", so it needs no gate.
     if (request.password() == null) {
       collectionRepository.saveGalleryAccess(id, null, List.of());
       log.info("Cleared gallery password and recipients (id={}, slug={})", id, entity.getSlug());
       return new GalleryAccessResponse(true, false, null, null, List.of());
     }
+
+    if (!entity.isClient() && !collectionRepository.hasClientGalleryChildren(id)) {
+      log.warn(
+          "Refusing gallery-access update on ineligible collection (id={}, slug={})",
+          id,
+          entity.getSlug());
+      return new GalleryAccessResponse(false, false, "not-eligible-type", null, List.of());
+    }
+
+    List<String> emails =
+        request.emails() != null && !request.emails().isEmpty() ? request.emails() : List.of();
 
     collectionRepository.saveGalleryAccess(id, request.password(), emails);
     log.info(
@@ -1525,37 +1631,36 @@ public class CollectionService {
   }
 
   /**
-   * When {@code request.propagateToChildren()} is {@code true} AND {@code parent} is of type {@link
-   * CollectionType#PARENT}, batch-update the same password on every {@link
-   * CollectionType#CLIENT_GALLERY} child referenced by that PARENT. Other child types (other
-   * PARENTs, PORTFOLIOs, BLOGs, etc.) are skipped.
+   * When {@code request.propagateToChildren()} is {@code true}, batch-update the same password on
+   * every {@code is_client} child referenced by the parent. Non-client children are skipped.
+   *
+   * <p>There is no parent-side gate any more. Parent-ness is derived from the content graph, so "is
+   * this a wrapper" is not a question this method can or should ask -- eligibility already answered
+   * it upstream, and a target with no client children simply writes nothing.
    */
   private void propagatePasswordToChildrenIfRequested(
       CollectionEntity parent, GalleryAccessRequest request) {
-    if (!Boolean.TRUE.equals(request.propagateToChildren())
-        || parent.getType() != CollectionType.PARENT) {
+    if (!Boolean.TRUE.equals(request.propagateToChildren())) {
       log.debug(
-          "Skipping password propagation (parentId={}, propagate={}, type={})",
+          "Skipping password propagation (parentId={}, propagate={})",
           parent.getId(),
-          request.propagateToChildren(),
-          parent.getType());
+          request.propagateToChildren());
       return;
     }
     List<CollectionEntity> children =
         collectionRepository.findAllReferencedCollectionsByParentId(parent.getId());
-    long clientGalleryCount =
-        children.stream().filter(c -> c.getType() == CollectionType.CLIENT_GALLERY).count();
+    long clientGalleryCount = children.stream().filter(CollectionEntity::isClient).count();
     log.info(
-        "Propagating password from parent (id={}, slug={}): {} children found, {} are CLIENT_GALLERY",
+        "Propagating password from parent (id={}, slug={}): {} children found, {} are client galleries",
         parent.getId(),
         parent.getSlug(),
         children.size(),
         clientGalleryCount);
     for (CollectionEntity child : children) {
-      if (child.getType() == CollectionType.CLIENT_GALLERY) {
+      if (child.isClient()) {
         collectionRepository.updateGalleryPassword(child.getId(), request.password());
         log.info(
-            "Propagated parent (id={}) gallery password to CLIENT_GALLERY child (id={}, slug={})",
+            "Propagated parent (id={}) gallery password to client child (id={}, slug={})",
             parent.getId(),
             child.getId(),
             child.getSlug());

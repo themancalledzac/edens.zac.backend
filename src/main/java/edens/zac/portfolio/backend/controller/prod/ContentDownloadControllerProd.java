@@ -14,7 +14,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -70,12 +69,13 @@ public class ContentDownloadControllerProd {
       @RequestParam(defaultValue = "web") String format,
       HttpServletRequest request) {
 
-    // Auth gate: enforce only when a parent collection is password-protected.
-    Optional<CollectionEntity> parentCollection = contentService.findCollectionForImage(id);
-    if (parentCollection.isPresent() && parentCollection.get().getGalleryPassword() != null) {
-      if (!isDownloadAuthorized(request, parentCollection.get())) {
-        log.warn(
-            "Unauthorized image download (id={}, slug={})", id, parentCollection.get().getSlug());
+    // Auth gate: EVERY password-protected parent must authorize this request. An image can sit in
+    // several collections at once, so resolving one arbitrary parent let an unprotected wrapper
+    // waive a protected gallery's password. Fail closed -- a cookie for one gallery does not
+    // unlock an image that also lives in another.
+    for (CollectionEntity parentCollection : contentService.findProtectedCollectionsForImage(id)) {
+      if (!isDownloadAuthorized(request, parentCollection)) {
+        log.warn("Unauthorized image download (id={}, slug={})", id, parentCollection.getSlug());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
       }
     }

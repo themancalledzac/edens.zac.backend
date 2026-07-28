@@ -232,6 +232,31 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
+   * True when the collection references at least one child collection with {@code is_client =
+   * true}. This is the derived successor to the {@code type == PARENT} gate on gallery-access
+   * eligibility and password propagation: parent-ness is a property of the content graph, not a
+   * stored label. Admin-context, so it gates neither the child's own {@code visibility} nor the
+   * per-membership {@code cc.visible} -- exactly like {@link
+   * #findAllReferencedCollectionsByParentId}, whose result set it summarises.
+   */
+  @Transactional(readOnly = true)
+  public boolean hasClientGalleryChildren(Long parentId) {
+    String sql =
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM collection_content cc
+          JOIN content_collection cct ON cct.id = cc.content_id
+          JOIN collection c ON c.id = cct.referenced_collection_id
+          WHERE cc.collection_id = :parentId
+            AND c.is_client = true
+        )
+        """;
+    MapSqlParameterSource params = createParameterSource().addValue("parentId", parentId);
+    return queryForObject(sql, (rs, rowNum) -> rs.getBoolean(1), params).orElse(false);
+  }
+
+  /**
    * Ids of children linked under a parent through a VISIBLE membership row ({@code cc.visible =
    * true}), regardless of the child collection's own {@code visibility}. Role-grant propagation
    * follows only visible links (mirroring the V47 backfill gate); removal walks use the
@@ -923,7 +948,11 @@ public class CollectionRepository extends BaseDao {
     if (contentIds == null || contentIds.isEmpty()) {
       return List.of();
     }
-    String sql = SELECT_COLLECTION_CONTENT + " WHERE content_id IN (:contentIds)";
+    // ORDER BY is load-bearing, not cosmetic: without it Postgres returns rows in an arbitrary
+    // order and any caller that resolves "the" parent of a piece of content picks a different
+    // collection on different requests (S1).
+    String sql =
+        SELECT_COLLECTION_CONTENT + " WHERE content_id IN (:contentIds) ORDER BY collection_id";
     MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
     return query(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
   }

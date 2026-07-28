@@ -1217,13 +1217,11 @@ class CollectionServiceTest {
     }
 
     @Test
-    void parentOfMixedClientGalleryAndPortfolio_appliesClientGalleryContextToAllChildren() {
-      // Pinning current behavior: a PARENT with at least one CLIENT_GALLERY child flips the entire
-      // response into "client gallery context" — only HIDDEN children are dropped, regardless of
-      // the sibling child's type. So an UNLISTED PORTFOLIO sibling stays visible because the viewer
-      // is already inside the password-gated parent. The alternative (per-child context) is much
-      // more complex; this test pins the simpler whole-PARENT rule so a future refactor has to
-      // consciously change it.
+    void parentOfMixedClientGalleryAndPortfolio_dropsUnlistedNonClientSibling() {
+      // INVERTED PIN (was appliesClientGalleryContextToAllChildren). One client-gallery child used
+      // to flip the whole response into "keep UNLISTED children" mode, so linking a single gallery
+      // under a wrapper un-hid every unrelated work-in-progress sibling. The relaxation is now per
+      // child: an UNLISTED child survives only if it is itself a client gallery.
       String slug = "smith-wedding";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1271,8 +1269,7 @@ class CollectionServiceTest {
 
       assertThat(result.getContent())
           .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
-          .containsExactly(
-              301L, 302L, 303L); // gallery + both non-hidden portfolios kept; HIDDEN dropped
+          .containsExactly(301L, 303L); // client gallery + LISTED sibling; UNLISTED and HIDDEN gone
     }
 
     @Test
@@ -1322,6 +1319,148 @@ class CollectionServiceTest {
           .containsExactly(401L); // UNLISTED kept even though the wrapper is not a PARENT
     }
 
+    @Test
+    void unprotectedParent_dropsPasswordProtectedChild() {
+      // S3: ContentModels.Collection carries title, description, coverImage and dates but no
+      // isPasswordProtected, so the frontend cannot render a locked tile. An unprotected,
+      // crawlable, hour-cached parent page would publish the gallery's cover and client name.
+      String slug = "public-wrapper";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(90L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection lockedChild =
+          childCollectionContent(501L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection openChild =
+          childCollectionContent(502L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(90L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .isPasswordProtected(false)
+              .content(new java.util.ArrayList<>(List.of(lockedChild, openChild)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(501L, 502L)))
+          .thenReturn(
+              List.of(
+                  childEntity(
+                      501L,
+                      CollectionType.CLIENT_GALLERY,
+                      CollectionVisibility.UNLISTED,
+                      "sunshine"),
+                  childEntity(
+                      502L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED, null)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(502L);
+    }
+
+    @Test
+    void protectedParent_keepsPasswordProtectedChild() {
+      // The viewer is already behind the parent's own gate, so its protected children stay.
+      String slug = "locked-wrapper";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(91L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection lockedChild =
+          childCollectionContent(511L, CollectionType.CLIENT_GALLERY);
+      ContentModels.Collection openChild =
+          childCollectionContent(512L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(91L)
+              .slug(slug)
+              .type(CollectionType.MISC)
+              .isPasswordProtected(true)
+              .content(new java.util.ArrayList<>(List.of(lockedChild, openChild)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(511L, 512L)))
+          .thenReturn(
+              List.of(
+                  childEntity(
+                      511L,
+                      CollectionType.CLIENT_GALLERY,
+                      CollectionVisibility.UNLISTED,
+                      "sunshine"),
+                  childEntity(
+                      512L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED, null)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(511L, 512L);
+    }
+
+    @Test
+    void clientGalleryWrapper_dropsUnlistedNonClientChild() {
+      // S4 from the other direction: the parent is itself a client gallery, which used to be
+      // enough to keep every UNLISTED child. Only the client-gallery child survives now.
+      String slug = "gallery-wrapper";
+      CollectionEntity parent =
+          CollectionEntity.builder()
+              .id(92L)
+              .slug(slug)
+              .type(CollectionType.CLIENT_GALLERY)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+
+      ContentModels.Collection unlistedPortfolio =
+          childCollectionContent(521L, CollectionType.PORTFOLIO);
+      ContentModels.Collection unlistedGallery =
+          childCollectionContent(522L, CollectionType.CLIENT_GALLERY);
+
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(92L)
+              .slug(slug)
+              .type(CollectionType.CLIENT_GALLERY)
+              .isClient(true)
+              .content(new java.util.ArrayList<>(List.of(unlistedPortfolio, unlistedGallery)))
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parent));
+      when(collectionProcessingUtil.convertToModel(
+              eq(parent), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(collectionRepository.findByIds(List.of(521L, 522L)))
+          .thenReturn(
+              List.of(
+                  childEntity(521L, CollectionType.PORTFOLIO, CollectionVisibility.UNLISTED),
+                  childEntity(522L, CollectionType.CLIENT_GALLERY, CollectionVisibility.UNLISTED)));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getContent())
+          .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
+          .containsExactly(522L);
+    }
+
     private ContentModels.Collection childCollectionContent(Long childId, CollectionType type) {
       return new ContentModels.Collection(
           childId,
@@ -1346,6 +1485,11 @@ class CollectionServiceTest {
 
     private CollectionEntity childEntity(
         Long id, CollectionType type, CollectionVisibility visibility) {
+      return childEntity(id, type, visibility, null);
+    }
+
+    private CollectionEntity childEntity(
+        Long id, CollectionType type, CollectionVisibility visibility, String galleryPassword) {
       // Flags are the storage truth and are kept in sync with type on every write, so a
       // non-drifted CLIENT_GALLERY row always carries is_client = true.
       return CollectionEntity.builder()
@@ -1353,6 +1497,7 @@ class CollectionServiceTest {
           .type(type)
           .isClient(type == CollectionType.CLIENT_GALLERY)
           .visibility(visibility)
+          .galleryPassword(galleryPassword)
           .build();
     }
   }
@@ -1531,28 +1676,23 @@ class CollectionServiceTest {
   class SaveGalleryAccessParentPropagation {
 
     @Test
-    void parentTypeWithPropagateTrue_updatesPasswordOnChildClientGalleries() {
+    void wrapperWithClientGalleryChildren_propagateTrue_updatesPasswordOnEachClientChild() {
+      // The R1/S2 scenario: the wrapper is NOT itself a client gallery. Eligibility comes from
+      // hasClientGalleryChildren; propagation is gated on the request flag alone.
       CollectionEntity parent =
           CollectionEntity.builder()
               .id(100L)
               .slug("company-a")
-              .type(CollectionType.PARENT)
+              .isClient(false)
               .visibility(CollectionVisibility.LISTED)
               .build();
       CollectionEntity child1 =
-          CollectionEntity.builder()
-              .id(101L)
-              .slug("smith-wedding")
-              .type(CollectionType.CLIENT_GALLERY)
-              .build();
+          CollectionEntity.builder().id(101L).slug("smith-wedding").isClient(true).build();
       CollectionEntity child2 =
-          CollectionEntity.builder()
-              .id(102L)
-              .slug("jones-wedding")
-              .type(CollectionType.CLIENT_GALLERY)
-              .build();
+          CollectionEntity.builder().id(102L).slug("jones-wedding").isClient(true).build();
 
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.hasClientGalleryChildren(100L)).thenReturn(true);
       when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
           .thenReturn(List.of(child1, child2));
 
@@ -1567,15 +1707,16 @@ class CollectionServiceTest {
     }
 
     @Test
-    void parentTypeWithPropagateFalse_skipsChildPropagation() {
+    void wrapperWithClientGalleryChildren_propagateFalse_skipsChildPropagation() {
       CollectionEntity parent =
           CollectionEntity.builder()
               .id(100L)
               .slug("company-a")
-              .type(CollectionType.PARENT)
+              .isClient(false)
               .visibility(CollectionVisibility.LISTED)
               .build();
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.hasClientGalleryChildren(100L)).thenReturn(true);
 
       CollectionRequests.GalleryAccessRequest request =
           new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), false);
@@ -1587,15 +1728,16 @@ class CollectionServiceTest {
     }
 
     @Test
-    void parentTypeWithPropagateNull_skipsChildPropagation() {
+    void wrapperWithClientGalleryChildren_propagateNull_skipsChildPropagation() {
       CollectionEntity parent =
           CollectionEntity.builder()
               .id(100L)
               .slug("company-a")
-              .type(CollectionType.PARENT)
+              .isClient(false)
               .visibility(CollectionVisibility.LISTED)
               .build();
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.hasClientGalleryChildren(100L)).thenReturn(true);
 
       CollectionRequests.GalleryAccessRequest request =
           new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), null);
@@ -1607,50 +1749,66 @@ class CollectionServiceTest {
     }
 
     @Test
-    void clientGalleryTypeWithPropagateTrue_skipsChildPropagation() {
+    void standaloneClientGallery_isEligibleWithoutQueryingChildren() {
+      // isClient short-circuits the OR, so the EXISTS query is never issued for a plain gallery.
       CollectionEntity gallery =
           CollectionEntity.builder()
               .id(100L)
               .slug("smith-wedding")
-              .type(CollectionType.CLIENT_GALLERY)
+              .isClient(true)
               .visibility(CollectionVisibility.UNLISTED)
               .build();
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(gallery));
+
+      CollectionRequests.GalleryAccessRequest request =
+          new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), false);
+
+      service.updateGalleryAccess(100L, request);
+
+      verify(collectionRepository).saveGalleryAccess(100L, "secretpw", List.of());
+      verify(collectionRepository, never()).hasClientGalleryChildren(anyLong());
+    }
+
+    @Test
+    void standaloneClientGallery_propagateTrue_writesNoChildPasswordsWhenItHasNoChildren() {
+      // The parent-side type gate is gone, so propagation now runs for any eligible target. A
+      // childless gallery simply finds nothing to write.
+      CollectionEntity gallery =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("smith-wedding")
+              .isClient(true)
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(gallery));
+      when(collectionRepository.findAllReferencedCollectionsByParentId(100L)).thenReturn(List.of());
 
       CollectionRequests.GalleryAccessRequest request =
           new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true);
 
       service.updateGalleryAccess(100L, request);
 
-      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
       verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
     }
 
     @Test
-    void parentTypeWithPropagateTrue_skipsNonClientGalleryChildren() {
+    void propagateTrue_skipsNonClientChildren() {
       CollectionEntity parent =
           CollectionEntity.builder()
               .id(100L)
               .slug("mixed-parent")
-              .type(CollectionType.PARENT)
+              .isClient(false)
               .visibility(CollectionVisibility.LISTED)
               .build();
       CollectionEntity clientChild =
-          CollectionEntity.builder()
-              .id(101L)
-              .slug("smith-wedding")
-              .type(CollectionType.CLIENT_GALLERY)
-              .build();
+          CollectionEntity.builder().id(101L).slug("smith-wedding").isClient(true).build();
       CollectionEntity portfolioChild =
-          CollectionEntity.builder()
-              .id(102L)
-              .slug("studio-portfolio")
-              .type(CollectionType.PORTFOLIO)
-              .build();
+          CollectionEntity.builder().id(102L).slug("studio-portfolio").isClient(false).build();
       CollectionEntity blogChild =
-          CollectionEntity.builder().id(103L).slug("studio-blog").type(CollectionType.BLOG).build();
+          CollectionEntity.builder().id(103L).slug("studio-blog").isBlog(true).build();
 
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.hasClientGalleryChildren(100L)).thenReturn(true);
       when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
           .thenReturn(List.of(clientChild, portfolioChild, blogChild));
 
@@ -1665,23 +1823,24 @@ class CollectionServiceTest {
     }
 
     @Test
-    void parentTypeWithPropagateTrue_propagatesToUnlistedChildren() {
+    void propagateTrue_propagatesToUnlistedChildren() {
       CollectionEntity parent =
           CollectionEntity.builder()
               .id(100L)
               .slug("company-a")
-              .type(CollectionType.PARENT)
+              .isClient(false)
               .visibility(CollectionVisibility.LISTED)
               .build();
       CollectionEntity unlistedChild =
           CollectionEntity.builder()
               .id(101L)
               .slug("private-wedding")
-              .type(CollectionType.CLIENT_GALLERY)
+              .isClient(true)
               .visibility(CollectionVisibility.UNLISTED)
               .build();
 
       when(collectionRepository.findById(100L)).thenReturn(Optional.of(parent));
+      when(collectionRepository.hasClientGalleryChildren(100L)).thenReturn(true);
       when(collectionRepository.findAllReferencedCollectionsByParentId(100L))
           .thenReturn(List.of(unlistedChild));
 
@@ -1691,6 +1850,102 @@ class CollectionServiceTest {
       service.updateGalleryAccess(100L, request);
 
       verify(collectionRepository).updateGalleryPassword(101L, "secretpw");
+    }
+
+    @Test
+    void neitherClientNorParentOfClientGalleries_returnsNotEligible() {
+      CollectionEntity plain =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("just-a-portfolio")
+              .isClient(false)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(plain));
+      when(collectionRepository.hasClientGalleryChildren(100L)).thenReturn(false);
+
+      CollectionRequests.GalleryAccessResponse response =
+          service.updateGalleryAccess(
+              100L, new CollectionRequests.GalleryAccessRequest("secretpw", List.of(), true));
+
+      assertThat(response.saved()).isFalse();
+      assertThat(response.reason()).isEqualTo("not-eligible-type");
+      verify(collectionRepository, never()).saveGalleryAccess(anyLong(), anyString(), any());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+  }
+
+  @Nested
+  class GalleryAccessClearPath {
+
+    @Test
+    void ineligibleCollectionWithAStrandedPassword_canStillBeCleared() {
+      // D8. CollectionRepository.save omits gallery_password on UPDATE, so this endpoint is the
+      // only writer that can clear one. If eligibility gated the clear path, a collection that
+      // holds an enforced password but is neither a client gallery nor a parent of one -- the
+      // gallery_password IS NOT NULL AND is_client = false population -- would be permanently
+      // locked behind a password nothing could remove.
+      CollectionEntity stranded =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("orphaned-wrapper")
+              .isClient(false)
+              .galleryPassword("stale-pw")
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(stranded));
+
+      CollectionRequests.GalleryAccessResponse response =
+          service.updateGalleryAccess(
+              100L, new CollectionRequests.GalleryAccessRequest(null, List.of(), false));
+
+      assertThat(response.saved()).isTrue();
+      assertThat(response.reason()).isNull();
+      verify(collectionRepository).saveGalleryAccess(100L, null, List.of());
+      // The clear path returns before the gate, so the EXISTS query is never issued.
+      verify(collectionRepository, never()).hasClientGalleryChildren(anyLong());
+    }
+
+    @Test
+    void clearingAnEligibleClientGalleryStillWorks() {
+      // Regression pin: moving the clear branch above the gate must not change the eligible case.
+      CollectionEntity gallery =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("smith-wedding")
+              .isClient(true)
+              .galleryPassword("secretpw")
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findById(101L)).thenReturn(Optional.of(gallery));
+
+      CollectionRequests.GalleryAccessResponse response =
+          service.updateGalleryAccess(
+              101L, new CollectionRequests.GalleryAccessRequest(null, List.of(), false));
+
+      assertThat(response.saved()).isTrue();
+      assertThat(response.password()).isNull();
+      verify(collectionRepository).saveGalleryAccess(101L, null, List.of());
+    }
+
+    @Test
+    void clearingNeverPropagatesToChildrenEvenWhenPropagateIsTrue() {
+      // A clear is not a set. propagateToChildren must not waterfall a null.
+      CollectionEntity wrapper =
+          CollectionEntity.builder()
+              .id(102L)
+              .slug("company-a")
+              .isClient(true)
+              .galleryPassword("secretpw")
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      when(collectionRepository.findById(102L)).thenReturn(Optional.of(wrapper));
+
+      service.updateGalleryAccess(
+          102L, new CollectionRequests.GalleryAccessRequest(null, List.of(), true));
+
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
     }
   }
 

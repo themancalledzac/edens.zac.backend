@@ -515,4 +515,101 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
 
     assertThat(ids).containsSubsequence(highRated.getId(), midRatedNewer.getId(), lowRated.getId());
   }
+
+  @Test
+  void hasClientGalleryChildren_trueWhenAnyChildIsClient() {
+    CollectionEntity wrapper =
+        saveCollection(
+            "s2-wrapper-with-client",
+            CollectionType.MISC,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 9, 1));
+    CollectionEntity clientChild =
+        saveCollection(
+            "s2-wrapper-client-child",
+            CollectionType.CLIENT_GALLERY,
+            true,
+            false,
+            CollectionVisibility.UNLISTED,
+            LocalDate.of(2026, 9, 2));
+    linkChild(wrapper.getId(), clientChild.getId(), true);
+
+    assertThat(collectionRepository.hasClientGalleryChildren(wrapper.getId())).isTrue();
+  }
+
+  @Test
+  void hasClientGalleryChildren_ignoresChildVisibilityAndLinkVisibility() {
+    // Admin-context query, mirroring findAllReferencedCollectionsByParentId: neither the child's
+    // own visibility nor the per-membership cc.visible gates it, so an admin can still lock a
+    // wrapper whose only client child is HIDDEN behind a soft-removed link.
+    CollectionEntity wrapper =
+        saveCollection(
+            "s2-wrapper-hidden-child",
+            CollectionType.MISC,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 9, 3));
+    CollectionEntity hiddenChild =
+        saveCollection(
+            "s2-hidden-client-child",
+            CollectionType.CLIENT_GALLERY,
+            true,
+            false,
+            CollectionVisibility.HIDDEN,
+            LocalDate.of(2026, 9, 4));
+    linkChild(wrapper.getId(), hiddenChild.getId(), false);
+
+    assertThat(collectionRepository.hasClientGalleryChildren(wrapper.getId())).isTrue();
+  }
+
+  @Test
+  void hasClientGalleryChildren_falseWhenNoChildIsClient() {
+    // The boolean is the truth, not the type: a CLIENT_GALLERY-typed child with is_client = false
+    // must not qualify.
+    CollectionEntity wrapper =
+        saveCollection(
+            "s2-wrapper-no-client",
+            CollectionType.MISC,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 9, 5));
+    CollectionEntity plainChild =
+        saveCollection(
+            "s2-plain-child",
+            CollectionType.PORTFOLIO,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 9, 6));
+    CollectionEntity driftedChild =
+        saveCollection(
+            "s2-drifted-child",
+            CollectionType.CLIENT_GALLERY,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 9, 7));
+    linkChild(wrapper.getId(), plainChild.getId(), true);
+    linkChild(wrapper.getId(), driftedChild.getId(), true);
+
+    assertThat(collectionRepository.hasClientGalleryChildren(wrapper.getId())).isFalse();
+  }
+
+  @Test
+  void hasClientGalleryChildren_falseForACollectionWithNoChildren() {
+    CollectionEntity leaf =
+        saveCollection(
+            "s2-leaf",
+            CollectionType.MISC,
+            false,
+            false,
+            CollectionVisibility.LISTED,
+            LocalDate.of(2026, 9, 8));
+
+    assertThat(collectionRepository.hasClientGalleryChildren(leaf.getId())).isFalse();
+  }
 }

@@ -683,25 +683,27 @@ public class ContentService {
   }
 
   /**
-   * Resolve a parent {@link CollectionEntity} for an image, used by the per-image download endpoint
-   * to decide whether to enforce a {@code passwordHash}-gated cookie. Images can belong to multiple
-   * collections (many-to-many via {@code collection_content}); this returns any matching parent
-   * (deterministic via {@code findContentByContentIdsIn} ordering). Returns empty when the image is
-   * orphaned.
+   * Every password-protected collection that contains this image. The per-image download endpoint
+   * must satisfy the gate for ALL of them: an image can belong to several collections at once
+   * (many-to-many via {@code collection_content}), and resolving a single arbitrary parent let an
+   * unprotected wrapper waive a protected gallery's password on a nondeterministic fraction of
+   * requests. Returns an empty list when the image is orphaned or every parent is unprotected.
    */
   @Transactional(readOnly = true)
-  public Optional<CollectionEntity> findCollectionForImage(Long imageId) {
-    log.debug("Finding parent collection for image ID: {}", imageId);
-    List<CollectionContentEntity> joinEntries =
-        collectionRepository.findContentByContentIdsIn(List.of(imageId));
-    if (joinEntries.isEmpty()) {
-      return Optional.empty();
+  public List<CollectionEntity> findProtectedCollectionsForImage(Long imageId) {
+    log.debug("Finding protected parent collections for image ID: {}", imageId);
+    List<Long> collectionIds =
+        collectionRepository.findContentByContentIdsIn(List.of(imageId)).stream()
+            .map(CollectionContentEntity::getCollectionId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    if (collectionIds.isEmpty()) {
+      return List.of();
     }
-    Long collectionId = joinEntries.getFirst().getCollectionId();
-    if (collectionId == null) {
-      return Optional.empty();
-    }
-    return collectionRepository.findById(collectionId);
+    return collectionRepository.findByIds(collectionIds).stream()
+        .filter(collection -> collection.getGalleryPassword() != null)
+        .toList();
   }
 
   // ---------------------------------------------------------------------------

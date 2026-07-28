@@ -24,7 +24,6 @@ import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.servlet.http.Cookie;
 import java.net.URI;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -109,7 +108,8 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void protectedCollection_validCookie_redirectsToPresignedUrl() throws Exception {
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
           .thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web"))
@@ -128,7 +128,8 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void protectedCollection_noCookie_returns401() throws Exception {
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
 
       mockMvc
           .perform(get("/api/read/content/images/10/download"))
@@ -140,7 +141,7 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void unprotectedCollection_noCookie_redirects() throws Exception {
-      when(contentService.findCollectionForImage(11L)).thenReturn(Optional.of(openCollection()));
+      when(contentService.findProtectedCollectionsForImage(11L)).thenReturn(List.of());
       when(contentService.resolveImageDownload(11L, "web"))
           .thenReturn(webResolution("open-001.webp"));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
@@ -155,7 +156,8 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void formatOriginal_redirectsWithJpegResolution() throws Exception {
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.of(protectedGallery()));
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
       when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
           .thenReturn(true);
       when(contentService.resolveImageDownload(10L, "original"))
@@ -175,7 +177,7 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void serviceThrowsNotFound_returns404() throws Exception {
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.empty());
+      when(contentService.findProtectedCollectionsForImage(10L)).thenReturn(List.of());
       when(contentService.resolveImageDownload(10L, "original"))
           .thenThrow(new ResourceNotFoundException("No original available for image 10"));
 
@@ -188,13 +190,61 @@ class ContentDownloadControllerProdTest {
 
     @Test
     void formatUnsupported_returns400() throws Exception {
-      when(contentService.findCollectionForImage(10L)).thenReturn(Optional.empty());
+      when(contentService.findProtectedCollectionsForImage(10L)).thenReturn(List.of());
       when(contentService.resolveImageDownload(10L, "raw"))
           .thenThrow(new IllegalArgumentException("Unsupported download format: raw"));
 
       mockMvc
           .perform(get("/api/read/content/images/10/download").param("format", "raw"))
           .andExpect(status().isBadRequest());
+
+      verify(downloadUrlService, never()).presignObject(any(), any(), any());
+    }
+
+    @Test
+    void imageInBothAProtectedGalleryAndAPublicCollection_noCookie_returns401() throws Exception {
+      // S1: an image may sit in several collections at once. The gate used to resolve ONE
+      // arbitrary parent from an unordered join, so the public wrapper waived the gallery's
+      // password on a nondeterministic fraction of requests. The service now hands the
+      // controller every protected parent; the public wrapper is simply not in that list.
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
+
+      mockMvc
+          .perform(get("/api/read/content/images/10/download"))
+          .andExpect(status().isUnauthorized());
+
+      verify(contentService, never()).resolveImageDownload(any(), any());
+      verify(downloadUrlService, never()).presignObject(any(), any(), any());
+    }
+
+    @Test
+    void imageInTwoProtectedGalleries_cookieForOnlyOne_returns401() throws Exception {
+      // "EVERY protected parent", not "any": a cookie for smith-wedding must not unlock an image
+      // that also lives in jones-wedding.
+      CollectionEntity otherGallery =
+          CollectionEntity.builder()
+              .id(3L)
+              .type(CollectionType.CLIENT_GALLERY)
+              .title("Jones Wedding")
+              .slug("jones-wedding")
+              .visibility(CollectionVisibility.UNLISTED)
+              .galleryPassword("moonlight")
+              .build();
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery(), otherGallery));
+      when(clientGalleryAuthService.validateAccessToken("smith-wedding", "tok-123"))
+          .thenReturn(true);
+      // jones-wedding is deliberately NOT stubbed: there is no gallery_access_jones-wedding
+      // cookie, so GalleryAccessCookies.hasValidAccess calls validateAccessToken with a NULL
+      // token. Stubbing it for "tok-123" would be an argument mismatch that STRICT_STUBS turns
+      // into a 500, masking the 401 this test exists to prove.
+
+      mockMvc
+          .perform(
+              get("/api/read/content/images/10/download")
+                  .cookie(new Cookie("gallery_access_smith-wedding", "tok-123")))
+          .andExpect(status().isUnauthorized());
 
       verify(downloadUrlService, never()).presignObject(any(), any(), any());
     }
