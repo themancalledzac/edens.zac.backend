@@ -1566,10 +1566,29 @@ public class CollectionService {
    * to every {@code is_client} child referenced by the target; non-client children are skipped.
    * Recipient emails are NOT propagated. Returns {@code GalleryAccessResponse(saved=false,
    * reason="not-eligible-type")} for an ineligible target.
+   *
+   * <p>Eligibility gates only the SET path (D8). A {@code null} password is accepted on ANY
+   * collection: this method is the only writer that can clear {@code gallery_password} (see {@code
+   * CollectionRepository.save}, which omits the column on UPDATE), so a gated clear path would
+   * strand a row behind a password nothing could remove. Clearing cannot widen access beyond "no
+   * password", so it needs no gate.
    */
   @Transactional
   public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
     CollectionEntity entity = findEntityById(id);
+
+    // D8: clearing is unconditional and comes first. This method is the only writer that can
+    // clear gallery_password -- CollectionRepository.save deliberately omits the column on
+    // UPDATE -- so gating the clear path strands every row that holds an enforced password while
+    // failing the derived eligibility test below: a wrapper whose last client-gallery child was
+    // unlinked, and the gallery_password IS NOT NULL AND is_client = false rows U0's
+    // reconnaissance enumerates. Such a row keeps serving behind a password no endpoint can
+    // remove. A clear cannot widen access beyond "no password", so it needs no gate.
+    if (request.password() == null) {
+      collectionRepository.saveGalleryAccess(id, null, List.of());
+      log.info("Cleared gallery password and recipients (id={}, slug={})", id, entity.getSlug());
+      return new GalleryAccessResponse(true, false, null, null, List.of());
+    }
 
     if (!entity.isClient() && !collectionRepository.hasClientGalleryChildren(id)) {
       log.warn(
@@ -1581,12 +1600,6 @@ public class CollectionService {
 
     List<String> emails =
         request.emails() != null && !request.emails().isEmpty() ? request.emails() : List.of();
-
-    if (request.password() == null) {
-      collectionRepository.saveGalleryAccess(id, null, List.of());
-      log.info("Cleared gallery password and recipients (id={}, slug={})", id, entity.getSlug());
-      return new GalleryAccessResponse(true, false, null, null, List.of());
-    }
 
     collectionRepository.saveGalleryAccess(id, request.password(), emails);
     log.info(

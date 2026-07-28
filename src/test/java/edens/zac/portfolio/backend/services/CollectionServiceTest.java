@@ -1876,6 +1876,80 @@ class CollectionServiceTest {
   }
 
   @Nested
+  class GalleryAccessClearPath {
+
+    @Test
+    void ineligibleCollectionWithAStrandedPassword_canStillBeCleared() {
+      // D8. CollectionRepository.save omits gallery_password on UPDATE, so this endpoint is the
+      // only writer that can clear one. If eligibility gated the clear path, a collection that
+      // holds an enforced password but is neither a client gallery nor a parent of one -- the
+      // gallery_password IS NOT NULL AND is_client = false population -- would be permanently
+      // locked behind a password nothing could remove.
+      CollectionEntity stranded =
+          CollectionEntity.builder()
+              .id(100L)
+              .slug("orphaned-wrapper")
+              .isClient(false)
+              .galleryPassword("stale-pw")
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findById(100L)).thenReturn(Optional.of(stranded));
+
+      CollectionRequests.GalleryAccessResponse response =
+          service.updateGalleryAccess(
+              100L, new CollectionRequests.GalleryAccessRequest(null, List.of(), false));
+
+      assertThat(response.saved()).isTrue();
+      assertThat(response.reason()).isNull();
+      verify(collectionRepository).saveGalleryAccess(100L, null, List.of());
+      // The clear path returns before the gate, so the EXISTS query is never issued.
+      verify(collectionRepository, never()).hasClientGalleryChildren(anyLong());
+    }
+
+    @Test
+    void clearingAnEligibleClientGalleryStillWorks() {
+      // Regression pin: moving the clear branch above the gate must not change the eligible case.
+      CollectionEntity gallery =
+          CollectionEntity.builder()
+              .id(101L)
+              .slug("smith-wedding")
+              .isClient(true)
+              .galleryPassword("secretpw")
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      when(collectionRepository.findById(101L)).thenReturn(Optional.of(gallery));
+
+      CollectionRequests.GalleryAccessResponse response =
+          service.updateGalleryAccess(
+              101L, new CollectionRequests.GalleryAccessRequest(null, List.of(), false));
+
+      assertThat(response.saved()).isTrue();
+      assertThat(response.password()).isNull();
+      verify(collectionRepository).saveGalleryAccess(101L, null, List.of());
+    }
+
+    @Test
+    void clearingNeverPropagatesToChildrenEvenWhenPropagateIsTrue() {
+      // A clear is not a set. propagateToChildren must not waterfall a null.
+      CollectionEntity wrapper =
+          CollectionEntity.builder()
+              .id(102L)
+              .slug("company-a")
+              .isClient(true)
+              .galleryPassword("secretpw")
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      when(collectionRepository.findById(102L)).thenReturn(Optional.of(wrapper));
+
+      service.updateGalleryAccess(
+          102L, new CollectionRequests.GalleryAccessRequest(null, List.of(), true));
+
+      verify(collectionRepository, never()).findAllReferencedCollectionsByParentId(anyLong());
+      verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
+    }
+  }
+
+  @Nested
   class IsGalleryAccessAuthorized {
 
     @Test
