@@ -78,7 +78,7 @@ return ResponseEntity.noContent().build(); // 204 for deletes
 throw new IllegalArgumentException("Collection not found: " + slug);
 
 // 400 -- any other IllegalArgumentException
-throw new IllegalArgumentException("Invalid collection type: " + type);
+throw new IllegalArgumentException("Invalid visibility: " + visibility);
 
 // 400 -- invalid state
 throw new IllegalStateException("Cannot delete: collection has content");

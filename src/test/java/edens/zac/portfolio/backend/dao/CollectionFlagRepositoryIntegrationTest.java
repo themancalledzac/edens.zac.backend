@@ -15,10 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Integration coverage for the V50 is_client / is_blog boolean predicates. Runs the real V50
- * migration on Testcontainers Postgres. Verifies: the boolean-keyed repository queries key on the
- * flags (NOT the legacy type column), the derived parent-of-galleries query (no parent-side type
- * filter), the blog-by-date get-or-create key, save round-tripping of the flags, and the V50
+ * Integration coverage for the is_client / is_blog boolean predicates introduced by V50. Runs the
+ * real V50 migration on Testcontainers Postgres. Verifies: the boolean-keyed repository queries key
+ * on the flags, the derived parent-of-galleries query (structural, with no discriminator on the
+ * parent side), the blog-by-date get-or-create key, save round-tripping of the flags, and the V50
  * label-tag seeds.
  *
  * <p>This class inserts roughly 20 collections into the SHARED singleton container, whose harness
@@ -95,7 +95,9 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
   }
 
   @Test
-  void findListedBlogsOrdered_keysOnIsBlogNotType() {
+  void findListedBlogsOrdered_keysOnIsBlogAndVisibility() {
+    // is_blog is the only thing that makes a collection a blog: every LISTED row carrying it is
+    // returned regardless of what else the row looks like...
     CollectionEntity blogFlagged =
         saveCollection(
             "flag-blog-flagged",
@@ -103,18 +105,17 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
             true,
             CollectionVisibility.LISTED,
             LocalDate.of(2026, 2, 1));
-    // Boolean is the truth: a MISC-typed row with is_blog=true must be returned...
-    CollectionEntity miscButBlog =
+    CollectionEntity secondBlogFlagged =
         saveCollection(
-            "flag-misc-but-blog",
+            "flag-blog-flagged-second",
             false,
             true,
             CollectionVisibility.LISTED,
             LocalDate.of(2026, 2, 2));
-    // ...and a BLOG-typed row with is_blog=false must NOT be.
-    CollectionEntity blogTypeNoFlag =
+    // ...and a LISTED row without the flag is NOT a blog, however it is titled or slugged.
+    CollectionEntity blogNamedNoFlag =
         saveCollection(
-            "flag-blog-type-no-flag",
+            "flag-blog-named-no-flag",
             false,
             false,
             CollectionVisibility.LISTED,
@@ -132,8 +133,8 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
             .map(CollectionEntity::getId)
             .toList();
 
-    assertThat(ids).contains(blogFlagged.getId(), miscButBlog.getId());
-    assertThat(ids).doesNotContain(blogTypeNoFlag.getId(), unlistedBlog.getId());
+    assertThat(ids).contains(blogFlagged.getId(), secondBlogFlagged.getId());
+    assertThat(ids).doesNotContain(blogNamedNoFlag.getId(), unlistedBlog.getId());
   }
 
   @Test
@@ -219,24 +220,24 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
             CollectionVisibility.LISTED,
             LocalDate.of(2026, 5, 1));
 
-    // PARENT-typed wrapper with a visible client child: qualifies (as before).
-    CollectionEntity parentTyped =
+    // Wrapper carrying neither flag, holding a visible client child: qualifies as a derived parent.
+    CollectionEntity wrapperOfClientChild =
         saveCollection(
-            "flag-parent-typed",
+            "flag-parent-wrapper",
             false,
             false,
             CollectionVisibility.LISTED,
             LocalDate.of(2026, 5, 2));
-    CollectionEntity childOfParentTyped =
+    CollectionEntity clientChildOfWrapper =
         saveCollection(
-            "flag-parent-typed-child",
+            "flag-parent-wrapper-child",
             true,
             false,
             CollectionVisibility.LISTED,
             LocalDate.of(2026, 5, 3));
-    linkChild(parentTyped.getId(), childOfParentTyped.getId(), true);
+    linkChild(wrapperOfClientChild.getId(), clientChildOfWrapper.getId(), true);
 
-    // Derived parent: NOT typed PARENT, but has a visible is_client child -> must now qualify.
+    // A second derived parent, to pin that qualification is per-row rather than a one-off.
     CollectionEntity derivedParent =
         saveCollection(
             "flag-parent-derived",
@@ -312,9 +313,9 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
     assertThat(ids)
         .contains(
             standaloneGallery.getId(),
-            parentTyped.getId(),
+            wrapperOfClientChild.getId(),
             derivedParent.getId(),
-            childOfParentTyped.getId(),
+            clientChildOfWrapper.getId(),
             childOfDerived.getId(),
             softRemovedChild.getId());
     assertThat(ids)
@@ -507,8 +508,8 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
 
   @Test
   void hasClientGalleryChildren_falseWhenNoChildIsClient() {
-    // The boolean is the truth, not the type: a CLIENT_GALLERY-typed child with is_client = false
-    // must not qualify.
+    // is_client on the child is the whole test: a child that merely looks like a gallery, but does
+    // not carry the flag, must not qualify its parent.
     CollectionEntity wrapper =
         saveCollection(
             "s2-wrapper-no-client",

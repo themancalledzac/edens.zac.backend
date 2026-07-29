@@ -32,7 +32,7 @@ Backend REST API for a photography portfolio and content management platform. Ha
 ## Features
 
 - **Image Upload & Processing** -- Multi-resolution thumbnail generation (web, thumbnail, small), EXIF metadata extraction (camera, lens, GPS, exposure), WebP conversion
-- **Collection Management** -- Four collection types (Blog, Portfolio, Art Gallery, Client Gallery) with pagination, ordering, and nested collection support
+- **Collection Management** -- A collection is a named, slugged, ordered grouping of any mix of content (images, text, GIFs, other collections), with pagination and ordering. Two stored flags specialize it: `isClient` (password-gated client gallery) and `isBlog` (appears in blog listings); parent-ness and the home page are derived from the content graph and the `home` slug
 - **Multi-Dimensional Image Search** -- Filter by tags, people, camera, lens, location, rating, film/digital, date range with dynamic SQL query building
 - **Location Pages** -- Collections and orphan images grouped by location with count hints for frontend clickability
 - **Client Gallery Protection** -- SHA-256 password hashing, access token flow, rate-limited authentication
@@ -90,7 +90,7 @@ src/main/java/edens/zac/portfolio/backend/
   types/              Enums (ContentType, DisplayMode, CollectionVisibility)
   config/             Spring configuration, exception handling
 src/main/resources/
-  db/migration/       Flyway SQL migrations (V1-V5)
+  db/migration/       Flyway SQL migrations (V2-V52)
 terraform/            AWS infrastructure as code
 docker/               Docker configurations
 scripts/              Deployment and utility scripts
@@ -107,8 +107,7 @@ scripts/              Deployment and utility scripts
 | `GET` | `/collections` | Paginated list of all collections |
 | `GET` | `/collections/{slug}` | Collection with paginated content (supports `?accessToken=`) |
 | `GET` | `/collections/{slug}/meta` | Lightweight collection metadata (SEO) |
-| `GET` | `/collections/type/{type}` | Visible collections by type |
-| `GET` | `/collections/location/{name}` | Collections + orphan images at a location |
+| `GET` | `/collections/location/{slug}` | Collections + orphan images at a location |
 | `POST` | `/collections/{slug}/access` | Validate client gallery password, returns access token |
 | `GET` | `/content/images/search` | Multi-filter image search with pagination |
 | `GET` | `/content/tags` | All tags |

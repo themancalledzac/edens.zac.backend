@@ -60,9 +60,10 @@ A single image can belong to multiple collections with different ordering/captio
 
 ### Collection Hierarchy
 - Collections can contain any ContentEntity type, in any mix — including references to other collections
-- Collections carry no type discriminator. Two stored booleans: `is_client` (password/role gated) and `is_blog` (appears in blog listings); mutually exclusive
-- Parent-ness is derived (holds >= 1 COLLECTION content block), never stored; `home` is derived from `slug = 'home'`
-- Collections have: slug, title, coverImage, date, visibility flags
+- Collections carry no type discriminator. Two stored booleans: `is_client` (password/role gated) and `is_blog` (appears in blog listings); mutually exclusive, and carrying neither is a valid state
+- Parent-ness is derived (holds >= 1 COLLECTION content block), never stored — computed server-side by `CollectionRepository.hasChildCollections` and exposed as `hasChildren` / `childCollectionIds`; `home` is derived from `slug = 'home'`
+- `PORTFOLIO`, `ART_GALLERY` and `MISC` are gone with no successor concept. The `collection.type` column was dropped by V52; `collection_type_archive` (V51) is the only faithful rollback record and must be retained — see [database.md](database.md)
+- Collections have: slug, title, coverImage, date range, visibility, rating, layout fields
 
 ## Data Flow: Image Upload
 1. Controller receives multipart file
@@ -75,12 +76,8 @@ A single image can belong to multiple collections with different ordering/captio
 ## Data Flow: API Request
 1. Controller receives request (params validated by `@Valid`)
 2. Calls service method (concrete class, no interface wrapper)
-3. Service uses DAO for database queries (JDBC)
+3. Service uses a DAO for database queries (JDBC; classes live in `dao/` and are named `*Repository`)
 4. DAO returns entities
 5. Service converts entities to models (DTOs)
 6. Controller wraps in `ResponseEntity<T>`
 7. On exception: `GlobalExceptionHandler` maps to appropriate HTTP status/body
-
-<!-- PLANNED CHANGES (refactor_2026.md):
-- Phase 4: DAOs will be consolidated and potentially renamed to *Repository
--->

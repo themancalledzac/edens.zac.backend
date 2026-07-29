@@ -513,10 +513,10 @@ public class CollectionRepository extends BaseDao {
   /**
    * Same visibility scope and non-empty guard as {@link #findNonEmptyOrderedByVisibilityIn}, but
    * ordered chronologically ({@code collection_date DESC, id DESC}) instead of rating-first, and
-   * without a type filter. Backs the {@code all-collections} synthetic list, whose first paint is
-   * newest-collections-first; the {@code id DESC} tiebreaker gives a deterministic total order. The
-   * other synthetic lists keep {@link #findNonEmptyOrderedByVisibilityIn} (rating-first), so this
-   * is an additive sibling rather than a change to shared ordering.
+   * with no {@code blogsOnly} restriction. Backs the {@code all-collections} synthetic list, whose
+   * first paint is newest-collections-first; the {@code id DESC} tiebreaker gives a deterministic
+   * total order. The other synthetic lists keep {@link #findNonEmptyOrderedByVisibilityIn}
+   * (rating-first), so this is an additive sibling rather than a change to shared ordering.
    */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findNonEmptyByVisibilityInOrderByDate(
@@ -572,9 +572,9 @@ public class CollectionRepository extends BaseDao {
 
   /**
    * Find every client gallery ({@code is_client = true}) plus every collection that has at least
-   * one visible client-gallery child (a "derived parent" — no parent-side type filter), all within
-   * the supplied visibility set, ordered by rating then collection_date. The parent branch walks
-   * the same join chain as {@link #findReferencedCollectionsByParentId} (parent ->
+   * one visible client-gallery child (a "derived parent" — no discriminator on the parent), all
+   * within the supplied visibility set, ordered by rating then collection_date. The parent branch
+   * walks the same join chain as {@link #findReferencedCollectionsByParentId} (parent ->
    * collection_content -> content_collection -> child) and applies the same visibility scope to the
    * child rows so parents whose only matching child is HIDDEN do not appear. Used by the
    * "all-client-galleries" synthetic listing where parents-of-galleries (e.g. wedding wrappers)

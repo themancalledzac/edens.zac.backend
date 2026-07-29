@@ -162,8 +162,26 @@ public class ContentDownloadControllerProd {
   // ---------------------------------------------------------------------------
 
   /**
-   * Session+grant download authorization, falling back to the existing cookie gate. A non-null
-   * {@code galleryPassword} is already confirmed by callers before invoking this helper.
+   * Session+grant download authorization, falling back to the existing cookie gate.
+   *
+   * <p>The cookie fallback goes through the four-arg {@link GalleryAccessCookies#hasValidAccess}
+   * overload — the same one the public READ gate uses ({@code
+   * CollectionService.isGalleryAccessAuthorized}). The three-arg overload it replaced accepted only
+   * the per-slug cookie, so a viewer who unlocked a PARENT gallery could VIEW a propagated
+   * CLIENT_GALLERY child (read gate: password-fingerprint cookie accepted) but got 401 downloading
+   * from it (download gate: per-slug cookie only) — while the frontend rendered an enabled download
+   * button. Read and download now grant on identical evidence.
+   *
+   * <p>The four-arg overload short-circuits to {@code true} on a null/blank password, which cannot
+   * widen this gate: every caller supplies a collection already known to be protected. The two
+   * loops take theirs from {@code findProtectedCollectionsForImage} / {@code
+   * findProtectedCollectionsForCollectionDownload}, which filter on {@code galleryPassword !=
+   * null}; the slug-level check tests the same field inline. A non-null-but-empty password is
+   * unreachable — {@code GalleryAccessRequest.password} is {@code @Size(min = 4)}, and the only
+   * other writer copies an already-validated parent password onto a child. Beyond the short-circuit
+   * the overload is a strict superset of the three-arg one: it tries the identical per-slug cookie
+   * first, and the extra grant it adds requires an HMAC-signed fingerprint cookie matching THIS
+   * collection's current password.
    */
   private boolean isDownloadAuthorized(HttpServletRequest request, CollectionEntity collection) {
     Long userId = currentUserId();
@@ -171,7 +189,7 @@ public class ContentDownloadControllerProd {
       return true;
     }
     return GalleryAccessCookies.hasValidAccess(
-        request, collection.getSlug(), clientGalleryAuthService);
+        request, collection.getSlug(), collection.getGalleryPassword(), clientGalleryAuthService);
   }
 
   /** The authenticated principal's user id, or null when the request is anonymous. */

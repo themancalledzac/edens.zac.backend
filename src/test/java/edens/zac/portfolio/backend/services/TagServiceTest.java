@@ -146,7 +146,7 @@ class TagServiceTest {
     ArgumentCaptor<CollectionRequests.Create> createCaptor =
         ArgumentCaptor.forClass(CollectionRequests.Create.class);
     verify(collectionService).createCollection(createCaptor.capture());
-    // Booleans flow through untouched; no legacy type rides along any more.
+    // The two booleans flow through untouched and are the only discriminators sent.
     assertThat(createCaptor.getValue().isClient()).isTrue();
     assertThat(createCaptor.getValue().isBlog()).isNull();
   }
@@ -258,8 +258,8 @@ class TagServiceTest {
   }
 
   @Test
-  @DisplayName("convertTagToCollection sends no legacy type and no flags by default")
-  void convertTagToCollection_noTypeDefault() {
+  @DisplayName("convertTagToCollection sends neither flag by default")
+  void convertTagToCollection_noFlagsByDefault() {
     TagEntity tag = unconvertedTag();
     when(tagRepository.findById(5L)).thenReturn(Optional.of(tag));
     when(collectionRepository.findBySlug("landscape")).thenReturn(Optional.empty());

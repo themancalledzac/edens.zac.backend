@@ -840,9 +840,9 @@ public class CollectionProcessingUtil {
   // =============================================================================
 
   /**
-   * Batch-load all images from the given child collection IDs. Used by the manage page for
-   * parent-type collections to aggregate images across child collections for cover image selection
-   * and content management.
+   * Batch-load all images from the given child collection IDs. Used by the manage page for a
+   * collection that holds child collections, to aggregate images across them for cover image
+   * selection and content management.
    *
    * @param childCollectionIds IDs of child collections to aggregate images from
    * @return List of image models from all child collections

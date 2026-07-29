@@ -8,6 +8,7 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserRequest;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.UpgradeUserRequest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
@@ -170,6 +171,60 @@ public class AdminUserController {
     sendInviteEmailAfterCommit(user.getEmail(), user.getName(), inviteUrl);
     log.info("Admin regenerated invite (userId={})", user.getId());
     return ResponseEntity.ok(new CreateUserResponse(user.getId(), inviteUrl));
+  }
+
+  /**
+   * Upgrade a tag-only {@code PERSON} identity in place into a real {@code INVITED} account: set
+   * its login email, flip its status {@code PERSON -> INVITED}, mint a single-use invite link, and
+   * email it to the invitee exactly as the two sibling invite endpoints do. The row id is
+   * unchanged, so every image/collection tag already FK'd to this person is carried onto the new
+   * account untouched. Distinct from identity-merge, which folds a PERSON into a separate existing
+   * account and hard-deletes the source row.
+   *
+   * <p>Returns {@code 404} if no such user, {@code 409} if the target is not a {@code PERSON} (only
+   * a tag-only identity can be upgraded), and {@code 409} if the email is already owned by another
+   * user (checked before the write; a {@code DataIntegrityViolationException} is handled by {@link
+   * edens.zac.portfolio.backend.config.GlobalExceptionHandler} as belt-and-suspenders for races).
+   *
+   * @param id the {@code users.id} of the PERSON row to upgrade
+   * @param request the upgrade parameters; email is normalized to lowercase
+   * @return {@code 200} with {@link CreateUserResponse}
+   */
+  @PostMapping("/{id}/upgrade")
+  @Transactional
+  public ResponseEntity<CreateUserResponse> upgradeUser(
+      @PathVariable Long id, @Valid @RequestBody UpgradeUserRequest request) {
+    Optional<AppUserEntity> maybeUser = appUserRepository.findById(id);
+    if (maybeUser.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+    AppUserEntity user = maybeUser.get();
+    if (user.getStatus() != UserStatus.PERSON) {
+      log.warn("Admin upgrade rejected: user {} is not a PERSON (status={})", id, user.getStatus());
+      return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    // The status gate above guarantees a tag-only row, whose email is NULL, so any hit here is
+    // necessarily a different account -- no same-owner escape hatch is reachable (unlike
+    // updateUser, where resubmitting the user's own address is a normal no-op).
+    String email = request.email().toLowerCase();
+    if (appUserRepository.findByEmail(email).isPresent()) {
+      log.warn("Admin upgrade rejected: email already exists (userId={}, email={})", id, email);
+      return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    appUserRepository.updateEmail(id, email);
+    appUserRepository.updateStatus(id, UserStatus.INVITED);
+    String rawToken = userInviteService.regenerateInvite(id, email);
+    String inviteUrl = buildInviteUrl(rawToken);
+    sendInviteEmailAfterCommit(email, user.getName(), inviteUrl);
+
+    log.info(
+        "Admin upgraded PERSON to INVITED (userId={}, email={}, actorId={})",
+        id,
+        email,
+        currentUserId());
+    return ResponseEntity.ok(new CreateUserResponse(id, inviteUrl));
   }
 
   /**

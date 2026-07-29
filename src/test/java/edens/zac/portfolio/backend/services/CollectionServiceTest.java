@@ -26,6 +26,7 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
@@ -89,6 +90,7 @@ class CollectionServiceTest {
   @InjectMocks private CollectionService service;
 
   @Captor private ArgumentCaptor<Map<Long, Integer>> mapCaptor;
+  @Captor private ArgumentCaptor<List<Long>> tagIdsCaptor;
 
   private CollectionEntity testCollection;
 
@@ -927,10 +929,10 @@ class CollectionServiceTest {
   }
 
   @Nested
-  class ParentTypeCollections {
+  class ParentCollections {
 
     @Test
-    void getUpdateCollectionData_parentType_aggregatesChildCollectionImages() {
+    void getUpdateCollectionData_derivedParent_aggregatesChildCollectionImages() {
       String slug = "photography";
       CollectionEntity parentEntity =
           CollectionEntity.builder()
@@ -1175,10 +1177,10 @@ class CollectionServiceTest {
     @Test
     void nonParentWrapperOfClientGalleries_keepsUnlistedChildren() {
       // Regression pin: findClientGalleriesAndQualifyingParents admits ANY collection with a
-      // visible client child (no parent-side type filter), so the render path must key the
-      // client-gallery context on the flags too. Keying it on type == PARENT stripped every
-      // UNLISTED child out of a MISC/PORTFOLIO wrapper (e.g. the auto-linked 'staging'
-      // collection) and rendered an empty tile.
+      // visible client child, applying no discriminator to the parent side, so the render path
+      // must key the client-gallery context on the child flags too. A parent-side gate stripped
+      // every UNLISTED child out of an ordinary wrapper carrying neither flag (e.g. the
+      // auto-linked 'staging' collection) and rendered an empty tile.
       String slug = "staging";
       CollectionEntity wrapper =
           CollectionEntity.builder()
@@ -2253,6 +2255,114 @@ class CollectionServiceTest {
 
       assertThat(response.childCollectionImages()).isNotNull();
       verify(collectionProcessingUtil).loadImagesFromChildCollections(List.of(51L));
+    }
+  }
+
+  /**
+   * Regression coverage for the tag-dedupe defect: editing a collection that already had tags threw
+   * {@code DataIntegrityViolationException} on the {@code collection_tags} primary key, and because
+   * {@code updateContent} is {@code @Transactional} the rollback discarded the whole save, not just
+   * the tags.
+   *
+   * <p>These tests drive the REAL {@link ContentMutationUtil#updateTags} through the mocked
+   * collaborator, because the defect only appears at that seam: the service supplied {@code
+   * currentTags} whose members were missing {@code tagName}, and {@link
+   * edens.zac.portfolio.backend.entity.TagEntity} keys equality on the name. A stubbed {@code
+   * updateTags} would hide the bug entirely.
+   */
+  @Nested
+  @DisplayName("updateCollectionTags")
+  class UpdateCollectionTags {
+
+    private CollectionRequests.Update updateWithTags(Long id, CollectionRequests.TagUpdate tags) {
+      return new CollectionRequests.Update(
+          id, null, null, null, null, null, null, null, null, null, null, null, null, tags, null,
+          null, null);
+    }
+
+    /**
+     * Route {@code contentMutationUtil.updateTags} to a real instance backed by the same mocked
+     * repositories, so the prev/new/remove merge and the entity equality it depends on are the
+     * production ones.
+     */
+    private void delegateUpdateTagsToRealUtil() {
+      ContentMutationUtil real =
+          new ContentMutationUtil(
+              contentRepository,
+              collectionRepository,
+              tagRepository,
+              mock(edens.zac.portfolio.backend.dao.PersonRepository.class),
+              locationRepository);
+      when(contentMutationUtil.updateTags(any(), any(), any()))
+          .thenAnswer(
+              invocation ->
+                  real.updateTags(
+                      invocation.getArgument(0),
+                      invocation.getArgument(1),
+                      invocation.getArgument(2)));
+    }
+
+    @Test
+    @DisplayName("a retained tag is written exactly once, not duplicated")
+    void updateContent_retainedTag_writesEachTagIdExactlyOnce() {
+      Long collectionId = 1L;
+      TagEntity landscape = TagEntity.builder().id(72L).tagName("landscape").build();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(tagRepository.findCollectionTags(collectionId)).thenReturn(List.of(landscape));
+      when(tagRepository.findById(72L)).thenReturn(Optional.of(landscape));
+      delegateUpdateTagsToRealUtil();
+
+      service.updateContent(
+          collectionId,
+          updateWithTags(collectionId, new CollectionRequests.TagUpdate(List.of(72L), null, null)));
+
+      verify(tagRepository).saveCollectionTags(eq(collectionId), tagIdsCaptor.capture());
+      assertThat(tagIdsCaptor.getValue()).containsExactly(72L);
+    }
+
+    @Test
+    @DisplayName("a retained tag alongside an added tag keeps both, each once")
+    void updateContent_retainedTagPlusNewTag_writesBothExactlyOnce() {
+      Long collectionId = 1L;
+      TagEntity landscape = TagEntity.builder().id(72L).tagName("landscape").build();
+      TagEntity portrait = TagEntity.builder().id(9L).tagName("portrait").build();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(tagRepository.findCollectionTags(collectionId)).thenReturn(List.of(landscape));
+      when(tagRepository.findById(72L)).thenReturn(Optional.of(landscape));
+      when(tagRepository.findByTagNameIgnoreCase("portrait")).thenReturn(Optional.of(portrait));
+      delegateUpdateTagsToRealUtil();
+
+      service.updateContent(
+          collectionId,
+          updateWithTags(
+              collectionId,
+              new CollectionRequests.TagUpdate(List.of(72L), List.of("portrait"), null)));
+
+      verify(tagRepository).saveCollectionTags(eq(collectionId), tagIdsCaptor.capture());
+      assertThat(tagIdsCaptor.getValue()).containsExactlyInAnyOrder(72L, 9L);
+    }
+
+    @Test
+    @DisplayName("removing one of two attached tags leaves only the survivor")
+    void updateContent_removesTag_writesOnlySurvivor() {
+      Long collectionId = 1L;
+      TagEntity landscape = TagEntity.builder().id(72L).tagName("landscape").build();
+      TagEntity portrait = TagEntity.builder().id(9L).tagName("portrait").build();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(tagRepository.findCollectionTags(collectionId)).thenReturn(List.of(landscape, portrait));
+      when(tagRepository.findById(72L)).thenReturn(Optional.of(landscape));
+      delegateUpdateTagsToRealUtil();
+
+      service.updateContent(
+          collectionId,
+          updateWithTags(
+              collectionId, new CollectionRequests.TagUpdate(List.of(72L), null, List.of(9L))));
+
+      verify(tagRepository).saveCollectionTags(eq(collectionId), tagIdsCaptor.capture());
+      assertThat(tagIdsCaptor.getValue()).containsExactly(72L);
     }
   }
 }
