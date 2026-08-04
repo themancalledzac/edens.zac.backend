@@ -71,10 +71,13 @@ for i in $(seq 1 $RETRIES); do
 done
 
 if [ "$HEALTHY" = false ]; then
-  echo "WARNING: Backend did not become healthy within 60s"
+  echo "ERROR: Backend did not become healthy within 60s"
   echo "Recent logs:"
   docker compose logs --tail=30 backend
 fi
+# NOTE: the non-zero exit for this case is deferred to the end of the script, so the container
+# status and startup logs below still print. Those are what actually identify the cause (a failed
+# Flyway migration, for instance), and they are worth more than exiting a few lines earlier.
 
 # Check container status
 echo ""
@@ -90,6 +93,25 @@ docker compose logs --tail=20 backend
 echo ""
 echo "Cleaning up dangling Docker images..."
 docker image prune -f
+
+# Report the truth. Previously this script printed "Deployment completed successfully!" and exited
+# 0 even when the health check never passed -- so a backend that was crash-looping on a failed
+# Flyway migration looked like a clean deploy, and the outage was only discovered from the browser.
+if [ "$HEALTHY" = false ]; then
+  echo ""
+  echo "======================================"
+  echo "DEPLOYMENT FAILED -- backend never became healthy"
+  echo "======================================"
+  echo ""
+  echo "The container started but never passed /actuator/health."
+  echo "The startup logs above usually name the cause. For more:"
+  echo "  docker compose logs --tail=100 backend"
+  echo ""
+  echo "The previous image is gone (docker compose down ran), so the site stays down"
+  echo "until this is resolved."
+  echo ""
+  exit 1
+fi
 
 echo ""
 echo "======================================"

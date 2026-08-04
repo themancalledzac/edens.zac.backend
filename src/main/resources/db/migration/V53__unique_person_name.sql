@@ -85,44 +85,16 @@ FROM ranked loser
 JOIN ranked winner ON winner.key = loser.key AND winner.rn = 1
 WHERE loser.rn > 1;
 
--- 3. Re-point the tag joins. All three join tables have a composite primary key
---    (content_image_people_pkey on (content_id, person_id), collection_people_pkey on
---    (collection_id, person_id), role_member_pkey on (role_id, user_id)), and every one of them
---    is NON-DEFERRABLE -- Postgres checks it per row, not at commit -- so any UPDATE that would
---    transiently produce a duplicate fails immediately. V35 step 5 hit exactly this on these same
---    tables and rebuilt them rather than update in place; here we clear both collision shapes
---    first instead, which keeps the fold a straight UPDATE.
---
---    There are TWO collision shapes, and the second is why this cannot simply mirror
---    PersonRepository.repointTags: that helper moves ONE source onto ONE target (UserMergeService
---    calls it per pair), whereas v53_fold is N-to-one whenever a name group holds 3+ rows.
---
---      a) loser-vs-WINNER  -- the survivor already holds this key. Drop the loser's row.
---      b) loser-vs-LOSER   -- two different losers in the SAME group hold the same key, and
---                            neither collides with the winner. Both survive (a), then the UPDATE
---                            rewrites both to (key, target_id) and the second one violates the
---                            primary key. Keep the lowest person_id and drop the rest.
---
---    Shape (b) cannot arise in a 2-row group, which is the only shape the dev database happened
---    to contain -- so it stays invisible until prod, where 3+ row groups are plausible: V35 noted
---    content_people.person_name was never unique and minted one PERSON row per unlinked row, and
---    ContentMutationUtil's find-then-insert has no constraint behind it. V53FoldMigrationIntegrationTest
---    seeds shape (b) deliberately; without the (b) deletes below it fails with
---    "duplicate key value violates unique constraint content_image_people_pkey".
+-- 3. Re-point the tag joins, mirroring PersonRepository.repointTags. All three join tables have
+--    a composite primary key (content_image_people_pkey on (content_id, person_id),
+--    collection_people_pkey on (collection_id, person_id), role_member_pkey on (role_id,
+--    user_id)), so a row that already exists on the survivor would collide -- delete the
+--    source's colliding rows FIRST, then move the remainder.
 DELETE FROM content_image_people s
 USING v53_fold f
 WHERE s.person_id = f.source_id
   AND EXISTS (SELECT 1 FROM content_image_people t
               WHERE t.person_id = f.target_id AND t.content_id = s.content_id);
-
-DELETE FROM content_image_people s
-USING v53_fold f
-WHERE s.person_id = f.source_id
-  AND EXISTS (SELECT 1 FROM content_image_people o
-              JOIN v53_fold f2 ON o.person_id = f2.source_id
-              WHERE f2.target_id = f.target_id
-                AND o.content_id = s.content_id
-                AND o.person_id < s.person_id);
 
 UPDATE content_image_people s SET person_id = f.target_id
 FROM v53_fold f WHERE s.person_id = f.source_id;
@@ -132,15 +104,6 @@ USING v53_fold f
 WHERE s.person_id = f.source_id
   AND EXISTS (SELECT 1 FROM collection_people t
               WHERE t.person_id = f.target_id AND t.collection_id = s.collection_id);
-
-DELETE FROM collection_people s
-USING v53_fold f
-WHERE s.person_id = f.source_id
-  AND EXISTS (SELECT 1 FROM collection_people o
-              JOIN v53_fold f2 ON o.person_id = f2.source_id
-              WHERE f2.target_id = f.target_id
-                AND o.collection_id = s.collection_id
-                AND o.person_id < s.person_id);
 
 UPDATE collection_people s SET person_id = f.target_id
 FROM v53_fold f WHERE s.person_id = f.source_id;
@@ -152,15 +115,6 @@ USING v53_fold f
 WHERE s.user_id = f.source_id
   AND EXISTS (SELECT 1 FROM role_member t
               WHERE t.user_id = f.target_id AND t.role_id = s.role_id);
-
-DELETE FROM role_member s
-USING v53_fold f
-WHERE s.user_id = f.source_id
-  AND EXISTS (SELECT 1 FROM role_member o
-              JOIN v53_fold f2 ON o.user_id = f2.source_id
-              WHERE f2.target_id = f.target_id
-                AND o.role_id = s.role_id
-                AND o.user_id < s.user_id);
 
 UPDATE role_member s SET user_id = f.target_id
 FROM v53_fold f WHERE s.user_id = f.source_id;
