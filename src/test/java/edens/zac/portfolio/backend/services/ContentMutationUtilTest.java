@@ -30,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 
 @ExtendWith(MockitoExtension.class)
 class ContentMutationUtilTest {
@@ -401,6 +402,68 @@ class ContentMutationUtilTest {
     ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
     verify(contentRepository).saveContentPeople(eq(1L), captor.capture());
     assertEquals(Set.of(10L, 20L, 30L), new HashSet<>(captor.getValue()));
+  }
+
+  /**
+   * Regression: a duplicate-name person made findByPersonNameIgnoreCase (a queryForObject) throw
+   * IncorrectResultSizeDataAccessException, which was caught and logged as a WARN. The Lightroom
+   * export then reported success with the person tag silently missing. V53 removes the duplicates;
+   * this asserts the failure is reported rather than swallowed if it ever recurs.
+   */
+  @Test
+  void associateExtractedKeywords_personLookupFails_returnsFailureInsteadOfSwallowing() {
+    when(personRepository.findByPersonNameIgnoreCase("Tara Edens"))
+        .thenThrow(new IncorrectResultSizeDataAccessException(1, 2));
+
+    List<String> failures =
+        contentMutationUtil.associateExtractedKeywords(1L, null, List.of("Tara Edens"));
+
+    assertEquals(1, failures.size());
+    assertTrue(failures.get(0).contains("people"), failures.get(0));
+    verify(contentRepository, never()).saveContentPeople(anyLong(), anyList());
+  }
+
+  /** A failing person lookup must not take the image's tags down with it. */
+  @Test
+  void associateExtractedKeywords_personLookupFails_tagsStillAssociated() {
+    TagEntity rome = TagEntity.builder().id(76L).tagName("Rome Italy").slug("rome-italy").build();
+    when(tagRepository.findBySlug("rome-italy")).thenReturn(Optional.of(rome));
+    when(personRepository.findByPersonNameIgnoreCase("Tara Edens"))
+        .thenThrow(new IncorrectResultSizeDataAccessException(1, 2));
+
+    List<String> failures =
+        contentMutationUtil.associateExtractedKeywords(
+            1L, List.of("Rome Italy"), List.of("Tara Edens"));
+
+    verify(tagRepository).saveContentTags(eq(1L), anyList());
+    assertEquals(1, failures.size());
+  }
+
+  /** The inverse: a failing tag association must not skip the people block. */
+  @Test
+  void associateExtractedKeywords_tagFailure_peopleStillAssociated() {
+    when(tagRepository.findBySlug("rome-italy")).thenThrow(new RuntimeException("tag boom"));
+    ContentPersonEntity tara =
+        ContentPersonEntity.builder().id(107L).personName("Tara Edens").build();
+    when(personRepository.findByPersonNameIgnoreCase("Tara Edens")).thenReturn(Optional.of(tara));
+
+    List<String> failures =
+        contentMutationUtil.associateExtractedKeywords(
+            1L, List.of("Rome Italy"), List.of("Tara Edens"));
+
+    verify(contentRepository).saveContentPeople(eq(1L), anyList());
+    assertEquals(1, failures.size());
+    assertTrue(failures.get(0).contains("tags"), failures.get(0));
+  }
+
+  @Test
+  void associateExtractedKeywords_success_returnsNoFailures() {
+    ContentPersonEntity tara =
+        ContentPersonEntity.builder().id(107L).personName("Tara Edens").build();
+    when(personRepository.findByPersonNameIgnoreCase("Tara Edens")).thenReturn(Optional.of(tara));
+
+    assertTrue(
+        contentMutationUtil.associateExtractedKeywords(1L, null, List.of("Tara Edens")).isEmpty());
   }
 
   // =============================================================================

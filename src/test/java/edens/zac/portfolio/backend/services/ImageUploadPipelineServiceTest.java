@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -354,6 +355,51 @@ class ImageUploadPipelineServiceTest {
           .associateExtractedKeywords(
               eq(101L), eq(List.of("street", "film")), eq(List.of("Alice")));
       verify(contentMutationUtil).associateLocationsByName(eq(101L), eq(List.of("Amsterdam")));
+    }
+
+    @Test
+    @DisplayName("a keyword failure reaches the job, flips it to FAILED, and still links the image")
+    void processFilesFromDisk_keywordFailure_recordedOnJobAndFlipsStatusToFailed()
+        throws Exception {
+      // Regression pin for the incident this change exists to fix: a duplicate person name made
+      // findByPersonNameIgnoreCase throw, ContentMutationUtil swallowed it into a WARN, and the
+      // upload reported success while dropping the person.
+      //
+      // This is the ONLY test that stubs a keyword failure. Every other reference to the mock is a
+      // bare verify(), and Mockito returns an empty list for List-returning methods -- so without
+      // this, reverting job.errors().addAll(wireImageAfterDedupe(...)) to a bare statement would
+      // compile (Java lets you discard a return value), pass checkstyle, and leave the whole suite
+      // green while silently restoring the original bug.
+      Long collectionId = 1L;
+      var request =
+          new DiskUploadRequest(
+              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
+      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(jobTrackingService.createJob(1)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(contentService.nextOrderIndex(collectionId)).thenReturn(0);
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", List.of("Rome Italy"), List.of("Tara Edens")));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(createResult(101L));
+      when(contentMutationUtil.associateExtractedKeywords(eq(101L), anyList(), anyList()))
+          .thenReturn(
+              List.of(
+                  "image 101: failed to associate people: Incorrect result size: expected 1,"
+                      + " actual 2"));
+
+      service.processFilesFromDisk(collectionId, request);
+      awaitCompletion(job);
+
+      assertThat(job.errors()).anyMatch(e -> e.contains("failed to associate people"));
+      // The deliberate semantic change: a dropped person tag is now a visibly FAILED job rather
+      // than a silent success. markCompleted keys status off the error list.
+      assertThat(job.status()).isEqualTo("FAILED");
+      // ...but the image itself still succeeded. It is counted and still linked to the collection,
+      // so a keyword failure degrades the report, not the upload.
+      assertThat(job.created().get()).isEqualTo(1);
+      verify(contentService).linkContentToCollection(eq(collectionId), eq(101L), anyInt());
     }
 
     @Test
