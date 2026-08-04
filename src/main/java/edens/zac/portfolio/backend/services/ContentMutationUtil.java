@@ -264,25 +264,28 @@ public class ContentMutationUtil {
 
   /**
    * Associate tags and people extracted from image XMP metadata with a saved image. Creates new
-   * tag/person entities if they don't already exist (case-insensitive dedup). Failures are logged
-   * but do not propagate -- the image save is not affected.
+   * tag/person entities if they don't already exist (case-insensitive dedup).
    *
    * <p>Additive: a re-upload adds the export's keywords without removing curated ones absent from
    * it.
    *
+   * <p>Failures do not propagate -- the image save is not affected -- but they are RETURNED rather
+   * than only logged, so the caller can surface them on the upload job. Swallowing them into a WARN
+   * is what let a duplicate-name person (see V53) drop every person tag from Lightroom exports for
+   * weeks while the job still reported success. Tags and people are attempted independently so a
+   * failure in one cannot silently take the other down with it.
+   *
    * @param imageId The saved image entity ID
    * @param tagNames Tag names extracted from XMP keywords
    * @param peopleNames Person names extracted from XMP keywords
+   * @return one message per failed association; empty when everything was associated
    */
-  public void associateExtractedKeywords(
+  public List<String> associateExtractedKeywords(
       Long imageId, List<String> tagNames, List<String> peopleNames) {
-    if ((tagNames == null || tagNames.isEmpty())
-        && (peopleNames == null || peopleNames.isEmpty())) {
-      return;
-    }
+    List<String> failures = new ArrayList<>();
 
-    try {
-      if (tagNames != null && !tagNames.isEmpty()) {
+    if (tagNames != null && !tagNames.isEmpty()) {
+      try {
         Set<Long> tagIds = new LinkedHashSet<>();
         Set<String> seenTags = new HashSet<>();
         for (String tagName : tagNames) {
@@ -305,9 +308,14 @@ public class ContentMutationUtil {
                 .getOrDefault(imageId, List.of()));
         tagRepository.saveContentTags(imageId, new ArrayList<>(tagIds));
         log.info("Associated {} tags with image {}", tagIds.size(), imageId);
+      } catch (Exception e) {
+        log.warn("Failed to associate tags with image {}: {}", imageId, e.getMessage(), e);
+        failures.add("image " + imageId + ": failed to associate tags: " + e.getMessage());
       }
+    }
 
-      if (peopleNames != null && !peopleNames.isEmpty()) {
+    if (peopleNames != null && !peopleNames.isEmpty()) {
+      try {
         Set<Long> personIds = new LinkedHashSet<>();
         Set<String> seenPeople = new HashSet<>();
         for (String personName : peopleNames) {
@@ -330,11 +338,13 @@ public class ContentMutationUtil {
                 .getOrDefault(imageId, List.of()));
         contentRepository.saveContentPeople(imageId, new ArrayList<>(personIds));
         log.info("Associated {} people with image {}", personIds.size(), imageId);
+      } catch (Exception e) {
+        log.warn("Failed to associate people with image {}: {}", imageId, e.getMessage(), e);
+        failures.add("image " + imageId + ": failed to associate people: " + e.getMessage());
       }
-    } catch (Exception e) {
-      log.warn(
-          "Failed to associate extracted keywords with image {}: {}", imageId, e.getMessage(), e);
     }
+
+    return failures;
   }
 
   /**

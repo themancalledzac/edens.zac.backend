@@ -338,29 +338,33 @@ public class ImageUploadPipelineService {
         switch (dedupeResult.action()) {
           case CREATE -> {
             job.created().incrementAndGet();
-            wireImageAfterDedupe(
-                dedupeResult,
-                tags,
-                people,
-                prepared.rawFilePath(),
-                prepared.imageYear(),
-                prepared.imageMonth(),
-                collectionId,
-                orderIndex++);
+            job.errors()
+                .addAll(
+                    wireImageAfterDedupe(
+                        dedupeResult,
+                        tags,
+                        people,
+                        prepared.rawFilePath(),
+                        prepared.imageYear(),
+                        prepared.imageMonth(),
+                        collectionId,
+                        orderIndex++));
             contentMutationUtil.associateLocationsByName(
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
           case UPDATE -> {
             job.updated().incrementAndGet();
-            wireImageAfterDedupe(
-                dedupeResult,
-                tags,
-                people,
-                prepared.rawFilePath(),
-                prepared.imageYear(),
-                prepared.imageMonth(),
-                collectionId,
-                orderIndex++);
+            job.errors()
+                .addAll(
+                    wireImageAfterDedupe(
+                        dedupeResult,
+                        tags,
+                        people,
+                        prepared.rawFilePath(),
+                        prepared.imageYear(),
+                        prepared.imageMonth(),
+                        collectionId,
+                        orderIndex++));
             contentMutationUtil.associateLocationsByName(
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
@@ -481,15 +485,17 @@ public class ImageUploadPipelineService {
             int orderIndex =
                 nextOrderByCollection.computeIfAbsent(collectionId, contentService::nextOrderIndex);
             nextOrderByCollection.put(collectionId, orderIndex + 1);
-            wireImageAfterDedupe(
-                dedupeResult,
-                tags,
-                people,
-                prepared.rawFilePath(),
-                prepared.imageYear(),
-                prepared.imageMonth(),
-                collectionId,
-                orderIndex);
+            job.errors()
+                .addAll(
+                    wireImageAfterDedupe(
+                        dedupeResult,
+                        tags,
+                        people,
+                        prepared.rawFilePath(),
+                        prepared.imageYear(),
+                        prepared.imageMonth(),
+                        collectionId,
+                        orderIndex));
             contentMutationUtil.associateLocationsByName(
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
@@ -591,8 +597,10 @@ public class ImageUploadPipelineService {
   /**
    * Wire up an image after dedupe: associate keywords, schedule RAW upload if needed, and link to
    * collection (skipping if already linked for UPDATE actions).
+   *
+   * @return one message per keyword association that failed; empty on full success
    */
-  private void wireImageAfterDedupe(
+  private List<String> wireImageAfterDedupe(
       ImageProcessingService.DedupeResult dedupeResult,
       List<String> tags,
       List<String> people,
@@ -601,15 +609,20 @@ public class ImageUploadPipelineService {
       int month,
       Long collectionId,
       int orderIndex) {
-    contentMutationUtil.associateExtractedKeywords(dedupeResult.entity().getId(), tags, people);
+    // Keyword failures are returned rather than thrown: the image is already saved, and throwing
+    // would skip the collection link below and orphan it. Handing them back is what makes a
+    // dropped person tag visible to the caller instead of silent (see ContentMutationUtil + V53).
+    List<String> keywordFailures =
+        contentMutationUtil.associateExtractedKeywords(dedupeResult.entity().getId(), tags, people);
     scheduleRawUploadIfNeeded(dedupeResult, rawFilePath, year, month);
     if (dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
       Optional<CollectionContentEntity> existing =
           collectionRepository.findContentByCollectionIdAndContentId(
               collectionId, dedupeResult.entity().getId());
-      if (existing.isPresent()) return;
+      if (existing.isPresent()) return keywordFailures;
     }
     contentService.linkContentToCollection(collectionId, dedupeResult.entity().getId(), orderIndex);
+    return keywordFailures;
   }
 
   /**
@@ -694,16 +707,20 @@ public class ImageUploadPipelineService {
           continue;
         }
 
-        // Wire up keywords, RAW upload, and collection link (same as disk upload path)
+        // Wire up keywords, RAW upload, and collection link (same as disk upload path). The image
+        // itself succeeded, so a keyword failure is reported alongside it rather than replacing it.
         wireImageAfterDedupe(
-            dedupeResult,
-            prepared.data().extractedTags(),
-            prepared.data().extractedPeople(),
-            prepared.data().rawFilePath(),
-            prepared.data().imageYear(),
-            prepared.data().imageMonth(),
-            collectionId,
-            orderIndex);
+                dedupeResult,
+                prepared.data().extractedTags(),
+                prepared.data().extractedPeople(),
+                prepared.data().rawFilePath(),
+                prepared.data().imageYear(),
+                prepared.data().imageMonth(),
+                collectionId,
+                orderIndex)
+            .forEach(
+                message ->
+                    failures.add(new ImageUploadResult.FileError(prepared.filename(), message)));
 
         // Convert entity to model for the result list
         ContentModel contentModel =
