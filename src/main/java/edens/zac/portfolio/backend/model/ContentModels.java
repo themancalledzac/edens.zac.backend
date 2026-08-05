@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDate;
@@ -244,7 +245,8 @@ public final class ContentModels {
       ContentModels.Image coverImage,
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionEndDate,
-      List<Records.Tag> tags)
+      List<Records.Tag> tags,
+      CollectionVisibility visibility)
       implements ContentModel {
 
     /**
@@ -253,6 +255,15 @@ public final class ContentModels {
      * /user} page) where each child collection becomes a {@code COLLECTION} block pointing back at
      * itself. Tags start empty; callers that need per-collection tags for filtering (e.g. synthetic
      * list views) enrich the block via {@link #withTags}.
+     *
+     * <p>{@code visibility} is serialized unconditionally, for every viewer. It is NOT an access
+     * control and must never be treated as one: the access boundary is the row scoping in {@code
+     * SyntheticCollectionResolver#findAllCollectionsForCurrentViewer}, which runs first and decides
+     * which collections a viewer receives at all. By the time a block is serialized the viewer is
+     * already entitled to it, so the label reveals nothing further — a non-admin's blocks read
+     * LISTED, save for their own granted galleries, which they own. Omitting it per-role would make
+     * the payload shape vary by identity (a caching hazard) and, worse, would imply the field is
+     * the boundary and invite someone to relax the row query behind it.
      */
     public static Collection fromCollectionModel(CollectionModel c) {
       return new Collection(
@@ -272,7 +283,8 @@ public final class ContentModels {
           c.getCoverImage(),
           c.getCollectionDate(),
           c.getCollectionEndDate(),
-          List.of());
+          List.of(),
+          c.getVisibility());
     }
 
     /** Returns a new Collection with {@code orderIndex} replaced (records are immutable). */
@@ -294,7 +306,8 @@ public final class ContentModels {
           coverImage,
           collectionDate,
           collectionEndDate,
-          tags);
+          tags,
+          visibility);
     }
 
     /**
@@ -320,7 +333,8 @@ public final class ContentModels {
           coverImage,
           collectionDate,
           collectionEndDate,
-          tags);
+          tags,
+          visibility);
     }
   }
 }

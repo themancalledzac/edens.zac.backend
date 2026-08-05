@@ -250,6 +250,57 @@ class SyntheticCollectionResolverTest {
   }
 
   @Test
+  void resolveAllCollectionsAttachesVisibilityToContentBlocks() {
+    // Each child's visibility must ride onto its COLLECTION block so an admin client can preview
+    // the general-audience view (LISTED only) without a per-collection fetch.
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity(), new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder()
+                    .id(7L)
+                    .slug("public-trip")
+                    .visibility(CollectionVisibility.LISTED)
+                    .build(),
+                CollectionModel.builder()
+                    .id(8L)
+                    .slug("wip")
+                    .visibility(CollectionVisibility.HIDDEN)
+                    .build()));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    assertThat(out.getContent())
+        .extracting(block -> ((ContentModels.Collection) block).visibility())
+        .containsExactly(CollectionVisibility.LISTED, CollectionVisibility.HIDDEN);
+  }
+
+  @Test
+  void resolveAllCollectionsKeepsVisibilityThroughTagEnrichment() {
+    // withTags() rebuilds the record; visibility must survive that copy, not silently reset.
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder()
+                    .id(7L)
+                    .slug("trip")
+                    .visibility(CollectionVisibility.UNLISTED)
+                    .build()));
+    when(tagRepository.findTagsByCollectionIds(List.of(7L)))
+        .thenReturn(
+            Map.of(7L, List.of(TagEntity.builder().id(2L).tagName("italy").slug("italy").build())));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.visibility()).isEqualTo(CollectionVisibility.UNLISTED);
+    assertThat(block.tags()).extracting("name").containsExactly("italy");
+  }
+
+  @Test
   void resolveAllBlogsInProdFiltersToBlogTypeAndListedOnly() {
     when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
             eq(List.of(CollectionVisibility.LISTED)), eq(true)))

@@ -86,7 +86,8 @@ class CollectionFlagSerializationTest {
             null,
             null,
             null,
-            List.of());
+            List.of(),
+            edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
     JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(block));
 

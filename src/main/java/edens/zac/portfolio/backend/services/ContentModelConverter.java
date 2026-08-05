@@ -582,7 +582,8 @@ class ContentModelConverter {
         referencedCollection.getCollectionEndDate(),
         // Nested-collection content blocks do not carry aggregated tags today; only synthetic list
         // views (SyntheticCollectionResolver) enrich tags for client-side filtering.
-        List.of());
+        List.of(),
+        referencedCollection.getVisibility());
   }
 
   // =============================================================================
