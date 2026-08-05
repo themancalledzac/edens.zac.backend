@@ -960,7 +960,8 @@ class CollectionServiceTest {
               null,
               null,
               null,
-              List.of());
+              List.of(),
+              edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
       CollectionModel model =
           CollectionModel.builder()
@@ -1355,7 +1356,8 @@ class CollectionServiceTest {
           null,
           null,
           null,
-          List.of());
+          List.of(),
+          edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
     }
 
     private CollectionEntity childEntity(
@@ -2233,7 +2235,8 @@ class CollectionServiceTest {
               null,
               null,
               null,
-              List.of());
+              List.of(),
+              edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
       CollectionModel model =
           CollectionModel.builder()
