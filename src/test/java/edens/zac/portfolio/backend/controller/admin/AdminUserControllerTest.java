@@ -21,11 +21,15 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.EmailService;
+import edens.zac.portfolio.backend.services.UserFollowsService;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
+import edens.zac.portfolio.backend.services.UserSavesService;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +53,8 @@ class AdminUserControllerTest {
   @Mock private UserInviteService userInviteService;
   @Mock private RoleRepository roleRepository;
   @Mock private UserPageAssembler userPageAssembler;
+  @Mock private UserSavesService userSavesService;
+  @Mock private UserFollowsService userFollowsService;
   @Mock private UserMergeService userMergeService;
   @Mock private EmailService emailService;
 
@@ -63,6 +69,8 @@ class AdminUserControllerTest {
             userInviteService,
             roleRepository,
             userPageAssembler,
+            userSavesService,
+            userFollowsService,
             userMergeService,
             emailService,
             FRONTEND_BASE_URL);
@@ -903,6 +911,105 @@ class AdminUserControllerTest {
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.slug", is("user")))
           .andExpect(jsonPath("$.title", is("Alice")));
+    }
+  }
+
+  /**
+   * The by-id counterparts of the self-serve space reads, so an admin can render another user's
+   * space. Each delegates straight to its service with the path id — never the acting admin's own
+   * id, which is the bug these tests pin.
+   */
+  @Nested
+  class UserSpaceReads {
+
+    @Test
+    void getUserSavedImagesReturns200WithImageModels() throws Exception {
+      when(userSavesService.listSavedImages(10L))
+          .thenReturn(
+              List.of(
+                  imageModel(42L, "Newer", "https://cdn.example.com/newer.jpg"),
+                  imageModel(43L, "Older", "https://cdn.example.com/older.jpg")));
+
+      mockMvc
+          .perform(get("/api/admin/users/10/saves/images"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(2))
+          .andExpect(jsonPath("$[0].id").value(42))
+          .andExpect(jsonPath("$[0].title", is("Newer")))
+          .andExpect(jsonPath("$[0].imageUrl", is("https://cdn.example.com/newer.jpg")))
+          .andExpect(jsonPath("$[1].id").value(43));
+
+      // The path id is what reaches the service — not the acting admin's id.
+      verify(userSavesService).listSavedImages(10L);
+    }
+
+    @Test
+    void getUserSavedImagesReturnsEmptyArrayWhenNoneSaved() throws Exception {
+      when(userSavesService.listSavedImages(10L)).thenReturn(List.of());
+
+      mockMvc
+          .perform(get("/api/admin/users/10/saves/images"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void getUserFollowsReturns200WithCollectionIds() throws Exception {
+      when(userFollowsService.listFollowedCollectionIds(10L)).thenReturn(List.of(7L, 9L));
+
+      mockMvc
+          .perform(get("/api/admin/users/10/follows"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(2))
+          .andExpect(jsonPath("$[0]").value(7))
+          .andExpect(jsonPath("$[1]").value(9));
+
+      verify(userFollowsService).listFollowedCollectionIds(10L);
+    }
+
+    @Test
+    void getUserFollowsReturnsEmptyArrayWhenNoneFollowed() throws Exception {
+      when(userFollowsService.listFollowedCollectionIds(10L)).thenReturn(List.of());
+
+      mockMvc
+          .perform(get("/api/admin/users/10/follows"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    private ContentModels.Image imageModel(Long id, String title, String imageUrl) {
+      return new ContentModels.Image(
+          id,
+          ContentType.IMAGE,
+          title,
+          null,
+          null,
+          null,
+          imageUrl,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          List.of(),
+          null,
+          List.of(),
+          List.of(),
+          List.of());
     }
   }
 }
