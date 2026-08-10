@@ -130,15 +130,28 @@ public class UserPageAssembler {
    * The linked person's standalone tagged content as IMAGE/GIF blocks, each kind already date-desc
    * from the DAO (images by capture date, gifs by creation), images before gifs. Cross-collection
    * de-duplication is intentionally out of scope for this slice.
+   *
+   * <p>Both kinds go through the BATCH converters, not the per-entity ones. The single-entity
+   * {@code convertImageEntityToModel} / {@code convertRegularContentEntityToModel} resolve each
+   * block's tags, people and locations with three queries apiece, so a heavily tagged user cost 3N
+   * queries and dominated the whole response: measured against the local backend, 0 tagged images
+   * answered in 0.31s, 14 in 0.78s, and 34 in 3.05s. The batch pair issues those three queries ONCE
+   * per kind, making the block count irrelevant to the query count — the same treatment {@link
+   * #buildCollectionBlocks} already gets from {@code batchConvertToBasicModels}.
+   *
+   * <p>The swap is shape-preserving, not merely equivalent-looking: each batch path shares its
+   * record construction with the per-entity path it replaces ({@code buildImageRecord} / {@code
+   * buildGifRecord}), and neither emits a per-block "containing collections" lookup — that field is
+   * hard-coded empty in both. So the serialized response is unchanged.
    */
   private List<ContentModel> buildTaggedContentBlocks(Long personId) {
-    List<ContentModel> blocks = new ArrayList<>();
-    contentRepository.findTaggedImagesByPersonId(personId).stream()
-        .map(contentModelConverter::convertImageEntityToModel)
-        .forEach(blocks::add);
-    contentRepository.findTaggedGifsByPersonId(personId).stream()
-        .map(contentModelConverter::convertRegularContentEntityToModel)
-        .forEach(blocks::add);
+    List<ContentModel> blocks =
+        new ArrayList<>(
+            contentModelConverter.batchConvertImageEntitiesToModels(
+                contentRepository.findTaggedImagesByPersonId(personId)));
+    blocks.addAll(
+        contentModelConverter.batchConvertGifEntitiesToModels(
+            contentRepository.findTaggedGifsByPersonId(personId)));
     return blocks;
   }
 
