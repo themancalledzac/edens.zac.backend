@@ -29,13 +29,13 @@ import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
+import edens.zac.portfolio.backend.types.ContentType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -348,6 +348,11 @@ public class ContentService {
     // contentMutationUtil.updateImageLocationsOptimized
   }
 
+  /**
+   * Bulk-delete content blocks by id. The admin grid mixes images and GIF/MP4 blocks in one
+   * selection, so ids are dispatched on their stored {@link ContentType} rather than assumed to be
+   * images -- a GIF id sent here used to fall through as "Image not found".
+   */
   @Transactional
   public Map<String, Object> deleteImages(List<Long> imageIds) {
     contentValidator.validateImageIds(imageIds);
@@ -357,20 +362,39 @@ public class ContentService {
 
     for (Long imageId : imageIds) {
       try {
-        Optional<ContentImageEntity> imageOpt = contentRepository.findImageById(imageId);
-        if (imageOpt.isEmpty()) {
-          errors.add("Image not found: " + imageId);
+        ContentType contentType = contentRepository.findContentTypeById(imageId).orElse(null);
+        if (contentType == null) {
+          errors.add("Content not found: " + imageId);
           continue;
         }
 
-        ContentImageEntity image = imageOpt.get();
+        switch (contentType) {
+          case IMAGE -> {
+            ContentImageEntity image = contentRepository.findImageById(imageId).orElse(null);
+            if (image == null) {
+              errors.add("Image not found: " + imageId);
+              continue;
+            }
 
-        // Delete from S3 before deleting from database
-        imageProcessingService.deleteImageFromS3(image);
+            // Delete from S3 before deleting from database
+            imageProcessingService.deleteImageFromS3(image);
 
-        // Delete from database
-        contentRepository.deleteImageById(imageId);
-        deletedIds.add(imageId);
+            // Delete from database
+            contentRepository.deleteImageById(imageId);
+            deletedIds.add(imageId);
+          }
+          case GIF -> {
+            Long deletedGifId = deleteGif(imageId);
+            if (deletedGifId == null) {
+              errors.add("GIF not found: " + imageId);
+              continue;
+            }
+            deletedIds.add(deletedGifId);
+          }
+          default ->
+              errors.add(
+                  "Content " + imageId + " is a " + contentType + " and cannot be deleted here");
+        }
 
       } catch (Exception e) {
         errors.add("Failed to delete image " + imageId + ": " + e.getMessage());
