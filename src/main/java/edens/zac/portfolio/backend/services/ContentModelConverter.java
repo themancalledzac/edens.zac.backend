@@ -238,6 +238,60 @@ class ContentModelConverter {
   }
 
   /**
+   * Batch-convert a list of ContentGifEntity to models using pre-fetched related data. Mirrors
+   * {@link #batchConvertImageEntitiesToModels}: eliminates N+1 queries by batch-loading tags,
+   * people, and locations in 3 queries total rather than 3 per gif.
+   *
+   * @param entities The gif entities to convert
+   * @return List of converted gif models
+   */
+  public List<ContentModels.Gif> batchConvertGifEntitiesToModels(List<ContentGifEntity> entities) {
+    if (entities == null || entities.isEmpty()) {
+      return new ArrayList<>();
+    }
+
+    List<Long> contentIds = entities.stream().map(ContentGifEntity::getId).toList();
+
+    Map<Long, List<TagEntity>> tagsByContentId = tagRepository.findTagsByContentIds(contentIds);
+    Map<Long, List<ContentPersonEntity>> peopleByContentId =
+        personRepository.findPeopleByContentIds(contentIds);
+    Map<Long, List<LocationEntity>> locationsByContentId =
+        locationRepository.findLocationsByContentIds(contentIds);
+
+    return entities.stream()
+        .map(
+            entity ->
+                buildGifModelWithBatchData(
+                    entity, null, null, tagsByContentId, peopleByContentId, locationsByContentId))
+        .toList();
+  }
+
+  /**
+   * Build a gif model using pre-fetched batch data instead of per-gif queries. Gif counterpart of
+   * {@link #buildImageModelWithBatchData}.
+   */
+  private ContentModels.Gif buildGifModelWithBatchData(
+      ContentGifEntity entity,
+      Integer orderIndex,
+      Boolean visible,
+      Map<Long, List<TagEntity>> tagsByContentId,
+      Map<Long, List<ContentPersonEntity>> peopleByContentId,
+      Map<Long, List<LocationEntity>> locationsByContentId) {
+    if (entity == null) {
+      return null;
+    }
+
+    List<Records.Location> locations =
+        resolveLocations(locationsByContentId.getOrDefault(entity.getId(), List.of()));
+
+    Set<TagEntity> tags = new HashSet<>(tagsByContentId.getOrDefault(entity.getId(), List.of()));
+    Set<ContentPersonEntity> people =
+        new HashSet<>(peopleByContentId.getOrDefault(entity.getId(), List.of()));
+
+    return buildGifRecord(entity, orderIndex, visible, locations, tags, people);
+  }
+
+  /**
    * Build an image model using pre-fetched batch data instead of per-image queries. Unified
    * conversion path used by both single-entity and batch-entity flows.
    *
@@ -435,6 +489,23 @@ class ContentModelConverter {
     List<Records.Location> locations =
         resolveLocations(locMap.getOrDefault(entity.getId(), List.of()));
 
+    return buildGifRecord(entity, orderIndex, visible, locations, tags, people);
+  }
+
+  /**
+   * Assemble the {@link ContentModels.Gif} record from an entity plus its already-resolved
+   * relations. Shared terminal step of both gif conversion paths — the per-entity {@link
+   * #convertGifToModel}, which resolves those relations with its own queries, and {@link
+   * #buildGifModelWithBatchData}, which reads them out of pre-fetched batch maps. Keeping the
+   * record construction in one place is what guarantees the two paths emit an identical shape.
+   */
+  private ContentModels.Gif buildGifRecord(
+      ContentGifEntity entity,
+      Integer orderIndex,
+      Boolean visible,
+      List<Records.Location> locations,
+      Set<TagEntity> tags,
+      Set<ContentPersonEntity> people) {
     return new ContentModels.Gif(
         entity.getId(),
         entity.getContentType(),
