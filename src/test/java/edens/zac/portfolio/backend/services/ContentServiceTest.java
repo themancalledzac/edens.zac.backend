@@ -288,4 +288,48 @@ class ContentServiceTest {
     assertThat(captor.getValue().getContentId()).isEqualTo(42L);
     assertThat(captor.getValue().getOrderIndex()).isEqualTo(3);
   }
+
+  @Test
+  @DisplayName("deleteImages routes GIF ids to the gif delete path instead of reporting not-found")
+  void deleteImages_gifId_deletesGif() {
+    ContentGifEntity gif =
+        ContentGifEntity.builder().id(2076L).contentType(ContentType.GIF).build();
+    when(contentRepository.findContentTypeById(2076L)).thenReturn(Optional.of(ContentType.GIF));
+    when(contentRepository.findGifById(2076L)).thenReturn(Optional.of(gif));
+
+    Map<String, Object> result = service.deleteImages(List.of(2076L));
+
+    assertThat(result.get("deletedIds")).isEqualTo(List.of(2076L));
+    assertThat((List<?>) result.get("errors")).isEmpty();
+    verify(imageProcessingService).deleteGifFromS3(gif);
+    verify(contentRepository).deleteGifById(2076L);
+    verify(contentRepository, never()).deleteImageById(any());
+  }
+
+  @Test
+  @DisplayName("deleteImages still deletes image ids through the image path")
+  void deleteImages_imageId_deletesImage() {
+    ContentImageEntity image =
+        ContentImageEntity.builder().id(10L).contentType(ContentType.IMAGE).build();
+    when(contentRepository.findContentTypeById(10L)).thenReturn(Optional.of(ContentType.IMAGE));
+    when(contentRepository.findImageById(10L)).thenReturn(Optional.of(image));
+
+    Map<String, Object> result = service.deleteImages(List.of(10L));
+
+    assertThat(result.get("deletedIds")).isEqualTo(List.of(10L));
+    verify(imageProcessingService).deleteImageFromS3(image);
+    verify(contentRepository).deleteImageById(10L);
+    verify(contentRepository, never()).deleteGifById(any());
+  }
+
+  @Test
+  @DisplayName("deleteImages reports unknown ids as not found without deleting anything")
+  void deleteImages_missingId_reportsError() {
+    when(contentRepository.findContentTypeById(999L)).thenReturn(Optional.empty());
+
+    Map<String, Object> result = service.deleteImages(List.of(999L));
+
+    assertThat((List<?>) result.get("deletedIds")).isEmpty();
+    assertThat(result.get("errors")).isEqualTo(List.of("Content not found: 999"));
+  }
 }

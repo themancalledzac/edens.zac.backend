@@ -329,7 +329,12 @@ class AdminController {
     List<Long> deletedIds = (List<Long>) response.get("deletedIds");
 
     if (deletedIds == null || deletedIds.isEmpty()) {
-      throw new IllegalArgumentException("No images were deleted");
+      @SuppressWarnings("unchecked")
+      List<String> errors = (List<String>) response.get("errors");
+      throw new IllegalArgumentException(
+          errors == null || errors.isEmpty()
+              ? "No images were deleted"
+              : "No images were deleted: " + String.join("; ", errors));
     }
 
     return ResponseEntity.ok(response);
