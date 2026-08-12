@@ -2,7 +2,10 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository.EffectiveGrant;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,5 +44,30 @@ public class CollectionAccessService {
   @Transactional(readOnly = true)
   public List<EffectiveGrant> effectiveGrants(Long userId) {
     return roleRepository.effectiveGrants(userId);
+  }
+
+  /**
+   * The principal's effective level on one collection: the ADMIN sentinel for a global admin,
+   * otherwise the highest stored grant across their roles, otherwise empty. Absence is load-bearing
+   * -- "no grant" must stay distinguishable from a GENERAL grant, or every logged-in user would
+   * satisfy hasAtLeast(GENERAL) and canView would leak site-wide.
+   */
+  @Transactional(readOnly = true)
+  public Optional<AccessLevel> effectiveLevel(AuthPrincipal principal, Long collectionId) {
+    if (principal == null) {
+      return Optional.empty();
+    }
+    if (principal.isAdmin()) {
+      return Optional.of(AccessLevel.ADMIN);
+    }
+    return roleRepository.highestLevel(principal.userId(), collectionId);
+  }
+
+  /** True when the principal's effective level on the collection is at least {@code required}. */
+  @Transactional(readOnly = true)
+  public boolean hasAtLeast(AuthPrincipal principal, Long collectionId, AccessLevel required) {
+    return effectiveLevel(principal, collectionId)
+        .filter(level -> level.atLeast(required))
+        .isPresent();
   }
 }

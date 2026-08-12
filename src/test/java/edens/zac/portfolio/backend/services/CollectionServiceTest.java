@@ -33,6 +33,7 @@ import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -1475,7 +1476,8 @@ class CollectionServiceTest {
 
     @Test
     void enforceVisibilityHIDDENPassesInProdForAdmin() {
-      setPrincipal(new AuthPrincipal(1L, "admin@ezac.com", true, true));
+      AuthPrincipal admin = new AuthPrincipal(1L, "admin@ezac.com", true, true);
+      setPrincipal(admin);
       CollectionEntity entity =
           CollectionEntity.builder()
               .id(1L)
@@ -1485,6 +1487,8 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("secret")).thenReturn(Optional.of(entity));
       when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
           .thenReturn(false);
+      when(collectionAccessService.hasAtLeast(eq(admin), eq(1L), eq(AccessLevel.GENERAL)))
+          .thenReturn(true);
       when(collectionProcessingUtil.convertToBasicModel(entity))
           .thenReturn(CollectionModel.builder().id(1L).slug("secret").build());
 
@@ -1493,7 +1497,8 @@ class CollectionServiceTest {
 
     @Test
     void enforceVisibilityHIDDENPassesInProdForGrantedUser() {
-      setPrincipal(AuthPrincipal.client(42L, "client@ezac.com", true));
+      AuthPrincipal client = AuthPrincipal.client(42L, "client@ezac.com", true);
+      setPrincipal(client);
       CollectionEntity entity =
           CollectionEntity.builder()
               .id(9L)
@@ -1503,7 +1508,8 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
       when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
           .thenReturn(false);
-      when(collectionAccessService.canView(42L, 9L)).thenReturn(true);
+      when(collectionAccessService.hasAtLeast(eq(client), eq(9L), eq(AccessLevel.GENERAL)))
+          .thenReturn(true);
       when(collectionProcessingUtil.convertToBasicModel(entity))
           .thenReturn(CollectionModel.builder().id(9L).slug("their-gallery").build());
 
@@ -1512,7 +1518,8 @@ class CollectionServiceTest {
 
     @Test
     void enforceVisibilityHIDDENStillBlocksProdForSignedInStranger() {
-      setPrincipal(AuthPrincipal.client(43L, "stranger@ezac.com", true));
+      AuthPrincipal stranger = AuthPrincipal.client(43L, "stranger@ezac.com", true);
+      setPrincipal(stranger);
       CollectionEntity entity =
           CollectionEntity.builder()
               .id(9L)
@@ -1522,7 +1529,8 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("their-gallery")).thenReturn(Optional.of(entity));
       when(springEnv.acceptsProfiles(any(org.springframework.core.env.Profiles.class)))
           .thenReturn(false);
-      when(collectionAccessService.canView(43L, 9L)).thenReturn(false);
+      when(collectionAccessService.hasAtLeast(eq(stranger), eq(9L), eq(AccessLevel.GENERAL)))
+          .thenReturn(false);
 
       assertThatThrownBy(() -> service.findMetaBySlug("their-gallery"))
           .isInstanceOf(ResourceNotFoundException.class);

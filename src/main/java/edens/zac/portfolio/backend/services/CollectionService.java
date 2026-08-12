@@ -28,6 +28,7 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
@@ -1486,7 +1487,7 @@ public class CollectionService {
     if (auth == null || !(auth.getPrincipal() instanceof AuthPrincipal p) || p.userId() == null) {
       return false;
     }
-    return p.isAdmin() || collectionAccessService.canView(p.userId(), collectionId);
+    return collectionAccessService.hasAtLeast(p, collectionId, AccessLevel.GENERAL);
   }
 
   private boolean isLocalEnvironment() {
