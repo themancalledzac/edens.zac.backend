@@ -401,6 +401,48 @@ Backend (`edens.zac.backend`):
 5. Site loads, all collections and images render normally
 6. Search built JS bundle for EC2 IP — must not appear
 
+## CloudFront in front of `/api/read/*`
+
+CloudFront historically fronted only S3 images and the frontend, never the API: every page
+open was an origin request that ran SQL on EC2. `terraform/cloudfront.tf` can now add the
+API as a second origin on the existing distribution, with a `/api/read/*` cache behavior.
+
+Freshness is decided entirely by the origin's `Cache-Control` headers (`CacheControlInterceptor`
+/ `ReadCachePolicy`). The CloudFront cache policy sets `min_ttl`/`default_ttl` to 0 and a long
+`max_ttl`, so it never overrides the application.
+
+**This is off by default.** Everything is conditional on `api_origin_domain`; unset, the
+distribution is unchanged.
+
+### Rollout
+
+1. Set `api_origin_domain` in `terraform/terraform.tfvars` to the Caddy domain (bare host,
+   the same value as `DOMAIN` in the EC2 `.env`).
+2. `terraform plan` — expect one new cache policy, one origin request policy, and a modified
+   distribution. Distribution updates take ~15 minutes to propagate.
+3. `terraform apply`, then take the `api_read_base_url` output.
+4. **Frontend repo change (required, not automatic):** point the BFF's read calls at that
+   base URL. Until this happens the behavior is live but unused — the BFF still talks to the
+   origin directly, and nothing is cached.
+
+### Two things that are easy to get wrong
+
+- **The BFF must keep sending `X-Internal-Secret`.** CloudFront does NOT inject it. The header
+  is part of the cache key, so a caller without it computes a different key, misses the cache,
+  and is rejected by `InternalSecretFilter` at the origin — the perimeter survives being
+  fronted by a CDN. Injecting it at the edge instead would make `/api/read/*` world-readable
+  to anyone who found the distribution.
+- **Cookies are forwarded to the origin but excluded from the cache key.** That is only safe
+  because every response whose body varies on `gallery_access_<slug>` is served `no-store`, so
+  CloudFront never stores a cookie-blind copy of a gated gallery. Do not relax the origin's
+  cache headers without revisiting the cache policy.
+
+### Known gap (pre-existing, not addressed here)
+
+The distribution's `default_cache_behavior` has `max_ttl = 0`, which forces a miss on every
+S3 image request regardless of the object's headers. Worth revisiting separately — it means
+the image CDN is not currently caching either.
+
 ## Future Improvements (Not Started)
 
 These are enhancements to consider when the project grows. None are needed now.
