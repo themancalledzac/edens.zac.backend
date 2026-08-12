@@ -204,4 +204,91 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     repo.removeMember(roleId, user);
     assertThat(repo.canView(user, coll)).isFalse();
   }
+
+  @Test
+  void isClientAdmitsCollaboratorGrant() {
+    long user = seedUser("Colin");
+    long coll = seedCollection("role-collab-isclient");
+    long roleId = repo.createRole("collab isclient", null);
+    repo.addMember(roleId, user, null);
+    repo.setCollectionGrant(roleId, coll, AccessLevel.COLLABORATOR, null);
+
+    assertThat(repo.isClient(user, coll)).isTrue();
+    assertThat(repo.canView(user, coll)).isTrue();
+  }
+
+  @Test
+  void effectiveGrantsReportsHighestRankAcrossRoles() {
+    long user = seedUser("Cora");
+    long coll = seedCollection("role-collab-effective");
+    long general = repo.createRole("collab-eff general", null);
+    long collab = repo.createRole("collab-eff collab", null);
+    repo.addMember(general, user, null);
+    repo.addMember(collab, user, null);
+    repo.setCollectionGrant(general, coll, AccessLevel.GENERAL, null);
+    repo.setCollectionGrant(collab, coll, AccessLevel.COLLABORATOR, null);
+
+    List<EffectiveGrant> grants = repo.effectiveGrants(user);
+    assertThat(grants).hasSize(1);
+    assertThat(grants.get(0).level()).isEqualTo(AccessLevel.COLLABORATOR);
+  }
+
+  @Test
+  void highestLevelReturnsTopRankAndEmptyWithoutGrant() {
+    long user = seedUser("Hilda");
+    long coll = seedCollection("role-collab-highest");
+    long other = seedCollection("role-collab-highest-none");
+    long clientRole = repo.createRole("collab-high client", null);
+    long collabRole = repo.createRole("collab-high collab", null);
+    repo.addMember(clientRole, user, null);
+    repo.addMember(collabRole, user, null);
+    repo.setCollectionGrant(clientRole, coll, AccessLevel.CLIENT, null);
+    repo.setCollectionGrant(collabRole, coll, AccessLevel.COLLABORATOR, null);
+
+    assertThat(repo.highestLevel(user, coll)).contains(AccessLevel.COLLABORATOR);
+    assertThat(repo.highestLevel(user, other)).isEmpty();
+  }
+
+  @Test
+  void inheritedGrantUpgradesAcrossAnyRankGapAndNeverDowngrades() {
+    seedUser("Ida");
+    long coll = seedCollection("role-collab-inherit");
+    long origin = seedCollection("role-collab-inherit-origin");
+    long roleId = repo.createRole("collab inherit", null);
+
+    // Seed an inherited GENERAL copy, then upgrade it across the two-rank gap.
+    repo.insertInheritedGrant(roleId, coll, AccessLevel.GENERAL, origin);
+    repo.insertInheritedGrant(roleId, coll, AccessLevel.COLLABORATOR, origin);
+    assertThat(storedLevel(roleId, coll)).isEqualTo("COLLABORATOR");
+
+    // CLIENT (rank 1) must not downgrade the COLLABORATOR (rank 2) copy.
+    repo.insertInheritedGrant(roleId, coll, AccessLevel.CLIENT, origin);
+    assertThat(storedLevel(roleId, coll)).isEqualTo("COLLABORATOR");
+
+    // A CLIENT copy elsewhere upgrades to COLLABORATOR (the second landmine pair).
+    long coll2 = seedCollection("role-collab-inherit2");
+    repo.insertInheritedGrant(roleId, coll2, AccessLevel.CLIENT, origin);
+    repo.insertInheritedGrant(roleId, coll2, AccessLevel.COLLABORATOR, origin);
+    assertThat(storedLevel(roleId, coll2)).isEqualTo("COLLABORATOR");
+  }
+
+  @Test
+  void directGrantStaysStickyAgainstHigherInheritedGrant() {
+    seedUser("Stig");
+    long coll = seedCollection("role-collab-sticky");
+    long origin = seedCollection("role-collab-sticky-origin");
+    long roleId = repo.createRole("collab sticky", null);
+
+    repo.setCollectionGrant(roleId, coll, AccessLevel.CLIENT, null);
+    repo.insertInheritedGrant(roleId, coll, AccessLevel.COLLABORATOR, origin);
+    assertThat(storedLevel(roleId, coll)).isEqualTo("CLIENT");
+  }
+
+  private String storedLevel(long roleId, long collectionId) {
+    return jdbc.queryForObject(
+        "SELECT level FROM role_collection WHERE role_id=? AND collection_id=?",
+        String.class,
+        roleId,
+        collectionId);
+  }
 }

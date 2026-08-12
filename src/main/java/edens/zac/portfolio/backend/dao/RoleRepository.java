@@ -70,12 +70,21 @@ public class RoleRepository extends BaseDao {
               AccessLevel.valueOf(rs.getString("level")),
               getLong(rs, "inherited_from_collection_id"));
 
+  /**
+   * SQL rank expression for a qualified level column (e.g. {@code rank("rc.level")}), mirroring
+   * {@link AccessLevel#rank()}. Takes the column name because insertInheritedGrant compares two
+   * columns in one statement. ADMIN is deliberately absent: it is a computed sentinel, never
+   * stored, so it can never appear in a level column. A future storable level is one edit here.
+   */
+  private static String rank(String levelColumn) {
+    return "CASE " + levelColumn + " WHEN 'COLLABORATOR' THEN 2 WHEN 'CLIENT' THEN 1 ELSE 0 END";
+  }
+
   // ---- Role CRUD ----
 
   /**
    * Create a role. All roles are SHARED, so the {@code kind} column is written the constant {@code
-   * 'SHARED'} literal (the column stays NOT NULL with a CHECK accepting only 'SHARED' post-V48; it
-   * is dropped in V49).
+   * 'SHARED'} literal (the column stays NOT NULL with a CHECK accepting only 'SHARED', from V45).
    */
   @Transactional
   public Long createRole(String name, Long createdBy) {
@@ -242,8 +251,8 @@ public class RoleRepository extends BaseDao {
   /**
    * Upsert an INHERITED copy of a direct grant held on {@code originCollectionId}. Never clobbers a
    * direct row, and never downgrades: an existing inherited row is only rewritten when the incoming
-   * level is strictly higher (CLIENT over GENERAL), in which case the origin moves with it.
-   * Everything else is a no-op, keeping direct grants sticky.
+   * level outranks it, in which case the origin moves with it. Everything else is a no-op, keeping
+   * direct grants sticky.
    */
   @Transactional
   public void insertInheritedGrant(
@@ -256,9 +265,10 @@ public class RoleRepository extends BaseDao {
            SET level = EXCLUDED.level,
                inherited_from_collection_id = EXCLUDED.inherited_from_collection_id
          WHERE role_collection.inherited_from_collection_id IS NOT NULL
-           AND role_collection.level = 'GENERAL'
-           AND EXCLUDED.level = 'CLIENT'
-        """,
+           AND\s"""
+            + rank("role_collection.level")
+            + " < "
+            + rank("EXCLUDED.level"),
         createParameterSource()
             .addValue("roleId", roleId)
             .addValue("collectionId", collectionId)
@@ -342,6 +352,9 @@ public class RoleRepository extends BaseDao {
     return count > 0;
   }
 
+  /**
+   * True when the user holds a CLIENT-or-higher grant (COLLABORATOR included) on the collection.
+   */
   @Transactional(readOnly = true)
   public boolean isClient(Long userId, Long collectionId) {
     Integer count =
@@ -350,14 +363,31 @@ public class RoleRepository extends BaseDao {
                 SELECT count(*) FROM role_member rm
                   JOIN role_collection rc ON rc.role_id = rm.role_id
                  WHERE rm.user_id = :userId AND rc.collection_id = :collectionId
-                   AND rc.level = 'CLIENT'
-                """,
+                   AND\s"""
+                    + rank("rc.level")
+                    + " >= "
+                    + AccessLevel.CLIENT.rank(),
                 (rs, n) -> rs.getInt(1),
                 createParameterSource()
                     .addValue("userId", userId)
                     .addValue("collectionId", collectionId))
             .orElse(0);
     return count > 0;
+  }
+
+  /** The user's highest stored grant level on one collection, or empty when no role grants it. */
+  @Transactional(readOnly = true)
+  public Optional<AccessLevel> highestLevel(Long userId, Long collectionId) {
+    return queryForObject(
+        """
+        SELECT rc.level FROM role_member rm
+          JOIN role_collection rc ON rc.role_id = rm.role_id
+         WHERE rm.user_id = :userId AND rc.collection_id = :collectionId
+         ORDER BY\s"""
+            + rank("rc.level")
+            + " DESC LIMIT 1",
+        (rs, n) -> AccessLevel.valueOf(rs.getString("level")),
+        createParameterSource().addValue("userId", userId).addValue("collectionId", collectionId));
   }
 
   @Transactional(readOnly = true)
@@ -374,17 +404,18 @@ public class RoleRepository extends BaseDao {
         createParameterSource().addValue("userId", userId));
   }
 
+  /** Deduped (collectionId, level) the user can reach, the highest rank winning on conflict. */
   @Transactional(readOnly = true)
   public List<EffectiveGrant> effectiveGrants(Long userId) {
     return query(
         """
-        SELECT rc.collection_id,
-               CASE WHEN bool_or(rc.level = 'CLIENT') THEN 'CLIENT' ELSE 'GENERAL' END AS level
+        SELECT DISTINCT ON (rc.collection_id) rc.collection_id, rc.level
           FROM role_member rm
           JOIN role_collection rc ON rc.role_id = rm.role_id
          WHERE rm.user_id = :userId
-         GROUP BY rc.collection_id
-        """,
+         ORDER BY rc.collection_id, """
+            + rank("rc.level")
+            + " DESC",
         (rs, n) ->
             new EffectiveGrant(
                 rs.getLong("collection_id"), AccessLevel.valueOf(rs.getString("level"))),
