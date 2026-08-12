@@ -21,7 +21,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * services). When {@link CollectionAccessService} is absent, the surface is locked shut instead.
  */
 @Configuration
-class EditAccessWebConfig implements WebMvcConfigurer {
+public class EditAccessWebConfig implements WebMvcConfigurer {
 
   private final ObjectProvider<CollectionAccessService> collectionAccessService;
   private final boolean enforceAuthz;
