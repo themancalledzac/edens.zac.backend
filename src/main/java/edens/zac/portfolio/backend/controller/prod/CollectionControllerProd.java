@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.config.ClientGalleryAccessLimiter;
 import edens.zac.portfolio.backend.config.DefaultValues;
+import edens.zac.portfolio.backend.config.ReadCachePolicy;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.PagedResponse;
@@ -45,6 +46,7 @@ public class CollectionControllerProd {
   private final ClientGalleryAuthService clientGalleryAuthService;
   private final CollectionService collectionService;
   private final ClientGalleryAccessLimiter accessLimiter;
+  private final ReadCachePolicy readCachePolicy;
 
   /**
    * Whether the per-gallery access cookie is set with the {@code Secure} attribute. Always {@code
@@ -95,13 +97,19 @@ public class CollectionControllerProd {
     CollectionModel collection =
         collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
 
-    if (Boolean.TRUE.equals(collection.getIsPasswordProtected())
-        && !collectionService.isGalleryAccessAuthorized(slug, request)) {
+    boolean passwordProtected = Boolean.TRUE.equals(collection.getIsPasswordProtected());
+    if (passwordProtected && !collectionService.isGalleryAccessAuthorized(slug, request)) {
       collection.setContent(null);
       collection.setContentCount(null);
     }
 
-    return ResponseEntity.ok(collection);
+    // Cacheability is only knowable once the collection is loaded, so it is set here rather than
+    // allow-listed in CacheControlInterceptor. A password-protected gallery's body varies on the
+    // gallery_access_<slug> cookie: letting a shared cache store the authorized variant would let
+    // it serve gated content to a visitor who never supplied the password. no-store closes that.
+    return ResponseEntity.ok()
+        .cacheControl(passwordProtected ? readCachePolicy.noStore() : readCachePolicy.publicRead())
+        .body(collection);
   }
 
   /**

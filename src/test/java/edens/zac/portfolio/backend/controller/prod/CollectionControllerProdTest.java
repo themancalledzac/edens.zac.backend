@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.ClientGalleryAccessLimiter;
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
+import edens.zac.portfolio.backend.config.ReadCachePolicy;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -54,6 +56,13 @@ class CollectionControllerProdTest {
   @Mock private ClientGalleryAuthService clientGalleryAuthService;
   @Mock private CollectionService collectionService;
   @Mock private ClientGalleryAccessLimiter accessLimiter;
+
+  /**
+   * A real policy rather than a mock: the assertions below pin the actual emitted header string, so
+   * stubbing it would only re-assert the test's own fixture. Values mirror the production defaults
+   * in application.properties.
+   */
+  @Spy private ReadCachePolicy readCachePolicy = new ReadCachePolicy(60, 300);
 
   @InjectMocks private CollectionControllerProd contentCollectionController;
 
@@ -624,7 +633,10 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.title", is("Client Gallery")))
         .andExpect(jsonPath("$.isPasswordProtected", is(true)))
         .andExpect(jsonPath("$.content").doesNotExist())
-        .andExpect(jsonPath("$.contentCount").doesNotExist());
+        .andExpect(jsonPath("$.contentCount").doesNotExist())
+        // A shared cache must never store a gated gallery: its body varies on the access cookie,
+        // so a cached authorized copy would be served to visitors who never supplied the password.
+        .andExpect(header().string("Cache-Control", "no-store"));
   }
 
   @Test
@@ -682,7 +694,13 @@ class CollectionControllerProdTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.title", is("Public Gallery")))
         .andExpect(jsonPath("$.content", hasSize(1)))
-        .andExpect(jsonPath("$.contentCount", is(5)));
+        .andExpect(jsonPath("$.contentCount", is(5)))
+        // Identical for every caller, so CloudFront may absorb the repeat traffic.
+        .andExpect(
+            header()
+                .string(
+                    "Cache-Control",
+                    "max-age=60, public, s-maxage=300, stale-while-revalidate=300"));
   }
 
   @Test
@@ -708,7 +726,10 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.title", is("Client Gallery")))
         .andExpect(jsonPath("$.isPasswordProtected", is(true)))
         .andExpect(jsonPath("$.content", hasSize(1)))
-        .andExpect(jsonPath("$.contentCount", is(5)));
+        .andExpect(jsonPath("$.contentCount", is(5)))
+        // The response now carries unlocked gallery content. This is the case a shared cache must
+        // never store -- a cached copy would leak the gallery to callers without the cookie.
+        .andExpect(header().string("Cache-Control", "no-store"));
   }
 
   @Test
