@@ -19,6 +19,7 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
+import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import jakarta.servlet.http.Cookie;
@@ -51,6 +52,7 @@ class EditControllerAuthorizationWebMvcTest {
   @MockBean private SessionService sessionService;
   @MockBean private RoleRepository roleRepository;
   @MockBean private CollectionService collectionService;
+  @MockBean private ContentService contentService;
 
   private static final long COLLECTION_ID = 5L;
 
@@ -65,6 +67,9 @@ class EditControllerAuthorizationWebMvcTest {
       put("/api/edit/collections/5")
           .contentType(MediaType.APPLICATION_JSON)
           .content("{\"id\":5,\"title\":\"Renamed Gallery\"}"),
+      patch("/api/edit/collections/5/images")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("[{\"id\":9,\"title\":\"T\"}]"),
     };
   }
 
@@ -82,6 +87,7 @@ class EditControllerAuthorizationWebMvcTest {
         .thenReturn(
             new CollectionRequests.UpdateResponse(
                 CollectionModel.builder().id(COLLECTION_ID).build(), null));
+    lenient().when(contentService.updateImages(any())).thenReturn(new java.util.HashMap<>());
   }
 
   @Test

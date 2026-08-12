@@ -56,4 +56,26 @@ class CollaboratorRequestsTest {
     assertThat(wide.siblings()).isNull();
     assertThat(wide.parents()).isNull();
   }
+
+  @Test
+  void imageUpdateMapsOnlyCanonicalFieldsAndDetectsThem() {
+    var full = new CollaboratorRequests.CollaboratorImageUpdate(9L, "T", "C", "A", 5, false);
+    var mapped = full.toImageUpdate();
+    assertThat(mapped.getId()).isEqualTo(9L);
+    assertThat(mapped.getTitle()).isEqualTo("T");
+    assertThat(mapped.getCaption()).isEqualTo("C");
+    assertThat(mapped.getAlt()).isEqualTo("A");
+    assertThat(mapped.getRating()).isEqualTo(5);
+    // Denied admin-only fields stay unset.
+    assertThat(mapped.getTags()).isNull();
+    assertThat(mapped.getPeople()).isNull();
+    assertThat(mapped.getCollections()).isNull();
+    assertThat(mapped.getCamera()).isNull();
+    assertThat(mapped.getIso()).isNull();
+
+    assertThat(full.hasCanonicalEdit()).isTrue();
+    var visibleOnly =
+        new CollaboratorRequests.CollaboratorImageUpdate(9L, null, null, null, null, true);
+    assertThat(visibleOnly.hasCanonicalEdit()).isFalse();
+  }
 }

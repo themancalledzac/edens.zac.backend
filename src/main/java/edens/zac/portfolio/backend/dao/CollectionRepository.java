@@ -927,6 +927,24 @@ public class CollectionRepository extends BaseDao {
     update(sql, params);
   }
 
+  /**
+   * Set visible on the (collectionId, contentId) membership row -- the two-key sibling of {@link
+   * #updateContentVisible}, mirroring {@link #updateContentOrderIndexForContent}. Returns the
+   * affected row count so callers can 404 a non-member pair.
+   */
+  @Transactional
+  public int updateContentVisibleForContent(Long collectionId, Long contentId, boolean visible) {
+    String sql =
+        "UPDATE collection_content SET visible = :visible"
+            + " WHERE collection_id = :collectionId AND content_id = :contentId";
+    MapSqlParameterSource params =
+        createParameterSource()
+            .addValue("visible", visible)
+            .addValue("collectionId", collectionId)
+            .addValue("contentId", contentId);
+    return update(sql, params);
+  }
+
   @Transactional
   public int shiftContentOrderIndices(
       Long collectionId, Integer startIndex, Integer endIndex, Integer shiftAmount) {
