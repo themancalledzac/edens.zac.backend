@@ -53,7 +53,6 @@ class CacheControlInterceptorTest {
         strings = {
           "/api/read/collections",
           "/api/read/collections/location/{slug}",
-          "/api/read/collections/{slug}/meta",
           "/api/read/content/tags",
           "/api/read/content/people",
           "/api/read/content/cameras",
@@ -98,15 +97,25 @@ class CacheControlInterceptorTest {
       assertThat(headerFor("GET", route)).isEqualTo("no-store");
     }
 
-    @Test
-    @DisplayName("the cookie-varying collection route is deliberately NOT allow-listed")
-    void collectionBySlugIsNotAllowListed() {
-      // Its cacheability depends on the loaded entity, so CollectionControllerProd sets it
-      // per-response. Defaulting to no-store here means an error path that never reaches the
-      // controller cannot inherit a public TTL.
-      assertThat(CacheControlInterceptor.PUBLIC_ROUTES)
-          .doesNotContain("/api/read/collections/{slug}");
-      assertThat(headerFor("GET", "/api/read/collections/{slug}")).isEqualTo("no-store");
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/read/collections/{slug}", "/api/read/collections/{slug}/meta"})
+    @DisplayName("slug-resolving collection routes are never publicly cacheable")
+    void slugResolvingCollectionRoutesAreNotAllowListed(String route) {
+      // REGRESSION GUARD. Resolving a collection by slug is viewer-dependent three ways:
+      //
+      //   1. a password-protected gallery's body varies on the gallery_access_<slug> cookie;
+      //   2. enforceVisibility hides HIDDEN collections from anonymous callers, so the same URL
+      //      is a 404 for the public and a 200 with full content for an admin or grantee;
+      //   3. the synthetic all-collections slug is permission-scoped by verified identity, and
+      //      is built with isPasswordProtected unset -- so a body-level password check reads
+      //      null and cannot detect the scoping at all.
+      //
+      // An earlier version allow-listed .../{slug}/meta and had the controller mark {slug}
+      // public whenever it was not password-protected. That let a shared cache store a
+      // privileged viewer's response and serve it to the public. Do not re-add these without a
+      // resolved-entity check that proves viewer-independence.
+      assertThat(CacheControlInterceptor.PUBLIC_ROUTES).doesNotContain(route);
+      assertThat(headerFor("GET", route)).isEqualTo("no-store");
     }
 
     @ParameterizedTest
