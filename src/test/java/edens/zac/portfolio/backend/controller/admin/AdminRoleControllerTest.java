@@ -1,7 +1,9 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -24,6 +26,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -128,6 +131,28 @@ class AdminRoleControllerTest {
                 .contentType("application/json")
                 .content("{\"level\":\"INVALID_LEVEL\"}"))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void setGrantAcceptsCollaborator() throws Exception {
+    mvc.perform(
+            put("/api/admin/roles/9/collections/5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"level\":\"COLLABORATOR\"}"))
+        .andExpect(status().isNoContent());
+    verify(roleGrantPropagationService)
+        .setGrant(eq(9L), eq(5L), eq(AccessLevel.COLLABORATOR), any());
+  }
+
+  @Test
+  void setGrantRejectsAdminWith400AndNamedMessage() throws Exception {
+    mvc.perform(
+            put("/api/admin/roles/9/collections/5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"level\":\"ADMIN\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message", containsString("not grantable")));
+    verify(roleGrantPropagationService, never()).setGrant(any(), any(), any(), any());
   }
 
   @Test
