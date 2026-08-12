@@ -90,7 +90,7 @@ class EditController {
   @PatchMapping("/collections/{collectionId}/images")
   public ResponseEntity<Map<String, Object>> patchImages(
       @PathVariable Long collectionId,
-      @RequestBody @Valid List<CollaboratorRequests.CollaboratorImageUpdate> updates) {
+      @RequestBody List<CollaboratorRequests.@Valid CollaboratorImageUpdate> updates) {
     if (updates == null || updates.isEmpty()) {
       throw new IllegalArgumentException("At least one image update is required");
     }

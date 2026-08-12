@@ -191,4 +191,15 @@ class EditControllerTest {
     verify(contentService, never()).updateImages(any());
     verify(collectionService, never()).updateImageVisibility(any(), any(), anyBoolean());
   }
+
+  @Test
+  void imagesPatchRejectsElementWithOutOfRangeRating() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/edit/collections/5/images")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("[{\"id\":9,\"rating\":99}]"))
+        .andExpect(status().isBadRequest());
+    verify(collectionService, never()).requireImagesInCollection(any(), any());
+  }
 }
