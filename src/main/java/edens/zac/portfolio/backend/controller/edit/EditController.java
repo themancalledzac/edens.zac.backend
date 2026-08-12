@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.edit;
 
+import edens.zac.portfolio.backend.model.CollaboratorRequests;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.services.CollectionService;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -54,4 +56,21 @@ class EditController {
 
   /** Body for the rating patch. */
   public record RatingPatch(@Min(0) @Max(5) Integer rating) {}
+
+  /**
+   * Collaborator-scope collection update: the narrow DTO is widened onto the admin update path so
+   * there stays exactly one implementation of the write. The path id is the authorized scope; a
+   * mismatched body id is rejected before any work.
+   */
+  @PutMapping("/collections/{collectionId}")
+  public ResponseEntity<CollectionRequests.UpdateResponse> updateCollection(
+      @PathVariable Long collectionId,
+      @RequestBody @Valid CollaboratorRequests.CollaboratorUpdate body) {
+    if (!collectionId.equals(body.id())) {
+      throw new IllegalArgumentException(
+          "Body id " + body.id() + " must match path collection id " + collectionId);
+    }
+    return ResponseEntity.ok(
+        collectionService.updateContentWithMetadata(collectionId, body.toUpdate()));
+  }
 }

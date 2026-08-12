@@ -1,16 +1,20 @@
 package edens.zac.portfolio.backend.controller.edit;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.services.CollectionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,5 +92,36 @@ class EditControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"rating\":9}"))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void updateCollectionWidensNarrowDtoAndDelegates() throws Exception {
+    when(collectionService.updateContentWithMetadata(eq(5L), any()))
+        .thenReturn(
+            new CollectionRequests.UpdateResponse(CollectionModel.builder().id(5L).build(), null));
+
+    mockMvc
+        .perform(
+            put("/api/edit/collections/5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":5,\"title\":\"Renamed Gallery\"}"))
+        .andExpect(status().isOk());
+
+    var captor = org.mockito.ArgumentCaptor.forClass(CollectionRequests.Update.class);
+    verify(collectionService).updateContentWithMetadata(eq(5L), captor.capture());
+    assertThat(captor.getValue().title()).isEqualTo("Renamed Gallery");
+    assertThat(captor.getValue().slug()).isNull();
+    assertThat(captor.getValue().visibility()).isNull();
+  }
+
+  @Test
+  void updateCollectionRejectsBodyIdMismatchWith400() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/edit/collections/5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":6,\"title\":\"Renamed Gallery\"}"))
+        .andExpect(status().isBadRequest());
+    verify(collectionService, never()).updateContentWithMetadata(any(), any());
   }
 }

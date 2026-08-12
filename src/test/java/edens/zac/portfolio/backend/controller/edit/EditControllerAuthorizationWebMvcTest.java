@@ -7,6 +7,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.config.EditAccessWebConfig;
@@ -15,6 +16,7 @@ import edens.zac.portfolio.backend.config.SessionAuthenticationFilter;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.SessionService;
@@ -60,6 +62,9 @@ class EditControllerAuthorizationWebMvcTest {
       patch("/api/edit/collections/5/rating")
           .contentType(MediaType.APPLICATION_JSON)
           .content("{\"rating\":3}"),
+      put("/api/edit/collections/5")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content("{\"id\":5,\"title\":\"Renamed Gallery\"}"),
     };
   }
 
@@ -72,6 +77,11 @@ class EditControllerAuthorizationWebMvcTest {
     lenient()
         .when(collectionService.reorderContent(anyLong(), any()))
         .thenReturn(CollectionModel.builder().id(COLLECTION_ID).build());
+    lenient()
+        .when(collectionService.updateContentWithMetadata(anyLong(), any()))
+        .thenReturn(
+            new CollectionRequests.UpdateResponse(
+                CollectionModel.builder().id(COLLECTION_ID).build(), null));
   }
 
   @Test
