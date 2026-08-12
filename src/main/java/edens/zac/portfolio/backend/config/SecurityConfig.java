@@ -57,6 +57,11 @@ public class SecurityConfig {
               // below so local dev stays login-free (mirrors InternalSecretFilter being prod-only).
               if (enforceAdminAuthz) {
                 auth.requestMatchers("/api/admin/**").hasRole("ADMIN");
+                // /api/edit/** is the collaborator tier. Authentication is required here (401
+                // for anonymous via the entry point); per-collection COLLABORATOR-or-above is
+                // enforced by CollaboratorAccessInterceptor (403). Shares the admin toggle so
+                // local dev stays login-free across the whole write surface.
+                auth.requestMatchers("/api/edit/**").authenticated();
               }
               auth.anyRequest().permitAll();
             })
