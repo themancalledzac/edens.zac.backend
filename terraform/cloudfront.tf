@@ -137,10 +137,20 @@ resource "aws_cloudfront_origin_request_policy" "api_read" {
     query_string_behavior = "all"
   }
 
-  # "none" here is not "no headers": headers in the cache key are always forwarded to the
-  # origin, so X-Internal-Secret still arrives.
+  # X-Internal-Secret arrives regardless -- cache-key headers are always forwarded. These two are
+  # whitelisted for the request-body case: POST /collections/{slug}/access carries a JSON body, and
+  # if Content-Type were dropped the origin would reject it 415 and every gallery unlock would
+  # break. Cheap insurance; an origin request policy does not touch the cache key, so adding
+  # headers here changes nothing about what gets cached.
+  #
+  # Accept-Encoding is deliberately NOT listed: the cache policy sets
+  # enable_accept_encoding_gzip/brotli, which makes CloudFront normalize that header itself.
   headers_config {
-    header_behavior = "none"
+    header_behavior = "whitelist"
+
+    headers {
+      items = ["Content-Type", "Accept"]
+    }
   }
 }
 
@@ -185,6 +195,11 @@ resource "aws_cloudfront_distribution" "portfolio" {
     origin_request_policy_id   = "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf"
     response_headers_policy_id = "c23c127a-d30c-462b-8050-95876e6ab5b9"
 
+    # INERT. When cache_policy_id is set, CloudFront takes TTLs from the policy and ignores these
+    # three fields entirely. They read like "nothing is cached", which is the opposite of the
+    # truth: the attached policy is a custom "1_year_cache_policy" (min 1s, default and max
+    # 1 year), so images are cached at the edge for a year. Left in place because removing them
+    # is a no-op churn on a distribution carrying prevent_destroy; do not read them as config.
     min_ttl     = 0
     default_ttl = 0
     max_ttl     = 0
