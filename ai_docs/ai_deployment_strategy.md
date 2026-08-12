@@ -453,11 +453,22 @@ distribution is unchanged.
   CloudFront never stores a cookie-blind copy of a gated gallery. Do not relax the origin's
   cache headers without revisiting the cache policy.
 
-### Known gap (pre-existing, not addressed here)
+### The default behavior's TTL fields are inert (read this before "fixing" them)
 
-The distribution's `default_cache_behavior` has `max_ttl = 0`, which forces a miss on every
-S3 image request regardless of the object's headers. Worth revisiting separately — it means
-the image CDN is not currently caching either.
+`default_cache_behavior` carries `min_ttl = 0`, `default_ttl = 0`, `max_ttl = 0`. These look
+like "images are never cached". They are **ignored**: when `cache_policy_id` is set, CloudFront
+takes TTLs from the attached policy and the behavior-level fields do nothing.
+
+That policy is a custom one, not an AWS managed policy, so its ID says nothing about its
+values. Check it directly rather than inferring:
+
+```bash
+aws cloudfront get-cache-policy --id 0683378f-5712-40d6-80dd-7a89483aa8d5 --query 'CachePolicy.CachePolicyConfig.{Name:Name,MinTTL:MinTTL,DefaultTTL:DefaultTTL,MaxTTL:MaxTTL}'
+```
+
+It is `1_year_cache_policy` -- MinTTL 1s, DefaultTTL and MaxTTL 31536000s. **S3 images are
+cached at the edge for a year, and always have been.** An earlier revision of this document
+claimed the opposite; that was a misreading of the inert fields, corrected here.
 
 ## Future Improvements (Not Started)
 
