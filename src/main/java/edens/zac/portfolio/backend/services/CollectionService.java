@@ -83,6 +83,7 @@ public class CollectionService {
   private final RoleGrantPropagationService roleGrantPropagationService;
   private final Environment springEnv;
   private final CacheManager cacheManager;
+  private final ReadCacheInvalidator readCacheInvalidator;
 
   // Self-reference through the Spring proxy. Required so internal calls to the @Cacheable
   // getGeneralMetadata() are intercepted by the caching aspect; a direct this.getGeneralMetadata()
@@ -293,6 +294,8 @@ public class CollectionService {
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public CollectionRequests.UpdateResponse createCollection(
       CollectionRequests.Create createRequest) {
+    // Collection create/delete changes the cached collection list; drop the CDN copy on commit.
+    readCacheInvalidator.markChanged();
     log.debug("Creating new collection: {}", createRequest.title());
 
     // Create entity using utility converter
@@ -317,6 +320,8 @@ public class CollectionService {
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public CollectionRequests.UpdateResponse createChildCollection(
       Long parentId, CollectionRequests.Create createRequest) {
+    // Collection create/delete changes the cached collection list; drop the CDN copy on commit.
+    readCacheInvalidator.markChanged();
     log.debug(
         "Creating new child collection: {} under parent: {}", createRequest.title(), parentId);
 
@@ -625,6 +630,10 @@ public class CollectionService {
       cache.clear();
       log.debug("Evicted generalMetadata cache after collection identity change");
     }
+    // A title or slug change is exactly what the cached collection list renders, so the CDN's
+    // copy has to go too. This is the path a plain "save the collection" takes -- it is not
+    // annotated with @CacheEvict, so it would be missed by anything keyed on that annotation.
+    readCacheInvalidator.markChanged();
   }
 
   @Transactional
@@ -691,6 +700,8 @@ public class CollectionService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteCollection(Long id) {
+    // Collection create/delete changes the cached collection list; drop the CDN copy on commit.
+    readCacheInvalidator.markChanged();
     log.debug("Deleting collection with ID: {}", id);
 
     // Check if collection exists

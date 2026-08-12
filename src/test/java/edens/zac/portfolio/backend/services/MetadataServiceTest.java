@@ -38,6 +38,7 @@ class MetadataServiceTest {
   @Mock private EquipmentRepository equipmentRepository;
   @Mock private LocationRepository locationRepository;
   @Mock private MetadataValidator metadataValidator;
+  @Mock private ReadCacheInvalidator readCacheInvalidator;
 
   @InjectMocks private MetadataService metadataService;
 

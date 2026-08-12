@@ -85,6 +85,7 @@ class CollectionServiceTest {
 
   @Mock private org.springframework.core.env.Environment springEnv;
   @Mock private CacheManager cacheManager;
+  @Mock private ReadCacheInvalidator readCacheInvalidator;
   @Mock private ObjectProvider<CollectionService> selfProvider;
 
   @InjectMocks private CollectionService service;
@@ -463,6 +464,9 @@ class CollectionServiceTest {
       service.updateContentWithMetadata(collectionId, updateDTO);
 
       verify(metadataCache).clear();
+      // A rename is what the cached collection list renders, so the CDN copy must be dropped too.
+      // This path carries no @CacheEvict, so it is the one a annotation-driven scheme would miss.
+      verify(readCacheInvalidator).markChanged();
     }
   }
 
