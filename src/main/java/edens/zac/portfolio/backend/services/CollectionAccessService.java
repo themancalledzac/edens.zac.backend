@@ -13,7 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Per-collection access, resolved through role membership. A user may VIEW a collection when any of
- * their roles grants it (any level); CLIENT powers (download/tag/star) require a CLIENT grant.
+ * their roles grants it (any level); CLIENT powers (download/tag/star) require a CLIENT-or-higher
+ * grant.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,7 +29,7 @@ public class CollectionAccessService {
     return roleRepository.canView(userId, collectionId);
   }
 
-  /** True when the user may DOWNLOAD / TAG (a CLIENT grant on any of their roles). */
+  /** True when the user may DOWNLOAD / TAG (a CLIENT-or-higher grant on any of their roles). */
   @Transactional(readOnly = true)
   public boolean isClient(Long userId, Long collectionId) {
     return roleRepository.isClient(userId, collectionId);
@@ -40,7 +41,7 @@ public class CollectionAccessService {
     return roleRepository.memberCollectionIdsForUser(userId);
   }
 
-  /** Deduped (collectionId, level) the user can reach, CLIENT winning on conflict. */
+  /** Deduped (collectionId, level) the user can reach, the highest rank winning on conflict. */
   @Transactional(readOnly = true)
   public List<EffectiveGrant> effectiveGrants(Long userId) {
     return roleRepository.effectiveGrants(userId);

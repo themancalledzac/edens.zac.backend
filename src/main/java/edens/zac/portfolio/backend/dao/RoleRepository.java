@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Role-based access data access. Roles hold per-collection grants; users join roles to inherit
- * them. Resolution unions across a user's roles with CLIENT beating GENERAL.
+ * them. Resolution unions across a user's roles with the highest rank winning.
  */
 @Component
 @Slf4j
