@@ -36,6 +36,12 @@ ssh_allowed_cidr = "REPLACE_WITH_YOUR_IP/32"
 # Name of your existing S3 bucket (format: your-domain.portfolio)
 s3_bucket_name = "your-domain.portfolio"
 
+# Public domain of the Caddy/EC2 API origin, to front /api/read/* with CloudFront.
+# Host only -- no scheme, no trailing slash. Must match the DOMAIN in the EC2 .env.
+# Leave unset/empty to leave the distribution serving images only (the default).
+# After setting this and applying, point the frontend BFF at the api_read_base_url output.
+# api_origin_domain = "api.zacedens.com"
+
 # Project name used for tagging (default: "portfolio")
 # project_name = "portfolio"
 

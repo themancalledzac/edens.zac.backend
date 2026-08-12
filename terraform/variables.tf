@@ -47,6 +47,24 @@ variable "s3_bucket_name" {
   type        = string
 }
 
+variable "api_origin_domain" {
+  description = <<-EOT
+    Public domain of the Caddy/EC2 API origin (e.g. "api.zacedens.com"), used to front
+    /api/read/* with CloudFront. Host only -- no scheme, no trailing slash.
+
+    Leave empty (the default) to skip the API origin entirely: the origin, cache policy,
+    origin request policy, and ordered cache behavior are all conditional on this value, so
+    an unset domain leaves the distribution exactly as it is today.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("^https?://|/$", var.api_origin_domain))
+    error_message = "api_origin_domain must be a bare host (no scheme, no trailing slash)."
+  }
+}
+
 variable "project_name" {
   description = "Project name used for tagging and naming resources"
   type        = string

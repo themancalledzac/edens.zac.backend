@@ -29,6 +29,19 @@ output "cloudfront_distribution_id" {
   value       = aws_cloudfront_distribution.portfolio.id
 }
 
+output "api_read_base_url" {
+  description = <<-EOT
+    Base URL the frontend BFF should call for /api/read/* once the API origin is enabled.
+    Null while api_origin_domain is unset. The BFF must keep sending X-Internal-Secret --
+    CloudFront does not inject it, and it is part of the cache key.
+  EOT
+  value = (
+    var.api_origin_domain == ""
+    ? null
+    : "https://${aws_cloudfront_distribution.portfolio.domain_name}/api/read"
+  )
+}
+
 output "security_group_id" {
   description = "ID of the portfolio security group"
   value       = aws_security_group.portfolio.id
