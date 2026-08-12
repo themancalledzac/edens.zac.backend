@@ -19,6 +19,11 @@ import org.springframework.web.servlet.HandlerMapping;
  * unparseable id, or a missing principal is denied. An interceptor (not a Filter) so the throw is
  * routed through GlobalExceptionHandler as a quiet 403, and because only a post-mapping component
  * can see HandlerMapping's URI template variables.
+ *
+ * <p>Hard boundary: this only authorizes the {collectionId} path variable itself. It cannot see
+ * whether other ids referenced elsewhere in the path or request body (e.g. a child/related
+ * collection id) belong to the same collection -- that cross-collection consistency check is an
+ * endpoint-level concern, owned by the individual controller (see the Task 10 guard).
  */
 class CollaboratorAccessInterceptor implements HandlerInterceptor {
 

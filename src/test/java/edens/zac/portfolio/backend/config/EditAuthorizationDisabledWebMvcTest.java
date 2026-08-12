@@ -20,12 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * With app.admin.enforce-authz=false (local dev), /api/edit/** is login-free like /api/admin/**.
  *
- * <p>Defines its own stub controller rather than importing {@code
- * EditAccessWebMvcTest.StubControllers}: {@code @WebMvcTest} scans every {@code @RestController} in
- * the app, and cross-file nested-class {@code @Import} was observed to widen that scan to pull in
- * {@code AdminController} (whose {@code AdminHomeService} dependency is not mocked here), failing
- * context load. Every other regression slice in this package (e.g. {@link
- * AdminAuthorizationDisabledWebMvcTest}) avoids this the same way -- an inline stub controller.
+ * <p>Defines its own nested stub controller rather than importing {@code
+ * EditAccessWebMvcTest.StubControllers}. The root cause is default-configuration-class detection,
+ * not the {@code @Import}: {@code SpringBootTestContextBootstrapper} first looks for a static
+ * nested {@code @Configuration} class declared directly on THIS test class; {@code @Import}ing
+ * another class's nested config does not register one for this class. With none found, it falls
+ * back to the app's {@code @SpringBootConfiguration} ({@code Application}), which component-scans
+ * the whole app -- pulling in the package-private {@code AdminController} and its six unmocked
+ * service dependencies, and failing context load. Declaring an own nested {@code @Configuration}
+ * (even an empty-looking stub-controller one) suppresses that fallback. Every other regression
+ * slice in this package (e.g. {@link AdminAuthorizationDisabledWebMvcTest}) already does this.
  */
 @WebMvcTest
 @Import({
