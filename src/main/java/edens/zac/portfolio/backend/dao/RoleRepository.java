@@ -83,8 +83,10 @@ public class RoleRepository extends BaseDao {
   // ---- Role CRUD ----
 
   /**
-   * Create a role. All roles are SHARED, so the {@code kind} column is written the constant {@code
-   * 'SHARED'} literal (the column stays NOT NULL with a CHECK accepting only 'SHARED', from V45).
+   * Create a role. Every role created through this method is SHARED, so the {@code kind} column is
+   * written the constant {@code 'SHARED'} literal. The column's V45 CHECK admits both {@code
+   * 'PERSONAL'} and {@code 'SHARED'} -- PERSONAL is used only by V45's own per-user backfill (one
+   * role per pre-existing grant-holder), never by this method.
    */
   @Transactional
   public Long createRole(String name, Long createdBy) {
@@ -266,6 +268,9 @@ public class RoleRepository extends BaseDao {
                inherited_from_collection_id = EXCLUDED.inherited_from_collection_id
          WHERE role_collection.inherited_from_collection_id IS NOT NULL
            AND\s"""
+            // The \s above is load-bearing: text blocks strip trailing whitespace from every
+            // line (JEP 378), so a plain space before the closing """ is silently dropped and
+            // this concatenation becomes invalid SQL ("ANDCASE ..."). Do not replace it with " ".
             + rank("role_collection.level")
             + " < "
             + rank("EXCLUDED.level"),
@@ -364,6 +369,7 @@ public class RoleRepository extends BaseDao {
                   JOIN role_collection rc ON rc.role_id = rm.role_id
                  WHERE rm.user_id = :userId AND rc.collection_id = :collectionId
                    AND\s"""
+                    // \s is load-bearing here too -- see the comment in insertInheritedGrant.
                     + rank("rc.level")
                     + " >= "
                     + AccessLevel.CLIENT.rank(),
@@ -384,6 +390,7 @@ public class RoleRepository extends BaseDao {
           JOIN role_collection rc ON rc.role_id = rm.role_id
          WHERE rm.user_id = :userId AND rc.collection_id = :collectionId
          ORDER BY\s"""
+            // \s is load-bearing here too -- see the comment in insertInheritedGrant.
             + rank("rc.level")
             + " DESC LIMIT 1",
         (rs, n) -> AccessLevel.valueOf(rs.getString("level")),
