@@ -38,6 +38,7 @@ public class MetadataService {
   private final EquipmentRepository equipmentRepository;
   private final LocationRepository locationRepository;
   private final MetadataValidator metadataValidator;
+  private final ReadCacheInvalidator readCacheInvalidator;
 
   // ========== Tag Operations ==========
 
@@ -51,6 +52,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createTag(String tagName) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     metadataValidator.validateTagName(tagName);
     tagName = tagName.trim();
 
@@ -70,6 +73,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Records.Tag updateTag(Long id, String tagName) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     metadataValidator.validateTagName(tagName);
     tagName = tagName.trim();
 
@@ -93,6 +98,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteTag(Long id) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     tagRepository
         .findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Tag not found with ID: " + id));
@@ -113,6 +120,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createPerson(String personName) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     metadataValidator.validatePersonName(personName);
     personName = personName.trim();
 
@@ -132,6 +141,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Records.Person updatePerson(Long id, String personName) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     metadataValidator.validatePersonName(personName);
     personName = personName.trim();
 
@@ -155,6 +166,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deletePerson(Long id) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     personRepository
         .findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Person not found with ID: " + id));
@@ -176,6 +189,8 @@ public class MetadataService {
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createCamera(
       String cameraName, String bodySerialNumber, Boolean isFilm, FilmFormat defaultFilmFormat) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     if (cameraName == null || cameraName.trim().isEmpty()) {
       throw new IllegalArgumentException("cameraName is required");
     }
@@ -242,6 +257,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createLens(String lensName, String lensSerialNumber) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     if (lensName == null || lensName.trim().isEmpty()) {
       throw new IllegalArgumentException("lensName is required");
     }
@@ -293,6 +310,8 @@ public class MetadataService {
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createFilmType(
       String filmTypeName, String displayName, Integer defaultIso) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     metadataValidator.validateFilmType(filmTypeName, displayName, defaultIso);
     filmTypeName = filmTypeName.trim();
     displayName = displayName.trim();
@@ -362,6 +381,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Records.Location updateLocation(Long id, String locationName) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     metadataValidator.validateLocationName(locationName);
     locationName = locationName.trim();
 
@@ -386,6 +407,8 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteLocation(Long id) {
+    // Metadata mutation: drop the CDN copy of the read surface once this commits.
+    readCacheInvalidator.markChanged();
     locationRepository
         .findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Location not found with ID: " + id));
