@@ -633,10 +633,7 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.title", is("Client Gallery")))
         .andExpect(jsonPath("$.isPasswordProtected", is(true)))
         .andExpect(jsonPath("$.content").doesNotExist())
-        .andExpect(jsonPath("$.contentCount").doesNotExist())
-        // A shared cache must never store a gated gallery: its body varies on the access cookie,
-        // so a cached authorized copy would be served to visitors who never supplied the password.
-        .andExpect(header().string("Cache-Control", "no-store"));
+        .andExpect(jsonPath("$.contentCount").doesNotExist());
   }
 
   @Test
@@ -694,13 +691,10 @@ class CollectionControllerProdTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.title", is("Public Gallery")))
         .andExpect(jsonPath("$.content", hasSize(1)))
-        .andExpect(jsonPath("$.contentCount", is(5)))
-        // Identical for every caller, so CloudFront may absorb the repeat traffic.
-        .andExpect(
-            header()
-                .string(
-                    "Cache-Control",
-                    "max-age=60, public, s-maxage=300, stale-while-revalidate=300"));
+        .andExpect(jsonPath("$.contentCount", is(5)));
+    // No Cache-Control assertion here: this controller no longer sets one. The route is not
+    // allow-listed, so CacheControlInterceptor stamps no-store in the running application.
+    // CacheControlInterceptorTest pins that, including why this route can never be public.
   }
 
   @Test
@@ -726,10 +720,7 @@ class CollectionControllerProdTest {
         .andExpect(jsonPath("$.title", is("Client Gallery")))
         .andExpect(jsonPath("$.isPasswordProtected", is(true)))
         .andExpect(jsonPath("$.content", hasSize(1)))
-        .andExpect(jsonPath("$.contentCount", is(5)))
-        // The response now carries unlocked gallery content. This is the case a shared cache must
-        // never store -- a cached copy would leak the gallery to callers without the cookie.
-        .andExpect(header().string("Cache-Control", "no-store"));
+        .andExpect(jsonPath("$.contentCount", is(5)));
   }
 
   @Test

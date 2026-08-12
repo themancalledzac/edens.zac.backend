@@ -26,11 +26,25 @@ import org.springframework.web.servlet.HandlerMapping;
  * a crafted path. A {@link HandlerInterceptor} rather than a servlet {@code Filter} is required for
  * the same reason: the attribute only exists after handler mapping has run.
  *
- * <p>{@code /api/read/collections/{slug}} is deliberately absent from the allow-list. Its body
- * varies on the {@code gallery_access_<slug>} cookie, so its cacheability is only knowable after
- * the collection is loaded; {@code CollectionControllerProd} sets that one per-response. Leaving it
- * to default here means an error path that never reaches the controller falls back to {@code
- * no-store} instead of inheriting a public TTL.
+ * <p><strong>Both slug-resolving collection routes are deliberately absent from the
+ * allow-list</strong> ({@code /api/read/collections/{slug}} and {@code .../{slug}/meta}). Resolving
+ * a collection by slug is viewer-dependent in three separate ways, and only the first is visible
+ * from the response body:
+ *
+ * <ul>
+ *   <li>A password-protected gallery's body varies on the {@code gallery_access_<slug>} cookie.
+ *   <li>{@code enforceVisibility} hides HIDDEN collections from anonymous callers via {@code
+ *       viewerMaySeeHidden}, so the same URL is a 404 for the public and a 200 with full content
+ *       for an admin or a role-granted viewer.
+ *   <li>The synthetic {@code all-collections} slug is permission-scoped by verified identity: an
+ *       admin receives every visibility, a signed-in user receives their granted galleries, and an
+ *       anonymous caller receives LISTED only. It is also built with {@code isPasswordProtected}
+ *       unset, so a body-level check reads {@code null} and cannot detect the scoping.
+ * </ul>
+ *
+ * <p>Marking either route {@code public} therefore lets a shared cache store a privileged viewer's
+ * response and serve it to the public. They stay {@code no-store} until a resolved-entity check can
+ * prove viewer-independence; a slower collection page is a fair trade for not leaking hidden work.
  *
  * <p>Headers are set in {@link #preHandle} so a controller returning an explicit {@code
  * ResponseEntity.cacheControl(..)} still wins: Spring writes entity headers over response headers
@@ -47,7 +61,6 @@ public class CacheControlInterceptor implements HandlerInterceptor {
       Set.of(
           "/api/read/collections",
           "/api/read/collections/location/{slug}",
-          "/api/read/collections/{slug}/meta",
           "/api/read/content/tags",
           "/api/read/content/people",
           "/api/read/content/cameras",

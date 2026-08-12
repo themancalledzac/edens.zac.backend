@@ -2,7 +2,6 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.config.ClientGalleryAccessLimiter;
 import edens.zac.portfolio.backend.config.DefaultValues;
-import edens.zac.portfolio.backend.config.ReadCachePolicy;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.PagedResponse;
@@ -46,7 +45,6 @@ public class CollectionControllerProd {
   private final ClientGalleryAuthService clientGalleryAuthService;
   private final CollectionService collectionService;
   private final ClientGalleryAccessLimiter accessLimiter;
-  private final ReadCachePolicy readCachePolicy;
 
   /**
    * Whether the per-gallery access cookie is set with the {@code Secure} attribute. Always {@code
@@ -97,19 +95,19 @@ public class CollectionControllerProd {
     CollectionModel collection =
         collectionService.getCollectionWithPagination(slug, normalizedPage, normalizedSize);
 
-    boolean passwordProtected = Boolean.TRUE.equals(collection.getIsPasswordProtected());
-    if (passwordProtected && !collectionService.isGalleryAccessAuthorized(slug, request)) {
+    if (Boolean.TRUE.equals(collection.getIsPasswordProtected())
+        && !collectionService.isGalleryAccessAuthorized(slug, request)) {
       collection.setContent(null);
       collection.setContentCount(null);
     }
 
-    // Cacheability is only knowable once the collection is loaded, so it is set here rather than
-    // allow-listed in CacheControlInterceptor. A password-protected gallery's body varies on the
-    // gallery_access_<slug> cookie: letting a shared cache store the authorized variant would let
-    // it serve gated content to a visitor who never supplied the password. no-store closes that.
-    return ResponseEntity.ok()
-        .cacheControl(passwordProtected ? readCachePolicy.noStore() : readCachePolicy.publicRead())
-        .body(collection);
+    // No Cache-Control is set here on purpose: CacheControlInterceptor's default-deny already
+    // stamps no-store, which is the only safe answer for this route. An earlier version marked
+    // non-password-protected responses public, which was wrong -- a body-level password check
+    // cannot see the other two ways this route varies by viewer (HIDDEN collections visible only
+    // to admins/grantees, and the permission-scoped all-collections synthetic slug). See the
+    // class javadoc on CacheControlInterceptor.
+    return ResponseEntity.ok(collection);
   }
 
   /**
