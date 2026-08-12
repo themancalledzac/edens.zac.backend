@@ -66,7 +66,10 @@ class EditController {
   /**
    * Collaborator-scope collection update: the narrow DTO is widened onto the admin update path so
    * there stays exactly one implementation of the write. The path id is the authorized scope; a
-   * mismatched body id is rejected before any work.
+   * mismatched body id is rejected before any work. A non-clearing {@code coverImageId} (0 or null
+   * both mean "clear", per CollectionRequests.Update's javadoc) must also belong to this collection
+   * -- otherwise a collaborator could point the cover at an image from a gallery they cannot see,
+   * exposing its CDN URL.
    */
   @PutMapping("/collections/{collectionId}")
   public ResponseEntity<CollectionRequests.UpdateResponse> updateCollection(
@@ -75,6 +78,9 @@ class EditController {
     if (!collectionId.equals(body.id())) {
       throw new IllegalArgumentException(
           "Body id " + body.id() + " must match path collection id " + collectionId);
+    }
+    if (body.coverImageId() != null && body.coverImageId() != 0) {
+      collectionService.requireImagesInCollection(collectionId, List.of(body.coverImageId()));
     }
     return ResponseEntity.ok(
         collectionService.updateContentWithMetadata(collectionId, body.toUpdate()));

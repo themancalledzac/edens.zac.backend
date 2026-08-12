@@ -202,4 +202,36 @@ class EditControllerTest {
         .andExpect(status().isBadRequest());
     verify(collectionService, never()).requireImagesInCollection(any(), any());
   }
+
+  @Test
+  void updateCollectionRejectsCoverImageOutsideCollectionWith403() throws Exception {
+    doThrow(new AccessDeniedException("Images [77] are not part of collection 5"))
+        .when(collectionService)
+        .requireImagesInCollection(eq(5L), eq(List.of(77L)));
+
+    mockMvc
+        .perform(
+            put("/api/edit/collections/5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":5,\"coverImageId\":77}"))
+        .andExpect(status().isForbidden());
+    verify(collectionService, never()).updateContentWithMetadata(any(), any());
+  }
+
+  @Test
+  void updateCollectionAcceptsCoverImageWithinCollection() throws Exception {
+    when(collectionService.updateContentWithMetadata(eq(5L), any()))
+        .thenReturn(
+            new CollectionRequests.UpdateResponse(CollectionModel.builder().id(5L).build(), null));
+
+    mockMvc
+        .perform(
+            put("/api/edit/collections/5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":5,\"coverImageId\":9}"))
+        .andExpect(status().isOk());
+
+    verify(collectionService).requireImagesInCollection(5L, List.of(9L));
+    verify(collectionService).updateContentWithMetadata(eq(5L), any());
+  }
 }
