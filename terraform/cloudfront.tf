@@ -60,6 +60,18 @@ locals {
   api_origin_id = "${var.project_name}-api-origin"
 }
 
+# Managed policies, resolved by name rather than hardcoded UUID so the intent is legible.
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+# Forwards every viewer header, cookie, and query string EXCEPT Host. Host is excluded
+# deliberately: Caddy on EC2 serves a specific vhost, and forwarding the viewer's Host
+# (the CloudFront domain) would not match it.
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
 resource "aws_cloudfront_cache_policy" "api_read" {
   count = var.api_origin_domain == "" ? 0 : 1
 
@@ -198,6 +210,36 @@ resource "aws_cloudfront_distribution" "portfolio" {
 
       cache_policy_id          = aws_cloudfront_cache_policy.api_read[0].id
       origin_request_policy_id = aws_cloudfront_origin_request_policy.api_read[0].id
+    }
+  }
+
+  # Catch-all for the rest of the API. MUST stay declared after the /api/read/* block:
+  # CloudFront evaluates ordered behaviors in order and takes the first match, so the
+  # specific read pattern has to win before this one.
+  #
+  # Without this, the BFF cannot point a single API_URL at CloudFront. Its proxy is one
+  # catch-all route that forwards every path -- /api/auth/* (session cookies, ~12 call
+  # sites), /api/admin/*, /api/public/* -- through the same base URL. Those paths would
+  # otherwise fall to default_cache_behavior, whose origin is the S3 IMAGE BUCKET, and
+  # auth would break outright.
+  #
+  # Nothing here is cached: these are writes, per-user reads, and admin traffic. The
+  # backend also marks them no-store, so this is belt-and-braces.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.api_origin_domain == "" ? [] : [1]
+
+    content {
+      path_pattern     = "/api/*"
+      target_origin_id = local.api_origin_id
+
+      allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+      cached_methods  = ["GET", "HEAD"]
+
+      viewer_protocol_policy = "https-only"
+      compress               = true
+
+      cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+      origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
     }
   }
 

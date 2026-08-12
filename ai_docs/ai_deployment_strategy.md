@@ -405,7 +405,20 @@ Backend (`edens.zac.backend`):
 
 CloudFront historically fronted only S3 images and the frontend, never the API: every page
 open was an origin request that ran SQL on EC2. `terraform/cloudfront.tf` can now add the
-API as a second origin on the existing distribution, with a `/api/read/*` cache behavior.
+API as a second origin on the existing distribution, with two ordered cache behaviors:
+
+| Order | Pattern | Origin | Caching |
+|-------|---------|--------|---------|
+| 1 | `/api/read/*` | API | Per the origin's `Cache-Control` |
+| 2 | `/api/*` | API | Disabled (`Managed-CachingDisabled`) |
+| 3 | *(default)* | S3 images | — |
+
+The `/api/*` catch-all is what makes a single `API_URL` on the BFF viable. The BFF proxy is
+one catch-all route that forwards **every** path through the same base URL -- `/api/auth/*`
+(session cookies, ~12 call sites), `/api/admin/*`, `/api/public/*`. Without behavior 2 those
+fall through to the default behavior, whose origin is the **S3 image bucket**, and auth breaks
+outright. Order matters: CloudFront takes the first matching behavior, so `/api/read/*` must
+stay declared first.
 
 Freshness is decided entirely by the origin's `Cache-Control` headers (`CacheControlInterceptor`
 / `ReadCachePolicy`). The CloudFront cache policy sets `min_ttl`/`default_ttl` to 0 and a long
@@ -421,9 +434,12 @@ distribution is unchanged.
 2. `terraform plan` — expect one new cache policy, one origin request policy, and a modified
    distribution. Distribution updates take ~15 minutes to propagate.
 3. `terraform apply`, then take the `api_read_base_url` output.
-4. **Frontend repo change (required, not automatic):** point the BFF's read calls at that
-   base URL. Until this happens the behavior is live but unused — the BFF still talks to the
-   origin directly, and nothing is cached.
+4. **Frontend repo change (required, not automatic):** set the BFF's `API_URL` to
+   `https://<distribution-domain>` (the whole API now routes through CloudFront, per the
+   table above). Until this happens the behaviors are live but unused — the BFF still talks
+   to the origin directly, and nothing is cached.
+5. Verify before trusting it: a client gallery unlock (`POST /collections/{slug}/access`)
+   must still set its cookie, and login must still work. Both traverse CloudFront now.
 
 ### Two things that are easy to get wrong
 
