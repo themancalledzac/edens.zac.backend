@@ -1386,7 +1386,6 @@ public class CollectionService {
   }
 
   @Transactional
-  @CacheEvict(value = "collections", allEntries = true)
   public CollectionModel reorderContent(Long collectionId, CollectionRequests.Reorder request) {
     log.debug(
         "Reordering content in collection {} with {} reorder operations",
