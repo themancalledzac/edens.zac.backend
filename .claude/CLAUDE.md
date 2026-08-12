@@ -15,6 +15,7 @@ Package: `edens.zac.portfolio.backend`
 ## Project Structure
 ```
 controller/admin/ - Admin/write endpoints, all profiles (gated by SecurityConfig hasRole("ADMIN"))
+controller/edit/  - Collaborator write endpoints, all profiles (gated by CollaboratorAccessInterceptor at COLLABORATOR+)
 controller/prod/  - Production endpoints (@Profile("prod"))
 services/         - Business logic (concrete *Service classes, no interface/Impl split)
 dao/              - Data access (JDBC via NamedParameterJdbcTemplate, not JPA repositories)
@@ -47,7 +48,7 @@ config/           - Spring configuration
 ### API Design
 - NEVER expose entities directly -- always use DTOs/Models
 - Use `ResponseEntity<T>` with typed returns (never `ResponseEntity<?>`)
-- URL structure: `/api/read/...` (prod), `/api/admin/...` (dev)
+- URL structure: `/api/read/...` (prod), `/api/edit/...` (collaborator+), `/api/admin/...` (admin)
 - JSON responses must be objects (not arrays) at top level, camelCase properties
 - No try-catch in controllers -- GlobalExceptionHandler handles all exceptions
 - Always use `@Valid` on `@RequestBody` parameters

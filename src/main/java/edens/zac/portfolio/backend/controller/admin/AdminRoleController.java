@@ -107,9 +107,9 @@ public class AdminRoleController {
   }
 
   /**
-   * Grant a collection to a role at a level (GENERAL or CLIENT). Upserts: creates the grant if
-   * absent, promotes/demotes if present. The grant waterfalls: it is also materialized onto every
-   * visible descendant collection as an inherited copy.
+   * Grant a collection to a role at a level (any grantable level; ADMIN is refused). Upserts:
+   * creates the grant if absent, promotes/demotes if present. The grant waterfalls: it is also
+   * materialized onto every visible descendant collection as an inherited copy.
    *
    * @param roleId the role id
    * @param collectionId the collection id

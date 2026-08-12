@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolationException;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -85,6 +87,25 @@ public class GlobalExceptionHandler {
             .collect(Collectors.joining("; "));
 
     log.warn("Validation failed: {}", message);
+    return ResponseEntity.badRequest().body(ErrorResponse.of(HttpStatus.BAD_REQUEST, message));
+  }
+
+  /**
+   * Handle Spring 6.1+ built-in method validation, raised for constraints declared on container
+   * elements (e.g. {@code List<@Valid Foo>}) rather than on the container itself -- {@code @Valid}
+   * directly on a {@code List} parameter validates the list, never its elements, so this is the
+   * only path that actually enforces per-element constraints on such parameters (see
+   * EditController.patchImages). Aggregates messages the same way as {@link #handleValidation}.
+   */
+  @ExceptionHandler(HandlerMethodValidationException.class)
+  public ResponseEntity<ErrorResponse> handleMethodValidation(HandlerMethodValidationException e) {
+    String message =
+        e.getParameterValidationResults().stream()
+            .flatMap(result -> result.getResolvableErrors().stream())
+            .map(MessageSourceResolvable::getDefaultMessage)
+            .collect(Collectors.joining("; "));
+
+    log.warn("Method validation failed: {}", message);
     return ResponseEntity.badRequest().body(ErrorResponse.of(HttpStatus.BAD_REQUEST, message));
   }
 

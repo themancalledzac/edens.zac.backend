@@ -28,6 +28,7 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
@@ -55,6 +56,7 @@ import org.springframework.core.env.Profiles;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -675,6 +677,41 @@ public class CollectionService {
       throw new ResourceNotFoundException("Collection not found: " + id);
     }
     return true;
+  }
+
+  /**
+   * Cross-collection guard for collaborator image edits: every content id must have a
+   * collection_content row in {@code collectionId}. 404 when the collection itself is unknown;
+   * otherwise a 403 AccessDeniedException naming the outsiders, thrown BEFORE any write. Without
+   * this, a collaborator scoped to gallery X could submit image ids from gallery Y and edit
+   * canonical fields site-wide.
+   */
+  @Transactional(readOnly = true)
+  public void requireImagesInCollection(Long collectionId, List<Long> contentIds) {
+    collectionRepository
+        .findById(collectionId)
+        .orElseThrow(
+            () -> new ResourceNotFoundException("Collection not found with ID: " + collectionId));
+    Set<Long> members =
+        collectionRepository.findImageContentByCollectionIds(List.of(collectionId)).stream()
+            .map(CollectionContentEntity::getContentId)
+            .collect(Collectors.toSet());
+    List<Long> outsiders = contentIds.stream().filter(id -> !members.contains(id)).toList();
+    if (!outsiders.isEmpty()) {
+      throw new AccessDeniedException(
+          "Images " + outsiders + " are not part of collection " + collectionId);
+    }
+  }
+
+  /** Set the per-collection visibility of one image's membership row (scoped, not canonical). */
+  @Transactional
+  public void updateImageVisibility(Long collectionId, Long contentId, boolean visible) {
+    int rows =
+        collectionRepository.updateContentVisibleForContent(collectionId, contentId, visible);
+    if (rows == 0) {
+      throw new ResourceNotFoundException(
+          "No membership row for content " + contentId + " in collection " + collectionId);
+    }
   }
 
   /**
@@ -1486,7 +1523,7 @@ public class CollectionService {
     if (auth == null || !(auth.getPrincipal() instanceof AuthPrincipal p) || p.userId() == null) {
       return false;
     }
-    return p.isAdmin() || collectionAccessService.canView(p.userId(), collectionId);
+    return collectionAccessService.hasAtLeast(p, collectionId, AccessLevel.GENERAL);
   }
 
   private boolean isLocalEnvironment() {

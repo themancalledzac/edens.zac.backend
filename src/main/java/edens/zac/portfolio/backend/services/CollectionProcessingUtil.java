@@ -724,7 +724,12 @@ public class CollectionProcessingUtil {
    * Validate the collection's resolved date range. Rejects (400 via {@link
    * edens.zac.portfolio.backend.config.GlobalExceptionHandler}) when the end date precedes the
    * start date, or when an end date is present without a start date (an open-ended range with no
-   * anchor is meaningless). A null end date is always valid (single-day / open collection).
+   * anchor is meaningless). A null end date is always valid (single-day / open collection). The
+   * end-before-start message names the conflicting dates and states that an admin must adjust the
+   * end date -- collaborators cannot set {@code collectionEndDate} themselves (denied field on
+   * {@link edens.zac.portfolio.backend.model.CollaboratorRequests.CollaboratorUpdate}), so a
+   * range-order violation on that tier can only be resolved by an admin. This method is private and
+   * shared by both the admin and collaborator write paths, so the wording serves both.
    *
    * @param start the resolved collection start date (may be null)
    * @param end the resolved collection end date (may be null)
@@ -739,7 +744,11 @@ public class CollectionProcessingUtil {
     }
     if (end.isBefore(start)) {
       throw new IllegalArgumentException(
-          "collectionEndDate (" + end + ") must not be before collectionDate (" + start + ")");
+          "collectionEndDate ("
+              + end
+              + ") must not be before collectionDate ("
+              + start
+              + "); adjusting or clearing the end date requires an admin");
     }
   }
 

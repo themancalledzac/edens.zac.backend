@@ -22,8 +22,6 @@ import edens.zac.portfolio.backend.services.JobTrackingService;
 import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.services.PaginationUtil;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -157,28 +155,6 @@ class AdminController {
     log.debug("Retrieved general metadata");
     return ResponseEntity.ok(response);
   }
-
-  /** Atomic image reorder; recomputes sequential indices for all content in the collection. */
-  @PostMapping("/collections/{collectionId}/reorder")
-  public ResponseEntity<CollectionModel> reorderCollectionContent(
-      @PathVariable Long collectionId, @RequestBody @Valid CollectionRequests.Reorder request) {
-    log.debug(
-        "Reordering content in collection {} with {} reorder operations",
-        collectionId,
-        request.reorders().size());
-    CollectionModel updatedCollection = collectionService.reorderContent(collectionId, request);
-    log.info("Reordered content in collection: {}", collectionId);
-    return ResponseEntity.ok(updatedCollection);
-  }
-
-  /** Click-to-rate endpoint for the home manage page. */
-  @PatchMapping("/collections/{id}/rating")
-  ResponseEntity<Void> patchRating(@PathVariable Long id, @Valid @RequestBody RatingPatch body) {
-    collectionService.updateRating(id, body.rating());
-    return ResponseEntity.noContent().build();
-  }
-
-  public record RatingPatch(@Min(0) @Max(5) Integer rating) {}
 
   /** Replace the entire People list for a collection (DELETE-then-INSERT semantics). */
   @PutMapping("/collections/{id}/people")

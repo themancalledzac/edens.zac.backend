@@ -108,6 +108,40 @@ class AuthFlowEndToEndTest extends AbstractPostgresIntegrationTest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
   }
 
+  /**
+   * Wiring proof for the /api/edit/** gate (Task 8 security-review follow-up): every other
+   * /api/edit test @Imports EditAccessWebConfig directly, which would stay green even if the class
+   * silently dropped out of component scan. This test boots the FULL application context
+   * (no @Import at all) and drives it over real HTTP, so it can only pass if Spring actually
+   * discovers EditAccessWebConfig -> CollaboratorAccessInterceptor on its own.
+   *
+   * <p>The seeded user despite its ADMIN_EMAIL name is NOT an admin: seedAdminUser() never calls
+   * AppUserRepository.setAdmin, so is_admin defaults to false (V42), and no user_collection grant
+   * rows exist for this collection (truncateAuthTables() guarantees a clean slate). That makes it
+   * exactly the "authenticated, non-admin, no grant" principal this assertion needs.
+   */
+  @Test
+  void editRouteRejectsAuthenticatedNonAdminWithNoGrant_returns403() {
+    ResponseEntity<Void> loginResponse = postLogin(ADMIN_EMAIL, KNOWN_PASSWORD);
+    assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    String sessionCookie = extractSessionCookie(loginResponse);
+    assertThat(sessionCookie).isNotBlank();
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.set("Content-Type", "application/json");
+    headers.set("Cookie", "ezac_session=" + sessionCookie);
+    String body = "{\"reorders\":[{\"contentId\":1,\"newOrderIndex\":0}]}";
+
+    ResponseEntity<String> response =
+        restTemplate.exchange(
+            baseUrl() + "/api/edit/collections/999999/reorder",
+            HttpMethod.POST,
+            new HttpEntity<>(body, headers),
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
   // ---- helpers ----
 
   private ResponseEntity<Void> postLogin(String email, String password) {

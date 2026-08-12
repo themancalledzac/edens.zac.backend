@@ -28,7 +28,7 @@ public final class RoleRequests {
       Long id, String name, List<RoleMemberRow> members, List<RoleCollectionRow> collections) {}
 
   /** Body for {@code PUT /api/admin/roles/{roleId}/collections/{collectionId}}. */
-  public record SetRoleGrantRequest(@NotNull AccessLevel level) {}
+  public record SetRoleGrantRequest(@NotNull @GrantableLevel AccessLevel level) {}
 
   /** One role a user belongs to, for the reshaped user-detail view. */
   public record UserRoleRow(Long roleId, String name) {}

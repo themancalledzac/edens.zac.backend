@@ -333,4 +333,72 @@ class RoleGrantPropagationServiceIntegrationTest extends AbstractPostgresIntegra
     assertThat(grantRowCount(roleId, hidden)).isZero();
     assertThat(grantRowCount(roleId, hiddenChild)).isZero();
   }
+
+  @Test
+  void collaboratorGrantOnParentWaterfallsToEveryVisibleDescendant() {
+    long user = seedUser("Wf-Collab");
+    long parent = seedCollection("wf-collab-parent");
+    long child = seedCollection("wf-collab-child");
+    long grandchild = seedCollection("wf-collab-grandchild");
+    collectionService.linkCollectionToParent(parent, child);
+    collectionService.linkCollectionToParent(child, grandchild);
+    long roleId = seedMemberRole("role:wf-collab", user);
+
+    propagation.setGrant(roleId, parent, AccessLevel.COLLABORATOR, null);
+
+    for (long coll : new long[] {parent, child, grandchild}) {
+      assertThat(roleRepository.canView(user, coll)).isTrue();
+      assertThat(roleRepository.isClient(user, coll)).isTrue();
+      assertThat(roleRepository.highestLevel(user, coll)).contains(AccessLevel.COLLABORATOR);
+    }
+    assertThat(inheritedFrom(roleId, child)).isEqualTo(parent);
+    assertThat(inheritedFrom(roleId, grandchild)).isEqualTo(parent);
+
+    // Revoking strips the subtree.
+    propagation.removeGrant(roleId, parent);
+    for (long coll : new long[] {parent, child, grandchild}) {
+      assertThat(roleRepository.canView(user, coll)).isFalse();
+    }
+  }
+
+  @Test
+  void inheritedCopiesUpgradeToCollaboratorFromEitherLowerLevel() {
+    long user = seedUser("Wf-Upgrade");
+    long grandparent = seedCollection("wf-upg-grandparent");
+    long parent = seedCollection("wf-upg-parent");
+    long child = seedCollection("wf-upg-child");
+    collectionService.linkCollectionToParent(grandparent, parent);
+    collectionService.linkCollectionToParent(parent, child);
+    long roleId = seedMemberRole("role:wf-upg", user);
+
+    // GENERAL -> COLLABORATOR upgrade on inherited copies.
+    propagation.setGrant(roleId, grandparent, AccessLevel.GENERAL, null);
+    propagation.setGrant(roleId, parent, AccessLevel.COLLABORATOR, null);
+    assertThat(roleRepository.highestLevel(user, child)).contains(AccessLevel.COLLABORATOR);
+    assertThat(inheritedFrom(roleId, child)).isEqualTo(parent);
+
+    // Demote back down: strip-then-re-propagate makes CLIENT stick on the child.
+    propagation.setGrant(roleId, parent, AccessLevel.CLIENT, null);
+    assertThat(roleRepository.highestLevel(user, child)).contains(AccessLevel.CLIENT);
+
+    // CLIENT -> COLLABORATOR upgrade (the second landmine pair).
+    propagation.setGrant(roleId, parent, AccessLevel.COLLABORATOR, null);
+    assertThat(roleRepository.highestLevel(user, child)).contains(AccessLevel.COLLABORATOR);
+  }
+
+  @Test
+  void directChildGrantStaysStickyUnderCollaboratorWaterfall() {
+    long user = seedUser("Wf-Sticky");
+    long parent = seedCollection("wf-sticky-parent");
+    long child = seedCollection("wf-sticky-child");
+    collectionService.linkCollectionToParent(parent, child);
+    long roleId = seedMemberRole("role:wf-sticky", user);
+
+    propagation.setGrant(roleId, child, AccessLevel.CLIENT, null);
+    propagation.setGrant(roleId, parent, AccessLevel.COLLABORATOR, null);
+
+    // The child's direct CLIENT grant survives the higher-ranked waterfall.
+    assertThat(roleRepository.highestLevel(user, child)).contains(AccessLevel.CLIENT);
+    assertThat(inheritedFrom(roleId, child)).isNull();
+  }
 }
