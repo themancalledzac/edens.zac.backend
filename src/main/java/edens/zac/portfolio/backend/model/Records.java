@@ -96,7 +96,18 @@ public final class Records {
    * serialized to API responses directly.
    */
   public record SiblingRow(
-      Long id, String name, String slug, Long coverImageId, boolean isClient, boolean isBlog) {}
+      Long id,
+      String name,
+      String slug,
+      Long coverImageId,
+      boolean isClient,
+      boolean isBlog,
+      /**
+       * True when the reverse row exists, i.e. the sibling links back. False means this is a
+       * one-way link: the owning collection points at the sibling, the sibling does not point back.
+       * Computed by {@code findSiblings}, never stored as a column.
+       */
+      boolean mutual) {}
 
   /**
    * DTO for admin hub tile configuration. coverImageUrl and dimensions are null when no image is

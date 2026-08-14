@@ -124,4 +124,26 @@ class CollectionSiblingRepositoryTest {
       assertThat(sql).containsIgnoringCase("ORDER BY c.title ASC");
     }
   }
+
+  @Nested
+  class FindSiblingsMutualProjection {
+    @SuppressWarnings("unchecked")
+    @Test
+    void findSiblings_projectsMutualViaExistsOnTheReverseRow() {
+      when(namedParameterJdbcTemplate.query(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(List.of());
+
+      repository.findSiblings(12L, false);
+
+      verify(namedParameterJdbcTemplate)
+          .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+      String sql = sqlCaptor.getValue();
+      assertThat(sql).containsIgnoringCase("EXISTS");
+      assertThat(sql).containsIgnoringCase("FROM collection_sibling r");
+      assertThat(sql).containsIgnoringCase("r.collection_id = cs.sibling_collection_id");
+      assertThat(sql).containsIgnoringCase("r.sibling_collection_id = cs.collection_id");
+      assertThat(sql).containsIgnoringCase("AS mutual");
+    }
+  }
 }

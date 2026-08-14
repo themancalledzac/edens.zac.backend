@@ -176,8 +176,9 @@ class CollectionProcessingUtilTest {
     // Sibling 9 has cover image 100; sibling 11 has none.
     List<Records.SiblingRow> rows =
         List.of(
-            new Records.SiblingRow(9L, "Dolomites Film", "dolomites-film", 100L, false, false),
-            new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false));
+            new Records.SiblingRow(
+                9L, "Dolomites Film", "dolomites-film", 100L, false, false, true),
+            new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false, true));
     when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
 
     ContentImageEntity cover =
@@ -209,7 +210,8 @@ class CollectionProcessingUtilTest {
   void populateSiblings_noCoverImages_skipsImageLookup() {
     CollectionModel model = CollectionModel.builder().id(5L).build();
     List<Records.SiblingRow> rows =
-        List.of(new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false));
+        List.of(
+            new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false, true));
     when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
 
     util.populateSiblings(model, false);

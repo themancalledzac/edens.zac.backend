@@ -27,7 +27,8 @@ public class CollectionSiblingRepository extends BaseDao {
             rs.getString("slug"),
             coverImageIdOrNull,
             rs.getBoolean("is_client"),
-            rs.getBoolean("is_blog"));
+            rs.getBoolean("is_blog"),
+            rs.getBoolean("mutual"));
       };
 
   public CollectionSiblingRepository(JdbcTemplate jdbcTemplate) {
@@ -63,11 +64,17 @@ public class CollectionSiblingRepository extends BaseDao {
    * returned (public read path); when false, every sibling regardless of visibility is returned
    * (admin manage payload). Cover image URLs are resolved separately in a batch by the caller to
    * avoid N+1.
+   *
+   * <p>Each row carries {@code mutual}, true when the sibling links back and false for a one-way
+   * link.
    */
   @Transactional(readOnly = true)
   public List<Records.SiblingRow> findSiblings(Long collectionId, boolean listedOnly) {
     String sql =
-        "SELECT c.id, c.title AS name, c.slug, c.cover_image_id, c.is_client, c.is_blog "
+        "SELECT c.id, c.title AS name, c.slug, c.cover_image_id, c.is_client, c.is_blog, "
+            + "EXISTS (SELECT 1 FROM collection_sibling r "
+            + "WHERE r.collection_id = cs.sibling_collection_id "
+            + "AND r.sibling_collection_id = cs.collection_id) AS mutual "
             + "FROM collection_sibling cs "
             + "JOIN collection c ON c.id = cs.sibling_collection_id "
             + "WHERE cs.collection_id = :id "
