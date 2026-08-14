@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.dao;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,22 +50,44 @@ class CollectionSiblingRepositoryTest {
   }
 
   @Nested
-  class AddSibling {
+  class SetSibling {
     @Test
-    void addSibling_issuesReciprocalInsertWithOnConflictDoNothing() {
+    void setSibling_mutual_insertsBothDirections() {
       when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
-          .thenReturn(2);
-      repository.addSibling(1L, 2L);
-      verify(namedParameterJdbcTemplate).update(sqlCaptor.capture(), paramsCaptor.capture());
-      String sql = sqlCaptor.getValue();
-      assertThat(sql)
+          .thenReturn(1);
+
+      repository.setSibling(1L, 2L, true);
+
+      verify(namedParameterJdbcTemplate, times(2))
+          .update(sqlCaptor.capture(), paramsCaptor.capture());
+      List<String> statements = sqlCaptor.getAllValues();
+      assertThat(statements.get(0))
           .containsIgnoringCase(
               "INSERT INTO collection_sibling (collection_id, sibling_collection_id)");
-      assertThat(sql).containsIgnoringCase("VALUES (:a, :b), (:b, :a)");
-      assertThat(sql).containsIgnoringCase("ON CONFLICT DO NOTHING");
-      MapSqlParameterSource params = paramsCaptor.getValue();
-      assertThat(params.getValue("a")).isEqualTo(1L);
-      assertThat(params.getValue("b")).isEqualTo(2L);
+      assertThat(statements.get(0)).containsIgnoringCase("VALUES (:a, :b)");
+      assertThat(statements.get(0)).containsIgnoringCase("ON CONFLICT DO NOTHING");
+      assertThat(statements.get(1)).containsIgnoringCase("VALUES (:b, :a)");
+      assertThat(statements.get(1)).containsIgnoringCase("ON CONFLICT DO NOTHING");
+      assertThat(statements.get(1)).doesNotContainIgnoringCase("DELETE");
+      assertThat(paramsCaptor.getValue().getValue("a")).isEqualTo(1L);
+      assertThat(paramsCaptor.getValue().getValue("b")).isEqualTo(2L);
+    }
+
+    @Test
+    void setSibling_oneWay_insertsForwardAndDeletesReverse() {
+      when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
+          .thenReturn(1);
+
+      repository.setSibling(1L, 2L, false);
+
+      verify(namedParameterJdbcTemplate, times(2))
+          .update(sqlCaptor.capture(), paramsCaptor.capture());
+      List<String> statements = sqlCaptor.getAllValues();
+      assertThat(statements.get(0)).containsIgnoringCase("INSERT INTO collection_sibling");
+      assertThat(statements.get(0)).containsIgnoringCase("VALUES (:a, :b)");
+      assertThat(statements.get(1)).containsIgnoringCase("DELETE FROM collection_sibling");
+      assertThat(statements.get(1))
+          .containsIgnoringCase("collection_id = :b AND sibling_collection_id = :a");
     }
   }
 

@@ -61,7 +61,7 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
   void findSiblings_typelessSchema_reads() {
     Long a = seedRow("legacy-sibling-a");
     Long b = seedRow("legacy-sibling-b");
-    collectionSiblingRepository.addSibling(a, b);
+    collectionSiblingRepository.setSibling(a, b, true);
 
     List<Records.SiblingRow> siblings = collectionSiblingRepository.findSiblings(a, true);
 

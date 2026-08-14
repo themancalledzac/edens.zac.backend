@@ -36,16 +36,27 @@ public class CollectionSiblingRepository extends BaseDao {
   }
 
   /**
-   * Reciprocal insert of the pair (a,b) and (b,a). Idempotent via {@code ON CONFLICT DO NOTHING}
-   * against the composite PK, so re-adding an existing link is a no-op.
+   * Set the direction of the link from {@code a} to {@code b}. The forward row is always upserted;
+   * when {@code mutual} the reverse row is upserted too, and when not it is deleted. The delete
+   * branch is what downgrades an existing mutual link to one-way. Idempotent in both modes via
+   * {@code ON CONFLICT DO NOTHING} against the composite PK.
    */
   @Transactional
-  public void addSibling(Long a, Long b) {
-    String sql =
+  public void setSibling(Long a, Long b, boolean mutual) {
+    String forwardSql =
         "INSERT INTO collection_sibling (collection_id, sibling_collection_id) "
-            + "VALUES (:a, :b), (:b, :a) "
+            + "VALUES (:a, :b) "
             + "ON CONFLICT DO NOTHING";
-    update(sql, createParameterSource().addValue("a", a).addValue("b", b));
+    update(forwardSql, createParameterSource().addValue("a", a).addValue("b", b));
+
+    String reverseSql =
+        mutual
+            ? "INSERT INTO collection_sibling (collection_id, sibling_collection_id) "
+                + "VALUES (:b, :a) "
+                + "ON CONFLICT DO NOTHING"
+            : "DELETE FROM collection_sibling "
+                + "WHERE collection_id = :b AND sibling_collection_id = :a";
+    update(reverseSql, createParameterSource().addValue("a", a).addValue("b", b));
   }
 
   /** Bidirectional delete: removes both (a,b) and (b,a). */

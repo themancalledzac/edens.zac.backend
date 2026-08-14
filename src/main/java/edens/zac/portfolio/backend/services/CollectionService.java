@@ -1198,7 +1198,7 @@ public class CollectionService {
         if (siblingId == null || siblingId.equals(parentId)) {
           continue;
         }
-        collectionSiblingRepository.addSibling(parentId, siblingId);
+        collectionSiblingRepository.setSibling(parentId, siblingId, true);
       }
     }
     log.info("Applied sibling updates for collection {}", parentId);
