@@ -65,6 +65,15 @@ public class ShareLinkService {
     return shareLinkRepository.findByTokenHash(TokenUtil.sha256Hex(rawToken));
   }
 
+  /**
+   * Load a share by its id -- the lookup for a principal already resolved by the filter, where the
+   * raw token is not needed again.
+   */
+  @Transactional(readOnly = true)
+  public Optional<ShareLinkEntity> findById(Long shareLinkId) {
+    return shareLinkId == null ? Optional.empty() : shareLinkRepository.findById(shareLinkId);
+  }
+
   @Transactional(readOnly = true)
   public Optional<ShareLinkEntity> findForUser(Long userId) {
     return userId == null ? Optional.empty() : shareLinkRepository.findByUserId(userId);

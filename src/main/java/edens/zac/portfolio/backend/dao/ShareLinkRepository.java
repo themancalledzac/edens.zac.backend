@@ -71,6 +71,13 @@ public class ShareLinkRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
+  public Optional<ShareLinkEntity> findById(Long id) {
+    String sql = SELECT_SHARE_LINK + " WHERE id = :id";
+    MapSqlParameterSource params = createParameterSource().addValue("id", id);
+    return queryForObject(sql, SHARE_LINK_ROW_MAPPER, params);
+  }
+
+  @Transactional(readOnly = true)
   public Optional<ShareLinkEntity> findByUserId(Long userId) {
     String sql = SELECT_SHARE_LINK + " WHERE user_id = :userId";
     MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
