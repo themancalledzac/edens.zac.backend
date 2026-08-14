@@ -176,8 +176,9 @@ class CollectionProcessingUtilTest {
     // Sibling 9 has cover image 100; sibling 11 has none.
     List<Records.SiblingRow> rows =
         List.of(
-            new Records.SiblingRow(9L, "Dolomites Film", "dolomites-film", 100L, false, false),
-            new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false));
+            new Records.SiblingRow(
+                9L, "Dolomites Film", "dolomites-film", 100L, false, false, true),
+            new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false, true));
     when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
 
     ContentImageEntity cover =
@@ -209,7 +210,8 @@ class CollectionProcessingUtilTest {
   void populateSiblings_noCoverImages_skipsImageLookup() {
     CollectionModel model = CollectionModel.builder().id(5L).build();
     List<Records.SiblingRow> rows =
-        List.of(new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false));
+        List.of(
+            new Records.SiblingRow(11L, "Alps Digital", "alps-digital", null, false, false, true));
     when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
 
     util.populateSiblings(model, false);
@@ -230,6 +232,32 @@ class CollectionProcessingUtilTest {
   void populateSiblings_nullId_isNoOp() {
     util.populateSiblings(CollectionModel.builder().build(), false);
     verifyNoInteractions(collectionSiblingRepository);
+  }
+
+  @Test
+  void populateSiblings_adminPath_reportsOneWaySiblingIds() {
+    List<Records.SiblingRow> rows =
+        List.of(
+            new Records.SiblingRow(9L, "Mutual One", "mutual-one", null, false, false, true),
+            new Records.SiblingRow(11L, "One Way", "one-way", null, false, false, false));
+    when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
+    CollectionModel model = CollectionModel.builder().id(5L).build();
+
+    util.populateSiblings(model, false);
+
+    assertThat(model.getOneWaySiblingIds()).containsExactly(11L);
+  }
+
+  @Test
+  void populateSiblings_publicPath_leavesOneWaySiblingIdsNull() {
+    List<Records.SiblingRow> rows =
+        List.of(new Records.SiblingRow(11L, "One Way", "one-way", null, false, false, false));
+    when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
+    CollectionModel model = CollectionModel.builder().id(5L).build();
+
+    util.populateSiblings(model, true);
+
+    assertThat(model.getOneWaySiblingIds()).isNull();
   }
 
   /**

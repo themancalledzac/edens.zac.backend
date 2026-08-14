@@ -96,7 +96,18 @@ public final class Records {
    * serialized to API responses directly.
    */
   public record SiblingRow(
-      Long id, String name, String slug, Long coverImageId, boolean isClient, boolean isBlog) {}
+      Long id,
+      String name,
+      String slug,
+      Long coverImageId,
+      boolean isClient,
+      boolean isBlog,
+      /**
+       * True when the reverse row exists, i.e. the sibling links back. False means this is a
+       * one-way link: the owning collection points at the sibling, the sibling does not point back.
+       * Computed by {@code findSiblings}, never stored as a column.
+       */
+      boolean mutual) {}
 
   /**
    * DTO for admin hub tile configuration. coverImageUrl and dimensions are null when no image is
@@ -139,5 +150,27 @@ public final class Records {
        * content[].orderIndex instead for the current collection's order. If null when adding,
        * content will be appended to the end of the collection.
        */
-      Integer orderIndex) {}
+      Integer orderIndex,
+      /**
+       * SIBLING PATH ONLY. Whether the sibling link should be mutual. Null means mutual, which
+       * keeps every pre-existing client and every stored reciprocal pair behaving as before. False
+       * writes a one-way link: this collection points at the sibling, the sibling does not point
+       * back. Ignored on the content and child-collection paths.
+       */
+      Boolean mutual) {
+
+    /**
+     * Back-compat constructor for callers predating the {@code mutual} field. Delegates to the
+     * canonical constructor with {@code mutual} null, which the sibling path reads as mutual.
+     */
+    public ChildCollection(
+        Long collectionId,
+        String name,
+        String slug,
+        String coverImageUrl,
+        Boolean visible,
+        Integer orderIndex) {
+      this(collectionId, name, slug, coverImageUrl, visible, orderIndex, null);
+    }
+  }
 }

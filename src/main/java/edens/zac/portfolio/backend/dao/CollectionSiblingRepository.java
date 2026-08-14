@@ -9,8 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Mutual ("sibling") association between collections (mirror of collection_people). Rows are stored
- * reciprocally — a link between A and B is two rows (A,B) and (B,A) — so "siblings of X" is a
+ * Directional association between collections (mirror of collection_people). A row (collection_id,
+ * sibling_collection_id) means the first collection links to the second; a mutual link is the pair
+ * (A,B) and (B,A), and a one-way link is a lone row. "Siblings of X" is therefore a
  * single-direction lookup on collection_id. No dedicated entity POJO: the join is manipulated
  * directly via SQL, matching collection_people / collection_locations.
  */
@@ -27,7 +28,8 @@ public class CollectionSiblingRepository extends BaseDao {
             rs.getString("slug"),
             coverImageIdOrNull,
             rs.getBoolean("is_client"),
-            rs.getBoolean("is_blog"));
+            rs.getBoolean("is_blog"),
+            rs.getBoolean("mutual"));
       };
 
   public CollectionSiblingRepository(JdbcTemplate jdbcTemplate) {
@@ -35,16 +37,27 @@ public class CollectionSiblingRepository extends BaseDao {
   }
 
   /**
-   * Reciprocal insert of the pair (a,b) and (b,a). Idempotent via {@code ON CONFLICT DO NOTHING}
-   * against the composite PK, so re-adding an existing link is a no-op.
+   * Set the direction of the link from {@code a} to {@code b}. The forward row is always upserted;
+   * when {@code mutual} the reverse row is upserted too, and when not it is deleted. The delete
+   * branch is what downgrades an existing mutual link to one-way. Idempotent in both modes via
+   * {@code ON CONFLICT DO NOTHING} against the composite PK.
    */
   @Transactional
-  public void addSibling(Long a, Long b) {
-    String sql =
+  public void setSibling(Long a, Long b, boolean mutual) {
+    String forwardSql =
         "INSERT INTO collection_sibling (collection_id, sibling_collection_id) "
-            + "VALUES (:a, :b), (:b, :a) "
+            + "VALUES (:a, :b) "
             + "ON CONFLICT DO NOTHING";
-    update(sql, createParameterSource().addValue("a", a).addValue("b", b));
+    update(forwardSql, createParameterSource().addValue("a", a).addValue("b", b));
+
+    String reverseSql =
+        mutual
+            ? "INSERT INTO collection_sibling (collection_id, sibling_collection_id) "
+                + "VALUES (:b, :a) "
+                + "ON CONFLICT DO NOTHING"
+            : "DELETE FROM collection_sibling "
+                + "WHERE collection_id = :b AND sibling_collection_id = :a";
+    update(reverseSql, createParameterSource().addValue("a", a).addValue("b", b));
   }
 
   /** Bidirectional delete: removes both (a,b) and (b,a). */
@@ -63,11 +76,17 @@ public class CollectionSiblingRepository extends BaseDao {
    * returned (public read path); when false, every sibling regardless of visibility is returned
    * (admin manage payload). Cover image URLs are resolved separately in a batch by the caller to
    * avoid N+1.
+   *
+   * <p>Each row carries {@code mutual}, true when the sibling links back and false for a one-way
+   * link.
    */
   @Transactional(readOnly = true)
   public List<Records.SiblingRow> findSiblings(Long collectionId, boolean listedOnly) {
     String sql =
-        "SELECT c.id, c.title AS name, c.slug, c.cover_image_id, c.is_client, c.is_blog "
+        "SELECT c.id, c.title AS name, c.slug, c.cover_image_id, c.is_client, c.is_blog, "
+            + "EXISTS (SELECT 1 FROM collection_sibling r "
+            + "WHERE r.collection_id = cs.sibling_collection_id "
+            + "AND r.sibling_collection_id = cs.collection_id) AS mutual "
             + "FROM collection_sibling cs "
             + "JOIN collection c ON c.id = cs.sibling_collection_id "
             + "WHERE cs.collection_id = :id "

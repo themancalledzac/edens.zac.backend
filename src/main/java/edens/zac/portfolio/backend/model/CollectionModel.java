@@ -88,10 +88,18 @@ public class CollectionModel {
   private List<String> tags;
 
   /**
-   * Sibling collections (mutual association via collection_sibling). LISTED-only on the public read
-   * path; all siblings on the admin manage payload. Null/empty when none.
+   * Sibling collections (directional association via collection_sibling; a link may be mutual or
+   * one-way, see {@link #oneWaySiblingIds}). LISTED-only on the public read path; all siblings on
+   * the admin manage payload. Null/empty when none.
    */
   private List<Records.CollectionList> siblings;
+
+  /**
+   * IDs among {@link #siblings} that this collection links to one-way -- they do not link back.
+   * Populated only on the admin manage payload; null on the public read path, which has no use for
+   * link direction. The public payload's {@code siblings} shape is unchanged.
+   */
+  private List<Long> oneWaySiblingIds;
 
   /**
    * Parent collections on the admin manage payload. Includes HIDDEN parents - admin sees every

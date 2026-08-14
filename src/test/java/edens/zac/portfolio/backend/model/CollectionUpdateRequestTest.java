@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.model;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -980,6 +981,24 @@ class CollectionUpdateRequestTest {
       assertTrue(violations.isEmpty());
       assertNotNull(dto.locations());
       assertEquals(2, dto.locations().newValue().size());
+    }
+  }
+
+  @Nested
+  class ChildCollectionMutualFlag {
+    @Test
+    void sixArgConstructor_defaultsMutualToNull() {
+      Records.ChildCollection link = new Records.ChildCollection(10L, null, null, null, true, 0);
+
+      assertThat(link.mutual()).isNull();
+    }
+
+    @Test
+    void sevenArgConstructor_carriesMutualFalse() {
+      Records.ChildCollection link =
+          new Records.ChildCollection(10L, null, null, null, true, 0, false);
+
+      assertThat(link.mutual()).isFalse();
     }
   }
 }

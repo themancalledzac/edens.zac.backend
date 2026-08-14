@@ -1952,8 +1952,8 @@ class CollectionServiceTest {
 
       service.updateContent(parentId, updateWithSiblings(parentId, siblings));
 
-      verify(collectionSiblingRepository).addSibling(parentId, 20L);
-      verify(collectionSiblingRepository).addSibling(parentId, 21L);
+      verify(collectionSiblingRepository).setSibling(parentId, 20L, true);
+      verify(collectionSiblingRepository).setSibling(parentId, 21L, true);
       verify(collectionSiblingRepository).removeSibling(parentId, 30L);
       verify(collectionSiblingRepository).removeSibling(parentId, 31L);
     }
@@ -1970,7 +1970,8 @@ class CollectionServiceTest {
 
       service.updateContent(parentId, updateWithSiblings(parentId, siblings));
 
-      verify(collectionSiblingRepository, never()).addSibling(eq(parentId), eq(parentId));
+      verify(collectionSiblingRepository, never())
+          .setSibling(eq(parentId), eq(parentId), anyBoolean());
     }
 
     @Test
@@ -1980,8 +1981,36 @@ class CollectionServiceTest {
 
       service.updateContent(parentId, updateWithSiblings(parentId, null));
 
-      verify(collectionSiblingRepository, never()).addSibling(anyLong(), anyLong());
+      verify(collectionSiblingRepository, never()).setSibling(anyLong(), anyLong(), anyBoolean());
       verify(collectionSiblingRepository, never()).removeSibling(anyLong(), anyLong());
+    }
+
+    @Test
+    void mutualFalse_writesOneWayLink() {
+      Long parentId = 1L;
+      CollectionRequests.CollectionUpdate siblings =
+          new CollectionRequests.CollectionUpdate(
+              null,
+              List.of(new Records.ChildCollection(20L, null, null, null, null, null, false)),
+              null);
+      when(collectionRepository.findById(parentId)).thenReturn(Optional.of(testCollection));
+
+      service.updateContent(parentId, updateWithSiblings(parentId, siblings));
+
+      verify(collectionSiblingRepository).setSibling(parentId, 20L, false);
+    }
+
+    @Test
+    void mutualNull_defaultsToMutual() {
+      Long parentId = 1L;
+      CollectionRequests.CollectionUpdate siblings =
+          new CollectionRequests.CollectionUpdate(
+              null, List.of(new Records.ChildCollection(21L, null, null, null, null, null)), null);
+      when(collectionRepository.findById(parentId)).thenReturn(Optional.of(testCollection));
+
+      service.updateContent(parentId, updateWithSiblings(parentId, siblings));
+
+      verify(collectionSiblingRepository).setSibling(parentId, 21L, true);
     }
   }
 

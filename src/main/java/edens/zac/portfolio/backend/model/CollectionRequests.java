@@ -93,10 +93,14 @@ public final class CollectionRequests {
        */
       CollectionUpdate collections,
       /**
-       * Sibling (mutual) collection updates. Reuses {@link CollectionUpdate}; only {@code newValue}
-       * (add) and {@code remove} (delete) are honored, and only each entry's {@code collectionId}
-       * is read ({@code orderIndex}/{@code visible}/{@code prev} are ignored — siblings carry no
-       * ordering or per-link visibility).
+       * Sibling collection updates. Reuses {@link CollectionUpdate}; only {@code newValue} (add or
+       * re-point) and {@code remove} (delete) are honored, and only each entry's {@code
+       * collectionId} and {@code mutual} are read ({@code orderIndex}/{@code visible}/{@code prev}
+       * are ignored -- siblings carry no ordering or per-link visibility).
+       *
+       * <p>{@code mutual} null or true writes a reciprocal link; false writes a one-way link.
+       * Re-sending an existing sibling with {@code mutual} false downgrades it, because the write
+       * is a set operation rather than an add.
        */
       CollectionUpdate siblings,
       /**
