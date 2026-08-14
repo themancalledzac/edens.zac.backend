@@ -1176,9 +1176,11 @@ public class CollectionService {
   }
 
   /**
-   * Apply mutual sibling updates. Each {@code newValue} entry's collectionId is added via a
-   * reciprocal INSERT; each {@code remove} id is deleted bidirectionally. Self-links are skipped
-   * defensively (the DB CHECK also blocks them). No-op when {@code siblings} is null.
+   * Apply sibling updates. Each {@code newValue} entry's collectionId is written via {@code
+   * setSibling}, mutual unless the entry sets {@code mutual} false; each {@code remove} id is
+   * deleted bidirectionally, which is correct for both shapes because a one-way link has no reverse
+   * row to delete. Self-links are skipped defensively (the DB CHECK also blocks them). No-op when
+   * {@code siblings} is null.
    */
   private void handleSiblingUpdates(Long parentId, CollectionRequests.CollectionUpdate siblings) {
     if (siblings == null) {
@@ -1198,7 +1200,8 @@ public class CollectionService {
         if (siblingId == null || siblingId.equals(parentId)) {
           continue;
         }
-        collectionSiblingRepository.setSibling(parentId, siblingId, true);
+        boolean mutual = entry.mutual() == null || entry.mutual();
+        collectionSiblingRepository.setSibling(parentId, siblingId, mutual);
       }
     }
     log.info("Applied sibling updates for collection {}", parentId);

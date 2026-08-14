@@ -1984,6 +1984,34 @@ class CollectionServiceTest {
       verify(collectionSiblingRepository, never()).setSibling(anyLong(), anyLong(), anyBoolean());
       verify(collectionSiblingRepository, never()).removeSibling(anyLong(), anyLong());
     }
+
+    @Test
+    void mutualFalse_writesOneWayLink() {
+      Long parentId = 1L;
+      CollectionRequests.CollectionUpdate siblings =
+          new CollectionRequests.CollectionUpdate(
+              null,
+              List.of(new Records.ChildCollection(20L, null, null, null, null, null, false)),
+              null);
+      when(collectionRepository.findById(parentId)).thenReturn(Optional.of(testCollection));
+
+      service.updateContent(parentId, updateWithSiblings(parentId, siblings));
+
+      verify(collectionSiblingRepository).setSibling(parentId, 20L, false);
+    }
+
+    @Test
+    void mutualNull_defaultsToMutual() {
+      Long parentId = 1L;
+      CollectionRequests.CollectionUpdate siblings =
+          new CollectionRequests.CollectionUpdate(
+              null, List.of(new Records.ChildCollection(21L, null, null, null, null, null)), null);
+      when(collectionRepository.findById(parentId)).thenReturn(Optional.of(testCollection));
+
+      service.updateContent(parentId, updateWithSiblings(parentId, siblings));
+
+      verify(collectionSiblingRepository).setSibling(parentId, 21L, true);
+    }
   }
 
   @Nested
