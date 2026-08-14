@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.SessionService;
+import edens.zac.portfolio.backend.services.ShareLinkService;
 import jakarta.servlet.http.Cookie;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Import({
   SecurityConfig.class,
   SessionAuthenticationFilter.class,
+  FlybySessionFilter.class,
   SecurityConfigWebMvcTest.StubControllers.class
 })
 class SecurityConfigWebMvcTest {
@@ -33,6 +35,8 @@ class SecurityConfigWebMvcTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private SessionService sessionService;
+
+  @MockBean private ShareLinkService shareLinkService;
 
   @Configuration
   static class StubControllers {

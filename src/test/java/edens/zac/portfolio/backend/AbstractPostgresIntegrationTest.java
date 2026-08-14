@@ -49,9 +49,11 @@ public abstract class AbstractPostgresIntegrationTest {
   @AfterEach
   void truncateAuthTables() {
     // `app_user` was renamed to `users` by V35; `gallery_access` replaced by `user_collection`
-    // (V36).
+    // (V36). `share_link` (V56) is listed explicitly for legibility -- CASCADE would reach it
+    // anyway through its users(id) FK, and reaches `share_link_collection` from there. The
+    // `collection` table is not referenced in that direction and stays intact.
     jdbcTemplate.execute(
-        "TRUNCATE TABLE user_invite, webauthn_credential, user_collection, user_session, users"
-            + " RESTART IDENTITY CASCADE");
+        "TRUNCATE TABLE user_invite, webauthn_credential, user_collection, user_session,"
+            + " share_link, users RESTART IDENTITY CASCADE");
   }
 }

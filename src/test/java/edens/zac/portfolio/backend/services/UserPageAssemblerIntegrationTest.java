@@ -27,6 +27,7 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private UserPageAssembler assembler;
   @Autowired private RoleRepository roleRepository;
+  @Autowired private ShareLinkService shareLinkService;
   @Autowired private JdbcTemplate jdbc;
 
   // Since the V35 merge, the account and the person tag are one `users` row: the principal's id IS
@@ -373,5 +374,56 @@ class UserPageAssemblerIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(model.getDescription()).isEqualTo("Grant-only viewer bio.");
     assertThat(model.getCoverImage()).isNull();
     assertThat(model.getContent()).isEmpty();
+  }
+
+  @Test
+  void assembleForShareOmitsRoleGrantedCollectionsThatAssembleForUserIncludes() {
+    Long userId = seedUser("share-scope@example.com");
+    Long tagged = seedCollection(LocalDateTime.now());
+    Long grantedOnly = seedCollection(LocalDateTime.now());
+    tagCollection(tagged, userId);
+    grant(userId, grantedOnly);
+    Long shareId =
+        shareLinkService
+            .resolveByRawToken(shareLinkService.mintOrRotate(userId))
+            .orElseThrow()
+            .getId();
+
+    // The owner's own page shows both halves.
+    assertThat(collectionIdsIn(assembler.assembleForUser(userId)))
+        .contains(tagged)
+        .contains(grantedOnly);
+
+    // The recipient view shows only what the owner is actually in.
+    assertThat(collectionIdsIn(assembler.assembleForShare(shareId, userId)))
+        .contains(tagged)
+        .doesNotContain(grantedOnly);
+  }
+
+  @Test
+  void assembleForShareIncludesAGrantedCollectionOnceItIsOptedIn() {
+    Long userId = seedUser("share-optin@example.com");
+    Long grantedOnly = seedCollection(LocalDateTime.now());
+    grant(userId, grantedOnly);
+    Long shareId =
+        shareLinkService
+            .resolveByRawToken(shareLinkService.mintOrRotate(userId))
+            .orElseThrow()
+            .getId();
+    assertThat(collectionIdsIn(assembler.assembleForShare(shareId, userId)))
+        .doesNotContain(grantedOnly);
+
+    shareLinkService.addOptIn(shareId, grantedOnly);
+
+    assertThat(collectionIdsIn(assembler.assembleForShare(shareId, userId))).contains(grantedOnly);
+  }
+
+  /** Collection-block ids in an assembled page, for scoping assertions to seeded rows. */
+  private static List<Long> collectionIdsIn(CollectionModel model) {
+    return model.getContent().stream()
+        .filter(ContentModels.Collection.class::isInstance)
+        .map(ContentModels.Collection.class::cast)
+        .map(ContentModels.Collection::id)
+        .toList();
   }
 }

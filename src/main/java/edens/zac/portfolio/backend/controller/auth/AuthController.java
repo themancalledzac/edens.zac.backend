@@ -95,7 +95,11 @@ public class AuthController {
   public ResponseEntity<MeResponse> me() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null
-        || !(authentication.getPrincipal() instanceof AuthPrincipal principal)) {
+        || !(authentication.getPrincipal() instanceof AuthPrincipal principal)
+        // A share-link holder is unreachable here anyway -- /api/auth/me requires ROLE_USER and a
+        // flyby carries no authorities -- but effectiveGrants(null) below has no business being
+        // called at all, so the identity requirement is stated rather than inferred from routing.
+        || !AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     List<GalleryMembership> galleries =

@@ -32,7 +32,7 @@ public class UserSelectsControllerProd {
   @PostMapping
   public ResponseEntity<Void> add(
       @AuthenticationPrincipal AuthPrincipal principal, @RequestBody AddSelectRequest body) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     userSelectsService.add(principal.userId(), body.collectionId(), body.contentId());
@@ -43,7 +43,7 @@ public class UserSelectsControllerProd {
   @DeleteMapping("/{contentId}")
   public ResponseEntity<Void> remove(
       @AuthenticationPrincipal AuthPrincipal principal, @PathVariable Long contentId) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     userSelectsService.remove(principal.userId(), contentId);
@@ -59,7 +59,7 @@ public class UserSelectsControllerProd {
   public ResponseEntity<?> list(
       @AuthenticationPrincipal AuthPrincipal principal,
       @RequestParam(name = "collectionId", required = false) Long collectionId) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     if (collectionId != null) {

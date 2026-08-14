@@ -22,7 +22,7 @@ public class UserControllerProd {
   /** The signed-in user's synthetic collection; 401 when anonymous. Never accepts a client id. */
   @GetMapping("/me/page")
   public ResponseEntity<CollectionModel> myPage(@AuthenticationPrincipal AuthPrincipal principal) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     return ResponseEntity.ok(userPageAssembler.assembleForUser(principal.userId()));

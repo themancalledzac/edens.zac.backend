@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CollectionAccessServiceTest {
 
   @Mock private RoleRepository roleRepository;
+  @Mock private ShareLinkService shareLinkService;
   @InjectMocks private CollectionAccessService service;
 
   @Test
@@ -69,6 +70,41 @@ class CollectionAccessServiceTest {
     when(roleRepository.highestLevel(7L, 5L)).thenReturn(Optional.empty());
     assertThat(service.effectiveLevel(user, 5L)).isEmpty();
     assertThat(service.effectiveLevel(null, 5L)).isEmpty();
+  }
+
+  @Test
+  void effectiveLevelForShareLinkIsGeneralInScopeAndEmptyOutside() {
+    AuthPrincipal flyby = AuthPrincipal.flyby(3L);
+    when(shareLinkService.levelFor(3L, 5L)).thenReturn(Optional.of(AccessLevel.GENERAL));
+    when(shareLinkService.levelFor(3L, 6L)).thenReturn(Optional.empty());
+
+    assertThat(service.effectiveLevel(flyby, 5L)).contains(AccessLevel.GENERAL);
+    assertThat(service.effectiveLevel(flyby, 6L)).isEmpty();
+    // Resolution never reaches the role tables: a link holder borrows no grants.
+    verifyNoInteractions(roleRepository);
+  }
+
+  @Test
+  void shareLinkPrincipalCanNeverReachClientOrAbove() {
+    AuthPrincipal flyby = AuthPrincipal.flyby(3L);
+    when(shareLinkService.levelFor(3L, 5L)).thenReturn(Optional.of(AccessLevel.GENERAL));
+
+    assertThat(service.hasAtLeast(flyby, 5L, AccessLevel.GENERAL)).isTrue();
+    // Downloads, tagging and starring gate on CLIENT; /api/edit gates on COLLABORATOR.
+    assertThat(service.hasAtLeast(flyby, 5L, AccessLevel.CLIENT)).isFalse();
+    assertThat(service.hasAtLeast(flyby, 5L, AccessLevel.COLLABORATOR)).isFalse();
+    assertThat(service.hasAtLeast(flyby, 5L, AccessLevel.ADMIN)).isFalse();
+  }
+
+  @Test
+  void shareBranchIsEvaluatedAheadOfTheAdminSentinel() {
+    // Defence in depth: AuthPrincipal.flyby pins isAdmin=false, but resolution must not depend on
+    // that. A principal carrying a shareId resolves as a share even if isAdmin were somehow true.
+    AuthPrincipal shareWithAdminFlag = new AuthPrincipal(null, null, true, false, 3L);
+    when(shareLinkService.levelFor(3L, 5L)).thenReturn(Optional.empty());
+
+    assertThat(service.effectiveLevel(shareWithAdminFlag, 5L)).isEmpty();
+    assertThat(service.hasAtLeast(shareWithAdminFlag, 5L, AccessLevel.GENERAL)).isFalse();
   }
 
   @Test

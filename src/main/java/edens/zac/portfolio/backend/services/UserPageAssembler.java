@@ -31,6 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
  * role grant (membership via a role). The page-level auth check guarantees the viewer is the owner,
  * so this leans on {@code UNLISTED} visibility rather than a gate.
  *
+ * <p>{@link #assembleForShare} builds the same page for a share-link recipient, swapping half (b)
+ * for the share's opt-in allowlist. That entry point has no owner-is-viewer guarantee, which is
+ * exactly why it must not fall back to the grant-based set.
+ *
  * <p>Mirrors the block-building shape of {@link SyntheticCollectionResolver} (PARENT model of
  * {@link ContentModels.Collection} blocks via {@link
  * CollectionProcessingUtil#batchConvertToBasicModels}), but sources rows from the principal's
@@ -48,6 +52,7 @@ public class UserPageAssembler {
   private final AppUserRepository appUserRepository;
   private final PersonRepository personRepository;
   private final CollectionAccessService collectionAccessService;
+  private final ShareLinkService shareLinkService;
   private final CollectionRepository collectionRepository;
   private final ContentRepository contentRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
@@ -56,6 +61,37 @@ public class UserPageAssembler {
   /** Assemble the synthetic collection for a user id derived from the authenticated principal. */
   @Transactional(readOnly = true)
   public CollectionModel assembleForUser(Long userId) {
+    return assemble(userId, collectionAccessService.memberCollectionIdsForUser(userId));
+  }
+
+  /**
+   * Assemble the recipient view behind a share link: the same page, scoped to the share's allowlist
+   * instead of the owner's grants.
+   *
+   * <pre>
+   * assembleForUser  : personCollectionIds UNION memberCollectionIds
+   * assembleForShare : personCollectionIds UNION share_link_collection opt-ins
+   * </pre>
+   *
+   * <p>That substitution is the entire difference, and it is the point of the feature. A collection
+   * the owner merely holds a grant on -- someone else's gallery they were let into -- is absent
+   * here unless they deliberately opted it in, so holding a link can never become a way to pass
+   * along access that was given to somebody else.
+   *
+   * @param shareLinkId the share whose scope bounds the page
+   * @param ownerUserId the share owner, whose tags and description the page is built from
+   */
+  @Transactional(readOnly = true)
+  public CollectionModel assembleForShare(Long shareLinkId, Long ownerUserId) {
+    return assemble(ownerUserId, shareLinkService.scopeCollectionIds(shareLinkId));
+  }
+
+  /**
+   * The shared body. {@code additionalCollectionIds} is unioned with the owner's tagged-in
+   * collections; everything else -- tagged standalone content, cover resolution, title fallback,
+   * ordering -- is identical for both entry points.
+   */
+  private CollectionModel assemble(Long userId, List<Long> additionalCollectionIds) {
     // Since the V35 identity merge the account and the person tag are one `users` row, so the
     // principal's id IS the person id. The page treats the user as a "person" only when they are
     // actually tagged (tagged collections or tagged standalone content); a grant-only viewer with
@@ -72,7 +108,7 @@ public class UserPageAssembler {
         identity.map(p -> buildTaggedContentBlocks(p.getId())).orElseGet(List::of);
 
     Set<Long> collectionIds = new LinkedHashSet<>(personCollectionIds);
-    collectionIds.addAll(collectionAccessService.memberCollectionIdsForUser(userId));
+    collectionIds.addAll(additionalCollectionIds);
 
     List<ContentModel> body = new ArrayList<>(buildCollectionBlocks(collectionIds));
     body.addAll(taggedBlocks);
