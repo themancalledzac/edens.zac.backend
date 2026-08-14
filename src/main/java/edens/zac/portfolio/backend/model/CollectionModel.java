@@ -94,7 +94,7 @@ public class CollectionModel {
   private List<Records.CollectionList> siblings;
 
   /**
-   * IDs among {@link #siblings} that this collection links to one-way — they do not link back.
+   * IDs among {@link #siblings} that this collection links to one-way -- they do not link back.
    * Populated only on the admin manage payload; null on the public read path, which has no use for
    * link direction. The public payload's {@code siblings} shape is unchanged.
    */
