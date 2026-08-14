@@ -9,7 +9,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -41,11 +44,21 @@ public class FlybySessionFilter extends OncePerRequestFilter {
 
   private final ShareLinkService shareLinkService;
 
+  /**
+   * Anonymous does NOT count as "already authenticated". This filter is installed just before
+   * {@code AuthorizationFilter}, which puts it after {@code AnonymousAuthenticationFilter} -- so
+   * the context is never null by the time it runs, it holds an {@code
+   * AnonymousAuthenticationToken}. A bare null check therefore never fired in a real chain and
+   * every share link silently resolved to anonymous.
+   */
+  private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
+
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    if (SecurityContextHolder.getContext().getAuthentication() == null) {
+    Authentication existing = SecurityContextHolder.getContext().getAuthentication();
+    if (existing == null || trustResolver.isAnonymous(existing)) {
       String rawToken = FlybyCookies.read(request);
       if (rawToken != null) {
         shareLinkService

@@ -16,8 +16,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
@@ -68,6 +70,26 @@ class FlybySessionFilterTest {
     assertThat(principal.shareId()).isNull();
     // Not merely overridden afterwards -- the share is never even looked up.
     verifyNoInteractions(shareLinkService);
+  }
+
+  @Test
+  void anonymousTokenInTheContextDoesNotBlockResolution() throws Exception {
+    // The filter is installed just before AuthorizationFilter, which places it AFTER
+    // AnonymousAuthenticationFilter -- so in a real chain the context is never null when it runs.
+    // Treating "something is already here" as "a session already won" made every share link
+    // silently resolve to anonymous, and every deny-side assertion still passed while it did.
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new AnonymousAuthenticationToken(
+                "key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
+    when(shareLinkService.resolveByRawToken("good"))
+        .thenReturn(Optional.of(ShareLinkEntity.builder().id(42L).userId(7L).build()));
+
+    runFilterWithCookie("good");
+
+    AuthPrincipal principal =
+        (AuthPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    assertThat(principal.shareId()).isEqualTo(42L);
   }
 
   @Test
