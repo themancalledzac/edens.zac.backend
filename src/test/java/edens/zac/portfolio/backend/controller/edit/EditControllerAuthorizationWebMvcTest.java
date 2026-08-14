@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.config.EditAccessWebConfig;
+import edens.zac.portfolio.backend.config.FlybySessionFilter;
 import edens.zac.portfolio.backend.config.SecurityConfig;
 import edens.zac.portfolio.backend.config.SessionAuthenticationFilter;
 import edens.zac.portfolio.backend.dao.RoleRepository;
@@ -21,6 +22,7 @@ import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.SessionService;
+import edens.zac.portfolio.backend.services.ShareLinkService;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import jakarta.servlet.http.Cookie;
 import java.util.Optional;
@@ -42,6 +44,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @Import({
   SecurityConfig.class,
   SessionAuthenticationFilter.class,
+  FlybySessionFilter.class,
   EditAccessWebConfig.class,
   CollectionAccessService.class
 })
@@ -50,6 +53,8 @@ class EditControllerAuthorizationWebMvcTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private SessionService sessionService;
+
+  @MockBean private ShareLinkService shareLinkService;
   @MockBean private RoleRepository roleRepository;
   @MockBean private CollectionService collectionService;
   @MockBean private ContentService contentService;

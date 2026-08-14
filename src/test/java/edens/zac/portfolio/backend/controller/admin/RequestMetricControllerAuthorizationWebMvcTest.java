@@ -6,11 +6,13 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import edens.zac.portfolio.backend.config.FlybySessionFilter;
 import edens.zac.portfolio.backend.config.SecurityConfig;
 import edens.zac.portfolio.backend.config.SessionAuthenticationFilter;
 import edens.zac.portfolio.backend.dao.RequestMetricRepository;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.SessionService;
+import edens.zac.portfolio.backend.services.ShareLinkService;
 import jakarta.servlet.http.Cookie;
 import java.time.LocalDate;
 import java.util.List;
@@ -29,7 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * an admin is 200.
  */
 @WebMvcTest(RequestMetricController.class)
-@Import({SecurityConfig.class, SessionAuthenticationFilter.class})
+@Import({SecurityConfig.class, SessionAuthenticationFilter.class, FlybySessionFilter.class})
 class RequestMetricControllerAuthorizationWebMvcTest {
 
   private static final String PATH = "/api/admin/metrics/requests";
@@ -37,6 +39,8 @@ class RequestMetricControllerAuthorizationWebMvcTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private SessionService sessionService;
+
+  @MockBean private ShareLinkService shareLinkService;
   @MockBean private RequestMetricRepository requestMetricRepository;
 
   @Test

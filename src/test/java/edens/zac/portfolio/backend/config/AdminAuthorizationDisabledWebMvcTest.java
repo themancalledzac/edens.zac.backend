@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import edens.zac.portfolio.backend.services.SessionService;
+import edens.zac.portfolio.backend.services.ShareLinkService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Import({
   SecurityConfig.class,
   SessionAuthenticationFilter.class,
+  FlybySessionFilter.class,
   AdminAuthorizationDisabledWebMvcTest.StubAdminControllers.class
 })
 @TestPropertySource(properties = "app.admin.enforce-authz=false")
@@ -33,6 +35,8 @@ class AdminAuthorizationDisabledWebMvcTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private SessionService sessionService;
+
+  @MockBean private ShareLinkService shareLinkService;
 
   @Configuration
   static class StubAdminControllers {

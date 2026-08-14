@@ -9,6 +9,7 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.SessionService;
+import edens.zac.portfolio.backend.services.ShareLinkService;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import jakarta.servlet.http.Cookie;
 import java.util.Optional;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Import({
   SecurityConfig.class,
   SessionAuthenticationFilter.class,
+  FlybySessionFilter.class,
   EditAccessWebConfig.class,
   CollectionAccessService.class,
   EditAccessWebMvcTest.StubControllers.class
@@ -43,6 +45,8 @@ class EditAccessWebMvcTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private SessionService sessionService;
+
+  @MockBean private ShareLinkService shareLinkService;
   @MockBean private RoleRepository roleRepository;
 
   @Configuration
