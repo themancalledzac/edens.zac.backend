@@ -14,10 +14,13 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.EmailService;
+import edens.zac.portfolio.backend.services.UserFollowsService;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
+import edens.zac.portfolio.backend.services.UserSavesService;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -66,6 +69,8 @@ public class AdminUserController {
   private final UserInviteService userInviteService;
   private final RoleRepository roleRepository;
   private final UserPageAssembler userPageAssembler;
+  private final UserSavesService userSavesService;
+  private final UserFollowsService userFollowsService;
   private final UserMergeService userMergeService;
   private final EmailService emailService;
   private final String frontendBaseUrl;
@@ -75,6 +80,8 @@ public class AdminUserController {
       UserInviteService userInviteService,
       RoleRepository roleRepository,
       UserPageAssembler userPageAssembler,
+      UserSavesService userSavesService,
+      UserFollowsService userFollowsService,
       UserMergeService userMergeService,
       EmailService emailService,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
@@ -82,6 +89,8 @@ public class AdminUserController {
     this.userInviteService = userInviteService;
     this.roleRepository = roleRepository;
     this.userPageAssembler = userPageAssembler;
+    this.userSavesService = userSavesService;
+    this.userFollowsService = userFollowsService;
     this.userMergeService = userMergeService;
     this.emailService = emailService;
     this.frontendBaseUrl = frontendBaseUrl;
@@ -350,6 +359,32 @@ public class AdminUserController {
   @GetMapping("/{id}/page")
   public ResponseEntity<CollectionModel> userPage(@PathVariable Long id) {
     return ResponseEntity.ok(userPageAssembler.assembleForUser(id));
+  }
+
+  /**
+   * Admin view of a user's saved images, newest-saved first — the by-id counterpart of the
+   * self-serve {@code /api/read/user/saves/images}. Gated by the two-layer admin authz described in
+   * the class Javadoc (prod transport perimeter + {@code hasRole("ADMIN")}).
+   *
+   * @param id the {@code app_user.id}
+   * @return the user's saved images as full models
+   */
+  @GetMapping("/{id}/saves/images")
+  public ResponseEntity<List<ContentModels.Image>> userSavedImages(@PathVariable Long id) {
+    return ResponseEntity.ok(userSavesService.listSavedImages(id));
+  }
+
+  /**
+   * Admin view of the collections a user follows, newest-followed first — the by-id counterpart of
+   * the self-serve {@code /api/read/user/follows}. Gated by the two-layer admin authz described in
+   * the class Javadoc (prod transport perimeter + {@code hasRole("ADMIN")}).
+   *
+   * @param id the {@code app_user.id}
+   * @return the followed collection ids
+   */
+  @GetMapping("/{id}/follows")
+  public ResponseEntity<List<Long>> userFollows(@PathVariable Long id) {
+    return ResponseEntity.ok(userFollowsService.listFollowedCollectionIds(id));
   }
 
   /**
