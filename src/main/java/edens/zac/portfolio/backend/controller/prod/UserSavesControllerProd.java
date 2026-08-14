@@ -33,7 +33,7 @@ public class UserSavesControllerProd {
   @PostMapping
   public ResponseEntity<Void> add(
       @AuthenticationPrincipal AuthPrincipal principal, @Valid @RequestBody AddSaveRequest body) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     userSavesService.add(principal.userId(), body.imageId());
@@ -44,7 +44,7 @@ public class UserSavesControllerProd {
   @DeleteMapping("/{imageId}")
   public ResponseEntity<Void> remove(
       @AuthenticationPrincipal AuthPrincipal principal, @PathVariable Long imageId) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     userSavesService.remove(principal.userId(), imageId);
@@ -54,7 +54,7 @@ public class UserSavesControllerProd {
   /** The caller's saved image ids, newest-saved first. 401 when anonymous. */
   @GetMapping
   public ResponseEntity<List<Long>> list(@AuthenticationPrincipal AuthPrincipal principal) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     return ResponseEntity.ok(userSavesService.listSavedImageIds(principal.userId()));
@@ -64,7 +64,7 @@ public class UserSavesControllerProd {
   @GetMapping("/images")
   public ResponseEntity<List<ContentModels.Image>> listImages(
       @AuthenticationPrincipal AuthPrincipal principal) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     return ResponseEntity.ok(userSavesService.listSavedImages(principal.userId()));

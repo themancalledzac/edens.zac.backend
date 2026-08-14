@@ -40,7 +40,7 @@ public class UserRatingOverrideControllerProd {
   public ResponseEntity<Void> upsert(
       @AuthenticationPrincipal AuthPrincipal principal,
       @Valid @RequestBody UserRatingOverrideRequest request) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     try {
@@ -58,7 +58,7 @@ public class UserRatingOverrideControllerProd {
   public ResponseEntity<List<UserRatingOverrideResponse>> list(
       @AuthenticationPrincipal AuthPrincipal principal,
       @RequestParam("collectionId") Long collectionId) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     List<UserRatingOverrideResponse> body =

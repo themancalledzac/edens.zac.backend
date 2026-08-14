@@ -91,7 +91,7 @@ public class WebAuthnController {
   @PostMapping(value = "/register/start", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<String> registerStart(@AuthenticationPrincipal AuthPrincipal principal)
       throws Exception {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     PublicKeyCredentialCreationOptions options = webAuthnService.startRegistration(principal);
@@ -108,7 +108,7 @@ public class WebAuthnController {
   @PostMapping(value = "/register/finish", consumes = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<Void> registerFinish(
       @AuthenticationPrincipal AuthPrincipal principal, @RequestBody String credentialJson) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     webAuthnService.finishRegistration(principal, credentialJson);

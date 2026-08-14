@@ -40,4 +40,19 @@ public record AuthPrincipal(
   public static AuthPrincipal flyby(Long shareId) {
     return new AuthPrincipal(null, null, false, false, shareId);
   }
+
+  /**
+   * Whether this principal owns data -- the gate every self-scoped endpoint needs. False for
+   * anonymous (null) and false for a share-link holder, who has no {@code userId} to read or write
+   * anything against.
+   *
+   * <p>Written as a null-tolerant static rather than an instance method so the anonymous and flyby
+   * cases collapse into one check at the call site. Endpoints that key on {@code userId()} must use
+   * this instead of a bare {@code principal == null}: a flyby passes that older check and would
+   * then hand a null id to a service, which for the write paths means inserting rows against no
+   * user at all.
+   */
+  public static boolean isRealUser(AuthPrincipal principal) {
+    return principal != null && principal.userId() != null;
+  }
 }

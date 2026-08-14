@@ -35,7 +35,7 @@ public class UserFollowsControllerProd {
   @PostMapping
   public ResponseEntity<Void> add(
       @AuthenticationPrincipal AuthPrincipal principal, @Valid @RequestBody AddFollowRequest body) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     userFollowsService.add(principal.userId(), body.collectionId());
@@ -46,7 +46,7 @@ public class UserFollowsControllerProd {
   @DeleteMapping("/{collectionId}")
   public ResponseEntity<Void> remove(
       @AuthenticationPrincipal AuthPrincipal principal, @PathVariable Long collectionId) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     userFollowsService.remove(principal.userId(), collectionId);
@@ -56,7 +56,7 @@ public class UserFollowsControllerProd {
   /** The caller's followed collection ids, newest-followed first. 401 when anonymous. */
   @GetMapping
   public ResponseEntity<List<Long>> list(@AuthenticationPrincipal AuthPrincipal principal) {
-    if (principal == null) {
+    if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     return ResponseEntity.ok(userFollowsService.listFollowedCollectionIds(principal.userId()));
