@@ -234,6 +234,32 @@ class CollectionProcessingUtilTest {
     verifyNoInteractions(collectionSiblingRepository);
   }
 
+  @Test
+  void populateSiblings_adminPath_reportsOneWaySiblingIds() {
+    List<Records.SiblingRow> rows =
+        List.of(
+            new Records.SiblingRow(9L, "Mutual One", "mutual-one", null, false, false, true),
+            new Records.SiblingRow(11L, "One Way", "one-way", null, false, false, false));
+    when(collectionSiblingRepository.findSiblings(5L, false)).thenReturn(rows);
+    CollectionModel model = CollectionModel.builder().id(5L).build();
+
+    util.populateSiblings(model, false);
+
+    assertThat(model.getOneWaySiblingIds()).containsExactly(11L);
+  }
+
+  @Test
+  void populateSiblings_publicPath_leavesOneWaySiblingIdsNull() {
+    List<Records.SiblingRow> rows =
+        List.of(new Records.SiblingRow(11L, "One Way", "one-way", null, false, false, false));
+    when(collectionSiblingRepository.findSiblings(5L, true)).thenReturn(rows);
+    CollectionModel model = CollectionModel.builder().id(5L).build();
+
+    util.populateSiblings(model, true);
+
+    assertThat(model.getOneWaySiblingIds()).isNull();
+  }
+
   /**
    * Build an Update that only carries date-range fields (everything else null). Canonical 22-arg
    * order: id, isClient, isBlog, title, slug, description, locations, collectionDate,

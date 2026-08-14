@@ -470,6 +470,10 @@ public class CollectionProcessingUtil {
    * #convertToChildCollection}) so siblings can be rendered as cover-image cards on the frontend
    * without an N+1. The {@code coverImageUrl} on each {@link Records.CollectionList} is null when
    * the sibling has no cover image assigned.
+   *
+   * <p>On the admin path ({@code listedOnly=false}) {@code model.oneWaySiblingIds} is also filled
+   * with the subset of siblings that do not link back, so the admin UI can badge each link as
+   * MUTUAL or ONE-WAY. Left null on the public path.
    */
   public void populateSiblings(CollectionModel model, boolean listedOnly) {
     if (model == null || model.getId() == null) {
@@ -507,6 +511,13 @@ public class CollectionProcessingUtil {
             .toList();
 
     model.setSiblings(siblings);
+
+    // Direction is an admin-manage concern only. The public read path never renders a badge, and
+    // a one-way sibling is already absent from the target's list because the row does not exist.
+    if (!listedOnly) {
+      model.setOneWaySiblingIds(
+          siblingRows.stream().filter(row -> !row.mutual()).map(Records.SiblingRow::id).toList());
+    }
   }
 
   /**
