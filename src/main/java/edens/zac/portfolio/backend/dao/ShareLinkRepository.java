@@ -13,7 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * JdbcTemplate repository for {@code share_link} and its {@code share_link_collection} opt-ins.
- * Links are looked up by the SHA-256 hash of the raw token, which is the only form stored.
+ * Links are looked up by the SHA-256 hash of the raw token; the token is additionally stored
+ * encrypted (V57) so its owner can read it back to re-send it, which hashing alone made impossible.
+ * Lookup always goes through the hash -- the ciphertext varies per call and cannot be an index.
  *
  * <p>{@link #rotateToken} is the "reset link" primitive. It updates the existing row rather than
  * inserting a replacement, so the owner's opt-in rows survive a reset -- and because the cookie
@@ -30,7 +32,7 @@ public class ShareLinkRepository extends BaseDao {
 
   private static final String SELECT_SHARE_LINK =
       """
-      SELECT id, user_id, token_hash, level, created_at, rotated_at, last_used_at
+      SELECT id, user_id, token_hash, token_cipher, level, created_at, rotated_at, last_used_at
       FROM share_link
       """;
 
@@ -40,6 +42,7 @@ public class ShareLinkRepository extends BaseDao {
               .id(rs.getLong("id"))
               .userId(rs.getLong("user_id"))
               .tokenHash(rs.getString("token_hash"))
+              .tokenCipher(rs.getString("token_cipher"))
               .level(AccessLevel.valueOf(rs.getString("level")))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .rotatedAt(getLocalDateTime(rs, "rotated_at"))
@@ -50,13 +53,14 @@ public class ShareLinkRepository extends BaseDao {
   public Long insert(ShareLinkEntity entity) {
     String sql =
         """
-        INSERT INTO share_link (user_id, token_hash, level)
-        VALUES (:userId, :tokenHash, :level)
+        INSERT INTO share_link (user_id, token_hash, token_cipher, level)
+        VALUES (:userId, :tokenHash, :tokenCipher, :level)
         """;
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("userId", entity.getUserId())
             .addValue("tokenHash", entity.getTokenHash())
+            .addValue("tokenCipher", entity.getTokenCipher())
             .addValue(
                 "level",
                 (entity.getLevel() == null ? AccessLevel.GENERAL : entity.getLevel()).name());
@@ -91,18 +95,22 @@ public class ShareLinkRepository extends BaseDao {
    *
    * @param userId the owner
    * @param newTokenHash SHA-256 hash of the freshly generated raw token
+   * @param newTokenCipher the same token encrypted, so the owner can read it back
    * @return rows affected -- {@code 1} on success, {@code 0} when the user has no link yet
    */
   @Transactional
-  public int rotateToken(Long userId, String newTokenHash) {
+  public int rotateToken(Long userId, String newTokenHash, String newTokenCipher) {
     String sql =
         """
         UPDATE share_link
-           SET token_hash = :tokenHash, rotated_at = now()
+           SET token_hash = :tokenHash, token_cipher = :tokenCipher, rotated_at = now()
          WHERE user_id = :userId
         """;
     MapSqlParameterSource params =
-        createParameterSource().addValue("tokenHash", newTokenHash).addValue("userId", userId);
+        createParameterSource()
+            .addValue("tokenHash", newTokenHash)
+            .addValue("tokenCipher", newTokenCipher)
+            .addValue("userId", userId);
     return update(sql, params);
   }
 

@@ -108,6 +108,39 @@ public class EmailService {
   }
 
   /**
+   * Send a user's share link on their behalf.
+   *
+   * <p>Unlike the invite email this is sent by an ordinary user, not an admin, so the copy is
+   * deliberately plain about what the recipient is getting: a read-only look at one person's
+   * photos, on a link that keeps working until the sender resets it. That last part is the
+   * behaviour the whole feature rests on, and it is the opposite of the invite email's "works once,
+   * expires in 7 days" -- so the two bodies must not be made to mirror each other.
+   *
+   * <p>The URL is built by the caller from {@code frontendBaseUrl}, matching {@link
+   * #sendInviteEmail}, so the emailed link is byte-identical to the one the sender can copy.
+   *
+   * <p>The link is a bearer credential: it is never logged, and the whole body is escaped.
+   *
+   * @param toEmail recipient address, supplied by the sender
+   * @param ownerName the sender's display name for the greeting; may be null or blank
+   * @param shareUrl the fully-built {@code <origin>/s/<token>} link
+   * @return {@link SendResult} with {@code sent=true} on success, otherwise a reason code
+   */
+  public SendResult sendShareLinkEmail(String toEmail, String ownerName, String shareUrl) {
+    if (!enabled) {
+      log.info("Email disabled -- skipping share link email (to={})", toEmail);
+      return new SendResult(false, "email-disabled");
+    }
+
+    String who = isBlank(ownerName) ? "Someone" : ownerName.trim();
+    String subject = who + " shared their photos with you";
+    String htmlBody = buildShareLinkHtml(who, shareUrl);
+    String textBody = buildShareLinkText(who, shareUrl);
+
+    return dispatch(toEmail, subject, htmlBody, textBody, "share link email");
+  }
+
+  /**
    * Build and send one SES message, mapping both failure families onto {@code "ses-error"}.
    *
    * @param label short description used only for logging; never include a token or password
@@ -253,6 +286,62 @@ public class EmailService {
         + "\n\n"
         + "This link works once and expires in 7 days. Do not forward it -- anyone with the link "
         + "can claim the account. If you were not expecting this, you can ignore this email.\n\n"
+        + "-- Zac Eden Photography";
+  }
+
+  /**
+   * Inline-styled HTML share-link body, mirroring {@link #buildInviteHtml}. Every interpolated
+   * value is escaped -- the name is user-supplied and the URL carries a token.
+   */
+  private String buildShareLinkHtml(String ownerName, String shareUrl) {
+    String safeUrl = HtmlUtils.htmlEscape(shareUrl);
+    String safeName = HtmlUtils.htmlEscape(ownerName);
+    return "<!DOCTYPE html>"
+        + "<html lang=\"en\"><head><meta charset=\"UTF-8\">"
+        + "<title>Photos shared with you</title></head>"
+        + "<body style=\"margin:0;padding:0;background:#ffffff;color:#111111;"
+        + "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\">"
+        + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+        + "border=\"0\" style=\"max-width:560px;margin:0 auto;padding:32px 24px;\">"
+        + "<tr><td>"
+        + "<h1 style=\"margin:0 0 16px 0;font-size:20px;font-weight:600;color:#111111;\">"
+        + safeName
+        + " shared their photos with you"
+        + "</h1>"
+        + "<p style=\"margin:0 0 24px 0;font-size:15px;line-height:1.5;color:#333333;\">"
+        + "No account or password needed -- just open the link."
+        + "</p>"
+        + "<p style=\"margin:0 0 32px 0;\">"
+        + "<a href=\""
+        + safeUrl
+        + "\" "
+        + "style=\"display:inline-block;padding:12px 24px;background:#111111;color:#ffffff;"
+        + "text-decoration:none;font-size:15px;font-weight:500;border-radius:2px;\">"
+        + "View the photos"
+        + "</a>"
+        + "</p>"
+        + "<p style=\"margin:0 0 16px 0;font-size:13px;color:#666666;line-height:1.5;\">"
+        + "Keep this email -- the same link works every time, for as long as "
+        + safeName
+        + " leaves it active. It is view-only, and anyone with the link can use it, so only pass "
+        + "it on to people you would be happy to show these photos to."
+        + "</p>"
+        + "<hr style=\"border:0;border-top:1px solid #eeeeee;margin:32px 0;\">"
+        + "<p style=\"margin:0;font-size:12px;color:#888888;\">Zac Eden Photography</p>"
+        + "</td></tr></table></body></html>";
+  }
+
+  /** Plain-text share-link body. Same content, no styling. */
+  private String buildShareLinkText(String ownerName, String shareUrl) {
+    return ownerName
+        + " shared their photos with you.\n\n"
+        + "No account or password needed -- just open the link:\n\n"
+        + shareUrl
+        + "\n\n"
+        + "Keep this email -- the same link works every time, for as long as "
+        + ownerName
+        + " leaves it active. It is view-only, and anyone with the link can use it, so only pass "
+        + "it on to people you would be happy to show these photos to.\n\n"
         + "-- Zac Eden Photography";
   }
 
