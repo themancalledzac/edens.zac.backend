@@ -150,5 +150,27 @@ public final class Records {
        * content[].orderIndex instead for the current collection's order. If null when adding,
        * content will be appended to the end of the collection.
        */
-      Integer orderIndex) {}
+      Integer orderIndex,
+      /**
+       * SIBLING PATH ONLY. Whether the sibling link should be mutual. Null means mutual, which
+       * keeps every pre-existing client and every stored reciprocal pair behaving as before. False
+       * writes a one-way link: this collection points at the sibling, the sibling does not point
+       * back. Ignored on the content and child-collection paths.
+       */
+      Boolean mutual) {
+
+    /**
+     * Back-compat constructor for callers predating the {@code mutual} field. Delegates to the
+     * canonical constructor with {@code mutual} null, which the sibling path reads as mutual.
+     */
+    public ChildCollection(
+        Long collectionId,
+        String name,
+        String slug,
+        String coverImageUrl,
+        Boolean visible,
+        Integer orderIndex) {
+      this(collectionId, name, slug, coverImageUrl, visible, orderIndex, null);
+    }
+  }
 }
