@@ -97,6 +97,21 @@ class CollectionSiblingDirectionIntegrationTest extends AbstractPostgresIntegrat
   }
 
   @Test
+  @DisplayName("removing a mutual link deletes both rows, not just the forward direction")
+  void removeSibling_onMutualLink_removesBothRows() {
+    Long a = seedListed("direction-mutual-remove-a");
+    Long b = seedListed("direction-mutual-remove-b");
+    collectionSiblingRepository.setSibling(a, b, true);
+    assertThat(collectionSiblingRepository.findSiblings(a, false)).isNotEmpty();
+    assertThat(collectionSiblingRepository.findSiblings(b, false)).isNotEmpty();
+
+    collectionSiblingRepository.removeSibling(a, b);
+
+    assertThat(collectionSiblingRepository.findSiblings(a, false)).isEmpty();
+    assertThat(collectionSiblingRepository.findSiblings(b, false)).isEmpty();
+  }
+
+  @Test
   @DisplayName("setSibling is idempotent, so re-applying the same link does not throw")
   void setSibling_isIdempotent() {
     Long a = seedListed("direction-idempotent-a");

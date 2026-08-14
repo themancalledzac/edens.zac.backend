@@ -9,8 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Mutual ("sibling") association between collections (mirror of collection_people). Rows are stored
- * reciprocally — a link between A and B is two rows (A,B) and (B,A) — so "siblings of X" is a
+ * Directional association between collections (mirror of collection_people). A row (collection_id,
+ * sibling_collection_id) means the first collection links to the second; a mutual link is the pair
+ * (A,B) and (B,A), and a one-way link is a lone row. "Siblings of X" is therefore a
  * single-direction lookup on collection_id. No dedicated entity POJO: the join is manipulated
  * directly via SQL, matching collection_people / collection_locations.
  */
