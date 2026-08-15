@@ -6,6 +6,7 @@ import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,33 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
     return jdbc.queryForObject("SELECT id FROM collection WHERE slug = ?", Long.class, slug);
   }
 
+  /** Same as {@link #seedRow}, plus a collection date and a cover image. */
+  private Long seedRowWithCover(String slug, LocalDate collectionDate, Long coverImageId) {
+    jdbc.update(
+        "INSERT INTO collection (is_client, is_blog, title, slug, visibility, total_content,"
+            + " collection_date, cover_image_id, created_at, updated_at)"
+            + " VALUES (false, false, ?, ?, 'LISTED', 0, ?, ?, NOW(), NOW())",
+        "Legacy " + slug,
+        slug,
+        collectionDate,
+        coverImageId);
+    return jdbc.queryForObject("SELECT id FROM collection WHERE slug = ?", Long.class, slug);
+  }
+
+  /**
+   * Insert an image. content_image shares its primary key with content, so the parent row has to go
+   * in first and hand down its id.
+   */
+  private Long seedImage(String imageUrlWeb) {
+    Long id =
+        jdbc.queryForObject(
+            "INSERT INTO content (content_type, created_at, updated_at)"
+                + " VALUES ('IMAGE', NOW(), NOW()) RETURNING id",
+            Long.class);
+    jdbc.update("INSERT INTO content_image (id, image_url_web) VALUES (?, ?)", id, imageUrlWeb);
+    return id;
+  }
+
   @Test
   @DisplayName("findBySlug reads a row from a schema with no type column")
   void findBySlug_typelessSchema_reads() {
@@ -47,13 +75,36 @@ class CollectionTypelessReadIntegrationTest extends AbstractPostgresIntegrationT
   }
 
   @Test
-  @DisplayName("findIdTitleAndSlug reads a row from a schema with no type column")
-  void findIdTitleAndSlug_typelessSchema_reads() {
+  @DisplayName("findCollectionListEntries reads a row from a schema with no type column")
+  void findCollectionListEntries_typelessSchema_reads() {
     Long id = seedRow("legacy-id-title-slug");
 
-    List<Records.CollectionList> rows = collectionRepository.findIdTitleAndSlug();
+    List<Records.CollectionList> rows = collectionRepository.findCollectionListEntries();
 
     assertThat(rows).extracting(Records.CollectionList::id).contains(id);
+  }
+
+  @Test
+  @DisplayName("findCollectionListEntries populates date and cover url, tolerating nulls")
+  void findCollectionListEntries_populatesDateAndCover() {
+    Long coverId = seedImage("https://cdn.example.com/list-entry-cover.jpg");
+    seedRowWithCover("list-entry-with-cover", LocalDate.of(2026, 6, 1), coverId);
+    seedRow("list-entry-bare");
+
+    List<Records.CollectionList> rows = collectionRepository.findCollectionListEntries();
+
+    Records.CollectionList withCover =
+        rows.stream()
+            .filter(r -> "list-entry-with-cover".equals(r.slug()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(withCover.collectionDate()).isEqualTo(LocalDate.of(2026, 6, 1));
+    assertThat(withCover.coverImageUrl()).isEqualTo("https://cdn.example.com/list-entry-cover.jpg");
+
+    Records.CollectionList bare =
+        rows.stream().filter(r -> "list-entry-bare".equals(r.slug())).findFirst().orElseThrow();
+    assertThat(bare.collectionDate()).isNull();
+    assertThat(bare.coverImageUrl()).isNull();
   }
 
   @Test
