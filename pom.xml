@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.1</version>
+        <version>3.5.16</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>edens.zac</groupId>
@@ -15,6 +15,24 @@
     <description>Portfolio Backend</description>
     <properties>
         <java.version>23</java.version>
+        <aws.sdk.version>2.53.2</aws.sdk.version>
+        <!--
+          Security overrides on top of the Spring Boot 3.5.16 BOM. Each pins a transitive
+          dependency past a published advisory; drop the entry once Boot manages a version
+          at or above it.
+            netty         4.1.136/137 - SPDY/HTTP2 ByteBuf leaks, Bzip2 decoder hang, CORS bypass
+            jackson-bom   2.21.5      - @JsonView / @JsonIgnoreProperties deserialization bypasses
+            log4j2        2.25.5      - MapMessage non-finite float encoding
+            httpcore5     5.4.3       - HPackDecoder unbounded header list, HTTP/1 parse memory DoS
+            httpclient5   5.6.3       - connection leak on Content-Encoding decode error
+            commons-lang3 3.18.0      - uncontrolled recursion on long inputs
+        -->
+        <netty.version>4.1.137.Final</netty.version>
+        <jackson-bom.version>2.21.6</jackson-bom.version>
+        <log4j2.version>2.25.5</log4j2.version>
+        <httpcore5.version>5.4.3</httpcore5.version>
+        <httpclient5.version>5.6.4</httpclient5.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
         <spotless.version>3.2.1</spotless.version>
         <google-java-format.version>1.23.0</google-java-format.version>
     </properties>
@@ -69,6 +87,17 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+          Testcontainers still resolves commons-compress 1.24.0, which carries two DoS
+          advisories (GHSA-4265-ccf5-phj5, GHSA-4g9r-vxhx-9pgx) fixed in 1.26.0. Declared
+          directly so the safe version wins; remove once Testcontainers ships >= 1.26.0.
+        -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.28.0</version>
+            <scope>test</scope>
+        </dependency>
         <!-- WebP ImageIO plugin with read AND write support -->
         <dependency>
             <groupId>org.sejda.imageio</groupId>
@@ -83,28 +112,27 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.18.0</version> <!-- Updated for Java 23 -->
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.7</version>
+            <version>42.7.13</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
-            <version>2.29.52</version>
+            <version>${aws.sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>cloudfront</artifactId>
-            <version>2.29.52</version>
+            <version>${aws.sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sesv2</artifactId>
-            <version>2.29.52</version>
+            <version>${aws.sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>net.coobird</groupId>
