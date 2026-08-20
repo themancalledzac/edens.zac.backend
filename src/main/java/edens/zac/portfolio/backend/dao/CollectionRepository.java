@@ -621,9 +621,26 @@ public class CollectionRepository extends BaseDao {
     return count != null ? count : 0L;
   }
 
+  /**
+   * Every collection as a list entry: id, title, slug, date, cover image URL and the two kind
+   * flags. Ordered by title.
+   *
+   * <p>The date and cover URL were hard-coded null here until 2026-08-15, though {@link
+   * Records.CollectionList} has always declared both. That silently disabled the blog date ordering
+   * in the frontend's collection selector, which sorts on a date it never received and fell through
+   * to its alphabetical fallback on every row.
+   *
+   * <p>The cover join is a LEFT JOIN because a collection need not have a cover image, and one
+   * missing a cover must still appear in the list.
+   */
   @Transactional(readOnly = true)
-  public List<Records.CollectionList> findIdTitleAndSlug() {
-    String sql = "SELECT id, title, slug, is_client, is_blog FROM collection ORDER BY title ASC";
+  public List<Records.CollectionList> findCollectionListEntries() {
+    String sql =
+        "SELECT c.id, c.title, c.slug, c.collection_date, c.is_client, c.is_blog,"
+            + " ci.image_url_web"
+            + " FROM collection c"
+            + " LEFT JOIN content_image ci ON ci.id = c.cover_image_id"
+            + " ORDER BY c.title ASC";
     return jdbcTemplate.query(
         sql,
         (rs, rowNum) ->
@@ -631,8 +648,8 @@ public class CollectionRepository extends BaseDao {
                 rs.getLong("id"),
                 rs.getString("title"),
                 rs.getString("slug"),
-                null,
-                null,
+                getLocalDate(rs, "collection_date"),
+                rs.getString("image_url_web"),
                 rs.getBoolean("is_client"),
                 rs.getBoolean("is_blog")));
   }

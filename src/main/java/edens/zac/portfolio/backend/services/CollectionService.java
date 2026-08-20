@@ -906,7 +906,7 @@ public class CollectionService {
 
     // Get all collections as Records.CollectionList (using projection for
     // efficiency)
-    List<Records.CollectionList> collections = collectionRepository.findIdTitleAndSlug();
+    List<Records.CollectionList> collections = collectionRepository.findCollectionListEntries();
 
     // Convert FilmFormat enums to DTOs
     List<Records.FilmFormat> filmFormats =

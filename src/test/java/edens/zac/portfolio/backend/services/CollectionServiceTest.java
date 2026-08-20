@@ -103,7 +103,7 @@ class CollectionServiceTest {
     when(metadataService.getAllCameras()).thenReturn(List.of());
     when(metadataService.getAllLenses()).thenReturn(List.of());
     when(metadataService.getAllFilmTypes()).thenReturn(List.of());
-    when(collectionRepository.findIdTitleAndSlug()).thenReturn(List.of());
+    when(collectionRepository.findCollectionListEntries()).thenReturn(List.of());
   }
 
   @BeforeEach
