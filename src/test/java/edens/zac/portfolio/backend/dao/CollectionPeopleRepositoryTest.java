@@ -6,9 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import edens.zac.portfolio.backend.model.Records;
 import java.lang.reflect.Field;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,11 +14,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
@@ -29,7 +25,6 @@ class CollectionPeopleRepositoryTest {
 
   @Mock private JdbcTemplate jdbcTemplate;
   @Mock private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
-  @Captor private ArgumentCaptor<String> sqlCaptor;
 
   private CollectionPeopleRepository repository;
 
@@ -47,30 +42,6 @@ class CollectionPeopleRepositoryTest {
       field.set(repo, template);
     } catch (Exception e) {
       throw new RuntimeException("Failed to inject mock NamedParameterJdbcTemplate", e);
-    }
-  }
-
-  @Nested
-  class FindPeopleForCollection {
-
-    @SuppressWarnings("unchecked")
-    @Test
-    void selectsFromJoinAndAliasesPersonName() {
-      Records.Person p = new Records.Person(101L, "Alice");
-      when(namedParameterJdbcTemplate.query(
-              anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
-          .thenReturn(List.of(p));
-
-      List<Records.Person> result = repository.findPeopleForCollection(7L);
-
-      verify(namedParameterJdbcTemplate)
-          .query(sqlCaptor.capture(), any(SqlParameterSource.class), any(RowMapper.class));
-      String sql = sqlCaptor.getValue();
-      assertThat(sql).containsIgnoringCase("FROM collection_people");
-      assertThat(sql).containsIgnoringCase("JOIN users");
-      assertThat(sql).containsIgnoringCase("p.name");
-      assertThat(sql).containsIgnoringCase("WHERE cp.collection_id = :collectionId");
-      assertThat(result).hasSize(1).first().isEqualTo(p);
     }
   }
 

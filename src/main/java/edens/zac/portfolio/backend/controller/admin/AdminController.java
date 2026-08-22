@@ -403,7 +403,7 @@ class AdminController {
   public ResponseEntity<Map<String, Object>> createTag(
       @RequestBody @Valid ContentRequests.CreateTag request) {
     String tagName = request.tagName();
-    Map<String, Object> response = contentService.createTag(tagName);
+    Map<String, Object> response = metadataService.createTag(tagName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 
@@ -412,7 +412,7 @@ class AdminController {
   public ResponseEntity<Map<String, Object>> createPerson(
       @RequestBody @Valid ContentRequests.CreatePerson request) {
     String personName = request.personName();
-    Map<String, Object> response = contentService.createPerson(personName);
+    Map<String, Object> response = metadataService.createPerson(personName);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 

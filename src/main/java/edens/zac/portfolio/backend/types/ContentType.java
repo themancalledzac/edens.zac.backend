@@ -2,23 +2,14 @@ package edens.zac.portfolio.backend.types;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public enum ContentType {
-  IMAGE("IMAGE"),
-  TEXT("TEXT"),
-  GIF("GIF"),
-  //    CODE("Code"),
-  COLLECTION("COLLECTION");
-
-  @NotNull @Getter private final String contentName;
-
-  ContentType(String contentName) {
-    this.contentName = contentName;
-  }
+  IMAGE,
+  TEXT,
+  GIF,
+  COLLECTION;
 
   @JsonValue
   public String getValue() {

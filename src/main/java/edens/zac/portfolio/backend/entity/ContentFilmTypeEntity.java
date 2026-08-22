@@ -5,8 +5,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -53,9 +51,6 @@ public class ContentFilmTypeEntity {
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;
 
-  /** Relationship: One-to-many with ContentImageEntity (via content_image.film_type_id) */
-  @Builder.Default private Set<ContentImageEntity> contentImages = new HashSet<>();
-
   /**
    * Constructor for creating a film type with name, display name, and ISO. Useful for migration
    * from the old FilmType enum.
@@ -68,15 +63,5 @@ public class ContentFilmTypeEntity {
     this.filmTypeName = filmTypeName;
     this.displayName = displayName;
     this.defaultIso = defaultIso;
-    this.contentImages = new HashSet<>();
-  }
-
-  /**
-   * Get the number of images using this film type.
-   *
-   * @return The number of images associated with this film type
-   */
-  public int getImageCount() {
-    return contentImages.size();
   }
 }

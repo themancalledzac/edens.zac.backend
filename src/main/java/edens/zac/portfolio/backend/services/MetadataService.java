@@ -417,18 +417,6 @@ public class MetadataService {
     log.info("Deleted location with ID: {}", id);
   }
 
-  @Transactional
-  public LocationEntity findOrCreateLocation(String name) {
-    return locationRepository.findOrCreate(name);
-  }
-
-  @Transactional(readOnly = true)
-  public LocationEntity findLocationById(Long id) {
-    return locationRepository
-        .findById(id)
-        .orElseThrow(() -> new IllegalArgumentException("Location not found with ID: " + id));
-  }
-
   // ========== Private Converters ==========
 
   private Records.Tag toTagModel(TagEntity entity) {

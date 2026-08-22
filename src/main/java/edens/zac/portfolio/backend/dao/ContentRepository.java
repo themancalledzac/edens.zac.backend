@@ -231,16 +231,6 @@ public class ContentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentImageEntity> findByOriginalFilenames(List<String> filenames) {
-    if (filenames == null || filenames.isEmpty()) {
-      return List.of();
-    }
-    String sql = SELECT_CONTENT_IMAGE + " WHERE ci.original_filename IN (:filenames)";
-    MapSqlParameterSource params = createParameterSource().addValue("filenames", filenames);
-    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<ContentImageEntity> findImageById(Long id) {
     String sql = SELECT_CONTENT_IMAGE + " WHERE c.id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
@@ -317,30 +307,6 @@ public class ContentRepository extends BaseDao {
             + " ORDER BY usi.created_at DESC";
     MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
     return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
-  }
-
-  /**
-   * The newest image content id a person is tagged on via {@code content_image_people}, ordered by
-   * EXIF capture date desc then row creation desc. Backs the {@code /user} synthetic-collection
-   * cover (Decision D2). Empty when the person tags no image content.
-   */
-  @Transactional(readOnly = true)
-  public Optional<Long> findMostRecentImageIdByPersonId(Long personId) {
-    if (personId == null) {
-      return Optional.empty();
-    }
-    String sql =
-        """
-        SELECT ci.id
-        FROM content_image ci
-        JOIN content c ON c.id = ci.id
-        JOIN content_image_people cip ON cip.content_id = ci.id
-        WHERE cip.person_id = :personId
-        ORDER BY ci.capture_date DESC NULLS LAST, c.created_at DESC
-        LIMIT 1
-        """;
-    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
-    return query(sql, (rs, n) -> rs.getLong("id"), params).stream().findFirst();
   }
 
   /**
@@ -969,16 +935,6 @@ public class ContentRepository extends BaseDao {
     }
   }
 
-  @Transactional
-  public void deleteTextById(Long id) {
-    String textSql = "DELETE FROM content_text WHERE id = :id";
-    MapSqlParameterSource params = createParameterSource().addValue("id", id);
-    update(textSql, params);
-
-    String contentSql = "DELETE FROM content WHERE id = :id";
-    update(contentSql, params);
-  }
-
   // ============================================================
   // GIF Operations
   // ============================================================
@@ -1191,16 +1147,6 @@ public class ContentRepository extends BaseDao {
       entity.setUpdatedAt(now);
       return entity;
     }
-  }
-
-  @Transactional
-  public void deleteCollectionContentById(Long id) {
-    String collectionSql = "DELETE FROM content_collection WHERE id = :id";
-    MapSqlParameterSource params = createParameterSource().addValue("id", id);
-    update(collectionSql, params);
-
-    String contentSql = "DELETE FROM content WHERE id = :id";
-    update(contentSql, params);
   }
 
   /**

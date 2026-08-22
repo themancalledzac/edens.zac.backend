@@ -32,14 +32,4 @@ public abstract class ContentEntity {
 
   // Method to get the specific content type
   public abstract ContentType getContentType();
-
-  /**
-   * Automatically set contentType field before persisting to database. This ensures the field is
-   * always set based on the concrete class's getContentType() method.
-   */
-  protected void setContentTypeFromSubclass() {
-    if (this.contentType == null) {
-      this.contentType = getContentType();
-    }
-  }
 }

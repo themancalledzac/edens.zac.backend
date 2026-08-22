@@ -36,11 +36,4 @@ class CollectionVisibilityTest {
     assertThat(CollectionVisibility.UNLISTED.appearsInLists()).isFalse();
     assertThat(CollectionVisibility.HIDDEN.appearsInLists()).isFalse();
   }
-
-  @Test
-  void requiresLocalEnvOnlyForHidden() {
-    assertThat(CollectionVisibility.HIDDEN.requiresLocalEnv()).isTrue();
-    assertThat(CollectionVisibility.LISTED.requiresLocalEnv()).isFalse();
-    assertThat(CollectionVisibility.UNLISTED.requiresLocalEnv()).isFalse();
-  }
 }

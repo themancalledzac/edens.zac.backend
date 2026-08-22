@@ -108,14 +108,6 @@ public class EquipmentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public Optional<ContentCameraEntity> findCameraByName(String cameraName) {
-    String sql =
-        "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras WHERE camera_name = :cameraName";
-    MapSqlParameterSource params = createParameterSource().addValue("cameraName", cameraName);
-    return queryForObject(sql, CAMERA_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<ContentCameraEntity> findCameraByNameIgnoreCase(String cameraName) {
     String sql =
         "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras WHERE LOWER(camera_name) = LOWER(:cameraName)";
@@ -124,48 +116,9 @@ public class EquipmentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentCameraEntity> findCamerasByNameContainingIgnoreCase(String searchTerm) {
-    String sql =
-        "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras WHERE LOWER(camera_name) LIKE LOWER(:searchTerm) ORDER BY camera_name ASC";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("searchTerm", "%" + searchTerm + "%");
-    return query(sql, CAMERA_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public List<ContentCameraEntity> findAllCamerasOrderByName() {
     String sql =
         "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras ORDER BY camera_name ASC";
-    return query(sql, CAMERA_ROW_MAPPER);
-  }
-
-  @Transactional(readOnly = true)
-  public boolean existsByCameraName(String cameraName) {
-    String sql = "SELECT COUNT(*) > 0 FROM content_cameras WHERE camera_name = :cameraName";
-    MapSqlParameterSource params = createParameterSource().addValue("cameraName", cameraName);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
-  public boolean existsByCameraNameIgnoreCase(String cameraName) {
-    String sql =
-        "SELECT COUNT(*) > 0 FROM content_cameras WHERE LOWER(camera_name) = LOWER(:cameraName)";
-    MapSqlParameterSource params = createParameterSource().addValue("cameraName", cameraName);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentCameraEntity> findCamerasOrderByUsageCount() {
-    String sql =
-        """
-        SELECT c.id, c.camera_name, c.is_film, c.default_film_format, c.created_at
-        FROM content_cameras c
-        LEFT JOIN content_image ci ON c.id = ci.camera_id
-        GROUP BY c.id, c.camera_name, c.is_film, c.default_film_format, c.created_at
-        ORDER BY COUNT(ci.id) DESC
-        """;
     return query(sql, CAMERA_ROW_MAPPER);
   }
 
@@ -248,27 +201,11 @@ public class EquipmentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public Optional<ContentLensEntity> findLensByName(String lensName) {
-    String sql = "SELECT id, lens_name, created_at FROM content_lenses WHERE lens_name = :lensName";
-    MapSqlParameterSource params = createParameterSource().addValue("lensName", lensName);
-    return queryForObject(sql, LENS_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<ContentLensEntity> findLensByNameIgnoreCase(String lensName) {
     String sql =
         "SELECT id, lens_name, created_at FROM content_lenses WHERE LOWER(lens_name) = LOWER(:lensName)";
     MapSqlParameterSource params = createParameterSource().addValue("lensName", lensName);
     return queryForObject(sql, LENS_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentLensEntity> findLensesByNameContainingIgnoreCase(String searchTerm) {
-    String sql =
-        "SELECT id, lens_name, created_at FROM content_lenses WHERE LOWER(lens_name) LIKE LOWER(:searchTerm) ORDER BY lens_name ASC";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("searchTerm", "%" + searchTerm + "%");
-    return query(sql, LENS_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
@@ -278,33 +215,12 @@ public class EquipmentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public boolean existsByLensName(String lensName) {
-    String sql = "SELECT COUNT(*) > 0 FROM content_lenses WHERE lens_name = :lensName";
-    MapSqlParameterSource params = createParameterSource().addValue("lensName", lensName);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
   public boolean existsByLensNameIgnoreCase(String lensName) {
     String sql =
         "SELECT COUNT(*) > 0 FROM content_lenses WHERE LOWER(lens_name) = LOWER(:lensName)";
     MapSqlParameterSource params = createParameterSource().addValue("lensName", lensName);
     Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
     return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentLensEntity> findLensesOrderByUsageCount() {
-    String sql =
-        """
-        SELECT l.id, l.lens_name, l.created_at
-        FROM content_lenses l
-        LEFT JOIN content_image ci ON l.id = ci.lens_id
-        GROUP BY l.id, l.lens_name, l.created_at
-        ORDER BY COUNT(ci.id) DESC
-        """;
-    return query(sql, LENS_ROW_MAPPER);
   }
 
   @Transactional
@@ -348,41 +264,11 @@ public class EquipmentRepository extends BaseDao {
   // ============================================================
 
   @Transactional(readOnly = true)
-  public Optional<ContentFilmTypeEntity> findFilmTypeByName(String filmTypeName) {
-    String sql =
-        "SELECT id, film_type_name, display_name, default_iso, created_at FROM content_film_types WHERE film_type_name = :filmTypeName";
-    MapSqlParameterSource params = createParameterSource().addValue("filmTypeName", filmTypeName);
-    return queryForObject(sql, FILM_TYPE_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<ContentFilmTypeEntity> findFilmTypeByNameIgnoreCase(String filmTypeName) {
     String sql =
         "SELECT id, film_type_name, display_name, default_iso, created_at FROM content_film_types WHERE LOWER(film_type_name) = LOWER(:filmTypeName)";
     MapSqlParameterSource params = createParameterSource().addValue("filmTypeName", filmTypeName);
     return queryForObject(sql, FILM_TYPE_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public Optional<ContentFilmTypeEntity> findFilmTypeByDisplayName(String displayName) {
-    String sql =
-        "SELECT id, film_type_name, display_name, default_iso, created_at FROM content_film_types WHERE display_name = :displayName";
-    MapSqlParameterSource params = createParameterSource().addValue("displayName", displayName);
-    return queryForObject(sql, FILM_TYPE_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentFilmTypeEntity> findFilmTypesBySearchTerm(String searchTerm) {
-    String sql =
-        """
-        SELECT id, film_type_name, display_name, default_iso, created_at
-        FROM content_film_types
-        WHERE LOWER(film_type_name) LIKE LOWER(:pattern) OR LOWER(display_name) LIKE LOWER(:pattern)
-        ORDER BY display_name ASC
-        """;
-    String pattern = "%" + searchTerm + "%";
-    MapSqlParameterSource params = createParameterSource().addValue("pattern", pattern);
-    return query(sql, FILM_TYPE_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
@@ -393,48 +279,12 @@ public class EquipmentRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<ContentFilmTypeEntity> findAllFilmTypesOrderByDefaultIso() {
-    String sql =
-        "SELECT id, film_type_name, display_name, default_iso, created_at FROM content_film_types ORDER BY default_iso ASC";
-    return query(sql, FILM_TYPE_ROW_MAPPER);
-  }
-
-  @Transactional(readOnly = true)
-  public boolean existsByFilmTypeName(String filmTypeName) {
-    String sql = "SELECT COUNT(*) > 0 FROM content_film_types WHERE film_type_name = :filmTypeName";
-    MapSqlParameterSource params = createParameterSource().addValue("filmTypeName", filmTypeName);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
   public boolean existsByFilmTypeNameIgnoreCase(String filmTypeName) {
     String sql =
         "SELECT COUNT(*) > 0 FROM content_film_types WHERE LOWER(film_type_name) = LOWER(:filmTypeName)";
     MapSqlParameterSource params = createParameterSource().addValue("filmTypeName", filmTypeName);
     Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
     return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
-  public boolean existsByFilmTypeDisplayName(String displayName) {
-    String sql = "SELECT COUNT(*) > 0 FROM content_film_types WHERE display_name = :displayName";
-    MapSqlParameterSource params = createParameterSource().addValue("displayName", displayName);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentFilmTypeEntity> findFilmTypesOrderByUsageCount() {
-    String sql =
-        """
-        SELECT f.id, f.film_type_name, f.display_name, f.default_iso, f.created_at
-        FROM content_film_types f
-        LEFT JOIN content_image ci ON f.id = ci.film_type_id
-        GROUP BY f.id, f.film_type_name, f.display_name, f.default_iso, f.created_at
-        ORDER BY COUNT(ci.id) DESC
-        """;
-    return query(sql, FILM_TYPE_ROW_MAPPER);
   }
 
   @Transactional

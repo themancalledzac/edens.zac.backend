@@ -297,13 +297,7 @@ public final class CollectionRequests {
   public record GalleryAccessRequest(
       @Size(min = 4, max = 100, message = "Password must be between 4 and 100 characters") String password,
       List<@Email @NotBlank String> emails,
-      Boolean propagateToChildren) {
-
-    /** Backwards-compatible constructor for callers that omit the propagation flag. */
-    public GalleryAccessRequest(String password, List<String> emails) {
-      this(password, emails, null);
-    }
-  }
+      Boolean propagateToChildren) {}
 
   /**
    * Response body for the gallery-access endpoint. Echoes the saved password and recipient list so

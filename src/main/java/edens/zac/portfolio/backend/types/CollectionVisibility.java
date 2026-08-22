@@ -34,10 +34,6 @@ public enum CollectionVisibility {
     return this == LISTED;
   }
 
-  public boolean requiresLocalEnv() {
-    return this == HIDDEN;
-  }
-
   @JsonValue
   public String getValue() {
     return name();

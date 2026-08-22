@@ -22,11 +22,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *
  * <p>This has to be a real-Postgres test. U4 removed three {@code CollectionType.isParentType()}
  * write guards; with the enum gone, parent-ness is only obtainable by querying the
- * collection_content -> content_collection chain ({@code hasChildCollections}). A Mockito fixture
- * therefore cannot be a wrapper at all: a builder-built {@code CollectionEntity} named "Wrapper"
- * carries no children, and a mocked repository answers every derivation with its default. Those
- * unit tests assert only that an existing collection is accepted; re-introducing the invariant as
- * {@code if (hasChildCollections(id)) throw} leaves every one of them green. These do not.
+ * collection_content -> content_collection chain ({@code
+ * findAllReferencedCollectionIdsByParentId}). A Mockito fixture therefore cannot be a wrapper at
+ * all: a builder-built {@code CollectionEntity} named "Wrapper" carries no children, and a mocked
+ * repository answers every derivation with its default. Those unit tests assert only that an
+ * existing collection is accepted; re-introducing the invariant as {@code if
+ * (!findAllReferencedCollectionIdsByParentId(id).isEmpty()) throw} leaves every one of them green.
+ * These do not.
  *
  * <p>Rows live in the SHARED singleton container (only auth tables are truncated), so every slug
  * carries a ruleb- prefix and assertions never use global counts.
@@ -85,7 +87,8 @@ class RuleBMixedContentIntegrationTest extends AbstractPostgresIntegrationTest {
             .orderIndex(0)
             .visible(true)
             .build());
-    assertThat(collectionRepository.hasChildCollections(parentId)).isTrue();
+    assertThat(collectionRepository.findAllReferencedCollectionIdsByParentId(parentId))
+        .isNotEmpty();
     return parentId;
   }
 
@@ -135,7 +138,8 @@ class RuleBMixedContentIntegrationTest extends AbstractPostgresIntegrationTest {
 
     contentService.linkContentToCollection(wrapperId, imageId, 1, true);
 
-    assertThat(collectionRepository.hasChildCollections(wrapperId)).isTrue();
+    assertThat(collectionRepository.findAllReferencedCollectionIdsByParentId(wrapperId))
+        .isNotEmpty();
     assertThat(contentService.findImagesForCollection(wrapperId))
         .extracting(edens.zac.portfolio.backend.entity.ContentImageEntity::getId)
         .containsExactly(imageId);

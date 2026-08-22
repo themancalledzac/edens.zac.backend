@@ -45,28 +45,11 @@ public class TagRepository extends BaseDao {
   // ============================================================
 
   @Transactional(readOnly = true)
-  public Optional<TagEntity> findByTagName(String tagName) {
-    String sql =
-        "SELECT id, tag_name, slug, converted_collection_id, created_at FROM tag WHERE tag_name = :tagName";
-    MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
-    return queryForObject(sql, TAG_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<TagEntity> findByTagNameIgnoreCase(String tagName) {
     String sql =
         "SELECT id, tag_name, slug, converted_collection_id, created_at FROM tag WHERE LOWER(tag_name) = LOWER(:tagName)";
     MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
     return queryForObject(sql, TAG_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<TagEntity> findByTagNameContainingIgnoreCase(String searchTerm) {
-    String sql =
-        "SELECT id, tag_name, slug, converted_collection_id, created_at FROM tag WHERE LOWER(tag_name) LIKE LOWER(:searchTerm) ORDER BY tag_name ASC";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("searchTerm", "%" + searchTerm + "%");
-    return query(sql, TAG_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
@@ -82,14 +65,6 @@ public class TagRepository extends BaseDao {
         "SELECT id, tag_name, slug, converted_collection_id, created_at FROM tag WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, TAG_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public boolean existsByTagName(String tagName) {
-    String sql = "SELECT COUNT(*) > 0 FROM tag WHERE tag_name = :tagName";
-    MapSqlParameterSource params = createParameterSource().addValue("tagName", tagName);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
   }
 
   @Transactional(readOnly = true)
@@ -191,8 +166,8 @@ public class TagRepository extends BaseDao {
    * <p>The incoming ids are deduplicated and the insert is idempotent. {@code collection_tags} is
    * keyed on {@code (collection_id, tag_id)}, so a repeated id would otherwise abort the batch with
    * a {@code DataIntegrityViolationException} and — because callers run inside a transaction — roll
-   * back far more than the tags. This mirrors {@link #saveContentTags} and {@link
-   * #addCollectionTag}, which were already hardened this way; only this method had been missed.
+   * back far more than the tags. This mirrors {@link #saveContentTags}, which was already hardened
+   * this way; only this method had been missed.
    */
   @Transactional
   public void saveCollectionTags(Long collectionId, List<Long> tagIds) {
@@ -342,24 +317,6 @@ public class TagRepository extends BaseDao {
     update(sql, params);
   }
 
-  @Transactional
-  public void addCollectionTag(Long collectionId, Long tagId) {
-    String sql =
-        "INSERT INTO collection_tags (collection_id, tag_id) VALUES (:collectionId, :tagId) ON CONFLICT DO NOTHING";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("collectionId", collectionId).addValue("tagId", tagId);
-    update(sql, params);
-  }
-
-  @Transactional
-  public void removeCollectionTag(Long collectionId, Long tagId) {
-    String sql =
-        "DELETE FROM collection_tags WHERE collection_id = :collectionId AND tag_id = :tagId";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("collectionId", collectionId).addValue("tagId", tagId);
-    update(sql, params);
-  }
-
   // ============================================================
   // Content Tags Operations
   // ============================================================
@@ -454,29 +411,5 @@ public class TagRepository extends BaseDao {
         """;
     MapSqlParameterSource params = createParameterSource().addValue("contentId", contentId);
     return query(sql, TAG_ROW_MAPPER, params);
-  }
-
-  @Transactional
-  public void deleteContentTags(Long contentId) {
-    String sql = "DELETE FROM content_tags WHERE content_id = :contentId";
-    MapSqlParameterSource params = createParameterSource().addValue("contentId", contentId);
-    update(sql, params);
-  }
-
-  @Transactional
-  public void addContentTag(Long contentId, Long tagId) {
-    String sql =
-        "INSERT INTO content_tags (content_id, tag_id) VALUES (:contentId, :tagId) ON CONFLICT DO NOTHING";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("contentId", contentId).addValue("tagId", tagId);
-    update(sql, params);
-  }
-
-  @Transactional
-  public void removeContentTag(Long contentId, Long tagId) {
-    String sql = "DELETE FROM content_tags WHERE content_id = :contentId AND tag_id = :tagId";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("contentId", contentId).addValue("tagId", tagId);
-    update(sql, params);
   }
 }

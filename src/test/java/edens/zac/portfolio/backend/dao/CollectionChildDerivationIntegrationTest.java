@@ -50,25 +50,21 @@ class CollectionChildDerivationIntegrationTest extends AbstractPostgresIntegrati
   }
 
   @Test
-  @DisplayName("hasChildCollections is false for a childless collection")
-  void hasChildCollections_noChildren_false() {
+  @DisplayName("findAllReferencedCollectionIdsByParentId is empty for a childless collection")
+  void findAllReferencedCollectionIds_noChildren_empty() {
     CollectionEntity leaf = save("deriv-leaf");
-    assertThat(collectionRepository.hasChildCollections(leaf.getId())).isFalse();
+    assertThat(collectionRepository.findAllReferencedCollectionIdsByParentId(leaf.getId()))
+        .isEmpty();
   }
 
   @Test
-  @DisplayName("hasChildCollections is true for one child, even when the membership is hidden")
-  void hasChildCollections_hiddenMembership_stillTrue() {
+  @DisplayName("findAllReferencedCollectionIdsByParentId counts a child with a hidden membership")
+  void findAllReferencedCollectionIds_hiddenMembership_stillReturned() {
     CollectionEntity parent = save("deriv-parent-hidden");
     CollectionEntity child = save("deriv-child-hidden");
     linkChild(parent.getId(), child.getId(), 0, false);
-    assertThat(collectionRepository.hasChildCollections(parent.getId())).isTrue();
-  }
-
-  @Test
-  @DisplayName("hasChildCollections tolerates a null id")
-  void hasChildCollections_nullId_false() {
-    assertThat(collectionRepository.hasChildCollections(null)).isFalse();
+    assertThat(collectionRepository.findAllReferencedCollectionIdsByParentId(parent.getId()))
+        .containsExactly(child.getId());
   }
 
   @Test
