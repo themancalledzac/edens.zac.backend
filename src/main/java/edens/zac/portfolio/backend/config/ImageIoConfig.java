@@ -12,8 +12,12 @@ import org.springframework.context.annotation.Configuration;
 @Slf4j
 class ImageIoConfig {
 
+  /**
+   * Reports what ImageIO SPI discovery already found. This registers nothing -- it exists so a
+   * missing WebP reader or writer shows up in the startup log instead of as a decode failure later.
+   */
   @PostConstruct
-  void registerPlugins() {
+  void logDiscoveredImageIoPlugins() {
     String os = System.getProperty("os.name");
     String arch = System.getProperty("os.arch");
     log.info("ImageIO environment: OS='{}', Arch='{}'", os, arch);

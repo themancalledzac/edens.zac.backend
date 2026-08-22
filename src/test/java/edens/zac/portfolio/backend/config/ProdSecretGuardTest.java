@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 class ProdSecretGuardTest {
 
@@ -24,8 +23,7 @@ class ProdSecretGuardTest {
 
   @Test
   void blankSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard();
-    ReflectionTestUtils.setField(guard, "secret", "");
+    ProdSecretGuard guard = new ProdSecretGuard("");
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -34,8 +32,7 @@ class ProdSecretGuardTest {
 
   @Test
   void nullSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard();
-    ReflectionTestUtils.setField(guard, "secret", null);
+    ProdSecretGuard guard = new ProdSecretGuard(null);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -44,8 +41,7 @@ class ProdSecretGuardTest {
 
   @Test
   void defaultDevSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard();
-    ReflectionTestUtils.setField(guard, "secret", "dev-internal-secret");
+    ProdSecretGuard guard = new ProdSecretGuard("dev-internal-secret");
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -54,9 +50,8 @@ class ProdSecretGuardTest {
 
   @Test
   void realSecretSucceeds() {
-    ProdSecretGuard guard = new ProdSecretGuard();
-    ReflectionTestUtils.setField(
-        guard, "secret", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+    ProdSecretGuard guard =
+        new ProdSecretGuard("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
 
     assertThatCode(() -> invokeVerify(guard)).doesNotThrowAnyException();
   }

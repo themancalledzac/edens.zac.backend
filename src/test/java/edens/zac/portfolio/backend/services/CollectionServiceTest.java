@@ -585,32 +585,6 @@ class CollectionServiceTest {
   }
 
   @Nested
-  class FindById {
-
-    @Test
-    void findById_happyPath_returnsFullModel() {
-      CollectionModel model = CollectionModel.builder().id(1L).title("Test Collection").build();
-
-      when(collectionRepository.findById(1L)).thenReturn(Optional.of(testCollection));
-      when(collectionProcessingUtil.convertToFullModel(testCollection)).thenReturn(model);
-
-      CollectionModel result = service.findById(1L);
-
-      assertThat(result).isNotNull();
-      assertThat(result.getId()).isEqualTo(1L);
-    }
-
-    @Test
-    void findById_notFound_throwsException() {
-      when(collectionRepository.findById(999L)).thenReturn(Optional.empty());
-
-      assertThatThrownBy(() -> service.findById(999L))
-          .isInstanceOf(ResourceNotFoundException.class)
-          .hasMessageContaining("Collection not found with ID: 999");
-    }
-  }
-
-  @Nested
   class ReorderContent {
 
     private List<CollectionContentEntity> existingContent;
@@ -2191,8 +2165,6 @@ class CollectionServiceTest {
 
       verify(collectionRepository).countContentByCollectionId(21L);
       verify(collectionRepository).findContentByCollectionId(eq(21L), anyInt(), anyInt());
-      verify(collectionRepository, never())
-          .findContentByCollectionIdAndContentType(anyLong(), anyString());
     }
   }
 

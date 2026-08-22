@@ -3,8 +3,6 @@ package edens.zac.portfolio.backend.entity;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -41,9 +39,6 @@ public class ContentLensEntity {
 
   private LocalDateTime createdAt;
 
-  // One-to-many relationship with ContentImages (mappedBy side)
-  @Builder.Default private Set<ContentImageEntity> contentImages = new HashSet<>();
-
   /**
    * Constructor for creating a lens with just a name. Useful for quick lens creation during image
    * updates.
@@ -52,15 +47,5 @@ public class ContentLensEntity {
    */
   public ContentLensEntity(String lensName) {
     this.lensName = lensName;
-    this.contentImages = new HashSet<>();
-  }
-
-  /**
-   * Get the number of images using this lens.
-   *
-   * @return The number of images associated with this lens
-   */
-  public int getImageCount() {
-    return contentImages.size();
   }
 }

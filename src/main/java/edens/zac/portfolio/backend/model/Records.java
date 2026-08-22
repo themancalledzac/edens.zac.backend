@@ -58,12 +58,6 @@ public final class Records {
   // Collection references
 
   /**
-   * Model representing a collection summary for API responses. Contains the collection's ID and
-   * title.
-   */
-  public record CollectionSummary(Long id, String title) {}
-
-  /**
    * Model representing a collection for list views. {@code collectionDate} and {@code
    * coverImageUrl} are null when the collection has none or the query did not project them; the
    * cover image lets the frontend render related/sibling collections as image cards rather than

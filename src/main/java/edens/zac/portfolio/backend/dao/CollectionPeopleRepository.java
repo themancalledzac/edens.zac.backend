@@ -29,20 +29,6 @@ public class CollectionPeopleRepository extends BaseDao {
     super(jdbcTemplate);
   }
 
-  @Transactional(readOnly = true)
-  public List<Records.Person> findPeopleForCollection(Long collectionId) {
-    String sql =
-        """
-        SELECT p.id, p.name
-        FROM collection_people cp
-        JOIN users p ON p.id = cp.person_id
-        WHERE cp.collection_id = :collectionId
-        ORDER BY p.name
-        """;
-    return query(
-        sql, PERSON_ROW_MAPPER, createParameterSource().addValue("collectionId", collectionId));
-  }
-
   /**
    * Batch loader: collectionId -> people list. Used by CollectionProcessingUtil to populate people
    * on N collection models in one query instead of N+1.

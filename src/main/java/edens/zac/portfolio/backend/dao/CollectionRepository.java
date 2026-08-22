@@ -254,33 +254,6 @@ public class CollectionRepository extends BaseDao {
   }
 
   /**
-   * Derived parent-ness: true when this collection holds at least one COLLECTION content block.
-   * Visibility-agnostic on both the membership row and the child's own visibility, because this
-   * answers a structural question ("does this collection contain child collections") rather than a
-   * rendering one. Replaces the stored {@code CollectionType.PARENT} discriminator.
-   */
-  @Transactional(readOnly = true)
-  public boolean hasChildCollections(Long collectionId) {
-    if (collectionId == null) {
-      return false;
-    }
-    String sql =
-        """
-        SELECT EXISTS (
-          SELECT 1
-          FROM collection_content cc
-          JOIN content_collection cct ON cct.id = cc.content_id
-          WHERE cc.collection_id = :collectionId
-            AND cct.referenced_collection_id IS NOT NULL
-        )
-        """;
-    MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
-    // Same idiom as hasClientGalleryChildren (U2): BaseDao's queryForObject takes a RowMapper,
-    // not a Class, and returns Optional.
-    return queryForObject(sql, (rs, rowNum) -> rs.getBoolean(1), params).orElse(false);
-  }
-
-  /**
    * Every child collection id linked under this parent, ordered by {@code cc.order_index}, ignoring
    * both the membership {@code visible} flag and the child's own visibility. The admin manage
    * payload needs the COMPLETE list: the frontend otherwise derives it from the paginated content
@@ -430,12 +403,6 @@ public class CollectionRepository extends BaseDao {
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
     Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
     return count != null ? count : 0L;
-  }
-
-  @Transactional(readOnly = true)
-  public List<CollectionEntity> findAllByOrderByCollectionDateDesc() {
-    String sql = SELECT_COLLECTION + " ORDER BY collection_date DESC NULLS LAST";
-    return query(sql, COLLECTION_ROW_MAPPER);
   }
 
   @Transactional(readOnly = true)
@@ -884,25 +851,6 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public List<CollectionContentEntity> findContentByCollectionIdAndContentType(
-      Long collectionId, String contentType) {
-    String sql =
-        """
-        SELECT cc.id, cc.collection_id, cc.content_id, cc.order_index, cc.visible,
-               cc.created_at, cc.updated_at
-        FROM collection_content cc
-        JOIN content c ON cc.content_id = c.id
-        WHERE cc.collection_id = :collectionId AND c.content_type = :contentType
-        ORDER BY cc.order_index ASC
-        """;
-    MapSqlParameterSource params =
-        createParameterSource()
-            .addValue("collectionId", collectionId)
-            .addValue("contentType", contentType);
-    return query(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public List<CollectionContentEntity> findImageContentByCollectionIds(List<Long> collectionIds) {
     if (collectionIds == null || collectionIds.isEmpty()) {
       return List.of();
@@ -946,8 +894,7 @@ public class CollectionRepository extends BaseDao {
 
   /**
    * Set visible on the (collectionId, contentId) membership row -- the two-key sibling of {@link
-   * #updateContentVisible}, mirroring {@link #updateContentOrderIndexForContent}. Returns the
-   * affected row count so callers can 404 a non-member pair.
+   * #updateContentVisible}. Returns the affected row count so callers can 404 a non-member pair.
    */
   @Transactional
   public int updateContentVisibleForContent(Long collectionId, Long contentId, boolean visible) {
@@ -963,41 +910,10 @@ public class CollectionRepository extends BaseDao {
   }
 
   @Transactional
-  public int shiftContentOrderIndices(
-      Long collectionId, Integer startIndex, Integer endIndex, Integer shiftAmount) {
-    String sql =
-        """
-        UPDATE collection_content
-        SET order_index = order_index + :shiftAmount
-        WHERE collection_id = :collectionId AND order_index >= :startIndex AND order_index <= :endIndex
-        """;
-    MapSqlParameterSource params =
-        createParameterSource()
-            .addValue("shiftAmount", shiftAmount)
-            .addValue("collectionId", collectionId)
-            .addValue("startIndex", startIndex)
-            .addValue("endIndex", endIndex);
-    return update(sql, params);
-  }
-
-  @Transactional
   public void deleteContentByCollectionId(Long collectionId) {
     String sql = "DELETE FROM collection_content WHERE collection_id = :collectionId";
     MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
     update(sql, params);
-  }
-
-  @Transactional(readOnly = true)
-  public Optional<CollectionContentEntity> findContentByCollectionIdAndOrderIndex(
-      Long collectionId, Integer orderIndex) {
-    String sql =
-        SELECT_COLLECTION_CONTENT
-            + " WHERE collection_id = :collectionId AND order_index = :orderIndex";
-    MapSqlParameterSource params =
-        createParameterSource()
-            .addValue("collectionId", collectionId)
-            .addValue("orderIndex", orderIndex);
-    return queryForObject(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
   }
 
   @Transactional
@@ -1039,23 +955,6 @@ public class CollectionRepository extends BaseDao {
         SELECT_COLLECTION_CONTENT + " WHERE content_id IN (:contentIds) ORDER BY collection_id";
     MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);
     return query(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
-  }
-
-  @Transactional
-  public int updateContentOrderIndexForContent(
-      Long collectionId, Long contentId, Integer orderIndex) {
-    String sql =
-        """
-        UPDATE collection_content
-        SET order_index = :orderIndex
-        WHERE collection_id = :collectionId AND content_id = :contentId
-        """;
-    MapSqlParameterSource params =
-        createParameterSource()
-            .addValue("orderIndex", orderIndex)
-            .addValue("collectionId", collectionId)
-            .addValue("contentId", contentId);
-    return update(sql, params);
   }
 
   @Transactional
@@ -1132,12 +1031,5 @@ public class CollectionRepository extends BaseDao {
       update(sql, params);
       return entity;
     }
-  }
-
-  @Transactional
-  public void deleteContentById(Long id) {
-    String sql = "DELETE FROM collection_content WHERE id = :id";
-    MapSqlParameterSource params = createParameterSource().addValue("id", id);
-    update(sql, params);
   }
 }

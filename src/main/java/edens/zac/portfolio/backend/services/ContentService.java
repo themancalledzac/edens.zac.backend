@@ -95,14 +95,6 @@ public class ContentService {
     this.cloudfrontDomain = cloudfrontDomain;
   }
 
-  public Map<String, Object> createTag(String tagName) {
-    return metadataService.createTag(tagName);
-  }
-
-  public Map<String, Object> createPerson(String personName) {
-    return metadataService.createPerson(personName);
-  }
-
   @Transactional
   @CacheEvict(
       value = "generalMetadata",

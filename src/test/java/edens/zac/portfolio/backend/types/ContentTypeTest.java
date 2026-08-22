@@ -24,12 +24,6 @@ class ContentTypeTest {
   }
 
   @ParameterizedTest
-  @MethodSource("provideEnumAndContentName")
-  void contentName_ShouldBeCorrect(ContentType type, String expectedContentName) {
-    assertEquals(expectedContentName, type.getContentName());
-  }
-
-  @ParameterizedTest
   @MethodSource("provideEnumAndName")
   void getValue_ShouldReturnEnumName(ContentType type, String expectedName) {
     assertEquals(expectedName, type.getValue());
@@ -49,13 +43,6 @@ class ContentTypeTest {
   }
 
   // Test data providers
-  static Stream<Arguments> provideEnumAndContentName() {
-    return Stream.of(
-        Arguments.of(ContentType.IMAGE, "IMAGE"),
-        Arguments.of(ContentType.TEXT, "TEXT"),
-        Arguments.of(ContentType.GIF, "GIF"));
-  }
-
   static Stream<Arguments> provideEnumAndName() {
     return Stream.of(
         Arguments.of(ContentType.IMAGE, "IMAGE"),

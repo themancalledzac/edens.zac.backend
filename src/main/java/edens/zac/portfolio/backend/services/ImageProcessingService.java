@@ -141,14 +141,6 @@ public class ImageProcessingService {
   // ============================================================================
 
   /**
-   * Prepare an image for upload without RAW file processing. Delegates to the full method with null
-   * rawFilePath.
-   */
-  public PreparedImageData prepareImageForUpload(MultipartFile file) throws IOException {
-    return prepareImageForUpload(file, null);
-  }
-
-  /**
    * Prepare an image for upload: extract metadata, upload to S3, resize, convert to WebP.
    * Optionally uploads the original RAW source file to S3. This method does NO database calls and
    * is safe to run in parallel virtual threads.

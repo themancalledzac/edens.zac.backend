@@ -4,8 +4,6 @@ import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -53,9 +51,6 @@ public class ContentCameraEntity {
   /** Column: created_at (TIMESTAMP, NOT NULL) */
   private LocalDateTime createdAt;
 
-  // One-to-many relationship with ContentImages (mappedBy side)
-  @Builder.Default private Set<ContentImageEntity> contentImages = new HashSet<>();
-
   /**
    * Constructor for creating a camera with just a name. Useful for quick camera creation during
    * image updates.
@@ -64,15 +59,5 @@ public class ContentCameraEntity {
    */
   public ContentCameraEntity(String cameraName) {
     this.cameraName = cameraName;
-    this.contentImages = new HashSet<>();
-  }
-
-  /**
-   * Get the number of images using this camera.
-   *
-   * @return The number of images associated with this camera
-   */
-  public int getImageCount() {
-    return contentImages.size();
   }
 }

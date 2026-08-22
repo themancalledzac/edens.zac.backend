@@ -1,7 +1,6 @@
 package edens.zac.portfolio.backend.config;
 
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -12,11 +11,13 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("prod")
-@RequiredArgsConstructor
 public class ProdSecretGuard {
 
-  @Value("${internal.api.secret:}")
-  private String secret;
+  private final String secret;
+
+  ProdSecretGuard(@Value("${internal.api.secret:}") String secret) {
+    this.secret = secret;
+  }
 
   @PostConstruct
   void verify() {

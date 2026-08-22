@@ -39,26 +39,10 @@ public class PersonRepository extends BaseDao {
               .build();
 
   @Transactional(readOnly = true)
-  public Optional<ContentPersonEntity> findByPersonName(String personName) {
-    String sql = "SELECT id, name, created_at FROM users WHERE name = :personName";
-    MapSqlParameterSource params = createParameterSource().addValue("personName", personName);
-    return queryForObject(sql, PERSON_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<ContentPersonEntity> findByPersonNameIgnoreCase(String personName) {
     String sql = "SELECT id, name, created_at FROM users WHERE LOWER(name) = LOWER(:personName)";
     MapSqlParameterSource params = createParameterSource().addValue("personName", personName);
     return queryForObject(sql, PERSON_ROW_MAPPER, params);
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentPersonEntity> findByPersonNameContainingIgnoreCase(String searchTerm) {
-    String sql =
-        "SELECT id, name, created_at FROM users WHERE LOWER(name) LIKE LOWER(:searchTerm) ORDER BY name ASC";
-    MapSqlParameterSource params =
-        createParameterSource().addValue("searchTerm", "%" + searchTerm + "%");
-    return query(sql, PERSON_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
@@ -68,32 +52,11 @@ public class PersonRepository extends BaseDao {
   }
 
   @Transactional(readOnly = true)
-  public boolean existsByPersonName(String personName) {
-    String sql = "SELECT COUNT(*) > 0 FROM users WHERE name = :personName";
-    MapSqlParameterSource params = createParameterSource().addValue("personName", personName);
-    Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
-    return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
   public boolean existsByPersonNameIgnoreCase(String personName) {
     String sql = "SELECT COUNT(*) > 0 FROM users WHERE LOWER(name) = LOWER(:personName)";
     MapSqlParameterSource params = createParameterSource().addValue("personName", personName);
     Boolean result = namedParameterJdbcTemplate.queryForObject(sql, params, Boolean.class);
     return result != null && result;
-  }
-
-  @Transactional(readOnly = true)
-  public List<ContentPersonEntity> findAllOrderByImageCountDesc() {
-    String sql =
-        """
-        SELECT p.id, p.name, p.created_at
-        FROM users p
-        LEFT JOIN content_image_people cip ON p.id = cip.person_id
-        GROUP BY p.id, p.name, p.created_at
-        ORDER BY COUNT(cip.content_id) DESC
-        """;
-    return query(sql, PERSON_ROW_MAPPER);
   }
 
   /**

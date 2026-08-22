@@ -489,21 +489,6 @@ public class CollectionService {
         .toList();
   }
 
-  @Transactional(readOnly = true)
-  public CollectionModel findById(Long id) {
-    log.debug("Finding collection by ID: {}", id);
-
-    // Get collection entity with content blocks
-    CollectionEntity entity =
-        collectionRepository
-            .findById(id)
-            .orElseThrow(
-                () -> new ResourceNotFoundException("Collection not found with ID: " + id));
-
-    // Convert to full model (includes content blocks)
-    return collectionProcessingUtil.convertToFullModel(entity);
-  }
-
   /**
    * Find the raw {@link CollectionEntity} by ID. Used by admin/download flows that need direct
    * entity access (e.g. updating {@code galleryPassword}, reading bucket-relative S3 keys). Throws
@@ -800,17 +785,6 @@ public class CollectionService {
         collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
 
     return new PageImpl<>(models, pageable, totalElements);
-  }
-
-  @Transactional(readOnly = true)
-  public List<CollectionModel> getAllCollectionsOrderedByDate() {
-    log.debug("Getting all collections ordered by collection date");
-
-    // Get all collections ordered by collection date descending
-    List<CollectionEntity> collections = collectionRepository.findAllByOrderByCollectionDateDesc();
-
-    // Convert to basic models (no content blocks) using batch loading
-    return collectionProcessingUtil.batchConvertToBasicModels(collections);
   }
 
   @Transactional(readOnly = true)

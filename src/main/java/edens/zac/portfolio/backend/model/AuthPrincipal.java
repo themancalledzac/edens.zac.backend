@@ -13,8 +13,8 @@ public record AuthPrincipal(
     Long userId, String email, boolean isAdmin, boolean mfaSatisfied, Long shareId) {
 
   /**
-   * A session principal, carrying no share. Kept so the pre-share four-argument shape still
-   * compiles at the 30 existing call sites; new code should prefer {@link #client} or the canonical
+   * A session principal, carrying no share. This is the shape {@code SessionService} builds and the
+   * one nearly every test uses; new code should prefer {@link #client} or the canonical
    * constructor.
    */
   public AuthPrincipal(Long userId, String email, boolean isAdmin, boolean mfaSatisfied) {

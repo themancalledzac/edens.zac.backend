@@ -18,6 +18,7 @@ import edens.zac.portfolio.backend.model.*;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
 import edens.zac.portfolio.backend.services.JobTrackingService;
+import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +44,8 @@ class AdminControllerTest {
   @Mock private ImageUploadPipelineService imageUploadPipelineService;
 
   @Mock private JobTrackingService jobTrackingService;
+
+  @Mock private MetadataService metadataService;
 
   @InjectMocks private AdminController adminController;
 
@@ -576,7 +579,7 @@ class AdminControllerTest {
     response.put("tag", new Records.Tag(1L, "landscape", "landscape"));
     response.put("message", "Tag created successfully");
 
-    when(contentService.createTag("landscape")).thenReturn(response);
+    when(metadataService.createTag("landscape")).thenReturn(response);
 
     // Act & Assert
     mockMvc
@@ -588,7 +591,7 @@ class AdminControllerTest {
         .andExpect(jsonPath("$.tag", notNullValue()))
         .andExpect(jsonPath("$.message", is("Tag created successfully")));
 
-    verify(contentService).createTag("landscape");
+    verify(metadataService).createTag("landscape");
   }
 
   @Test
@@ -597,7 +600,7 @@ class AdminControllerTest {
     // Arrange
     ContentRequests.CreateTag request = new ContentRequests.CreateTag("landscape");
 
-    when(contentService.createTag("landscape"))
+    when(metadataService.createTag("landscape"))
         .thenThrow(new IllegalArgumentException("Tag already exists: landscape"));
 
     // Act & Assert
@@ -609,7 +612,7 @@ class AdminControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message", containsString("Tag already exists")));
 
-    verify(contentService).createTag("landscape");
+    verify(metadataService).createTag("landscape");
   }
 
   @Test
@@ -618,7 +621,7 @@ class AdminControllerTest {
     // Arrange
     ContentRequests.CreateTag request = new ContentRequests.CreateTag("landscape");
 
-    when(contentService.createTag("landscape")).thenThrow(new RuntimeException("Database error"));
+    when(metadataService.createTag("landscape")).thenThrow(new RuntimeException("Database error"));
 
     // Act & Assert
     mockMvc
@@ -629,7 +632,7 @@ class AdminControllerTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
-    verify(contentService).createTag("landscape");
+    verify(metadataService).createTag("landscape");
   }
 
   // ============== POST /api/admin/content/people ==============
@@ -644,7 +647,7 @@ class AdminControllerTest {
     response.put("person", new Records.Person(1L, "John Doe"));
     response.put("message", "Person created successfully");
 
-    when(contentService.createPerson("John Doe")).thenReturn(response);
+    when(metadataService.createPerson("John Doe")).thenReturn(response);
 
     // Act & Assert
     mockMvc
@@ -656,7 +659,7 @@ class AdminControllerTest {
         .andExpect(jsonPath("$.person", notNullValue()))
         .andExpect(jsonPath("$.message", is("Person created successfully")));
 
-    verify(contentService).createPerson("John Doe");
+    verify(metadataService).createPerson("John Doe");
   }
 
   @Test
@@ -665,7 +668,7 @@ class AdminControllerTest {
     // Arrange
     ContentRequests.CreatePerson request = new ContentRequests.CreatePerson("John Doe");
 
-    when(contentService.createPerson("John Doe"))
+    when(metadataService.createPerson("John Doe"))
         .thenThrow(new IllegalArgumentException("Person already exists: John Doe"));
 
     // Act & Assert
@@ -677,7 +680,7 @@ class AdminControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message", containsString("Person already exists")));
 
-    verify(contentService).createPerson("John Doe");
+    verify(metadataService).createPerson("John Doe");
   }
 
   @Test
@@ -686,7 +689,8 @@ class AdminControllerTest {
     // Arrange
     ContentRequests.CreatePerson request = new ContentRequests.CreatePerson("John Doe");
 
-    when(contentService.createPerson("John Doe")).thenThrow(new RuntimeException("Database error"));
+    when(metadataService.createPerson("John Doe"))
+        .thenThrow(new RuntimeException("Database error"));
 
     // Act & Assert
     mockMvc
@@ -697,7 +701,7 @@ class AdminControllerTest {
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
 
-    verify(contentService).createPerson("John Doe");
+    verify(metadataService).createPerson("John Doe");
   }
 
   // ============== GET and DELETE endpoints ==============
