@@ -222,40 +222,36 @@ class ContentMutationUtilTest {
 
   @Test
   void handleContentChildCollectionUpdates_nullList_noOp() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
-    contentMutationUtil.handleContentChildCollectionUpdates(image, null);
+    contentMutationUtil.handleContentChildCollectionUpdates(1L, null);
     verifyNoInteractions(collectionRepository);
   }
 
   @Test
   void handleContentChildCollectionUpdates_updatesOrderIndex() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     CollectionContentEntity joinEntry = CollectionContentEntity.builder().id(10L).build();
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
         .thenReturn(Optional.of(joinEntry));
 
     Records.ChildCollection update = new Records.ChildCollection(5L, null, null, null, null, 3);
-    contentMutationUtil.handleContentChildCollectionUpdates(image, List.of(update));
+    contentMutationUtil.handleContentChildCollectionUpdates(1L, List.of(update));
 
     verify(collectionRepository).updateContentOrderIndex(10L, 3);
   }
 
   @Test
   void handleContentChildCollectionUpdates_updatesVisibility() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     CollectionContentEntity joinEntry = CollectionContentEntity.builder().id(10L).build();
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
         .thenReturn(Optional.of(joinEntry));
 
     Records.ChildCollection update = new Records.ChildCollection(5L, null, null, null, false, null);
-    contentMutationUtil.handleContentChildCollectionUpdates(image, List.of(update));
+    contentMutationUtil.handleContentChildCollectionUpdates(1L, List.of(update));
 
     verify(collectionRepository).updateContentVisible(10L, false);
   }
 
   @Test
   void handleContentChildCollectionUpdates_processesMultipleCollections() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     CollectionContentEntity join1 = CollectionContentEntity.builder().id(10L).build();
     CollectionContentEntity join2 = CollectionContentEntity.builder().id(11L).build();
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
@@ -267,7 +263,7 @@ class ContentMutationUtilTest {
         List.of(
             new Records.ChildCollection(5L, null, null, null, null, 1),
             new Records.ChildCollection(6L, null, null, null, null, 2));
-    contentMutationUtil.handleContentChildCollectionUpdates(image, updates);
+    contentMutationUtil.handleContentChildCollectionUpdates(1L, updates);
 
     verify(collectionRepository).updateContentOrderIndex(10L, 1);
     verify(collectionRepository).updateContentOrderIndex(11L, 2);
@@ -279,7 +275,6 @@ class ContentMutationUtilTest {
 
   @Test
   void handleAddToCollections_addsImageToCollection() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     CollectionEntity collection = CollectionEntity.builder().id(5L).title("Test").build();
     when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
@@ -288,14 +283,13 @@ class ContentMutationUtilTest {
 
     Records.ChildCollection childCollection =
         new Records.ChildCollection(5L, null, null, null, true, null);
-    contentMutationUtil.handleAddToCollections(image, List.of(childCollection));
+    contentMutationUtil.handleAddToCollections(1L, List.of(childCollection));
 
     verify(collectionRepository).saveContent(any(CollectionContentEntity.class));
   }
 
   @Test
   void handleAddToCollections_skipsDuplicate() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     CollectionEntity collection = CollectionEntity.builder().id(5L).title("Test").build();
     when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
     CollectionContentEntity existing = CollectionContentEntity.builder().id(10L).build();
@@ -304,21 +298,20 @@ class ContentMutationUtilTest {
 
     Records.ChildCollection childCollection =
         new Records.ChildCollection(5L, null, null, null, true, null);
-    contentMutationUtil.handleAddToCollections(image, List.of(childCollection));
+    contentMutationUtil.handleAddToCollections(1L, List.of(childCollection));
 
     verify(collectionRepository, never()).saveContent(any());
   }
 
   @Test
   void handleAddToCollections_collectionNotFound_throws() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     when(collectionRepository.findById(99L)).thenReturn(Optional.empty());
 
     Records.ChildCollection childCollection =
         new Records.ChildCollection(99L, null, null, null, true, null);
     assertThrows(
         ResourceNotFoundException.class,
-        () -> contentMutationUtil.handleAddToCollections(image, List.of(childCollection)));
+        () -> contentMutationUtil.handleAddToCollections(1L, List.of(childCollection)));
   }
 
   // =============================================================================
@@ -472,12 +465,12 @@ class ContentMutationUtilTest {
 
   @Test
   void updateImageTagsOptimized_appliesUpdateAndSaves() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     TagEntity existing = TagEntity.builder().id(1L).tagName("nature").build();
     List<TagEntity> currentTags = List.of(existing);
 
     CollectionRequests.TagUpdate update = new CollectionRequests.TagUpdate(null, null, List.of(1L));
     Set<TagEntity> newTags = new HashSet<>();
+    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
 
     contentMutationUtil.updateImageTagsOptimized(image, update, currentTags, newTags);
 
@@ -487,13 +480,13 @@ class ContentMutationUtilTest {
 
   @Test
   void updateImageLocationsOptimized_appliesUpdateAndSaves() {
-    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
     LocationEntity existing = LocationEntity.builder().id(1L).locationName("NYC").build();
     List<LocationEntity> currentLocations = List.of(existing);
 
     CollectionRequests.LocationUpdate update =
         new CollectionRequests.LocationUpdate(null, null, List.of(1L));
     Set<LocationEntity> newLocs = new HashSet<>();
+    ContentImageEntity image = ContentImageEntity.builder().id(1L).build();
 
     contentMutationUtil.updateImageLocationsOptimized(image, update, currentLocations, newLocs);
 

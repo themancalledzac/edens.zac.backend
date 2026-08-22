@@ -95,6 +95,18 @@ public class ContentService {
     this.cloudfrontDomain = cloudfrontDomain;
   }
 
+  /**
+   * Apply a batch of image metadata updates, collecting per-item failures into the response rather
+   * than aborting the batch.
+   *
+   * <p>Two invariants are established before the per-item loop and relied on inside it: {@link
+   * ContentImageUpdateValidator#validate} rejects any request with a null id, and the containment
+   * check over {@code imageMap} throws for any id with no matching row. So inside the loop {@code
+   * update.getId()} is non-null and {@code imageMap.get(id)} is present.
+   *
+   * @param updates the image updates to apply; must be non-empty and each must carry an id
+   * @return updated image models, per-item errors, and any metadata entities created along the way
+   */
   @Transactional
   @CacheEvict(
       value = "generalMetadata",
@@ -154,15 +166,7 @@ public class ContentService {
     for (ContentImageUpdateRequest update : updates) {
       try {
         Long imageId = update.getId();
-        if (imageId == null) {
-          errors.add("Missing image ID in update request");
-          continue;
-        }
-
         ContentImageEntity image = imageMap.get(imageId);
-        if (image == null) {
-          throw new ResourceNotFoundException("Image not found: " + imageId);
-        }
 
         // Apply basic image metadata updates using the processing util
         // Note: This handles camera, lens, and filmType updates via the util
@@ -210,12 +214,13 @@ public class ContentService {
 
           // Update existing collection relationships (visibility, orderIndex)
           if (collectionUpdate.prev() != null && !collectionUpdate.prev().isEmpty()) {
-            contentMutationUtil.handleContentChildCollectionUpdates(image, collectionUpdate.prev());
+            contentMutationUtil.handleContentChildCollectionUpdates(
+                image.getId(), collectionUpdate.prev());
           }
 
           // Add to new collections if specified
           if (collectionUpdate.newValue() != null && !collectionUpdate.newValue().isEmpty()) {
-            contentMutationUtil.handleAddToCollections(image, collectionUpdate.newValue());
+            contentMutationUtil.handleAddToCollections(image.getId(), collectionUpdate.newValue());
           }
         }
 
@@ -230,9 +235,6 @@ public class ContentService {
       } catch (IllegalArgumentException e) {
         errors.add(e.getMessage());
         log.warn("Entity not found during update: {}", e.getMessage());
-      } catch (ClassCastException e) {
-        errors.add("Content is not an image: " + update.getId());
-        log.warn("Attempted to update non-image Content as image: {}", update.getId());
       } catch (Exception e) {
         errors.add("Error updating image " + update.getId() + ": " + e.getMessage());
         log.error("Error updating image {}: {}", update.getId(), e.getMessage(), e);
@@ -576,7 +578,6 @@ public class ContentService {
       Set<TagEntity> newlyCreatedTags = new HashSet<>();
       Set<TagEntity> updatedTags =
           contentMutationUtil.updateTags(currentTags, request.tags(), newlyCreatedTags);
-      gif.setTags(updatedTags);
       List<Long> updatedTagIds =
           updatedTags.stream()
               .map(TagEntity::getId)
@@ -593,7 +594,6 @@ public class ContentService {
       Set<ContentPersonEntity> updatedPeople =
           contentMutationUtil.updatePeople(
               new HashSet<>(currentPeople), request.people(), new HashSet<>());
-      gif.setPeople(updatedPeople);
       List<Long> updatedPersonIds =
           updatedPeople.stream()
               .map(ContentPersonEntity::getId)
@@ -614,7 +614,6 @@ public class ContentService {
       Set<LocationEntity> updatedLocations =
           contentMutationUtil.updateLocations(
               new HashSet<>(currentLocations), request.locations(), new HashSet<>());
-      gif.setLocations(updatedLocations);
       List<Long> updatedLocationIds =
           updatedLocations.stream()
               .map(LocationEntity::getId)

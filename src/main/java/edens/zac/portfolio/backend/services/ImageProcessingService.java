@@ -586,17 +586,14 @@ public class ImageProcessingService {
         VideoVariantPlanner.VideoVariantPlan plan =
             dims != null
                 ? VideoVariantPlanner.compute(dims[0], dims[1])
-                : new VideoVariantPlanner.VideoVariantPlan(
-                    true,
-                    VideoVariantPlanner.FULL_MAX_LONGEST_SIDE,
-                    true,
-                    VideoVariantPlanner.WEB_MAX_LONGEST_SIDE);
+                : new VideoVariantPlanner.VideoVariantPlan(true, true);
 
         // FULL (2000px master): re-encode only when the source exceeds the cap; otherwise a
         // lossless remux that strips audio + faststart and preserves a good export untouched.
         fullBytes =
             plan.fullNeedsReencode()
-                ? encodeVideoVariant(originalBytes, originalFilename, plan.fullTargetLongestSide())
+                ? encodeVideoVariant(
+                    originalBytes, originalFilename, VideoVariantPlanner.FULL_MAX_LONGEST_SIDE)
                 : remuxVideo(originalBytes, originalFilename);
         gifUrl = uploadToS3(fullBytes, baseName + ".mp4", "video/mp4", PATH_GIF_FULL, year, month);
 
@@ -604,7 +601,8 @@ public class ImageProcessingService {
         // ceiling; otherwise the small full file IS the web file (never upscale).
         if (plan.webIsSeparate()) {
           byte[] webBytes =
-              encodeVideoVariant(originalBytes, originalFilename, plan.webTargetLongestSide());
+              encodeVideoVariant(
+                  originalBytes, originalFilename, VideoVariantPlanner.WEB_MAX_LONGEST_SIDE);
           gifUrlWeb =
               uploadToS3(webBytes, baseName + "-web.mp4", "video/mp4", PATH_GIF_WEB, year, month);
         } else {
