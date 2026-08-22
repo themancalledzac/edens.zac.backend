@@ -10,7 +10,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 
 | Wave | MRs | Status |
 |---|---|---|
-| 1 — Deletions | MR 1a-4 | MR 1a in review; MR 1b split out |
+| 1 — Deletions | MR 1a-4 | MR 1a in review ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b split out |
 | 2 — Bugs | MR 5-9 | not started |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
@@ -41,7 +41,7 @@ The original review put bug fixes first so deletions would rebase cleanly. We in
 
 Zero behavior change. The build is the proof.
 
-## MR 1a — Dead code, compiler-verified (~860 lines) — IN REVIEW
+## MR 1a — Dead code, compiler-verified (862 lines) — IN REVIEW ([PR #159](https://github.com/themancalledzac/edens.zac.backend/pull/159))
 
 Everything checked off here was re-verified by caller-grep across main AND test before deletion.
 
