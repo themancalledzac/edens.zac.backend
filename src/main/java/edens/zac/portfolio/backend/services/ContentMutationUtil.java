@@ -110,15 +110,6 @@ public class ContentMutationUtil {
   }
 
   /**
-   * Convenience overload for callers holding a {@link ContentImageEntity}. Kept for back-compat —
-   * dispatches to the contentId-based variant.
-   */
-  public void handleContentChildCollectionUpdates(
-      ContentImageEntity image, List<Records.ChildCollection> collectionUpdates) {
-    handleContentChildCollectionUpdates(image.getId(), collectionUpdates);
-  }
-
-  /**
    * Add a content block to new collections with specified visibility and orderIndex. Creates join
    * table entries for the content in the specified collections. Works for any content type.
    */
@@ -172,14 +163,6 @@ public class ContentMutationUtil {
           orderIndex,
           visible);
     }
-  }
-
-  /**
-   * Convenience overload for callers holding a {@link ContentImageEntity}. Kept for back-compat.
-   */
-  public void handleAddToCollections(
-      ContentImageEntity image, List<Records.ChildCollection> collections) {
-    handleAddToCollections(image.getId(), collections);
   }
 
   /** Returns the next available orderIndex for a collection (max + 1, or 0 if empty). */

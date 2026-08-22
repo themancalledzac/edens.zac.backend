@@ -18,17 +18,13 @@ public final class VideoVariantPlanner {
 
   /**
    * @param fullNeedsReencode true when longest side > {@link #FULL_MAX_LONGEST_SIDE}; otherwise the
-   *     full variant is a lossless remux.
-   * @param fullTargetLongestSide the box edge to fit the full variant into when re-encoding.
+   *     full variant is a lossless remux. When re-encoding, fit into {@link
+   *     #FULL_MAX_LONGEST_SIDE}.
    * @param webIsSeparate true when longest side > {@link #WEB_MAX_LONGEST_SIDE}; otherwise the web
-   *     variant reuses the full file (input already ≤ 1080, never upscale).
-   * @param webTargetLongestSide the box edge to fit the web variant into when separate.
+   *     variant reuses the full file (input already ≤ 1080, never upscale). When separate, fit into
+   *     {@link #WEB_MAX_LONGEST_SIDE}.
    */
-  public record VideoVariantPlan(
-      boolean fullNeedsReencode,
-      int fullTargetLongestSide,
-      boolean webIsSeparate,
-      int webTargetLongestSide) {}
+  public record VideoVariantPlan(boolean fullNeedsReencode, boolean webIsSeparate) {}
 
   /**
    * Compute the variant plan for a video with the given pixel dimensions.
@@ -41,7 +37,6 @@ public final class VideoVariantPlanner {
     int longest = Math.max(width, height);
     boolean fullReencode = longest > FULL_MAX_LONGEST_SIDE;
     boolean webSeparate = longest > WEB_MAX_LONGEST_SIDE;
-    return new VideoVariantPlan(
-        fullReencode, FULL_MAX_LONGEST_SIDE, webSeparate, WEB_MAX_LONGEST_SIDE);
+    return new VideoVariantPlan(fullReencode, webSeparate);
   }
 }

@@ -10,7 +10,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 
 | Wave | MRs | Status |
 |---|---|---|
-| 1 — Deletions | MR 1a-4 | MR 1a in review ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b split out |
+| 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b done, all four claims held; **MR 2 is next** |
 | 2 — Bugs | MR 5-9 | not started |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
@@ -48,8 +48,8 @@ Everything checked off here was re-verified by caller-grep across main AND test 
 ### Corrections to the original review
 
 The review counted callers in `src/main` only. Six items it listed as dead are live in the test
-suite, so deleting them is test churn, not dead-code removal. They moved to MR 1b rather than
-inflating a pure-deletion MR:
+suite, so deleting them is test churn, not dead-code removal. They moved to MR 25, where the
+`TestFixtures` work collapses the same call sites, rather than inflating a pure-deletion MR:
 
 - `AuthPrincipal` 4-arg constructor — 1 main caller (`SessionService`) and 28 test call sites. Not
   dead. Its javadoc claimed "30 existing call sites", which was roughly right; the stale count was
@@ -96,48 +96,69 @@ One item was found dead that the review missed: `CollectionRepository.findAllByO
 - [x] `services/CollectionService.java:492-505` — `findById(Long)`. Test-only.
 - [x] `services/validator/ContentImageUpdateValidator.java:48-56` — `validateFilmFormatRequired`. Zero callers.
 - [x] `services/MetadataService.java:420-430` — `findOrCreateLocation`, `findLocationById`. Zero callers.
-- [ ] `services/ContentService.java:825-829` — `resolveCollectionDownloadEntries` 2-arg overload. MOVED TO MR 1b (5 test call sites).
+- [ ] `services/ContentService.java:825-829` — `resolveCollectionDownloadEntries` 2-arg overload. MOVED TO MR 25 (5 test call sites).
 - [ ] `services/ContentService.java:165-168, 171-173, 241-243` — three unreachable guard branches in `updateImages`. MOVED TO MR 1b: proving unreachability is a control-flow judgment, not a mechanical deletion.
 - [ ] `services/ContentService.java:587, 604, 625` — `updateGif`'s `setTags`/`setPeople`/`setLocations` dead writes. MOVED TO MR 1b.
 - [x] `services/ContentService.java:98-104` — `createTag`/`createPerson` pass-throughs. Have `AdminController` call `MetadataService` directly.
 - [ ] `services/ContentMutationUtil.java:112-119, 177-183` — back-compat entity-typed overloads. MOVED TO MR 1b (requires changing two call sites, not just deleting).
 - [x] `types/CollectionVisibility.java:37-39` — `requiresLocalEnv()`. Only its own test calls it.
 - [x] `services/ImageProcessingService.java:143-149` — `prepareImageForUpload` single-arg overload. Zero callers.
-- [ ] `model/DownloadResolution.java:13-14` — `extension` component written, never read; docblock also stale. MOVED TO MR 1b (10 test sites).
+- [ ] `model/DownloadResolution.java:13-14` — `extension` component written, never read; docblock also stale. MOVED TO MR 25 (10 test sites).
 - [ ] `services/VideoVariantPlanner.java:27-46` — `VideoVariantPlan`'s target-side fields are always the constants. MOVED TO MR 1b (a record reshape, not a deletion).
 
 ### Dead constructors and config (~120 lines)
 
 - [x] `model/CollectionRequests.java:303-305` — the 2-arg `GalleryAccessRequest` constructor. Zero callers anywhere; every site passes the propagation flag.
 - [x] `model/AuthPrincipal.java` — removed the stale "30 existing call sites" claim from the 4-arg constructor's javadoc. The constructor itself stays (see corrections above).
-- [ ] `model/CollectionRequests.java:119-160` — the 17-arg `Update` constructor. MOVED TO MR 1b.
-- [ ] `model/DiskUploadRequest.java:44-46` — the 3-arg `FileEntry` constructor. MOVED TO MR 1b.
+- [ ] `model/CollectionRequests.java:119-160` — the 17-arg `Update` constructor. MOVED TO MR 25.
+- [ ] `model/DiskUploadRequest.java:44-46` — the 3-arg `FileEntry` constructor. MOVED TO MR 25.
 - [x] `config/WebConfigProd.java` — `addCorsMappings` registers nothing. The class's only runtime effect is a log line. Delete the file.
 - [x] `config/ProdSecretGuard.java:15-19` — `@RequiredArgsConstructor` with no final fields generates nothing. Delete the annotation and move the `@Value` to a constructor parameter.
 - [x] `config/ImageIoConfig.java:15-42` — `registerPlugins` registers nothing, it only logs SPI discovery. Rename to say what it does; keep the diagnostics.
 - [ ] V19's `admin_home_tile.cover_image_id` column: written by nothing, read by nothing (`AdminHomeService` resolves covers by strategy). DEFERRED — a schema change does not belong in a pure-deletion MR. Drop it in a migration or document it as reserved.
 
-## MR 1b — Dead code, test-coupled and behavior-adjacent (~150 lines)
+## MR 1b — Dead code, behavior-adjacent (~60 lines) — DONE
 
-Split out of MR 1a so that MR stayed a pure, compiler-proved deletion. Each item here either
-rewrites test call sites or requires a correctness judgment, so each wants its own review.
+Split out of MR 1a because each item needs a correctness judgment rather than a caller-grep.
+All four claims were verified against the control flow across `src/main` AND `src/test`, and all
+four held. Build green: 1365 tests, 0 failures, 0 checkstyle violations.
 
-Constructors that are main-dead but test-live. Deleting them means rewriting call sites to pass
-explicit nulls. Consider doing this AFTER MR 25's `TestFixtures` builders, which collapse most of
-these call sites anyway — the two changes fight each other if done in the wrong order.
+- [x] `services/ContentService.updateImages` — all three guard branches confirmed unreachable, deleted.
+  - `imageId == null`: `ContentImageUpdateValidator.validate` runs over every update in a loop
+    *before* the per-item loop and throws on a null id. Nothing reaches the guard.
+  - `image == null`: every non-null id is in `imageIds`, and the pre-loop containment check throws
+    `ResourceNotFoundException` for any id missing from `imageMap`. `Collectors.toMap` rejects null
+    values, so a present key cannot map to null. Unreachable *because* of the first guard's
+    invariant, so the two had to be judged together rather than independently.
+  - `catch (ClassCastException)`: `findImagesByIds` joins `content_image`, and
+    `CONTENT_IMAGE_ROW_MAPPER` hardcodes `.contentType(ContentType.IMAGE)` rather than reading the
+    column. So `convertRegularContentEntityToModel` always takes the `case IMAGE` arm, whose return
+    type is `ContentModels.Image`, and the outer cast cannot fail. No other statement in the try
+    block casts. A hypothetical CCE now lands in the general `catch (Exception)` arm, which records
+    the same per-item error.
+  - The two invariants the guards stood for are now recorded in the `updateImages` docblock. Without
+    that, the absence of a null check reads as an oversight.
+- [x] `services/ContentService.updateGif` — `setTags`/`setPeople`/`setLocations` confirmed dead, deleted.
+  `saveGif`'s UPDATE branch writes `content_gif` scalars only. The response is rebuilt by
+  `convertEntityToModel`, which reloads the row through `findGifById` into a *new* instance, and
+  `convertGifToModel` re-queries tags/people/locations itself. The `gif` instance the setters wrote
+  to is discarded. The merge results are still used to persist the join rows -- only the setter
+  calls went.
+- [x] `services/ContentMutationUtil` — both entity-typed overloads deleted, call sites pass ids.
+  The review predicted two call sites; there were two in main plus seven in
+  `ContentMutationUtilTest`. Unlike the MR 25 constructors, this test rewrite was a strict
+  improvement (`image` to `1L`) and let nine now-pointless `ContentImageEntity.builder()` lines go
+  with it, so it did not need to wait on `TestFixtures`. `RuleBMixedContentIntegrationTest` already
+  used the id form.
+- [x] `services/VideoVariantPlanner` — `VideoVariantPlan` shrunk to the two booleans.
+  Both construction sites passed the constants: `compute` and the probe-failure fallback in
+  `ImageProcessingService`. The two read sites now reference `FULL_MAX_LONGEST_SIDE` /
+  `WEB_MAX_LONGEST_SIDE` directly. `VideoVariantPlannerTest`'s two target-side assertions became
+  tautologies and went.
 
-- [ ] `model/CollectionRequests.java` — 17-arg `Update` constructor, 23 test call sites.
-- [ ] `model/DiskUploadRequest.java` — 3-arg `FileEntry` constructor, ~20 test call sites.
-- [ ] `model/AuthPrincipal.java` — 4-arg constructor, 28 test call sites plus `SessionService`. Weigh whether appending `, null` at 29 sites is an improvement; it may not be.
-- [ ] `services/ContentService.java` — `resolveCollectionDownloadEntries` 2-arg overload, 5 test call sites.
-- [ ] `model/DownloadResolution.java` — the `extension` component: 4 construction sites and 6 assertions in test, never read in main. Also rewrite the stale docblock (downloads are presigned redirects, they do not "stream the response").
-
-Behavior-adjacent. Read the control flow and prove the claim before cutting.
-
-- [ ] `services/ContentService.java:165-168, 171-173, 241-243` — three guard branches in `updateImages` the review calls unreachable: the validator already threw, the map lookup already threw, and the ClassCastException cannot occur. Verify each independently. If a branch cannot be proved unreachable, leave it and record why.
-- [ ] `services/ContentService.java:587, 604, 625` — `updateGif`'s `setTags`/`setPeople`/`setLocations`. The claim is that `saveGif` persists scalars only and the response reloads from the DB, making these dead writes. Confirm against `saveGif` before deleting.
-- [ ] `services/ContentMutationUtil.java:112-119, 177-183` — the two entity-typed overloads. Their two call sites can pass ids instead; that is a call-site change, so it needs its own test pass.
-- [ ] `services/VideoVariantPlanner.java:27-46` — shrink `VideoVariantPlan` to the two booleans and inline the constants at the read sites.
+Test-coupled constructor removals that were also split out of MR 1a moved to MR 25, not here --
+see "Main-dead, test-live constructors" there. They rewrite the same call sites that MR 25's
+`TestFixtures` builders collapse, so doing them separately is wasted work.
 
 ## MR 2 — Build and config rot (~150 lines)
 
@@ -383,6 +404,18 @@ Consolidation #1 (one client-IP resolver) ships with bug #3 in MR 5.
 - [ ] The four typeless-migration integration tests (V50Backfill 188, V51Prep 282, V52Drop 72, TypelessRead 113) each boot containers to prove transition states that shipped in March and cannot regress. Consolidate into one end-state IT; keep `CollectionTypeAbsentFromWireTest` as the wire guard. ~400 lines.
 - [ ] `ImageUploadPipelineServiceTest`'s 1:1 verify ratio suggests some verify-only tests worth a pass.
 
+### Main-dead, test-live constructors (carried from MR 1a)
+
+These have zero `src/main` callers but many in test, so deleting them rewrites working call sites to
+pass explicit nulls. Do them in the SAME pass as the `TestFixtures` builders above, which collapse
+the same call sites -- done separately, the two changes fight each other.
+
+- [ ] `model/CollectionRequests.java` — 17-arg `Update` constructor, 23 test call sites.
+- [ ] `model/DiskUploadRequest.java` — 3-arg `FileEntry` constructor, ~20 test call sites.
+- [ ] `model/AuthPrincipal.java` — 4-arg constructor, 28 test call sites plus `SessionService`. Weigh whether appending `, null` at 29 sites is an improvement; it may not be. Leaving it is a legitimate outcome.
+- [ ] `services/ContentService.java` — `resolveCollectionDownloadEntries` 2-arg overload, 5 test call sites.
+- [ ] `model/DownloadResolution.java` — the `extension` component: 4 construction sites and 6 assertions in test, never read in main. Also rewrite the stale docblock (downloads are presigned redirects, they do not "stream the response").
+
 ## MR 26 — Coverage gaps
 
 These are worth more than the bloat they replace.
@@ -434,6 +467,7 @@ Worth a targeted check; not asserted as findings.
 - [ ] `PersonRepository.findAccountUserIdsByIds` being dead may mean the only-accounts-get-grants rule lost its enforcement point. Confirm before deleting (blocks an MR 5 item).
 - [ ] `collection.rows_wide` is write-and-echo only. Confirm the frontend reads it.
 - [ ] `deleteImages`/`deleteGif` delete from S3 before the DB write inside the transaction (`ContentService:380, 543`). A DB failure orphans the row's URLs; consider afterCommit S3 deletes.
+- [ ] `updateImages` builds `imageMap` with `Collectors.toMap`, which throws `IllegalStateException` on a duplicate key. Two updates for the same image id in one request therefore 500 before any work happens, rather than being merged or rejected with a 400. Found while proving the MR 1b guards unreachable; not fixed there because it is a behavior change, not a deletion.
 - [ ] `updateImages` reports per-item errors inside one transaction. Confirm a mid-item `DataAccessException` cannot leave an item half-applied (needs a test).
 - [ ] `contentDisposition` (`DownloadUrlService:126-127`) does not escape quotes in filenames. Depends on what `sanitizeFilename` strips.
 - [ ] `TagService.convertTagToCollection` briefly persists under a temp slug, visible to a concurrent reader, and may burn a `-1` suffix.

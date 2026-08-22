@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.services;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,8 +13,6 @@ class VideoVariantPlannerTest {
     VideoVariantPlan plan = VideoVariantPlanner.compute(7680, 4320);
     assertTrue(plan.fullNeedsReencode(), "8K longest > 2000 → full re-encode");
     assertTrue(plan.webIsSeparate(), "8K longest > 1080 → separate web encode");
-    assertEquals(2000, plan.fullTargetLongestSide());
-    assertEquals(1080, plan.webTargetLongestSide());
   }
 
   @Test
