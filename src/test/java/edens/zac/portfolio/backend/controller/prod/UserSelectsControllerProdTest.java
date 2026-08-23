@@ -125,4 +125,31 @@ class UserSelectsControllerProdTest {
 
     verify(userSelectsService, never()).listAll(anyLong());
   }
+
+  @Test
+  void addRejectsAFullyNullBody() throws Exception {
+    // Without @Valid + @NotNull, "{}" reached the service as add(userId, null, null).
+    mockMvc
+        .perform(
+            post("/api/read/user/selects")
+                .with(asUser(client))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isBadRequest());
+
+    verify(userSelectsService, never()).add(anyLong(), anyLong(), anyLong());
+  }
+
+  @Test
+  void addRejectsAMissingContentId() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/read/user/selects")
+                .with(asUser(client))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"collectionId\":3}"))
+        .andExpect(status().isBadRequest());
+
+    verify(userSelectsService, never()).add(anyLong(), anyLong(), anyLong());
+  }
 }

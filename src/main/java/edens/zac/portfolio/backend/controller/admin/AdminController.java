@@ -233,7 +233,7 @@ class AdminController {
   // Map<String,Object> -> List<ContentModels.Image> cast below. Both are inherently unchecked.
   @SuppressWarnings("unchecked")
   public ResponseEntity<Map<String, Object>> updateImages(
-      @RequestBody @Valid List<ContentImageUpdateRequest> updates) {
+      @RequestBody List<@Valid ContentImageUpdateRequest> updates) {
     Map<String, Object> response = contentService.updateImages(updates);
 
     List<ContentModels.Image> updatedImages =

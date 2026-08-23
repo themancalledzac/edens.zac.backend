@@ -453,7 +453,7 @@ public class ContentService {
     ContentTextEntity textEntity =
         ContentTextEntity.builder()
             .textContent(request.textContent().trim())
-            .formatType(request.formType() != null ? request.formType().name() : "PLAIN")
+            .formatType(request.formType() != null ? request.formType().getValue() : "plain")
             .build();
 
     // Save the text content

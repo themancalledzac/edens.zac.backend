@@ -5,6 +5,7 @@ import edens.zac.portfolio.backend.entity.UserRatingOverrideEntity;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +27,7 @@ public class UserRatingOverrideService {
    * Upsert {@code user}'s override for {@code contentId} in {@code collectionId} to {@code rating}.
    *
    * @throws IllegalArgumentException if rating is outside 0-5
-   * @throws SecurityException if the user holds no CLIENT membership for the collection
+   * @throws AccessDeniedException if the user holds no CLIENT membership for the collection
    */
   @Transactional
   public void upsert(Long userId, Long collectionId, Long contentId, int rating) {
@@ -34,7 +35,7 @@ public class UserRatingOverrideService {
       throw new IllegalArgumentException("rating must be between 0 and 5, was " + rating);
     }
     if (!collectionAccessService.isClient(userId, collectionId)) {
-      throw new SecurityException(
+      throw new AccessDeniedException(
           "user " + userId + " may not override ratings in collection " + collectionId);
     }
     overrideRepository.upsert(
