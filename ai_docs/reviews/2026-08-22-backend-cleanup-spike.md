@@ -11,7 +11,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
-| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR). **MR 9 is all that remains, and it splits in two -- see its scope note** |
+| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)). **MR 9b, the remaining 12 low-priority fixes, is all that remains of Wave 2** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
@@ -191,8 +191,9 @@ Build green: 1365 tests, 0 failures, 0 checkstyle violations. Test count is unch
   versions; build is green without them.
 - [x] `application.properties` — `spring.codec.max-in-memory-size`, a WebFlux property in a servlet
   app. Deleted as rot. Whether to add a real body cap stays open in MR 11.
-- [ ] `application.properties` lines 1, 11-13 — the `:-` defaults. DEFERRED to MR 9. It is a behavior
-  change, not rot, and MR 9 carries the paired decision about shipping a default DB password at all.
+- [x] `application.properties` lines 1, 11-13 — the `:-` defaults. Deferred to MR 9 and fixed there
+  as bug #9. The paired decision about shipping a default DB password at all is still open; it is
+  recorded under MR 9.
 - [x] `testRequests/` — deleted the directory. All three files were stale Postman fixtures with zero
   references anywhere in the repo. `updateCollection.json` carried `visible`/`priority`/`coverImageUrl`
   (now `visibility`/`rating`/`coverImageId`); `createCollection.json` also carried `type`, dead since
@@ -436,17 +437,56 @@ config. The other 12 are unrelated low-priority fixes spread across controllers,
 S3 streaming, and two DAOs. Ship them as two MRs -- bugs #8 and #9 first, the remaining 12 after --
 rather than one 14-item MR nobody can review.
 
+The split happened. Bugs #8 and #9 shipped as MR 9a
+([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); the remaining 12 items below
+are MR 9b, not started.
+
 Bug #9 is the only item here carrying a decision that is not an implementer's to make. The `:-`
 placeholder fix is mechanical, but it arrives bundled with the question of whether to keep shipping
-a default DB password, and that is a judgment call for the repo owner. Whoever picks this up should
-lay out the options and stop, not decide it mid-MR.
+a default DB password, and that is a judgment call for the repo owner. MR 9a fixed the separators
+and deliberately left that question open -- see the decision item below.
 
-- [ ] Bug #8 (medium). Tomcat maxSwallowSize integer overflow. `config/TomcatConfig.java:18` — `2 * 1024 * 1024 * 1024` overflows to negative, which Tomcat treats as unlimited swallow. Use `Integer.MAX_VALUE` or a deliberate constant.
-- [ ] Bug #9 (medium). Bash-style `:-` defaults in `application.properties` lines 1, 11-13 — `${POSTGRES_HOST:-localhost}` resolves to the literal `-localhost` when unset, because Spring's separator is `:`. Six placeholders. Also reconsider shipping a default DB password at all. Deferred here from MR 2, which
+- [x] Bug #8 (medium). Tomcat maxSwallowSize integer overflow. `config/TomcatConfig.java:18` — `2 * 1024 * 1024 * 1024` overflows to negative, which Tomcat treats as unlimited swallow. Use `Integer.MAX_VALUE` or a deliberate constant.
+  Confirmed by a failing test before the fix: the connector came up with
+  `maxSwallowSize=-2147483648`. Every place Tomcat reads the setting guards it with
+  `maxSwallowSize > -1` (`Http11Processor.checkMaxSwallowSize`, `IdentityInputFilter`,
+  `ChunkedInputFilter`, `BufferedInputFilter`), so the overflow did not raise the 2GB cap, it
+  removed the cap entirely and left Tomcat willing to swallow an unbounded aborted body. Now
+  `Integer.MAX_VALUE`, with both connector values named as constants and the stale `// 2GB` comment
+  gone. Regression test: `TomcatConfigTest`, which applies the customizer to a real connector and
+  asserts the value stays positive.
+- [x] Bug #9 (medium). Bash-style `:-` defaults in `application.properties` lines 1, 11-13 — `${POSTGRES_HOST:-localhost}` resolves to the literal `-localhost` when unset, because Spring's separator is `:`. Six placeholders. Also reconsider shipping a default DB password at all. Deferred here from MR 2, which
   deleted the rot in this file but left this one alone because it is a behavior change: today an
   unset `POSTGRES_HOST` silently yields the literal `-localhost`, and fixing the separator makes it
   actually fall back to `localhost`. Anything currently depending on the broken value changes
   behavior. The paired DB-password decision is flagged in the scope note above.
+
+  All six fixed to Spring's `:` separator. Confirmed by failing tests first: with no environment set,
+  `spring.datasource.url` resolved to `jdbc:postgresql://-localhost:-5432/-edens_zac`,
+  `spring.datasource.username` to `-zedens`, and `spring.profiles.active` to `-default`. Regression
+  test: `ApplicationPropertiesPlaceholderTest`, which also scans both shipped property files for the
+  `${VAR:-` spelling. It reads `src/main/resources` directly, because
+  `src/test/resources/application.properties` shadows the shipped file on the test classpath and a
+  `ClassPathResource` lookup would pass vacuously. `application-dev.properties` was already clean.
+
+  Blast radius turned out smaller than the deferral note assumed: in every deployed path these six
+  placeholders are shadowed and never consulted. `docker-compose.yml` injects
+  `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`
+  unconditionally, and sets `SPRING_PROFILES_ACTIVE` with `:?` so an unset value aborts the compose
+  run outright; CI sets the same four. The defaults are reachable only when Spring runs directly
+  (`mvn spring-boot:run`, IDE, bare `java -jar`) without those variables, and nothing could have
+  depended on the old values there -- `//-localhost:-5432` is not a connectable URL. The `:-`
+  spelling elsewhere in the repo (`docker-compose.yml`, `deploy.sh`, `scripts/*.sh`) is correct and
+  was left alone; bash is what interprets those.
+- [ ] Decision, still open: whether to ship a default DB password at all. MR 9a fixed the separator
+  and preserved the existing default, so `spring.datasource.password` now falls back to `password`
+  instead of `-password`. That is the one line where the fix makes a default more usable rather than
+  less. Options: (a) keep `${POSTGRES_PASSWORD:password}` as-is; (b) drop the default entirely with
+  `${POSTGRES_PASSWORD}`, which fails the context at startup when unset, matching how
+  `ACCESS_TOKEN_SECRET` and the AWS keys already behave in this file; (c) `${POSTGRES_PASSWORD:}`,
+  which defers the failure to the first connection attempt. Prod is unaffected either way -- compose
+  shadows this property on every deploy -- so the real question is what a local run should do when
+  the variable is missing.
 - [ ] `downloadCollection` bypasses the response machinery with raw `sendError`/`setStatus` (`ContentDownloadControllerProd.java:94-158`). Convert to `ResponseEntity<Void>` like its sibling `downloadImage`.
 - [ ] Admin message delete returns 204 for a nonexistent id (`MessagesControllerAdmin.java:49-54`). Return 404 on 0 rows, like `deleteRole`.
 - [ ] Text-content creation maps a service null to 400 instead of 500 (`AdminController.java:224-226`).
