@@ -11,7 +11,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
-| 2 — Bugs | MR 5-9 | MR 5-7 done; **MR 8 is next** |
+| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), stacked on #166). **MR 8 is next** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
