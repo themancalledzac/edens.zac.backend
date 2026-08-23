@@ -431,8 +431,22 @@ One finding in this MR was wrong as written. See bug #4.
 
 ## MR 9 — Config bugs and low-priority fixes
 
+Scope note. The heading undersells what is in here: 14 items, of which only bug #8 and bug #9 are
+config. The other 12 are unrelated low-priority fixes spread across controllers, image processing,
+S3 streaming, and two DAOs. Ship them as two MRs -- bugs #8 and #9 first, the remaining 12 after --
+rather than one 14-item MR nobody can review.
+
+Bug #9 is the only item here carrying a decision that is not an implementer's to make. The `:-`
+placeholder fix is mechanical, but it arrives bundled with the question of whether to keep shipping
+a default DB password, and that is a judgment call for the repo owner. Whoever picks this up should
+lay out the options and stop, not decide it mid-MR.
+
 - [ ] Bug #8 (medium). Tomcat maxSwallowSize integer overflow. `config/TomcatConfig.java:18` — `2 * 1024 * 1024 * 1024` overflows to negative, which Tomcat treats as unlimited swallow. Use `Integer.MAX_VALUE` or a deliberate constant.
-- [ ] Bug #9 (medium). Bash-style `:-` defaults in `application.properties` lines 1, 11-13 — `${POSTGRES_HOST:-localhost}` resolves to the literal `-localhost` when unset, because Spring's separator is `:`. Six placeholders. Also reconsider shipping a default DB password at all.
+- [ ] Bug #9 (medium). Bash-style `:-` defaults in `application.properties` lines 1, 11-13 — `${POSTGRES_HOST:-localhost}` resolves to the literal `-localhost` when unset, because Spring's separator is `:`. Six placeholders. Also reconsider shipping a default DB password at all. Deferred here from MR 2, which
+  deleted the rot in this file but left this one alone because it is a behavior change: today an
+  unset `POSTGRES_HOST` silently yields the literal `-localhost`, and fixing the separator makes it
+  actually fall back to `localhost`. Anything currently depending on the broken value changes
+  behavior. The paired DB-password decision is flagged in the scope note above.
 - [ ] `downloadCollection` bypasses the response machinery with raw `sendError`/`setStatus` (`ContentDownloadControllerProd.java:94-158`). Convert to `ResponseEntity<Void>` like its sibling `downloadImage`.
 - [ ] Admin message delete returns 204 for a nonexistent id (`MessagesControllerAdmin.java:49-54`). Return 404 on 0 rows, like `deleteRole`.
 - [ ] Text-content creation maps a service null to 400 instead of 500 (`AdminController.java:224-226`).
