@@ -11,8 +11,8 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
-| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done. **Wave 2 complete.** |
-| 3 — Security hardening | MR 10-11 | not started |
+| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
+| 3 — Security hardening | MR 10-11 | not started. **Next up: MR 10.** |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
@@ -31,6 +31,30 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Dead/boilerplate tests | 7 findings | ~2,700 (+700 optional) |
 | Build/config rot | 6 findings | ~150 |
 
+## Working rules
+
+Learned while doing the MRs; they apply to every item still open, not just the one that taught them.
+
+1. **A property default in `application.properties` is probably dead.** `docker-compose.yml` injects
+   `SPRING_DATASOURCE_*`, `EMAIL_*`, `WEBAUTHN_*`, `ADMIN_*` and more unconditionally, and an
+   unconditionally-injected env var outranks the Spring property via relaxed binding. Before treating
+   any config default as live, grep `docker-compose.yml` for the same key. MR 9's bug #9 looked like
+   a risky behavior change until this was checked; it turned out the six placeholders are never
+   consulted in any deployed path. `docker-compose.yml`'s own comment at the `EMAIL_*` block spells
+   the rule out.
+2. **`src/test/resources/application.properties` shadows the shipped file on the test classpath.**
+   Any test asserting on shipped config must read `src/main/resources` directly. A
+   `ClassPathResource("application.properties")` lookup silently reads the test stub and passes
+   vacuously. The first draft of `ApplicationPropertiesPlaceholderTest` did exactly that and went
+   green against the unfixed bug.
+3. **`GlobalExceptionHandler` maps `IllegalArgumentException` AND `IllegalStateException` to 400.**
+   Only the catch-all `@ExceptionHandler(Exception.class)` produces a 500. So for any remaining
+   "wrong status" item: to make something a 400 use `IllegalStateException`, and to make something a
+   500 a bare `RuntimeException` is the only route without adding a new exception type. Do not assume
+   `IllegalStateException` means "server broke" here.
+4. **Line numbers in this doc are from the `8c28cf3` baseline and drift as MRs land.** Find symbols
+   by name. Re-verify a `file:line` before quoting it as evidence in a PR description.
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collides, and it is handled: `PersonRepository.deleteById` is listed under both MR 1 and bug #1. It stays until MR 5 — it has a live caller, so it is dangerous code, not dead code.
@@ -41,7 +65,7 @@ The original review put bug fixes first so deletions would rebase cleanly. We in
 
 Zero behavior change. The build is the proof.
 
-## MR 1a — Dead code, compiler-verified (862 lines) — IN REVIEW ([PR #159](https://github.com/themancalledzac/edens.zac.backend/pull/159))
+## MR 1a — Dead code, compiler-verified (862 lines) — DONE ([PR #159](https://github.com/themancalledzac/edens.zac.backend/pull/159))
 
 Everything checked off here was re-verified by caller-grep across main AND test before deletion.
 
@@ -439,7 +463,8 @@ rather than one 14-item MR nobody can review.
 
 The split happened. Bugs #8 and #9 shipped as MR 9a
 ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); the remaining 12 items
-shipped as MR 9b. **MR 9 is complete, and with it Wave 2.**
+shipped as MR 9b ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173), 22 files,
++707/-145). **MR 9 is complete, and with it Wave 2.**
 
 Bug #9 is the only item here carrying a decision that is not an implementer's to make. The `:-`
 placeholder fix is mechanical, but it arrives bundled with the question of whether to keep shipping
@@ -561,6 +586,18 @@ and deliberately left that question open -- see the decision item below.
 
 ---
 
+## Session log
+
+- 2026-08-22 — shipped MR 5-8 and bug #6 (#165, #166, #168, #169, #170). Wave 1 already complete.
+- 2026-08-22 — recorded MR 9's real scope and split it in two (#171).
+- 2026-08-22 — shipped MR 9a, bugs #8 and #9 (#172). Decided: keep the default DB password. Corrected
+  the doc's premise that bug #9 was a risky behavior change. Next: MR 9b.
+- 2026-08-22 — shipped MR 9b, the remaining 12 items (#173). **Wave 2 complete.** Corrected MR 1a's
+  stale IN REVIEW heading and MR 11's already-deleted codec item. Added the Working rules section.
+  Next: MR 10.
+
+---
+
 # Wave 3 — Security hardening
 
 ## Posture summary
@@ -575,13 +612,40 @@ On the standing X-Forwarded-For question: mostly fixed, one remnant. Every consu
 
 ## MR 10 — Gallery password subsystem
 
+Next up. It follows MR 9a's shape: a mechanical fix bundled with a decision that is not an
+implementer's to make. Take the decision to the repo owner rather than settling it mid-MR.
+
+Why this one next: Wave 3 has only two MRs, and MR 10 is the one with a real design question in it.
+MR 11 is mostly small and one of its four items already turned out half-done. Also, the tracker's
+own posture summary names the gallery-password subsystem as one of only two weak clusters in an
+otherwise strong security posture, and the other one (the client-IP trust seam) already closed in
+MR 5.
+
+**Guardrail: do not hash the stored gallery password.** This is the obvious-looking fix and it is
+wrong here. `passwordFingerprint` HMACs the plaintext password so that two galleries sharing a
+password produce the same fingerprint, which is what lets one unlock cookie open a whole password
+group without storing any group identifier. bcrypt is salted, so hashing the stored value destroys
+that property and takes the shared-unlock feature with it. Leave the plaintext storage alone and
+report what changing it would cost — if the fingerprint feature is worth less than the plaintext
+risk, that is the owner's call to make with the numbers in front of them, not a change to slip into
+a cleanup MR.
+
+Verified 2026-08-22, line refs below still resolve: the plaintext compare is
+`ClientGalleryAuthService.java:68`, `generateAccessToken` is at 77, `validateAccessToken` at 92,
+`passwordFingerprint` at 133, `generatePasswordAccessToken` at 147, `validatePasswordAccessToken`
+at 164.
+
+Note on the second item: the file already uses `MessageDigest.isEqual` for both HMAC comparisons
+(lines 117 and 182). Only the password equality at line 68 is a plain `.equals()`, so that item is a
+one-line change, not a sweep.
+
 - [ ] Decide and record: gallery passwords are stored and compared in plaintext (`services/ClientGalleryAuthService.java:59-68` and flows). The HMAC fingerprint feature structurally requires recoverable plaintext, so this is a design constraint. Either accept it knowingly and document it, or redesign the fingerprint feature.
 - [ ] At minimum, switch the compare to `MessageDigest.isEqual` for consistency with the rest of the codebase.
 - [ ] Changing a gallery password does not revoke issued per-slug cookies (`ClientGalleryAuthService.java:77-82, 92-122`). The HMAC payload is `slug|expiry` and does not bind the password, so a locked-out visitor keeps access for up to 24h. Bind the password fingerprint, or a version counter, into the payload.
 
 ## MR 11 — Public surface hardening
 
-- [ ] `spring.codec.max-in-memory-size=64KB` (`application.properties:72-73`) is a WebFlux property in a servlet app. The "oversized JSON defense" it claims does not exist; the public endpoint accepts bodies up to Jackson's 20MB string default. Delete it. If a cap is wanted, a small filter on `/api/public/**` rejecting Content-Length > 16KB is the honest version.
+- [ ] ~~`spring.codec.max-in-memory-size=64KB` (`application.properties:72-73`) is a WebFlux property in a servlet app.~~ **The deletion already happened in MR 2** ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); verified absent from `application.properties` on 2026-08-22. What remains open is only the second half: the public endpoint still accepts bodies up to Jackson's 20MB string default, so if a cap is wanted, a small filter on `/api/public/**` rejecting Content-Length > 16KB is the honest version. Decide whether that cap is worth adding at all.
 - [ ] `IllegalStateException` handler echoes internal messages to clients as 400s (`GlobalExceptionHandler.java:74-79`; throwers include `WebAuthnService.java:207`, `JdbcUserCredentialRepository.java:49`). Return a generic message, or split "bad request" from "broken invariant".
 - [ ] Contact-message table has no global growth cap. The per-email limit uses the attacker-chosen email and the per-IP limit allows 500/h. Verified: no SES send is triggered by the public endpoint, so there is no dollar cost, just DB and inbox spam. Add one more Bucket4j bucket as a daily global cap.
 - [ ] Share and invite raw tokens travel as URL path segments and will sit in access logs (`ShareControllerProd.java:55-66`, `InviteController.java:51-52, 75-78`). Accepted design for shareability; keep log retention short. No code change unless the decision changes.
