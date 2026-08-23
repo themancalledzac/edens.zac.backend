@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.DisplayMode;
 import jakarta.validation.ConstraintViolation;
@@ -11,8 +12,6 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,8 +27,7 @@ class CollectionUpdateRequestTest {
   /**
    * Build Update with only non-null args; order: id, title, slug, description, location,
    * collectionDate, clearCollectionDate, visibility, displayMode, contentPerPage, rowsWide,
-   * coverImageId, tags, people, collections. Rating is always passed as null here -- the field is
-   * exercised separately where needed.
+   * coverImageId, tags, people, collections. Rating is always passed as null.
    */
   private static CollectionRequests.Update update(
       Long id,
@@ -71,713 +69,6 @@ class CollectionUpdateRequestTest {
   void setUp() {
     ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
     validator = factory.getValidator();
-  }
-
-  @Nested
-  @DisplayName("Builder Pattern Tests")
-  class BuilderPatternTests {
-
-    @Test
-    @DisplayName("Should create DTO with all valid fields using builder")
-    void shouldCreateDTOWithAllValidFields() {
-      LocalDate today = LocalDate.now();
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              "Updated Client Gallery",
-              "updated-client-gallery",
-              "Updated professional client gallery",
-              new CollectionRequests.LocationUpdate(null, List.of("Updated Location"), null),
-              today,
-              null,
-              CollectionVisibility.LISTED,
-              null,
-              25,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      assertNotNull(dto);
-      assertEquals(1L, dto.id());
-      assertEquals("Updated Client Gallery", dto.title());
-      assertEquals("updated-client-gallery", dto.slug());
-      assertEquals("Updated professional client gallery", dto.description());
-      assertNotNull(dto.locations());
-      assertEquals(List.of("Updated Location"), dto.locations().newValue());
-      assertEquals(today, dto.collectionDate());
-      assertEquals(CollectionVisibility.LISTED, dto.visibility());
-      assertEquals(25, dto.contentPerPage());
-    }
-
-    @Test
-    @DisplayName("Should create DTO with minimal fields for partial update")
-    void shouldCreateDTOWithMinimalFields() {
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              "Updated Title",
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      assertNotNull(dto);
-      assertEquals(1L, dto.id());
-      assertEquals("Updated Title", dto.title());
-      assertNull(dto.slug());
-      assertNull(dto.contentPerPage());
-    }
-
-    @Test
-    @DisplayName("Should create DTO with only content operations")
-    void shouldCreateDTOWithOnlyContentOperations() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
-              null);
-
-      assertNotNull(dto);
-      assertEquals(1L, dto.id());
-      assertNull(dto.title());
-    }
-
-    @Test
-    @DisplayName("Should create DTO with all nulls (validation will fail for id)")
-    void shouldCreateDTOWithNoArgsConstructor() {
-      CollectionRequests.Update dto =
-          update(
-              null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-              null);
-
-      assertNotNull(dto);
-      assertNull(dto.id());
-      assertNull(dto.title());
-      assertNull(dto.contentPerPage());
-    }
-  }
-
-  @Nested
-  @DisplayName("Content Per Page Validation Tests")
-  class ContentPerPageValidationTests {
-
-    @Test
-    @DisplayName("Should accept valid contentPerPage")
-    void shouldAcceptValidContentPerPage() {
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              "Portfolio",
-              "portfolio",
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              30,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertEquals(30, dto.contentPerPage());
-    }
-
-    @Test
-    @DisplayName("Should accept null contentPerPage for partial updates")
-    void shouldAcceptNullContentPerPage() {
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              "Art Gallery",
-              "art-gallery",
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNull(dto.contentPerPage());
-    }
-
-    @Test
-    @DisplayName("Should reject contentPerPage below minimum")
-    void shouldRejectContentPerPageBelowMin() {
-      CollectionRequests.Update dto =
-          update(
-              1L, "Blog", "blog", null, null, null, null, null, null, 0, null, null, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertFalse(violations.isEmpty());
-      assertTrue(
-          violations.stream()
-              .anyMatch(v -> v.getMessage().contains("Content per page must be 1 or greater")));
-    }
-
-    @Test
-    @DisplayName("Should accept contentPerPage at minimum boundary")
-    void shouldAcceptContentPerPageAtMinBoundary() {
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              "Portfolio",
-              "portfolio",
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              1,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-    }
-  }
-
-  @Nested
-  @DisplayName("Display Mode Tests")
-  class DisplayModeTests {
-
-    @Test
-    @DisplayName("Should accept CHRONOLOGICAL display mode")
-    void shouldAcceptChronologicalDisplayMode() {
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              DisplayMode.CHRONOLOGICAL,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertEquals(DisplayMode.CHRONOLOGICAL, dto.displayMode());
-    }
-
-    @Test
-    @DisplayName("Should accept ORDERED display mode")
-    void shouldAcceptOrderedDisplayMode() {
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              DisplayMode.ORDERED,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertEquals(DisplayMode.ORDERED, dto.displayMode());
-    }
-
-    @Test
-    @DisplayName("Should accept null display mode for partial updates")
-    void shouldAcceptNullDisplayMode() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNull(dto.displayMode());
-    }
-  }
-
-  @Nested
-  @DisplayName("Cover Image Tests")
-  class CoverImageTests {
-
-    @Test
-    @DisplayName("Should accept valid cover image ID")
-    void shouldAcceptValidCoverImageId() {
-      Long imageId = 123L;
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, imageId, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertEquals(imageId, dto.coverImageId());
-    }
-
-    @Test
-    @DisplayName("Should accept null cover image for partial updates")
-    void shouldAcceptNullCoverImage() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNull(dto.coverImageId());
-    }
-
-    @Test
-    @DisplayName("Should accept cover image ID of zero to clear cover image")
-    void shouldAcceptCoverImageIdZero() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, 0L, null, null, null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertEquals(0L, dto.coverImageId());
-    }
-
-    @Test
-    @DisplayName("Should accept valid cover image ID values")
-    void shouldAcceptValidCoverImageIdValues() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, 456L, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertEquals(456L, dto.coverImageId());
-    }
-  }
-
-  @Nested
-  @DisplayName("Tag Update Tests")
-  class TagUpdateTests {
-
-    @Test
-    @DisplayName("Should accept tag updates with prev pattern")
-    void shouldAcceptTagUpdatesWithPrev() {
-      CollectionRequests.TagUpdate tagUpdate =
-          new CollectionRequests.TagUpdate(Arrays.asList(1L, 2L, 3L), null, null);
-
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.tags());
-      assertEquals(3, dto.tags().prev().size());
-    }
-
-    @Test
-    @DisplayName("Should accept tag updates with newValue pattern")
-    void shouldAcceptTagUpdatesWithNewValue() {
-      CollectionRequests.TagUpdate tagUpdate =
-          new CollectionRequests.TagUpdate(
-              null, Arrays.asList("landscape", "nature", "photography"), null);
-
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.tags());
-      assertEquals(3, dto.tags().newValue().size());
-    }
-
-    @Test
-    @DisplayName("Should accept tag updates with remove pattern")
-    void shouldAcceptTagUpdatesWithRemove() {
-      CollectionRequests.TagUpdate tagUpdate =
-          new CollectionRequests.TagUpdate(null, null, Arrays.asList(5L, 10L));
-
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.tags());
-      assertEquals(2, dto.tags().remove().size());
-    }
-
-    @Test
-    @DisplayName("Should accept tag updates with all patterns combined")
-    void shouldAcceptTagUpdatesWithAllPatterns() {
-      CollectionRequests.TagUpdate tagUpdate =
-          new CollectionRequests.TagUpdate(
-              Arrays.asList(1L, 2L), Arrays.asList("new-tag-1", "new-tag-2"), Arrays.asList(3L));
-
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, tagUpdate, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.tags());
-      assertEquals(2, dto.tags().prev().size());
-      assertEquals(2, dto.tags().newValue().size());
-      assertEquals(1, dto.tags().remove().size());
-    }
-
-    @Test
-    @DisplayName("Should accept null tags for partial updates")
-    void shouldAcceptNullTags() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNull(dto.tags());
-    }
-  }
-
-  @Nested
-  @DisplayName("Person Update Tests")
-  class PersonUpdateTests {
-
-    @Test
-    @DisplayName("Should accept person updates with prev pattern")
-    void shouldAcceptPersonUpdatesWithPrev() {
-      CollectionRequests.PersonUpdate personUpdate =
-          new CollectionRequests.PersonUpdate(Arrays.asList(1L, 2L), null, null);
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              personUpdate,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.people());
-      assertEquals(2, dto.people().prev().size());
-    }
-
-    @Test
-    @DisplayName("Should accept person updates with newValue pattern")
-    void shouldAcceptPersonUpdatesWithNewValue() {
-      CollectionRequests.PersonUpdate personUpdate =
-          new CollectionRequests.PersonUpdate(null, Arrays.asList("John Doe", "Jane Smith"), null);
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              personUpdate,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.people());
-      assertEquals(2, dto.people().newValue().size());
-    }
-
-    @Test
-    @DisplayName("Should accept person updates with remove pattern")
-    void shouldAcceptPersonUpdatesWithRemove() {
-      CollectionRequests.PersonUpdate personUpdate =
-          new CollectionRequests.PersonUpdate(null, null, Arrays.asList(3L, 4L));
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              personUpdate,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.people());
-      assertEquals(2, dto.people().remove().size());
-    }
-
-    @Test
-    @DisplayName("Should accept person updates with all patterns combined")
-    void shouldAcceptPersonUpdatesWithAllPatterns() {
-      CollectionRequests.PersonUpdate personUpdate =
-          new CollectionRequests.PersonUpdate(
-              Arrays.asList(1L), Arrays.asList("Alice Johnson"), Arrays.asList(5L, 6L));
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              personUpdate,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.people());
-      assertEquals(1, dto.people().prev().size());
-      assertEquals(1, dto.people().newValue().size());
-      assertEquals(2, dto.people().remove().size());
-    }
-
-    @Test
-    @DisplayName("Should accept null people for partial updates")
-    void shouldAcceptNullPeople() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNull(dto.people());
-    }
-  }
-
-  @Nested
-  @DisplayName("Collection Update Tests")
-  class CollectionUpdateTests {
-
-    @Test
-    @DisplayName("Should accept collection updates with prev pattern")
-    void shouldAcceptCollectionUpdatesWithPrev() {
-      Records.ChildCollection childCollection =
-          new Records.ChildCollection(10L, null, null, null, true, 0);
-
-      CollectionRequests.CollectionUpdate collectionUpdate =
-          new CollectionRequests.CollectionUpdate(Arrays.asList(childCollection), null, null);
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              collectionUpdate);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.collections());
-      assertEquals(1, dto.collections().prev().size());
-    }
-
-    @Test
-    @DisplayName("Should accept collection updates with newValue pattern")
-    void shouldAcceptCollectionUpdatesWithNewValue() {
-      Records.ChildCollection childCollection1 =
-          new Records.ChildCollection(20L, null, null, null, true, 5);
-      Records.ChildCollection childCollection2 =
-          new Records.ChildCollection(21L, null, null, null, false, 10);
-
-      CollectionRequests.CollectionUpdate collectionUpdate =
-          new CollectionRequests.CollectionUpdate(
-              null, Arrays.asList(childCollection1, childCollection2), null);
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              collectionUpdate);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.collections());
-      assertEquals(2, dto.collections().newValue().size());
-    }
-
-    @Test
-    @DisplayName("Should accept collection updates with remove pattern")
-    void shouldAcceptCollectionUpdatesWithRemove() {
-      CollectionRequests.CollectionUpdate collectionUpdate =
-          new CollectionRequests.CollectionUpdate(null, null, Arrays.asList(3L, 7L, 9L));
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              collectionUpdate);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.collections());
-      assertEquals(3, dto.collections().remove().size());
-    }
-
-    @Test
-    @DisplayName("Should accept collection updates with all patterns combined")
-    void shouldAcceptCollectionUpdatesWithAllPatterns() {
-      Records.ChildCollection prevCollection =
-          new Records.ChildCollection(1L, null, null, null, true, 0);
-      Records.ChildCollection newCollection =
-          new Records.ChildCollection(2L, null, null, null, true, 5);
-
-      CollectionRequests.CollectionUpdate collectionUpdate =
-          new CollectionRequests.CollectionUpdate(
-              Arrays.asList(prevCollection),
-              Collections.singletonList(newCollection),
-              Arrays.asList(3L, 4L));
-
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              collectionUpdate);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.collections());
-      assertEquals(1, dto.collections().prev().size());
-      assertEquals(1, dto.collections().newValue().size());
-      assertEquals(2, dto.collections().remove().size());
-    }
-
-    @Test
-    @DisplayName("Should accept null collections for partial updates")
-    void shouldAcceptNullCollections() {
-      CollectionRequests.Update dto =
-          update(
-              1L, null, null, null, null, null, null, null, null, null, null, null, null, null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNull(dto.collections());
-    }
   }
 
   @Nested
@@ -889,6 +180,46 @@ class CollectionUpdateRequestTest {
     }
 
     @Test
+    @DisplayName("Should reject contentPerPage below minimum")
+    void shouldRejectContentPerPageBelowMin() {
+      CollectionRequests.Update dto =
+          update(
+              1L, "Blog", "blog", null, null, null, null, null, null, 0, null, null, null, null,
+              null);
+
+      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
+      assertFalse(violations.isEmpty());
+      assertTrue(
+          violations.stream()
+              .anyMatch(v -> v.getMessage().contains("Content per page must be 1 or greater")));
+    }
+
+    @Test
+    @DisplayName("Should accept contentPerPage at minimum boundary")
+    void shouldAcceptContentPerPageAtMinBoundary() {
+      CollectionRequests.Update dto =
+          update(
+              1L,
+              "Portfolio",
+              "portfolio",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              null,
+              null,
+              null,
+              null,
+              null);
+
+      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
+      assertTrue(violations.isEmpty());
+    }
+
+    @Test
     @DisplayName("Frontend sends plural 'locations' JSON key - must populate location update")
     void shouldDeserializePluralLocationsJsonKey() throws Exception {
       // Regression guard: the manage page PUTs the location association under the PLURAL
@@ -931,7 +262,7 @@ class CollectionUpdateRequestTest {
       // never catch it because they bypass Jackson property mapping. This test deserializes real
       // JSON to prove collectionDate + collectionEndDate land on the correct fields.
       ObjectMapper mapper = new ObjectMapper();
-      mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+      mapper.registerModule(new JavaTimeModule());
       String json =
           "{ \"id\": 55, \"collectionDate\": \"2026-03-05\", \"collectionEndDate\": \"2026-03-07\" }";
 
@@ -955,33 +286,6 @@ class CollectionUpdateRequestTest {
       assertEquals(Boolean.TRUE, dto.clearCollectionEndDate());
       assertNull(dto.collectionEndDate());
     }
-
-    @Test
-    @DisplayName("Should accept location update with multiple values")
-    void shouldAcceptLocationUpdateWithMultipleValues() {
-      CollectionRequests.Update dto =
-          update(
-              1L,
-              null,
-              null,
-              null,
-              new CollectionRequests.LocationUpdate(null, List.of("Seattle", "Portland"), null),
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null);
-
-      Set<ConstraintViolation<CollectionRequests.Update>> violations = validator.validate(dto);
-      assertTrue(violations.isEmpty());
-      assertNotNull(dto.locations());
-      assertEquals(2, dto.locations().newValue().size());
-    }
   }
 
   @Nested
@@ -991,14 +295,6 @@ class CollectionUpdateRequestTest {
       Records.ChildCollection link = new Records.ChildCollection(10L, null, null, null, true, 0);
 
       assertThat(link.mutual()).isNull();
-    }
-
-    @Test
-    void sevenArgConstructor_carriesMutualFalse() {
-      Records.ChildCollection link =
-          new Records.ChildCollection(10L, null, null, null, true, 0, false);
-
-      assertThat(link.mutual()).isFalse();
     }
   }
 }

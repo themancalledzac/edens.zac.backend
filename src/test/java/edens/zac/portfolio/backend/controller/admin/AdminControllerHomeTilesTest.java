@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 @ExtendWith(MockitoExtension.class)
-class AdminHomeControllerDevTest {
+class AdminControllerHomeTilesTest {
 
   private MockMvc mockMvc;
 

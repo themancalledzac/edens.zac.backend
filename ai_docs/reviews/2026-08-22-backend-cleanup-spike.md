@@ -10,7 +10,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 
 | Wave | MRs | Status |
 |---|---|---|
-| 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 done; **MR 4 is next** |
+| 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done; **MR 6 is next** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
@@ -215,12 +215,36 @@ Build green: 1298 tests, 0 failures, 0 checkstyle violations. 67 tests removed (
 - [x] `services/ImageMetadataExtractionTest.java` (93) — a `@Disabled` diagnostic dump that never runs in CI.
 - [x] `model/RecordsTest.java` (31) — asserts that record accessors hold constructor args.
 
-## MR 4 — Test trims (~900 lines)
+## MR 4 — Test trims (1,057 lines net) — DONE
 
-- [ ] `model/CollectionUpdateRequestTest.java` (1,004 lines): keep the ~5 Jackson wire-contract guards (892-957) and a parameterized validation block; delete the ~700 lines of record-accessor boilerplate.
-- [ ] `entity/ContentTextEntityTest.java` and `CollectionEntityTest.java`: keep `testFormatTypeValues` (if it asserts real behavior) and `testGetTotalPages` (~30 lines of genuine logic); delete the rest (~300 lines).
-- [ ] `types/ContentTypeTest.java` (72): keep only the `forValue` tests, and rewrite them when bug #13 changes the contract.
-- [ ] Rename `CollectionControllerDevTest` and its `*DevTest` siblings — they test `AdminController` under a stale name.
+Build green: 1249 tests, 0 failures, 0 checkstyle violations. 49 tests removed (1298 -> 1249).
+
+- [x] `model/CollectionUpdateRequestTest.java`: 1,004 -> 301 lines. Kept the four Jackson
+  wire-contract guards, the four validation tests, and the two `contentPerPage` bound checks.
+  `CollectionRequests.Update` is `@RequestBody @Valid` in `AdminController:117`, so unlike
+  `CollectionModel` its constraints do execute in prod and the validation tests are worth keeping.
+  Deleted the builder, display-mode, cover-image, tag, person, and collection blocks — all
+  positional-constructor round-trips. Also inlined the fully-qualified `JavaTimeModule` as an import.
+- [x] `entity/ContentTextEntityTest.java`: deleted whole (133 lines). The condition on
+  `testFormatTypeValues` failed — it builds three entities and asserts `getFormatType()` returns the
+  string it just set. `formatType` is a plain `String` field with a Lombok getter, so there is no
+  real behavior there.
+- [x] `entity/CollectionEntityTest.java`: 240 -> 41 lines, keeping only `testGetTotalPages`, which
+  covers the entity's one hand-written method including its null and zero handling.
+  Also deleted `testPasswordProtectionStateIsDerivedFromGalleryPassword`, which the review did not
+  call out: despite the name it only asserts `setGalleryPassword`/`getGalleryPassword` round-trips.
+  The derivation it claims to cover lives in `CollectionProcessingUtil`, not the entity.
+- [x] `types/ContentTypeTest.java`: 59 -> 38 lines, keeping the two `forValue` blocks. Dropped
+  `enum_ShouldHaveCorrectValues` (declaration order) and `getValue_ShouldReturnEnumName`
+  (`getValue()` is `return this.name()`). `forValue_WithInvalidValue_ShouldReturnText` still pins the
+  current lenient behavior and carries a comment pointing at bug #13, which will rewrite it.
+- [x] Renamed the three `*DevTest` classes. All three inject `AdminController`, so they now follow
+  the package's existing `AdminController<Area>Test` pattern:
+  `CacheControllerDevTest` -> `AdminControllerCacheTest`,
+  `AdminHomeControllerDevTest` -> `AdminControllerHomeTilesTest`,
+  `CollectionControllerDevTest` -> `AdminControllerCollectionsTest`.
+  `ai_docs/ai_cicd.md:274` referenced the old name plus two files that no longer exist
+  (`ContentControllerDevTest`, `ContentProcessingUtilTest`); corrected.
 
 ---
 
