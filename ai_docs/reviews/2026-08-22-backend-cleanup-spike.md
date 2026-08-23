@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12a (`CollectionService`) done; MR 12b (`ContentService` + `CollectionProcessingUtil`) done, and filed bug #16. **Next up: MR 12c** -- the remaining twelve small files. Re-derive the lists first; they are stale. |
+| 4 — Comments and docs | MR 12-14 | MR 12a merged ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)); MR 12b merged ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178)), which filed bug #16. **Next up: MR 12c** -- the remaining twelve small files, re-derived at 68 comments. 315 in-method comments left in `src/main`. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -60,6 +60,22 @@ Learned while doing the MRs; they apply to every item still open, not just the o
    measured 64% stale before it started (see MR 12's prep note). For any such item, re-derive the
    list mechanically from the current tree and treat the doc's list as a sample of intent, not a
    worklist. Check this before estimating any remaining Wave 4 MR.
+6. **In a comments-only MR, leave trailing comments (`code; // note`) alone.** Learned twice in MR 12,
+   for two different reasons, which is why it is a rule and not a preference. In 12a, removing the
+   trailing comment from `updateTags(currentTags, tagUpdate, null // ...)` would let
+   google-java-format collapse the call onto one line -- a genuine code reflow. In 12b the code text
+   would have stayed byte-identical, but the line still shows in `git diff` as a modified code line,
+   which defeats the one thing that makes this MR class cheap to review: `git diff | grep` for
+   anything that is not a comment. Trailing comments belong to whichever MR touches that code for
+   real. Corollary: removing a comment block that sits at the END of a method body forces removal of
+   the blank line above it, because spotless drops the dangling blank before the closing brace. That
+   is unavoidable -- name it in the PR rather than claiming a perfectly pure diff.
+7. **A stale comment is not automatically a bug report.** The Wave 4 guardrail says a comment
+   contradicting its code is a bug someone wrote down and forgot, and that is sometimes true -- bug
+   #16 was found exactly that way. But across MR 12's three files, 349 comments produced exactly one
+   real bug. `CollectionService` produced none: every checkable claim held under verification.
+   Reporting "none found" is the correct outcome for a file, not evidence of a shallow pass. Verify
+   the claim against the code before filing; do not manufacture a finding to satisfy the guardrail.
 
 ## Ordering note
 
@@ -621,6 +637,12 @@ and deliberately left that question open -- see the decision item below.
   three-way split, added Working rule 5, filed the Wave 3 chunked-body residual. MR 10 (#175) was
   still open at the time of writing; this doc update ships inside it, so the "Wave 3 complete" row
   becomes true exactly when it merges. Next: MR 12a, `CollectionService` only.
+- 2026-08-23 — shipped MR 12a (#177) and MR 12b (#178). **Filed bug #16**: `updateImages` comments
+  and logs a "batch save" that is a per-image loop, on a method otherwise meticulous about N+1 on
+  every read path. Corrected the doc's per-file counts three times running (144 not 148, 58 not 61,
+  51 not 58, and 12c is 68 not 82) -- the note's totals include class-member-level comments the Wave
+  4 header excludes. Measured MR 13 at 154, where the over-count pattern inverts, and split it 13a/13b
+  in the doc before anyone starts it. Added Working rules 6 and 7. Next: MR 12c.
 
 ---
 
@@ -874,9 +896,9 @@ condemns.
       kept underneath as the record of intent, not as coordinates.
   - Original (stale, `8c28cf3`) — D: 127, 141, 146, 213, 233, 244, 290, 303, 306, 309, 317, 330, 336, 344, 347, 384, 393, 397, 496, 503, 567, 582, 585, 590, 595, 601, 606, 610, 651, 744, 765, 774, 777, 782, 809, 812, 820, 899, 907, 911, 917, 970, 989, 1011, 1044, 1047, 1062, 1074, 1082, 1112, 1137, 1140, 1334, 1399, 1411, 1446, 1456, 1473, 1485, 1520, 1553. P: 103/109/113 (resolution order, into the `getCollectionWithPagination` docblock), 135 (spec D1 invariant), 149, 152, 223 (keep with bug #6), 299/325/740 (CDN invalidation, three copies, into one class-level sentence), 357 (checkstyle-load-bearing final), 415, 574, 613, 620, 628/635, 828, 840, 865, 1016, 1028, 1056, 1100, 1107, 1121, 1164. Delete as redundant with the docblock: 124/280, 1344/1348, 1567 (stale), 1659.
 
-### MR 12a outcome (2026-08-23)
+### MR 12a outcome (2026-08-23) — shipped as [#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)
 
-Diff: 127 insertions, 152 deletions, one file. Every changed line is a comment line -- verified
+Diff: 127 insertions, 152 deletions, one file (plus this doc). Every changed line is a comment line -- verified
 mechanically, not by eye. `mvn clean install` green (1315 tests, 0 failures), `mvn checkstyle:check`
 0 violations, `mvn spotless:apply` produced no reformatting.
 
@@ -916,9 +938,9 @@ propagation) was verified against the code and held. One staleness found, alread
 - [x] `CollectionProcessingUtil.java` — **MR 12b, done.** 51 in-method comments removed plus the stale `TYPE-SPECIFIC PROCESSING` banner. Original (stale) list — D: 88, 93, 98, 111, 120, 160, 168, 226, 233, 244, 273, 291, 305, 316, 328, 336, 393, 400, 414, 430, 486, 616, 645, 693, 696, 699, 793, 804, 875, 883, 891, 904, trailing 801, 810. P: 188, 587, 593. Delete-redundant: 515, 626.
 - [x] `ContentService.java` — **MR 12b, done.** 57 of 58 in-method comments removed; one kept deliberately as bug #16's evidence. Original (stale) list — D: 114, 123, 134, 139, 144, 151, 159, 175, 181, 189, 198, 206, 210, 219, 224, 230, 233, 250, 278, 297, 305, 315, 322, 331, 379, 382, 450, 458, 465, 468, 477, 504, 507, 510, 638, 934, 940. P: 417 (batch-vs-N+1, into the `searchImages` docblock), 977 (Rule B, into the `linkContentToCollection` docblock). Delete-redundant: 347, 579, 597, 614, 854.
 
-### MR 12b outcome (2026-08-23)
+### MR 12b outcome (2026-08-23) — shipped as [#178](https://github.com/themancalledzac/edens.zac.backend/pull/178)
 
-Diff: 82 insertions, 121 deletions, two files. Build green (1315 tests, 0 failures), checkstyle 0
+Diff: 82 insertions, 121 deletions, two files (plus this doc). Build green (1315 tests, 0 failures), checkstyle 0
 violations, spotless produced no reformatting.
 
 Re-derived counts: `ContentService` 58 and `CollectionProcessingUtil` 51, so 109 in scope rather than
@@ -966,6 +988,51 @@ only remaining marker of the problem until its own MR lands. That MR should add 
 
 Not to be confused with consolidation item #15, which separately notes that `getUpdateCollectionData`
 fetches the collection row twice. That one is already filed and untouched.
+### MR 12c worklist — re-derived 2026-08-23, use this instead of the line refs below
+
+Measured on `3111e00` (after 12a and 12b merged), `grep -cE '^[[:space:]]{4,}//'` with banners
+excluded. **68 total, not the 82 the prep note estimated** -- the third consecutive over-count, and
+for the same reason every time: the note's per-file totals include class-member-level comments that
+the Wave 4 header puts out of scope.
+
+| File | In-method comments |
+|---|---|
+| `MetadataService.java` | 16 |
+| `SyntheticCollectionResolver.java` | 10 |
+| `UserPageAssembler.java` | 10 |
+| `TagViewResolver.java` | 8 |
+| `ContentModelConverter.java` | 6 |
+| `PaginationUtil.java` | 4 |
+| `ContentMutationUtil.java` | 3 |
+| `TagService.java` | 3 |
+| `UserMergeService.java` | 3 |
+| `CollectionAccessService.java` | 3 |
+| `CollectionFlags.java` | 1 |
+| `validator/ContentImageUpdateValidator.java` | 1 |
+
+Three of these -- `ContentModelConverter`, `PaginationUtil`, `TagViewResolver` -- are the files the
+prep note measured at 100% line-reference accuracy, so their `D:`/`P:` lists below are actually
+usable rather than needing full re-derivation. The rest are not.
+
+`MetadataService` is the one with real shape to it: 12 identical "Metadata mutation: drop the CDN
+copy" comments collapse into a single class-docblock sentence, exactly as 12a did for
+`CollectionService`'s three CDN copies. That pattern is now established -- follow it.
+
+**Guardrail for 12c: leave `CollectionAccessService.effectiveLevel` alone.** Its item below says the
+comment should go "into the `effectiveLevel` docblock being rewritten anyway" -- that phrase is a
+leftover from when MR 12 was scoped alongside a consolidation, and the rewrite it refers to is not
+part of Wave 4. Twelve small files with 68 comments between them is a low-risk mechanical MR right
+up until someone decides one of them wants restructuring, and `effectiveLevel` is the access-control
+resolution function, which is the worst possible place in this set to take an unreviewed detour.
+Promote the comment into the docblock as it stands, and if the method genuinely needs reworking,
+report what changing it would do rather than doing it here.
+
+The same instinct will come up on `CollectionFlags` and `PaginationUtil`, both of which are small
+enough to feel rewritable in one sitting. Same answer: comments only.
+
+The original per-file lists follow, kept as the record of intent (which comments were judged worth
+promoting) rather than as coordinates.
+
 - [ ] `ContentModelConverter.java` — D: 379, 386, 473, 480, trailing 170. P: 654.
 - [ ] `ContentMutationUtil.java` — D: 384. P: 132.
 - [ ] `SyntheticCollectionResolver.java` — P: 38 (trimmed), 78, 95.
@@ -978,6 +1045,32 @@ fetches the collection row twice. That one is already filed and untouched.
 - [ ] `validator/ContentImageUpdateValidator.java` — D: 31. (51 died with the dead method in MR 1.)
 
 ## MR 13 — Comment debloat: media pipeline
+
+### Sizing, measured 2026-08-23 on `3111e00` — split this before starting
+
+**154 in-method comments, and the over-count pattern INVERTS here.** Every Wave 4 file measured so
+far came in smaller than the doc implied; MR 13 comes in larger. Do not carry the "the estimates are
+high" lesson into this MR.
+
+| File | In-method comments |
+|---|---|
+| `ImageProcessingService.java` | 62 |
+| `ImageUploadPipelineService.java` | 55 |
+| `ImageMetadataExtractor.java` | 22 |
+| `ImageMetadata.java` | 5 |
+| `DownloadUrlService.java` | 4 |
+| `S3MultipartOutputStream.java` | 2 |
+| `EmailService.java` | 2 |
+| `ReadCacheInvalidator.java` | 2 |
+| `JobTrackingService.java` | 0 |
+
+At 154 this is larger than `CollectionService` alone was (144), and MR 12 had to be split at 349.
+Decide the split up front rather than discovering it mid-MR, which is what happened to both MR 9 and
+MR 12. The natural fault line is obvious: `ImageProcessingService` + `ImageUploadPipelineService` are
+117 of the 154, so 13a is those two and 13b is the remaining seven (37).
+
+Path correction: `ImageMetadata.java` is in `services/`, not `model/` as the list below implies.
+`JobTrackingService` has zero in-method comments -- its item below is a class-docblock fix only.
 
 - [ ] `ImageProcessingService.java` — D: 165, 170, 177, 184, 195, 208, 268, 273, 280, 287, 295, 348, 371, 377, 1278, 1287, 1295, 1303, 1330, 1339, 1347, 1355. P: 218-219 (fix staleness: RAW scheduling moved to `ImageUploadPipelineService`), 224, 229 (fix wrongness with bug #10), 343-344, 357-358, 382-383 (fix staleness: it is `ContentMutationUtil` now), 385, 388, 394-396, 408-410, 446-447, 461-463, 469, 591-592, 603-604, 611-612, 622, 630-631, 656-657, 762, 764, 798-799. Also fix the `deleteImageFromS3` docblock (769-772): web keys are content-hashed now.
 - [ ] `ImageUploadPipelineService.java` — D: 143, 161, 191, 229, 332, 336, 473, 656, 664, 698, 725, 757. P: 115, 130-131, 136, 192, 197-198, 207-209, 255-257, 288, 295, 298-299, 304, 318, 324, 381, 410, 417, 420-421, 431-432, 438-439, 459, 465, 512, 612-614, 710-711, 782. The 410-471 duplicates disappear with consolidation #9 (MR 18).
