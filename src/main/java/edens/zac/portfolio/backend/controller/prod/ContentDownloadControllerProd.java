@@ -10,13 +10,11 @@ import edens.zac.portfolio.backend.services.CollectionService;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.DownloadUrlService;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -91,28 +89,41 @@ public class ContentDownloadControllerProd {
   //  Collection ZIP download
   // ---------------------------------------------------------------------------
 
+  /**
+   * Redirect to a presigned URL for a collection download: a ZIP of the collection, or -- when
+   * exactly one image resolves -- that image on its own, so a one-image "Download Selected" is not
+   * wrapped in a single-entry archive.
+   *
+   * <p>The auth gate runs twice. First the slug in the URL, then every password-protected
+   * collection that also holds an image this download would return. Checking only the slug let a
+   * public wrapper waive a protected gallery's password, and with {@code ?imageIds=<one>} the
+   * response is not even a ZIP but a 302 to a presigned full-resolution original. This fails closed
+   * on EVERY protected parent of every image served, exactly like the per-image endpoint above.
+   *
+   * <p>A subset ZIP gets a {@code -selection-<count>} suffix so a client who downloads "all" and
+   * then a selection does not end up with two identically named files. The count is an int, so the
+   * suffix is always safe to build.
+   *
+   * @return {@code 302} to the presigned URL, {@code 401} when any gating collection is not
+   *     authorized, or {@code 404} when nothing resolves
+   * @throws IOException when building or uploading the ZIP fails; GlobalExceptionHandler maps it to
+   *     a 500
+   */
   @GetMapping("/collections/{slug}/download")
-  public void downloadCollection(
+  public ResponseEntity<Void> downloadCollection(
       @PathVariable String slug,
       @RequestParam(defaultValue = "web") String format,
       @RequestParam(required = false) List<Long> imageIds,
-      HttpServletRequest request,
-      HttpServletResponse response)
+      HttpServletRequest request)
       throws IOException {
 
     CollectionEntity collection = collectionService.findEntityBySlug(slug);
 
     if (collection.getGalleryPassword() != null && !isDownloadAuthorized(request, collection)) {
       log.warn("Unauthorized collection download (slug={})", slug);
-      response.sendError(HttpStatus.UNAUTHORIZED.value());
-      return;
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
-    // Second half of the same gate, and the sibling of S1 above: the images this download would
-    // return may ALSO live in other password-protected collections. Checking only the slug in the
-    // URL let a public wrapper waive a protected gallery's password -- and with `?imageIds=<one>`
-    // the response is not even a ZIP but a 302 to a presigned full-resolution original. Fail closed
-    // on EVERY protected parent of every image served, exactly like the per-image endpoint.
     for (CollectionEntity gatingCollection :
         contentService.findProtectedCollectionsForCollectionDownload(
             collection.getId(), imageIds)) {
@@ -121,8 +132,7 @@ public class ContentDownloadControllerProd {
             "Unauthorized collection download (slug={}, gatedBy={})",
             slug,
             gatingCollection.getSlug());
-        response.sendError(HttpStatus.UNAUTHORIZED.value());
-        return;
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
       }
     }
 
@@ -130,31 +140,25 @@ public class ContentDownloadControllerProd {
         contentService.resolveCollectionDownloadEntries(collection.getId(), format, imageIds);
 
     if (entries.isEmpty()) {
-      response.sendError(HttpStatus.NOT_FOUND.value());
-      return;
+      return ResponseEntity.notFound().build();
     }
 
     boolean isSubset = imageIds != null && !imageIds.isEmpty();
     URI url;
     if (entries.size() == 1) {
-      // A single resolved image (including a one-image "Download Selected") skips the ZIP and
-      // redirects straight to that image — the recipient gets the file, not a one-entry archive.
       DownloadResolution only = entries.get(0);
       url = downloadUrlService.presignObject(only.s3Key(), only.contentType(), only.filename());
     } else {
       String zipName =
           contentService.collectionZipFilename(collection.getSlug(), collection.getId());
       if (isSubset) {
-        // Distinguish a selected-subset ZIP from the whole-collection one so a client who downloads
-        // "all" and then a subset doesn't get two identically named files. Count is an int -- safe.
         zipName = zipName.replaceFirst("\\.zip$", "-selection-" + imageIds.size() + ".zip");
       }
       url = downloadUrlService.zipToS3AndPresign(entries, zipName);
     }
 
-    response.setStatus(HttpStatus.FOUND.value());
-    response.setHeader(HttpHeaders.LOCATION, url.toString());
     log.info("Redirected download (slug={}, format={}, count={})", slug, format, entries.size());
+    return ResponseEntity.status(HttpStatus.FOUND).location(url).build();
   }
 
   // ---------------------------------------------------------------------------

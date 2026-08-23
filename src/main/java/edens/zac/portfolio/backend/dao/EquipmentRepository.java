@@ -164,6 +164,7 @@ public class EquipmentRepository extends BaseDao {
   }
 
   /** Update only the film metadata (is_film, default_film_format) for a camera by id. */
+  @Transactional
   public void updateCameraFilmMetadata(Long id, Boolean isFilm, FilmFormat defaultFilmFormat) {
     String sql =
         "UPDATE content_cameras SET is_film = :isFilm, default_film_format = :defaultFilmFormat WHERE id = :id";

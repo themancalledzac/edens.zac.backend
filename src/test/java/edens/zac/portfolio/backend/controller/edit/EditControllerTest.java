@@ -2,11 +2,9 @@ package edens.zac.portfolio.backend.controller.edit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,7 +18,6 @@ import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.services.CollectionService;
-import edens.zac.portfolio.backend.services.ContentService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +43,6 @@ class EditControllerTest {
   private MockMvc mockMvc;
 
   @Mock private CollectionService collectionService;
-  @Mock private ContentService contentService;
 
   @InjectMocks private EditController editController;
 
@@ -135,9 +131,9 @@ class EditControllerTest {
   }
 
   @Test
-  void imagesPatchGuardsThenSplitsCanonicalAndVisibleWrites() throws Exception {
-    when(contentService.updateImages(any()))
-        .thenReturn(new java.util.HashMap<>(Map.of("count", 1)));
+  void imagesPatchDelegatesTheWholeBatchToOneTransactionalCall() throws Exception {
+    when(collectionService.applyCollaboratorImageEdits(eq(5L), any()))
+        .thenReturn(Map.of("count", 1, "visibleUpdated", 2));
 
     mockMvc
         .perform(
@@ -148,22 +144,17 @@ class EditControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.visibleUpdated").value(2));
 
-    var order = inOrder(collectionService, contentService);
-    order.verify(collectionService).requireImagesInCollection(5L, List.of(9L, 10L));
-    order.verify(contentService).updateImages(argThat(list -> list.size() == 1));
-    verify(collectionService).updateImageVisibility(5L, 9L, false);
-    verify(collectionService).updateImageVisibility(5L, 10L, true);
-  }
-
-  @Test
-  void imagesPatchWithVisibleOnlyItemsSkipsCanonicalUpdate() throws Exception {
-    mockMvc
-        .perform(
-            patch("/api/edit/collections/5/images")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("[{\"id\":9,\"visible\":true}]"))
-        .andExpect(status().isOk());
-    verify(contentService, never()).updateImages(any());
+    verify(collectionService)
+        .applyCollaboratorImageEdits(
+            eq(5L),
+            argThat(
+                list ->
+                    list.size() == 2
+                        && list.get(0).id() == 9L
+                        && "T".equals(list.get(0).title())
+                        && Boolean.FALSE.equals(list.get(0).visible())
+                        && list.get(1).id() == 10L
+                        && Boolean.TRUE.equals(list.get(1).visible())));
   }
 
   @Test
@@ -174,13 +165,14 @@ class EditControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("[]"))
         .andExpect(status().isBadRequest());
+    verify(collectionService, never()).applyCollaboratorImageEdits(any(), any());
   }
 
   @Test
-  void imagesPatchCrossCollectionViolationIs403AndWritesNothing() throws Exception {
+  void imagesPatchCrossCollectionViolationIs403() throws Exception {
     doThrow(new AccessDeniedException("Images [9] are not part of collection 5"))
         .when(collectionService)
-        .requireImagesInCollection(eq(5L), any());
+        .applyCollaboratorImageEdits(eq(5L), any());
 
     mockMvc
         .perform(
@@ -188,8 +180,6 @@ class EditControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("[{\"id\":9,\"title\":\"T\"}]"))
         .andExpect(status().isForbidden());
-    verify(contentService, never()).updateImages(any());
-    verify(collectionService, never()).updateImageVisibility(any(), any(), anyBoolean());
   }
 
   @Test
@@ -200,7 +190,7 @@ class EditControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("[{\"id\":9,\"rating\":99}]"))
         .andExpect(status().isBadRequest());
-    verify(collectionService, never()).requireImagesInCollection(any(), any());
+    verify(collectionService, never()).applyCollaboratorImageEdits(any(), any());
   }
 
   @Test

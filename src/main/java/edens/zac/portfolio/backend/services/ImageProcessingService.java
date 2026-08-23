@@ -976,6 +976,9 @@ public class ImageProcessingService {
   /**
    * Convert a BufferedImage to WebP format with compression.
    *
+   * <p>The writer is disposed in a finally block. A write that throws still has to release the
+   * writer's native resources.
+   *
    * @param bufferedImage The BufferedImage to convert
    * @return byte array containing the WebP image data
    * @throws IOException If there's an error during conversion
@@ -993,23 +996,26 @@ public class ImageProcessingService {
     ImageWriter writer = writers.next();
     log.trace("Using WebP writer: {}", writer.getClass().getName());
 
-    ImageWriteParam writeParam = writer.getDefaultWriteParam();
+    try {
+      ImageWriteParam writeParam = writer.getDefaultWriteParam();
 
-    if (writeParam.canWriteCompressed()) {
-      writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-      String[] compressionTypes = writeParam.getCompressionTypes();
-      if (compressionTypes != null && compressionTypes.length > 0) {
-        writeParam.setCompressionType(compressionTypes[0]);
+      if (writeParam.canWriteCompressed()) {
+        writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        String[] compressionTypes = writeParam.getCompressionTypes();
+        if (compressionTypes != null && compressionTypes.length > 0) {
+          writeParam.setCompressionType(compressionTypes[0]);
+        }
+        writeParam.setCompressionQuality(0.85f);
+        log.trace("Set WebP compression quality to 85%");
+      } else {
+        log.warn("WebP writer does not support compression settings");
       }
-      writeParam.setCompressionQuality(0.85f);
-      log.trace("Set WebP compression quality to 85%");
-    } else {
-      log.warn("WebP writer does not support compression settings");
-    }
 
-    try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
-      writer.setOutput(ios);
-      writer.write(null, new IIOImage(bufferedImage, null, null), writeParam);
+      try (ImageOutputStream ios = ImageIO.createImageOutputStream(outputStream)) {
+        writer.setOutput(ios);
+        writer.write(null, new IIOImage(bufferedImage, null, null), writeParam);
+      }
+    } finally {
       writer.dispose();
     }
 

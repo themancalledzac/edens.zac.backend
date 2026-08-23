@@ -216,13 +216,16 @@ class AdminController {
     return ResponseEntity.status(HttpStatus.CREATED).body(result);
   }
 
-  /** Create text or code content. */
+  /**
+   * Create text or code content. A null from the service means the write did not produce a model,
+   * which is a server-side failure -- it maps to 500, not to a client 400.
+   */
   @PostMapping("/content/content")
   public ResponseEntity<ContentModel> createTextContent(
       @RequestBody @Valid ContentRequests.CreateTextContent request) {
     ContentModel textContent = contentService.createTextContent(request);
     if (textContent == null) {
-      throw new IllegalArgumentException("Failed to create text content");
+      throw new RuntimeException("Failed to create text content");
     }
     return ResponseEntity.status(HttpStatus.CREATED).body(textContent);
   }

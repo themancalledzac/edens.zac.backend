@@ -119,6 +119,24 @@ class S3MultipartOutputStreamTest {
 
   @Test
   @SuppressWarnings("unchecked")
+  void close_afterAbort_doesNotCompleteUpload() {
+    // Arrange - buffer a tail small enough that it is still unflushed when abort() runs.
+    S3MultipartOutputStream out = new S3MultipartOutputStream(s3, "bucket", "key");
+    out.write(pattern(1024), 0, 1024);
+
+    // Act - abort, then close the same stream (what try-with-resources does after an error).
+    out.abort();
+    out.close();
+
+    // Assert - the aborted upload is never completed, and the buffered tail is never uploaded.
+    verify(s3, times(1)).abortMultipartUpload(any(Consumer.class));
+    verify(s3, never()).completeMultipartUpload(any(Consumer.class));
+    verify(s3, never()).uploadPart(any(Consumer.class), any(RequestBody.class));
+    assertThat(uploadPartCalls).isZero();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
   void close_whenCompleteFails_abortsAndRethrows() {
     when(s3.completeMultipartUpload(any(Consumer.class)))
         .thenThrow(AwsServiceException.builder().message("boom").build());

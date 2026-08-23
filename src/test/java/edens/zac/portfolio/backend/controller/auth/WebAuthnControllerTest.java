@@ -17,6 +17,7 @@ import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.WebAuthnService;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -137,6 +138,33 @@ class WebAuthnControllerTest {
 
     verify(webAuthnService).startLogin(eq("admin@example.com"));
     verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+  }
+
+  @Test
+  void loginStart_underTurkishDefaultLocale_stillResolvesLowercasedEmail() throws Exception {
+    // Arrange - in tr-TR, a locale-sensitive toLowerCase() maps 'I' to a dotless lowercase i, so
+    // "ADMIN@..." would no longer match the stored "admin@..." nor the AuthLoginLimiter key.
+    Locale previous = Locale.getDefault();
+    Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+    try {
+      when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+      when(webAuthnService.startLogin(eq("admin@example.com")))
+          .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
+
+      // Act
+      mockMvc
+          .perform(
+              post("/api/auth/webauthn/login/start")
+                  .contentType("application/json")
+                  .content("{\"email\":\"ADMIN@EXAMPLE.COM\"}"))
+          .andExpect(status().isOk());
+
+      // Assert - Locale.ROOT lowercasing keeps the dotted i, so both lookups use the same key.
+      verify(webAuthnService).startLogin(eq("admin@example.com"));
+      verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+    } finally {
+      Locale.setDefault(previous);
+    }
   }
 
   @Test

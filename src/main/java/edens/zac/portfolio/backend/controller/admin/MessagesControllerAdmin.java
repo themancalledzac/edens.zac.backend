@@ -46,10 +46,16 @@ public class MessagesControllerAdmin {
         new MessageRequests.AdminMessageList(view, total, safeLimit, safeOffset));
   }
 
+  /**
+   * Delete a contact message.
+   *
+   * @param id the message id
+   * @return {@code 204 No Content}, or {@code 404} if no such message
+   */
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> delete(@PathVariable long id) {
     int rows = messageService.delete(id);
     log.info("Deleted message id={} rowsAffected={}", id, rows);
-    return ResponseEntity.noContent().build();
+    return rows > 0 ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
   }
 }

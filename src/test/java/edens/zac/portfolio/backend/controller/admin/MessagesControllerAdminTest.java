@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.admin;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.dao.MessageRepository;
 import edens.zac.portfolio.backend.entity.MessageEntity;
+import edens.zac.portfolio.backend.services.MessageService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,8 @@ class MessagesControllerAdminTest {
   private MockMvc mockMvc;
 
   @Mock private MessageRepository messageRepository;
+
+  @Mock private MessageService messageService;
 
   @InjectMocks private MessagesControllerAdmin controller;
 
@@ -129,6 +133,30 @@ class MessagesControllerAdminTest {
           .andExpect(jsonPath("$.total").value(0))
           .andExpect(jsonPath("$.limit").value(50))
           .andExpect(jsonPath("$.offset").value(0));
+    }
+  }
+
+  @Nested
+  class DeleteMessage {
+
+    @Test
+    void delete_existingId_returns204() throws Exception {
+      when(messageService.delete(7L)).thenReturn(1);
+
+      mockMvc.perform(delete("/api/admin/messages/7")).andExpect(status().isNoContent());
+
+      verify(messageService).delete(7L);
+    }
+
+    @Test
+    void delete_missingId_returns404() throws Exception {
+      // Zero rows affected means there was nothing to delete. A 204 here told the caller the
+      // delete succeeded on an id that never existed.
+      when(messageService.delete(404L)).thenReturn(0);
+
+      mockMvc.perform(delete("/api/admin/messages/404")).andExpect(status().isNotFound());
+
+      verify(messageService).delete(404L);
     }
   }
 }

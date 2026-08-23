@@ -8,6 +8,7 @@ import edens.zac.portfolio.backend.services.WebAuthnService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -122,6 +123,9 @@ public class WebAuthnController {
    * short-lived HttpOnly {@code ezac_webauthn_attempt} cookie so the client returns it on {@code
    * /login/finish}.
    *
+   * <p>The email is lowercased with {@link Locale#ROOT} so it matches both the lowercased email
+   * stored at creation time and the key {@link AuthLoginLimiter} builds for the same address.
+   *
    * <p>Rate-limiting mirrors {@code AuthController.login}: if the IP+email pair is blocked, 429 is
    * returned immediately before minting any options or setting a cookie. A failure counter is
    * recorded on every non-blocked call so that repeated start attempts (without a matching
@@ -140,8 +144,7 @@ public class WebAuthnController {
   public ResponseEntity<String> loginStart(
       @RequestBody Map<String, String> body, HttpServletRequest request) throws Exception {
     String rawEmail = body.get("email");
-    // Normalize to lowercase so the engine resolves the lowercased email stored at creation time.
-    String email = rawEmail == null ? null : rawEmail.toLowerCase();
+    String email = rawEmail == null ? null : rawEmail.toLowerCase(Locale.ROOT);
     String ip = ClientIp.resolve(request);
 
     if (loginLimiter.isBlocked(ip, email)) {

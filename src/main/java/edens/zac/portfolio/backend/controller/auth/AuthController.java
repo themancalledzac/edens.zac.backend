@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,14 +53,19 @@ public class AuthController {
   private final CollectionAccessService collectionAccessService;
   private final PasswordEncoder passwordEncoder;
 
+  /**
+   * Password login. The submitted email is lowercased with {@link Locale#ROOT} so it matches both
+   * the lowercased email stored at account-creation time and the key {@link AuthLoginLimiter}
+   * builds for the same address. A locale-sensitive lowercase would diverge from the limiter key
+   * under a Turkish default locale, where {@code I} lowercases to a dotless {@code i}.
+   */
   @PostMapping("/login")
   public ResponseEntity<Void> login(
       @Valid @RequestBody LoginRequest body,
       HttpServletRequest request,
       HttpServletResponse response) {
     String ip = ClientIp.resolve(request);
-    // Normalize to lowercase so login matches the lowercased email stored at account-creation time.
-    String email = body.email().toLowerCase();
+    String email = body.email().toLowerCase(Locale.ROOT);
 
     if (loginLimiter.isBlocked(ip, email)) {
       log.warn("Auth login rate-limited for email={} ip={}", email, ip);

@@ -840,4 +840,60 @@ class AdminControllerTest {
 
     verify(contentService).deleteImages(any(List.class));
   }
+
+  @Test
+  @DisplayName("POST /content/content should return 201 with the created text content")
+  void createTextContent_serviceReturnsModel_returns201() throws Exception {
+    ContentRequests.CreateTextContent request =
+        new ContentRequests.CreateTextContent(1L, "Title", "Description", "Some text", null);
+    ContentModels.Text created =
+        new ContentModels.Text(
+            9L,
+            ContentType.TEXT,
+            "Title",
+            "Description",
+            null,
+            0,
+            true,
+            null,
+            null,
+            "Some text",
+            "plain");
+
+    when(contentService.createTextContent(any(ContentRequests.CreateTextContent.class)))
+        .thenReturn(created);
+
+    mockMvc
+        .perform(
+            post("/api/admin/content/content")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id", is(9)))
+        .andExpect(jsonPath("$.textContent", is("Some text")));
+
+    verify(contentService).createTextContent(any(ContentRequests.CreateTextContent.class));
+  }
+
+  @Test
+  @DisplayName("POST /content/content should return 500 when the service returns null")
+  void createTextContent_serviceReturnsNull_returns500() throws Exception {
+    // A null from the service is a server-side failure, not a bad request. This used to be
+    // reported as 400, which told the caller to fix a request that was already valid.
+    ContentRequests.CreateTextContent request =
+        new ContentRequests.CreateTextContent(1L, "Title", "Description", "Some text", null);
+
+    when(contentService.createTextContent(any(ContentRequests.CreateTextContent.class)))
+        .thenReturn(null);
+
+    mockMvc
+        .perform(
+            post("/api/admin/content/content")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
+
+    verify(contentService).createTextContent(any(ContentRequests.CreateTextContent.class));
+  }
 }
