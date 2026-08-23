@@ -151,13 +151,6 @@ public class PersonRepository extends BaseDao {
   }
 
   @Transactional
-  public void deleteById(Long id) {
-    String sql = "DELETE FROM users WHERE id = :id";
-    MapSqlParameterSource params = createParameterSource().addValue("id", id);
-    update(sql, params);
-  }
-
-  @Transactional
   public void deleteAllAssociationsByPersonId(Long personId) {
     MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
     update("DELETE FROM content_image_people WHERE person_id = :personId", params);
@@ -225,10 +218,17 @@ public class PersonRepository extends BaseDao {
     update("UPDATE collection_people SET person_id = :tgt WHERE person_id = :src", p);
   }
 
-  /** Defense-in-depth delete: only removes a tag-only PERSON row. */
+  /**
+   * Deletes a tag-only PERSON row. An account id matches nothing and returns 0 -- since V35 merged
+   * people into {@code users}, this guard is what keeps a delete-person call from destroying a real
+   * account and everything that cascades off it.
+   *
+   * @param id the identity id to delete
+   * @return the number of rows deleted: 1 for a tag-only person, 0 for an account or unknown id
+   */
   @Transactional
-  public void deletePersonById(Long id) {
-    update(
+  public int deletePersonById(Long id) {
+    return update(
         "DELETE FROM users WHERE id = :id AND status = 'PERSON'",
         createParameterSource().addValue("id", id));
   }

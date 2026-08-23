@@ -8,6 +8,9 @@ import org.junit.jupiter.api.Test;
 
 class ProdSecretGuardTest {
 
+  private static final String REAL_SECRET =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
   private void invokeVerify(ProdSecretGuard guard) throws Exception {
     Method m = ProdSecretGuard.class.getDeclaredMethod("verify");
     m.setAccessible(true);
@@ -23,7 +26,7 @@ class ProdSecretGuardTest {
 
   @Test
   void blankSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard("");
+    ProdSecretGuard guard = new ProdSecretGuard("", true);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -32,7 +35,7 @@ class ProdSecretGuardTest {
 
   @Test
   void nullSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard(null);
+    ProdSecretGuard guard = new ProdSecretGuard(null, true);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -41,7 +44,7 @@ class ProdSecretGuardTest {
 
   @Test
   void defaultDevSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard("dev-internal-secret");
+    ProdSecretGuard guard = new ProdSecretGuard("dev-internal-secret", true);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -50,9 +53,27 @@ class ProdSecretGuardTest {
 
   @Test
   void realSecretSucceeds() {
-    ProdSecretGuard guard =
-        new ProdSecretGuard("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, true);
 
     assertThatCode(() -> invokeVerify(guard)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void enforceAuthzDisabledThrows() {
+    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, false);
+
+    assertThatThrownBy(() -> invokeVerify(guard))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("app.admin.enforce-authz");
+  }
+
+  @Test
+  void enforceAuthzDisabledThrowsEvenWithAGoodSecret() {
+    // The two checks are independent: a valid secret must not excuse an open authz gate.
+    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, false);
+
+    assertThatThrownBy(() -> invokeVerify(guard))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageNotContaining("internal.api.secret");
   }
 }

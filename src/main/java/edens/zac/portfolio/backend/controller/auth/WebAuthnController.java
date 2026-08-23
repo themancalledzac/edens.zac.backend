@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.controller.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
+import edens.zac.portfolio.backend.config.ClientIp;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.WebAuthnService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -141,7 +142,7 @@ public class WebAuthnController {
     String rawEmail = body.get("email");
     // Normalize to lowercase so the engine resolves the lowercased email stored at creation time.
     String email = rawEmail == null ? null : rawEmail.toLowerCase();
-    String ip = resolveClientIp(request);
+    String ip = ClientIp.resolve(request);
 
     if (loginLimiter.isBlocked(ip, email)) {
       log.warn("WebAuthn login/start rate-limited for email={} ip={}", email, ip);
@@ -187,7 +188,7 @@ public class WebAuthnController {
     if (attemptId == null || attemptId.isBlank()) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
-    String ip = resolveClientIp(request);
+    String ip = ClientIp.resolve(request);
     try {
       String authenticatedEmail =
           webAuthnService.finishLogin(attemptId, credentialJson, request, response);
@@ -205,13 +206,5 @@ public class WebAuthnController {
               .build();
       response.addHeader(HttpHeaders.SET_COOKIE, cleared.toString());
     }
-  }
-
-  private static String resolveClientIp(HttpServletRequest request) {
-    String realIp = request.getHeader("X-Real-IP");
-    if (realIp != null && !realIp.isBlank()) {
-      return realIp.trim();
-    }
-    return request.getRemoteAddr();
   }
 }

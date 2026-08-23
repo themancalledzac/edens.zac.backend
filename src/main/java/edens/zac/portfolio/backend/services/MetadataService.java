@@ -172,7 +172,12 @@ public class MetadataService {
         .findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Person not found with ID: " + id));
     personRepository.deleteAllAssociationsByPersonId(id);
-    personRepository.deleteById(id);
+    // Guarded delete: findById above matches any users row, accounts included, so it cannot tell a
+    // person tag from an account. 0 rows means the id is an account -- throwing here rolls the
+    // association deletes above back with the transaction.
+    if (personRepository.deletePersonById(id) == 0) {
+      throw new ResourceNotFoundException("Person not found with ID: " + id);
+    }
     log.info("Deleted person with ID: {}", id);
   }
 

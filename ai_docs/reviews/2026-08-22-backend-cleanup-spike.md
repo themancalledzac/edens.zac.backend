@@ -11,7 +11,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 done; **MR 4 is next** |
-| 2 — Bugs | MR 5-9 | not started |
+| 2 — Bugs | MR 5-9 | MR 5 done; **MR 6 is next** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
@@ -228,13 +228,44 @@ Build green: 1298 tests, 0 failures, 0 checkstyle violations. 67 tests removed (
 
 Ordered by severity. All are small diffs.
 
-## MR 5 — Security bugs
+## MR 5 — Security bugs — DONE
 
-- [ ] Bug #1 (high). Admin "delete person" can delete a real user account. `dao/PersonRepository.java:190-195` (`deleteById`) runs `DELETE FROM users WHERE id = :id` with no status guard, and `MetadataService.deletePerson` (`services/MetadataService.java:175`) calls it unconditionally. Since V35 merged people into `users`, passing an account user's id to the admin delete-person endpoint destroys the account — sessions, passkeys, invites, saves, follows, and share links all cascade. The safe primitive already exists: `deletePersonById` (PersonRepository:265-271) guards with `AND status = 'PERSON'`. Point `deletePerson` at it, 404 on 0 rows, and delete the unguarded `deleteById`.
-- [ ] Bug #3 (high). `RateLimitFilter` still trusts client-supplied X-Forwarded-For as a fallback key. `config/RateLimitFilter.java:128-138` reads X-Real-IP first (correct), then falls back to the first hop of client-supplied XFF (133-136). Whenever X-Real-IP is absent, an attacker sends a fresh fake XFF per request and the per-IP 500/hour limit on `/api/public/messages` stops existing, while churning the 10k Caffeine cache to evict legitimate buckets. `CollectionControllerProd.java:207-224` documents and implements the correct policy. Delete the XFF branch.
-- [ ] Extract `ClientIp.resolve(HttpServletRequest)` into `config/` while fixing bug #3 (consolidation #1, pulled forward because bug #3 motivates it). Replaces four private copies with two contradictory trust policies: `RateLimitFilter:128-138`, `AuthController:127-133`, `WebAuthnController:210-216`, `CollectionControllerProd:217-224`. Implement the `CollectionControllerProd` policy; carry over its javadoc, the only one explaining the trust model.
-- [ ] Bug #7 (medium). `app.admin.enforce-authz=false` in prod silently opens `/api/admin` and `/api/edit`. `config/SecurityConfig.java:65-76` falls through to `permitAll`, `EditAccessWebConfig.java:38-40` skips the interceptor, and `ProdSecretGuard.java:21-27` does not check the flag. One wrong env var proxies unauthenticated visitors into the whole write surface. Extend `ProdSecretGuard` to refuse prod + enforce-authz=false.
-- [ ] Delete `PersonRepository.findAccountUserIdsByIds` once the only-accounts-get-grants rule is confirmed enforced elsewhere (carried from MR 1).
+Build green: 1303 tests, 0 failures, 0 checkstyle violations (1298 -> 1303; the X-Forwarded-For
+test was replaced 1:1, and five tests were added).
+
+- [x] Bug #1 (high). Admin "delete person" can delete a real user account. `dao/PersonRepository.java:190-195` (`deleteById`) runs `DELETE FROM users WHERE id = :id` with no status guard, and `MetadataService.deletePerson` (`services/MetadataService.java:175`) calls it unconditionally. Since V35 merged people into `users`, passing an account user's id to the admin delete-person endpoint destroys the account — sessions, passkeys, invites, saves, follows, and share links all cascade. The safe primitive already exists: `deletePersonById` (PersonRepository:265-271) guards with `AND status = 'PERSON'`. Point `deletePerson` at it, 404 on 0 rows, and delete the unguarded `deleteById`.
+  - Done as described. `deletePersonById` now returns the row count. `deletePerson` keeps its
+    existing `findById` 404 check -- that check cannot tell a person tag from an account, since
+    `findById` selects from `users` with no status filter, which is precisely why the guard is
+    needed. The association deletes run first, so the throw on 0 rows rolls them back with the
+    transaction (`ResourceNotFoundException extends RuntimeException`).
+  - Three regression tests added to `MetadataServiceTest`: the guarded-delete happy path, the
+    account id that must 404, and the unknown id that must not touch associations.
+- [x] Bug #3 (high). `RateLimitFilter` still trusts client-supplied X-Forwarded-For as a fallback key. `config/RateLimitFilter.java:128-138` reads X-Real-IP first (correct), then falls back to the first hop of client-supplied XFF (133-136). Whenever X-Real-IP is absent, an attacker sends a fresh fake XFF per request and the per-IP 500/hour limit on `/api/public/messages` stops existing, while churning the 10k Caffeine cache to evict legitimate buckets. `CollectionControllerProd.java:207-224` documents and implements the correct policy. Delete the XFF branch.
+  - `RateLimitFilterTest.xForwardedForFirstHopIsUsedAsIp` asserted the vulnerable behavior. It is
+    replaced by `spoofedXForwardedForCannotMintFreshBuckets`, which sends three requests from one
+    `remoteAddr` with a different spoofed X-Forwarded-For each time and requires the third to 429.
+    Under the old code each spoofed value drew its own bucket and none of them ever 429'd.
+- [x] Extract `ClientIp.resolve(HttpServletRequest)` into `config/` while fixing bug #3 (consolidation #1, pulled forward because bug #3 motivates it). Replaces four private copies with two contradictory trust policies: `RateLimitFilter:128-138`, `AuthController:127-133`, `WebAuthnController:210-216`, `CollectionControllerProd:217-224`. Implement the `CollectionControllerProd` policy; carry over its javadoc, the only one explaining the trust model.
+  - Done. All four private copies are gone. Only `RateLimitFilter` actually had the XFF branch; the
+    other three already implemented the correct policy, so this was a true consolidation for them
+    and the bug fix for the filter.
+- [x] Bug #7 (medium). `app.admin.enforce-authz=false` in prod silently opens `/api/admin` and `/api/edit`. `config/SecurityConfig.java:65-76` falls through to `permitAll`, `EditAccessWebConfig.java:38-40` skips the interceptor, and `ProdSecretGuard.java:21-27` does not check the flag. One wrong env var proxies unauthenticated visitors into the whole write surface. Extend `ProdSecretGuard` to refuse prod + enforce-authz=false.
+  - Done. The guard is already `@Profile("prod")`, so the new check costs nothing outside prod. Two
+    tests added, one of which asserts the failure message names the toggle rather than the secret --
+    the two checks must stay independent.
+- [ ] Delete `PersonRepository.findAccountUserIdsByIds` once the only-accounts-get-grants rule is confirmed enforced elsewhere (carried from MR 1). NOT DONE -- the precondition is false.
+  - The rule is not enforced anywhere. Both `RoleRepository.addMember` call sites
+    (`AdminRoleController:152`, `AdminUserController:335`) pass a path-variable user id straight
+    through, and `addMember` inserts into `role_member` with no status filter. `findAccountUserIdsByIds`
+    is the only primitive that expresses the rule and it has zero callers.
+  - Not exploitable today: a `status='PERSON'` row has no password hash and no WebAuthn handle, so
+    nobody can authenticate as it and the stray `role_member` row grants nothing to anyone. It is a
+    data-integrity gap, not an access-control hole -- which is why this was left alone rather than
+    given a new validation rule inside a bug-fix MR.
+  - Decision needed: either enforce the rule at the two `addMember` call sites (making the method
+    live) or delete the method and drop the rule. Deleting it while the rule is unenforced would
+    remove the only tool for a gap nobody is tracking. Carried to MR 10.
 
 ## MR 6 — Upload pipeline bugs
 

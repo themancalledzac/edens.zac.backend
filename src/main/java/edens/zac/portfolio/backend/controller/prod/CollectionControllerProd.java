@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.config.ClientGalleryAccessLimiter;
+import edens.zac.portfolio.backend.config.ClientIp;
 import edens.zac.portfolio.backend.config.DefaultValues;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
@@ -176,7 +177,7 @@ public class CollectionControllerProd {
       HttpServletRequest request,
       HttpServletResponse response) {
 
-    String clientIp = resolveClientIp(request);
+    String clientIp = ClientIp.resolve(request);
     if (!accessLimiter.allow(clientIp, slug)) {
       log.warn("Client gallery /access rate-limited for slug={} ip={}", slug, clientIp);
       return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
@@ -202,24 +203,4 @@ public class CollectionControllerProd {
   // =============================================================================
   // INTERNAL HELPERS
   // =============================================================================
-
-  /**
-   * Resolve the client IP. Trusts {@code X-Real-IP} when present (injected by the Next.js BFF proxy
-   * in prod). Falls back directly to {@link HttpServletRequest#getRemoteAddr()}.
-   *
-   * <p>{@code X-Forwarded-For} is intentionally ignored: it is trivially spoofable when the backend
-   * is reachable directly (bypassing the BFF), which would allow an attacker to rotate their
-   * rate-limit identity per request. Only requests that flow through the known BFF proxy will carry
-   * {@code X-Real-IP}, so its presence is the trust signal. If {@code X-Real-IP} is absent, the
-   * request did not come through the proxy and {@code getRemoteAddr()} is the only reliable source
-   * of truth.
-   */
-  private static String resolveClientIp(HttpServletRequest request) {
-    String realIp = request.getHeader("X-Real-IP");
-    if (realIp != null && !realIp.isBlank()) {
-      return realIp.trim();
-    }
-    // X-Forwarded-For without X-Real-IP = direct request, not through proxy — ignore it
-    return request.getRemoteAddr();
-  }
 }
