@@ -846,7 +846,7 @@ public class CollectionProcessingUtil {
         if (locationName != null && !locationName.trim().isEmpty()) {
           LocationEntity location = locationRepository.findOrCreate(locationName.trim());
           if (location == null) {
-            throw new IllegalStateException(
+            throw new RuntimeException(
                 "Failed to find or create location with name: " + locationName);
           }
           resolvedIds.add(location.getId());

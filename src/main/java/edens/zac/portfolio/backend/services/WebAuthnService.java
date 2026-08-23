@@ -204,7 +204,7 @@ public class WebAuthnService {
         appUserRepository
             .findByWebauthnUserHandle(handle)
             .orElseThrow(
-                () -> new IllegalStateException("Authenticated handle has no app_user: " + handle));
+                () -> new RuntimeException("Authenticated handle has no app_user: " + handle));
 
     sessionService.create(user, true, request, response);
     return user.getEmail();
@@ -213,7 +213,7 @@ public class WebAuthnService {
   private AppUserEntity requireUser(Long userId) {
     return appUserRepository
         .findById(userId)
-        .orElseThrow(() -> new IllegalStateException("Principal has no app_user: " + userId));
+        .orElseThrow(() -> new RuntimeException("Principal has no app_user: " + userId));
   }
 
   private static Authentication toAuthentication(AuthPrincipal principal) {

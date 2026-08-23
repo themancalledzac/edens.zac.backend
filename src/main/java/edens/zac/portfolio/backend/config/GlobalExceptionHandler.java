@@ -70,7 +70,17 @@ public class GlobalExceptionHandler {
         .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, e.getMessage()));
   }
 
-  /** Handle IllegalStateException - typically indicates a bad request or invalid state. */
+  /**
+   * Handle IllegalStateException - a client-actionable bad request, returned as 400 with the
+   * thrower's message.
+   *
+   * <p>The message reaches the client verbatim, so this exception is reserved for states the caller
+   * can understand and act on ("a collection already owns slug 'x'"). A broken server-side
+   * invariant must throw a bare {@link RuntimeException} instead: the catch-all handler logs it
+   * with a stack trace and returns a generic 500, which is both the honest status and the reason
+   * internal detail stays out of the response. Throwing {@code IllegalStateException} for a server
+   * fault is what previously leaked WebAuthn handles and user ids to unauthenticated callers.
+   */
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException e) {
     log.warn("Bad request - illegal state: {}", e.getMessage());

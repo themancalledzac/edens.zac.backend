@@ -37,6 +37,68 @@ class RateLimitFilterTest {
   }
 
   @Nested
+  class BodySizeCap {
+
+    @Test
+    void oversizedBodyIsRejectedWith413() throws Exception {
+      var req = publicRequest("9.9.9.9");
+      req.setContent(new byte[RateLimitFilter.MAX_PUBLIC_BODY_BYTES + 1]);
+      var resp = new MockHttpServletResponse();
+      FilterChain chain = mock(FilterChain.class);
+
+      filter.doFilter(req, resp, chain);
+
+      assertThat(resp.getStatus()).isEqualTo(413);
+      verify(chain, times(0)).doFilter(any(), any());
+    }
+
+    @Test
+    void bodyAtTheLimitPassesThrough() throws Exception {
+      var req = publicRequest("9.9.9.10");
+      req.setContent(new byte[RateLimitFilter.MAX_PUBLIC_BODY_BYTES]);
+      var resp = new MockHttpServletResponse();
+      FilterChain chain = mock(FilterChain.class);
+
+      filter.doFilter(req, resp, chain);
+
+      assertThat(resp.getStatus()).isNotEqualTo(413);
+      verify(chain, times(1)).doFilter(any(), any());
+    }
+
+    @Test
+    void oversizedBodyStillConsumesTheRateLimitBudget() throws Exception {
+      // The size check runs after the bucket, so oversized requests are not rejected for free.
+      // The limiter is built with capacity 2, so two 413s must exhaust it.
+      for (int i = 0; i < 2; i++) {
+        var big = publicRequest("9.9.9.11");
+        big.setContent(new byte[RateLimitFilter.MAX_PUBLIC_BODY_BYTES + 1]);
+        var bigResp = new MockHttpServletResponse();
+        filter.doFilter(big, bigResp, mock(FilterChain.class));
+        assertThat(bigResp.getStatus()).isEqualTo(413);
+      }
+
+      var resp = new MockHttpServletResponse();
+      filter.doFilter(publicRequest("9.9.9.11"), resp, mock(FilterChain.class));
+      assertThat(resp.getStatus()).isEqualTo(429);
+    }
+
+    @Test
+    void oversizedBodyOnNonPublicPathIsUntouched() throws Exception {
+      var req = new MockHttpServletRequest();
+      req.setRequestURI("/api/admin/collections");
+      req.setRemoteAddr("9.9.9.12");
+      req.setContent(new byte[RateLimitFilter.MAX_PUBLIC_BODY_BYTES + 1]);
+      var resp = new MockHttpServletResponse();
+      FilterChain chain = mock(FilterChain.class);
+
+      filter.doFilter(req, resp, chain);
+
+      assertThat(resp.getStatus()).isNotEqualTo(413);
+      verify(chain, times(1)).doFilter(any(), any());
+    }
+  }
+
+  @Nested
   class PublicPaths {
 
     @Test

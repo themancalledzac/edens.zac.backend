@@ -269,7 +269,7 @@ public class ImageUploadPipelineService {
       uploadSemaphore.acquire();
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new IllegalStateException("Upload interrupted while waiting for semaphore", e);
+      throw new RuntimeException("Upload interrupted while waiting for semaphore", e);
     }
   }
 

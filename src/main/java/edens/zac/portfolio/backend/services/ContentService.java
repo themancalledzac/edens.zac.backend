@@ -991,7 +991,7 @@ public class ContentService {
   @SuppressWarnings("unchecked")
   static <T extends ContentModel> T castContentModel(ContentModel model, Class<T> expectedType) {
     if (expectedType.isInstance(model)) return expectedType.cast(model);
-    throw new IllegalStateException(
+    throw new RuntimeException(
         "Expected "
             + expectedType.getSimpleName()
             + " but got "
