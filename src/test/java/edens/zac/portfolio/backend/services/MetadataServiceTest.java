@@ -8,11 +8,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.EquipmentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.ContentCameraEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.services.validator.MetadataValidator;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
@@ -27,8 +29,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
 /**
- * Unit coverage for {@link MetadataService#createCamera} — the camera upsert added in commit
- * 9d500f7. Pure Mockito (no Spring / DB) matching the other service unit tests in this package.
+ * Unit coverage for {@link MetadataService#createCamera} and {@link MetadataService#deletePerson}.
+ * Pure Mockito (no Spring / DB) matching the other service unit tests in this package.
  */
 @ExtendWith(MockitoExtension.class)
 class MetadataServiceTest {
@@ -106,5 +108,45 @@ class MetadataServiceTest {
         .isInstanceOf(IllegalArgumentException.class);
 
     verify(equipmentRepository, never()).saveCamera(any());
+  }
+
+  private ContentPersonEntity person(Long id, String name) {
+    return ContentPersonEntity.builder().id(id).personName(name).build();
+  }
+
+  @Test
+  void deletePerson_deletesThroughTheStatusGuardedPrimitive() {
+    when(personRepository.findById(5L)).thenReturn(Optional.of(person(5L, "Ansel")));
+    when(personRepository.deletePersonById(5L)).thenReturn(1);
+
+    metadataService.deletePerson(5L);
+
+    verify(personRepository).deleteAllAssociationsByPersonId(5L);
+    verify(personRepository).deletePersonById(5L);
+  }
+
+  @Test
+  void deletePerson_refusesAnAccountId() {
+    // Bug #1 regression. Since V35 merged people into users, findById matches account rows too, so
+    // it cannot tell a person tag from an account. The guarded delete is what stops an admin
+    // delete-person call from destroying a real account: it matches 0 rows for an account id, and
+    // deletePerson must turn that into a 404 rather than reporting success.
+    when(personRepository.findById(5L)).thenReturn(Optional.of(person(5L, "Real Account")));
+    when(personRepository.deletePersonById(5L)).thenReturn(0);
+
+    assertThatThrownBy(() -> metadataService.deletePerson(5L))
+        .isInstanceOf(ResourceNotFoundException.class)
+        .hasMessageContaining("5");
+  }
+
+  @Test
+  void deletePerson_404sForAnUnknownId() {
+    when(personRepository.findById(404L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> metadataService.deletePerson(404L))
+        .isInstanceOf(ResourceNotFoundException.class);
+
+    verify(personRepository, never()).deleteAllAssociationsByPersonId(any());
+    verify(personRepository, never()).deletePersonById(any());
   }
 }

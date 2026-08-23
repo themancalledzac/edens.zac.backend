@@ -24,9 +24,9 @@ import org.springframework.stereotype.Component;
  * Servlet filter that enforces per-IP rate limiting on {@code /api/public/**} endpoints using the
  * Bucket4j token-bucket algorithm. All other paths are passed through without any rate-limit check.
  *
- * <p>The rate limit is configurable via {@code app.contact.rate-limit-per-hour}. The filter reads
- * the client IP from {@code X-Real-IP} first, then the first hop of {@code X-Forwarded-For}, then
- * falls back to {@code remoteAddr}.
+ * <p>The rate limit is configurable via {@code app.contact.rate-limit-per-hour}. The client IP is
+ * resolved by {@link ClientIp}, which trusts {@code X-Real-IP} and otherwise falls back to {@code
+ * remoteAddr}.
  *
  * <p>Buckets are stored in a Caffeine cache bounded at 10k entries with a 2-hour idle expiration so
  * the filter cannot be used to exhaust memory by spamming unique IPs.
@@ -85,7 +85,7 @@ public class RateLimitFilter implements Filter {
       return;
     }
 
-    String ip = resolveClientIp(request);
+    String ip = ClientIp.resolve(request);
     Bucket bucket = ipBuckets.get(ip, k -> newBucket(rateLimitPerHour));
 
     if (bucket.tryConsume(1)) {
@@ -123,17 +123,5 @@ public class RateLimitFilter implements Filter {
             .refillIntervally(perHour, Duration.ofHours(1))
             .build();
     return Bucket.builder().addLimit(limit).build();
-  }
-
-  private String resolveClientIp(HttpServletRequest request) {
-    String real = request.getHeader("X-Real-IP");
-    if (real != null && !real.isBlank()) {
-      return real.trim();
-    }
-    String forwarded = request.getHeader("X-Forwarded-For");
-    if (forwarded != null && !forwarded.isBlank()) {
-      return forwarded.split(",")[0].trim();
-    }
-    return request.getRemoteAddr();
   }
 }

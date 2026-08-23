@@ -80,18 +80,23 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void xForwardedForFirstHopIsUsedAsIp() throws Exception {
-      FilterChain chain = mock(FilterChain.class);
-      var req = new MockHttpServletRequest();
-      req.setRequestURI("/api/public/messages");
-      req.setRemoteAddr("172.16.0.1");
-      req.addHeader("X-Forwarded-For", "203.0.113.5, 10.0.0.1");
+    void spoofedXForwardedForCannotMintFreshBuckets() throws Exception {
+      // Bug #3 regression. The filter used to key on the first X-Forwarded-For hop, so a client
+      // rotating that header drew an unlimited supply of fresh buckets and the per-IP limit stopped
+      // existing. All three requests below share one remoteAddr, so they share one bucket and the
+      // third exceeds the limit of 2 no matter what X-Forwarded-For claims.
+      for (int i = 0; i < 2; i++) {
+        var req = publicRequest("172.16.0.1");
+        req.addHeader("X-Forwarded-For", "203.0.113." + i);
+        filter.doFilter(req, new MockHttpServletResponse(), mock(FilterChain.class));
+      }
 
+      var third = publicRequest("172.16.0.1");
+      third.addHeader("X-Forwarded-For", "203.0.113.99");
       var resp = new MockHttpServletResponse();
-      filter.doFilter(req, resp, chain);
+      filter.doFilter(third, resp, mock(FilterChain.class));
 
-      assertThat(resp.getStatus()).isNotEqualTo(429);
-      verify(chain).doFilter(any(), any());
+      assertThat(resp.getStatus()).isEqualTo(429);
     }
 
     @Test

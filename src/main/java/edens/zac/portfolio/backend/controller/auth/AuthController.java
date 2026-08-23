@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.auth;
 
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
+import edens.zac.portfolio.backend.config.ClientIp;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
@@ -56,7 +57,7 @@ public class AuthController {
       @Valid @RequestBody LoginRequest body,
       HttpServletRequest request,
       HttpServletResponse response) {
-    String ip = resolveClientIp(request);
+    String ip = ClientIp.resolve(request);
     // Normalize to lowercase so login matches the lowercased email stored at account-creation time.
     String email = body.email().toLowerCase();
 
@@ -122,13 +123,5 @@ public class AuthController {
       }
     }
     return null;
-  }
-
-  private static String resolveClientIp(HttpServletRequest request) {
-    String realIp = request.getHeader("X-Real-IP");
-    if (realIp != null && !realIp.isBlank()) {
-      return realIp.trim();
-    }
-    return request.getRemoteAddr();
   }
 }
