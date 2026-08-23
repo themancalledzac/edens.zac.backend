@@ -221,10 +221,14 @@ public class CollectionService {
         collectionProcessingUtil.batchConvertToBasicModels(collectionEntities);
 
     // Get IDs of ALL visible collections at this location (for orphan exclusion).
-    // If the paginated result already covers all collections, extract IDs directly
-    // to avoid a redundant query.
+    // The shortcut -- reuse the ids already in hand instead of re-querying -- is only valid when
+    // this page actually holds every collection, which requires being on the FIRST page. Past it,
+    // the offset is at or beyond totalCollections, so collectionEntities is empty; dropping the
+    // collectionPage check meant an empty exclusion list, and both orphan queries respond to an
+    // empty list by omitting their NOT EXISTS clause. Every image at the location then came back
+    // as an "orphan", including ones sitting in the collections listed right above them.
     List<Long> allCollectionIds;
-    if (totalCollections <= collectionSize) {
+    if (collectionPage == 0 && totalCollections <= collectionSize) {
       allCollectionIds = collectionEntities.stream().map(CollectionEntity::getId).toList();
     } else {
       allCollectionIds = collectionRepository.findListedIdsByLocationName(locationName);

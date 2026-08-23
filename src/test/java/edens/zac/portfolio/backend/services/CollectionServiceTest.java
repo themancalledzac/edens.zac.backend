@@ -871,6 +871,44 @@ class CollectionServiceTest {
       assertThat(result.totalCollections()).isEqualTo(0L);
       assertThat(result.totalImages()).isEqualTo(0L);
     }
+
+    /**
+     * Past the first page the paginated query returns nothing, so the "ids are already in hand"
+     * shortcut has nothing to hand over. It used to fire anyway -- it only checked {@code
+     * totalCollections <= collectionSize} -- leaving an empty exclusion list, and both orphan
+     * queries drop their NOT EXISTS clause on an empty list. The response then advertised every
+     * image at the location as an orphan.
+     */
+    @Test
+    @DisplayName("past page 0 the exclusion list is queried, not taken from the empty page")
+    void getLocationPage_pastFirstPage_stillExcludesCollectionImages() {
+      String locationName = "Seattle";
+
+      when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
+      when(collectionRepository.countListedByLocationName(locationName)).thenReturn(1L);
+      // Page 1 of a single-collection location: offset 35 is past the end, so this is empty.
+      when(collectionRepository.findListedByLocationName(locationName, 35, 35))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
+          .thenReturn(Collections.emptyList());
+      lenient()
+          .when(collectionRepository.findListedIdsByLocationName(locationName))
+          .thenReturn(List.of(10L));
+      // Stubbed loosely on the exclusion list so the pre-fix path reaches the assertions below
+      // and reports the wrong list, rather than dying on an unmatched stub.
+      when(contentRepository.findOrphanImagesByLocationName(eq(locationName), any(), eq(50), eq(0)))
+          .thenReturn(Collections.emptyList());
+      when(contentRepository.countOrphanImagesByLocationName(eq(locationName), any()))
+          .thenReturn(0L);
+
+      LocationPageResponse result = service.getLocationPage(locationName, 1, 35, 0, 50);
+
+      verify(contentRepository)
+          .findOrphanImagesByLocationName(eq(locationName), eq(List.of(10L)), eq(50), eq(0));
+      verify(contentRepository).countOrphanImagesByLocationName(eq(locationName), eq(List.of(10L)));
+      assertThat(result.collections()).isEmpty();
+      assertThat(result.totalCollections()).isEqualTo(1L);
+    }
   }
 
   @Nested
