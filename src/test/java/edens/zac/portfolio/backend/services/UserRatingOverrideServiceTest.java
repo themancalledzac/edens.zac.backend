@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class UserRatingOverrideServiceTest {
@@ -50,8 +51,10 @@ class UserRatingOverrideServiceTest {
   void upsertRejectedWhenNoClientMembership() {
     when(collectionAccessService.isClient(USER, COLLECTION)).thenReturn(false);
 
+    // AccessDeniedException, not SecurityException: GlobalExceptionHandler maps this one to 403,
+    // which is what let the controller drop its try-catch.
     assertThatThrownBy(() -> service().upsert(USER, COLLECTION, CONTENT, 4))
-        .isInstanceOf(SecurityException.class);
+        .isInstanceOf(AccessDeniedException.class);
 
     verify(overrideRepository, never()).upsert(any());
   }

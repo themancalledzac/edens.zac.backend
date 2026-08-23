@@ -91,11 +91,16 @@ public class GlobalExceptionHandler {
   }
 
   /**
-   * Handle Spring 6.1+ built-in method validation, raised for constraints declared on container
-   * elements (e.g. {@code List<@Valid Foo>}) rather than on the container itself -- {@code @Valid}
-   * directly on a {@code List} parameter validates the list, never its elements, so this is the
-   * only path that actually enforces per-element constraints on such parameters (see
-   * EditController.patchImages). Aggregates messages the same way as {@link #handleValidation}.
+   * Handle Spring 6.1+ built-in method validation, raised for constraints on the elements of a
+   * container parameter (e.g. {@code List<@Valid Foo>}). This is the path that enforces per-element
+   * constraints on such parameters; the classic {@link MethodArgumentNotValidException} covers a
+   * single {@code @Valid @RequestBody} bean.
+   *
+   * <p>An earlier version of this note claimed {@code @Valid} placed on the {@code List} itself
+   * validates only the list object. On Spring Boot 3.5 that is not true: {@code
+   * HandlerMethodValidator} cascades either placement into the elements, and both land here. The
+   * element form is still the clearer way to write it, but the two behave the same. Aggregates
+   * messages the same way as {@link #handleValidation}.
    */
   @ExceptionHandler(HandlerMethodValidationException.class)
   public ResponseEntity<ErrorResponse> handleMethodValidation(HandlerMethodValidationException e) {
