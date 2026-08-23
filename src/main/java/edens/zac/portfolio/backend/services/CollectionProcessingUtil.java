@@ -73,9 +73,12 @@ public class CollectionProcessingUtil {
   }
 
   /**
-   * Batch-convert a list of CollectionEntity to basic models. Pre-fetches all locations and cover
-   * images in batch queries to avoid N+1. Each collection with a cover image would otherwise
+   * Batch-convert a list of CollectionEntity to basic models. Pre-fetches all locations, people and
+   * cover images in batch queries to avoid N+1. Each collection with a cover image would otherwise
    * trigger 5 individual queries (location + cover image + cover's tags/people/location).
+   *
+   * <p>People are one query for the whole list, so there is no N+1 even when this is reached one
+   * collection at a time through {@link #convertToBasicModel}.
    *
    * @param entities The collection entities to convert
    * @return List of converted collection models with locations and cover images populated
@@ -85,17 +88,13 @@ public class CollectionProcessingUtil {
       return new ArrayList<>();
     }
 
-    // Batch-load all locations referenced by these collections (many-to-many)
     List<Long> collectionIds = entities.stream().map(CollectionEntity::getId).toList();
     Map<Long, List<LocationEntity>> locationsByCollectionId =
         locationRepository.findLocationsByCollectionIds(collectionIds);
 
-    // Batch-load all people associated to these collections (many-to-many) — single query,
-    // no N+1 even when called per collection via convertToBasicModel.
     Map<Long, List<Records.Person>> peopleByCollectionId =
         collectionPeopleRepository.findPeopleForCollections(collectionIds);
 
-    // Batch-load all cover images
     List<Long> coverImageIds =
         entities.stream()
             .map(CollectionEntity::getCoverImageId)
@@ -108,7 +107,6 @@ public class CollectionProcessingUtil {
       coverImages.forEach(img -> coverImagesById.put(img.getId(), img));
     }
 
-    // Batch-load tags, people, and locations for all cover images
     List<Long> coverContentIds = new ArrayList<>(coverImagesById.keySet());
     Map<Long, List<TagEntity>> tagsByContentId =
         tagRepository.findTagsByContentIds(coverContentIds);
@@ -117,7 +115,6 @@ public class CollectionProcessingUtil {
     Map<Long, List<LocationEntity>> coverLocationsByContentId =
         locationRepository.findLocationsByContentIds(coverContentIds);
 
-    // Convert each entity using pre-loaded data
     return entities.stream()
         .map(
             entity ->
@@ -132,7 +129,14 @@ public class CollectionProcessingUtil {
         .collect(Collectors.toList());
   }
 
-  /** Build a single CollectionModel from pre-loaded batch data. */
+  /**
+   * Build a single CollectionModel from pre-loaded batch data. The people set here are those on the
+   * collection itself (the {@code collection_people} join), not the people tagged on its images.
+   *
+   * <p>Display mode falls back to CHRONOLOGICAL whenever none is stored; ORDERED is a
+   * per-collection opt-in, and an explicit displayMode in a request is always respected and
+   * persisted.
+   */
   private CollectionModel buildBasicModel(
       CollectionEntity entity,
       Map<Long, List<LocationEntity>> locationsByCollectionId,
@@ -157,7 +161,6 @@ public class CollectionProcessingUtil {
             .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
             .collect(Collectors.toList()));
 
-    // People on the collection itself (collection_people join)
     model.setPeople(new ArrayList<>(peopleByCollectionId.getOrDefault(entity.getId(), List.of())));
 
     model.setCollectionDate(entity.getCollectionDate());
@@ -165,7 +168,6 @@ public class CollectionProcessingUtil {
     model.setVisibility(entity.getVisibility());
     model.setRating(entity.getRating());
 
-    // Populate cover image from pre-loaded data
     if (entity.getCoverImageId() != null) {
       ContentImageEntity coverImage = coverImagesById.get(entity.getCoverImageId());
       if (coverImage != null) {
@@ -185,8 +187,6 @@ public class CollectionProcessingUtil {
 
     model.setCreatedAt(entity.getCreatedAt());
     model.setUpdatedAt(entity.getUpdatedAt());
-    // Chronological is the universal fallback when no display mode is stored; ORDERED is a
-    // per-collection opt-in (explicit displayMode in a request is always respected and persisted).
     DisplayMode mode = entity.getDisplayMode();
     if (mode == null) {
       mode = DisplayMode.CHRONOLOGICAL;
@@ -202,7 +202,14 @@ public class CollectionProcessingUtil {
 
   /**
    * Convert a CollectionEntity and a List of CollectionContentEntity to a CollectionModel. Uses
-   * bulk loading of ContentEntity instances to avoid proxy issues and improve performance.
+   * bulk loading of ContentEntity instances to avoid proxy issues and improve performance -- one
+   * query loads every content row with its subclasses properly resolved.
+   *
+   * <p>Child-collection tile blocks get the same treatment: their referenced collections and cover
+   * images are batch-loaded, so a parent or home collection with N tiles stays at a constant query
+   * count instead of firing findById + findImageById (plus per-image metadata) for every tile.
+   * Tags, people and locations for all IMAGE content AND all tile cover images are then loaded in
+   * three queries total.
    *
    * @param entity The entity to convert
    * @param collectionContentList The list of join table entries (collection-content associations)
@@ -223,15 +230,12 @@ public class CollectionProcessingUtil {
 
     CollectionModel model = convertToBasicModel(entity);
 
-    // Extract content IDs from join table entries
     List<Long> contentIds =
         collectionContentList.stream()
             .map(CollectionContentEntity::getContentId)
             .filter(Objects::nonNull)
             .toList();
 
-    // Bulk fetch all ContentEntity instances in one query (properly loads all
-    // subclasses)
     final Map<Long, ContentEntity> contentMap;
     if (!contentIds.isEmpty()) {
       List<ContentEntity> contentEntities = contentRepository.findAllByIds(contentIds);
@@ -241,9 +245,6 @@ public class CollectionProcessingUtil {
       contentMap = new HashMap<>();
     }
 
-    // Batch-load referenced collections and their cover images for any child-collection tile
-    // blocks, so a parent/home collection with N tiles stays at a constant query count instead of
-    // firing findById + findImageById (+ per-image metadata) for every tile.
     List<Long> referencedCollectionIds =
         contentMap.values().stream()
             .filter(ContentCollectionEntity.class::isInstance)
@@ -270,8 +271,6 @@ public class CollectionProcessingUtil {
             : contentRepository.findImagesByIds(coverImageIds).stream()
                 .collect(Collectors.toMap(ContentImageEntity::getId, img -> img));
 
-    // Batch-load tags, people, and locations for all IMAGE content AND all tile cover images in
-    // three queries total, to avoid N+1 queries.
     List<Long> imageContentIds =
         contentMap.values().stream()
             .filter(c -> c.getContentType() == ContentType.IMAGE)
@@ -288,7 +287,6 @@ public class CollectionProcessingUtil {
     Map<Long, List<LocationEntity>> locationsByContentId =
         locationRepository.findLocationsByContentIds(metadataContentIds);
 
-    // Convert join table entries to content models with collection-specific metadata
     List<ContentModel> contents =
         collectionContentList.stream()
             .filter(Objects::nonNull)
@@ -302,7 +300,6 @@ public class CollectionProcessingUtil {
                         entity.getId());
                     return null;
                   }
-                  // For IMAGE content, use batch-loaded data to avoid N+1 queries
                   if (content.getContentType() == ContentType.IMAGE
                       && content instanceof ContentImageEntity imageEntity) {
                     return contentModelConverter.buildImageModelWithBatchData(
@@ -313,8 +310,6 @@ public class CollectionProcessingUtil {
                         peopleByContentId,
                         locationsByContentId);
                   }
-                  // For child-collection tiles, use batch-loaded referenced collections + cover
-                  // images to avoid per-tile N+1 queries.
                   if (content instanceof ContentCollectionEntity collectionContent) {
                     return contentModelConverter.buildCollectionModelWithBatchData(
                         collectionContent,
@@ -325,7 +320,6 @@ public class CollectionProcessingUtil {
                         peopleByContentId,
                         locationsByContentId);
                   }
-                  // For other content types (TEXT, GIF), use the standard conversion
                   return contentModelConverter.convertBulkLoadedContentToModel(content, cc);
                 })
             .filter(Objects::nonNull)
@@ -333,7 +327,6 @@ public class CollectionProcessingUtil {
 
     model.setContent(contents);
 
-    // Set pagination metadata
     int totalPages = pageSize > 0 ? (int) Math.ceil((double) totalElements / pageSize) : 0;
     model.setCurrentPage(currentPage);
     model.setTotalPages(totalPages);
@@ -368,9 +361,13 @@ public class CollectionProcessingUtil {
   }
 
   /**
-   * Populate child collection metadata on image content items. For each image in the model, finds
-   * all collections it belongs to and attaches them as ChildCollection records. Uses batch queries
-   * to avoid N+1.
+   * Populate child collection metadata on image AND GIF content items. For each one, finds all
+   * collections it belongs to and attaches them as ChildCollection records. Uses batch queries to
+   * avoid N+1.
+   *
+   * <p>GIFs participate in many-to-many collection membership exactly as images do. The content
+   * records are immutable, so the memberships are attached with {@code withCollections} rather than
+   * a setter.
    *
    * @param model The CollectionModel with content items to populate
    */
@@ -390,14 +387,12 @@ public class CollectionProcessingUtil {
       return;
     }
 
-    // Batch-load all collections for all content items
     List<CollectionContentEntity> allCollections =
         collectionRepository.findContentByContentIdsIn(contentIds);
     Map<Long, List<CollectionContentEntity>> collectionsByContentId =
         allCollections.stream()
             .collect(Collectors.groupingBy(CollectionContentEntity::getContentId));
 
-    // Batch-load collection entities
     List<Long> collectionIds =
         allCollections.stream()
             .map(CollectionContentEntity::getCollectionId)
@@ -411,7 +406,6 @@ public class CollectionProcessingUtil {
             : collectionRepository.findByIds(collectionIds).stream()
                 .collect(Collectors.toMap(CollectionEntity::getId, c -> c));
 
-    // Batch-load cover image URLs
     List<Long> coverImageIds =
         collectionsById.values().stream()
             .map(CollectionEntity::getCoverImageId)
@@ -427,8 +421,6 @@ public class CollectionProcessingUtil {
                     Collectors.toMap(
                         ContentImageEntity::getId, ContentImageEntity::getImageUrlWeb));
 
-    // Populate collections on image AND GIF content (records are immutable — use withCollections).
-    // GIFs participate in many-to-many collection membership the same way images do.
     List<ContentModel> contents =
         model.getContent().stream()
             .map(
@@ -473,7 +465,9 @@ public class CollectionProcessingUtil {
    *
    * <p>On the admin path ({@code listedOnly=false}) {@code model.oneWaySiblingIds} is also filled
    * with the subset of siblings that do not link back, so the admin UI can badge each link as
-   * MUTUAL or ONE-WAY. Left null on the public path.
+   * MUTUAL or ONE-WAY. Left null on the public path: direction is an admin-manage concern only, the
+   * public read path never renders a badge, and a one-way sibling is already absent from the
+   * target's list because the row does not exist.
    */
   public void populateSiblings(CollectionModel model, boolean listedOnly) {
     if (model == null || model.getId() == null) {
@@ -483,7 +477,6 @@ public class CollectionProcessingUtil {
     List<Records.SiblingRow> siblingRows =
         collectionSiblingRepository.findSiblings(model.getId(), listedOnly);
 
-    // Batch-load cover image URLs for all siblings that have a cover image.
     List<Long> coverImageIds =
         siblingRows.stream()
             .map(Records.SiblingRow::coverImageId)
@@ -512,8 +505,6 @@ public class CollectionProcessingUtil {
 
     model.setSiblings(siblings);
 
-    // Direction is an admin-manage concern only. The public read path never renders a badge, and
-    // a one-way sibling is already absent from the target's list because the row does not exist.
     if (!listedOnly) {
       model.setOneWaySiblingIds(
           siblingRows.stream().filter(row -> !row.mutual()).map(Records.SiblingRow::id).toList());
@@ -565,6 +556,12 @@ public class CollectionProcessingUtil {
    * Create a CollectionEntity from a Create request. Required field: title. Optional fields:
    * isClient/isBlog, description, locationId/locationName, collectionDate -- use defaults when not
    * provided. The two flags are mutually exclusive (see {@link CollectionFlags}).
+   *
+   * <p>Visibility is a privacy-first default: new collections are UNLISTED -- reachable by direct
+   * slug, absent from public listings -- until an admin explicitly lists them. Display mode
+   * defaults to CHRONOLOGICAL, with ORDERED an explicit opt-in via a later update. The Create
+   * request carries neither a visibility nor a displayMode field, so every create takes both
+   * defaults regardless of type.
    */
   public CollectionEntity toEntity(CollectionRequests.Create request, int defaultPageSize) {
     if (request == null) {
@@ -584,14 +581,9 @@ public class CollectionProcessingUtil {
     entity.setDescription(request.description() != null ? request.description() : "");
     entity.setCollectionDate(
         request.collectionDate() != null ? request.collectionDate() : LocalDate.now());
-    // Privacy-first default: new collections are UNLISTED (reachable by direct slug, absent
-    // from public listings) until an admin explicitly lists them. The Create request carries
-    // no visibility field, so every create lands here regardless of type.
     entity.setVisibility(CollectionVisibility.UNLISTED);
     entity.setTotalContent(0);
     entity.setContentPerPage(defaultPageSize);
-    // Every new collection defaults to CHRONOLOGICAL regardless of type; ORDERED is an
-    // explicit opt-in via a later update request (Create carries no displayMode field).
     entity.setDisplayMode(DisplayMode.CHRONOLOGICAL);
     return applyPaginationDefaults(entity);
   }
@@ -609,11 +601,16 @@ public class CollectionProcessingUtil {
    *
    * <p>Layout fields are written for every collection: the old suppression on parent types went out
    * with {@code CollectionType}, since any collection may now hold any mix of content.
+   *
+   * <p>The isClient/isBlog block is a guard only -- a request carrying neither flag leaves both
+   * untouched. The resolution rules themselves live in {@link CollectionFlags}.
+   *
+   * <p>{@code coverImageId} carries a sentinel: 0 explicitly clears the cover image, any other id
+   * is verified to exist before being written.
    */
   public void applyBasicUpdates(CollectionEntity entity, CollectionRequests.Update updateDTO) {
     if (updateDTO.title() != null) {
       entity.setTitle(updateDTO.title());
-      // Auto-regenerate slug from new title unless an explicit slug was also provided
       if (updateDTO.slug() == null || updateDTO.slug().isBlank()) {
         String newSlug = generateSlug(updateDTO.title());
         String uniqueSlug = validateAndEnsureUniqueSlug(newSlug, entity.getId());
@@ -623,8 +620,6 @@ public class CollectionProcessingUtil {
     if (updateDTO.description() != null) {
       entity.setDescription(updateDTO.description());
     }
-    // Guard only: a request carrying neither flag leaves both untouched.
-    // Resolution rules live in CollectionFlags.
     if (updateDTO.isClient() != null || updateDTO.isBlog() != null) {
       boolean wasClient = entity.isClient();
       boolean wasBlog = entity.isBlog();
@@ -642,7 +637,6 @@ public class CollectionProcessingUtil {
       resolved.applyTo(entity);
       clearGalleryAccessOnClientDemotion(entity, wasClient, resolved.isClient());
     }
-    // Handle location update using prev/new/remove pattern (many-to-many)
     if (updateDTO.locations() != null) {
       CollectionRequests.LocationUpdate locationUpdate = updateDTO.locations();
       List<LocationEntity> currentLocations =
@@ -690,13 +684,10 @@ public class CollectionProcessingUtil {
       entity.setDisplayMode(updateDTO.displayMode());
     }
 
-    // Handle coverImageId updates - load ContentImageEntity by ID
     if (updateDTO.coverImageId() != null) {
       if (updateDTO.coverImageId() == 0) {
-        // Explicitly clear cover image if ID is 0
         entity.setCoverImageId(null);
       } else {
-        // Verify cover image exists
         contentRepository
             .findImageById(updateDTO.coverImageId())
             .orElseThrow(
@@ -792,7 +783,6 @@ public class CollectionProcessingUtil {
       throw new IllegalArgumentException("Slug cannot be empty");
     }
 
-    // Check if slug already exists
     boolean exists =
         collectionRepository
             .findBySlug(slug)
@@ -803,7 +793,6 @@ public class CollectionProcessingUtil {
       return slug; // Slug is unique
     }
 
-    // Slug exists, append a number to make it unique
     int counter = 1;
     String newSlug;
     do {
@@ -866,6 +855,9 @@ public class CollectionProcessingUtil {
    * collection that holds child collections, to aggregate images across them for cover image
    * selection and content management.
    *
+   * <p>Results are deduplicated by content id: the same image may appear in several child
+   * collections, and the manage page wants it once.
+   *
    * @param childCollectionIds IDs of child collections to aggregate images from
    * @return List of image models from all child collections
    */
@@ -874,7 +866,6 @@ public class CollectionProcessingUtil {
       return List.of();
     }
 
-    // Batch-fetch all IMAGE content join entries across child collections
     List<CollectionContentEntity> imageJoinEntries =
         collectionRepository.findImageContentByCollectionIds(childCollectionIds);
 
@@ -882,7 +873,6 @@ public class CollectionProcessingUtil {
       return List.of();
     }
 
-    // Extract content IDs and bulk-fetch all image entities
     List<Long> contentIds =
         imageJoinEntries.stream().map(CollectionContentEntity::getContentId).distinct().toList();
 
@@ -890,7 +880,6 @@ public class CollectionProcessingUtil {
     Map<Long, ContentEntity> contentMap =
         contentEntities.stream().collect(Collectors.toMap(ContentEntity::getId, ce -> ce));
 
-    // Batch-load tags, people, and locations for all images
     List<Long> imageContentIds =
         contentMap.values().stream()
             .filter(c -> c.getContentType() == ContentType.IMAGE)
@@ -903,8 +892,6 @@ public class CollectionProcessingUtil {
     Map<Long, List<LocationEntity>> locationsByContentId =
         locationRepository.findLocationsByContentIds(imageContentIds);
 
-    // Convert to image models, deduplicating by content ID (same image may appear in multiple
-    // child collections)
     Set<Long> seen = new HashSet<>();
     return imageJoinEntries.stream()
         .filter(cc -> seen.add(cc.getContentId()))
@@ -925,10 +912,6 @@ public class CollectionProcessingUtil {
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
   }
-
-  // =============================================================================
-  // TYPE-SPECIFIC PROCESSING
-  // =============================================================================
 
   /**
    * Fill in the default pagination size for a collection that has none. Visibility is intentionally

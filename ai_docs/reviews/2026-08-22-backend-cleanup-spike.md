@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12a (`CollectionService`) done. **Next up: MR 12b** -- `ContentService` + `CollectionProcessingUtil`. Re-derive the lists first; they are stale. |
+| 4 — Comments and docs | MR 12-14 | MR 12a (`CollectionService`) done; MR 12b (`ContentService` + `CollectionProcessingUtil`) done, and filed bug #16. **Next up: MR 12c** -- the remaining twelve small files. Re-derive the lists first; they are stale. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -913,8 +913,59 @@ propagation) was verified against the code and held. One staleness found, alread
   context detection, since `parentIsProtected` now reads `model.getIsPasswordProtected()` directly.
   The docblock still describes the removed derivation. The docblock itself was **not** touched here;
   it is MR 14's to rewrite. Its line reference has moved off `1536-1547` -- re-derive it by name.
-- [ ] `CollectionProcessingUtil.java` — D: 88, 93, 98, 111, 120, 160, 168, 226, 233, 244, 273, 291, 305, 316, 328, 336, 393, 400, 414, 430, 486, 616, 645, 693, 696, 699, 793, 804, 875, 883, 891, 904, trailing 801, 810. P: 188, 587, 593. Delete-redundant: 515, 626.
-- [ ] `ContentService.java` — D: 114, 123, 134, 139, 144, 151, 159, 175, 181, 189, 198, 206, 210, 219, 224, 230, 233, 250, 278, 297, 305, 315, 322, 331, 379, 382, 450, 458, 465, 468, 477, 504, 507, 510, 638, 934, 940. P: 417 (batch-vs-N+1, into the `searchImages` docblock), 977 (Rule B, into the `linkContentToCollection` docblock). Delete-redundant: 347, 579, 597, 614, 854.
+- [x] `CollectionProcessingUtil.java` — **MR 12b, done.** 51 in-method comments removed plus the stale `TYPE-SPECIFIC PROCESSING` banner. Original (stale) list — D: 88, 93, 98, 111, 120, 160, 168, 226, 233, 244, 273, 291, 305, 316, 328, 336, 393, 400, 414, 430, 486, 616, 645, 693, 696, 699, 793, 804, 875, 883, 891, 904, trailing 801, 810. P: 188, 587, 593. Delete-redundant: 515, 626.
+- [x] `ContentService.java` — **MR 12b, done.** 57 of 58 in-method comments removed; one kept deliberately as bug #16's evidence. Original (stale) list — D: 114, 123, 134, 139, 144, 151, 159, 175, 181, 189, 198, 206, 210, 219, 224, 230, 233, 250, 278, 297, 305, 315, 322, 331, 379, 382, 450, 458, 465, 468, 477, 504, 507, 510, 638, 934, 940. P: 417 (batch-vs-N+1, into the `searchImages` docblock), 977 (Rule B, into the `linkContentToCollection` docblock). Delete-redundant: 347, 579, 597, 614, 854.
+
+### MR 12b outcome (2026-08-23)
+
+Diff: 82 insertions, 121 deletions, two files. Build green (1315 tests, 0 failures), checkstyle 0
+violations, spotless produced no reformatting.
+
+Re-derived counts: `ContentService` 58 and `CollectionProcessingUtil` 51, so 109 in scope rather than
+the prep note's 119 -- the same over-count as 12a, and for the same reason. `CollectionProcessingUtil`
+also carries 21 comments at indent < 4, of which 18 are the six legitimate section banners (left in
+place per the Wave 4 header) and 3 were the stale `TYPE-SPECIFIC PROCESSING` banner, removed as the
+prep note explicitly authorizes. That banner now heads a section containing exactly one method,
+`applyPaginationDefaults`, which is not type-specific at all.
+
+Guardrail note, so 12c inherits the rule: the diff is comment lines plus **two blank lines**, and
+nothing else. Both blanks were forced. Each sat immediately before a comment block that ended a
+method body, so removing the comment left a dangling blank line before the closing brace that
+spotless drops. Not a code change, but worth naming rather than claiming a perfectly pure diff.
+
+Two trailing comments in `validateAndEnsureUniqueSlug` (`// Slug is unique`, `// Limit to prevent
+infinite loop`) were removed and then deliberately restored. Unlike 12a's pair there was no reflow
+risk here -- the code text stayed byte-identical -- but stripping a trailing comment still shows up
+as a modified code line, which defeats the cheap "grep the diff for non-comment lines" audit that
+makes this MR class worth running. Same rule as 12a: trailing comments belong to whichever MR
+touches that code for real.
+
+One promoted comment corrected a docblock as a side effect, which is worth flagging since it edges
+on MR 14's territory. `populateCollectionsOnContent`'s docblock said "on image content items"; the
+method has handled GIFs for some time, and the inline comment being promoted said exactly that. The
+docblock now reads "image AND GIF content items". This is the promote operation, not a separate fix
+-- but if 12c or 13 hits the same shape, prefer promoting over rewriting and say so.
+
+### Bug #16 (medium, found by MR 12b) — `updateImages` claims a batch save it does not do
+
+`services/ContentService.java` — the comment reading `// Batch save all successfully updated images
+for efficiency` sits above a loop that calls `contentRepository.saveImage(image)` once per image, and
+the log line underneath reports `"Batch saved {} updated images"`. `ContentRepository.saveImage` is a
+single-row INSERT/UPDATE and the repository has no batch variant, so a batch of N image edits issues
+N statements.
+
+What makes this a real defect rather than a wording slip: `updateImages` is meticulous about N+1 on
+every read path -- it batch-fetches the images, then their current tags, people and locations in one
+query each, with two comments explicitly labelled OPTIMIZED -- and then does exactly N+1 on the write
+path. The comment and the log are the only evidence anyone intended otherwise.
+
+Not fixed here, and **the comment is deliberately left in place** per the Wave 4 guardrail: it is the
+only remaining marker of the problem until its own MR lands. That MR should add a batch save to
+`ContentRepository` and fix the log line with it. Both `updateImages` and the collaborator edit path
+(`CollectionService.applyCollaboratorImageEdits`, which routes through `updateImages`) benefit.
+
+Not to be confused with consolidation item #15, which separately notes that `getUpdateCollectionData`
+fetches the collection row twice. That one is already filed and untouched.
 - [ ] `ContentModelConverter.java` — D: 379, 386, 473, 480, trailing 170. P: 654.
 - [ ] `ContentMutationUtil.java` — D: 384. P: 132.
 - [ ] `SyntheticCollectionResolver.java` — P: 38 (trimmed), 78, 95.
