@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -218,7 +219,9 @@ public class ImageProcessingService {
         imageMetadataExtractor.parseExifDateToLocalDateTime(
             createDateStr != null ? createDateStr : modifyDateStr);
 
-    // Use file last-modified as export date (approximation for dedupe)
+    // A MultipartFile carries no last-modified time and the plugin does not send an export date,
+    // so every multipart upload counts as a fresh export and always takes the dedupe UPDATE
+    // branch. The from-disk path, which does have a real file, uses its mtime instead.
     LocalDateTime lastExportDate = LocalDateTime.now();
 
     log.info(
@@ -297,7 +300,7 @@ public class ImageProcessingService {
     LocalDateTime captureDate =
         imageMetadataExtractor.parseExifDateToLocalDateTime(
             createDateStr != null ? createDateStr : modifyDateStr);
-    LocalDateTime lastExportDate = LocalDateTime.now();
+    LocalDateTime lastExportDate = exportDateFromFile(jpegPath);
 
     log.info(
         "Prepared from disk: {} ({}/{}), createDate='{}', modifyDate='{}', captureDate={}",
@@ -320,6 +323,33 @@ public class ImageProcessingService {
         imageMonth,
         captureDate,
         lastExportDate);
+  }
+
+  /**
+   * Export timestamp for dedupe: the exported JPEG's last-modified time.
+   *
+   * <p>Lightroom writes a new file on every export, so mtime is what separates a genuine re-export
+   * (newer file, take the UPDATE branch) from re-sending the same file (same mtime, SKIP). Using
+   * {@code now()} here instead made every re-send look newer, which is why SKIP only ever fired for
+   * duplicates inside a single batch.
+   *
+   * <p>Falls back to {@code now()} when the filesystem cannot report the time, which keeps the
+   * image eligible for update rather than skipping a real re-export.
+   *
+   * <p>Package-private for tests: the surrounding prepare step converts to WebP through a native
+   * library that is not loadable on every dev architecture.
+   */
+  LocalDateTime exportDateFromFile(Path jpegPath) {
+    try {
+      return LocalDateTime.ofInstant(
+          Files.getLastModifiedTime(jpegPath).toInstant(), ZoneId.systemDefault());
+    } catch (IOException e) {
+      log.warn(
+          "Could not read last-modified time for {} -- treating as a fresh export: {}",
+          jpegPath,
+          e.getMessage());
+      return LocalDateTime.now();
+    }
   }
 
   /**

@@ -14,14 +14,23 @@ import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -449,5 +458,57 @@ class ImageProcessingServiceTest {
   void contentHash_isTwelveLowercaseHexChars() {
     String h = imageProcessingService.contentHash("anything".getBytes());
     assertTrue(h.matches("[0-9a-f]{12}"), "expected 12 lowercase hex chars but was: " + h);
+  }
+
+  // ============================================================================
+  // Tests for the dedupe export date
+  // ============================================================================
+
+  @TempDir Path tempDir;
+
+  /** Write a small JPEG whose last-modified time is set to {@code mtime}. */
+  private Path jpegWithMtime(String name, Instant mtime) throws IOException {
+    Path path = tempDir.resolve(name);
+    ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", path.toFile());
+    Files.setLastModifiedTime(path, FileTime.from(mtime));
+    return path;
+  }
+
+  @Test
+  void exportDate_comesFromTheFilesMtime() throws Exception {
+    // The dedupe SKIP branch compares export dates. Stamping now() here made every re-send look
+    // newer than the stored copy, so SKIP could only ever fire within a single batch.
+    Instant mtime = Instant.now().minus(3, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+    Path jpeg = jpegWithMtime("export.jpg", mtime);
+
+    assertEquals(
+        LocalDateTime.ofInstant(mtime, ZoneId.systemDefault()),
+        imageProcessingService.exportDateFromFile(jpeg),
+        "export date must come from the file, not the clock");
+  }
+
+  @Test
+  void exportDate_ordersAReExportAfterTheFileItReplaces() throws Exception {
+    Instant older = Instant.now().minus(5, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+    Instant newer = Instant.now().minus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+
+    LocalDateTime first = imageProcessingService.exportDateFromFile(jpegWithMtime("a.jpg", older));
+    LocalDateTime second = imageProcessingService.exportDateFromFile(jpegWithMtime("b.jpg", newer));
+
+    // A genuine re-export is newer; re-sending the same file is not. Under now() both dates
+    // were the wall clock, so the gap between them had nothing to do with the files.
+    assertTrue(second.isAfter(first));
+    assertEquals(4 * 24 * 60, ChronoUnit.MINUTES.between(first, second));
+  }
+
+  @Test
+  void exportDate_fallsBackToNowWhenTheFileIsUnreadable() {
+    // Unreadable mtime must leave the image eligible for update rather than skipping a real
+    // re-export, so the fallback is deliberately "as new as possible".
+    LocalDateTime before = LocalDateTime.now().minusSeconds(1);
+
+    LocalDateTime result = imageProcessingService.exportDateFromFile(tempDir.resolve("gone.jpg"));
+
+    assertTrue(result.isAfter(before));
   }
 }

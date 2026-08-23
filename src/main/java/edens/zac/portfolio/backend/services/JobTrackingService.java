@@ -13,7 +13,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * In-memory job tracker for background disk upload processing. Thread-safe via ConcurrentHashMap
- * and AtomicInteger counters. Jobs auto-expire after 1 hour.
+ * and AtomicInteger counters. Finished jobs auto-expire after 1 hour; running jobs are kept until
+ * they finish.
  */
 @Component
 @Slf4j
@@ -83,6 +84,11 @@ public class JobTrackingService {
     public void markCompleted() {
       this.status = errors.isEmpty() ? "COMPLETED" : "FAILED";
     }
+
+    /** True once the job has stopped running. Only terminal jobs are eligible for cleanup. */
+    boolean isTerminal() {
+      return "COMPLETED".equals(status) || "FAILED".equals(status);
+    }
   }
 
   /** Response DTO -- snapshot of current job state with plain int fields. */
@@ -123,14 +129,30 @@ public class JobTrackingService {
     return Optional.of(toResponse(job));
   }
 
-  /** Clean up jobs older than 1 hour. Runs every 10 minutes. */
+  /**
+   * Clean up finished jobs older than 1 hour. Runs every 10 minutes.
+   *
+   * <p>Only COMPLETED and FAILED jobs are removed. An ingest of several hundred RAW files can run
+   * well past an hour, and dropping it from the map mid-flight makes it 404 on the next poll, so
+   * the client sees the job disappear rather than finish.
+   */
   @Scheduled(fixedRate = 600_000)
   public void cleanupExpiredJobs() {
-    var cutoff = LocalDateTime.now().minusHours(1);
+    removeFinishedJobsStartedBefore(LocalDateTime.now().minusHours(1));
+  }
+
+  /**
+   * Remove finished jobs started before the cutoff. Package-private so tests can pass a cutoff
+   * instead of aging a job by an hour.
+   *
+   * @return the number of jobs removed
+   */
+  int removeFinishedJobsStartedBefore(LocalDateTime cutoff) {
     int removed = 0;
     var it = jobs.entrySet().iterator();
     while (it.hasNext()) {
-      if (it.next().getValue().startedAt().isBefore(cutoff)) {
+      var job = it.next().getValue();
+      if (job.isTerminal() && job.startedAt().isBefore(cutoff)) {
         it.remove();
         removed++;
       }
@@ -138,6 +160,7 @@ public class JobTrackingService {
     if (removed > 0) {
       log.debug("Cleaned up {} expired jobs", removed);
     }
+    return removed;
   }
 
   private JobStatusResponse toResponse(JobStatus job) {

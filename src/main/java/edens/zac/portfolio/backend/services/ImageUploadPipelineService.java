@@ -14,6 +14,7 @@ import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import jakarta.annotation.PreDestroy;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -73,9 +74,11 @@ public class ImageUploadPipelineService {
   // Background executor for RAW file uploads -- runs after HTTP response is sent
   private final ExecutorService rawUploadExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
-  // Prevents concurrent upload requests from competing for heap during JPEG decode.
-  // Each request uses PARALLEL_BATCH_SIZE threads for image processing; two concurrent
-  // requests would double memory usage and risk OOM.
+  // Prevents concurrent uploads from competing for heap during JPEG decode. A full-resolution
+  // ImageIO.read of a 45MP JPEG costs 130-180 MB, so two upload paths decoding at once can
+  // exhaust the EC2 heap. Every path that decodes must hold this: the multipart batch in
+  // createImagesParallel, and the per-file prepare step in the disk and ingest loops, which run
+  // on an unbounded virtual-thread executor and would otherwise stack without limit.
   private final Semaphore uploadSemaphore = new Semaphore(1);
 
   @PreDestroy
@@ -196,12 +199,7 @@ public class ImageUploadPipelineService {
 
     // Acquire semaphore to prevent concurrent upload requests from OOM-ing.
     // If another upload is in progress, this request blocks until it finishes.
-    try {
-      uploadSemaphore.acquire();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new RuntimeException("Upload interrupted while waiting for semaphore", e);
-    }
+    acquireUploadPermit();
 
     try {
       // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
@@ -265,6 +263,31 @@ public class ImageUploadPipelineService {
   //  Private helpers
   // ---------------------------------------------------------------------------
 
+  /** Block until an upload permit is free. Restores the interrupt flag before throwing. */
+  private void acquireUploadPermit() {
+    try {
+      uploadSemaphore.acquire();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Upload interrupted while waiting for semaphore", e);
+    }
+  }
+
+  /**
+   * Prepare one file from disk while holding the upload permit. The permit covers only the decode
+   * and S3 phase -- the heap-hungry part -- and is released before the caller does its database
+   * work, so concurrent jobs interleave instead of one job holding the permit for its whole run.
+   */
+  private ImageProcessingService.PreparedImageData prepareFromDiskGuarded(
+      String jpegPath, String rawPath) throws IOException {
+    acquireUploadPermit();
+    try {
+      return imageProcessingService.prepareImageFromDisk(Path.of(jpegPath), rawPath);
+    } finally {
+      uploadSemaphore.release();
+    }
+  }
+
   private void processFilesFromDiskBackground(
       Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
     try {
@@ -311,9 +334,7 @@ public class ImageUploadPipelineService {
 
     for (var fileEntry : request.files()) {
       try {
-        var prepared =
-            imageProcessingService.prepareImageFromDisk(
-                Path.of(fileEntry.jpegPath()), fileEntry.rawPath());
+        var prepared = prepareFromDiskGuarded(fileEntry.jpegPath(), fileEntry.rawPath());
 
         // People: prefer plugin-provided, fall back to XMP-extracted
         List<String> people =
@@ -368,7 +389,13 @@ public class ImageUploadPipelineService {
             contentMutationUtil.associateLocationsByName(
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
-          case SKIP -> job.skipped().incrementAndGet();
+          case SKIP -> {
+            // A skipped image is unchanged, but it still belongs in the collection the caller
+            // uploaded it to -- re-sending an already-known photo to a new collection must add
+            // it there rather than silently drop it.
+            job.skipped().incrementAndGet();
+            linkIfNotLinked(collectionId, dedupeResult.entity().getId(), orderIndex++);
+          }
           default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
         }
       } catch (Exception e) {
@@ -437,9 +464,7 @@ public class ImageUploadPipelineService {
       try {
         // Prepare the image first: this uploads to S3 and extracts EXIF (incl. capture date),
         // which is our fallback when the request omits captureDate.
-        var prepared =
-            imageProcessingService.prepareImageFromDisk(
-                Path.of(fileEntry.jpegPath()), fileEntry.rawPath());
+        var prepared = prepareFromDiskGuarded(fileEntry.jpegPath(), fileEntry.rawPath());
 
         LocalDate captureDay = resolveCaptureDay(fileEntry, prepared);
         if (captureDay == null) {
@@ -499,7 +524,14 @@ public class ImageUploadPipelineService {
             contentMutationUtil.associateLocationsByName(
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
-          case SKIP -> job.skipped().incrementAndGet();
+          case SKIP -> {
+            // See the from-disk loop: a skip means "already stored", not "not wanted here".
+            job.skipped().incrementAndGet();
+            int orderIndex =
+                nextOrderByCollection.computeIfAbsent(collectionId, contentService::nextOrderIndex);
+            nextOrderByCollection.put(collectionId, orderIndex + 1);
+            linkIfNotLinked(collectionId, dedupeResult.entity().getId(), orderIndex);
+          }
           default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
         }
       } catch (Exception e) {
@@ -616,13 +648,26 @@ public class ImageUploadPipelineService {
         contentMutationUtil.associateExtractedKeywords(dedupeResult.entity().getId(), tags, people);
     scheduleRawUploadIfNeeded(dedupeResult, rawFilePath, year, month);
     if (dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
-      Optional<CollectionContentEntity> existing =
-          collectionRepository.findContentByCollectionIdAndContentId(
-              collectionId, dedupeResult.entity().getId());
-      if (existing.isPresent()) return keywordFailures;
+      linkIfNotLinked(collectionId, dedupeResult.entity().getId(), orderIndex);
+    } else {
+      // CREATE: the entity id is brand new, so no link can exist yet -- skip the lookup.
+      contentService.linkContentToCollection(
+          collectionId, dedupeResult.entity().getId(), orderIndex);
     }
-    contentService.linkContentToCollection(collectionId, dedupeResult.entity().getId(), orderIndex);
     return keywordFailures;
+  }
+
+  /**
+   * Link an image to a collection unless that link already exists. Used by the UPDATE and SKIP
+   * paths, where the image may already be a member from an earlier upload.
+   */
+  private void linkIfNotLinked(Long collectionId, Long contentId, int orderIndex) {
+    Optional<CollectionContentEntity> existing =
+        collectionRepository.findContentByCollectionIdAndContentId(collectionId, contentId);
+    if (existing.isPresent()) {
+      return;
+    }
+    contentService.linkContentToCollection(collectionId, contentId, orderIndex);
   }
 
   /**

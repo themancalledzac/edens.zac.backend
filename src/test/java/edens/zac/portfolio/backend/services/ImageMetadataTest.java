@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import edens.zac.portfolio.backend.services.ImageMetadata.BooleanExtractor;
 import edens.zac.portfolio.backend.services.ImageMetadata.ExifTags;
 import edens.zac.portfolio.backend.services.ImageMetadata.MetadataField;
 import edens.zac.portfolio.backend.services.ImageMetadata.NumericExtractor;
@@ -252,72 +251,5 @@ class ImageMetadataTest {
     var extractor = MetadataField.SHUTTER_SPEED.getExtractor();
 
     assertTrue(extractor instanceof ShutterSpeedExtractor);
-  }
-
-  // ==================== BooleanExtractor ====================
-
-  @Test
-  void booleanExtractor_returnsfalseForNull() {
-    var extractor = new BooleanExtractor(value -> value.contains("yes"));
-
-    assertEquals("false", extractor.extract(null));
-  }
-
-  @Test
-  void booleanExtractor_returnsFalseForEmpty() {
-    var extractor = new BooleanExtractor(value -> value.contains("yes"));
-
-    assertEquals("false", extractor.extract(""));
-  }
-
-  @Test
-  void booleanExtractor_returnsFalseForBlank() {
-    var extractor = new BooleanExtractor(value -> value.contains("yes"));
-
-    assertEquals("false", extractor.extract("   "));
-  }
-
-  @Test
-  void booleanExtractor_returnsTrueWhenPredicateMatches() {
-    var extractor = new BooleanExtractor(value -> value.contains("Monochrome"));
-
-    assertEquals("true", extractor.extract("Monochrome, Landscape"));
-  }
-
-  @Test
-  void booleanExtractor_returnsFalseWhenPredicateDoesNotMatch() {
-    var extractor = new BooleanExtractor(value -> value.contains("Monochrome"));
-
-    assertEquals("false", extractor.extract("Color, Landscape"));
-  }
-
-  @Test
-  void booleanExtractor_blackAndWhiteFieldMatchesMonochrome() {
-    var extractor = MetadataField.BLACK_AND_WHITE.getExtractor();
-
-    assertEquals("true", extractor.extract("Monochrome"));
-  }
-
-  @Test
-  void booleanExtractor_blackAndWhiteFieldMatchesBlackAndWhite() {
-    var extractor = MetadataField.BLACK_AND_WHITE.getExtractor();
-
-    assertEquals("true", extractor.extract("BlackAndWhite"));
-  }
-
-  @Test
-  void booleanExtractor_isFilmFieldMatchesCaseInsensitive() {
-    var extractor = MetadataField.IS_FILM.getExtractor();
-
-    assertEquals("true", extractor.extract("Film"));
-    assertEquals("true", extractor.extract("FILM"));
-    assertEquals("true", extractor.extract("film"));
-  }
-
-  @Test
-  void booleanExtractor_isFilmFieldReturnsFalseForDigital() {
-    var extractor = MetadataField.IS_FILM.getExtractor();
-
-    assertEquals("false", extractor.extract("Digital"));
   }
 }

@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -40,9 +42,21 @@ public class ImageMetadataExtractor {
   // Lightroom hierarchical subject XMP namespace
   private static final String NS_LIGHTROOM = "http://ns.adobe.com/lightroom/1.0/";
 
-  // Keywords to filter out (already handled by BLACK_AND_WHITE / IS_FILM metadata fields)
+  // Metadata map keys for the two keyword-derived flags. Lightroom writes them as ordinary
+  // keywords in dc:subject rather than as their own XMP properties, so they are read off the
+  // keyword list rather than through the ImageMetadata field table.
+  static final String FIELD_BLACK_AND_WHITE = "blackAndWhite";
+  static final String FIELD_IS_FILM = "isFilm";
+
+  private static final Set<String> BLACK_AND_WHITE_KEYWORDS =
+      Set.of("monochrome", "blackandwhite", "black-and-white");
+  private static final Set<String> FILM_KEYWORDS = Set.of("film");
+
+  // Keywords that set a flag instead of becoming a tag. Derived from the two sets above so a
+  // keyword can never set a flag and also survive as a tag.
   private static final Set<String> FILTERED_KEYWORDS =
-      Set.of("monochrome", "blackandwhite", "black-and-white", "film");
+      Stream.concat(BLACK_AND_WHITE_KEYWORDS.stream(), FILM_KEYWORDS.stream())
+          .collect(Collectors.toUnmodifiableSet());
 
   /** Default values for image metadata fields. */
   public static final class DEFAULT {
@@ -127,7 +141,7 @@ public class ImageMetadataExtractor {
           try {
             XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
             if (xmpMeta != null) {
-              keywords = extractTagsAndPeopleFromXmp(xmpMeta);
+              keywords = extractTagsAndPeopleFromXmp(xmpMeta, metadata);
             }
           } catch (Exception e) {
             log.warn("Failed to extract keywords from XMP for {}: {}", filename, e.getMessage());
@@ -255,7 +269,8 @@ public class ImageMetadataExtractor {
    * @param xmpMeta The XMP metadata object
    * @return ExtractedKeywords with separated tag and people name lists
    */
-  private ExtractedKeywords extractTagsAndPeopleFromXmp(XMPMeta xmpMeta) {
+  private ExtractedKeywords extractTagsAndPeopleFromXmp(
+      XMPMeta xmpMeta, Map<String, String> metadata) {
     // Try hierarchical subjects first (Lightroom writes these with category parents)
     List<String> hierarchicalSubjects =
         extractXmpArrayItems(xmpMeta, NS_LIGHTROOM, "hierarchicalSubject");
@@ -277,7 +292,11 @@ public class ImageMetadataExtractor {
               subject.contains("|")
                   ? subject.substring(subject.lastIndexOf('|') + 1).trim()
                   : subject.trim();
-          if (!leaf.isEmpty() && !FILTERED_KEYWORDS.contains(leaf.toLowerCase())) {
+          if (leaf.isEmpty()) {
+            continue;
+          }
+          recordKeywordFlags(leaf, metadata);
+          if (!FILTERED_KEYWORDS.contains(leaf.toLowerCase())) {
             tags.add(leaf);
           }
         }
@@ -299,14 +318,41 @@ public class ImageMetadataExtractor {
     // Fallback: flat dc:subject — all become tags, no people distinction
     List<String> dcSubjects = extractXmpArrayItems(xmpMeta, XMPConst.NS_DC, "subject");
 
-    List<String> tags =
-        dcSubjects.stream()
-            .filter(s -> !s.isBlank())
-            .map(String::trim)
-            .filter(s -> !FILTERED_KEYWORDS.contains(s.toLowerCase()))
-            .toList();
+    List<String> tags = new ArrayList<>();
+    for (String subject : dcSubjects) {
+      if (subject.isBlank()) {
+        continue;
+      }
+      String keyword = subject.trim();
+      recordKeywordFlags(keyword, metadata);
+      if (!FILTERED_KEYWORDS.contains(keyword.toLowerCase())) {
+        tags.add(keyword);
+      }
+    }
 
     return new ExtractedKeywords(tags, List.of());
+  }
+
+  /**
+   * Set the blackAndWhite / isFilm flags from a single keyword.
+   *
+   * <p>These were previously configured as {@code xmp:subject} properties in the {@link
+   * ImageMetadata} field table, which never matched: keywords live in {@code dc:subject}, and an
+   * array property does not come back from {@code getProperty}. The flags therefore never fired,
+   * while {@link #FILTERED_KEYWORDS} stripped the same keywords out of the tag list -- so the
+   * signal was dropped entirely.
+   *
+   * <p>Matching is exact against the keyword sets rather than a substring test, so a keyword sets a
+   * flag only when it is also the keyword being filtered out of the tags. "Film Noir" stays a tag;
+   * "film" becomes the flag.
+   */
+  private void recordKeywordFlags(String keyword, Map<String, String> metadata) {
+    String lower = keyword.toLowerCase();
+    if (BLACK_AND_WHITE_KEYWORDS.contains(lower)) {
+      metadata.put(FIELD_BLACK_AND_WHITE, "true");
+    } else if (FILM_KEYWORDS.contains(lower)) {
+      metadata.put(FIELD_IS_FILM, "true");
+    }
   }
 
   /**

@@ -11,7 +11,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
-| 2 — Bugs | MR 5-9 | MR 5 done; **MR 6 is next** |
+| 2 — Bugs | MR 5-9 | MR 5 done; MR 6 done; **MR 7 is next** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
@@ -291,12 +291,63 @@ test was replaced 1:1, and five tests were added).
     live) or delete the method and drop the rule. Deleting it while the rule is unenforced would
     remove the only tool for a gap nobody is tracking. Carried to MR 10.
 
-## MR 6 — Upload pipeline bugs
+## MR 6 — Upload pipeline bugs — DONE
 
-- [ ] Bug #2 (high). The upload OOM guard covers only the multipart path; disk and ingest jobs run unbounded. `services/ImageUploadPipelineService.java:74-79, 144, 162, 197-204`. `uploadSemaphore` (permits=1) is acquired only in `createImagesParallel`. `processFilesFromDisk` and `ingestFilesGroupedByDay` each submit a background loop to an unbounded virtual-thread executor with no semaphore and no cap on concurrent jobs; each loop does full `ImageIO.read` decodes (~130-180 MB heap per 45MP JPEG). This is the same shape as the historical 20+15 concurrent-Lightroom-request OOM — that fix only landed on the multipart endpoint. A disk job can also stack with a semaphore-holding multipart upload. Gate the per-file prepare step in both loops on the same semaphore.
-- [ ] Bug #10 (medium). Upload dedupe SKIP is unreachable across export sessions. `services/ImageProcessingService.java:229-230, 308, 359-369` — `lastExportDate` is set to `now()` at prepare time (the comment claims file-mtime), so a re-export is always "newer" and always takes the UPDATE branch. The skip feature only fires for duplicates within one batch. Also, on SKIP the image is never linked to the target collection. Use the file's mtime (disk path) or a plugin-sent export date (multipart), and link on SKIP.
-- [ ] Bug #11 (medium). Job cleanup expires running jobs. `services/JobTrackingService.java:127-141` removes any job older than 1 hour with no status check, so a long ingest job vanishes from polling mid-flight. Skip PENDING and PROCESSING.
-- [ ] Bug #12 (medium). `blackAndWhite`/`isFilm` XMP extraction very likely never fires. `services/ImageMetadata.java:120-131` configures both as `xmp:subject` — keywords live in `dc:subject`, and `subject` is an array property that `getProperty` will not flatten. Meanwhile `FILTERED_KEYWORDS` (`ImageMetadataExtractor:44`) strips "monochrome"/"blackandwhite"/"film" from tags because they are "already handled", so the signal is dropped entirely. Extract the flags from the parsed keyword list before filtering. Verify against one real Lightroom export.
+Build green: 1262 tests, 0 failures, 0 checkstyle violations (net +8: 17 tests added, 9 removed
+with `BooleanExtractor`). Each new test was run against the unfixed code first and fails there.
+
+- [x] Bug #2 (high). The upload OOM guard covers only the multipart path; disk and ingest jobs run unbounded. `services/ImageUploadPipelineService.java:74-79, 144, 162, 197-204`. `uploadSemaphore` (permits=1) is acquired only in `createImagesParallel`. `processFilesFromDisk` and `ingestFilesGroupedByDay` each submit a background loop to an unbounded virtual-thread executor with no semaphore and no cap on concurrent jobs; each loop does full `ImageIO.read` decodes (~130-180 MB heap per 45MP JPEG). This is the same shape as the historical 20+15 concurrent-Lightroom-request OOM — that fix only landed on the multipart endpoint. A disk job can also stack with a semaphore-holding multipart upload. Gate the per-file prepare step in both loops on the same semaphore.
+  - Done. Both loops now call `prepareFromDiskGuarded`, which holds the permit across the decode
+    and S3 phase only and releases before the DB work, so concurrent jobs interleave instead of one
+    job holding the permit for its whole run. `createImagesParallel` still holds it for its whole
+    batch -- that path decodes `PARALLEL_BATCH_SIZE` files at once and has to bound the batch.
+  - The two acquire sites are now one `acquireUploadPermit()` helper, throwing
+    `IllegalStateException` rather than the bare `RuntimeException` the multipart path used (same
+    concern as the `validateAndEnsureUniqueSlug` item in MR 9).
+  - `processFilesFromDisk_concurrentJobs_serializeThePrepareStep` counts peak concurrent entries
+    into the mocked prepare step across two overlapping jobs and requires 1. Without the permit it
+    observes 2.
+- [x] Bug #10 (medium). Upload dedupe SKIP is unreachable across export sessions. `services/ImageProcessingService.java:229-230, 308, 359-369` — `lastExportDate` is set to `now()` at prepare time (the comment claims file-mtime), so a re-export is always "newer" and always takes the UPDATE branch. The skip feature only fires for duplicates within one batch. Also, on SKIP the image is never linked to the target collection. Use the file's mtime (disk path) or a plugin-sent export date (multipart), and link on SKIP.
+  - Split outcome. The from-disk path is fixed; the multipart path is not, and cannot be here.
+  - Fixed: `prepareImageFromDisk` now takes `lastExportDate` from the exported JPEG's mtime
+    (`exportDateFromFile`), so a re-export is newer and a re-send is not. Falls back to `now()`
+    when mtime is unreadable, which keeps the image eligible for update rather than skipping a
+    real re-export.
+  - Fixed: SKIP now links the existing image to the target collection in both loops, via a shared
+    `linkIfNotLinked`. SKIP still does no keyword rewrite and no RAW re-upload -- the stored image
+    is unchanged, only its collection membership is added.
+  - NOT fixed: the multipart path still stamps `now()`. A `MultipartFile` carries no mtime and the
+    Lightroom plugin sends no export date, so there is nothing to read. Fixing it needs a wire
+    change in the plugin repo; adding an unused optional request field here would be dead until
+    that ships. The misleading comment claiming mtime is replaced with the real reason. Carried:
+    add an export-date field to the multipart upload contract when the plugin can send one.
+  - `exportDateFromFile` is package-private for tests. The surrounding prepare step converts to
+    WebP through `libwebp-imageio`, whose native binary is x86_64-only and will not load on an
+    arm64 Mac, so `prepareImageFromDisk` cannot run end-to-end in this test suite.
+- [x] Bug #11 (medium). Job cleanup expires running jobs. `services/JobTrackingService.java:127-141` removes any job older than 1 hour with no status check, so a long ingest job vanishes from polling mid-flight. Skip PENDING and PROCESSING.
+  - Done. Cleanup now removes only COMPLETED and FAILED jobs. A job stuck in PROCESSING is never
+    reclaimed, which is the deliberate trade: a leaked `JobStatus` is a UUID and five counters,
+    while dropping a live job makes it 404 on the next poll and the client sees it vanish rather
+    than finish.
+  - `cleanupExpiredJobs` delegates to a package-private `removeFinishedJobsStartedBefore(cutoff)`
+    so tests supply a cutoff instead of aging a job by an hour.
+- [x] Bug #12 (medium). `blackAndWhite`/`isFilm` XMP extraction very likely never fires. `services/ImageMetadata.java:120-131` configures both as `xmp:subject` — keywords live in `dc:subject`, and `subject` is an array property that `getProperty` will not flatten. Meanwhile `FILTERED_KEYWORDS` (`ImageMetadataExtractor:44`) strips "monochrome"/"blackandwhite"/"film" from tags because they are "already handled", so the signal is dropped entirely. Extract the flags from the parsed keyword list before filtering. Verify against one real Lightroom export.
+  - Done. `recordKeywordFlags` sets both flags off the parsed keyword list before
+    `FILTERED_KEYWORDS` strips those keywords from the tags, in both the hierarchical and the flat
+    `dc:subject` branch. `FILTERED_KEYWORDS` is now derived from the two flag keyword sets, so a
+    keyword cannot set a flag and also survive as a tag.
+  - Matching is exact against the keyword sets, not the old substring test. "Film Noir" stays a
+    tag; only "film" becomes the flag. The substring version would have set the flag while leaving
+    the keyword in the tag list.
+  - The dead `BLACK_AND_WHITE` / `IS_FILM` entries are gone from the `ImageMetadata` field table
+    along with `BooleanExtractor`, which had no other user. Nine tests pinning that never-fired
+    behavior went with it.
+  - Verified against synthetic XMP, not a real Lightroom export: `ImageMetadataExtractorKeywordFlagTest`
+    builds real JPEGs and splices an XMP APP1 segment after SOI, covering both the hierarchical and
+    flat keyword layouts. Confirming against one real export is still worth doing.
+  - Flagged for the MR 15-19 consolidation wave: `ImageMetadata.ExifTags.none()` now has no caller
+    in main (only `ImageMetadataTest`). Left in place as the symmetric counterpart of the live
+    `XmpProperty.none()`.
 
 ## MR 7 — Validation and wire contracts
 
