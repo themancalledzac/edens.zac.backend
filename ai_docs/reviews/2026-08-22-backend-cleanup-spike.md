@@ -10,7 +10,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 
 | Wave | MRs | Status |
 |---|---|---|
-| 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b done, all four claims held; **MR 2 is next** |
+| 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 done; **MR 3 is next** |
 | 2 — Bugs | MR 5-9 | not started |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
@@ -160,16 +160,48 @@ Test-coupled constructor removals that were also split out of MR 1a moved to MR 
 see "Main-dead, test-live constructors" there. They rewrite the same call sites that MR 25's
 `TestFixtures` builders collapse, so doing them separately is wasted work.
 
-## MR 2 — Build and config rot (~150 lines)
+## MR 2 — Build and config rot (~180 lines) — DONE
 
-- [ ] `pom.xml:48-51` — `spring-boot-starter-thymeleaf`: zero references, no templates directory. Delete.
-- [ ] SpotBugs: 60 lines of disabled plugin config (`pom.xml:265-306`), `spotbugs-exclude.xml`, a Dockerfile COPY, and a CI TODO. All four are pinned on "Java 23 compatibility", which SpotBugs 4.9.x resolved. Either re-enable at 4.9.x or delete all four artifacts.
-- [ ] H2 fossil in test resources: the H2 datasource and `spring.jpa.*` block in `src/test/resources/application.properties` cannot work (no H2 dependency, no JPA starter), and `application-test.properties` exists mostly to neutralize it with empty-string overrides. Delete both halves.
-- [ ] `pom.xml:319-338` — the two spring-milestones repository blocks. Everything resolves from Central at GA versions. Delete both.
-- [ ] `application.properties:72-73` — `spring.codec.max-in-memory-size` (see MR 11).
-- [ ] `application.properties` lines 1, 11-13 — the `:-` defaults (see bug #9 in MR 9).
-- [ ] `testRequests/updateCollection.json` carries fields the `Update` record no longer has (`visible`, `priority`, `coverImageUrl`). Delete the directory or regenerate it.
-- [ ] `.idea/edens.zac.backend.iml` is committed. Remove it and ignore `.idea/`.
+Build green: 1365 tests, 0 failures, 0 checkstyle violations. Test count is unchanged from MR 1b.
+
+- [x] `pom.xml` — `spring-boot-starter-thymeleaf`: zero references, no templates directory. Deleted.
+- [x] SpotBugs: deleted all four artifacts (user decision). The plugin block in `pom.xml`,
+  `spotbugs-exclude.xml`, the Dockerfile COPY, and the commented-out CI step.
+  - A fifth artifact the review did not count also went: the CI "Upload SpotBugs results" step,
+    which uploaded `target/spotbugsXml.xml` — a file nothing produces. Its `if: always()` kept it
+    from failing the job, so it had been silently no-opping.
+  - Re-enabling was rejected as out of scope for a config-rot MR: it surfaces an unknown pile of
+    findings needing triage. The inherited exclude filter was also very broad — `<Class name="~.*\$.*"/>`
+    excluded every nested class, which in this codebase means every record in `Records.java`,
+    `CollectionRequests.java`, and `ContentModels.java`. Any future reintroduction should write a
+    filter from scratch rather than restore that one.
+- [x] H2 fossil in test resources. Confirmed inert: no H2 dependency and no JPA starter in `pom.xml`,
+  so every `spring.jpa.*` and H2 property was dead.
+  - The review's "delete both halves" was wrong about the second half. `application-test.properties`
+    is mostly live config — Flyway settings and the AWS, email, and WebAuthn stubs the context needs
+    to start. Only four lines existed to neutralize H2. Those four went; the rest stayed.
+  - The base `src/test/resources/application.properties` likewise carries live settings
+    (`app.access-token.secret`, the two contact rate limits). Only the H2/JPA block went.
+  - Three stale comments referencing "the H2 test props" were rewritten.
+- [x] A fifth H2 fossil the review missed: `src/test/java/.../ApplicationTests.java`. `@Disabled`
+  since the PostgreSQL migration, body is an empty `contextLoads()`, and it carried its own H2
+  `@TestPropertySource`. It never ran at all — surefire includes `**/*Test.java` and the file is
+  `*Tests.java`, so it was not even being collected as a skip. Deleted.
+- [x] `pom.xml` — both spring-milestones repository blocks. Everything resolves from Central at GA
+  versions; build is green without them.
+- [x] `application.properties` — `spring.codec.max-in-memory-size`, a WebFlux property in a servlet
+  app. Deleted as rot. Whether to add a real body cap stays open in MR 11.
+- [ ] `application.properties` lines 1, 11-13 — the `:-` defaults. DEFERRED to MR 9. It is a behavior
+  change, not rot, and MR 9 carries the paired decision about shipping a default DB password at all.
+- [x] `testRequests/` — deleted the directory. All three files were stale Postman fixtures with zero
+  references anywhere in the repo. `updateCollection.json` carried `visible`/`priority`/`coverImageUrl`
+  (now `visibility`/`rating`/`coverImageId`); `createCollection.json` also carried `type`, dead since
+  the typeless migration.
+- [x] `.idea/` — untracked with `git rm --cached`, files preserved on disk so the IDE keeps working.
+  The review named only the `.iml`; eight files were tracked. `.gitignore` already lists `.idea` and
+  `*.iml` — the commits predate those rules.
+  - Not done: `.claude/settings.local.json` still allowlists `Bash(mvn spotbugs:check:*)`. It is a
+    local permission entry, not build config, and harmless.
 
 Checkstyle config is healthy (all 49 suppressions are commented with reasons) and the CI pipeline is sound. `grep TODO|FIXME|XXX|HACK` across `src/main`: zero hits.
 
@@ -434,7 +466,8 @@ Verified good, for the record: `AdminUserControllerTest` is real behavior testin
 
 - [ ] Bare-array responses: wrap them (breaking) or amend CLAUDE.md (MR 20).
 - [ ] Gallery passwords: accept plaintext-at-rest formally, or redesign the fingerprint feature (MR 10).
-- [ ] SpotBugs: re-enable at 4.9.x or delete all four artifacts (MR 2).
+- [x] SpotBugs: decided — delete all four artifacts. Done in MR 2. If static analysis is wanted
+  later, introduce it fresh at a current version with a filter written from scratch.
 - [ ] `admin_home_tile.cover_image_id`: drop in a migration or document as reserved (MR 1, deferred).
 - [ ] `role.kind` is written as constant 'SHARED' (`RoleRepository:94`) and read by nothing. Likely droppable, but roles are security-sensitive.
 - [ ] Unknown-JSON-key policy: the prior review asked for a recorded decision (C8); none exists.

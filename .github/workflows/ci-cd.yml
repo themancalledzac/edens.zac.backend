@@ -34,26 +34,12 @@ jobs:
         run: mvn checkstyle:check
         continue-on-error: false
 
-      # SpotBugs temporarily disabled due to Java 23 compatibility issues
-      # TODO: Re-enable when SpotBugs adds Java 23 support or downgrade to Java 21
-      # - name: Run SpotBugs
-      #   run: mvn spotbugs:check
-      #   continue-on-error: false
-
       - name: Upload Checkstyle results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: checkstyle-results
           path: target/checkstyle-result.xml
-          retention-days: 14
-
-      - name: Upload SpotBugs results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: spotbugs-results
-          path: target/spotbugsXml.xml
           retention-days: 14
 
   test:
