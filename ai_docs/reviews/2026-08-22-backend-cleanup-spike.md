@@ -1142,8 +1142,45 @@ MR 12. The natural fault line is obvious: `ImageProcessingService` + `ImageUploa
 Path correction: `ImageMetadata.java` is in `services/`, not `model/` as the list below implies.
 `JobTrackingService` has zero in-method comments -- its item below is a class-docblock fix only.
 
-- [ ] `ImageProcessingService.java` — D: 165, 170, 177, 184, 195, 208, 268, 273, 280, 287, 295, 348, 371, 377, 1278, 1287, 1295, 1303, 1330, 1339, 1347, 1355. P: 218-219 (fix staleness: RAW scheduling moved to `ImageUploadPipelineService`), 224, 229 (fix wrongness with bug #10), 343-344, 357-358, 382-383 (fix staleness: it is `ContentMutationUtil` now), 385, 388, 394-396, 408-410, 446-447, 461-463, 469, 591-592, 603-604, 611-612, 622, 630-631, 656-657, 762, 764, 798-799. Also fix the `deleteImageFromS3` docblock (769-772): web keys are content-hashed now.
-- [ ] `ImageUploadPipelineService.java` — D: 143, 161, 191, 229, 332, 336, 473, 656, 664, 698, 725, 757. P: 115, 130-131, 136, 192, 197-198, 207-209, 255-257, 288, 295, 298-299, 304, 318, 324, 381, 410, 417, 420-421, 431-432, 438-439, 459, 465, 512, 612-614, 710-711, 782. The 410-471 duplicates disappear with consolidation #9 (MR 18).
+- [x] **MR 13a, done ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)).** `ImageProcessingService.java` — original (stale) list, D: 165, 170, 177, 184, 195, 208, 268, 273, 280, 287, 295, 348, 371, 377, 1278, 1287, 1295, 1303, 1330, 1339, 1347, 1355. P: 218-219 (fix staleness: RAW scheduling moved to `ImageUploadPipelineService`), 224, 229 (fix wrongness with bug #10), 343-344, 357-358, 382-383 (fix staleness: it is `ContentMutationUtil` now), 385, 388, 394-396, 408-410, 446-447, 461-463, 469, 591-592, 603-604, 611-612, 622, 630-631, 656-657, 762, 764, 798-799. Also fix the `deleteImageFromS3` docblock (769-772): web keys are content-hashed now.
+- [x] **MR 13a, done ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)).** `ImageUploadPipelineService.java` — original (stale) list, D: 143, 161, 191, 229, 332, 336, 473, 656, 664, 698, 725, 757. P: 115, 130-131, 136, 192, 197-198, 207-209, 255-257, 288, 295, 298-299, 304, 318, 324, 381, 410, 417, 420-421, 431-432, 438-439, 459, 465, 512, 612-614, 710-711, 782. The 410-471 duplicates disappear with consolidation #9 (MR 18).
+### MR 13a outcome (2026-08-23) — shipped as [#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)
+
+All 117 in-method comments removed from `ImageProcessingService` (62) and `ImageUploadPipelineService`
+(55); both files now measure 0. The sizing note's 117 was exact -- the first Wave 4 estimate that
+needed no correction. Promoted into 14 javadocs, 3 of them newly added on private methods
+(`processFilesFromDiskLoop`, `ingestFilesGroupedByDayLoop`, and the `contentHash` expansion).
+
+Diff is comment lines and nothing else. Two blank-line removals, both the separating blank that
+belonged to a removed comment block rather than the Working-rule-6 dangling-blank case: one in
+`prepareImageForUpload` after the RAW-deferral note, one in the dedupe UPDATE branch. No code
+reflow. Build green, 1315 tests, 0 failures.
+
+**One stale doc found and fixed** (a doc fix, in Wave 4's scope -- not a filed code bug).
+`saveProcessedImages`'s docblock opened "Save prepared images to database in a single transaction",
+which contradicts both the code and the PHASE 2 comment four methods above it: each image saves in
+its own transaction via the `@Transactional` repository methods, precisely so one failure cannot
+cascade. The comment being deleted was the accurate one, which is how the contradiction surfaced.
+Corrected the docblock.
+
+**Two instructions in the list below were already stale.** "P: 229 (fix wrongness with bug #10)" --
+bug #10 is fixed and checked off; the comment at that site now correctly describes multipart having
+no mtime and always taking the UPDATE branch, and `exportDateFromFile` carries the mtime rationale
+in a docblock already. Nothing to fix. "P: 218-219 (fix staleness: RAW scheduling moved to
+`ImageUploadPipelineService`)" -- that comment already said the scheduling is deferred and carried
+through `PreparedImageData`, so it was accurate too, and was promoted as-is.
+
+The `deleteImageFromS3` docblock fix the list asked for was real and is done: it claimed re-uploads
+land on identical S3 keys "which is the norm -- keys are deterministic from filename/year/month".
+True for the original and RAW keys, but the web key is content-hashed via `hashedWebFilename`, so a
+changed image gets a new key and only a byte-identical re-export reuses the old one. Docblock now
+says which is which.
+
+The `410-471` duplicate block the list flags for consolidation #9 (MR 18) is untouched, as are the
+two loops it refers to. Their new docblocks are deliberately written so the ingest one points at the
+from-disk one for the shared behavior, which should make that consolidation easier to read, not
+harder.
+
 - [ ] `ImageMetadata.java` — D: 245, 270, 275, 282, 288.
 - [ ] `ImageMetadataExtractor.java` — D: 114, 121, 166, 169, 189, 197, 203, 208, 259, 299, 353, 396, 401, 409, 411, 415, 420, 443. P: 75, 98, 125, 269, 275, 286-287.
 - [ ] `S3MultipartOutputStream.java` — P: 119-120. `DownloadUrlService.java` — P: 91, 93, 104-105, 113-114. `EmailService.java` — P: 140-141. `ReadCacheInvalidator.java` — P: 81-82. `JobTrackingService.java` — the class doc at 14-15 also tracks ingest; update it.

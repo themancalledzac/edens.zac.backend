@@ -142,9 +142,19 @@ public class ImageProcessingService {
   // ============================================================================
 
   /**
-   * Prepare an image for upload: extract metadata, upload to S3, resize, convert to WebP.
-   * Optionally uploads the original RAW source file to S3. This method does NO database calls and
-   * is safe to run in parallel virtual threads.
+   * Prepare an image for upload: extract metadata, upload the original to S3, resize to 2500px on
+   * the longest side, convert to WebP and upload that. This method does NO database calls and is
+   * safe to run in parallel virtual threads.
+   *
+   * <p>The RAW upload is NOT done here. It is deferred to a background thread after the DB save;
+   * {@code rawFilePath} is carried through {@link PreparedImageData} so {@code ContentService} can
+   * schedule it.
+   *
+   * <p>The capture date used for dedupe falls back to {@code modifyDate} for film scans. The export
+   * date is {@code now()}, because a {@link MultipartFile} carries no last-modified time and the
+   * plugin does not send an export date -- so every multipart upload counts as a fresh export and
+   * always takes the dedupe UPDATE branch. The from-disk path has a real file and uses its mtime
+   * instead (see {@link #exportDateFromFile}).
    *
    * @param file The image file to process
    * @param rawFilePath Optional absolute path to the RAW source file on local disk
@@ -155,26 +165,22 @@ public class ImageProcessingService {
       throws IOException {
     log.trace("Preparing image for upload: {}", file.getOriginalFilename());
 
-    // Extract metadata from original file (no DB calls)
     ImageMetadataExtractor.MetadataExtractionResult extraction =
         imageMetadataExtractor.extractImageMetadata(file);
     Map<String, String> metadata = extraction.metadata();
 
-    // Parse image capture date for S3 path organization
     int[] dateComponents =
         imageMetadataExtractor.parseImageDate(
             metadata.get("createDate"), metadata.get("modifyDate"));
     int imageYear = dateComponents[0];
     int imageMonth = dateComponents[1];
 
-    // Upload original full-size image to S3
     String originalFilename = file.getOriginalFilename();
     String contentType = file.getContentType() != null ? file.getContentType() : "image/jpeg";
     final String imageUrlOriginal =
         uploadToS3(
             file.getBytes(), originalFilename, contentType, PATH_IMAGE_FULL, imageYear, imageMonth);
 
-    // Resize if needed (max 2500px on longest side)
     BufferedImage originalImage;
     try (InputStream imageStream = file.getInputStream()) {
       originalImage = ImageIO.read(imageStream);
@@ -185,7 +191,6 @@ public class ImageProcessingService {
     BufferedImage resizedImage = resizeImage(originalImage, 2500);
     recordRenditionDimensions(resizedImage, metadata);
 
-    // Convert to WebP
     byte[] processedImageBytes;
     String finalFilename;
     if (isJpgFile(file) || isWebPFile(file)) {
@@ -198,7 +203,6 @@ public class ImageProcessingService {
       throw new IOException("Unsupported file format. Only JPG and WebP are supported.");
     }
 
-    // Upload web-optimized image to S3
     String imageUrlWeb =
         uploadToS3(
             processedImageBytes,
@@ -208,20 +212,13 @@ public class ImageProcessingService {
             imageYear,
             imageMonth);
 
-    // RAW upload is deferred to a background thread after DB save — not done here.
-    // rawFilePath is carried through PreparedImageData so ContentService can schedule it.
-
     String createDateStr = metadata.get("createDate");
     String modifyDateStr = metadata.get("modifyDate");
 
-    // Parse capture date for deduplication; fall back to modifyDate for film scans
     LocalDateTime captureDate =
         imageMetadataExtractor.parseExifDateToLocalDateTime(
             createDateStr != null ? createDateStr : modifyDateStr);
 
-    // A MultipartFile carries no last-modified time and the plugin does not send an export date,
-    // so every multipart upload counts as a fresh export and always takes the dedupe UPDATE
-    // branch. The from-disk path, which does have a real file, uses its mtime instead.
     LocalDateTime lastExportDate = LocalDateTime.now();
 
     log.info(
@@ -249,7 +246,9 @@ public class ImageProcessingService {
 
   /**
    * Prepare an image for upload by reading JPEG from disk. Processes both JPEG and RAW in the same
-   * call (no background RAW phase needed when caller is not waiting).
+   * call (no background RAW phase needed when caller is not waiting). Same shape as {@link
+   * #prepareImageForUpload}, except the original is streamed from disk with no heap copy and the
+   * export date comes from the file's mtime.
    *
    * @param jpegPath Absolute path to the exported JPEG file on local disk
    * @param rawFilePath Optional absolute path to the RAW source file
@@ -260,26 +259,22 @@ public class ImageProcessingService {
       throws IOException {
     log.trace("Preparing image from disk: {}", jpegPath.getFileName());
 
-    // Extract metadata from JPEG on disk
     ImageMetadataExtractor.MetadataExtractionResult extraction =
         imageMetadataExtractor.extractImageMetadata(jpegPath);
     Map<String, String> metadata = extraction.metadata();
 
-    // Parse image capture date for S3 path organization
     int[] dateComponents =
         imageMetadataExtractor.parseImageDate(
             metadata.get("createDate"), metadata.get("modifyDate"));
     int imageYear = dateComponents[0];
     int imageMonth = dateComponents[1];
 
-    // Upload original full-size JPEG to S3 (stream from disk, zero heap copy)
     String originalFilename = jpegPath.getFileName().toString();
     String contentType = detectMimeType(originalFilename);
     final String imageUrlOriginal =
         streamFileToS3(
             jpegPath, originalFilename, contentType, PATH_IMAGE_FULL, imageYear, imageMonth);
 
-    // Read image for resize + WebP conversion
     BufferedImage originalImage = ImageIO.read(jpegPath.toFile());
     if (originalImage == null) {
       throw new IOException("Failed to read image: " + originalFilename);
@@ -287,7 +282,6 @@ public class ImageProcessingService {
     BufferedImage resizedImage = resizeImage(originalImage, 2500);
     recordRenditionDimensions(resizedImage, metadata);
 
-    // Convert to WebP
     byte[] processedImageBytes = convertToWebP(resizedImage);
     String webFilename = hashedWebFilename(originalFilename, processedImageBytes);
     String imageUrlWeb =
@@ -356,18 +350,32 @@ public class ImageProcessingService {
    * Save a prepared image with dedup logic. Checks for existing image by (filename, captureDate)
    * and either creates, updates, or skips.
    *
+   * <p>SKIP requires BOTH export dates and the new one not being newer. A null stored export date
+   * means "unknown/old" and always updates, which is what pre-V4 records look like.
+   *
+   * <p>On UPDATE the order is load-bearing. The DB row is saved first, so a failure leaves the old
+   * S3 files still valid, and only then are the old S3 objects deleted -- and only when the URLs
+   * actually changed. Re-exporting the same image produces the same content-hashed S3 key, so
+   * deleting unconditionally would destroy the file just uploaded. Two fields are deliberately not
+   * overwritten: {@code imageUrlRaw}, because RAW uploads land later on a background thread, and
+   * the location, which is only replaced when the new export carries one so user-curated data is
+   * never cleared. Tags and people are handled separately via {@code associateExtractedKeywords} in
+   * {@code ContentService}.
+   *
+   * <p>On CREATE, {@code createdAt} comes from the EXIF createDate when present; {@code
+   * ContentRepository.saveImage} falls back to upload time when it is absent, as with film scans.
+   *
    * @param prepared The prepared image data from prepareImageForUpload
-   * @param title Optional title override
+   * @param title Optional title override, falling back to a display title derived from the original
+   *     filename -- this is NOT the S3 web key, which is content-hashed via {@code
+   *     hashedWebFilename}
    * @return DedupeResult indicating the action taken and the entity
    */
   public DedupeResult savePreparedImageWithDedupe(PreparedImageData prepared, String title) {
     Map<String, String> metadata = prepared.metadata();
-    // Display-title fallback only — not the S3 web key (that is content-hashed via
-    // hashedWebFilename).
     String titleFallback =
         prepared.originalFilename().replaceAll("(?i)\\.(jpg|jpeg|webp)$", ".webp");
 
-    // Check for existing image by filename + capture date
     if (prepared.originalFilename() != null && prepared.captureDate() != null) {
       Optional<ContentImageEntity> existingOpt =
           contentRepository.findByOriginalFilenameAndCaptureDate(
@@ -376,8 +384,6 @@ public class ImageProcessingService {
       if (existingOpt.isPresent()) {
         ContentImageEntity existing = existingOpt.get();
 
-        // Compare export dates: skip only if we have BOTH dates and new is not newer
-        // Null existing export date = "unknown/old" = always update (e.g. pre-V4 records)
         boolean existingIsNewerOrEqual =
             existing.getLastExportDate() != null
                 && prepared.lastExportDate() != null
@@ -390,32 +396,22 @@ public class ImageProcessingService {
           return new DedupeResult(existing, DedupeAction.SKIP);
         }
 
-        // Newer export: update entity in DB first, then delete old S3 files
         log.info(
             "Updating existing image (id={}) for {}: newer export detected",
             existing.getId(),
             prepared.originalFilename());
 
-        // Capture old URLs before overwriting
         final String oldImageUrlWeb = existing.getImageUrlWeb();
         final String oldImageUrlOriginal = existing.getImageUrlOriginal();
 
         applyMetadataToEntity(existing, metadata, prepared);
-        // Don't null out imageUrlRaw — RAW uploads are deferred to background threads.
-        // Tags and people are handled via associateExtractedKeywords in ContentService
-
-        // Save DB first -- if this fails, old S3 files remain valid
         final ContentImageEntity savedEntity = contentRepository.saveImage(existing);
 
-        // Only update location if new export has one — never clear user-curated location data.
         if (metadata.get("location") != null) {
           Long locId = locationRepository.findOrCreate(metadata.get("location")).getId();
           locationRepository.saveContentLocations(savedEntity.getId(), List.of(locId));
         }
 
-        // Only delete old S3 files if the URLs actually changed (different key).
-        // Re-exporting the same image produces the same S3 key — deleting would
-        // destroy the file we just uploaded.
         if (!prepared.imageUrlWeb().equals(oldImageUrlWeb)) {
           deleteS3ObjectByUrl(oldImageUrlWeb);
         }
@@ -427,9 +423,6 @@ public class ImageProcessingService {
       }
     }
 
-    // No duplicate found: create new entity.
-    // createdAt is sourced from EXIF createDate when present; ContentRepository.saveImage
-    // falls back to upload time when EXIF createDate is absent (e.g. film scans).
     ContentImageEntity entity =
         ContentImageEntity.builder()
             .contentType(ContentType.IMAGE)
@@ -452,6 +445,15 @@ public class ImageProcessingService {
   /**
    * Apply all EXIF/XMP metadata and prepared image data to an entity. Used by both create and
    * update paths so field mappings stay in sync.
+   *
+   * <p>Rating is only written when the re-export carries one, so a curated rating survives an
+   * export that omits the tag -- the same rule the location follows. A present rating overwrites.
+   *
+   * <p>Camera resolution runs through {@code resolveFilmCameraDefaults} first: some film scanners
+   * and medium-format backs report a generic capture-software name in the EXIF Model tag instead of
+   * the physical body, so it is remapped to the real camera and given film defaults before the
+   * camera entity is resolved. On a remap the EXIF body serial is dropped, because it belongs to
+   * the scanner rather than the remapped body.
    */
   private void applyMetadataToEntity(
       ContentImageEntity entity, Map<String, String> metadata, PreparedImageData prepared) {
@@ -465,8 +467,6 @@ public class ImageProcessingService {
     entity.setImageHeight(
         imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
     entity.setIso(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("iso"), null));
-    // Preserve a curated rating when the re-export omits the tag (like location); present
-    // overwrites.
     if (metadata.get("rating") != null) {
       entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));
     }
@@ -480,15 +480,11 @@ public class ImageProcessingService {
 
     String cameraName = metadata.get("camera");
     String bodySerialNumber = metadata.get("bodySerialNumber");
-    // Some film scanners / medium-format backs report a generic capture-software
-    // name in the EXIF Model tag instead of the physical body. Remap to the real
-    // camera and set film defaults before resolving the camera entity.
     FilmCameraDefaults filmDefaults = resolveFilmCameraDefaults(cameraName, entity);
     if (filmDefaults != null) {
       entity.setIsFilm(true);
       entity.setFilmFormat(filmDefaults.filmFormat());
       cameraName = filmDefaults.cameraName();
-      // The EXIF serial belongs to the scanner, not the remapped body.
       bodySerialNumber = filmDefaults.remapped() ? null : bodySerialNumber;
     }
     if (cameraName != null && !cameraName.trim().isEmpty()) {
@@ -583,6 +579,20 @@ public class ImageProcessingService {
   /**
    * Process a GIF or MP4 file: validate, upload to S3, extract first frame as WebP thumbnail.
    *
+   * <p>Video takes two variants. FULL is the 2000px master: re-encoded only when the source exceeds
+   * the cap, otherwise a lossless remux that strips audio, adds faststart and leaves a good export
+   * untouched. WEB is the 1080px display copy, encoded separately only when the source is larger
+   * than the web ceiling -- otherwise the small full file IS the web file, since it is never
+   * upscaled. If dimension probing fails, both variants are re-encoded, which is safe because a
+   * re-encode of an unknown-size file still caps it to the web ceilings. A GIF or image uploads
+   * as-is with no web variant; the frontend falls back to {@code gifUrl}.
+   *
+   * <p>The thumbnail's first frame is extracted from the FULL bytes, so width and height reflect
+   * the master and the poster matches what fullscreen shows.
+   *
+   * <p>Rating defaults to 4 so new GIF/MP4 content reads as feature media in the row grid --
+   * horizontal gets a full row, vertical gets half. Admins can downgrade later.
+   *
    * @param file The GIF/MP4 file to process
    * @param title Optional title for the content
    * @return The saved GIF content entity
@@ -610,16 +620,12 @@ public class ImageProcessingService {
       byte[] fullBytes;
 
       if (isVideo) {
-        // Probe dimensions; if probing fails, fall back to re-encoding both variants (safe: a
-        // re-encode of an unknown-size file still caps it to the web ceilings).
         int[] dims = probeVideoDimensions(originalBytes, originalFilename);
         VideoVariantPlanner.VideoVariantPlan plan =
             dims != null
                 ? VideoVariantPlanner.compute(dims[0], dims[1])
                 : new VideoVariantPlanner.VideoVariantPlan(true, true);
 
-        // FULL (2000px master): re-encode only when the source exceeds the cap; otherwise a
-        // lossless remux that strips audio + faststart and preserves a good export untouched.
         fullBytes =
             plan.fullNeedsReencode()
                 ? encodeVideoVariant(
@@ -627,8 +633,6 @@ public class ImageProcessingService {
                 : remuxVideo(originalBytes, originalFilename);
         gifUrl = uploadToS3(fullBytes, baseName + ".mp4", "video/mp4", PATH_GIF_FULL, year, month);
 
-        // WEB (1080px display): separate encode only when the source is larger than the web
-        // ceiling; otherwise the small full file IS the web file (never upscale).
         if (plan.webIsSeparate()) {
           byte[] webBytes =
               encodeVideoVariant(
@@ -639,7 +643,6 @@ public class ImageProcessingService {
           gifUrlWeb = gifUrl;
         }
       } else {
-        // Actual image/gif upload: keep as-is, no web variant (frontend falls back to gifUrl).
         fullBytes = originalBytes;
         gifUrl =
             uploadToS3(
@@ -647,8 +650,6 @@ public class ImageProcessingService {
         gifUrlWeb = null;
       }
 
-      // Thumbnail: extract the first frame from the FULL bytes so width/height reflect the master
-      // and the poster matches what fullscreen shows.
       BufferedImage firstFrame;
       if (isVideo) {
         firstFrame = extractFirstFrameViaFfmpeg(fullBytes, originalFilename);
@@ -673,8 +674,6 @@ public class ImageProcessingService {
         log.warn("Could not extract first frame from: {}", originalFilename);
       }
 
-      // Default rating to 4 so a new GIF/MP4 reads as feature media in the row grid — horizontal
-      // gets a full row, vertical gets half. Admins can downgrade later.
       ContentGifEntity entity =
           ContentGifEntity.builder()
               .contentType(ContentType.GIF)
@@ -775,21 +774,28 @@ public class ImageProcessingService {
     return base + "." + contentHash(webpBytes) + ".webp";
   }
 
-  /** Short, URL-safe content hash (first 12 hex chars of SHA-256) of the given bytes. */
+  /**
+   * Short, URL-safe content hash (first 12 hex chars of SHA-256) of the given bytes.
+   *
+   * <p>SHA-256 is mandated to always be available, so the {@code NoSuchAlgorithmException} branch
+   * is unreachable.
+   */
   String contentHash(byte[] bytes) {
     try {
       byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
       return HexFormat.of().formatHex(digest, 0, 6); // 6 bytes -> 12 hex chars
     } catch (NoSuchAlgorithmException e) {
-      // SHA-256 is mandated to always be available; this branch is unreachable.
       throw new RuntimeException("SHA-256 algorithm unavailable", e);
     }
   }
 
   /**
    * Delete an image and its variants from S3, then invalidate the CloudFront cache for the same
-   * paths so re-uploads at identical S3 keys (which is the norm — keys are deterministic from
-   * filename/year/month) are served fresh instead of from CDN cache.
+   * paths, so a re-upload landing on an S3 key that was just deleted is served fresh rather than
+   * from CDN cache. The original and RAW keys are deterministic from filename/year/month, so they
+   * do collide on re-upload. The web key does not: it is content-hashed via {@code
+   * hashedWebFilename}, so a changed image gets a new key and only a byte-identical re-export
+   * reuses the old one.
    *
    * @param image The ContentImageEntity containing S3 URLs to delete
    */
@@ -809,14 +815,15 @@ public class ImageProcessingService {
    * thumbnail. Mirrors {@link #deleteImageFromS3} — failures are logged, not thrown, and we still
    * issue a single CloudFront invalidation for the keys we attempted.
    *
+   * <p>The web variant may be null, or may equal {@code gifUrl} because small files reuse the full
+   * path, so the duplicate is guarded to avoid a redundant delete and invalidation on one key.
+   *
    * @param gif The ContentGifEntity containing S3 URLs to delete
    */
   public void deleteGifFromS3(ContentGifEntity gif) {
     List<String> deletedKeys = new ArrayList<>();
     String gifKey = deleteS3ObjectByUrl(gif.getGifUrl());
     if (gifKey != null) deletedKeys.add(gifKey);
-    // Web variant may be null, or may equal gifUrl (small files reuse the full path) — guard the
-    // duplicate so we don't issue a redundant delete/invalidation for the same key.
     String webUrl = gif.getGifUrlWeb();
     if (webUrl != null && !webUrl.equals(gif.getGifUrl())) {
       String webKey = deleteS3ObjectByUrl(webUrl);
@@ -1301,7 +1308,6 @@ public class ImageProcessingService {
     }
     cameraName = cameraName.trim();
 
-    // Generate UUID serial number if not provided
     String serialNumber = bodySerialNumber;
     if (serialNumber == null || serialNumber.trim().isEmpty()) {
       serialNumber = UUID.randomUUID().toString();
@@ -1310,7 +1316,6 @@ public class ImageProcessingService {
       serialNumber = serialNumber.trim();
     }
 
-    // Check by serial number first (for deduplication)
     Optional<ContentCameraEntity> existingBySerial =
         equipmentRepository.findCameraByBodySerialNumber(serialNumber);
     if (existingBySerial.isPresent()) {
@@ -1318,7 +1323,6 @@ public class ImageProcessingService {
       return existingBySerial.get();
     }
 
-    // Check by name (case-insensitive)
     Optional<ContentCameraEntity> existingByName =
         equipmentRepository.findCameraByNameIgnoreCase(cameraName);
     if (existingByName.isPresent()) {
@@ -1326,7 +1330,6 @@ public class ImageProcessingService {
       return existingByName.get();
     }
 
-    // Create new camera with generated serial number
     log.info("Creating new camera: {} (serial: {})", cameraName, serialNumber);
     ContentCameraEntity newCamera =
         ContentCameraEntity.builder().cameraName(cameraName).bodySerialNumber(serialNumber).build();
@@ -1353,7 +1356,6 @@ public class ImageProcessingService {
     }
     lensName = lensName.trim();
 
-    // Generate UUID serial number if not provided
     String serialNumber = lensSerialNumber;
     if (serialNumber == null || serialNumber.trim().isEmpty()) {
       serialNumber = UUID.randomUUID().toString();
@@ -1362,7 +1364,6 @@ public class ImageProcessingService {
       serialNumber = serialNumber.trim();
     }
 
-    // Check by serial number first (for deduplication)
     Optional<ContentLensEntity> existingBySerial =
         equipmentRepository.findLensBySerialNumber(serialNumber);
     if (existingBySerial.isPresent()) {
@@ -1370,7 +1371,6 @@ public class ImageProcessingService {
       return existingBySerial.get();
     }
 
-    // Check by name (case-insensitive)
     Optional<ContentLensEntity> existingByName =
         equipmentRepository.findLensByNameIgnoreCase(lensName);
     if (existingByName.isPresent()) {
@@ -1378,7 +1378,6 @@ public class ImageProcessingService {
       return existingByName.get();
     }
 
-    // Create new lens with generated serial number
     log.info("Creating new lens: {} (serial: {})", lensName, serialNumber);
     ContentLensEntity newLens =
         ContentLensEntity.builder().lensName(lensName).lensSerialNumber(serialNumber).build();

@@ -100,6 +100,9 @@ public class ImageUploadPipelineService {
    * Create a new collection and upload images to it in one operation. After images are uploaded,
    * auto-derives collectionDate from image EXIF if not provided, selects the highest-rated image as
    * cover, and links the new collection as a child of the "staging" collection.
+   *
+   * <p>The result carries the new collectionId so callers -- the Lightroom plugin in particular --
+   * can send follow-up batches into the same collection.
    */
   public ImageUploadResult createCollectionWithImages(
       CollectionRequests.Create createRequest,
@@ -115,7 +118,6 @@ public class ImageUploadPipelineService {
       postUploadProcessing(newCollectionId, createRequest, result.successful());
     }
 
-    // Return result with collectionId so callers (e.g. Lightroom plugin) can send follow-up batches
     return new ImageUploadResult(
         newCollectionId, result.successful(), result.failed(), result.skipped());
   }
@@ -124,26 +126,25 @@ public class ImageUploadPipelineService {
    * Accept file paths and process images from local disk in background. Returns a JobStatus
    * immediately for the caller to return 202.
    *
+   * <p>The collection is only checked for existence: any collection may receive uploaded images
+   * (Rule B). Locations from the request are applied only when the collection has none.
+   *
    * @param collectionId Target collection
    * @param request File paths and optional locationId
    * @return JobStatus with jobId for polling
    */
   public JobTrackingService.JobStatus processFilesFromDisk(
       Long collectionId, DiskUploadRequest request) {
-    // Verify collection exists before starting
-    // Existence check only -- any collection may receive uploaded images (Rule B).
     collectionRepository
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
-    // Optionally set collection locations if provided and not already set
     if (request.locationIds() != null && !request.locationIds().isEmpty()) {
       contentService.setCollectionLocationsIfMissing(collectionId, request.locationIds());
     }
 
     var job = jobTrackingService.createJob(request.files().size());
 
-    // Submit background processing on a virtual thread
     rawUploadExecutor.submit(() -> processFilesFromDiskBackground(collectionId, request, job));
 
     return job;
@@ -161,7 +162,6 @@ public class ImageUploadPipelineService {
   public JobTrackingService.JobStatus ingestFilesGroupedByDay(DiskUploadRequest request) {
     var job = jobTrackingService.createJob(request.files().size());
 
-    // Submit background processing on a virtual thread (same executor as from-disk).
     rawUploadExecutor.submit(() -> ingestFilesGroupedByDayBackground(request, job));
 
     return job;
@@ -175,6 +175,16 @@ public class ImageUploadPipelineService {
    *
    * <p>Images are processed in batches of PARALLEL_BATCH_SIZE to avoid overwhelming S3/memory.
    * Virtual threads handle I/O concurrency without blocking OS threads.
+   *
+   * <p>The collection is only checked for existence, outside the transaction: any collection may
+   * receive uploaded images (Rule B).
+   *
+   * <p>An upload permit is acquired first so concurrent upload requests cannot OOM the heap; if
+   * another upload is in progress this request blocks until it finishes. Phase 1 does S3 I/O and
+   * CPU work only, no database calls, and RAW uploads are deferred to background threads after the
+   * response is sent. Phase 2 saves each image in its own transaction, via the
+   * {@code @Transactional} repository methods, so one failure cannot cascade and kill the whole
+   * batch.
    *
    * @param collectionId ID of the collection to add images to
    * @param files List of image files to upload
@@ -191,20 +201,13 @@ public class ImageUploadPipelineService {
 
     contentValidator.validateFiles(files);
 
-    // Verify collection exists (outside transaction)
-    // Existence check only -- any collection may receive uploaded images (Rule B).
     collectionRepository
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
-    // Acquire semaphore to prevent concurrent upload requests from OOM-ing.
-    // If another upload is in progress, this request blocks until it finishes.
     acquireUploadPermit();
 
     try {
-      // PHASE 1: Prepare images in PARALLEL batches (S3 upload, resize, convert)
-      // NO database calls happen here - only S3 I/O and CPU work
-      // RAW uploads are deferred to background threads after the response is sent.
       List<PreparedImage> allPrepared = new ArrayList<>();
       List<ImageUploadResult.FileError> allFailures = new ArrayList<>();
 
@@ -224,7 +227,6 @@ public class ImageUploadPipelineService {
                     })
                 .toList();
 
-        // Wait for this batch to complete and track failures
         for (int j = 0; j < futures.size(); j++) {
           PreparedImage result = futures.get(j).join();
           if (result != null) {
@@ -250,9 +252,6 @@ public class ImageUploadPipelineService {
           files.size(),
           allFailures.size());
 
-      // PHASE 2: Save images to database individually
-      // Each image saves in its own transaction (via @Transactional repository methods)
-      // so that one failure doesn't cascade and kill the entire batch
       return saveProcessedImages(collectionId, allPrepared, allFailures);
     } finally {
       uploadSemaphore.release();
@@ -299,6 +298,21 @@ public class ImageUploadPipelineService {
     }
   }
 
+  /**
+   * The from-disk ingest loop: prepare, dedupe-save and wire up each file in turn.
+   *
+   * <p>Known people are loaded once and used for two things: checking which plugin-provided people
+   * need creating, and filtering people back out of the tag list. That filter is necessary because
+   * Lightroom writes people into {@code dc:subject} as flat keywords, so without it every person
+   * would also become a Tag. Newly created people join the filter set.
+   *
+   * <p>Per file, plugin-provided people and tags win over the XMP-extracted ones. A SKIP still
+   * links the image into the target collection: a skipped image is unchanged, but re-sending an
+   * already-known photo to a new collection must add it there rather than silently drop it.
+   *
+   * <p>Finally the {@code generalMetadata} cache is evicted, since new tags and people may have
+   * been created during the upload.
+   */
   private void processFilesFromDiskLoop(
       Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
     job.markProcessing();
@@ -308,23 +322,18 @@ public class ImageUploadPipelineService {
         job.totalFiles(),
         collectionId);
 
-    // Load all known people once -- used for both existence checks and tag filtering
     List<ContentPersonEntity> existingPeople = personRepository.findAllByOrderByPersonNameAsc();
     Set<String> existingNames =
         existingPeople.stream()
             .map(p -> p.getPersonName().toLowerCase())
             .collect(Collectors.toCollection(HashSet::new));
 
-    // Ensure all plugin-provided people exist in DB before processing images
     ensurePluginPeopleExist(request, existingNames);
 
-    // Build set of all known people names for filtering them out of tags.
-    // Lightroom writes people to dc:subject as flat keywords, so without this they become Tags too.
     Set<String> allKnownPeople =
         existingPeople.stream()
             .map(p -> p.getPersonName().toLowerCase())
             .collect(Collectors.toCollection(HashSet::new));
-    // Include any newly created people in the filter set
     request.files().stream()
         .filter(f -> f.people() != null)
         .flatMap(f -> f.people().stream())
@@ -336,13 +345,11 @@ public class ImageUploadPipelineService {
       try {
         var prepared = prepareFromDiskGuarded(fileEntry.jpegPath(), fileEntry.rawPath());
 
-        // People: prefer plugin-provided, fall back to XMP-extracted
         List<String> people =
             (fileEntry.people() != null && !fileEntry.people().isEmpty())
                 ? fileEntry.people()
                 : prepared.extractedPeople();
 
-        // Tags: prefer plugin-provided, fall back to XMP-extracted; filter people out of tags.
         List<String> rawTags =
             (fileEntry.tags() != null && !fileEntry.tags().isEmpty())
                 ? fileEntry.tags()
@@ -350,11 +357,9 @@ public class ImageUploadPipelineService {
         List<String> tags =
             rawTags.stream().filter(tag -> !allKnownPeople.contains(tag.toLowerCase())).toList();
 
-        // Save to DB with dedupe (reuses existing logic)
         ImageProcessingService.DedupeResult dedupeResult =
             imageProcessingService.savePreparedImageWithDedupe(prepared, null);
 
-        // Update job counters based on dedupeResult action
         job.processed().incrementAndGet();
         switch (dedupeResult.action()) {
           case CREATE -> {
@@ -390,9 +395,6 @@ public class ImageUploadPipelineService {
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
           case SKIP -> {
-            // A skipped image is unchanged, but it still belongs in the collection the caller
-            // uploaded it to -- re-sending an already-known photo to a new collection must add
-            // it there rather than silently drop it.
             job.skipped().incrementAndGet();
             linkIfNotLinked(collectionId, dedupeResult.entity().getId(), orderIndex++);
           }
@@ -405,7 +407,6 @@ public class ImageUploadPipelineService {
       }
     }
 
-    // Evict generalMetadata cache -- new tags/people may have been created during upload
     evictGeneralMetadataCache();
 
     job.markCompleted();
@@ -429,23 +430,30 @@ public class ImageUploadPipelineService {
     }
   }
 
+  /**
+   * The tag-first ingest loop. Same shape as {@link #processFilesFromDiskLoop} -- people loading,
+   * the people-out-of-tags filter, plugin-over-XMP precedence and the link-on-SKIP rule are all
+   * identical -- with one difference: there is no target collection, so each file lands in the BLOG
+   * collection for its capture day.
+   *
+   * <p>Each image is prepared first, because that uploads to S3 and extracts EXIF including the
+   * capture date, which is the fallback when the request omits {@code captureDate}. The per-day
+   * collection is memoized within the job, and orderIndex is tracked per collection so multiple
+   * files on the same day append in sequence.
+   */
   private void ingestFilesGroupedByDayLoop(
       DiskUploadRequest request, JobTrackingService.JobStatus job) {
     job.markProcessing();
     log.info("Starting tag-first ingest job {} for {} files", job.jobId(), job.totalFiles());
 
-    // Load all known people once -- used for both existence checks and tag filtering.
     List<ContentPersonEntity> existingPeople = personRepository.findAllByOrderByPersonNameAsc();
     Set<String> existingNames =
         existingPeople.stream()
             .map(p -> p.getPersonName().toLowerCase())
             .collect(Collectors.toCollection(HashSet::new));
 
-    // Ensure all plugin-provided people exist in DB before processing images.
     ensurePluginPeopleExist(request, existingNames);
 
-    // Build set of all known people names for filtering them out of tags.
-    // Lightroom writes people to dc:subject as flat keywords, so without this they become Tags too.
     Set<String> allKnownPeople =
         existingPeople.stream()
             .map(p -> p.getPersonName().toLowerCase())
@@ -455,15 +463,11 @@ public class ImageUploadPipelineService {
         .flatMap(f -> f.people().stream())
         .forEach(name -> allKnownPeople.add(name.toLowerCase()));
 
-    // Per-day BLOG collection cache (get-or-create memoized within this job) and per-collection
-    // running orderIndex, so multiple files on the same day append in sequence.
     Map<LocalDate, Long> blogByDay = new HashMap<>();
     Map<Long, Integer> nextOrderByCollection = new HashMap<>();
 
     for (var fileEntry : request.files()) {
       try {
-        // Prepare the image first: this uploads to S3 and extracts EXIF (incl. capture date),
-        // which is our fallback when the request omits captureDate.
         var prepared = prepareFromDiskGuarded(fileEntry.jpegPath(), fileEntry.rawPath());
 
         LocalDate captureDay = resolveCaptureDay(fileEntry, prepared);
@@ -481,13 +485,11 @@ public class ImageUploadPipelineService {
 
         Long collectionId = blogByDay.computeIfAbsent(captureDay, this::getOrCreateBlogForDay);
 
-        // People: prefer plugin-provided, fall back to XMP-extracted.
         List<String> people =
             (fileEntry.people() != null && !fileEntry.people().isEmpty())
                 ? fileEntry.people()
                 : prepared.extractedPeople();
 
-        // Tags: prefer plugin-provided, fall back to XMP-extracted; filter people out of tags.
         List<String> rawTags =
             (fileEntry.tags() != null && !fileEntry.tags().isEmpty())
                 ? fileEntry.tags()
@@ -495,7 +497,6 @@ public class ImageUploadPipelineService {
         List<String> tags =
             rawTags.stream().filter(tag -> !allKnownPeople.contains(tag.toLowerCase())).toList();
 
-        // Save to DB with dedupe (reuses existing logic).
         ImageProcessingService.DedupeResult dedupeResult =
             imageProcessingService.savePreparedImageWithDedupe(prepared, null);
 
@@ -525,7 +526,6 @@ public class ImageUploadPipelineService {
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
           case SKIP -> {
-            // See the from-disk loop: a skip means "already stored", not "not wanted here".
             job.skipped().incrementAndGet();
             int orderIndex =
                 nextOrderByCollection.computeIfAbsent(collectionId, contentService::nextOrderIndex);
@@ -541,7 +541,6 @@ public class ImageUploadPipelineService {
       }
     }
 
-    // Evict generalMetadata cache -- new tags/people/locations may have been created during upload.
     evictGeneralMetadataCache();
 
     job.markCompleted();
@@ -628,7 +627,13 @@ public class ImageUploadPipelineService {
 
   /**
    * Wire up an image after dedupe: associate keywords, schedule RAW upload if needed, and link to
-   * collection (skipping if already linked for UPDATE actions).
+   * collection (skipping if already linked for UPDATE actions). On CREATE the entity id is brand
+   * new, so no link can exist yet and the lookup is skipped.
+   *
+   * <p>Keyword failures are returned rather than thrown. The image is already saved, and throwing
+   * would skip the collection link below and orphan it; handing the failures back is what makes a
+   * dropped person tag visible to the caller instead of silent (see {@code ContentMutationUtil} and
+   * V53).
    *
    * @return one message per keyword association that failed; empty on full success
    */
@@ -641,16 +646,12 @@ public class ImageUploadPipelineService {
       int month,
       Long collectionId,
       int orderIndex) {
-    // Keyword failures are returned rather than thrown: the image is already saved, and throwing
-    // would skip the collection link below and orphan it. Handing them back is what makes a
-    // dropped person tag visible to the caller instead of silent (see ContentMutationUtil + V53).
     List<String> keywordFailures =
         contentMutationUtil.associateExtractedKeywords(dedupeResult.entity().getId(), tags, people);
     scheduleRawUploadIfNeeded(dedupeResult, rawFilePath, year, month);
     if (dedupeResult.action() == ImageProcessingService.DedupeAction.UPDATE) {
       linkIfNotLinked(collectionId, dedupeResult.entity().getId(), orderIndex);
     } else {
-      // CREATE: the entity id is brand new, so no link can exist yet -- skip the lookup.
       contentService.linkContentToCollection(
           collectionId, dedupeResult.entity().getId(), orderIndex);
     }
@@ -689,6 +690,9 @@ public class ImageUploadPipelineService {
    * Prepare a single image asynchronously (S3 upload, resize, convert). This method runs in a
    * virtual thread and does NOT touch the database.
    *
+   * <p>Non-images and GIFs are skipped. The work is S3 upload, resize, WebP conversion and the
+   * optional RAW upload -- no database calls.
+   *
    * @param file The image file to process
    * @param rawFilePath Optional path to the RAW file
    * @return Prepared image data, or null if processing failed
@@ -698,7 +702,6 @@ public class ImageUploadPipelineService {
     try {
       log.trace("Preparing image: {}", filename);
 
-      // Skip non-images and GIFs
       if (file.getContentType() == null
           || !file.getContentType().startsWith("image/")
           || file.getContentType().equals("image/gif")) {
@@ -706,7 +709,6 @@ public class ImageUploadPipelineService {
         return null;
       }
 
-      // S3 upload + resize + WebP conversion + optional RAW upload - NO database calls
       ImageProcessingService.PreparedImageData prepared =
           imageProcessingService.prepareImageForUpload(file, rawFilePath);
 
@@ -719,8 +721,12 @@ public class ImageUploadPipelineService {
   }
 
   /**
-   * Save prepared images to database in a single transaction. Handles all DB work: camera/lens
-   * lookups, duplicate detection, entity saves, and collection join entries.
+   * Save prepared images to the database. Handles all DB work: camera/lens lookups, duplicate
+   * detection, entity saves, and collection join entries.
+   *
+   * <p>Each image saves in its own transaction, via the {@code @Transactional} repository methods,
+   * so one failure cannot cascade and kill the whole batch. A keyword failure is reported alongside
+   * the image rather than replacing it, because the image itself succeeded.
    *
    * @param collectionId The collection to add images to
    * @param preparedImages List of prepared image data (S3 URLs + metadata)
@@ -740,7 +746,6 @@ public class ImageUploadPipelineService {
 
     for (PreparedImage prepared : preparedImages) {
       try {
-        // Save to DB with dedupe: CREATE, UPDATE, or SKIP
         ImageProcessingService.DedupeResult dedupeResult =
             imageProcessingService.savePreparedImageWithDedupe(prepared.data(), null);
 
@@ -752,8 +757,6 @@ public class ImageUploadPipelineService {
           continue;
         }
 
-        // Wire up keywords, RAW upload, and collection link (same as disk upload path). The image
-        // itself succeeded, so a keyword failure is reported alongside it rather than replacing it.
         wireImageAfterDedupe(
                 dedupeResult,
                 prepared.data().extractedTags(),
@@ -767,7 +770,6 @@ public class ImageUploadPipelineService {
                 message ->
                     failures.add(new ImageUploadResult.FileError(prepared.filename(), message)));
 
-        // Convert entity to model for the result list
         ContentModel contentModel =
             contentModelConverter.convertRegularContentEntityToModel(dedupeResult.entity());
         createdImages.add(ContentService.castContentModel(contentModel, ContentModels.Image.class));
@@ -792,14 +794,14 @@ public class ImageUploadPipelineService {
   /**
    * Post-upload processing: derive collection date from images if not provided, set highest-rated
    * image as cover, and link to staging collection. Each step is independent and errors are logged
-   * without failing the upload.
+   * without failing the upload -- the staging link has its own try/catch so a metadata error cannot
+   * block it.
    */
   private void postUploadProcessing(
       Long collectionId,
       CollectionRequests.Create createRequest,
       List<ContentModels.Image> uploadedImages) {
 
-    // Auto-derive collectionDate and set cover image
     try {
       transactionTemplate.executeWithoutResult(
           status -> {
@@ -824,7 +826,6 @@ public class ImageUploadPipelineService {
           e);
     }
 
-    // Link to staging collection (separate try/catch so metadata errors don't block staging)
     try {
       linkToStagingCollection(collectionId);
     } catch (Exception e) {
