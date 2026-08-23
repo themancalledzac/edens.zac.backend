@@ -12,8 +12,8 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
-| 3 — Security hardening | MR 10-11 | not started. **Next up: MR 10.** |
-| 4 — Comments and docs | MR 12-14 | not started |
+| 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
+| 4 — Comments and docs | MR 12-14 | not started. **Next up: MR 12** -- read its prep note first, the line lists are stale. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -26,7 +26,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Bugs (fix, not delete) | 16 (5 high) | — |
 | Security findings | 8 (1 high) | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
-| Inline comments (main, rule violations) | ~370 occurrences | ~300 net |
+| Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
 | Dead/boilerplate tests | 7 findings | ~2,700 (+700 optional) |
 | Build/config rot | 6 findings | ~150 |
@@ -54,6 +54,12 @@ Learned while doing the MRs; they apply to every item still open, not just the o
    `IllegalStateException` means "server broke" here.
 4. **Line numbers in this doc are from the `8c28cf3` baseline and drift as MRs land.** Find symbols
    by name. Re-verify a `file:line` before quoting it as evidence in a PR description.
+5. **An item that is nothing but a list of line numbers is already dead.** Rule 4 says line refs
+   drift; the corollary is that any item whose entire content is line refs cannot be recovered by
+   "find it by name", because there is no name -- only a position. Wave 4 is built this way and was
+   measured 64% stale before it started (see MR 12's prep note). For any such item, re-derive the
+   list mechanically from the current tree and treat the doc's list as a sample of intent, not a
+   worklist. Check this before estimating any remaining Wave 4 MR.
 
 ## Ordering note
 
@@ -595,6 +601,26 @@ and deliberately left that question open -- see the decision item below.
 - 2026-08-22 — shipped MR 9b, the remaining 12 items (#173). **Wave 2 complete.** Corrected MR 1a's
   stale IN REVIEW heading and MR 11's already-deleted codec item. Added the Working rules section.
   Next: MR 10.
+- 2026-08-23 — merged the doc-only scope update (#174), then opened both Wave 3 MRs. They landed
+  out of order: MR 11 merged first (#176), MR 10 second (#175). No harm done -- the two branches
+  were cut from the same base and touch disjoint code, and MR 11 was deliberately kept off the
+  Progress table and session log so the pair could merge in either order without a conflict. That
+  precaution is the only reason the inversion cost nothing; the next multi-MR wave should keep it.
+  **Wave 3 complete.**
+- 2026-08-23 — MR 10 (#175): decided to keep gallery passwords in plaintext, with the cost of moving
+  off it written up in the MR 10 section. Found that the email and propagation flows use the
+  submitted password rather than the stored one, so they were never part of the plaintext
+  requirement -- the tracker had implied a wider dependency than exists.
+- 2026-08-23 — MR 11 (#176): split `IllegalStateException` into client-actionable 400s and bare
+  `RuntimeException` 500s rather than genericising every message. Reverted one reclassification when
+  its test failed: MR 9b had deliberately made `validateAndEnsureUniqueSlug` a 400 a commit earlier.
+  Recorded the convention in the `handleIllegalState` javadoc.
+- 2026-08-23 — reconciled the board before handing off Wave 4. Found MR 12's line lists 64% stale
+  (only 55 of 152 sampled refs still land on a comment) and the Wave 4 premise low by 53% (567
+  in-method comments measured, not ~370). Rewrote MR 12 as a mechanical re-derivation with a
+  three-way split, added Working rule 5, filed the Wave 3 chunked-body residual. MR 10 (#175) was
+  still open at the time of writing; this doc update ships inside it, so the "Wave 3 complete" row
+  becomes true exactly when it merges. Next: MR 12a, `CollectionService` only.
 
 ---
 
@@ -610,10 +636,10 @@ Verified clean, for the record: no SQL injection anywhere in scope (named parame
 
 On the standing X-Forwarded-For question: mostly fixed, one remnant. Every consumer now keys off X-Real-IP first (`RateLimitFilter:129-132`, `AuthController:128-131`, `WebAuthnController:211-214`, `CollectionControllerProd:218-221`), matching the agreed BFF fix. The remnant is bug #3. Delete it and the April finding is closed on the backend side. Whether the BFF strips inbound client-supplied X-Real-IP cannot be proven from this repo — see Appendix C.
 
-## MR 10 — Gallery password subsystem
+## MR 10 — Gallery password subsystem — DONE ([PR #175](https://github.com/themancalledzac/edens.zac.backend/pull/175))
 
-Next up. It follows MR 9a's shape: a mechanical fix bundled with a decision that is not an
-implementer's to make. Take the decision to the repo owner rather than settling it mid-MR.
+It followed MR 9a's shape: a mechanical fix bundled with a decision that is not an implementer's to
+make. The decision is recorded below with the numbers behind it rather than settled silently.
 
 Why this one next: Wave 3 has only two MRs, and MR 10 is the one with a real design question in it.
 MR 11 is mostly small and one of its four items already turned out half-done. Also, the tracker's
@@ -639,9 +665,70 @@ Note on the second item: the file already uses `MessageDigest.isEqual` for both 
 (lines 117 and 182). Only the password equality at line 68 is a plain `.equals()`, so that item is a
 one-line change, not a sweep.
 
-- [ ] Decide and record: gallery passwords are stored and compared in plaintext (`services/ClientGalleryAuthService.java:59-68` and flows). The HMAC fingerprint feature structurally requires recoverable plaintext, so this is a design constraint. Either accept it knowingly and document it, or redesign the fingerprint feature.
-- [ ] At minimum, switch the compare to `MessageDigest.isEqual` for consistency with the rest of the codebase.
-- [ ] Changing a gallery password does not revoke issued per-slug cookies (`ClientGalleryAuthService.java:77-82, 92-122`). The HMAC payload is `slug|expiry` and does not bind the password, so a locked-out visitor keeps access for up to 24h. Bind the password fingerprint, or a version counter, into the payload.
+- [x] Decide and record: gallery passwords are stored and compared in plaintext (`services/ClientGalleryAuthService.java:59-68` and flows). **Decision: keep plaintext.** Recorded in the class javadoc on `ClientGalleryAuthService` and costed out below.
+- [x] At minimum, switch the compare to `MessageDigest.isEqual` for consistency with the rest of the codebase. One-line change at the former line 68; behavior identical, timing no longer leaks the matching prefix length.
+- [x] Changing a gallery password does not revoke issued per-slug cookies. Fixed: the signed payload is now `slug|fingerprint|expiry` via a private `slugTokenPayload` helper shared by `generateAccessToken` and `validateAccessToken`, so the two cannot drift. `generateAccessToken` took a second `password` parameter; its only main caller is `buildAccessCookies`, which already had the value in hand.
+
+### Why the fingerprint and not a version counter
+
+The tracker offered both. The fingerprint needs no schema change and is already computed on every
+read path; a version counter needs a new column, a migration, and an increment wired into all four
+password write sites. Same guarantee, less surface.
+
+### Deploy note
+
+Binding the fingerprint changes the signed payload, so every per-slug gallery cookie already in a
+visitor's browser stops validating at deploy. Visitors inside an active 24h window re-enter the
+password once. The password-fingerprint cookie is unaffected -- it always bound the fingerprint by
+construction, which is why only the per-slug token was broken.
+
+### The plaintext decision, costed
+
+Two live consumers read the *stored* password and would break under a one-way hash:
+
+1. `passwordFingerprint(entity.getGalleryPassword())` -- the shared-unlock cookie group, reached
+   from `CollectionService:545` and `ContentDownloadControllerProd:196` via
+   `GalleryAccessCookies.hasValidAccess`.
+2. `CollectionModel.galleryPassword` (`CollectionService:890`) -- the admin manage page shows the
+   current password so the owner can tell a client what it is.
+
+Two that look like they need plaintext but do not. Both use `request.password()`, the value the
+admin just submitted, never a re-read of storage:
+
+- `sendGalleryPasswordEmail` (`CollectionService:1727`).
+- `propagatePasswordToChildrenIfRequested` (`CollectionService:1767`).
+
+So emailing the password to a client and propagating it to children both survive a hash. Only the
+shared unlock and the admin display do not.
+
+**bcrypt alone** costs the shared-unlock feature outright. bcrypt is salted, so two galleries with
+the same password no longer produce a common key, and a PARENT password stops opening its
+propagated children without a prompt per gallery. The admin display goes too.
+
+**The one design that keeps both** is storing bcrypt for verification *and* persisting the HMAC
+fingerprint as its own column, so the fingerprint is derivable from storage without plaintext. What
+that costs:
+
+- One Flyway migration adding `gallery_password_fingerprint`, backfilled by HMAC-ing the existing
+  plaintext column -- feasible precisely because it is plaintext today -- then clearing the
+  plaintext in the same migration.
+- **Secret rotation becomes destructive.** The fingerprint is keyed by `app.access-token.secret`.
+  Today rotating that secret costs one round of invalidated cookies, because fingerprints are
+  recomputed from plaintext on every read. With the plaintext gone, stored fingerprints computed
+  under the old secret can never be recomputed, so rotation permanently breaks shared unlock for
+  existing galleries unless the old secret is retained forever. This is the non-obvious cost and
+  the main reason to hesitate.
+- The admin page loses "show me the password" and becomes "set a new one", which changes how the
+  owner hands passwords to clients.
+- Touches: 1 migration, `ClientGalleryAuthService`, `CollectionRepository` (row mapper, insert,
+  `updateGalleryPassword`, `saveGalleryAccess`), `CollectionService:890`, `CollectionModel`, plus
+  the frontend manage page. Roughly a day plus a migration against live data.
+
+**Recommendation: not worth it at current exposure.** These passwords gate photo galleries only,
+the gallery owner picks them rather than the client, they carry no account privileges, and the
+database is not internet-reachable. The usual argument for hashing -- users reuse passwords across
+services -- does not apply while the owner is the one choosing them. Revisit if gallery passwords
+ever become client-chosen, or if the database's exposure changes.
 
 ## MR 11 — Public surface hardening — DONE ([PR #176](https://github.com/themancalledzac/edens.zac.backend/pull/176))
 
@@ -664,7 +751,15 @@ the sender's hourly budget instead of being rejected for free.
 Known gap, deliberate: the cap reads `Content-Length`, so chunked requests arrive without one and
 still reach Jackson, bounded only by the container's own post limit. Rejecting chunked outright
 would be the complete fix but risks breaking a legitimate proxy, and the tracker asked for the
-Content-Length filter specifically.
+Content-Length filter specifically. Filed as the one open Wave 3 residual:
+
+- [ ] **Wave 3 residual — chunked bodies bypass the public body cap.** `RateLimitFilter` reads
+  `getContentLengthLong()`, which is -1 for `Transfer-Encoding: chunked`, so a chunked request
+  reaches Jackson uncapped. Options: reject chunked on `/api/public/**` outright (complete, small
+  risk of breaking a proxy that chunks), or wrap the input stream in a counting guard (complete, no
+  client-visible behavior change, more code). Verify first whether anything in front -- CloudFront
+  or the BFF -- already normalizes chunked to a fixed length, which would close this for free.
+  Decide before adding code.
 
 ### How the split was drawn
 
@@ -696,13 +791,83 @@ own.
 The convention is now recorded in the `handleIllegalState` javadoc so the next throw site picks the
 right type without rediscovering this.
 
+Two things noticed while in here and deliberately not fixed. `MessagesControllerPublic:43` returns
+`ResponseEntity<?>` against the typed-return rule -- already tracked in MR 22, which also has the
+better fix (a `RateLimitedException` handled globally, unifying the three different 429 body shapes
+in play). Not duplicated here. And `JdbcUserCredentialRepository` lives in `config/`, not `dao/` as
+this doc claimed; the path is corrected above.
+
 ---
 
 # Wave 4 — Comments and docs
 
 Rule: no `//` comments inside method bodies in main code. Delete, or promote to a docblock. D = delete, P = promote then delete. Class-level section banners (`// ====`) are outside method bodies; keep or drop per taste, but the stale "TYPE-SPECIFIC PROCESSING" banner at `CollectionProcessingUtil:927` should go regardless.
 
+**Measured 2026-08-23, not estimated.** `src/main` currently holds 684 lines beginning with `//`,
+excluding pure banner rules. Split by indentation: **567 sit at indent >= 4**, i.e. inside method
+bodies, which is what this rule actually targets; 117 sit at class-member level and are out of
+scope. The review's "~370 occurrences" premise was low by about 53%, so every Wave 4 estimate below
+is optimistic. MR 12's fifteen files alone hold 349 of the 567.
+
 ## MR 12 — Comment debloat: core services
+
+### Prep note (2026-08-23) — read before touching the lists below
+
+The line lists in this section are from the `8c28cf3` baseline and eleven MRs have landed on those
+files since. Measured drift: of 152 sampled `D:` refs, **only 55 still land on a `//` comment --
+36%**. Per file: `ContentService` 8%, `CollectionService` 15%, `MetadataService` 55%,
+`CollectionProcessingUtil` 81%, and `ContentModelConverter` / `PaginationUtil` / `TagViewResolver`
+100%. Following these numbers would delete live code.
+
+Keep the lists as the record of intent -- they still say which files matter, roughly how dense each
+one is, and which specific comments were judged worth promoting rather than deleting. That judgment
+is the part worth preserving. Do not use them as coordinates.
+
+Re-derive the worklist instead:
+
+```bash
+grep -rn --include="*.java" -E "^\s{4,}//" src/main/java/edens/zac/portfolio/backend/services/
+```
+
+Current inline counts for this MR's files (indent >= 4, banners excluded): CollectionService 148,
+ContentService 61, CollectionProcessingUtil 58, MetadataService 16, ContentModelConverter 13,
+SyntheticCollectionResolver 14, UserPageAssembler 10, TagViewResolver 8, ContentMutationUtil 6,
+PaginationUtil 4, TagService 3, UserMergeService 3, CollectionAccessService 3, CollectionFlags 1,
+ContentImageUpdateValidator 1. Total 349.
+
+At 349 comments across 15 files this is too big for one MR. Split it: `CollectionService` alone
+(148) is one MR, `ContentService` + `CollectionProcessingUtil` (119) a second, the remaining twelve
+small files (82) a third. That matches how MR 9 had to be split once its real size was known.
+
+The `P:` (promote) entries are the ones to recover by hand from the lists below, since they encode a
+judgment a grep cannot reproduce -- find each by reading the named docblock, not by line number.
+
+### Guardrail for MR 12: the diff contains comment lines and nothing else
+
+The tempting wrong move here is not deleting too many comments. It is touching the code underneath
+them. Deleting a comment puts your eyes on a badly named variable, a method that wants extracting,
+or a branch the comment was apologising for -- and a "while I'm here" fix feels free because the MR
+is already zero-risk.
+
+It is not free. A comment MR is the only kind whose correctness the compiler and the test suite can
+fully confirm: if the diff is comments only, a green build **is** the proof. Add one non-comment
+line and that guarantee is gone for the whole MR, across hundreds of hunks nobody will review
+closely because they are "just comments". Wave 2 spent five MRs on bugs precisely because behavior
+changes need their own scrutiny; smuggling one in here gets it none.
+
+So: delete and promote comments only. No renames, no extractions, no simplifications, no reordering.
+`git diff` on the MR should show only removed `//` lines and added javadoc.
+
+The report half, which matters more than the prohibition: **some of these comments are describing
+real bugs.** The review already caught one (`ImageProcessingService:229`, "fix wrongness with bug
+#10" in MR 13). Expect more -- a comment that contradicts the code it sits above is a bug report
+someone wrote and forgot. When you find one, file it as a numbered item in this doc and say so in
+the PR. Do not fix it inline, and do not delete the comment either; leave it until its own MR lands,
+because the stale comment is the only remaining evidence of the problem.
+
+Same rule for the `// ====` section banners: out of scope per the Wave 4 header, leave them, except
+the stale "TYPE-SPECIFIC PROCESSING" one at `CollectionProcessingUtil:927` which the header already
+condemns.
 
 - [ ] `CollectionService.java` — D: 127, 141, 146, 213, 233, 244, 290, 303, 306, 309, 317, 330, 336, 344, 347, 384, 393, 397, 496, 503, 567, 582, 585, 590, 595, 601, 606, 610, 651, 744, 765, 774, 777, 782, 809, 812, 820, 899, 907, 911, 917, 970, 989, 1011, 1044, 1047, 1062, 1074, 1082, 1112, 1137, 1140, 1334, 1399, 1411, 1446, 1456, 1473, 1485, 1520, 1553. P: 103/109/113 (resolution order, into the `getCollectionWithPagination` docblock), 135 (spec D1 invariant), 149, 152, 223 (keep with bug #6), 299/325/740 (CDN invalidation, three copies, into one class-level sentence), 357 (checkstyle-load-bearing final), 415, 574, 613, 620, 628/635, 828, 840, 865, 1016, 1028, 1056, 1100, 1107, 1121, 1164. Delete as redundant with the docblock: 124/280, 1344/1348, 1567 (stale), 1659.
 - [ ] `CollectionProcessingUtil.java` — D: 88, 93, 98, 111, 120, 160, 168, 226, 233, 244, 273, 291, 305, 316, 328, 336, 393, 400, 414, 430, 486, 616, 645, 693, 696, 699, 793, 804, 875, 883, 891, 904, trailing 801, 810. P: 188, 587, 593. Delete-redundant: 515, 626.

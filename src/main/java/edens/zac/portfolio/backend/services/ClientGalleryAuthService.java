@@ -23,6 +23,18 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Handles client gallery authentication: password validation, HMAC access token generation and
  * verification.
+ *
+ * <p>Gallery passwords are stored and compared in plaintext. That is a deliberate design
+ * constraint, not an oversight. Two features depend on it. {@link #passwordFingerprint} HMACs the
+ * plaintext so two galleries sharing a password produce the same fingerprint, which is what lets
+ * one unlock cookie open a whole password group without storing a group identifier; a salted
+ * one-way hash produces a different digest per row and breaks that. The admin manage page also
+ * reads the stored value back so the owner can tell a client what the password is.
+ *
+ * <p>The exposure is bounded: these passwords gate photo galleries only, the gallery owner chooses
+ * them rather than the client, and they carry no account privileges. What moving off plaintext
+ * would cost is written up in the cleanup tracker's MR 10 entry ({@code
+ * ai_docs/reviews/2026-08-22-backend-cleanup-spike.md}).
  */
 @Service
 @Slf4j
@@ -65,20 +77,39 @@ public class ClientGalleryAuthService {
       return false;
     }
 
-    return collection.getGalleryPassword().equals(password);
+    return MessageDigest.isEqual(
+        collection.getGalleryPassword().getBytes(StandardCharsets.UTF_8),
+        password.getBytes(StandardCharsets.UTF_8));
   }
 
   /**
    * Generate a time-limited HMAC access token for a client gallery.
    *
+   * <p>The password's fingerprint is signed into the payload so that changing the gallery password
+   * invalidates every per-slug cookie already issued against the old one. Without that binding a
+   * visitor who was just locked out keeps reading for the rest of the token's 24h life.
+   *
    * @param slug Collection slug
+   * @param password The gallery's current stored password; null/blank for an unprotected gallery
    * @return HMAC token with embedded expiry
    */
-  public String generateAccessToken(String slug) {
+  public String generateAccessToken(String slug, String password) {
     long expiry = Instant.now().plus(Duration.ofHours(24)).getEpochSecond();
-    String payload = slug + "|" + expiry;
-    String hmac = computeHmac(payload, accessTokenSecret);
+    String hmac = computeHmac(slugTokenPayload(slug, password, expiry), accessTokenSecret);
     return hmac + "|" + expiry;
+  }
+
+  /**
+   * Signed payload behind the per-slug access cookie: slug, password fingerprint, expiry. Kept in
+   * one place so {@link #generateAccessToken} and {@link #validateAccessToken} cannot drift.
+   *
+   * <p>An unprotected gallery contributes an empty fingerprint segment. Its tokens are never
+   * actually checked -- {@link #validateAccessToken} short-circuits to {@code true} before reaching
+   * the HMAC -- but the payload stays well-formed either way.
+   */
+  private String slugTokenPayload(String slug, String password, long expiry) {
+    String fingerprint = passwordFingerprint(password);
+    return slug + "|" + (fingerprint == null ? "" : fingerprint) + "|" + expiry;
   }
 
   /**
@@ -113,7 +144,10 @@ public class ClientGalleryAuthService {
       if (Instant.now().getEpochSecond() > expiry) {
         return false;
       }
-      String expectedHmac = computeHmac(slug + "|" + expiry, accessTokenSecret);
+      String expectedHmac =
+          computeHmac(
+              slugTokenPayload(slug, optCollection.get().getGalleryPassword(), expiry),
+              accessTokenSecret);
       return MessageDigest.isEqual(
           expectedHmac.getBytes(StandardCharsets.UTF_8), parts[0].getBytes(StandardCharsets.UTF_8));
     } catch (NumberFormatException e) {
@@ -201,7 +235,8 @@ public class ClientGalleryAuthService {
       String slug, String password, boolean secure, Duration maxAge) {
     List<ResponseCookie> cookies = new ArrayList<>(2);
     cookies.add(
-        ResponseCookie.from(GalleryAccessCookies.cookieName(slug), generateAccessToken(slug))
+        ResponseCookie.from(
+                GalleryAccessCookies.cookieName(slug), generateAccessToken(slug, password))
             .httpOnly(true)
             .secure(secure)
             .sameSite("Strict")
