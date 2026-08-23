@@ -936,24 +936,26 @@ public class CollectionService {
    * Update collection people using prev/new/remove pattern. Uses shared utility method from
    * ContentMutationUtil.
    *
+   * <p>Current people are loaded as FULLY populated entities, for the same reason {@link
+   * #updateCollectionTags} loads full tags. {@link ContentPersonEntity} keys {@code equals}/{@code
+   * hashCode} on {@code personName}, so a partially built person carrying only an id hashes to 0
+   * and never compares equal to anything. This method used to fabricate exactly such id-only
+   * entities, which meant a RETAINED person -- one present in both the current set and the
+   * request's {@code prev} list, where {@code updatePeople} re-adds it fully loaded from the
+   * repository -- landed in two different hash buckets and survived twice.
+   *
+   * <p>That duplicate id never reached the {@code collection_people} primary key only because
+   * {@link CollectionPeopleRepository#setPeopleForCollection} de-duplicates its insert batch. The
+   * tag path had no such backstop, which is why the identical defect there rolled back entire
+   * saves. Loading full entities fixes the cause rather than relying on the DAO to absorb it.
+   *
    * @param collection The collection to update
    * @param personUpdate The person update containing remove/prev/newValue operations
    */
   private void updateCollectionPeople(
       CollectionEntity collection, CollectionRequests.PersonUpdate personUpdate) {
-    // Load current people
-    List<Long> personIds = collectionRepository.findCollectionPersonIds(collection.getId());
     Set<ContentPersonEntity> currentPeople =
-        personIds.stream()
-            .map(
-                personId -> {
-                  // Create minimal person entity with just ID - full loading not needed for
-                  // update
-                  ContentPersonEntity person = new ContentPersonEntity();
-                  person.setId(personId);
-                  return person;
-                })
-            .collect(Collectors.toSet());
+        new HashSet<>(collectionPeopleRepository.findPeopleForCollection(collection.getId()));
 
     Set<ContentPersonEntity> updatedPeople =
         contentMutationUtil.updatePeople(
@@ -965,6 +967,7 @@ public class CollectionService {
         updatedPeople.stream()
             .map(ContentPersonEntity::getId)
             .filter(Objects::nonNull)
+            .distinct()
             .collect(Collectors.toList());
     collectionPeopleRepository.setPeopleForCollection(collection.getId(), updatedPersonIds);
     log.info("Updated people for collection {}", collection.getId());

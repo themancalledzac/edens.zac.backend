@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.dao;
 
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.model.Records;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,8 +26,42 @@ public class CollectionPeopleRepository extends BaseDao {
   private static final RowMapper<Records.Person> PERSON_ROW_MAPPER =
       (rs, rowNum) -> new Records.Person(rs.getLong("id"), rs.getString("name"));
 
+  private static final RowMapper<ContentPersonEntity> PERSON_ENTITY_ROW_MAPPER =
+      (rs, rowNum) ->
+          ContentPersonEntity.builder()
+              .id(rs.getLong("id"))
+              .personName(rs.getString("name"))
+              .createdAt(getLocalDateTime(rs, "created_at"))
+              .build();
+
   public CollectionPeopleRepository(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
+  }
+
+  /**
+   * People on one collection as fully populated {@link ContentPersonEntity} instances. Mirrors
+   * {@link TagRepository#findCollectionTags} for the people side.
+   *
+   * <p>Distinct from {@link #findPeopleForCollections}, which returns read-path {@link
+   * Records.Person} DTOs: callers that feed the prev/new/remove merge in {@code
+   * ContentMutationUtil.updatePeople} need real entities, because {@code ContentPersonEntity} keys
+   * {@code equals}/{@code hashCode} on {@code personName} and a person missing its name cannot
+   * dedupe against the same person loaded elsewhere.
+   */
+  @Transactional(readOnly = true)
+  public List<ContentPersonEntity> findPeopleForCollection(Long collectionId) {
+    String sql =
+        """
+        SELECT p.id, p.name, p.created_at
+        FROM collection_people cp
+        JOIN users p ON p.id = cp.person_id
+        WHERE cp.collection_id = :collectionId
+        ORDER BY p.name ASC
+        """;
+    return query(
+        sql,
+        PERSON_ENTITY_ROW_MAPPER,
+        createParameterSource().addValue("collectionId", collectionId));
   }
 
   /**

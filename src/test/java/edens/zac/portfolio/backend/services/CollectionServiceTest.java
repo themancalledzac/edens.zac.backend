@@ -20,11 +20,13 @@ import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
+import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
@@ -93,6 +95,7 @@ class CollectionServiceTest {
 
   @Captor private ArgumentCaptor<Map<Long, Integer>> mapCaptor;
   @Captor private ArgumentCaptor<List<Long>> tagIdsCaptor;
+  @Captor private ArgumentCaptor<List<Long>> personIdsCaptor;
 
   private CollectionEntity testCollection;
 
@@ -2307,7 +2310,7 @@ class CollectionServiceTest {
               contentRepository,
               collectionRepository,
               tagRepository,
-              mock(edens.zac.portfolio.backend.dao.PersonRepository.class),
+              mock(PersonRepository.class),
               locationRepository);
       when(contentMutationUtil.updateTags(any(), any(), any()))
           .thenAnswer(
@@ -2379,6 +2382,120 @@ class CollectionServiceTest {
 
       verify(tagRepository).saveCollectionTags(eq(collectionId), tagIdsCaptor.capture());
       assertThat(tagIdsCaptor.getValue()).containsExactly(72L);
+    }
+  }
+
+  /**
+   * The people-side twin of {@link UpdateCollectionTags}. {@code updateCollectionPeople} used to
+   * build its current set from ids alone, and {@link ContentPersonEntity} keys equality on {@code
+   * personName}, so a retained person survived twice and its id was written twice.
+   *
+   * <p>It never surfaced as a {@code collection_people} primary key violation the way the tag
+   * defect did, because {@code CollectionPeopleRepository.setPeopleForCollection} de-duplicates its
+   * insert batch. These tests assert on what the service hands the DAO, so they fail on the old
+   * code regardless of that backstop.
+   *
+   * <p>As on the tag side, the REAL {@link ContentMutationUtil#updatePeople} runs through the
+   * mocked collaborator -- a stubbed merge would hide the entity-equality seam the bug lived in.
+   */
+  @Nested
+  @DisplayName("updateCollectionPeople")
+  class UpdateCollectionPeople {
+
+    private final PersonRepository personRepository = mock(PersonRepository.class);
+
+    private CollectionRequests.Update updateWithPeople(
+        Long id, CollectionRequests.PersonUpdate people) {
+      return new CollectionRequests.Update(
+          id, null, null, null, null, null, null, null, null, null, null, null, null, null, people,
+          null, null);
+    }
+
+    private void delegateUpdatePeopleToRealUtil() {
+      ContentMutationUtil real =
+          new ContentMutationUtil(
+              contentRepository,
+              collectionRepository,
+              tagRepository,
+              personRepository,
+              locationRepository);
+      when(contentMutationUtil.updatePeople(any(), any(), any()))
+          .thenAnswer(
+              invocation ->
+                  real.updatePeople(
+                      invocation.getArgument(0),
+                      invocation.getArgument(1),
+                      invocation.getArgument(2)));
+    }
+
+    @Test
+    @DisplayName("a retained person is written exactly once, not duplicated")
+    void updateContent_retainedPerson_writesEachPersonIdExactlyOnce() {
+      Long collectionId = 1L;
+      ContentPersonEntity zac = ContentPersonEntity.builder().id(72L).personName("Zac").build();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(collectionPeopleRepository.findPeopleForCollection(collectionId))
+          .thenReturn(List.of(zac));
+      when(personRepository.findById(72L)).thenReturn(Optional.of(zac));
+      delegateUpdatePeopleToRealUtil();
+
+      service.updateContent(
+          collectionId,
+          updateWithPeople(
+              collectionId, new CollectionRequests.PersonUpdate(List.of(72L), null, null)));
+
+      verify(collectionPeopleRepository)
+          .setPeopleForCollection(eq(collectionId), personIdsCaptor.capture());
+      assertThat(personIdsCaptor.getValue()).containsExactly(72L);
+    }
+
+    @Test
+    @DisplayName("a retained person alongside an added person keeps both, each once")
+    void updateContent_retainedPersonPlusNewPerson_writesBothExactlyOnce() {
+      Long collectionId = 1L;
+      ContentPersonEntity zac = ContentPersonEntity.builder().id(72L).personName("Zac").build();
+      ContentPersonEntity mara = ContentPersonEntity.builder().id(9L).personName("Mara").build();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(collectionPeopleRepository.findPeopleForCollection(collectionId))
+          .thenReturn(List.of(zac));
+      when(personRepository.findById(72L)).thenReturn(Optional.of(zac));
+      when(personRepository.findByPersonNameIgnoreCase("Mara")).thenReturn(Optional.of(mara));
+      delegateUpdatePeopleToRealUtil();
+
+      service.updateContent(
+          collectionId,
+          updateWithPeople(
+              collectionId,
+              new CollectionRequests.PersonUpdate(List.of(72L), List.of("Mara"), null)));
+
+      verify(collectionPeopleRepository)
+          .setPeopleForCollection(eq(collectionId), personIdsCaptor.capture());
+      assertThat(personIdsCaptor.getValue()).containsExactlyInAnyOrder(72L, 9L);
+    }
+
+    @Test
+    @DisplayName("removing one of two attached people leaves only the survivor")
+    void updateContent_removesPerson_writesOnlySurvivor() {
+      Long collectionId = 1L;
+      ContentPersonEntity zac = ContentPersonEntity.builder().id(72L).personName("Zac").build();
+      ContentPersonEntity mara = ContentPersonEntity.builder().id(9L).personName("Mara").build();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(collectionPeopleRepository.findPeopleForCollection(collectionId))
+          .thenReturn(List.of(zac, mara));
+      when(personRepository.findById(72L)).thenReturn(Optional.of(zac));
+      delegateUpdatePeopleToRealUtil();
+
+      service.updateContent(
+          collectionId,
+          updateWithPeople(
+              collectionId, new CollectionRequests.PersonUpdate(List.of(72L), null, List.of(9L))));
+
+      verify(collectionPeopleRepository)
+          .setPeopleForCollection(eq(collectionId), personIdsCaptor.capture());
+      assertThat(personIdsCaptor.getValue()).containsExactly(72L);
     }
   }
 }
