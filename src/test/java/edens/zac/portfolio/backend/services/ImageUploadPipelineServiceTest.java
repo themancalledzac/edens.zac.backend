@@ -17,6 +17,7 @@ import static org.mockito.Mockito.when;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
@@ -32,6 +33,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -214,7 +217,7 @@ class ImageUploadPipelineServiceTest {
       Long collectionId = 1L;
       var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", "/tmp/photo.cr3", null);
       var request = new DiskUploadRequest(List.of(fileEntry), null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
@@ -254,7 +257,7 @@ class ImageUploadPipelineServiceTest {
       Long collectionId = 1L;
       var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null);
       var request = new DiskUploadRequest(List.of(fileEntry), List.of(42L));
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
@@ -272,7 +275,7 @@ class ImageUploadPipelineServiceTest {
       Long collectionId = 1L;
       var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null);
       var request = new DiskUploadRequest(List.of(fileEntry), null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
@@ -336,7 +339,7 @@ class ImageUploadPipelineServiceTest {
                       List.of("Amsterdam"),
                       null)),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
@@ -357,6 +360,115 @@ class ImageUploadPipelineServiceTest {
       verify(contentMutationUtil).associateLocationsByName(eq(101L), eq(List.of("Amsterdam")));
     }
 
+    private ImageProcessingService.DedupeResult skipResult(Long imageId) {
+      return new ImageProcessingService.DedupeResult(
+          ContentImageEntity.builder().id(imageId).build(),
+          ImageProcessingService.DedupeAction.SKIP);
+    }
+
+    @Test
+    @DisplayName("a skipped duplicate is still linked to the collection it was uploaded to")
+    void processFilesFromDisk_dedupeSkip_linksExistingImageToCollection() throws Exception {
+      // Before this fix a SKIP only bumped a counter, so re-sending a photo you already had into
+      // a new collection reported success and added nothing to that collection.
+      Long collectionId = 1L;
+      var request =
+          new DiskUploadRequest(
+              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(jobTrackingService.createJob(1)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(contentService.nextOrderIndex(collectionId)).thenReturn(7);
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", List.of(), List.of()));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(skipResult(101L));
+      when(collectionRepository.findContentByCollectionIdAndContentId(collectionId, 101L))
+          .thenReturn(Optional.empty());
+
+      service.processFilesFromDisk(collectionId, request);
+      awaitCompletion(job);
+
+      assertThat(job.skipped().get()).isEqualTo(1);
+      verify(contentService).linkContentToCollection(collectionId, 101L, 7);
+      // SKIP means the stored image is unchanged: no keyword rewrite, no RAW re-upload.
+      verify(contentMutationUtil, never())
+          .associateExtractedKeywords(anyLong(), anyList(), anyList());
+    }
+
+    @Test
+    void processFilesFromDisk_dedupeSkip_doesNotRelinkAnImageAlreadyInTheCollection()
+        throws Exception {
+      Long collectionId = 1L;
+      var request =
+          new DiskUploadRequest(
+              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(jobTrackingService.createJob(1)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(contentService.nextOrderIndex(collectionId)).thenReturn(0);
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", List.of(), List.of()));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(skipResult(101L));
+      when(collectionRepository.findContentByCollectionIdAndContentId(collectionId, 101L))
+          .thenReturn(Optional.of(CollectionContentEntity.builder().build()));
+
+      service.processFilesFromDisk(collectionId, request);
+      awaitCompletion(job);
+
+      assertThat(job.skipped().get()).isEqualTo(1);
+      verify(contentService, never()).linkContentToCollection(anyLong(), anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("two disk jobs never run the decode step at the same time")
+    void processFilesFromDisk_concurrentJobs_serializeThePrepareStep() throws Exception {
+      // Bug #2: both background loops submit to an unbounded virtual-thread executor. Without the
+      // upload permit, two jobs decode full-resolution JPEGs concurrently -- 130-180 MB of heap
+      // each -- which is the OOM shape that took down the 20+15 Lightroom batch.
+      Long collectionId = 1L;
+      var inFlight = new AtomicInteger();
+      var peakInFlight = new AtomicInteger();
+
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(contentService.nextOrderIndex(collectionId)).thenReturn(0);
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenAnswer(
+              invocation -> {
+                peakInFlight.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
+                Thread.sleep(120);
+                inFlight.decrementAndGet();
+                return prepared("a.jpg", List.of(), List.of());
+              });
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(createResult(101L));
+
+      var jobA = new JobTrackingService.JobStatus(UUID.randomUUID(), 2);
+      var jobB = new JobTrackingService.JobStatus(UUID.randomUUID(), 2);
+      when(jobTrackingService.createJob(2)).thenReturn(jobA).thenReturn(jobB);
+
+      var request =
+          new DiskUploadRequest(
+              List.of(
+                  new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null),
+                  new DiskUploadRequest.FileEntry("/tmp/b.jpg", null, null)),
+              null);
+
+      service.processFilesFromDisk(collectionId, request);
+      service.processFilesFromDisk(collectionId, request);
+      awaitCompletion(jobA);
+      awaitCompletion(jobB);
+
+      assertThat(peakInFlight.get())
+          .as("concurrent decodes observed across two disk jobs")
+          .isEqualTo(1);
+      assertThat(jobA.processed().get() + jobB.processed().get()).isEqualTo(4);
+    }
+
     @Test
     @DisplayName("a keyword failure reaches the job, flips it to FAILED, and still links the image")
     void processFilesFromDisk_keywordFailure_recordedOnJobAndFlipsStatusToFailed()
@@ -374,7 +486,7 @@ class ImageUploadPipelineServiceTest {
       var request =
           new DiskUploadRequest(
               List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
@@ -409,7 +521,7 @@ class ImageUploadPipelineServiceTest {
       var request =
           new DiskUploadRequest(
               List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
@@ -781,7 +893,7 @@ class ImageUploadPipelineServiceTest {
                   new DiskUploadRequest.FileEntry(
                       "/tmp/b.jpg", null, null, null, null, "2024-03-25")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 2);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 2);
       when(jobTrackingService.createJob(2)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -809,6 +921,39 @@ class ImageUploadPipelineServiceTest {
     }
 
     @Test
+    @DisplayName("a skipped duplicate is still linked to that day's blog")
+    void ingest_dedupeSkip_linksExistingImageToTheDayBlog() throws Exception {
+      LocalDate day = LocalDate.of(2024, 3, 24);
+      var request =
+          new DiskUploadRequest(
+              List.of(
+                  new DiskUploadRequest.FileEntry(
+                      "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
+              null);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
+      when(jobTrackingService.createJob(1)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", day, List.of(), List.of()));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(
+              new ImageProcessingService.DedupeResult(
+                  ContentImageEntity.builder().id(101L).build(),
+                  ImageProcessingService.DedupeAction.SKIP));
+      when(collectionRepository.findBlogsByCollectionDate(day)).thenReturn(List.of());
+      when(collectionService.createCollection(any())).thenReturn(blogResponse(1L, day));
+      when(contentService.nextOrderIndex(1L)).thenReturn(3);
+      when(collectionRepository.findContentByCollectionIdAndContentId(1L, 101L))
+          .thenReturn(Optional.empty());
+
+      service.ingestFilesGroupedByDay(request);
+      awaitCompletion(job);
+
+      assertThat(job.skipped().get()).isEqualTo(1);
+      verify(contentService).linkContentToCollection(1L, 101L, 3);
+    }
+
+    @Test
     void ingest_newBlogForDay_isPromotedToListed() throws Exception {
       // Regression pin: the shared create path is privacy-first UNLISTED, and UNLISTED blogs are
       // invisible to findListedBlogsOrdered and to the public /all-blogs listing. Without the
@@ -820,7 +965,7 @@ class ImageUploadPipelineServiceTest {
                   new DiskUploadRequest.FileEntry(
                       "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -849,7 +994,7 @@ class ImageUploadPipelineServiceTest {
                   new DiskUploadRequest.FileEntry(
                       "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -886,7 +1031,7 @@ class ImageUploadPipelineServiceTest {
                   new DiskUploadRequest.FileEntry(
                       "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -916,7 +1061,7 @@ class ImageUploadPipelineServiceTest {
                   new DiskUploadRequest.FileEntry(
                       "/tmp/a.jpg", null, null, null, null, "2024-03-24")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -942,7 +1087,7 @@ class ImageUploadPipelineServiceTest {
           new DiskUploadRequest(
               List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null, null, null, null)),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -973,7 +1118,7 @@ class ImageUploadPipelineServiceTest {
                   new DiskUploadRequest.FileEntry(
                       "/tmp/b.jpg", null, null, null, null, "2024-03-24")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 2);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 2);
       when(jobTrackingService.createJob(2)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -1009,7 +1154,7 @@ class ImageUploadPipelineServiceTest {
                       List.of("Amsterdam"),
                       "2024-03-24")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
       when(imageProcessingService.prepareImageFromDisk(any(), any()))
@@ -1046,7 +1191,7 @@ class ImageUploadPipelineServiceTest {
                       null,
                       "2024-03-24")),
               null);
-      var job = new JobTrackingService.JobStatus(java.util.UUID.randomUUID(), 1);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(jobTrackingService.createJob(1)).thenReturn(job);
       when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of(bob));
       when(imageProcessingService.prepareImageFromDisk(any(), any()))

@@ -4,7 +4,6 @@ import com.adobe.internal.xmp.XMPConst;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
 import lombok.Getter;
 
 /**
@@ -115,20 +114,7 @@ public class ImageMetadata {
         "lensSerialNumber",
         ExifTags.of("Lens Serial Number"),
         XmpProperty.of(XMPConst.NS_EXIF_AUX, "LensSerialNumber"),
-        new SimpleStringExtractor()),
-
-    BLACK_AND_WHITE(
-        "blackAndWhite",
-        ExifTags.none(),
-        XmpProperty.of(XMPConst.NS_XMP, "subject"),
-        new BooleanExtractor(
-            value -> value.contains("Monochrome") || value.contains("BlackAndWhite"))),
-
-    IS_FILM(
-        "isFilm",
-        ExifTags.none(),
-        XmpProperty.of(XMPConst.NS_XMP, "subject"),
-        new BooleanExtractor(value -> value.toLowerCase().contains("film")));
+        new SimpleStringExtractor());
 
     private final String fieldName;
     private final ExifTags exifTags;
@@ -291,27 +277,6 @@ public class ImageMetadata {
       } catch (NumberFormatException e) {
         return trimmed;
       }
-    }
-  }
-
-  /**
-   * Boolean extractor with custom predicate. Tests the value against a predicate and returns "true"
-   * or "false".
-   */
-  public static class BooleanExtractor implements ValueExtractor {
-    private final Predicate<String> predicate;
-
-    public BooleanExtractor(Predicate<String> predicate) {
-      this.predicate = predicate;
-    }
-
-    @Override
-    public String extract(String rawValue) {
-      if (rawValue == null || rawValue.trim().isEmpty()) {
-        return "false";
-      }
-
-      return predicate.test(rawValue) ? "true" : "false";
     }
   }
 }
