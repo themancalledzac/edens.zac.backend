@@ -104,6 +104,10 @@ public class ContentService {
    * check over {@code imageMap} throws for any id with no matching row. So inside the loop {@code
    * update.getId()} is non-null and {@code imageMap.get(id)} is present.
    *
+   * <p>Every read the loop needs is hoisted above it to avoid N+1: the images themselves in one
+   * query, then the current tags, people and locations for all of them in one query each. The
+   * per-item helpers take those pre-fetched entities rather than re-querying.
+   *
    * @param updates the image updates to apply; must be non-empty and each must carry an id
    * @return updated image models, per-item errors, and any metadata entities created along the way
    */
@@ -115,7 +119,6 @@ public class ContentService {
   public Map<String, Object> updateImages(List<ContentImageUpdateRequest> updates) {
     contentValidator.validateImageUpdates(updates);
 
-    // Track updated images and newly created metadata
     List<ContentModels.Image> updatedImages = new ArrayList<>();
     Set<TagEntity> newlyCreatedTags = new HashSet<>();
     Set<ContentPersonEntity> newlyCreatedPeople = new HashSet<>();
@@ -124,7 +127,6 @@ public class ContentService {
     Set<ContentFilmTypeEntity> newlyCreatedFilmTypes = new HashSet<>();
     List<String> errors = new ArrayList<>();
 
-    // Extract all image IDs and batch fetch them for efficiency
     List<Long> imageIds =
         updates.stream()
             .map(ContentImageUpdateRequest::getId)
@@ -135,24 +137,20 @@ public class ContentService {
       throw new IllegalArgumentException("No valid image IDs found in update requests");
     }
 
-    // Validate all update requests
     for (ContentImageUpdateRequest update : updates) {
       contentImageUpdateValidator.validate(update);
     }
 
-    // OPTIMIZED: Batch fetch all images in a single query (avoids N+1)
     List<ContentImageEntity> imageList = contentRepository.findImagesByIds(imageIds);
     Map<Long, ContentImageEntity> imageMap =
         imageList.stream().collect(Collectors.toMap(ContentImageEntity::getId, img -> img));
 
-    // Verify all requested images exist
     for (Long imageId : imageIds) {
       if (!imageMap.containsKey(imageId)) {
         throw new ResourceNotFoundException("Image not found: " + imageId);
       }
     }
 
-    // OPTIMIZED: Pre-fetch all current tags, people, and locations for all images (avoids N+1)
     Map<Long, List<TagEntity>> currentTagsByImage = tagRepository.findTagsByContentIds(imageIds);
     Map<Long, List<ContentPersonEntity>> currentPeopleByImage =
         personRepository.findPeopleByContentIds(imageIds);
@@ -160,7 +158,6 @@ public class ContentService {
         locationRepository.findLocationsByContentIds(imageIds);
     Set<LocationEntity> newlyCreatedLocations = new HashSet<>();
 
-    // Track successfully updated images for batch save
     List<ContentImageEntity> imagesToSave = new ArrayList<>();
 
     for (ContentImageUpdateRequest update : updates) {
@@ -168,22 +165,15 @@ public class ContentService {
         Long imageId = update.getId();
         ContentImageEntity image = imageMap.get(imageId);
 
-        // Apply basic image metadata updates using the processing util
-        // Note: This handles camera, lens, and filmType updates via the util
-        // We'll need to track which ones were created
         applyImageUpdatesWithTracking(
             image, update, newlyCreatedCameras, newlyCreatedLenses, newlyCreatedFilmTypes);
 
-        // Update tags using prev/new/remove pattern (with tracking)
-        // Use pre-fetched full entities to avoid N+1 query
         if (update.getTags() != null) {
           List<TagEntity> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
           contentMutationUtil.updateImageTagsOptimized(
               image, update.getTags(), currentTags, newlyCreatedTags);
         }
 
-        // Update people using prev/new/remove pattern (with tracking)
-        // Use pre-fetched full entities to avoid N+1 query
         if (update.getPeople() != null) {
           List<ContentPersonEntity> currentPeople =
               currentPeopleByImage.getOrDefault(imageId, List.of());
@@ -191,7 +181,6 @@ public class ContentService {
               image, update.getPeople(), currentPeople, newlyCreatedPeople);
         }
 
-        // Update locations using prev/new/remove pattern (with tracking)
         if (update.getLocations() != null) {
           List<LocationEntity> currentLocations =
               currentLocationsByImage.getOrDefault(imageId, List.of());
@@ -199,11 +188,9 @@ public class ContentService {
               image, update.getLocations(), currentLocations, newlyCreatedLocations);
         }
 
-        // Handle collection updates using prev/new/remove pattern
         if (update.getCollections() != null) {
           CollectionRequests.CollectionUpdate collectionUpdate = update.getCollections();
 
-          // Remove from collections if specified
           if (collectionUpdate.remove() != null && !collectionUpdate.remove().isEmpty()) {
             for (Long collectionIdToRemove : collectionUpdate.remove()) {
               collectionRepository.removeContentFromCollection(
@@ -212,22 +199,18 @@ public class ContentService {
             }
           }
 
-          // Update existing collection relationships (visibility, orderIndex)
           if (collectionUpdate.prev() != null && !collectionUpdate.prev().isEmpty()) {
             contentMutationUtil.handleContentChildCollectionUpdates(
                 image.getId(), collectionUpdate.prev());
           }
 
-          // Add to new collections if specified
           if (collectionUpdate.newValue() != null && !collectionUpdate.newValue().isEmpty()) {
             contentMutationUtil.handleAddToCollections(image.getId(), collectionUpdate.newValue());
           }
         }
 
-        // Add to batch save list
         imagesToSave.add(image);
 
-        // Convert to model and add to results
         ContentModels.Image imageModel =
             (ContentModels.Image) contentModelConverter.convertRegularContentEntityToModel(image);
         updatedImages.add(imageModel);
@@ -261,6 +244,12 @@ public class ContentService {
 
   /**
    * Apply image metadata updates and track newly created entities (cameras, lenses, film types).
+   *
+   * <p>Cameras and lenses are created with no serial number, so one is generated as a UUID. The
+   * tracking sets are passed down so anything created along the way is reported back to the caller.
+   *
+   * <p>Locations are NOT handled here -- {@link #updateImages} applies them via {@code
+   * contentMutationUtil.updateImageLocationsOptimized}, using its pre-fetched location map.
    */
   private void applyImageUpdatesWithTracking(
       ContentImageEntity image,
@@ -269,7 +258,6 @@ public class ContentService {
       Set<ContentLensEntity> newLenses,
       Set<ContentFilmTypeEntity> newFilmTypes) {
 
-    // Update basic metadata fields
     if (updateRequest.getTitle() != null) image.setTitle(updateRequest.getTitle());
     if (updateRequest.getCaption() != null) image.setCaption(updateRequest.getCaption());
     if (updateRequest.getAlt() != null) image.setAlt(updateRequest.getAlt());
@@ -288,7 +276,6 @@ public class ContentService {
     if (updateRequest.getCaptureDate() != null)
       image.setCaptureDate(updateRequest.getCaptureDate());
 
-    // Handle camera update with tracking
     if (updateRequest.getCamera() != null) {
       ContentImageUpdateRequest.CameraUpdate cameraUpdate = updateRequest.getCamera();
       if (Boolean.TRUE.equals(cameraUpdate.getRemove())) {
@@ -296,8 +283,6 @@ public class ContentService {
       } else if (cameraUpdate.getNewValue() != null
           && !cameraUpdate.getNewValue().trim().isEmpty()) {
         String cameraName = cameraUpdate.getNewValue().trim();
-        // Use helper method - no serial number provided, will generate UUID
-        // Pass tracking set so newly created cameras are automatically tracked
         ContentCameraEntity camera =
             imageProcessingService.createCamera(cameraName, null, newCameras);
         image.setCamera(camera);
@@ -306,15 +291,12 @@ public class ContentService {
       }
     }
 
-    // Handle lens update with tracking
     if (updateRequest.getLens() != null) {
       ContentImageUpdateRequest.LensUpdate lensUpdate = updateRequest.getLens();
       if (Boolean.TRUE.equals(lensUpdate.getRemove())) {
         image.setLens(null);
       } else if (lensUpdate.getNewValue() != null && !lensUpdate.getNewValue().trim().isEmpty()) {
         String lensName = lensUpdate.getNewValue().trim();
-        // Use helper method - no serial number provided, will generate UUID
-        // Pass tracking set so newly created lenses are automatically tracked
         ContentLensEntity lens = imageProcessingService.createLens(lensName, null, newLenses);
         image.setLens(lens);
       } else if (lensUpdate.getPrev() != null) {
@@ -322,7 +304,6 @@ public class ContentService {
       }
     }
 
-    // Handle film type update with tracking
     if (updateRequest.getFilmType() != null) {
       ContentImageUpdateRequest.FilmTypeUpdate filmTypeUpdate = updateRequest.getFilmType();
       if (Boolean.TRUE.equals(filmTypeUpdate.getRemove())) {
@@ -337,15 +318,15 @@ public class ContentService {
         image.setFilmType(metadataService.findFilmTypeById(filmTypeUpdate.getPrev()));
       }
     }
-
-    // Location updates are now handled in updateImages() via
-    // contentMutationUtil.updateImageLocationsOptimized
   }
 
   /**
    * Bulk-delete content blocks by id. The admin grid mixes images and GIF/MP4 blocks in one
    * selection, so ids are dispatched on their stored {@link ContentType} rather than assumed to be
    * images -- a GIF id sent here used to fall through as "Image not found".
+   *
+   * <p>S3 objects are deleted before the database rows, so a failed S3 delete aborts the item and
+   * leaves the row rather than orphaning the object.
    */
   @Transactional
   public Map<String, Object> deleteImages(List<Long> imageIds) {
@@ -370,10 +351,8 @@ public class ContentService {
               continue;
             }
 
-            // Delete from S3 before deleting from database
             imageProcessingService.deleteImageFromS3(image);
 
-            // Delete from database
             contentRepository.deleteImageById(imageId);
             deletedIds.add(imageId);
           }
@@ -399,6 +378,13 @@ public class ContentService {
     return Map.of("deletedIds", deletedIds, "deletedCount", deletedIds.size(), "errors", errors);
   }
 
+  /**
+   * Paged image search.
+   *
+   * <p>Results are batch-converted -- three queries total for tags, people and locations -- rather
+   * than mapped through the singular converter, which fires three per-image queries and becomes N+1
+   * on large pages.
+   */
   @Transactional(readOnly = true)
   public ImageSearchResponse searchImages(ImageSearchRequest request) {
     int limit = request.size();
@@ -408,8 +394,6 @@ public class ContentService {
     long totalElements = contentRepository.countSearchImages(request);
     int totalPages = limit > 0 ? (int) Math.ceil((double) totalElements / limit) : 0;
 
-    // Batch-convert (3 queries total for tags/people/locations) instead of mapping each entity
-    // through the singular converter, which fires 3 per-image queries -> N+1 on large pages.
     List<ContentModels.Image> images =
         contentModelConverter.batchConvertImageEntitiesToModels(entities);
 
@@ -441,7 +425,6 @@ public class ContentService {
 
     contentValidator.validateTextContent(request.textContent());
 
-    // Verify collection exists
     collectionRepository
         .findById(request.collectionId())
         .orElseThrow(
@@ -449,17 +432,14 @@ public class ContentService {
 
     int orderIndex = nextOrderIndex(request.collectionId());
 
-    // Create text content entity
     ContentTextEntity textEntity =
         ContentTextEntity.builder()
             .textContent(request.textContent().trim())
             .formatType(request.formType() != null ? request.formType().getValue() : "plain")
             .build();
 
-    // Save the text content
     textEntity = contentRepository.saveText(textEntity);
 
-    // Link to collection
     linkContentToCollection(request.collectionId(), textEntity.getId(), orderIndex);
 
     log.info(
@@ -468,7 +448,6 @@ public class ContentService {
         request.collectionId(),
         orderIndex);
 
-    // Convert to model and return
     ContentModel contentModel =
         contentModelConverter.convertEntityToModel(
             CollectionContentEntity.builder()
@@ -486,6 +465,11 @@ public class ContentService {
     return maxOrder != null ? maxOrder + 1 : 0;
   }
 
+  /**
+   * Create a GIF/MP4 content block and link it to a collection. {@code processGifContent} uploads
+   * the file to S3, extracts a first-frame WebP thumbnail, and saves the entity. A null {@code
+   * orderIndex} appends to the end of the collection.
+   */
   @Transactional
   public ContentModels.Gif createGif(
       Long collectionId, MultipartFile file, String title, Integer orderIndex) {
@@ -495,13 +479,10 @@ public class ContentService {
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
 
-    // Process file: upload to S3 + extract first-frame WebP thumbnail + save entity
     ContentGifEntity gifEntity = imageProcessingService.processGifContent(file, title);
 
-    // Resolve order index: use provided value or append to end
     int resolvedOrderIndex = orderIndex != null ? orderIndex : nextOrderIndex(collectionId);
 
-    // Link to collection
     linkContentToCollection(collectionId, gifEntity.getId(), resolvedOrderIndex);
 
     log.info(
@@ -550,6 +531,14 @@ public class ContentService {
    * locations write to the content-level joins via {@link ContentRepository#saveContentPeople(Long,
    * java.util.List)} and {@link LocationRepository#saveContentLocations(Long, java.util.List)}.
    *
+   * <p>Tags reuse the optimized image-tag helper, which needs only the content id, the current tag
+   * list, and the prev/newValue/remove payload; {@link ContentGifEntity} exposes {@code setTags}
+   * like an image does. People and locations go to their content-level joins ({@code
+   * content_image_people} and {@code content_image_locations}, both content_id-keyed) in the same
+   * merge-then-persist shape, via the content-agnostic helpers. {@link
+   * LocationRepository#findLocationsByContentIds} returns a map keyed by content id, so this gif's
+   * list is extracted before merging.
+   *
    * <p>EXIF/equipment fields (camera, lens, ISO, etc.) intentionally have no analog for GIF — the
    * frontend modal greys them out for animated content.
    */
@@ -570,8 +559,6 @@ public class ContentService {
       gif.setCaptureDate(request.captureDate());
     }
 
-    // Tags: reuse the optimized image-tag helper — it only needs the content id + current tag
-    // list + the prev/newValue/remove update payload. ContentGifEntity also exposes setTags.
     if (request.tags() != null) {
       List<TagEntity> currentTagEntities = tagRepository.findContentTags(gif.getId());
       Set<TagEntity> currentTags = new HashSet<>(currentTagEntities);
@@ -587,8 +574,6 @@ public class ContentService {
       tagRepository.saveContentTags(gif.getId(), updatedTagIds);
     }
 
-    // People: content-level join (content_image_people, content_id-keyed). Same merge + persist
-    // shape as tags, using the content-agnostic helper and generalized save method.
     if (request.people() != null) {
       List<ContentPersonEntity> currentPeople = personRepository.findContentPeople(gif.getId());
       Set<ContentPersonEntity> updatedPeople =
@@ -603,9 +588,6 @@ public class ContentService {
       contentRepository.saveContentPeople(gif.getId(), updatedPersonIds);
     }
 
-    // Locations: content-level join (content_image_locations, content_id-keyed).
-    // findLocationsByContentIds returns a Map<contentId, List<LocationEntity>>, so extract this
-    // gif's list before merging.
     if (request.locations() != null) {
       List<LocationEntity> currentLocations =
           locationRepository
@@ -626,7 +608,6 @@ public class ContentService {
     ContentGifEntity saved = contentRepository.saveGif(gif);
     log.info("Updated GIF {} (title={}, rating={})", id, saved.getTitle(), saved.getRating());
 
-    // Collections: prev/newValue/remove pattern, same as images.
     if (request.collections() != null) {
       CollectionRequests.CollectionUpdate cu = request.collections();
       if (cu.remove() != null && !cu.remove().isEmpty()) {
@@ -842,8 +823,6 @@ public class ContentService {
     boolean isOriginal = FORMAT_ORIGINAL.equalsIgnoreCase(format);
     List<ContentImageEntity> images = findImagesForCollection(collectionId);
 
-    // Subset filter: when imageIds is non-empty, keep only requested ids (membership-preserving,
-    // so an id not in this collection is silently dropped -- this is the auth boundary).
     if (imageIds != null && !imageIds.isEmpty()) {
       Set<Long> wanted = new HashSet<>(imageIds);
       images = images.stream().filter(img -> wanted.contains(img.getId())).toList();
@@ -922,13 +901,11 @@ public class ContentService {
   private String sanitizeFilename(String original, Object idForFallback, String extension) {
     String base = original;
     if (base != null) {
-      // Drop any path component to prevent traversal (`/`, `\`).
       int slashIdx = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'));
       if (slashIdx >= 0) {
         base = base.substring(slashIdx + 1);
       }
       base = base.replaceAll("[\\p{Cntrl}\"\\\\]", "");
-      // Strip any existing image extension, we'll reapply the canonical one.
       base = base.replaceAll("(?i)\\.(jpg|jpeg|webp|png|tif|tiff)$", "");
       base = base.trim();
     }
@@ -959,14 +936,15 @@ public class ContentService {
   /**
    * Link content to a collection with the given orderIndex and visibility.
    *
+   * <p>The collection is checked for existence only. Any collection may hold any content type (Rule
+   * B), so nothing about the collection itself is inspected beyond it existing.
+   *
    * @param collectionId The collection to link to
    * @param contentId The content to link
    * @param orderIndex The order index within the collection
    * @param visible Whether the content is visible in the collection
    */
   void linkContentToCollection(Long collectionId, Long contentId, int orderIndex, boolean visible) {
-    // Existence check only -- any collection may hold any content type (Rule B), so nothing about
-    // the collection itself is inspected beyond it existing.
     collectionRepository
         .findById(collectionId)
         .orElseThrow(() -> new ResourceNotFoundException("Collection not found: " + collectionId));
