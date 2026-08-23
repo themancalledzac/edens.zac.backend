@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | not started. **Next up: MR 12** -- read its prep note first, the line lists are stale. |
+| 4 — Comments and docs | MR 12-14 | MR 12a (`CollectionService`) done. **Next up: MR 12b** -- `ContentService` + `CollectionProcessingUtil`. Re-derive the lists first; they are stale. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -869,7 +869,50 @@ Same rule for the `// ====` section banners: out of scope per the Wave 4 header,
 the stale "TYPE-SPECIFIC PROCESSING" one at `CollectionProcessingUtil:927` which the header already
 condemns.
 
-- [ ] `CollectionService.java` — D: 127, 141, 146, 213, 233, 244, 290, 303, 306, 309, 317, 330, 336, 344, 347, 384, 393, 397, 496, 503, 567, 582, 585, 590, 595, 601, 606, 610, 651, 744, 765, 774, 777, 782, 809, 812, 820, 899, 907, 911, 917, 970, 989, 1011, 1044, 1047, 1062, 1074, 1082, 1112, 1137, 1140, 1334, 1399, 1411, 1446, 1456, 1473, 1485, 1520, 1553. P: 103/109/113 (resolution order, into the `getCollectionWithPagination` docblock), 135 (spec D1 invariant), 149, 152, 223 (keep with bug #6), 299/325/740 (CDN invalidation, three copies, into one class-level sentence), 357 (checkstyle-load-bearing final), 415, 574, 613, 620, 628/635, 828, 840, 865, 1016, 1028, 1056, 1100, 1107, 1121, 1164. Delete as redundant with the docblock: 124/280, 1344/1348, 1567 (stale), 1659.
+- [x] `CollectionService.java` — **MR 12a, done.** All 144 in-method comments removed; the
+      load-bearing ones promoted into 13 javadocs. See "MR 12a outcome" below. The original list is
+      kept underneath as the record of intent, not as coordinates.
+  - Original (stale, `8c28cf3`) — D: 127, 141, 146, 213, 233, 244, 290, 303, 306, 309, 317, 330, 336, 344, 347, 384, 393, 397, 496, 503, 567, 582, 585, 590, 595, 601, 606, 610, 651, 744, 765, 774, 777, 782, 809, 812, 820, 899, 907, 911, 917, 970, 989, 1011, 1044, 1047, 1062, 1074, 1082, 1112, 1137, 1140, 1334, 1399, 1411, 1446, 1456, 1473, 1485, 1520, 1553. P: 103/109/113 (resolution order, into the `getCollectionWithPagination` docblock), 135 (spec D1 invariant), 149, 152, 223 (keep with bug #6), 299/325/740 (CDN invalidation, three copies, into one class-level sentence), 357 (checkstyle-load-bearing final), 415, 574, 613, 620, 628/635, 828, 840, 865, 1016, 1028, 1056, 1100, 1107, 1121, 1164. Delete as redundant with the docblock: 124/280, 1344/1348, 1567 (stale), 1659.
+
+### MR 12a outcome (2026-08-23)
+
+Diff: 127 insertions, 152 deletions, one file. Every changed line is a comment line -- verified
+mechanically, not by eye. `mvn clean install` green (1315 tests, 0 failures), `mvn checkstyle:check`
+0 violations, `mvn spotless:apply` produced no reformatting.
+
+Count correction to the prep note: `CollectionService` held **144** comments at indent >= 4, not 148.
+148 is the count of all lines starting with `//`, which includes the four class-member-level lines
+that the Wave 4 header puts out of scope. Worth applying the same correction when sizing 12b and 12c.
+
+Every promoted `P:` entry survived re-derivation and landed in a javadoc, including the ones the
+original list singled out: the resolution order and spec-D1 invariant (`getCollectionWithPagination`,
+which had no docblock at all), the bug #6 first-page shortcut (`getLocationPage`, also undocumented),
+the three CDN-invalidation copies collapsed into one class-level sentence, the checkstyle-load-bearing
+`final` on `parentEntity`, and the `selfProvider` cache-proxy rationale.
+
+Two deliberate exceptions, both worth carrying into 12b and 12c:
+
+1. **Two trailing comments kept** (`updateCollectionTags`, `updateCollectionPeople`: `null // No
+   tracking needed for collection updates`). The odd line break in those calls exists only because
+   of the trailing comment. Removing it lets google-java-format collapse the call onto one line --
+   a non-comment diff line, which would break the guardrail's whole guarantee. Not worth it for two
+   comments; they belong to whichever MR touches that code for real.
+2. **The class-member comment on `selfProvider` left in place** (out of scope per the Wave 4
+   header). Its content is now also in the `getUpdateCollectionData` docblock, where the
+   self-invocation actually happens. Deliberate duplication -- each is load-bearing at its own site.
+
+**No comment in this file turned out to describe an undiscovered bug.** The guardrail said to expect
+some; in `CollectionService` there were none. Every comment that made a checkable claim
+(`populateSiblings(model, true)` being LISTED-only, the `collectionPage == 0` shortcut, D8 clearing
+running first and unconditionally, both join-row writers running the cycle check and the password
+propagation) was verified against the code and held. One staleness found, already filed:
+
+- Confirms the MR 14 item for the `filterNonListedChildCollections` docblock. It is still stale, and
+  the deleted inline comment above `collectionRepository.findByIds(referencedIds)` -- "used for both
+  context detection and visibility filter" -- shows why: the batch-loaded children no longer feed any
+  context detection, since `parentIsProtected` now reads `model.getIsPasswordProtected()` directly.
+  The docblock still describes the removed derivation. The docblock itself was **not** touched here;
+  it is MR 14's to rewrite. Its line reference has moved off `1536-1547` -- re-derive it by name.
 - [ ] `CollectionProcessingUtil.java` — D: 88, 93, 98, 111, 120, 160, 168, 226, 233, 244, 273, 291, 305, 316, 328, 336, 393, 400, 414, 430, 486, 616, 645, 693, 696, 699, 793, 804, 875, 883, 891, 904, trailing 801, 810. P: 188, 587, 593. Delete-redundant: 515, 626.
 - [ ] `ContentService.java` — D: 114, 123, 134, 139, 144, 151, 159, 175, 181, 189, 198, 206, 210, 219, 224, 230, 233, 250, 278, 297, 305, 315, 322, 331, 379, 382, 450, 458, 465, 468, 477, 504, 507, 510, 638, 934, 940. P: 417 (batch-vs-N+1, into the `searchImages` docblock), 977 (Rule B, into the `linkContentToCollection` docblock). Delete-redundant: 347, 579, 597, 614, 854.
 - [ ] `ContentModelConverter.java` — D: 379, 386, 473, 480, trailing 170. P: 654.

@@ -64,7 +64,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Service for managing Collection entities with pagination and client gallery access. */
+/**
+ * Service for managing Collection entities with pagination and client gallery access.
+ *
+ * <p>Creating or deleting a collection changes the cached collection list, so every such path calls
+ * {@link ReadCacheInvalidator#markChanged()} to drop the CDN copy on commit.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -100,22 +105,31 @@ public class CollectionService {
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
   private static final String HOME_SLUG = "home";
 
+  /**
+   * Read one page of a collection by slug.
+   *
+   * <p>Resolution order is synthetic list slug -> real collection -> tag-view -> 404. Synthetic
+   * slugs ({@code all-collections}, {@code all-blogs}) bypass the DB lookup entirely and resolve
+   * into a PARENT-shaped model populated with children. The real-collection lookup runs before the
+   * tag-view fallback, so a real collection always wins a slug collision; otherwise any tag is
+   * browsable at {@code /{slug}}, and a tag with zero visible members falls through to 404.
+   *
+   * <p>Every collection paginates identically -- there is no children-only read shape any more
+   * (spec D1). Rows written before V51 have {@code content_per_page} backfilled by that migration.
+   *
+   * <p>Siblings are populated LISTED-only: this is the public read path, and unlisted siblings
+   * would leak as dead links.
+   */
   @Transactional(readOnly = true)
   public CollectionModel getCollectionWithPagination(String slug, int page, int size) {
     log.debug("Getting collection with slug: {} (page: {}, size: {})", slug, page, size);
 
-    // Synthetic list slugs (e.g. "all-collections", "all-blogs") bypass the DB lookup
-    // and are resolved into a PARENT-shaped CollectionModel populated with children.
     if (syntheticResolver.isSyntheticSlug(slug)) {
       return syntheticResolver.resolve(slug, isLocalEnvironment());
     }
 
-    // Resolution order: synthetic -> real collection -> tag-view -> 404. A real collection is
-    // looked up before the tag-view fallback, so a real collection always wins on slug collision.
     Optional<CollectionEntity> collectionOpt = collectionRepository.findBySlug(slug);
     if (collectionOpt.isEmpty()) {
-      // No real collection: try to render the slug as a synthetic tag-view (any tag is browsable
-      // at /{slug}). A tag with zero visible members returns empty and falls through to 404.
       Optional<CollectionModel> tagView =
           tagViewResolver.resolveTagView(slug, isLocalEnvironment());
       if (tagView.isPresent()) {
@@ -125,10 +139,8 @@ public class CollectionService {
     }
     CollectionEntity collection = collectionOpt.get();
 
-    // Enforce visibility: invisible collections are not publicly accessible (except "home")
     enforceVisibility(collection, slug, isLocalEnvironment());
 
-    // Normalize pagination parameters
     int normalizedPage = Math.max(0, page);
     int normalizedSize = size <= 0 ? DEFAULT_PAGE_SIZE : size;
     int offset = normalizedPage * normalizedSize;
@@ -136,24 +148,18 @@ public class CollectionService {
     List<CollectionContentEntity> collectionContentList;
     long totalElements;
 
-    // Every collection paginates identically -- there is no children-only read shape any more
-    // (spec D1). Rows written before V51 have content_per_page backfilled by that migration.
     totalElements = collectionRepository.countContentByCollectionId(collection.getId());
     collectionContentList =
         collectionRepository.findContentByCollectionId(collection.getId(), normalizedSize, offset);
 
-    // Convert to model (now using join table data)
     CollectionModel model =
         collectionProcessingUtil.convertToModel(
             collection, collectionContentList, normalizedPage, normalizedSize, totalElements);
 
-    // Populate collections on content items
     collectionProcessingUtil.populateCollectionsOnContent(model);
 
-    // Populate siblings — public read path shows LISTED siblings only (no dead links leak)
     collectionProcessingUtil.populateSiblings(model, true);
 
-    // Filter out child collection content that references non-LISTED collections
     filterNonListedChildCollections(model);
 
     return model;
@@ -209,12 +215,23 @@ public class CollectionService {
     return collectionProcessingUtil.batchConvertToBasicModels(entities);
   }
 
+  /**
+   * Page of LISTED collections at a location, plus the location's orphan images -- those at the
+   * location but in none of its collections.
+   *
+   * <p>Orphan exclusion needs the ids of ALL listed collections at the location. Reusing the ids
+   * already in hand instead of re-querying is only valid when this page actually holds every
+   * collection, which requires being on the FIRST page. Past it, the offset is at or beyond {@code
+   * totalCollections}, so {@code collectionEntities} is empty; both orphan queries respond to an
+   * empty exclusion list by omitting their {@code NOT EXISTS} clause, and every image at the
+   * location comes back as an "orphan" -- including ones sitting in the collections listed right
+   * above them. Hence the {@code collectionPage == 0} half of the condition.
+   */
   @Transactional(readOnly = true)
   public LocationPageResponse getLocationPage(
       String locationName, int collectionPage, int collectionSize, int imagePage, int imageSize) {
     log.debug("Getting location page for: {}", locationName);
 
-    // Get visible collections at this location
     long totalCollections = collectionRepository.countListedByLocationName(locationName);
     int collectionOffset = collectionPage * collectionSize;
     List<CollectionEntity> collectionEntities =
@@ -224,13 +241,6 @@ public class CollectionService {
     List<CollectionModel> collections =
         collectionProcessingUtil.batchConvertToBasicModels(collectionEntities);
 
-    // Get IDs of ALL visible collections at this location (for orphan exclusion).
-    // The shortcut -- reuse the ids already in hand instead of re-querying -- is only valid when
-    // this page actually holds every collection, which requires being on the FIRST page. Past it,
-    // the offset is at or beyond totalCollections, so collectionEntities is empty; dropping the
-    // collectionPage check meant an empty exclusion list, and both orphan queries respond to an
-    // empty list by omitting their NOT EXISTS clause. Every image at the location then came back
-    // as an "orphan", including ones sitting in the collections listed right above them.
     List<Long> allCollectionIds;
     if (collectionPage == 0 && totalCollections <= collectionSize) {
       allCollectionIds = collectionEntities.stream().map(CollectionEntity::getId).toList();
@@ -238,7 +248,6 @@ public class CollectionService {
       allCollectionIds = collectionRepository.findListedIdsByLocationName(locationName);
     }
 
-    // Get orphan images (at this location but not in any of those collections)
     int imageOffset = imagePage * imageSize;
     List<ContentImageEntity> orphanImageEntities =
         contentRepository.findOrphanImagesByLocationName(
@@ -249,7 +258,6 @@ public class CollectionService {
     List<ContentModels.Image> images =
         contentModelConverter.batchConvertImageEntitiesToModels(orphanImageEntities);
 
-    // Resolve the location record from the location entity (looked up by name)
     LocationEntity locationEntity =
         locationRepository.findByLocationName(locationName).orElse(null);
     Records.Location location =
@@ -285,18 +293,19 @@ public class CollectionService {
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
-    // Enforce visibility: invisible collections are not publicly accessible (except "home")
     enforceVisibility(entity, slug, isLocalEnvironment());
 
     return collectionProcessingUtil.convertToBasicModel(entity);
   }
 
+  /**
+   * Collection metadata plus its full, unpaginated content list (fetched via the join table in
+   * {@code convertToFullModel}). Use {@link #findMetaBySlug} when the content is not needed.
+   */
   @Transactional(readOnly = true)
   public Optional<CollectionModel> findBySlug(String slug) {
     log.debug("Finding collection by slug: {}", slug);
 
-    // Get collection metadata only - content is fetched via join table in
-    // convertToFullModel
     return collectionRepository.findBySlug(slug).map(collectionProcessingUtil::convertToFullModel);
   }
 
@@ -304,17 +313,13 @@ public class CollectionService {
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public CollectionRequests.UpdateResponse createCollection(
       CollectionRequests.Create createRequest) {
-    // Collection create/delete changes the cached collection list; drop the CDN copy on commit.
     readCacheInvalidator.markChanged();
     log.debug("Creating new collection: {}", createRequest.title());
 
-    // Create entity using utility converter
     CollectionEntity entity = collectionProcessingUtil.toEntity(createRequest, DEFAULT_PAGE_SIZE);
 
-    // Save entity
     CollectionEntity savedEntity = collectionRepository.save(entity);
 
-    // Save locations via join table (after entity has an ID)
     List<Long> locationIds =
         collectionProcessingUtil.resolveLocationIds(
             createRequest.locationIds(), createRequest.locationNames());
@@ -322,7 +327,6 @@ public class CollectionService {
       locationRepository.saveCollectionLocations(savedEntity.getId(), locationIds);
     }
 
-    // Return full update response with all metadata (tags, people, cameras, etc.)
     return getUpdateCollectionData(savedEntity.getSlug());
   }
 
@@ -330,18 +334,15 @@ public class CollectionService {
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public CollectionRequests.UpdateResponse createChildCollection(
       Long parentId, CollectionRequests.Create createRequest) {
-    // Collection create/delete changes the cached collection list; drop the CDN copy on commit.
     readCacheInvalidator.markChanged();
     log.debug(
         "Creating new child collection: {} under parent: {}", createRequest.title(), parentId);
 
-    // Create the child collection entity
     CollectionEntity childEntity =
         collectionProcessingUtil.toEntity(createRequest, DEFAULT_PAGE_SIZE);
     CollectionEntity savedChildEntity = collectionRepository.save(childEntity);
     log.info("Created child collection with ID: {}", savedChildEntity.getId());
 
-    // Save locations via join table
     List<Long> childLocationIds =
         collectionProcessingUtil.resolveLocationIds(
             createRequest.locationIds(), createRequest.locationNames());
@@ -349,25 +350,26 @@ public class CollectionService {
       locationRepository.saveCollectionLocations(savedChildEntity.getId(), childLocationIds);
     }
 
-    // Link to parent
     linkCollectionToParent(parentId, savedChildEntity.getId());
 
-    // Return full update response for the child collection
     return getUpdateCollectionData(savedChildEntity.getSlug());
   }
 
   /**
    * Link an existing collection as a child of a parent collection. Creates the
-   * ContentCollectionEntity if needed and adds the join table entry. No-op if already linked.
+   * ContentCollectionEntity if needed and adds the join table entry. No-op if already linked. The
+   * new child inherits every grant the parent holds, origin preserved.
+   *
+   * <p>This is not the only writer of a parent-to-child join row -- {@code
+   * handleCollectionToCollectionUpdates} builds one inline for the admin Structure tab. Both must
+   * run {@link #validateNoLinkCycle} and {@link #propagateGalleryPasswordOnLink}.
+   *
+   * <p>{@code parentEntity} is declared {@code final} to satisfy checkstyle's
+   * VariableDeclarationUsageDistance: it is resolved up front, because it must exist before
+   * anything else happens, but is not read until the S6 password propagation at the end.
    */
   @Transactional
   public void linkCollectionToParent(Long parentId, Long childCollectionId) {
-    // `final` is load-bearing for checkstyle's VariableDeclarationUsageDistance: the parent is
-    // resolved up front (it must exist before anything else happens) but is not read until the
-    // S6 password propagation at the end of the method.
-    // NOTE: this is not the only writer of a parent-to-child join row --
-    // handleCollectionToCollectionUpdates builds one inline for the admin Structure tab. Both must
-    // run validateNoLinkCycle and propagateGalleryPasswordOnLink.
     final CollectionEntity parentEntity =
         collectionRepository
             .findById(parentId)
@@ -389,7 +391,6 @@ public class CollectionService {
     ContentCollectionEntity contentCollectionEntity =
         findOrCreateContentCollectionEntity(childEntity);
 
-    // Check if already linked
     Optional<CollectionContentEntity> existing =
         collectionRepository.findContentByCollectionIdAndContentId(
             parentId, contentCollectionEntity.getId());
@@ -398,11 +399,9 @@ public class CollectionService {
       return;
     }
 
-    // Get next order index for parent collection
     Integer orderIndex = collectionRepository.getMaxOrderIndexForCollection(parentId);
     orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
 
-    // Link child to parent via join table
     CollectionContentEntity joinEntry =
         CollectionContentEntity.builder()
             .collectionId(parentId)
@@ -420,7 +419,6 @@ public class CollectionService {
         parentId,
         orderIndex);
 
-    // Waterfall: the new child inherits every grant the parent holds (origin preserved).
     roleGrantPropagationService.onChildLinked(parentId, childCollectionId);
 
     propagateGalleryPasswordOnLink(parentEntity, childEntity);
@@ -553,71 +551,71 @@ public class CollectionService {
     return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 
+  /**
+   * Apply one collection update: basic fields, then tags, people, child collections, siblings and
+   * parents, each via the prev/new/remove pattern.
+   *
+   * <p>Identity fields are captured before mutation because the shared {@code generalMetadata}
+   * cache embeds the collection id/title/slug list, so it only needs invalidating when one of those
+   * actually changes. The previous blanket {@link CacheEvict} fired on every save that merely
+   * included a title or slug in its payload -- which the manage page always does -- forcing a cold
+   * rebuild of all tags/people/locations metadata mid-save. {@code applyBasicUpdates} has already
+   * mutated the managed entity by then, so the comparison reads it directly.
+   *
+   * <p>Returns a lightweight model rather than reloading all content, to avoid N+1 queries; the
+   * frontend refetches full content when it needs it.
+   */
   @Transactional
   public CollectionModel updateContent(Long id, CollectionRequests.Update updateDTO) {
     log.debug("Updating collection with ID: {}", id);
 
-    // Get existing entity
     CollectionEntity entity =
         collectionRepository
             .findById(id)
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with ID: " + id));
 
-    // Capture identity fields before mutation. The shared generalMetadata cache embeds the
-    // collection id/title/slug list, so it only needs invalidating when one of those actually
-    // changes. The previous blanket @CacheEvict fired on every save that merely included a title
-    // or slug in its payload (which the manage page always does), forcing a cold rebuild of all
-    // tags/people/locations metadata mid-save.
     final String previousTitle = entity.getTitle();
     final String previousSlug = entity.getSlug();
 
-    // Update basic properties via utility helper
     collectionProcessingUtil.applyBasicUpdates(entity, updateDTO);
 
-    // Handle tag updates using prev/new/remove pattern
     if (updateDTO.tags() != null) {
       updateCollectionTags(entity, updateDTO.tags());
     }
 
-    // Handle people updates using prev/new/remove pattern
     if (updateDTO.people() != null) {
       updateCollectionPeople(entity, updateDTO.people());
     }
 
-    // Handle collection updates using prev/new/remove pattern
-    // This manages child collections within this parent collection
     if (updateDTO.collections() != null) {
       handleCollectionToCollectionUpdates(entity, updateDTO.collections());
     }
 
-    // Handle sibling (mutual) collection updates
     handleSiblingUpdates(entity.getId(), updateDTO.siblings());
 
     handleParentCollectionUpdates(entity, updateDTO.parents());
 
-    // Update total blocks count from join table before saving
     long totalBlocks = collectionRepository.countContentByCollectionId(entity.getId());
     entity.setTotalContent((int) totalBlocks);
 
-    // Save updated entity
     CollectionEntity savedEntity = collectionRepository.save(entity);
 
-    // Only invalidate the shared metadata cache when the identity fields it embeds changed.
-    // applyBasicUpdates already mutated the managed entity, so compare against it directly.
     if (!Objects.equals(previousTitle, entity.getTitle())
         || !Objects.equals(previousSlug, entity.getSlug())) {
       evictGeneralMetadataCache();
     }
 
-    // Return lightweight model without loading all content to avoid N+1 queries
-    // Frontend can refetch full content if needed
     return collectionProcessingUtil.convertToBasicModel(savedEntity);
   }
 
   /**
    * Manually evict the shared {@code generalMetadata} cache. Used from methods that update it via
    * self-invocation, where Spring's proxy-based {@link CacheEvict} cannot intercept.
+   *
+   * <p>Also drops the CDN copy: a title or slug change is exactly what the cached collection list
+   * renders. This is the path a plain "save the collection" takes, and it carries no {@link
+   * CacheEvict} annotation, so anything keyed on that annotation would miss it.
    */
   private void evictGeneralMetadataCache() {
     var cache = cacheManager.getCache("generalMetadata");
@@ -625,9 +623,6 @@ public class CollectionService {
       cache.clear();
       log.debug("Evicted generalMetadata cache after collection identity change");
     }
-    // A title or slug change is exactly what the cached collection list renders, so the CDN's
-    // copy has to go too. This is the path a plain "save the collection" takes -- it is not
-    // annotated with @CacheEvict, so it would be missed by anything keyed on that annotation.
     readCacheInvalidator.markChanged();
   }
 
@@ -636,12 +631,10 @@ public class CollectionService {
       Long id, CollectionRequests.Update updateDTO) {
     log.debug("Updating collection with ID: {} (with metadata response)", id);
 
-    // Perform the update (handles its own conditional metadata-cache invalidation)
     long writeStart = System.nanoTime();
     CollectionModel updatedCollection = updateContent(id, updateDTO);
     long writeEnd = System.nanoTime();
 
-    // Get the full update response with metadata using the new slug
     CollectionRequests.UpdateResponse response =
         getUpdateCollectionData(updatedCollection.getSlug());
     long refetchEnd = System.nanoTime();
@@ -769,35 +762,37 @@ public class CollectionService {
     collectionPeopleRepository.setPeopleForCollection(collectionId, distinctPersonIds);
   }
 
+  /**
+   * Delete a collection and detach everything that references it.
+   *
+   * <p>Parent collections that reference this one as a child are captured BEFORE the
+   * back-references are removed, then each parent's {@code totalContent} is recounted so its stored
+   * count stays accurate.
+   *
+   * <p>This collection's own content membership and its tags are dissociated; the content itself is
+   * reusable and is NOT deleted. {@code collection_locations}, {@code collection_people} and {@code
+   * collection_sibling} rows go via {@code ON DELETE CASCADE} when the collection row is deleted.
+   */
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteCollection(Long id) {
-    // Collection create/delete changes the cached collection list; drop the CDN copy on commit.
     readCacheInvalidator.markChanged();
     log.debug("Deleting collection with ID: {}", id);
 
-    // Check if collection exists
     if (collectionRepository.findById(id).isEmpty()) {
       throw new ResourceNotFoundException("Collection not found with ID: " + id);
     }
 
-    // Disassociate this collection from any parent collections that reference it as a child.
-    // Capture the parents before removing the back-references, then recount each parent's
-    // totalContent so their stored counts stay accurate.
     List<CollectionEntity> parents = collectionRepository.findAllParentCollectionsByChildId(id);
     contentRepository.deleteContentCollectionsReferencing(id);
     for (CollectionEntity parent : parents) {
       recountParentTotalContent(parent);
     }
 
-    // Dissociate this collection's own content membership and its tags. Content itself is reusable
-    // and is NOT deleted. collection_locations, collection_people, and collection_sibling rows are
-    // removed by ON DELETE CASCADE when the collection row is deleted.
     collectionRepository.deleteContentByCollectionId(id);
     tagRepository.deleteCollectionTags(id);
     log.debug("Disassociated content, tags, and parent references for collection ID: {}", id);
 
-    // Delete collection
     collectionRepository.deleteById(id);
     log.info("Successfully deleted collection with ID: {}", id);
   }
@@ -806,15 +801,12 @@ public class CollectionService {
   public Page<CollectionModel> getAllCollections(Pageable pageable) {
     log.debug("Getting all collections with pagination");
 
-    // Get total count for pagination
     long totalElements = collectionRepository.countAllCollections();
 
-    // Get paginated collections from database (not in-memory)
     int offset = pageable.getPageNumber() * pageable.getPageSize();
     List<CollectionEntity> paginatedCollections =
         collectionRepository.findAllByOrderByCollectionDateDesc(pageable.getPageSize(), offset);
 
-    // Convert to models using batch loading
     List<CollectionModel> models =
         collectionProcessingUtil.batchConvertToBasicModels(paginatedCollections);
 
@@ -837,11 +829,21 @@ public class CollectionService {
     return new PageImpl<>(models, pageable, totalElements);
   }
 
+  /**
+   * Full manage-page payload for one collection: the collection with its unpaginated content, the
+   * shared general metadata, the images aggregated from every referenced child collection, and the
+   * admin-only fields ({@code galleryPassword}, {@code recipientEmails}) the manage page displays
+   * and edits.
+   *
+   * <p>General metadata is fetched through the Spring proxy ({@code selfProvider}) so the {@link
+   * Cacheable} on {@link #getGeneralMetadata} is honored. A direct {@code
+   * this.getGeneralMetadata()} is self-invoked, bypasses the cache, and re-runs every metadata
+   * query on each request.
+   */
   @Transactional(readOnly = true)
   public CollectionRequests.UpdateResponse getUpdateCollectionData(String slug) {
     log.debug("Getting update collection data for slug: {}", slug);
 
-    // Get the collection (loads the full, unpaginated content list)
     long contentStart = System.nanoTime();
     CollectionModel collection =
         findBySlug(slug)
@@ -849,9 +851,6 @@ public class CollectionService {
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
     long contentEnd = System.nanoTime();
 
-    // Get all general metadata. Routed through the Spring proxy (selfProvider) so the @Cacheable
-    // on getGeneralMetadata is honored -- a direct this.getGeneralMetadata() is self-invoked and
-    // bypasses the cache, running every metadata query on each request.
     final GeneralMetadataDTO metadata = selfProvider.getObject().getGeneralMetadata();
     long metadataEnd = System.nanoTime();
 
@@ -861,7 +860,6 @@ public class CollectionService {
         (contentEnd - contentStart) / 1_000_000,
         (metadataEnd - contentEnd) / 1_000_000);
 
-    // Aggregate images from every referenced child collection, if any.
     List<ContentModels.Image> childCollectionImages = null;
     CollectionEntity entity =
         collectionRepository
@@ -886,7 +884,6 @@ public class CollectionService {
           slug);
     }
 
-    // Populate admin-only fields so the manage page can display/edit them.
     collection.setGalleryPassword(entity.getGalleryPassword());
     collection.setRecipientEmails(entity.getRecipientEmails());
 
@@ -920,7 +917,6 @@ public class CollectionService {
   public GeneralMetadataDTO getGeneralMetadata() {
     log.debug("Getting general metadata (cache miss)");
 
-    // Get all tags, people, locations, cameras, lenses, and film types from MetadataService
     List<Records.Tag> tags = metadataService.getAllTags();
     List<Records.Person> people = metadataService.getAllPeople();
     List<Records.Location> locations = metadataService.getAllLocations();
@@ -928,17 +924,13 @@ public class CollectionService {
     List<Records.Lens> lenses = metadataService.getAllLenses();
     List<ContentFilmTypeModel> filmTypes = metadataService.getAllFilmTypes();
 
-    // Get all collections as Records.CollectionList (using projection for
-    // efficiency)
     List<Records.CollectionList> collections = collectionRepository.findCollectionListEntries();
 
-    // Convert FilmFormat enums to DTOs
     List<Records.FilmFormat> filmFormats =
         Arrays.stream(FilmFormat.values())
             .map(ff -> new Records.FilmFormat(ff.name(), ff.getDisplayName()))
             .collect(Collectors.toList());
 
-    // Build and return metadata DTO
     return new GeneralMetadataDTO(
         tags, people, locations, collections, cameras, lenses, filmTypes, filmFormats);
   }
@@ -1012,7 +1004,6 @@ public class CollectionService {
             currentPeople, personUpdate, null // No tracking needed for collection updates
             );
 
-    // Save updated people
     List<Long> updatedPersonIds =
         updatedPeople.stream()
             .map(ContentPersonEntity::getId)
@@ -1025,7 +1016,30 @@ public class CollectionService {
 
   /**
    * Handle collection-to-collection relationship updates. This manages which child collections
-   * belong to this parent collection.
+   * belong to this parent collection, in three phases: {@code remove} unassociates children, {@code
+   * newValue} adds them, and {@code prev} updates existing associations (orderIndex, visible).
+   *
+   * <p>Role grants waterfall on every one of those phases:
+   *
+   * <ul>
+   *   <li>Unlink: each unlinked child subtree loses the grants it inherited through this parent
+   *       (origins at or above it); grants with origins inside the subtree survive.
+   *   <li>Link: a visibly linked child inherits the parent's grants. Hidden links do not waterfall,
+   *       mirroring the {@code cc.visible} gate used by propagation and the V47 backfill.
+   *   <li>Visibility toggle: flipping an existing link re-syncs the child subtree's inherited
+   *       grants (materialize on reveal, strip on hide). Without it the toggle bypasses propagation
+   *       and drifts from the {@code cc.visible} gate. Applies to both the {@code newValue} and
+   *       {@code prev} paths.
+   * </ul>
+   *
+   * <p>S5: the {@code newValue} branch creates a join row directly rather than going through {@link
+   * #linkCollectionToParent}, so the ancestor walk has to run here too. Without it, two admin saves
+   * (A.collections += B, then B.collections += A) close a cycle and {@code onChildLinked} merges
+   * role grants across both subtrees.
+   *
+   * <p>S6: same password-propagation trigger as {@link #linkCollectionToParent}. A client-gallery
+   * child linked under a passworded wrapper here would otherwise keep a null {@code
+   * gallery_password}, leaving {@code isPasswordProtected} false and the download gate skipped.
    *
    * @param parentCollection The collection being updated (parent collection)
    * @param collectionUpdates The collection update containing remove/prev/newValue operations
@@ -1035,12 +1049,10 @@ public class CollectionService {
     log.debug(
         "Handling collection-to-collection updates for collection {}", parentCollection.getId());
 
-    // Step 1: Remove - unassociate child collections from parent collection
     if (collectionUpdates.remove() != null && !collectionUpdates.remove().isEmpty()) {
       List<ContentCollectionEntity> contentColEntities =
           findCurrentContentCollections(parentCollection, collectionUpdates.remove());
 
-      // Continue even if no matching content collections are found
       if (!contentColEntities.isEmpty()) {
         List<Long> contentIdsToRemove =
             contentColEntities.stream().map(ContentCollectionEntity::getId).toList();
@@ -1052,8 +1064,6 @@ public class CollectionService {
             contentIdsToRemove.size(),
             parentCollection.getId());
 
-        // Waterfall: each unlinked child subtree loses the grants it inherited through this
-        // parent (origins at/above it); grants with origins inside the subtree survive.
         contentColEntities.stream()
             .map(ContentCollectionEntity::getReferencedCollection)
             .filter(Objects::nonNull)
@@ -1068,10 +1078,8 @@ public class CollectionService {
       }
     }
 
-    // Step 2: New Value - add new child collections to parent collection
     if (collectionUpdates.newValue() != null && !collectionUpdates.newValue().isEmpty()) {
       for (Records.ChildCollection childCollection : collectionUpdates.newValue()) {
-        // Find the child collection entity
         CollectionEntity childCollectionEntity =
             collectionRepository
                 .findById(childCollection.collectionId())
@@ -1080,14 +1088,8 @@ public class CollectionService {
                         new ResourceNotFoundException(
                             "Child collection not found: " + childCollection.collectionId()));
 
-        // S5: this branch creates a join row directly rather than going through
-        // linkCollectionToParent, so the ancestor walk has to run here too. Without it, two admin
-        // saves (A.collections += B, then B.collections += A) close a cycle and onChildLinked
-        // merges role grants across both subtrees.
         validateNoLinkCycle(parentCollection.getId(), childCollectionEntity.getId());
 
-        // Check if ContentCollectionEntity already exists for this referenced
-        // collection
         ContentCollectionEntity existingContentCollection =
             findOrCreateContentCollectionEntity(childCollectionEntity);
 
@@ -1098,7 +1100,6 @@ public class CollectionService {
                 ? childCollection.orderIndex()
                 : (maxIndex != null ? maxIndex + 1 : 0);
 
-        // Check if this content is already in the parent collection
         CollectionContentEntity existingJoinEntry =
             collectionRepository
                 .findContentByCollectionIdAndContentId(
@@ -1106,7 +1107,6 @@ public class CollectionService {
                 .orElse(null);
 
         if (existingJoinEntry == null) {
-          // Create new join table entry
           CollectionContentEntity newEntry =
               CollectionContentEntity.builder()
                   .collectionId(parentCollection.getId())
@@ -1124,19 +1124,13 @@ public class CollectionService {
               parentCollection.getId(),
               orderIndex);
 
-          // Waterfall: a visibly linked child inherits the parent's grants. Hidden links do not
-          // waterfall (mirrors the cc.visible gate used by propagation and the V47 backfill).
           if (Boolean.TRUE.equals(newEntry.getVisible())) {
             roleGrantPropagationService.onChildLinked(
                 parentCollection.getId(), childCollectionEntity.getId());
           }
 
-          // S6: same trigger as linkCollectionToParent -- a client-gallery child linked under a
-          // passworded wrapper here would otherwise keep a null gallery_password, leaving
-          // isPasswordProtected false and the download gate skipped.
           propagateGalleryPasswordOnLink(parentCollection, childCollectionEntity);
         } else {
-          // Update existing entry
           if (childCollection.orderIndex() != null) {
             collectionRepository.updateContentOrderIndex(
                 existingJoinEntry.getId(), childCollection.orderIndex());
@@ -1145,9 +1139,6 @@ public class CollectionService {
             boolean wasVisible = Boolean.TRUE.equals(existingJoinEntry.getVisible());
             collectionRepository.updateContentVisible(
                 existingJoinEntry.getId(), childCollection.visible());
-            // Waterfall: flipping an existing link's visibility re-syncs the child subtree's
-            // inherited grants (materialize on reveal, strip on hide) -- the toggle otherwise
-            // bypasses propagation and drifts from the cc.visible gate.
             roleGrantPropagationService.onChildVisibilityToggled(
                 parentCollection.getId(),
                 childCollectionEntity.getId(),
@@ -1161,10 +1152,8 @@ public class CollectionService {
       }
     }
 
-    // Step 3: Prev - update existing associations (orderIndex, visible)
     if (collectionUpdates.prev() != null && !collectionUpdates.prev().isEmpty()) {
       for (Records.ChildCollection prev : collectionUpdates.prev()) {
-        // Find ContentCollectionEntity that references this collection
         ContentCollectionEntity contentCollectionEntity =
             findContentCollectionEntityByReferencedCollectionId(prev.collectionId());
 
@@ -1188,8 +1177,6 @@ public class CollectionService {
           if (prev.visible() != null) {
             boolean wasVisible = Boolean.TRUE.equals(joinEntry.getVisible());
             collectionRepository.updateContentVisible(joinEntry.getId(), prev.visible());
-            // Waterfall: same visibility re-sync as the newValue path (materialize on reveal,
-            // strip on hide).
             roleGrantPropagationService.onChildVisibilityToggled(
                 parentCollection.getId(), prev.collectionId(), wasVisible, prev.visible());
           }
@@ -1343,7 +1330,8 @@ public class CollectionService {
   /**
    * Find ContentCollectionEntity entries in the parent collection that match the provided IDs.
    * Accepts both content IDs (ContentCollectionEntity.id) and referenced collection IDs for
-   * flexibility.
+   * flexibility: the former matches the API response's {@code id} field, the latter its {@code
+   * referencedCollectionId} field.
    *
    * @param parentCollection The parent collection to search in
    * @param idsToRemove IDs to match - can be either ContentCollectionEntity IDs or referenced
@@ -1358,7 +1346,6 @@ public class CollectionService {
 
     List<ContentCollectionEntity> matchingContentCollections = new ArrayList<>();
 
-    // Get all join table entries for this parent collection
     List<CollectionContentEntity> joinEntries =
         collectionRepository.findContentByCollectionIdOrderByOrderIndex(parentCollection.getId());
 
@@ -1368,15 +1355,9 @@ public class CollectionService {
         continue;
       }
 
-      // Load the content entity to check if it's a ContentCollectionEntity
       ContentCollectionEntity contentCollectionEntity =
           contentRepository.findCollectionContentById(contentId).orElse(null);
       if (contentCollectionEntity != null) {
-        // Check if the ID matches either:
-        // 1. The ContentCollectionEntity ID (content table ID) - matches API response
-        // "id" field
-        // 2. The referenced collection ID - matches API response
-        // "referencedCollectionId" field
         Long contentCollectionId = contentCollectionEntity.getId();
         CollectionEntity referencedCollection = contentCollectionEntity.getReferencedCollection();
         Long referencedCollectionId =
@@ -1423,7 +1404,6 @@ public class CollectionService {
    */
   private ContentCollectionEntity findOrCreateContentCollectionEntity(
       CollectionEntity referencedCollection) {
-    // Search for existing ContentCollectionEntity that references this collection
     ContentCollectionEntity existing =
         findContentCollectionEntityByReferencedCollectionId(referencedCollection.getId());
 
@@ -1435,7 +1415,6 @@ public class CollectionService {
       return existing;
     }
 
-    // Create new ContentCollectionEntity
     ContentCollectionEntity newContentCollection =
         ContentCollectionEntity.builder()
             .contentType(ContentType.COLLECTION)
@@ -1463,6 +1442,12 @@ public class CollectionService {
         .orElse(null);
   }
 
+  /**
+   * Reorder a collection's content. Every requested content id is validated as belonging to the
+   * collection BEFORE any update runs, so a request naming an outsider writes nothing. The reorder
+   * itself is a single bulk {@code UPDATE} with a {@code CASE} statement rather than one statement
+   * per item.
+   */
   @Transactional
   public CollectionModel reorderContent(Long collectionId, CollectionRequests.Reorder request) {
     log.debug(
@@ -1470,7 +1455,6 @@ public class CollectionService {
         collectionId,
         request.reorders().size());
 
-    // 1. Verify collection exists
     CollectionEntity collection =
         collectionRepository
             .findById(collectionId)
@@ -1480,7 +1464,6 @@ public class CollectionService {
 
     List<CollectionRequests.Reorder.ReorderItem> reorders = request.reorders();
 
-    // 2. Validate all content IDs belong to this collection before updating
     List<Long> requestedContentIds =
         reorders.stream().map(CollectionRequests.Reorder.ReorderItem::contentId).toList();
     List<CollectionContentEntity> existingEntries =
@@ -1497,7 +1480,6 @@ public class CollectionService {
       }
     }
 
-    // 3. Build map and perform single bulk UPDATE with CASE statement
     Map<Long, Integer> contentIdToOrderIndex =
         reorders.stream()
             .collect(
@@ -1509,7 +1491,6 @@ public class CollectionService {
         collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
     log.info("Successfully reordered {} items in collection {}", totalUpdated, collectionId);
 
-    // Return updated collection model
     List<CollectionContentEntity> updatedContent =
         collectionRepository.findContentByCollectionIdOrderByOrderIndex(collectionId);
     long totalElements = updatedContent.size();
@@ -1544,7 +1525,6 @@ public class CollectionService {
       log.debug("Blocked HIDDEN collection {} from unauthorized request", slug);
       throw new ResourceNotFoundException("Collection not found with slug: " + slug);
     }
-    // LISTED and UNLISTED both allow direct slug access.
   }
 
   /** True when the current viewer is an admin or reaches the id through a role grant. */
@@ -1577,7 +1557,6 @@ public class CollectionService {
       return;
     }
 
-    // Collect referenced collection IDs from collection content items
     List<Long> referencedIds =
         model.getContent().stream()
             .filter(ContentModels.Collection.class::isInstance)
@@ -1591,7 +1570,6 @@ public class CollectionService {
       return;
     }
 
-    // Batch-load referenced children once — used for both context detection and visibility filter
     List<CollectionEntity> children = collectionRepository.findByIds(referencedIds);
 
     boolean parentIsProtected = Boolean.TRUE.equals(model.getIsPasswordProtected());
@@ -1674,22 +1652,19 @@ public class CollectionService {
    * reason="not-eligible-type")} for an ineligible target.
    *
    * <p>Eligibility gates only the SET path (D8). A {@code null} password is accepted on ANY
-   * collection: this method is the only writer that can clear {@code gallery_password} (see {@code
-   * CollectionRepository.save}, which omits the column on UPDATE), so a gated clear path would
-   * strand a row behind a password nothing could remove. Clearing cannot widen access beyond "no
-   * password", so it needs no gate.
+   * collection, and the clear runs first, unconditionally: this method is the only writer that can
+   * clear {@code gallery_password} (see {@code CollectionRepository.save}, which omits the column
+   * on UPDATE), so a gated clear path would strand a row behind a password nothing could remove.
+   * Concretely, that strands every row holding an enforced password while failing the derived
+   * eligibility test below -- a wrapper whose last client-gallery child was unlinked, and the
+   * {@code gallery_password IS NOT NULL AND is_client = false} rows U0's reconnaissance enumerates.
+   * Such a row keeps serving behind a password no endpoint can remove. Clearing cannot widen access
+   * beyond "no password", so it needs no gate.
    */
   @Transactional
   public GalleryAccessResponse updateGalleryAccess(Long id, GalleryAccessRequest request) {
     CollectionEntity entity = findEntityById(id);
 
-    // D8: clearing is unconditional and comes first. This method is the only writer that can
-    // clear gallery_password -- CollectionRepository.save deliberately omits the column on
-    // UPDATE -- so gating the clear path strands every row that holds an enforced password while
-    // failing the derived eligibility test below: a wrapper whose last client-gallery child was
-    // unlinked, and the gallery_password IS NOT NULL AND is_client = false rows U0's
-    // reconnaissance enumerates. Such a row keeps serving behind a password no endpoint can
-    // remove. A clear cannot widen access beyond "no password", so it needs no gate.
     if (request.password() == null) {
       collectionRepository.saveGalleryAccess(id, null, List.of());
       log.info("Cleared gallery password and recipients (id={}, slug={})", id, entity.getSlug());
