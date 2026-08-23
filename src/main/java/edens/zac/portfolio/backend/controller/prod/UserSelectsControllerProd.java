@@ -3,6 +3,8 @@ package edens.zac.portfolio.backend.controller.prod;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.UserSelectGroup;
 import edens.zac.portfolio.backend.services.UserSelectsService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,12 +28,12 @@ public class UserSelectsControllerProd {
   private final UserSelectsService userSelectsService;
 
   /** Body of {@code POST /api/read/user/selects}. */
-  public record AddSelectRequest(Long collectionId, Long contentId) {}
+  public record AddSelectRequest(@NotNull Long collectionId, @NotNull Long contentId) {}
 
   /** Add an image to the caller's selects. 201 on success, 401 when anonymous. */
   @PostMapping
   public ResponseEntity<Void> add(
-      @AuthenticationPrincipal AuthPrincipal principal, @RequestBody AddSelectRequest body) {
+      @AuthenticationPrincipal AuthPrincipal principal, @Valid @RequestBody AddSelectRequest body) {
     if (!AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }

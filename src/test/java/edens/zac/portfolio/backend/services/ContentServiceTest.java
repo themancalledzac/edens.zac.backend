@@ -17,6 +17,7 @@ import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
+import edens.zac.portfolio.backend.entity.ContentTextEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
@@ -27,6 +28,7 @@ import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
+import edens.zac.portfolio.backend.types.TextFormType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -331,5 +333,60 @@ class ContentServiceTest {
 
     assertThat((List<?>) result.get("deletedIds")).isEmpty();
     assertThat(result.get("errors")).isEqualTo(List.of("Content not found: 999"));
+  }
+
+  // ============== createTextContent format type ==============
+
+  @Test
+  void createTextContent_storesTheLowercaseWireValueNotTheEnumName() {
+    // TextFormType serializes getValue() ("markdown") and every read path hands format_type
+    // straight to the client, but this path stored name() ("MARKDOWN"). V57 folds the rows that
+    // were already written that way.
+    var request =
+        new ContentRequests.CreateTextContent(
+            5L, "Title", null, "  some body  ", TextFormType.MARKDOWN);
+    when(collectionRepository.findById(5L))
+        .thenReturn(Optional.of(CollectionEntity.builder().id(5L).build()));
+    when(contentRepository.saveText(any()))
+        .thenAnswer(
+            invocation -> {
+              ContentTextEntity saved = invocation.getArgument(0);
+              saved.setId(99L);
+              return saved;
+            });
+    when(contentModelConverter.convertEntityToModel(any())).thenReturn(textModel());
+
+    service.createTextContent(request);
+
+    ArgumentCaptor<ContentTextEntity> captor = ArgumentCaptor.forClass(ContentTextEntity.class);
+    verify(contentRepository).saveText(captor.capture());
+    assertThat(captor.getValue().getFormatType()).isEqualTo("markdown");
+    assertThat(captor.getValue().getTextContent()).isEqualTo("some body");
+  }
+
+  @Test
+  void createTextContent_defaultsToTheLowercasePlainWireValue() {
+    var request = new ContentRequests.CreateTextContent(5L, "Title", null, "body", null);
+    when(collectionRepository.findById(5L))
+        .thenReturn(Optional.of(CollectionEntity.builder().id(5L).build()));
+    when(contentRepository.saveText(any()))
+        .thenAnswer(
+            invocation -> {
+              ContentTextEntity saved = invocation.getArgument(0);
+              saved.setId(99L);
+              return saved;
+            });
+    when(contentModelConverter.convertEntityToModel(any())).thenReturn(textModel());
+
+    service.createTextContent(request);
+
+    ArgumentCaptor<ContentTextEntity> captor = ArgumentCaptor.forClass(ContentTextEntity.class);
+    verify(contentRepository).saveText(captor.capture());
+    assertThat(captor.getValue().getFormatType()).isEqualTo("plain");
+  }
+
+  private static ContentModels.Text textModel() {
+    return new ContentModels.Text(
+        99L, ContentType.TEXT, "Title", null, null, 0, true, null, null, "some body", "markdown");
   }
 }
