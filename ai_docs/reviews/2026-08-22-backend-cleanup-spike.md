@@ -11,7 +11,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
-| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done. **Bug #6 is next, as its own MR** |
+| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR). **Wave 2 is complete except MR 9** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
@@ -418,7 +418,16 @@ One finding in this MR was wrong as written. See bug #4.
   `collection_people` primary key, which is what made this bug #5 (silent) rather than the
   rollback-the-whole-save failure the identical tag defect caused. Keeping it costs one stream op
   and keeps the DAO safe against a future caller that passes a raw list.
-- [ ] Bug #6 (medium). `getLocationPage` builds a wrong orphan-exclusion list when `collectionPage > 0`. `services/CollectionService.java:226-231` — the shortcut condition ignores `collectionPage`; on page 1 with few collections, `allCollectionIds` is `[]` and the orphan queries either return wrong "orphans" or 500 on an empty `NOT IN`. Public endpoint, client-supplied params. Fix: `collectionPage == 0 && totalCollections <= collectionSize`.
+- [x] Bug #6 (medium). `getLocationPage` builds a wrong orphan-exclusion list when `collectionPage > 0`. `services/CollectionService.java:226-231` — the shortcut condition ignores `collectionPage`; on page 1 with few collections, `allCollectionIds` is `[]` and the orphan queries either return wrong "orphans" or 500 on an empty `NOT IN`. Public endpoint, client-supplied params. Fix: `collectionPage == 0 && totalCollections <= collectionSize`.
+
+  **Done** (shipped separately from bug #5, as its own MR). Applied the prescribed condition.
+  One correction to the finding above: it does not 500. Both
+  `ContentRepository.findOrphanImagesByLocationName` and `countOrphanImagesByLocationName` guard
+  `excludeCollectionIds != null && !isEmpty()` and just omit their `NOT EXISTS` clause on an empty
+  list, so the failure is silent rather than loud -- on any `collectionPage > 0` where
+  `totalCollections <= collectionSize`, the endpoint returned every image at the location as an
+  "orphan", including images in the collections listed on the same response. Regression test:
+  `CollectionServiceTest.GetLocationPage.getLocationPage_pastFirstPage_stillExcludesCollectionImages`.
 
 ## MR 9 — Config bugs and low-priority fixes
 
