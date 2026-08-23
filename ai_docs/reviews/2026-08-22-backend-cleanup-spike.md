@@ -643,12 +643,58 @@ one-line change, not a sweep.
 - [ ] At minimum, switch the compare to `MessageDigest.isEqual` for consistency with the rest of the codebase.
 - [ ] Changing a gallery password does not revoke issued per-slug cookies (`ClientGalleryAuthService.java:77-82, 92-122`). The HMAC payload is `slug|expiry` and does not bind the password, so a locked-out visitor keeps access for up to 24h. Bind the password fingerprint, or a version counter, into the payload.
 
-## MR 11 — Public surface hardening
+## MR 11 — Public surface hardening — DONE ([PR #176](https://github.com/themancalledzac/edens.zac.backend/pull/176))
 
-- [ ] ~~`spring.codec.max-in-memory-size=64KB` (`application.properties:72-73`) is a WebFlux property in a servlet app.~~ **The deletion already happened in MR 2** ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); verified absent from `application.properties` on 2026-08-22. What remains open is only the second half: the public endpoint still accepts bodies up to Jackson's 20MB string default, so if a cap is wanted, a small filter on `/api/public/**` rejecting Content-Length > 16KB is the honest version. Decide whether that cap is worth adding at all.
-- [ ] `IllegalStateException` handler echoes internal messages to clients as 400s (`GlobalExceptionHandler.java:74-79`; throwers include `WebAuthnService.java:207`, `JdbcUserCredentialRepository.java:49`). Return a generic message, or split "bad request" from "broken invariant".
-- [ ] Contact-message table has no global growth cap. The per-email limit uses the attacker-chosen email and the per-IP limit allows 500/h. Verified: no SES send is triggered by the public endpoint, so there is no dollar cost, just DB and inbox spam. Add one more Bucket4j bucket as a daily global cap.
-- [ ] Share and invite raw tokens travel as URL path segments and will sit in access logs (`ShareControllerProd.java:55-66`, `InviteController.java:51-52, 75-78`). Accepted design for shareability; keep log retention short. No code change unless the decision changes.
+- [x] ~~`spring.codec.max-in-memory-size=64KB` (`application.properties:72-73`) is a WebFlux property in a servlet app.~~ **The deletion already happened in MR 2** ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); verified absent from `application.properties` on 2026-08-22. **Decision: the cap is worth adding, and it is in.** Folded into `RateLimitFilter` rather than a second filter, since that filter already owns the `/api/public/**` predicate. See "Why the cap earned its place" below.
+- [x] `IllegalStateException` handler echoes internal messages to clients as 400s. Split "bad request" from "broken invariant" rather than genericising the message, which would have thrown away genuinely useful client errors. See "How the split was drawn" below.
+- [x] Contact-message table has no global growth cap. Added a global daily bucket to `ContactMessageLimiter` (`app.contact.rate-limit-global-per-day`, default 1000), checked before the per-email bucket. It is the only one of the three limits whose key an attacker cannot choose.
+- [x] Share and invite raw tokens travel as URL path segments and will sit in access logs (`ShareControllerProd.java:55-66`, `InviteController.java:51-52, 75-78`). Re-confirmed 2026-08-23: accepted design for shareability, keep log retention short. No code change, as the item anticipated.
+
+### Why the cap earned its place
+
+Bean Validation already bounds the contact payload to 5320 characters, so the cap looked redundant.
+It is not: `@Valid` runs after Jackson has materialised the whole body, so the 20MB string default
+is reachable on every request, and `RateLimitFilter` allows 500/h per IP. That is 10GB through the
+parser per hour per address, on a box that has already been OOM'd once by concurrent large
+requests. 16KB clears the real payload by 3x.
+
+The check runs after the rate-limit bucket is consumed, so oversized requests still count against
+the sender's hourly budget instead of being rejected for free.
+
+Known gap, deliberate: the cap reads `Content-Length`, so chunked requests arrive without one and
+still reach Jackson, bounded only by the container's own post limit. Rejecting chunked outright
+would be the complete fix but risks breaking a legitimate proxy, and the tracker asked for the
+Content-Length filter specifically.
+
+### How the split was drawn
+
+`IllegalStateException` keeps its 400 and keeps echoing the thrower's message, because most
+throwers are genuinely client-actionable and their messages are worth reading: "a collection
+already owns slug 'x'", "cannot merge an identity into itself", "no in-flight login challenge".
+Genericising all of them to protect a handful of leaky ones would have been a net loss.
+
+What moved to a bare `RuntimeException` (500, generic body, stack trace logged) is the set that
+were server faults wearing a 400:
+
+- `WebAuthnService` -- "Authenticated handle has no app_user: <handle>", "Principal has no app_user:
+  <userId>". These leaked internal identifiers to unauthenticated callers and are the sharp end of
+  this item.
+- `JdbcUserCredentialRepository` -- three throwers leaking app_user ids and WebAuthn handles.
+- `TokenUtil`, `ImageProcessingService` -- "SHA-256 unavailable". A JVM-level impossibility, never
+  the caller's fault.
+- `ImageUploadPipelineService` -- "Upload interrupted while waiting for semaphore".
+- `CollectionProcessingUtil` -- "Failed to find or create location with name: X". A data-layer
+  failure, not bad input.
+- `ContentService.castContentModel` -- a type mismatch is a programming error.
+
+**Not changed, deliberately:** `validateAndEnsureUniqueSlug`'s "Could not generate a unique slug
+after 100 attempts". MR 9b moved this one from `RuntimeException` to `IllegalStateException` on
+purpose, one commit before this MR. Its test caught the reversal. Re-deciding a call that shipped
+last week is not this MR's business; if 500 is the right status there it should be argued on its
+own.
+
+The convention is now recorded in the `handleIllegalState` javadoc so the next throw site picks the
+right type without rediscovering this.
 
 ---
 

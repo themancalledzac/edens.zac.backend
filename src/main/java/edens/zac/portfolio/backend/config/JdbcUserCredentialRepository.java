@@ -45,7 +45,7 @@ public class JdbcUserCredentialRepository implements UserCredentialRepository {
             .findById(entity.getUserId())
             .orElseThrow(
                 () ->
-                    new IllegalStateException(
+                    new RuntimeException(
                         "Credential references missing app_user: " + entity.getUserId()));
     Bytes userHandle =
         new Bytes(user.getWebauthnUserHandle().toString().getBytes(StandardCharsets.UTF_8));
@@ -65,14 +65,13 @@ public class JdbcUserCredentialRepository implements UserCredentialRepository {
         JdbcPublicKeyCredentialUserEntityRepository.parseHandle(record.getUserEntityUserId())
             .orElseThrow(
                 () ->
-                    new IllegalStateException(
+                    new RuntimeException(
                         "WebAuthn credential has no valid user handle: "
                             + record.getUserEntityUserId()));
     AppUserEntity user =
         appUserRepository
             .findByWebauthnUserHandle(handle)
-            .orElseThrow(
-                () -> new IllegalStateException("No app_user for WebAuthn handle: " + handle));
+            .orElseThrow(() -> new RuntimeException("No app_user for WebAuthn handle: " + handle));
 
     credentialRepository
         .findByCredentialId(credId)

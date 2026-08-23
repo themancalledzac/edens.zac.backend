@@ -782,7 +782,7 @@ public class ImageProcessingService {
       return HexFormat.of().formatHex(digest, 0, 6); // 6 bytes -> 12 hex chars
     } catch (NoSuchAlgorithmException e) {
       // SHA-256 is mandated to always be available; this branch is unreachable.
-      throw new IllegalStateException("SHA-256 algorithm unavailable", e);
+      throw new RuntimeException("SHA-256 algorithm unavailable", e);
     }
   }
 

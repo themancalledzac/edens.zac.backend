@@ -39,7 +39,7 @@ final class TokenUtil {
       byte[] hashed = digest.digest(value.getBytes(StandardCharsets.UTF_8));
       return HexFormat.of().formatHex(hashed);
     } catch (Exception e) {
-      throw new IllegalStateException("SHA-256 unavailable", e);
+      throw new RuntimeException("SHA-256 unavailable", e);
     }
   }
 }
