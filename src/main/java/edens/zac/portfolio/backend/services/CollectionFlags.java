@@ -61,6 +61,10 @@ public final class CollectionFlags {
     return resolve(isClientRequested, isBlogRequested, current.isClient(), current.isBlog());
   }
 
+  /**
+   * Past the two explicit-TRUE branches, a remaining flag is either explicit {@code false} (clear
+   * it) or {@code null} (inherit the current value).
+   */
   private static Resolved resolve(
       Boolean isClientRequested,
       Boolean isBlogRequested,
@@ -76,7 +80,6 @@ public final class CollectionFlags {
     if (Boolean.TRUE.equals(isBlogRequested)) {
       return BLOG;
     }
-    // Remaining flags are explicit false (clear) or null (inherit).
     boolean resolvedIsClient = isClientRequested == null && currentIsClient;
     boolean resolvedIsBlog = isBlogRequested == null && currentIsBlog;
     if (resolvedIsClient) {

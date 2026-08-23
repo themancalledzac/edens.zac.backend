@@ -112,6 +112,9 @@ public class ContentMutationUtil {
   /**
    * Add a content block to new collections with specified visibility and orderIndex. Creates join
    * table entries for the content in the specified collections. Works for any content type.
+   *
+   * <p>The target collection is only checked for existence: any collection may hold any content
+   * type (Rule B), so nothing else about it is inspected.
    */
   public void handleAddToCollections(Long contentId, List<Records.ChildCollection> collections) {
     for (Records.ChildCollection childCollection : collections) {
@@ -120,8 +123,6 @@ public class ContentMutationUtil {
         continue;
       }
 
-      // Existence check only -- any collection may hold any content type (Rule B), so nothing
-      // about the target collection is inspected beyond it existing.
       collectionRepository
           .findById(childCollection.collectionId())
           .orElseThrow(
@@ -364,7 +365,6 @@ public class ContentMutationUtil {
       if (locationIds.isEmpty()) {
         return;
       }
-      // Merge with existing locations so a re-ingest adds without dropping curated ones.
       locationRepository
           .findLocationsByContentIds(List.of(imageId))
           .getOrDefault(imageId, List.of())

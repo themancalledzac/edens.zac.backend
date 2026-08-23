@@ -90,13 +90,19 @@ public class UserPageAssembler {
    * The shared body. {@code additionalCollectionIds} is unioned with the owner's tagged-in
    * collections; everything else -- tagged standalone content, cover resolution, title fallback,
    * ordering -- is identical for both entry points.
+   *
+   * <p>Since the V35 identity merge the account and the person tag are one {@code users} row, so
+   * the principal's id IS the person id. The page treats the user as a "person" only when they are
+   * actually tagged, by collection or by standalone content; a grant-only viewer with no person
+   * tags falls back to the generic title and surfaces only their granted galleries, preserving the
+   * pre-merge {@code findByUserId} contract.
+   *
+   * <p>The title follows that same rule, but the cover does not: it always falls back to one of the
+   * viewer's associated collections, so a user with an account who is tagged in nothing still gets
+   * an entry-point image instead of a blank header. The description is set unconditionally from the
+   * user account row, independent of person tagging.
    */
   private CollectionModel assemble(Long userId, List<Long> additionalCollectionIds) {
-    // Since the V35 identity merge the account and the person tag are one `users` row, so the
-    // principal's id IS the person id. The page treats the user as a "person" only when they are
-    // actually tagged (tagged collections or tagged standalone content); a grant-only viewer with
-    // no person tags still falls back to the generic title and surfaces only their granted
-    // galleries (preserving the pre-merge findByUserId contract).
     Optional<ContentPersonEntity> identity = personRepository.findById(userId);
 
     Set<Long> personCollectionIds = new LinkedHashSet<>();
@@ -114,17 +120,12 @@ public class UserPageAssembler {
     body.addAll(taggedBlocks);
     reindexSequentially(body);
 
-    // The title only applies when the viewer is an actual tagged person (has tagged collections or
-    // tagged standalone content); a grant-only viewer keeps the generic title. The cover, however,
-    // always falls back to one of the viewer's associated collections, so a user who has an account
-    // but is tagged in nothing still gets an entry-point image instead of a blank header.
     Optional<ContentPersonEntity> person =
         identity.filter(p -> !personCollectionIds.isEmpty() || !taggedBlocks.isEmpty());
     ContentModels.Image cover =
         person.flatMap(p -> resolveCover(p.getId())).orElseGet(() -> firstCollectionCover(body));
     String title = person.map(ContentPersonEntity::getPersonName).orElse(DEFAULT_TITLE);
 
-    // Description is set unconditionally from the user account row, independent of person tagging.
     String description =
         appUserRepository.findById(userId).map(AppUserEntity::getDescription).orElse(null);
 

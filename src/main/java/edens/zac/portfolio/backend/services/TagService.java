@@ -38,6 +38,9 @@ public class TagService {
    * Promotes a tag into a real collection at {@code tag.slug}: creates the collection, snapshots
    * the tag's current members into it, and flags the tag converted so its tag-view stops rendering.
    *
+   * <p>The collection is created first, then takes over the tag's slug and requested visibility.
+   * The isClient/isBlog booleans pass straight through to the create path.
+   *
    * @param tagId tag to convert
    * @param request optional client/blog flags and visibility (default UNLISTED)
    * @return the new collection in the same shape {@code createChildCollection} returns
@@ -62,8 +65,6 @@ public class TagService {
             ? request.visibility()
             : CollectionVisibility.UNLISTED;
 
-    // Create the collection, then take over the tag's slug and requested visibility. The
-    // isClient/isBlog booleans pass straight through to the create path.
     CollectionRequests.UpdateResponse created =
         collectionService.createCollection(
             new CollectionRequests.Create(
@@ -113,7 +114,6 @@ public class TagService {
 
     List<CollectionEntity> memberCollections = tagRepository.findCollectionsByTagId(tagId, scope);
     for (CollectionEntity member : memberCollections) {
-      // Skip password-gated member collections unless explicitly opted in.
       if (!includeHidden && member.getGalleryPassword() != null) {
         continue;
       }
