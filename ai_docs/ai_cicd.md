@@ -271,7 +271,7 @@ Instead of rebuilding on EC2, push to a registry and pull:
 - **No automatic deployment**: Manual SSH required, no secrets in GitHub
 - **Cache keys are stable**: Don't use `github.run_number` or timestamps in cache keys
 - **CVE data is 30-day old**: Acceptable trade-off for rate limit avoidance
-- **Known test issues**: If Mockito stubbing tests fail after formatting, check:
-  - `ContentControllerDevTest.java`
-  - `CollectionControllerDevTest.java`
-  - `ContentProcessingUtilTest.java`
+- **Known test issues**: If Mockito stubbing tests fail after formatting, check
+  `AdminControllerCollectionsTest.java` (renamed from `CollectionControllerDevTest`). The other two
+  files this list used to name, `ContentControllerDevTest` and `ContentProcessingUtilTest`, no
+  longer exist.

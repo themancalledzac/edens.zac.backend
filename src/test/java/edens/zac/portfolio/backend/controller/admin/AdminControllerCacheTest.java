@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 @ExtendWith(MockitoExtension.class)
-class CacheControllerDevTest {
+class AdminControllerCacheTest {
 
   private MockMvc mockMvc;
 
