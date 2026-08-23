@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
@@ -30,6 +31,7 @@ import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.model.CollaboratorRequests;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -57,9 +59,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
 class CollectionServiceTest {
@@ -75,6 +79,7 @@ class CollectionServiceTest {
   @Mock private CollectionProcessingUtil collectionProcessingUtil;
   @Mock private ContentMutationUtil contentMutationUtil;
   @Mock private ContentModelConverter contentModelConverter;
+  @Mock private ContentService contentService;
   @Mock private MetadataService metadataService;
   @Mock private edens.zac.portfolio.backend.services.EmailService emailService;
   @Mock private SyntheticCollectionResolver syntheticResolver;
@@ -2534,6 +2539,106 @@ class CollectionServiceTest {
       verify(collectionPeopleRepository)
           .setPeopleForCollection(eq(collectionId), personIdsCaptor.capture());
       assertThat(personIdsCaptor.getValue()).containsExactly(72L);
+    }
+  }
+
+  @Nested
+  @DisplayName("applyCollaboratorImageEdits")
+  class ApplyCollaboratorImageEdits {
+
+    private static final Long COLLECTION_ID = 5L;
+
+    /** Membership rows the cross-collection guard reads, for images 9 and 10. */
+    private void collectionHoldsImages9And10() {
+      when(collectionRepository.findById(COLLECTION_ID))
+          .thenReturn(Optional.of(CollectionEntity.builder().id(COLLECTION_ID).build()));
+      when(collectionRepository.findImageContentByCollectionIds(List.of(COLLECTION_ID)))
+          .thenReturn(
+              List.of(
+                  CollectionContentEntity.builder().contentId(9L).build(),
+                  CollectionContentEntity.builder().contentId(10L).build()));
+    }
+
+    private CollaboratorRequests.CollaboratorImageUpdate update(
+        Long id, String title, Boolean visible) {
+      return new CollaboratorRequests.CollaboratorImageUpdate(id, title, null, null, null, visible);
+    }
+
+    @Test
+    @DisplayName("splits canonical edits from scoped visibility and counts the visible writes")
+    void applyCollaboratorImageEdits_mixedBatch_splitsCanonicalAndVisibleWrites() {
+      collectionHoldsImages9And10();
+      when(contentService.updateImages(any())).thenReturn(Map.of("count", 1));
+      when(collectionRepository.updateContentVisibleForContent(
+              eq(COLLECTION_ID), anyLong(), anyBoolean()))
+          .thenReturn(1);
+
+      Map<String, Object> response =
+          service.applyCollaboratorImageEdits(
+              COLLECTION_ID, List.of(update(9L, "T", false), update(10L, null, true)));
+
+      assertThat(response).containsEntry("visibleUpdated", 2).containsEntry("count", 1);
+      verify(contentService).updateImages(argThat(list -> list.size() == 1));
+      verify(collectionRepository).updateContentVisibleForContent(COLLECTION_ID, 9L, false);
+      verify(collectionRepository).updateContentVisibleForContent(COLLECTION_ID, 10L, true);
+    }
+
+    @Test
+    @DisplayName("a visible-only batch never reaches ContentService")
+    void applyCollaboratorImageEdits_visibleOnly_skipsCanonicalUpdate() {
+      collectionHoldsImages9And10();
+      when(collectionRepository.updateContentVisibleForContent(
+              eq(COLLECTION_ID), anyLong(), anyBoolean()))
+          .thenReturn(1);
+
+      Map<String, Object> response =
+          service.applyCollaboratorImageEdits(COLLECTION_ID, List.of(update(9L, null, true)));
+
+      assertThat(response).containsEntry("visibleUpdated", 1);
+      verify(contentService, never()).updateImages(any());
+    }
+
+    @Test
+    @DisplayName("the cross-collection guard runs before any write")
+    void applyCollaboratorImageEdits_outsiderImage_writesNothing() {
+      collectionHoldsImages9And10();
+
+      assertThatThrownBy(
+              () ->
+                  service.applyCollaboratorImageEdits(
+                      COLLECTION_ID, List.of(update(9L, "T", true), update(404L, "T", true))))
+          .isInstanceOf(AccessDeniedException.class);
+
+      verify(contentService, never()).updateImages(any());
+      verify(collectionRepository, never())
+          .updateContentVisibleForContent(anyLong(), anyLong(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("a failed visibility write propagates, so the canonical edits roll back with it")
+    void applyCollaboratorImageEdits_missingMembershipRow_propagates() {
+      collectionHoldsImages9And10();
+      when(contentService.updateImages(any())).thenReturn(Map.of("count", 1));
+      when(collectionRepository.updateContentVisibleForContent(COLLECTION_ID, 9L, true))
+          .thenReturn(0);
+
+      assertThatThrownBy(
+              () ->
+                  service.applyCollaboratorImageEdits(
+                      COLLECTION_ID, List.of(update(9L, "T", true))))
+          .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("the batch runs in one read-write transaction, which is the fix")
+    void applyCollaboratorImageEdits_isTransactional() throws NoSuchMethodException {
+      Transactional annotation =
+          CollectionService.class
+              .getMethod("applyCollaboratorImageEdits", Long.class, List.class)
+              .getAnnotation(Transactional.class);
+
+      assertThat(annotation).isNotNull();
+      assertThat(annotation.readOnly()).isFalse();
     }
   }
 }

@@ -9,7 +9,6 @@ import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.xmp.XmpDirectory;
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -21,12 +20,15 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -86,7 +88,6 @@ public class ImageMetadataExtractor {
       result = extractFromStream(inputStream, filename);
     }
 
-    // Fallback: Get dimensions from BufferedImage if not found
     if (!result.metadata().containsKey("imageWidth")
         || !result.metadata().containsKey("imageHeight")) {
       ensureDimensions(file, result.metadata());
@@ -109,7 +110,6 @@ public class ImageMetadataExtractor {
       result = extractFromStream(inputStream, filename);
     }
 
-    // Fallback: Get dimensions from BufferedImage if not found
     if (!result.metadata().containsKey("imageWidth")
         || !result.metadata().containsKey("imageHeight")) {
       ensureDimensionsFromPath(filePath, result.metadata());
@@ -356,32 +356,64 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Ensure dimensions are present in metadata, reading from BufferedImage if needed.
+   * Ensure dimensions are present in metadata, reading them from the image header if needed.
    *
    * @param file The image file
    * @param metadata The metadata map to populate
    */
-  private void ensureDimensions(MultipartFile file, Map<String, String> metadata) {
+  void ensureDimensions(MultipartFile file, Map<String, String> metadata) {
     try (InputStream is = file.getInputStream()) {
-      BufferedImage img = ImageIO.read(is);
-      if (img != null) {
-        metadata.put("imageWidth", String.valueOf(img.getWidth()));
-        metadata.put("imageHeight", String.valueOf(img.getHeight()));
-      }
+      putDimensionsFromHeader(is, metadata);
     } catch (IOException e) {
-      log.warn("Failed to read image dimensions from BufferedImage: {}", e.getMessage());
+      log.warn("Failed to read image dimensions from upload: {}", e.getMessage());
     }
   }
 
-  private void ensureDimensionsFromPath(Path filePath, Map<String, String> metadata) {
+  /**
+   * Ensure dimensions are present in metadata, reading them from the image header if needed.
+   *
+   * @param filePath Path to the image file
+   * @param metadata The metadata map to populate
+   */
+  void ensureDimensionsFromPath(Path filePath, Map<String, String> metadata) {
     try (InputStream is = Files.newInputStream(filePath)) {
-      BufferedImage img = ImageIO.read(is);
-      if (img != null) {
-        metadata.put("imageWidth", String.valueOf(img.getWidth()));
-        metadata.put("imageHeight", String.valueOf(img.getHeight()));
-      }
+      putDimensionsFromHeader(is, metadata);
     } catch (IOException e) {
       log.warn("Failed to read image dimensions from path: {}", e.getMessage());
+    }
+  }
+
+  /**
+   * Read width and height out of the image header and put them in the metadata map.
+   *
+   * <p>Uses an ImageReader rather than ImageIO.read, which decodes every pixel. The upload pipeline
+   * decodes the same file again right after metadata extraction, so a full decode here meant
+   * decoding each image twice. The header read gives the same width and height.
+   *
+   * @param is Stream positioned at the start of the image
+   * @param metadata The metadata map to populate
+   * @throws IOException If the header cannot be read
+   */
+  private void putDimensionsFromHeader(InputStream is, Map<String, String> metadata)
+      throws IOException {
+    try (ImageInputStream imageStream = ImageIO.createImageInputStream(is)) {
+      if (imageStream == null) {
+        log.warn("No image input stream available, cannot read dimensions");
+        return;
+      }
+      Iterator<ImageReader> readers = ImageIO.getImageReaders(imageStream);
+      if (!readers.hasNext()) {
+        log.warn("No image reader available, cannot read dimensions");
+        return;
+      }
+      ImageReader reader = readers.next();
+      try {
+        reader.setInput(imageStream, true, true);
+        metadata.put("imageWidth", String.valueOf(reader.getWidth(0)));
+        metadata.put("imageHeight", String.valueOf(reader.getHeight(0)));
+      } finally {
+        reader.dispose();
+      }
     }
   }
 
@@ -495,16 +527,25 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Parse a string to a Boolean, returning a default value if parsing fails.
+   * Parse a string to a Boolean. The default is returned only when the value is null or blank.
+   *
+   * <p>A non-blank value always parses, so there is no "parsing failed" case and the default is
+   * never a fallback for an unrecognized value. "true" in any case and "1" are true; every other
+   * non-blank value is false.
+   *
+   * <p>That is what the callers want. Both read a flag out of the extracted metadata map, where the
+   * only value ever written is "true", and both pass false as the default. An unrecognized value
+   * means the flag was not set, so false is the right answer rather than the default.
    *
    * @param value The string value to parse
-   * @param defaultValue The default value to return if parsing fails
-   * @return The parsed boolean or default value
+   * @param defaultValue The value to return when value is null or blank
+   * @return true for "true" or "1", false for any other non-blank value, defaultValue when blank
    */
   public Boolean parseBooleanOrDefault(String value, Boolean defaultValue) {
     if (value == null || value.trim().isEmpty()) {
       return defaultValue;
     }
-    return Boolean.parseBoolean(value) || value.equals("1");
+    String trimmed = value.trim();
+    return Boolean.parseBoolean(trimmed) || trimmed.equals("1");
   }
 }

@@ -11,7 +11,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
-| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)). **MR 9b, the remaining 12 low-priority fixes, is all that remains of Wave 2** |
+| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done. **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
@@ -438,8 +438,8 @@ S3 streaming, and two DAOs. Ship them as two MRs -- bugs #8 and #9 first, the re
 rather than one 14-item MR nobody can review.
 
 The split happened. Bugs #8 and #9 shipped as MR 9a
-([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); the remaining 12 items below
-are MR 9b, not started.
+([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); the remaining 12 items
+shipped as MR 9b. **MR 9 is complete, and with it Wave 2.**
 
 Bug #9 is the only item here carrying a decision that is not an implementer's to make. The `:-`
 placeholder fix is mechanical, but it arrives bundled with the question of whether to keep shipping
@@ -487,18 +487,77 @@ and deliberately left that question open -- see the decision item below.
   which defers the failure to the first connection attempt. Prod is unaffected either way -- compose
   shadows this property on every deploy -- so the real question is what a local run should do when
   the variable is missing.
-- [ ] `downloadCollection` bypasses the response machinery with raw `sendError`/`setStatus` (`ContentDownloadControllerProd.java:94-158`). Convert to `ResponseEntity<Void>` like its sibling `downloadImage`.
-- [ ] Admin message delete returns 204 for a nonexistent id (`MessagesControllerAdmin.java:49-54`). Return 404 on 0 rows, like `deleteRole`.
-- [ ] Text-content creation maps a service null to 400 instead of 500 (`AdminController.java:224-226`).
-- [ ] `convertToWebP` leaks the ImageWriter on exception (`ImageProcessingService.java:990-994`). Dispose in a finally block.
-- [ ] `S3MultipartOutputStream.close()` after `abort()` tries to complete a dead upload (`S3MultipartOutputStream.java:109-133`). Early-return when aborted.
-- [ ] Full-image decode just to read dimensions (`ImageMetadataExtractor.java:318-340`). Use `ImageReader.getWidth(0)`/`getHeight(0)` header reads; the pipeline decodes the same file again right after.
-- [ ] `EditController.patchImages` runs a two-phase write with no spanning transaction (`EditController.java:96-126`). Push it into one transactional `CollectionService` method. The `updates == null` check there is dead.
-- [ ] `parseBooleanOrDefault` docblock and logic disagree (`ImageMetadataExtractor.java:458-463`).
-- [ ] Locale-less `toLowerCase()` on emails in `AuthController.java:61` and `WebAuthnController.java:143`, while the limiters use `Locale.ROOT` for the same key.
-- [ ] `validateAndEnsureUniqueSlug` throws a bare `RuntimeException`, producing a 500 (`CollectionProcessingUtil:813`). `IllegalStateException` matches the codebase.
-- [ ] `updateCameraFilmMetadata` is the only DAO mutation without `@Transactional` (`EquipmentRepository:213-224`).
-- [ ] `updateRating` returns an always-true boolean (`CollectionService.java:673-680`). Make it void.
+- [x] `downloadCollection` bypasses the response machinery with raw `sendError`/`setStatus` (`ContentDownloadControllerProd.java:94-158`). Convert to `ResponseEntity<Void>` like its sibling `downloadImage`.
+  Now `ResponseEntity<Void>`, each exit copied from `downloadImage`: 401 via
+  `ResponseEntity.status(UNAUTHORIZED)`, 404 via `notFound()`, and the redirect via
+  `status(FOUND).location(url)`. The method keeps `throws IOException` -- `zipToS3AndPresign`
+  declares it, and GlobalExceptionHandler's catch-all maps it to a 500. The four in-body comment
+  blocks were promoted into the method docblock. No new test: `ContentDownloadControllerProdTest`
+  and `ContentDownloadAuthTest` already assert 401, 404 and 302-with-Location here, and all of
+  those still pass unchanged.
+- [x] Admin message delete returns 204 for a nonexistent id (`MessagesControllerAdmin.java:49-54`). Return 404 on 0 rows, like `deleteRole`.
+  Copied `AdminRoleController.deleteRole` verbatim. The endpoint had no test at all before; the new
+  `DeleteMessage` tests cover both 204 and 404, and adding them exposed that the test class was
+  handing the controller a null `MessageService`.
+- [x] Text-content creation maps a service null to 400 instead of 500 (`AdminController.java:224-226`).
+  Now a bare `RuntimeException`, which is the only route to a 500 here: GlobalExceptionHandler maps
+  `IllegalArgumentException` and `IllegalStateException` both to 400, and only the catch-all
+  `Exception` handler produces 500. Note this moves in the opposite direction to the
+  `validateAndEnsureUniqueSlug` item below, on purpose -- a duplicate slug is the caller's fault
+  (400), a service returning null is not (500). Worth recording: the null branch is unreachable
+  today. `ContentService.createTextContent` either throws or returns a non-null model, so this
+  corrects the status a defensive guard would report rather than a 400 any caller has seen.
+- [x] `convertToWebP` leaks the ImageWriter on exception (`ImageProcessingService.java:990-994`). Dispose in a finally block.
+  `writer.dispose()` was the last statement in the try-with-resources body, so a throw from
+  `writer.write` skipped it. Now in a `finally`. Checked the rest of the method as well: the
+  `ImageOutputStream` was already in try-with-resources and there is no `ImageReader` here, so this
+  was a single-resource fix. Not meaningfully testable -- the method is private and the failure
+  path needs `writer.write` to throw, which means injecting a broken ImageIO SPI.
+- [x] `S3MultipartOutputStream.close()` after `abort()` tries to complete a dead upload (`S3MultipartOutputStream.java:109-133`). Early-return when aborted.
+  The class already tracked `aborted`; `close()` only checked `closed`. Added the early return.
+  The one live caller (`DownloadUrlService.zipToS3AndPresign`) was not hitting this, because
+  `ZipOutputStream.close()` had not yet delegated at that point. The bug is real for any caller
+  doing abort-then-close directly or through try-with-resources, which the `OutputStream` contract
+  invites. Regression test: `S3MultipartOutputStreamTest.close_afterAbort_doesNotCompleteUpload`.
+- [x] Full-image decode just to read dimensions (`ImageMetadataExtractor.java:318-340`). Use `ImageReader.getWidth(0)`/`getHeight(0)` header reads; the pipeline decodes the same file again right after.
+  Both fallbacks (`ensureDimensions` for `MultipartFile`, `ensureDimensionsFromPath` for `Path`)
+  now share one `putDimensionsFromHeader` that opens an `ImageInputStream` and reads
+  `getWidth(0)`/`getHeight(0)`. Stream in try-with-resources, reader disposed in a finally. Both
+  `ensureDimensions` methods went package-private so tests can drive them, matching
+  `ImageProcessingService.recordRenditionDimensions`. New `ImageMetadataExtractorTest` asserts the
+  header read returns exactly what `ImageIO.read` returned for the same file.
+- [x] `EditController.patchImages` runs a two-phase write with no spanning transaction (`EditController.java:96-126`). Push it into one transactional `CollectionService` method. The `updates == null` check there is dead.
+  New `CollectionService.applyCollaboratorImageEdits` holds the guard, the canonical writes and the
+  scoped visibility writes in one `@Transactional` method, so the batch is all-or-nothing. The
+  controller is now a delegate. The dead `updates == null` check is gone: `@RequestBody` is
+  required by default, so Spring rejects an absent or null payload before the handler runs. The
+  `updates.isEmpty()` check stays, since an empty array does reach the method. Removing the
+  two-phase write also left `EditController` with no use for `ContentService`, so that field and
+  its import went too. Tests moved with the logic: `EditControllerTest` now asserts delegation, and
+  a new `ApplyCollaboratorImageEdits` block in `CollectionServiceTest` covers the canonical/visible
+  split, the guard running before any write, a failed visibility write propagating, and that the
+  method still carries `@Transactional`.
+- [x] `parseBooleanOrDefault` docblock and logic disagree (`ImageMetadataExtractor.java:458-463`).
+  The logic was correct and the docblock was wrong, so the docblock was rewritten. It claimed a
+  default "if parsing fails", but `Boolean.parseBoolean` has no failure case -- an unrecognized
+  non-blank value returns false, not the default, and only null or blank returns the default. That
+  is what both callers want: they read a flag whose only written value is the literal "true" and
+  both pass false as the default. One small behavior change came with it -- the value is now
+  trimmed before matching, so `" true "` returns true where it used to return false.
+- [x] Locale-less `toLowerCase()` on emails in `AuthController.java:61` and `WebAuthnController.java:143`, while the limiters use `Locale.ROOT` for the same key.
+  Both now use `Locale.ROOT`, matching `AuthLoginLimiter.key()` and `ContactMessageLimiter`. Before
+  this, a Turkish default locale would have lowercased the controller's email differently from the
+  limiter key for the same address. Tests set the default locale to tr-TR and assert both the
+  lookup and the limiter see the same lowercased address.
+- [x] `validateAndEnsureUniqueSlug` throws a bare `RuntimeException`, producing a 500 (`CollectionProcessingUtil:813`). `IllegalStateException` matches the codebase.
+  Now `IllegalStateException`, which GlobalExceptionHandler maps to 400. The bare `RuntimeException`
+  had no handler and fell through to the catch-all 500 with the generic "An unexpected error
+  occurred" body. Regression test in `CollectionProcessingUtilTest`.
+- [x] `updateCameraFilmMetadata` is the only DAO mutation without `@Transactional` (`EquipmentRepository:213-224`).
+  Added, matching `saveCamera`/`saveLens`/`saveFilmType`. Confirmed it was the only mutation in the
+  class missing it. Not unit-testable here -- the annotation is only observable through a Spring
+  context with a real transaction manager, and these repository tests are plain Mockito.
+- [x] `updateRating` returns an always-true boolean (`CollectionService.java:673-680`). Make it void.
 
 ---
 

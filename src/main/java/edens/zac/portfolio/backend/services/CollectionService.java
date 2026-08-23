@@ -18,11 +18,13 @@ import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.model.CollaboratorRequests;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
 import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessRequest;
 import edens.zac.portfolio.backend.model.CollectionRequests.GalleryAccessResponse;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
+import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
@@ -38,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +78,7 @@ public class CollectionService {
   private final TagRepository tagRepository;
   private final ContentMutationUtil contentMutationUtil;
   private final ContentModelConverter contentModelConverter;
+  private final ContentService contentService;
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final MetadataService metadataService;
   private final EmailService emailService;
@@ -657,15 +661,57 @@ public class CollectionService {
    *
    * @param id collection id
    * @param rating 0-5 (nullable to clear)
-   * @return true on success
    */
   @Transactional
-  public boolean updateRating(Long id, Integer rating) {
+  public void updateRating(Long id, Integer rating) {
     int rows = collectionRepository.updateRating(id, rating);
     if (rows == 0) {
       throw new ResourceNotFoundException("Collection not found: " + id);
     }
-    return true;
+  }
+
+  /**
+   * Apply one collaborator image-edit batch as a single transaction.
+   *
+   * <p>The cross-collection guard runs first, so a rejected batch writes nothing. Canonical fields
+   * (title/caption/alt/rating) then route through the one ContentService.updateImages
+   * implementation and reach every collection the image appears in; the scoped {@code visible} flag
+   * writes only this collection's join row.
+   *
+   * <p>Both halves used to run from the controller as separate transactions. A failure part-way
+   * through the visibility loop left the canonical edits committed and some join rows updated, with
+   * no way to tell which. Holding them in one transaction makes the batch all-or-nothing.
+   *
+   * @param collectionId the authorized collection scope
+   * @param updates one entry per image, already validated and non-empty
+   * @return the ContentService response, plus a {@code visibleUpdated} count
+   */
+  @Transactional
+  public Map<String, Object> applyCollaboratorImageEdits(
+      Long collectionId, List<CollaboratorRequests.CollaboratorImageUpdate> updates) {
+    List<Long> ids =
+        updates.stream().map(CollaboratorRequests.CollaboratorImageUpdate::id).toList();
+    requireImagesInCollection(collectionId, ids);
+
+    List<ContentImageUpdateRequest> canonical =
+        updates.stream()
+            .filter(CollaboratorRequests.CollaboratorImageUpdate::hasCanonicalEdit)
+            .map(CollaboratorRequests.CollaboratorImageUpdate::toImageUpdate)
+            .toList();
+    Map<String, Object> response =
+        canonical.isEmpty()
+            ? new HashMap<>()
+            : new HashMap<>(contentService.updateImages(canonical));
+
+    int visibleUpdated = 0;
+    for (CollaboratorRequests.CollaboratorImageUpdate update : updates) {
+      if (update.visible() != null) {
+        updateImageVisibility(collectionId, update.id(), update.visible());
+        visibleUpdated++;
+      }
+    }
+    response.put("visibleUpdated", visibleUpdated);
+    return response;
   }
 
   /**

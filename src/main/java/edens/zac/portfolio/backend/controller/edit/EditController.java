@@ -3,13 +3,10 @@ package edens.zac.portfolio.backend.controller.edit;
 import edens.zac.portfolio.backend.model.CollaboratorRequests;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
-import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.services.CollectionService;
-import edens.zac.portfolio.backend.services.ContentService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +34,6 @@ import org.springframework.web.bind.annotation.RestController;
 class EditController {
 
   private final CollectionService collectionService;
-  private final ContentService contentService;
 
   /** Atomic image reorder; recomputes sequential indices for all content in the collection. */
   @PostMapping("/collections/{collectionId}/reorder")
@@ -87,41 +83,21 @@ class EditController {
   }
 
   /**
-   * Collaborator-scope image edits. The guard runs first: every id must belong to the path
-   * collection (403 otherwise, before any write). Canonical fields (title/caption/alt/rating) then
-   * route through the single ContentService.updateImages implementation -- these reach every
-   * collection the image appears in. The scoped {@code visible} flag writes only this collection's
-   * join row.
+   * Collaborator-scope image edits. The guard, the canonical writes and the scoped visibility
+   * writes all run inside one transaction in {@code CollectionService.applyCollaboratorImageEdits},
+   * so a batch either lands whole or not at all.
+   *
+   * <p>The empty check stays here because it is a request-shape rule, not a business one. A null
+   * body cannot reach this method: {@code @RequestBody} is required by default, so Spring rejects
+   * an absent or null payload before the handler runs.
    */
   @PatchMapping("/collections/{collectionId}/images")
   public ResponseEntity<Map<String, Object>> patchImages(
       @PathVariable Long collectionId,
       @RequestBody List<CollaboratorRequests.@Valid CollaboratorImageUpdate> updates) {
-    if (updates == null || updates.isEmpty()) {
+    if (updates.isEmpty()) {
       throw new IllegalArgumentException("At least one image update is required");
     }
-    List<Long> ids =
-        updates.stream().map(CollaboratorRequests.CollaboratorImageUpdate::id).toList();
-    collectionService.requireImagesInCollection(collectionId, ids);
-
-    List<ContentImageUpdateRequest> canonical =
-        updates.stream()
-            .filter(CollaboratorRequests.CollaboratorImageUpdate::hasCanonicalEdit)
-            .map(CollaboratorRequests.CollaboratorImageUpdate::toImageUpdate)
-            .toList();
-    Map<String, Object> response =
-        canonical.isEmpty()
-            ? new HashMap<>()
-            : new HashMap<>(contentService.updateImages(canonical));
-
-    int visibleUpdated = 0;
-    for (CollaboratorRequests.CollaboratorImageUpdate update : updates) {
-      if (update.visible() != null) {
-        collectionService.updateImageVisibility(collectionId, update.id(), update.visible());
-        visibleUpdated++;
-      }
-    }
-    response.put("visibleUpdated", visibleUpdated);
-    return ResponseEntity.ok(response);
+    return ResponseEntity.ok(collectionService.applyCollaboratorImageEdits(collectionId, updates));
   }
 }

@@ -25,7 +25,9 @@ import software.amazon.awssdk.services.s3.model.CompletedPart;
  *   <li>The stream is single-threaded / not thread-safe — one download builds one ZIP.
  *   <li>{@link #close()} completes the upload. If any write or the completion fails, the multipart
  *       upload is aborted so S3 doesn't retain orphaned parts (which would otherwise accrue storage
- *       cost until a lifecycle rule reaps them).
+ *       cost until a lifecycle rule reaps them). Once {@link #abort()} has run, {@link #close()} is
+ *       a no-op, so an abort followed by a close (directly or via try-with-resources) never tries
+ *       to complete a dead upload.
  * </ul>
  */
 @Slf4j
@@ -106,12 +108,20 @@ public class S3MultipartOutputStream extends OutputStream {
     }
   }
 
+  /**
+   * Flushes the trailing part and completes the multipart upload. Does nothing if the upload was
+   * already aborted -- there is no upload left on S3 to complete, and asking S3 to complete an
+   * aborted upload fails. Safe to call more than once.
+   */
   @Override
   public void close() {
     if (closed) {
       return;
     }
     closed = true;
+    if (aborted) {
+      return;
+    }
     try {
       if (bufferLen > 0) {
         uploadBufferedPart();

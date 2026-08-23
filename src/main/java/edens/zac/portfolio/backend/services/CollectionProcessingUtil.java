@@ -784,6 +784,8 @@ public class CollectionProcessingUtil {
    * @param slug The slug to validate
    * @param existingId The ID of the existing entity (null for new entities)
    * @return A unique slug
+   * @throws IllegalArgumentException if the slug is null or empty
+   * @throws IllegalStateException if no unique slug can be found within 100 attempts
    */
   public String validateAndEnsureUniqueSlug(String slug, Long existingId) {
     if (slug == null || slug.isEmpty()) {
@@ -810,7 +812,7 @@ public class CollectionProcessingUtil {
     } while (exists && counter < 100); // Limit to prevent infinite loop
 
     if (exists) {
-      throw new RuntimeException("Could not generate a unique slug after 100 attempts");
+      throw new IllegalStateException("Could not generate a unique slug after 100 attempts");
     }
 
     return newSlug;

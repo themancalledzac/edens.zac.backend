@@ -21,6 +21,7 @@ import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -89,6 +90,35 @@ class AuthControllerTest {
 
     verify(loginLimiter).reset(anyString(), eq("admin@example.com"));
     verify(sessionService).create(any(AppUserEntity.class), eq(false), any(), any());
+  }
+
+  @Test
+  void login_underTurkishDefaultLocale_stillResolvesLowercasedUser() throws Exception {
+    // Arrange - in tr-TR, a locale-sensitive toLowerCase() maps 'I' to a dotless lowercase i, so
+    // "ADMIN@..." would no longer match the stored "admin@..." nor the AuthLoginLimiter key.
+    Locale previous = Locale.getDefault();
+    Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+    try {
+      when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+      when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));
+      when(passwordEncoder.matches("correct", "{bcrypt}$2a$10$hash")).thenReturn(true);
+
+      // Act
+      mockMvc
+          .perform(
+              post("/api/auth/login")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      objectMapper.writeValueAsString(
+                          new LoginRequest("ADMIN@EXAMPLE.COM", "correct"))))
+          .andExpect(status().isNoContent());
+
+      // Assert - Locale.ROOT lowercasing keeps the dotted i, so both lookups use the same key.
+      verify(appUserRepository).findByEmail("admin@example.com");
+      verify(loginLimiter).reset(anyString(), eq("admin@example.com"));
+    } finally {
+      Locale.setDefault(previous);
+    }
   }
 
   @Test

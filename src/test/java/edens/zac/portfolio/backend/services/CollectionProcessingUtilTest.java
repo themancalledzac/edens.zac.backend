@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
@@ -139,6 +140,20 @@ class CollectionProcessingUtilTest {
 
     // Assert
     assertEquals("test-slug-1", result);
+  }
+
+  @Test
+  void validateAndEnsureUniqueSlug_whenEveryCandidateTaken_throwsIllegalStateException() {
+    // Arrange - every slug the loop tries is already taken, so it exhausts its 100 attempts.
+    CollectionEntity existingEntity = new CollectionEntity();
+    existingEntity.setId(2L);
+    when(collectionRepository.findBySlug(anyString())).thenReturn(Optional.of(existingEntity));
+
+    // Act + Assert - IllegalStateException, not a bare RuntimeException. GlobalExceptionHandler
+    // maps IllegalStateException to 400; a bare RuntimeException falls to the catch-all as a 500.
+    assertThatThrownBy(() -> util.validateAndEnsureUniqueSlug("test-slug", 1L))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Could not generate a unique slug");
   }
 
   @Test
