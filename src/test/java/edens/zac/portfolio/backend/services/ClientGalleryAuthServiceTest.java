@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseCookie;
 
 @ExtendWith(MockitoExtension.class)
 class ClientGalleryAuthServiceTest {
@@ -118,11 +121,32 @@ class ClientGalleryAuthServiceTest {
           CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("secret123").build();
       when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
 
-      String token = clientGalleryAuthService.generateAccessToken("gallery");
+      String token = clientGalleryAuthService.generateAccessToken("gallery", "secret123");
 
       boolean result = clientGalleryAuthService.validateAccessToken("gallery", token);
 
       assertThat(result).isTrue();
+    }
+
+    /**
+     * The point of binding the password fingerprint into the per-slug payload: rotating the gallery
+     * password locks out cookies issued against the old one immediately, rather than leaving them
+     * live for the rest of their 24h expiry.
+     */
+    @Test
+    void validateAccessToken_afterPasswordChange_returnsFalse() {
+      CollectionEntity before =
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("old-password").build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(before));
+
+      String token = clientGalleryAuthService.generateAccessToken("gallery", "old-password");
+      assertThat(clientGalleryAuthService.validateAccessToken("gallery", token)).isTrue();
+
+      CollectionEntity after =
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("new-password").build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(after));
+
+      assertThat(clientGalleryAuthService.validateAccessToken("gallery", token)).isFalse();
     }
 
     @Test
@@ -166,6 +190,30 @@ class ClientGalleryAuthServiceTest {
       boolean result = clientGalleryAuthService.validateAccessToken("gallery", "some-hmac|0");
 
       assertThat(result).isFalse();
+    }
+  }
+
+  @Nested
+  class BuildAccessCookies {
+
+    @Test
+    void perSlugCookie_validatesAgainstTheGalleryItWasIssuedFor() {
+      CollectionEntity collection =
+          CollectionEntity.builder().id(1L).slug("gallery").galleryPassword("secret123").build();
+      when(collectionRepository.findBySlug("gallery")).thenReturn(Optional.of(collection));
+
+      List<ResponseCookie> cookies =
+          clientGalleryAuthService.buildAccessCookies(
+              "gallery", "secret123", true, Duration.ofHours(24));
+
+      String slugToken =
+          cookies.stream()
+              .filter(c -> c.getName().equals("gallery_access_gallery"))
+              .findFirst()
+              .orElseThrow()
+              .getValue();
+
+      assertThat(clientGalleryAuthService.validateAccessToken("gallery", slugToken)).isTrue();
     }
   }
 

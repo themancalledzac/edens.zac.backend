@@ -12,7 +12,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
-| 3 — Security hardening | MR 10-11 | not started. **Next up: MR 10.** |
+| 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
@@ -595,6 +595,20 @@ and deliberately left that question open -- see the decision item below.
 - 2026-08-22 — shipped MR 9b, the remaining 12 items (#173). **Wave 2 complete.** Corrected MR 1a's
   stale IN REVIEW heading and MR 11's already-deleted codec item. Added the Working rules section.
   Next: MR 10.
+- 2026-08-23 — merged the doc-only scope update (#174), then opened both Wave 3 MRs. They landed
+  out of order: MR 11 merged first (#176), MR 10 second (#175). No harm done -- the two branches
+  were cut from the same base and touch disjoint code, and MR 11 was deliberately kept off the
+  Progress table and session log so the pair could merge in either order without a conflict. That
+  precaution is the only reason the inversion cost nothing; the next multi-MR wave should keep it.
+  **Wave 3 complete.**
+- 2026-08-23 — MR 10 (#175): decided to keep gallery passwords in plaintext, with the cost of moving
+  off it written up in the MR 10 section. Found that the email and propagation flows use the
+  submitted password rather than the stored one, so they were never part of the plaintext
+  requirement -- the tracker had implied a wider dependency than exists.
+- 2026-08-23 — MR 11 (#176): split `IllegalStateException` into client-actionable 400s and bare
+  `RuntimeException` 500s rather than genericising every message. Reverted one reclassification when
+  its test failed: MR 9b had deliberately made `validateAndEnsureUniqueSlug` a 400 a commit earlier.
+  Recorded the convention in the `handleIllegalState` javadoc. Next: Wave 4, MR 12.
 
 ---
 
@@ -610,10 +624,10 @@ Verified clean, for the record: no SQL injection anywhere in scope (named parame
 
 On the standing X-Forwarded-For question: mostly fixed, one remnant. Every consumer now keys off X-Real-IP first (`RateLimitFilter:129-132`, `AuthController:128-131`, `WebAuthnController:211-214`, `CollectionControllerProd:218-221`), matching the agreed BFF fix. The remnant is bug #3. Delete it and the April finding is closed on the backend side. Whether the BFF strips inbound client-supplied X-Real-IP cannot be proven from this repo — see Appendix C.
 
-## MR 10 — Gallery password subsystem
+## MR 10 — Gallery password subsystem — DONE ([PR #175](https://github.com/themancalledzac/edens.zac.backend/pull/175))
 
-Next up. It follows MR 9a's shape: a mechanical fix bundled with a decision that is not an
-implementer's to make. Take the decision to the repo owner rather than settling it mid-MR.
+It followed MR 9a's shape: a mechanical fix bundled with a decision that is not an implementer's to
+make. The decision is recorded below with the numbers behind it rather than settled silently.
 
 Why this one next: Wave 3 has only two MRs, and MR 10 is the one with a real design question in it.
 MR 11 is mostly small and one of its four items already turned out half-done. Also, the tracker's
@@ -639,9 +653,70 @@ Note on the second item: the file already uses `MessageDigest.isEqual` for both 
 (lines 117 and 182). Only the password equality at line 68 is a plain `.equals()`, so that item is a
 one-line change, not a sweep.
 
-- [ ] Decide and record: gallery passwords are stored and compared in plaintext (`services/ClientGalleryAuthService.java:59-68` and flows). The HMAC fingerprint feature structurally requires recoverable plaintext, so this is a design constraint. Either accept it knowingly and document it, or redesign the fingerprint feature.
-- [ ] At minimum, switch the compare to `MessageDigest.isEqual` for consistency with the rest of the codebase.
-- [ ] Changing a gallery password does not revoke issued per-slug cookies (`ClientGalleryAuthService.java:77-82, 92-122`). The HMAC payload is `slug|expiry` and does not bind the password, so a locked-out visitor keeps access for up to 24h. Bind the password fingerprint, or a version counter, into the payload.
+- [x] Decide and record: gallery passwords are stored and compared in plaintext (`services/ClientGalleryAuthService.java:59-68` and flows). **Decision: keep plaintext.** Recorded in the class javadoc on `ClientGalleryAuthService` and costed out below.
+- [x] At minimum, switch the compare to `MessageDigest.isEqual` for consistency with the rest of the codebase. One-line change at the former line 68; behavior identical, timing no longer leaks the matching prefix length.
+- [x] Changing a gallery password does not revoke issued per-slug cookies. Fixed: the signed payload is now `slug|fingerprint|expiry` via a private `slugTokenPayload` helper shared by `generateAccessToken` and `validateAccessToken`, so the two cannot drift. `generateAccessToken` took a second `password` parameter; its only main caller is `buildAccessCookies`, which already had the value in hand.
+
+### Why the fingerprint and not a version counter
+
+The tracker offered both. The fingerprint needs no schema change and is already computed on every
+read path; a version counter needs a new column, a migration, and an increment wired into all four
+password write sites. Same guarantee, less surface.
+
+### Deploy note
+
+Binding the fingerprint changes the signed payload, so every per-slug gallery cookie already in a
+visitor's browser stops validating at deploy. Visitors inside an active 24h window re-enter the
+password once. The password-fingerprint cookie is unaffected -- it always bound the fingerprint by
+construction, which is why only the per-slug token was broken.
+
+### The plaintext decision, costed
+
+Two live consumers read the *stored* password and would break under a one-way hash:
+
+1. `passwordFingerprint(entity.getGalleryPassword())` -- the shared-unlock cookie group, reached
+   from `CollectionService:545` and `ContentDownloadControllerProd:196` via
+   `GalleryAccessCookies.hasValidAccess`.
+2. `CollectionModel.galleryPassword` (`CollectionService:890`) -- the admin manage page shows the
+   current password so the owner can tell a client what it is.
+
+Two that look like they need plaintext but do not. Both use `request.password()`, the value the
+admin just submitted, never a re-read of storage:
+
+- `sendGalleryPasswordEmail` (`CollectionService:1727`).
+- `propagatePasswordToChildrenIfRequested` (`CollectionService:1767`).
+
+So emailing the password to a client and propagating it to children both survive a hash. Only the
+shared unlock and the admin display do not.
+
+**bcrypt alone** costs the shared-unlock feature outright. bcrypt is salted, so two galleries with
+the same password no longer produce a common key, and a PARENT password stops opening its
+propagated children without a prompt per gallery. The admin display goes too.
+
+**The one design that keeps both** is storing bcrypt for verification *and* persisting the HMAC
+fingerprint as its own column, so the fingerprint is derivable from storage without plaintext. What
+that costs:
+
+- One Flyway migration adding `gallery_password_fingerprint`, backfilled by HMAC-ing the existing
+  plaintext column -- feasible precisely because it is plaintext today -- then clearing the
+  plaintext in the same migration.
+- **Secret rotation becomes destructive.** The fingerprint is keyed by `app.access-token.secret`.
+  Today rotating that secret costs one round of invalidated cookies, because fingerprints are
+  recomputed from plaintext on every read. With the plaintext gone, stored fingerprints computed
+  under the old secret can never be recomputed, so rotation permanently breaks shared unlock for
+  existing galleries unless the old secret is retained forever. This is the non-obvious cost and
+  the main reason to hesitate.
+- The admin page loses "show me the password" and becomes "set a new one", which changes how the
+  owner hands passwords to clients.
+- Touches: 1 migration, `ClientGalleryAuthService`, `CollectionRepository` (row mapper, insert,
+  `updateGalleryPassword`, `saveGalleryAccess`), `CollectionService:890`, `CollectionModel`, plus
+  the frontend manage page. Roughly a day plus a migration against live data.
+
+**Recommendation: not worth it at current exposure.** These passwords gate photo galleries only,
+the gallery owner picks them rather than the client, they carry no account privileges, and the
+database is not internet-reachable. The usual argument for hashing -- users reuse passwords across
+services -- does not apply while the owner is the one choosing them. Revisit if gallery passwords
+ever become client-chosen, or if the database's exposure changes.
 
 ## MR 11 — Public surface hardening — DONE ([PR #176](https://github.com/themancalledzac/edens.zac.backend/pull/176))
 
