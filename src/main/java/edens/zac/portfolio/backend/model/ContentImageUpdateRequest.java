@@ -1,6 +1,8 @@
 package edens.zac.portfolio.backend.model;
 
 import edens.zac.portfolio.backend.types.FilmFormat;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
@@ -33,8 +35,8 @@ public class ContentImageUpdateRequest {
   /** Alt text for accessibility/SEO (editable) */
   private String alt;
 
-  /** Image rating (1-5) */
-  private Integer rating;
+  /** Image rating (0-5, matching the content_image CHECK constraint) */
+  @Min(0) @Max(5) private Integer rating;
 
   /** Location updates using prev/new/remove pattern */
   private CollectionRequests.LocationUpdate locations;

@@ -11,7 +11,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | Wave | MRs | Status |
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
-| 2 — Bugs | MR 5-9 | MR 5 done; MR 6 done; **MR 7 is next** |
+| 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), stacked on #166). **MR 8 is next** |
 | 3 — Security hardening | MR 10-11 | not started |
 | 4 — Comments and docs | MR 12-14 | not started |
 | 5 — Consolidations | MR 15-19 | not started |
@@ -349,13 +349,54 @@ with `BooleanExtractor`). Each new test was run against the unfixed code first a
     in main (only `ImageMetadataTest`). Left in place as the symmetric counterpart of the live
     `XmpProperty.none()`.
 
-## MR 7 — Validation and wire contracts
+## MR 7 — Validation and wire contracts — DONE
 
-- [ ] Bug #4 (high). Admin image-patch endpoint never validates list elements. `controller/admin/AdminController.java:236` uses `@RequestBody @Valid List<ContentImageUpdateRequest>` — `@Valid` on a List validates the list object, never its elements. The repo's own `GlobalExceptionHandler` documents this trap (`config/GlobalExceptionHandler.java:93-99`), and the collaborator route already uses the working form (`List<CollaboratorRequests.@Valid CollaboratorImageUpdate>`, `EditController.java:99`). Also `ContentImageUpdateRequest.rating` has no `@Min`/`@Max` while the collaborator DTO constrains 0-5. Fix both.
-- [ ] Bug #13 (medium). `ContentType.forValue` silently coerces bad values to TEXT. `types/ContentType.java:28-41` is the Jackson `@JsonCreator` for every request carrying a contentType, so a typo'd discriminator becomes a valid TEXT block instead of a 400. Throw, like `CollectionVisibility.forValue` does. `ContentTypeTest.forValue_WithInvalidValue_ShouldReturnText` pins the current wrong behavior — update it with the fix.
-- [ ] Bug #14 (medium). `TextFormType` wire value and stored value disagree. `types/TextFormType.java:37-40` serializes lowercase ("markdown"); `services/ContentService.java:462` stores `name()` (uppercase "MARKDOWN"); `entity/ContentTextEntity.java:25-29` documents lowercase. Store `getValue()` and normalize existing rows if any are uppercase.
-- [ ] Bug #15 (medium). `UserRatingOverrideService` throws `java.lang.SecurityException`, which `GlobalExceptionHandler` does not map. `services/UserRatingOverrideService.java:36-39` — the controller compensates with the repo's only try-catch (`UserRatingOverrideControllerProd.java:46-52`). Throw `AccessDeniedException` (mapped to 403, and what sibling `UserSelectsService:78` uses) and delete the try-catch.
-- [ ] Bug #16 (medium). Selects add endpoint accepts a fully-null body. `controller/prod/UserSelectsControllerProd.java:29, 34` — no `@NotNull`, no `@Valid`, so `{}` reaches `userSelectsService.add(userId, null, null)`. Both sibling controllers validate. Match them.
+Build green: 1272 tests, 0 failures, 0 checkstyle violations (+6). Every new test was run against
+the unfixed code first; five of the six fail there, and the sixth is called out below.
+
+One finding in this MR was wrong as written. See bug #4.
+
+- [x] Bug #4 (high). Admin image-patch endpoint never validates list elements. `controller/admin/AdminController.java:236` uses `@RequestBody @Valid List<ContentImageUpdateRequest>` — `@Valid` on a List validates the list object, never its elements. The repo's own `GlobalExceptionHandler` documents this trap (`config/GlobalExceptionHandler.java:93-99`), and the collaborator route already uses the working form (`List<CollaboratorRequests.@Valid CollaboratorImageUpdate>`, `EditController.java:99`). Also `ContentImageUpdateRequest.rating` has no `@Min`/`@Max` while the collaborator DTO constrains 0-5. Fix both.
+  - PARTLY WRONG AS FILED. The premise -- "`@Valid` on a List validates the list object, never its
+    elements" -- does not hold on Spring Boot 3.5.16. Spring 6.1's `HandlerMethodValidator`
+    cascades into the elements for either placement. Probed directly with a two-endpoint controller
+    under standalone MockMvc: `@Valid List<T>` and `List<@Valid T>` both returned 400 with
+    `HandlerMethodValidationException` for an element violating `@NotNull`. The `@NotNull` on
+    `ContentImageUpdateRequest.id` was already enforced on this route.
+  - The `GlobalExceptionHandler` docblock this finding was derived from asserted the old rule. It
+    is corrected in this MR, so the next reader does not inherit the same false premise.
+  - Genuinely fixed: `ContentImageUpdateRequest.rating` had no bound while the collaborator DTO
+    constrained 0-5 and `content_image` carries `CHECK (rating >= 0 AND rating <= 5)`. Now
+    `@Min(0) @Max(5)`, and the javadoc that said "(1-5)" says 0-5.
+  - The parameter still moved to `List<@Valid ContentImageUpdateRequest>`. That is a readability
+    and consistency change matching `EditController.patchImages`, not a behavior fix.
+  - `updateImages_elementMissingId_is400` passes against the unfixed code. It is kept as coverage
+    and its comment says so.
+- [x] Bug #13 (medium). `ContentType.forValue` silently coerces bad values to TEXT. `types/ContentType.java:28-41` is the Jackson `@JsonCreator` for every request carrying a contentType, so a typo'd discriminator becomes a valid TEXT block instead of a 400. Throw, like `CollectionVisibility.forValue` does. `ContentTypeTest.forValue_WithInvalidValue_ShouldReturnText` pins the current wrong behavior — update it with the fix.
+  - Done. `forValue` throws `IllegalArgumentException` naming the value and the valid options, and
+    tolerates lowercase input the way `CollectionVisibility.forValue` does -- the serialized form
+    is uppercase, so case variance is a client quirk while an unknown name is a real error.
+    `GlobalExceptionHandler` maps `IllegalArgumentException` to 400.
+  - `ContentTypeTest.forValue_WithInvalidValue_ShouldReturnText` pinned the coercion and is
+    replaced by a throwing test, a case-insensitivity test, and one asserting the message names the
+    valid options. The now-unused `@Slf4j` came off the enum.
+- [x] Bug #14 (medium). `TextFormType` wire value and stored value disagree. `types/TextFormType.java:37-40` serializes lowercase ("markdown"); `services/ContentService.java:462` stores `name()` (uppercase "MARKDOWN"); `entity/ContentTextEntity.java:25-29` documents lowercase. Store `getValue()` and normalize existing rows if any are uppercase.
+  - Done. `createTextContent` stores `getValue()` ("markdown") and defaults to "plain" instead of
+    "PLAIN". Nothing in Java compares the column -- every read path hands it straight to the
+    client -- so the only symptom was two different spellings on the wire depending on which path
+    created the block.
+  - `V57__lowercase_text_format_type.sql` lowercases existing `content_text.format_type` rows.
+    Idempotent; rows already lowercase are untouched. Table and column verified against
+    `ContentRepository`'s INSERT before writing the migration.
+- [x] Bug #15 (medium). `UserRatingOverrideService` throws `java.lang.SecurityException`, which `GlobalExceptionHandler` does not map. `services/UserRatingOverrideService.java:36-39` — the controller compensates with the repo's only try-catch (`UserRatingOverrideControllerProd.java:46-52`). Throw `AccessDeniedException` (mapped to 403, and what sibling `UserSelectsService:78` uses) and delete the try-catch.
+  - Done. `UserRatingOverrideService.upsert` throws `AccessDeniedException` (mapped to 403 by
+    `GlobalExceptionHandler`, and what sibling `UserSelectsService` uses) instead of
+    `java.lang.SecurityException`, which nothing mapped. The repo's only controller try-catch is
+    gone, along with the `@Slf4j` that existed only to log inside it.
+- [x] Bug #16 (medium). Selects add endpoint accepts a fully-null body. `controller/prod/UserSelectsControllerProd.java:29, 34` — no `@NotNull`, no `@Valid`, so `{}` reaches `userSelectsService.add(userId, null, null)`. Both sibling controllers validate. Match them.
+  - Done. `AddSelectRequest` constrains both fields `@NotNull` and the parameter takes `@Valid`,
+    matching `UserFollowsControllerProd`. `{}` now 400s instead of reaching
+    `userSelectsService.add(userId, null, null)`.
 
 ## MR 8 — Data correctness
 

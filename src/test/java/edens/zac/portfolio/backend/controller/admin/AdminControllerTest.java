@@ -139,6 +139,43 @@ class AdminControllerTest {
   }
 
   @Test
+  @DisplayName("PATCH /content/images rejects an element missing its required id")
+  void updateImages_elementMissingId_is400() throws Exception {
+    // Pins behavior that already worked: on Spring Boot 3.5, HandlerMethodValidator cascades
+    // @Valid into list elements whichever position it is written in, so the @NotNull on id was
+    // always enforced here. The parameter was rewritten to List<@Valid ...> for clarity and to
+    // match EditController.patchImages, not to change this.
+    String body = "[{\"title\":\"no id\"}]";
+
+    mockMvc
+        .perform(
+            patch("/api/admin/content/images")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest());
+
+    verify(contentService, never()).updateImages(any(List.class));
+  }
+
+  @Test
+  @DisplayName("PATCH /content/images rejects a rating outside the 0-5 the column allows")
+  void updateImages_ratingOutOfRange_is400() throws Exception {
+    // The real half of tracker bug #4: ContentImageUpdateRequest.rating carried no bound while the
+    // collaborator DTO constrained 0-5, so the admin route accepted values the CHECK constraint
+    // on content_image would reject.
+    String body = "[{\"id\":1,\"rating\":9}]";
+
+    mockMvc
+        .perform(
+            patch("/api/admin/content/images")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest());
+
+    verify(contentService, never()).updateImages(any(List.class));
+  }
+
+  @Test
   @DisplayName("PATCH /content/images should update images with people")
   void updateImages_shouldUpdateImagesWithPeople() throws Exception {
     // Arrange

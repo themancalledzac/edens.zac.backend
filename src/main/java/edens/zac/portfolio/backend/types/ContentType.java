@@ -2,9 +2,7 @@ package edens.zac.portfolio.backend.types;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 public enum ContentType {
   IMAGE,
   TEXT,
@@ -16,18 +14,25 @@ public enum ContentType {
     return this.name();
   }
 
+  /**
+   * Jackson factory for every request carrying a contentType.
+   *
+   * <p>Throws rather than defaulting. This used to coerce anything unrecognised to TEXT, so a
+   * typo'd discriminator produced a valid TEXT block instead of a 400 and the caller never learned
+   * the value was wrong. Matches {@code CollectionVisibility.forValue}, including its tolerance of
+   * lowercase input -- the serialized form is uppercase, so case variance is a client quirk while
+   * an unknown name is a real error.
+   */
   @JsonCreator
   public static ContentType forValue(String value) {
-    if (value == null) {
-      log.warn("Null ContentType value, defaulting to 'Text'");
-      return TEXT;
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException("ContentType value cannot be blank");
     }
-
     try {
-      return ContentType.valueOf(value);
+      return ContentType.valueOf(value.toUpperCase());
     } catch (IllegalArgumentException e) {
-      log.warn("Invalid ContentType value: {}, defaulting to TEXT", value);
-      return TEXT;
+      throw new IllegalArgumentException(
+          "Invalid ContentType: " + value + ". Valid values: IMAGE, TEXT, GIF, COLLECTION.");
     }
   }
 }
