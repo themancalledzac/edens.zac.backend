@@ -259,6 +259,10 @@ public class AdminUserController {
    * casing) succeeds. A {@code null}, empty, or omitted email leaves it unchanged (whitespace-only
    * is rejected with {@code 400} by the {@code @Email} constraint before this method runs).
    *
+   * <p>Setting a status outside the invite lifecycle ({@code INVITED} / {@code ACTIVE}) also
+   * invalidates the user's outstanding invites, so disabling an account cannot be undone by a link
+   * issued before it.
+   *
    * @param id the {@code app_user.id}
    * @param request the new email (nullable = unchanged), display name (nullable), status
    *     (required), and description (nullable)
@@ -294,6 +298,7 @@ public class AdminUserController {
     }
     appUserRepository.updateName(id, request.displayName());
     appUserRepository.updateStatus(id, request.status());
+    userInviteService.invalidateInvitesForStatus(id, request.status());
     appUserRepository.updateDescription(id, request.description());
     AppUserEntity updated = appUserRepository.findById(id).orElseThrow();
     return ResponseEntity.ok(
