@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **5 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) and S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)) done; S-1 scoping found S-7 and split off S-8, and S-7's verification found S-9. Both PROVEN-untested items now redden under their mutations. **next: S-7**, the highest remaining severity and the only live hole left -- a DISABLED user holding an unexpired invite re-activates their own account. Fully specified 2026-08-24; the fix is an `INVITED` allowlist, not a product call. |
+| [Open security findings](#open-security-findings) | **3 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)) and S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)) all done. **The last live hole is closed** -- S-7 shut the invite re-activation path at both ends. What remains is S-5, S-6 and S-8, all LOW and all defense-in-depth. **next: S-8**, because it lands in the exact lines S-9 just changed and the tracker already argued the two belong together. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **5 open** (0 high) — see below. S-1 through S-4 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1, S-9 opened by S-7's verification. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
+| Security findings | **3 open** (0 high) — see below. S-1 through S-4 closed 2026-08-24; S-7 and S-9 closed 2026-08-24, S-7 taking the last live hole with it. Remaining S-5/S-6/S-8 are all LOW | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -144,43 +144,20 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   (`isDownloadAuthorized` uses `isClient`). Fix the docblock and decide whether the admin sentinel
   should apply to all three.
 
-- [ ] **S-7 (MEDIUM, new 2026-08-24). Two more session-minting paths read no status.** Found while
-  scoping S-1, which named only `AuthController.login`. There are **three** callers of
-  `sessionService.create`, not one, and S-1 guarded the first:
-  `WebAuthnService.finishLogin` resolves the user by WebAuthn handle and mints an `mfa=true` session
-  with no status read, so a DISABLED account holding a registered passkey still gets a 200 and a
-  cookie. `InviteController.accept` is worse than unguarded -- it calls
-  `appUserRepository.updateStatus(userId, ACTIVE)` unconditionally, so a DISABLED user who still
-  holds an unexpired, unused invite token **re-activates their own account** and is auto-logged in.
-  `UserInviteService.redeem` checks the token hash, expiry and single-use flag, and nothing about
-  the user.
-  *Severity is MEDIUM, not HIGH, and the reason is S-1:* `SessionService.resolve` reads status fresh
-  on every request, so neither path grants access -- the passkey session is dead on its next
-  request. The invite path is the real one, because it changes the column rather than riding a stale
-  read. Precondition is an outstanding invite (7-day TTL) against a since-disabled account.
+- [x] **S-7 (MEDIUM). Two more session-minting paths read no status.** **DONE**
+  ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)). `InviteController.accept`
+  and `WebAuthnService.finishLogin` both read status before minting. **The item's specified fix was
+  wrong and shipping it verbatim would have broken a working feature**: it said "require `INVITED`",
+  but `AdminUserController.regenerateInvite` mints a password-reset link for an **ACTIVE** user who
+  redeems through that same endpoint, so an `INVITED`-only allowlist kills admin-issued password
+  reset. Shipped `{INVITED, ACTIVE}` -- still an allowlist, and still not a `!= DISABLED` denylist,
+  because `UserStatus.PERSON` exists. Taught working rule 18.
 
-  **COLD, fully re-verified against `4abb28e` 2026-08-24.** Every premise holds, with anchors:
-  `sessionService.create` has exactly three callers -- `AuthController.java:94` (guarded by S-1),
-  `InviteController.java:101`, `WebAuthnService.java:209`. `WebAuthnService.finishLogin` goes
-  `findByWebauthnUserHandle` -> `sessionService.create(user, true, ...)` with no status read between.
-  `InviteController.accept` calls `updateStatus(userId, UserStatus.ACTIVE)` unconditionally at
-  `:94`, seven lines before minting. S-1's guard is live at `SessionService.java:149`
-  (`if (user.getStatus() != UserStatus.ACTIVE) return Optional.empty()`), which is what makes the
-  passkey half harmless and the invite half real. `INVITE_TTL_DAYS = 7` confirmed at
-  `UserInviteService.java:21`.
+  Review moved the whole flow out of the controller: it now lives in `UserInviteService.accept`
+  returning an `AcceptResult`, with the status rule as a named predicate `mayAcceptInvite` whose
+  javadoc carries the reasoning. Taught working rule 19. Full write-up in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-7-outcome-2026-08-24----status-is-read-before-a-session-is-minted).
 
-  **The fix is not blocked on a product call, and the reason is `UserStatus.INVITED`.** The item
-  reads as though "should accepting an invite activate a DISABLED user?" is an open question. It is
-  not -- the enum already answers it. The sanctioned lifecycle is `INVITED -> ACTIVE`:
-  `AdminUserController:123` creates invited users as `INVITED`, and the re-invite path at
-  `AdminUserController:224` deliberately sets a user *back* to `INVITED` before issuing a fresh
-  token. So an admin who wants a disabled user re-admitted already has a supported route, and
-  `accept` flipping `DISABLED -> ACTIVE` is simply a state transition the machine does not sanction.
-  The fix is to require `INVITED` at the flip -- an allowlist, the same shape S-1 shipped, not a
-  `<> DISABLED` denylist.
-
-  Both halves are one MR: same finding, same file pair, and the WebAuthn guard is three lines. Do
-  **not** fold in S-9 (below), which is the same hole's other end and a different mechanism.
 - [ ] **S-8 (LOW, split out of S-1 2026-08-24). `updateStatus` does not revoke live sessions.**
   `AppUserRepository.updateStatus` is a bare `UPDATE` with no session revocation. S-1 shipped the
   `resolve` guard and deliberately left this out, which was the scoping the item asked for: with the
@@ -188,7 +165,7 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   narrows the window from one request to zero and tidies `user_session` rows that will never resolve
   again. Defense in depth, not a live hole.
 
-- [ ] **S-9 (LOW, new 2026-08-24). Disabling a user does not invalidate their outstanding invites.**
+- [x] **S-9 (LOW). Disabling a user does not invalidate their outstanding invites.** **DONE** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Shipped as `UserInviteService.invalidateInvitesForStatus`, which reuses S-7's `mayAcceptInvite` predicate, so the "may this account hold a live invite" rule has one definition serving both the redemption site and the admin handler rather than two that can drift (working rule 14). Keyed on the resulting status, not on a transition, so re-applying a non-eligible status still sweeps an invite issued in between. **Zero churn to existing tests** -- all four pre-existing `invalidateInvites` assertions patch to INVITED or ACTIVE, so none observe the new call. Full write-up in the [history file](2026-08-22-backend-cleanup-history.md#s-9-outcome-2026-08-24----invites-die-with-the-account).
   Found while verifying S-7's precondition. `UserInviteService.invalidateInvites` exists and works,
   and has **exactly one caller**: `AdminUserController:292`, on the email-change path only
   (`existing.getStatus() == UserStatus.INVITED && !email.equals(existing.getEmail())`). No status
@@ -506,6 +483,50 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     because the rule went unenforced. Check what the schema would do unaided before inventing a
     policy -- `role_member.user_id` is `ON DELETE CASCADE`, so dropping was already the default and
     repointing was the deviation. Log the count at WARN so the disposition is visible.
+
+18. **An allowlist's form and its membership are two claims. The item usually only checked one.**
+    Rule 16 said to grep the callers of the thing being guarded. S-7 shows the other half: once you
+    know where the guard goes, you still have to enumerate who legitimately arrives there.
+
+    S-7's item was specified carefully -- COLD, re-verified against `4abb28e`, every premise
+    anchored -- and it still named the wrong allowlist. It said "require `INVITED`", reasoning from
+    the onboarding path alone. But `AdminUserController.regenerateInvite` mints a password-reset
+    link for an **ACTIVE** user who completes the same accept flow, and both its docblock and
+    `UserInviteService.regenerateInvite`'s say so in as many words. Shipping the item as written
+    would have closed the hole by silently breaking admin-issued password reset -- the same failure
+    shape rule 17 caught in S-2, arriving through a different door.
+
+    So before writing an allowlist: grep the endpoint for every path that reaches it and read what
+    those callers say about who they serve. The membership is a claim about the product, and the
+    docblocks on the calling paths are where that claim is actually recorded. The *form* (allowlist,
+    not denylist) was the part the item got right, and it mattered independently: `UserStatus` has a
+    fourth value, `PERSON`, so `!= DISABLED` and `{INVITED, ACTIVE}` are not the same set.
+
+    Corollary, and the reason this is worth a rule rather than a note: a wrong allowlist fails
+    *closed*, so it does not show up as a security regression. It shows up weeks later as "password
+    reset is broken", far from the MR that caused it. Only the test that asserts the legitimate case
+    catches it, which is why `activeUserAcceptsForPasswordReset` exists.
+
+19. **Controllers map results to status codes. Everything else is a service, and no `//` inside
+    either.** Both halves came from review of S-7 and S-9, and both were already written down --
+    `.claude/CLAUDE.md` puts business logic in `services/`, and working rule 12 governs comments.
+    They are here because knowing a rule and applying it under momentum are different things.
+
+    The guard, the three writes and the session mint had all accumulated inside
+    `InviteController.accept` simply because that is where the existing code sat. Moving them to
+    `UserInviteService.accept` -- returning an `AcceptResult` the controller maps in a switch --
+    dropped `PasswordEncoder`, `SessionService`, `@Transactional` and `@Slf4j` out of the controller
+    entirely. The test suite followed the logic rather than staying put: the behavioral cases moved
+    to `UserInviteServiceAcceptTest`, and `InviteControllerTest` shrank to status mapping and
+    validation. **A controller test that has to mock a `PasswordEncoder` is telling you the logic is
+    in the wrong file.**
+
+    On comments: rule 12 says promote a fact about the method, keep a warning about a line. The
+    comment blocks written into S-7 and S-9 were facts about the method, dressed as line warnings
+    because they sat next to an `if`. The right home was the docblock -- or better, a named
+    predicate. `mayAcceptInvite(status)` carries in its name what five lines of comment were
+    carrying, and unlike a comment it cannot drift from the code, because it *is* the code. **Prefer
+    naming the rule over explaining it.**
 
 ## Ordering note
 
@@ -901,6 +922,8 @@ shipped.) The verbose pre-split log is in the
   `UserStatus.INVITED` turns out to make the fix a specified allowlist rather than the product call
   the item implied. That verification opened **S-9** (disabling a user does not invalidate their
   outstanding invites; `invalidateInvites` has exactly one caller, the email-change path). Next: S-7.
+
+- 2026-08-24 — shipped **S-7** ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), the last live hole on the board, and shipped **S-9** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Both halves of S-7 in one MR as specified. **The item's stated fix was wrong**: "require `INVITED`" would have broken admin-issued password reset, which redeems through the same endpoint for an ACTIVE user -- caught by reading `regenerateInvite`'s docblock before writing the guard, not after. Shipped `{INVITED, ACTIVE}`; the allowlist *form* still mattered because `UserStatus.PERSON` exists. Added working rule 18. Review then moved both guards out of their controllers into `UserInviteService` and replaced the comment blocks with a named `mayAcceptInvite` predicate, which incidentally closed the S-7/S-9 drift risk the S-9 item had flagged — one rule, two call sites. Added working rule 19. Suite 1,317 -> 1,328. Also, unrelated to the board: an EC2 deploy failed on a full 8GB root volume, fixed with a disk preflight in `deploy.sh` ([#198](https://github.com/themancalledzac/edens.zac.backend/pull/198), [#201](https://github.com/themancalledzac/edens.zac.backend/pull/201)) — the threshold in #198 was set by guess, aborted a legitimate deploy, and #201 corrects it from measured numbers and makes it overridable. Next: S-8.
 
 ---
 

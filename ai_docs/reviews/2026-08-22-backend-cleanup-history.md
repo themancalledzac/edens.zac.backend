@@ -1844,6 +1844,148 @@ S-3, and for the opposite reason: S-3 had no file to join.
 
 These were closed-out write-ups still sitting in the tracker. Content unchanged.
 
+## S-7 outcome, 2026-08-24 -- status is read before a session is minted
+
+Shipped as [#199](https://github.com/themancalledzac/edens.zac.backend/pull/199). Both halves in one
+MR, as the item specified. Suite 1,317 -> 1,322.
+
+### The item's specified fix was wrong, and wrong in the direction that hides
+
+The item was as carefully written as anything on this board: marked COLD, re-verified against
+`4abb28e`, every premise anchored to a `file:line`. It said the fix was "require `INVITED` at the
+flip -- an allowlist, the same shape S-1 shipped, not a `<> DISABLED` denylist", and it explicitly
+argued this was *not* a product call because `UserStatus.INVITED` already answers it.
+
+The form was right. The membership was not. `AdminUserController.regenerateInvite` mints a
+password-reset link for an **ACTIVE** user, who completes the same accept flow -- its own docblock
+says "a resend for an `INVITED` user, a password-reset for an `ACTIVE` one (both complete the same
+accept flow)", and `UserInviteService.regenerateInvite`'s says the same. An `INVITED`-only allowlist
+would have closed the security hole by breaking admin-issued password reset.
+
+That failure mode is worse than it sounds, which is why it became working rule 18: **a wrong
+allowlist fails closed.** It produces no security regression and no error at the guard. It surfaces
+later, somewhere else, as "password reset stopped working", with nothing pointing back at the MR
+that caused it. The only thing that catches it at review time is a test asserting the *legitimate*
+case, which is why `activeUserAcceptsForPasswordReset` exists and why it is worth its lines.
+
+Shipped `{INVITED, ACTIVE}`. The allowlist form still earned its keep independently: `UserStatus` has
+a fourth value, `PERSON` (tag-only identity, no login account, added V35), so `!= DISABLED` and
+`{INVITED, ACTIVE}` are genuinely different sets and the denylist would let a PERSON row become a
+real account.
+
+### The WebAuthn half granted nothing, and was still worth closing
+
+`finishLogin` minted an `mfa=true` session for any account with a registered passkey, reading no
+status. S-1's `SessionService.resolve` guard made that session dead on its next request, so nothing
+was granted -- which is exactly why it stayed invisible. It is closed anyway: a guard at the read
+chokepoint covers entry points you failed to enumerate (working rule 16), but that is a reason to
+keep the chokepoint, not a licence to mint sessions the system will refuse.
+
+Worth recording: `WebAuthnServiceTest`'s `admin` fixture had **no status set at all**. The happy-path
+test only passes after adding `.status(ACTIVE)`, which is a small proof that the guard is real
+rather than decorative.
+
+### Review moved it all out of the controller
+
+The first draft put the guard, the three writes and the session mint inside `InviteController.accept`
+-- not by decision, but because that is where the surrounding code already sat. Review called it,
+correctly, on two counts: logic does not belong in a controller, and the guard carried a five-line
+inline comment.
+
+The flow now lives in `UserInviteService.accept`, returning an `AcceptResult` the controller maps in
+a switch expression. `PasswordEncoder`, `SessionService`, `@Transactional` and `@Slf4j` all left the
+controller. The status rule became `mayAcceptInvite`, a named predicate carrying its reasoning in a
+docblock instead of a comment block.
+
+The tests moved with the logic rather than staying put -- the behavioral cases to a new
+`UserInviteServiceAcceptTest`, leaving `InviteControllerTest` with status mapping and validation
+only, 12 tests down to 7. The tell was there in the original: **a controller test that mocks a
+`PasswordEncoder` is reporting that the logic is in the wrong file.** Taught working rule 19.
+
+### Mutation results (working rule 15)
+
+Run twice -- once against the original controller-resident guard, and again after the refactor moved
+it, because relocating a guard invalidates its earlier verification.
+
+| Mutation | Reddens |
+|---|---|
+| `mayAcceptInvite` always true | `disabledUserIsRejectedAndNothingIsWritten`, `personRowIsRejected` |
+| Narrow it to `INVITED` alone | `activeUserAcceptsForPasswordReset` |
+| Rewrite as `!= DISABLED` | `personRowIsRejected` |
+| Delete the `finishLogin` check | `finishLoginOnNonActiveAccountIsRejectedAndCreatesNoSession` |
+
+Restored-source run confirmed green after each, per rule 15's stale-bytecode note.
+
+### S-9 came out of it with one predicate instead of two
+
+S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)) had flagged a drift risk:
+the "may this account hold a live invite" rule would exist in two files with no shared definition.
+Extracting `mayAcceptInvite` for S-7's refactor gave S-9 somewhere to call, so
+`invalidateInvitesForStatus` reuses it. One rule, two call sites, no drift -- resolved rather than
+deferred, and the reason S-9 is now stacked on S-7.
+
+
+## S-9 outcome, 2026-08-24 -- invites die with the account
+
+Shipped as [#200](https://github.com/themancalledzac/edens.zac.backend/pull/200), its own MR as
+scoped, stacked on S-7. Suite 1,322 -> 1,328.
+
+### The cost report the item was owed
+
+The instruction was to leave the admin status endpoint alone and report what invalidating invites
+there would cost before doing it. Measured, not estimated:
+
+| | |
+|---|---|
+| Source | 8 lines across two files. No new dependency -- `userInviteService` was already injected into `AdminUserController` and already called in this very method (the email-change branch). |
+| Query | One extra `UPDATE`, no new shape. `updateUser` is `@Transactional` and `invalidateInvitesForStatus` joins it. |
+| Existing test churn | **Zero.** Verified by running `AdminUserControllerTest` before touching any test: 46 green. |
+| New tests | Three. |
+
+The zero-churn result is the interesting one and it was not luck. All four pre-existing
+`invalidateInvites` assertions patch to `INVITED` or `ACTIVE`, so none of them can observe a
+DISABLED-triggered call. The existing suite already pinned the *negative* side of this rule, which is
+why the "sweep on every status write" mutation reddens five tests -- four of which nobody wrote for
+this MR. Guard tests written months earlier did real work here.
+
+### Keyed on the resulting status, not on a transition
+
+The obvious implementation compares before and after and fires on `not-DISABLED -> DISABLED`. That
+misses a window: an invite issued while the account was *already* disabled is never swept. Keying on
+the resulting status covers it, and costs nothing -- `invalidateUnusedForUser` affects zero rows when
+there is nothing to kill. `reDisablingAlreadyDisabledUserStillSweepsInvites` reddens under exactly
+the transition-test rewrite, so the choice is pinned rather than merely commented.
+
+### The drift risk resolved instead of deferred
+
+The item's own text warned that S-7 and S-9 would encode the same "may this account hold a live
+invite" rule in two files with no shared definition -- working rule 14's failure, arriving by
+construction rather than by accident. The first draft did exactly that.
+
+Review of S-7 forced the rule out of `InviteController` and into a named predicate,
+`UserInviteService.mayAcceptInvite`. That gave S-9 something to call:
+`invalidateInvitesForStatus` tests eligibility through the same predicate the redemption site uses.
+One rule, two call sites, and the two cannot disagree. This is why S-9 ended up stacked on S-7
+rather than independent -- worth the merge-order cost, and the layering fix and the drift fix turned
+out to be the same edit.
+
+### Mutation results (working rule 15)
+
+| Mutation | Reddens |
+|---|---|
+| Never sweep | `invalidateInvitesForStatusSweepsWhenLeavingTheInviteLifecycle`, `invalidateInvitesForStatusSweepsForPersonToo` |
+| Sweep unconditionally | `invalidateInvitesForStatusLeavesEligibleAccountsAlone` |
+| (at the controller) delete the delegating call | the two `AdminUserControllerTest` delegation tests |
+
+### S-8 is now the natural next item
+
+`AppUserRepository.updateStatus` still does not revoke live sessions. It is the same shape as this,
+in the same handler, on the lines S-9 just changed. The tracker argued from the start that "disabling
+an account revokes its live sessions and its outstanding invites" is one coherent change and that two
+MRs touching the same handler is worse than one. They were split on instruction; the consequence is
+that S-8 now edits code written today. Do it while it is fresh.
+
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked
