@@ -18,7 +18,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173) |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). One residual carried forward, below. |
 | 4 — Comments and docs | MR 12-14 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock item is still open. |
-| 5 — Consolidations | MR 15-19 | MR 15 #2 **merged** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), verified 2026-08-24) -- 17 guards, not 18, and the guardrail's premise was false. Taught working rule 13. **next: MR 15 #6** (`currentUserId`, which is four copies not three -- read the re-derived table and its guardrail). |
+| 5 — Consolidations | MR 15-19 | MR 15 #2 and #6 **done** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), #6 below). #6 also closed the `PersonRepository` carry and taught working rule 14. **next: MR 16** (rate limiters, AWS config, CloudFront invalidation). |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
@@ -38,8 +38,9 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 ## Carried forward out of closed waves
 
 Reconciled 2026-08-23 during the history split. Waves 1-3 read "complete" but held five unticked
-items; these five are the ones that are still real. Everything else that was unticked there was
-verified done and ticked off in the history file.
+items that were still real. Four remain: the `PersonRepository` entry was closed by MR 15 #6 on
+2026-08-24 (decided, not deleted -- see the history file). Everything else that was unticked there
+was verified done and ticked off in the history file.
 
 - [ ] **Wave 3 residual — chunked bodies bypass the public body cap.** `RateLimitFilter` reads
   `getContentLengthLong()`, which is -1 for `Transfer-Encoding: chunked`, so a chunked request
@@ -48,20 +49,6 @@ verified done and ticked off in the history file.
   client-visible behavior change, more code). Verify first whether anything in front -- CloudFront
   or the BFF -- already normalizes chunked to a fixed length, which would close this for free.
   Decide before adding code.
-- [ ] **`PersonRepository.findAccountUserIdsByIds` is still there and its deletion precondition is
-  false.** *(Third carry: MR 1 -> MR 5 -> here. It is not being avoided, it is misfiled -- it was
-  entered as a deletion and it is actually a missing authorization check. Do it as security work or
-  drop it from the board, but stop re-deferring it as dead code.)* MR 1 deferred it to MR 5 pending "the only-accounts-get-grants rule is confirmed enforced
-  elsewhere". It is not enforced anywhere: both `RoleRepository.addMember` call sites
-  (`AdminRoleController`, `AdminUserController`) pass a path-variable user id straight through. So
-  this is a live gap, not dead code. Belongs with MR 15 or a security follow-up, not a deletion MR.
-
-  **Fourth carry as of 2026-08-24.** MR 15 opened and #2 shipped without touching it, which is the
-  exact pattern the session-log rule is meant to catch. It is not blocked and it is not hard -- it
-  is that nobody has decided whether it is a security fix or a non-item. **It does not get carried
-  again.** Either it goes in with MR 15 #6, which is already in these same admin controllers
-  (`AdminRoleController.addMember` at 152 and `AdminUserController` at 334 are the two unguarded
-  call sites), or it comes off the board. Decide when picking up #6, and record which.
 - [ ] **Four main-dead, test-live members owed to MR 25** (deleting them means editing test call
   sites, which is why MR 1a deferred them): `ContentService.resolveCollectionDownloadEntries` 2-arg
   overload (5 test sites), `DownloadResolution.extension` -- written, never read, docblock also
@@ -237,6 +224,23 @@ Learned while doing the MRs; they apply to every item still open, not just the o
     evidence of a string, not of a guard. Confirm a count by making the change and watching it come
     out even, not by trusting the tally that motivated it.
 
+14. **Re-derive a duplication item by its code shape, not its helper name.** Rule 13 said a
+    re-derivation needs its own verification. MR 15 #6 shows what that verification has to look
+    for. The item's re-derived table was accurate -- four declarations, seven call sites, all
+    confirmed before editing and even at the end -- and it was still incomplete, because it was
+    built by grepping the name `currentUserId`.
+
+    Grepping the *body* instead (`SecurityContextHolder.getContext().getAuthentication()`) finds
+    two more copies of the same read under different names:
+    `SyntheticCollectionResolver.currentPrincipal` is byte-identical but returns the principal, and
+    `CollectionService.viewerMaySeeHidden` inlines it with an extra null check. A copy that was
+    renamed, or inlined, or that returns one field more, is still a copy -- and it is the one a
+    name-grep will never surface. Consolidation items are about duplicated *code*, so the
+    re-derivation has to be keyed on the code.
+
+    The corollary for counts: "four copies" and "four helpers named X" are different claims. Say
+    which one the number is.
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collided, and it was handled: `PersonRepository.deleteById` was listed under both MR 1 and bug #1, and was held until MR 5 because it had a live caller -- dangerous code, not dead code. It shipped with MR 5 and is gone.
@@ -329,56 +333,23 @@ and each needs its claim verified before acting (working rule 8).
 Consolidation #1 (one client-IP resolver) ships with bug #3 in MR 5.
 
 - [x] #2. One SecurityConfig matcher instead of the copy-pasted `isRealUser` guards. **DONE** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)). **17 guards, not 18** -- the re-derivation counted a javadoc line in `UserShareControllerProd`. The matcher went OUTSIDE the enforce-authz toggle, next to `/api/auth/me`: the guards it replaced were unconditional, so that is the only behavior-preserving placement, and the guardrail's "costs a dev convenience" was false -- dev already required a session on these routes. A flyby now gets 403 rather than 401 there, by decision. Java-only main -42; 28 controller-level assertions became `config/UserRoutesAuthorizationWebMvcTest`. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-2-outcome-2026-08-23).
-- [ ] #6. `currentUserId` is duplicated. **NEXT.**
+- [x] #6. `currentUserId` is duplicated. **DONE.** Four copies became `config/CurrentUser.userId()`, joining `ClientIp` and `GalleryAccessCookies` as a static helper next to the security plumbing. The item's "move it onto `AuthPrincipal`" does not work -- that is a Spring-free record and this is a static context read. The null contract was left alone and costed instead: the four admin sites break local dev only, the two read-surface sites 500 a logged-out visitor, so it is two problems and not one. Java-only main -26 lines / +36 words. Two more copies of the same read were found and deliberately not folded in (`SyntheticCollectionResolver.currentPrincipal`, `CollectionService.viewerMaySeeHidden`) -- see rule 14. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-6-outcome-2026-08-24).
 
-  **Re-derived 2026-08-24 on `9d15784`. It is FOUR copies, not three, and the fourth is not a
-  controller:**
+### The MR 15 #6 follow-up, left open on purpose
 
-  | File | Helper | Callers | Doc said |
-  |---|---|---|---|
-  | `controller/admin/AdminUserController` | 472 | 234, 334 | correct |
-  | `controller/admin/AdminRoleController` | 170 | 69, 124, 152 | correct |
-  | `controller/prod/ContentDownloadControllerProd` | 200 | 191 | 196-199 -- drifted |
-  | **`services/CollectionService`** | **549** | **538** | **missed entirely** |
+- [ ] Fold the last two copies of the same static read into `CurrentUser`: add
+  `CurrentUser.principal()`, have `userId()` delegate, and rewrite
+  `SyntheticCollectionResolver.currentPrincipal` (identical body, returns the principal) and
+  `CollectionService.viewerMaySeeHidden` (the read inlined, plus a `p.userId() != null` check
+  because it passes the whole principal to `hasAtLeast`). Mechanical and behavior-preserving. Out
+  of MR 15 #6's scope because the item said four.
 
-  All four bodies are byte-identical:
-
-  ```java
-  var auth = SecurityContextHolder.getContext().getAuthentication();
-  return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
-  ```
-
-  The docblocks are not, and the difference is the whole item. The two admin copies say "or null in
-  dev where the gate is open"; the two read-surface copies say "or null when the request is
-  anonymous". **Both nulls are load-bearing, for different reasons** -- see the guardrail.
-
-  The item's stated fix ("move it onto `AuthPrincipal`") does not survive contact with the code.
-  `AuthPrincipal` is a pure record in `model/` with no Spring dependency, and this helper is a
-  static `SecurityContextHolder` read, not a property of a principal instance. Putting it there
-  drags Spring Security's context into a model type. Decide the home as part of the MR -- a small
-  `config/` or `services/` helper next to the other security plumbing is the likelier answer.
-
-### Guardrail for MR 15 #6: both nulls are deliberate
-
-The consolidated helper must stay null-returning. It is tempting -- especially straight off MR 15
-#2, which proved a chain matcher guarantees a principal -- to make it `orElseThrow` on the grounds
-that every caller is now behind a gate. It is not, and the two null paths are different:
-
-- `AdminUserController` / `AdminRoleController` are `/api/admin/**`, which falls through to
-  `permitAll` in dev because `app.admin.enforce-authz=false`. Null there is the dev path, and these
-  values feed audit columns. Throwing breaks local admin writes.
-- `ContentDownloadControllerProd` / `CollectionService` sit on the public read surface, where
-  anonymous is a legitimate caller. `CollectionService.isGalleryAccessAuthorized` in particular
-  treats null as "not signed in, fall through to the gallery password cookie". Throwing turns an
-  anonymous gallery visit into a 500.
-
-**Leave the null contract alone and report what tightening it would cost.** If the four call sites
-genuinely want different behavior, that is a finding worth writing down, not a refactor to slip into
-a consolidation MR.
-
-Do not fold this into `AuthPrincipal.isRealUser` either. They look alike and are not: `isRealUser`
-tests an injected `@AuthenticationPrincipal` argument, this reads the static holder. After MR 15 #2
-`isRealUser` has six call sites left, all in `/api/auth/**`.
+  Already checked, do not re-flag: grepping the read shape
+  (`getContext().getAuthentication()`) across `src/main` returns six sites. `CurrentUser` is the
+  consolidated one, these two are the follow-up, and the remaining three are genuinely different
+  uses -- `CollaboratorAccessInterceptor` resolves an access level, `FlybySessionFilter` tests
+  whether an authentication already exists, and `AuthController` serves `/api/auth/me`. None of
+  the three extracts a user id.
 
 ## MR 16 — Infrastructure classes
 
@@ -500,6 +471,17 @@ either make it real work or drop it. The verbose pre-split log is in the
 - 2026-08-23 — shipped MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) and the tracker/history split ([#186](https://github.com/themancalledzac/edens.zac.backend/pull/186)); merged [#185](https://github.com/themancalledzac/edens.zac.backend/pull/185). Added working rules 11 and 12. Reconciled Waves 1-3 and surfaced 8 live items from "complete" waves. Re-derived MR 15 #2 (17 guards -> 18, one controller in the wrong package). Next: MR 15 #2.
 - 2026-08-23 — shipped MR 15 #2 ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)); merged [#188](https://github.com/themancalledzac/edens.zac.backend/pull/188). One matcher replaced **17** guards -- yesterday's re-derivation had counted a javadoc line, and its guardrail's dev-convenience premise was false, so the placement decision it framed as a tradeoff had only one behavior-preserving answer. Added working rule 13. Wave 5's first item is closed. Next: MR 15 #6 (`currentUserId` onto `AuthPrincipal`).
 - 2026-08-24 — verified [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189) merged (`9d15784`). Re-derived MR 15 #6 and it is **four copies, not three** -- `CollectionService:549` was missed entirely and is not a controller, and the item's stated fix (put it on `AuthPrincipal`) does not work, because that is a Spring-free record and this is a static context read. Wrote its guardrail: both null returns are load-bearing, for two different reasons. Corrected a stale MR 22 ref (`CollectionService:542` -> `533`) found on the way past. Added the working-rule-12 corollary on writing comments, after MR 15 #2 over-wrote one. Next: MR 15 #6.
+- 2026-08-24 — shipped MR 15 #6: four `currentUserId` copies became `config/CurrentUser.userId()`
+  (main -26 lines / +36 words), and **closed the `PersonRepository.findAccountUserIdsByIds` carry**
+  rather than let it reach a fifth. That one was decided, not deferred: zero callers in main *and*
+  test, so its "only accounts get grants" rule was unenforced; the method was the wrong shape (a
+  `List` query for two single-id call sites), so it was deleted and the rule enforced at
+  `RoleRepository.addMember`, the choke point both admin controllers share. Low severity and said
+  so -- admin-only routes, and a PERSON row cannot log in; the risk is a dormant grant. The item's
+  "move it onto `AuthPrincipal`" was rejected with a reason. The null contract was left alone and
+  costed instead, and it turns out to be two separate problems, not one. Added working rule 14
+  after finding two more copies of the same read that a name-grep could not see. 1304 tests green.
+  Next: MR 16.
 
 ---
 
@@ -538,7 +520,7 @@ Worth a targeted check; not asserted as findings.
 
 - [ ] Possibly-dead endpoints: `GET /api/admin/collections/metadata` (`AdminController:152`), one of the two role-membership pairs (consolidation #8), ids-only `GET /api/read/user/saves` (`UserSavesControllerProd:56`). Confirm frontend usage before deleting.
 - [ ] `role.kind` written as constant 'SHARED' (`RoleRepository:94`), read by nothing.
-- [ ] `PersonRepository.findAccountUserIdsByIds` being dead may mean the only-accounts-get-grants rule lost its enforcement point. Confirm before deleting (blocks an MR 5 item).
+- [x] `PersonRepository.findAccountUserIdsByIds` -- **resolved in MR 15 #6.** It had zero callers in main and test, so the only-accounts-get-grants rule was documented and unenforced. The method was deleted and the rule enforced at `RoleRepository.addMember` instead. Low severity: admin-only endpoints, and a PERSON row cannot log in; the risk was a dormant grant surviving an upgrade to an account.
 - [ ] `collection.rows_wide` is write-and-echo only. Confirm the frontend reads it.
 - [ ] `deleteImages`/`deleteGif` delete from S3 before the DB write inside the transaction (`ContentService:380, 543`). A DB failure orphans the row's URLs; consider afterCommit S3 deletes.
 - [ ] `updateImages` builds `imageMap` with `Collectors.toMap`, which throws `IllegalStateException` on a duplicate key. Two updates for the same image id in one request therefore 500 before any work happens, rather than being merged or rejected with a 400. Found while proving the MR 1b guards unreachable; not fixed there because it is a behavior change, not a deletion.
