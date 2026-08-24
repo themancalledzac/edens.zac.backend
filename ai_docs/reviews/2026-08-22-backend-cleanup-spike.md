@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) done -- 117 comments, one stale docblock fixed. **Next up: MR 13b** -- the remaining seven media files, 37 comments. 130 in-method comments left in `src/main`. |
+| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a merged ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) -- 117 comments, one stale docblock fixed. **Next up: MR 13b** -- the remaining seven media files, re-derived at 37 (the doc's estimate was exact). 130 in-method comments left in `src/main`. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -76,6 +76,21 @@ Learned while doing the MRs; they apply to every item still open, not just the o
    real bug. `CollectionService` produced none: every checkable claim held under verification.
    Reporting "none found" is the correct outcome for a file, not evidence of a shallow pass. Verify
    the claim against the code before filing; do not manufacture a finding to satisfy the guardrail.
+
+8. **A `P:` judgment note decays the same way a `D:` line number does.** Rule 5 warns about
+   coordinates; MR 13a found the *instructions* rotting too. Two of its `P:` entries told a future
+   session to fix things that had since been fixed -- "229 (fix wrongness with bug #10)" when bug
+   #10 was already closed and the comment already correct, and "218-219 (fix staleness: RAW
+   scheduling moved)" when the comment already said exactly that. Following either would have meant
+   editing correct text to reintroduce a problem. Before acting on a `P:` note that asserts
+   something is stale or wrong, verify the claim against the current code -- the note is as old as
+   the line number next to it.
+9. **Commit with explicit paths, never `git add -A`.** This repo carries untracked review docs in
+   `ai_docs/reviews/`. MR 12c's commit used `git add -A` and swept
+   `ai_docs/reviews/2026-07-25-open-pr-review.md` (321 lines, untracked since before the session)
+   into PR #180, which merged with it. Harmless -- markdown, no code, CI green -- but the PR's diff
+   stopped matching its description, which is exactly the property that makes a comments-only MR
+   cheap to review. Stage the files the MR names and nothing else.
 
 ## Ordering note
 
@@ -661,6 +676,15 @@ and deliberately left that question open -- see the decision item below.
   stale in the OTHER direction ("fix wrongness with bug #10" -- bug #10 is fixed and the comment is
   now correct; and the RAW-scheduling staleness note -- already accurate), so Working rule 5's decay
   applies to the `P:` judgment notes too, not just the `D:` line numbers. Next: MR 13b.
+- 2026-08-24 — reconciled the board after #180 and #181 merged. Java diffs were +69/-70 (12c) and
+  +131/-131 (13a). Re-derived MR 13b at **37, exactly the estimate** -- second exact call running,
+  so the Wave 4 over-count pattern is done; stop discounting the remaining numbers. Measured 13b's
+  line refs as the most decayed in the doc: `ImageMetadataExtractor` **1 of 24 (4%)**, worse than
+  `ContentService`'s 8%, and `ImageMetadata` 0 of 5. Replaced them with a re-derived worklist.
+  Corrected consolidation #17's refs, which were stale in the same file (`ensureDimensions` is 364
+  not 318-340; the repeated date parse is 428/467, not 350-371 which is `recordKeywordFlags`).
+  Added Working rule 8 (`P:` notes decay like `D:` refs) and Working rule 9 (never `git add -A`;
+  12c's commit swept an untracked 321-line review doc into #180). Next: MR 13b.
 
 ---
 
@@ -1154,7 +1178,9 @@ Path correction: `ImageMetadata.java` is in `services/`, not `model/` as the lis
 
 - [x] **MR 13a, done ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)).** `ImageProcessingService.java` — original (stale) list, D: 165, 170, 177, 184, 195, 208, 268, 273, 280, 287, 295, 348, 371, 377, 1278, 1287, 1295, 1303, 1330, 1339, 1347, 1355. P: 218-219 (fix staleness: RAW scheduling moved to `ImageUploadPipelineService`), 224, 229 (fix wrongness with bug #10), 343-344, 357-358, 382-383 (fix staleness: it is `ContentMutationUtil` now), 385, 388, 394-396, 408-410, 446-447, 461-463, 469, 591-592, 603-604, 611-612, 622, 630-631, 656-657, 762, 764, 798-799. Also fix the `deleteImageFromS3` docblock (769-772): web keys are content-hashed now.
 - [x] **MR 13a, done ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)).** `ImageUploadPipelineService.java` — original (stale) list, D: 143, 161, 191, 229, 332, 336, 473, 656, 664, 698, 725, 757. P: 115, 130-131, 136, 192, 197-198, 207-209, 255-257, 288, 295, 298-299, 304, 318, 324, 381, 410, 417, 420-421, 431-432, 438-439, 459, 465, 512, 612-614, 710-711, 782. The 410-471 duplicates disappear with consolidation #9 (MR 18).
-### MR 13a outcome (2026-08-23) — shipped as [#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)
+### MR 13a outcome (2026-08-23) — merged as [#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)
+
+Java diff: 2 files, +131/-131. (MR 12c, [#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), was 12 files, +69/-70.)
 
 All 117 in-method comments removed from `ImageProcessingService` (62) and `ImageUploadPipelineService`
 (55); both files now measure 0. The sizing note's 117 was exact -- the first Wave 4 estimate that
@@ -1190,6 +1216,69 @@ The `410-471` duplicate block the list flags for consolidation #9 (MR 18) is unt
 two loops it refers to. Their new docblocks are deliberately written so the ingest one points at the
 from-disk one for the shared behavior, which should make that consolidation easier to read, not
 harder.
+
+### MR 13b worklist — re-derived 2026-08-24 on `57a5506`, use this instead of the line refs below
+
+**37 total, exactly what the sizing note predicted** -- the second Wave 4 estimate in a row needing
+no correction. The over-count pattern that ran through MR 12 is over; take the remaining numbers at
+face value.
+
+**The line refs below are the most decayed in the whole doc.** Measured against the current tree:
+
+| File | Comments | Doc's line refs still landing on a `//` |
+|---|---|---|
+| `ImageMetadataExtractor.java` | 22 | **1 of 24 (4%)** |
+| `ImageMetadata.java` | 5 | **0 of 5** |
+| `DownloadUrlService.java` | 4 | 2 of 4 |
+| `S3MultipartOutputStream.java` | 2 | 0 of 1 |
+| `EmailService.java` | 2 | 1 of 1 |
+| `ReadCacheInvalidator.java` | 2 | 1 of 1 |
+| `JobTrackingService.java` | 0 | class-doc fix only |
+
+4% is the worst yet measured -- worse than `ContentService`'s 8%, which was the previous record.
+Do not read the lists below as coordinates. The real comments are:
+
+- [ ] `ImageMetadataExtractor.java` (22) — extraction narration at 128, 135, 139, 180, 183, 203,
+      211, 217 is redundant with the method names and goes. The load-bearing set is the XMP keyword
+      logic at 274-318: hierarchical subjects first because Lightroom writes category parents,
+      `"People|Jane Doe"` to a person, `"Weather|sunset"` to the leaf tag, the person-name filter
+      (Lightroom emits people BOTH as `People|Name` and as standalone keywords), and the flat
+      `dc:subject` fallback with no people distinction. That belongs in the
+      `extractTagsAndPeopleFromXmp` docblock. Date-format notes at 431, 474-498 explain EXIF
+      `YYYY:` versus ISO `YYYY-` detection -- promote, see the guardrail.
+- [ ] `ImageMetadata.java` (5) — 231, 256, 261, 268, 274, all describing the shutter-speed
+      formatting ladder (pass through an existing fraction, `>= 1 sec` displays as-is, `< 1 sec`
+      becomes `1/N`). One docblock on the formatter.
+- [ ] `DownloadUrlService.java` (4) — both blocks are load-bearing and promote: 104-105 (S3 keys are
+      unique but `original_filename` is not, so entries are sequence-prefixed or `ZipOutputStream`
+      throws on duplicate names) and 113-114 (a per-image failure writes a placeholder rather than
+      tearing down the whole ZIP).
+- [ ] `S3MultipartOutputStream.java` (2) — 129-130, why the empty-`completedParts` guard exists
+      despite a well-formed ZIP always having an end-of-central-directory record.
+- [ ] `EmailService.java` (2) — 140-141, the `SesV2Exception` versus `SdkClientException` split.
+- [ ] `ReadCacheInvalidator.java` (2) — 81-82, why the failure logs at debug rather than warn
+      (expected until the CloudFront API origin is enabled).
+- [ ] `JobTrackingService.java` (0) — no in-method comments. The class docblock (now at 14-18, not
+      14-15) says "background disk upload processing"; it also tracks ingest jobs, since
+      `ingestFilesGroupedByDay` calls `createJob`. One-line fix.
+
+### Guardrail for 13b: leave the date-parsing duplication in `ImageMetadataExtractor` alone
+
+Promoting the comments at 431 and 474-498 puts both date parsers on screen at once, and the
+duplication is obvious: `parseImageDate` (428) and `parseExifDateToLocalDateTime` (467) each do
+their own EXIF-versus-ISO format detection. Folding them together will feel like the natural
+finish to the promotion, because the docblock you are writing has to describe the same rule twice.
+
+It is not in scope. That duplication is already filed as part of consolidation #17, which owns it
+along with the `ensureDimensions` twins in the same file. Taking it here would move a filed
+consolidation into a comments-only MR, and 13b's green build proves nothing about a refactor.
+
+Promote the format-detection rule into both docblocks as it stands, and report what folding them
+would cost -- specifically whether `parseImageDate`'s `int[]` return and
+`parseExifDateToLocalDateTime`'s `LocalDateTime` return can share a parse step without one of them
+growing a conversion that costs more than the duplication does.
+
+The original per-file lists follow, kept as the record of intent rather than as coordinates.
 
 - [ ] `ImageMetadata.java` — D: 245, 270, 275, 282, 288.
 - [ ] `ImageMetadataExtractor.java` — D: 114, 121, 166, 169, 189, 197, 203, 208, 259, 299, 353, 396, 401, 409, 411, 415, 420, 443. P: 75, 98, 125, 269, 275, 286-287.
@@ -1242,7 +1331,7 @@ Consolidation #1 (one client-IP resolver) ships with bug #3 in MR 5.
 - [ ] #14. `convertEntityToModel` loads the same content row twice (`ContentModelConverter.java:103-118`) — `findAllByIds` already returns typed subclasses, so drop the second typed fetch. Verify COLLECTION hydration first. Called 3x per GIF/text mutation.
 - [ ] #15. `getUpdateCollectionData` fetches the collection row twice and has an always-true null check (`CollectionService.java:822-848`).
 - [ ] #16. `findCurrentContentCollections` is an N+1 loop, one query per join entry (`CollectionService.java:1326-1388`). Batch-load and filter in memory.
-- [ ] #17. Smaller items: `UserInviteService.validate`/`redeem` duplicate token resolution (85-130, into `findLiveInvite`); pagination normalization re-inlined at `CollectionService:127-130` (call `PaginationUtil`); `toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other (`CollectionProcessingUtil:569-596, 939-947`); `uploadToS3`/`streamFileToS3` duplicate key and URL construction (`ImageProcessingService:697-745`); `ensureDimensions` twins (`ImageMetadataExtractor:318-340`); `parseImageDate` repeated parse block (350-371); EmailService HTML skeleton twice (157-243, optional).
+- [ ] #17. Smaller items: `UserInviteService.validate`/`redeem` duplicate token resolution (85-130, into `findLiveInvite`); pagination normalization re-inlined at `CollectionService:127-130` (call `PaginationUtil`); `toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other (`CollectionProcessingUtil:569-596, 939-947`); `uploadToS3`/`streamFileToS3` duplicate key and URL construction (`ImageProcessingService:697-745`); `ensureDimensions` twins (`ImageMetadataExtractor`: `ensureDimensions` 364, `ensureDimensionsFromPath` 378 -- the doc's `318-340` is stale); the EXIF-versus-ISO format detection duplicated between `parseImageDate` (428) and `parseExifDateToLocalDateTime` (467) -- the doc's `350-371` is stale and points at `recordKeywordFlags`; EmailService HTML skeleton twice (157-243, optional).
 - [ ] #18. `EquipmentRepository` repeats each SELECT column list 6+ times while sibling repositories hoist constants (`AppUserRepository`, `ShareLinkRepository`, `WebAuthnCredentialRepository`, `CollectionRepository` all do it right). Hoist per-entity constants. ~25 lines.
 - [ ] #19. `model/ImageSearchResponse.java` is a strict subset of `model/PagedResponse.java`. Replace it with `PagedResponse<ContentModels.Image>` unless the wire contract must not grow keys.
 - [ ] #20. `Records.FilmFormat` (DTO) shadows the `FilmFormat` enum, forcing a fully-qualified name at `Records.java:23` and duplicating the mapping at `ContentControllerProd:147-149` and `CollectionService:912-914`. Rename the record `FilmFormatOption`, import the enum, one static factory.
