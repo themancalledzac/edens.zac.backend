@@ -1457,3 +1457,88 @@ fails; restored, the full suite is 1,302 green with 0 checkstyle violations.
 
 `UserRatingOverrideControllerProd` still has **no controller test at all** (only a service test) --
 a coverage gap for MR 26, not introduced here.
+
+---
+
+## MR 15 #6 outcome, 2026-08-24
+
+Four `currentUserId` copies became `config/CurrentUser.userId()`. Java-only main **-26 lines,
+**+36 words**. Shipped with a second commit closing the `PersonRepository` carry.
+
+The re-derived table was right this time -- four declarations, seven call sites, all verified
+against `abcf549` before the edit, and the count came out even when the change was made (rule 13's
+test). `CollectionService:549` was the copy the original three-copy item missed, and it is the one
+that matters most, because it is not a controller and it is the caller whose null is hardest to
+tighten.
+
+### Where it went, and why not `AuthPrincipal`
+
+The item's stated fix was "move it onto `AuthPrincipal`". That does not survive contact with the
+code and was not done. `AuthPrincipal` is a Spring-free record in `model/`; this helper is a static
+`SecurityContextHolder` read, not a property of a principal instance. Putting it there drags Spring
+Security's context into a model type, and every test that constructs an `AuthPrincipal` would be
+constructing something that can read ambient global state.
+
+`config/` was the answer: `ClientIp`, `GalleryAccessCookies` and `FlybyCookies` are already static
+final helper classes there, next to the security plumbing. No new package, no new pattern.
+
+### The null-contract report the guardrail asked for
+
+The contract was left alone, as instructed. Tightening it to `orElseThrow` would cost, concretely:
+
+| Call site | What null means today | Cost of throwing |
+|---|---|---|
+| `AdminUserController:230` (audit log) | dev, gate open | log line loses its actor; harmless |
+| `AdminUserController:330` `addMember` | dev, gate open | breaks local role assignment |
+| `AdminRoleController:65` `createRole` | dev, gate open | breaks local role creation |
+| `AdminRoleController:120` `setGrant` | dev, gate open | breaks local grant editing |
+| `AdminRoleController:148` `addMember` | dev, gate open | breaks local role assignment |
+| `ContentDownloadControllerProd:190` | anonymous visitor | 500 on every anonymous download |
+| `CollectionService:538` | anonymous visitor | 500 on every anonymous gallery visit |
+
+So the four admin sites break local development only, and the two read-surface sites break
+production for logged-out visitors. **These are not one contract with one fix.** The admin four
+would be closed properly by making `app.admin.enforce-authz=true` unconditional -- a Wave 3-shaped
+decision about dev ergonomics, not a consolidation -- and the read-surface two are correct as they
+stand and should never throw. Anyone revisiting this should split it in two before touching either.
+
+### Two more copies of the same read, not folded in
+
+Scope was the four named `currentUserId` helpers, so these were left alone, but they are the same
+static read and belong to whoever picks up the follow-up:
+
+- `SyntheticCollectionResolver:146` `currentPrincipal()` -- identical body, returns the principal
+  instead of `.userId()`. `CurrentUser.userId()` is exactly this plus a field read.
+- `CollectionService:1531` `viewerMaySeeHidden` -- the same read inlined, plus a `p.userId() != null`
+  check, because it passes the whole principal to `hasAtLeast`.
+
+Folding both in means adding `CurrentUser.principal()` and having `userId()` delegate to it. It is
+mechanical and behavior-preserving. It was not done here because the item said four.
+
+**This is also what the re-derivation missed, twice over.** It found four copies by grepping the
+helper *name*; these two are the same code under different names. That is working rule 14.
+
+### The `PersonRepository.findAccountUserIdsByIds` decision
+
+Decided, not carried a fifth time. **It is a real gap and a low-severity one, and the method was
+the wrong shape to fix it.** Verified: zero callers in `src/main` *and* `src/test` -- the only hit
+in the tree was its own declaration.
+
+Its docblock claimed it preserved the "only account-backed persons receive a role membership" rule.
+Nothing called it, so the rule was documented and unenforced -- which is what the tracker correctly
+spotted, and why "delete it as dead code" was the wrong disposition three times running.
+
+Severity, stated honestly: both endpoints are `/api/admin/**` behind `hasRole("ADMIN")`, so the
+actor is already an admin, and a tag-only `PERSON` row has a null email and password_hash so it
+cannot log in. Admitting one grants nobody anything today. The risk is a **dormant grant** -- if
+that person is later upgraded to an account, it inherits the role silently.
+
+The fix went to `RoleRepository.addMember`, the single choke point both controllers already share,
+rather than into two controllers (which would add the duplication MR 15 exists to remove). The
+deleted method took a `List` and both call sites pass one id, which is why wiring it in was always
+awkward and why it kept being deferred instead of used. Existing integration tests seed `ACTIVE`
+users and were unaffected; two new tests cover a `PERSON` row and an unknown id.
+
+### Verification
+
+`mvn clean install` green at each commit. 1302 tests before, **1304 after**, 0 failures.

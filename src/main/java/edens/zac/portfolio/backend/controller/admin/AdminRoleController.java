@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import edens.zac.portfolio.backend.config.CurrentUser;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.CreateRoleRequest;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.RoleCollectionRow;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.RoleDetail;
@@ -8,7 +9,6 @@ import edens.zac.portfolio.backend.controller.admin.RoleRequests.RoleSummary;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.SetRoleGrantRequest;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.RoleEntity;
-import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.RoleGrantPropagationService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -16,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,7 +65,7 @@ public class AdminRoleController {
     if (name.regionMatches(true, 0, "user:", 0, 5)) {
       throw new IllegalArgumentException("Role names with the 'user:' prefix are reserved");
     }
-    Long id = roleRepository.createRole(name, currentUserId());
+    Long id = roleRepository.createRole(name, CurrentUser.userId());
     return ResponseEntity.status(HttpStatus.CREATED).body(new RoleSummary(id, name));
   }
 
@@ -121,7 +120,7 @@ public class AdminRoleController {
       @PathVariable Long roleId,
       @PathVariable Long collectionId,
       @Valid @RequestBody SetRoleGrantRequest body) {
-    roleGrantPropagationService.setGrant(roleId, collectionId, body.level(), currentUserId());
+    roleGrantPropagationService.setGrant(roleId, collectionId, body.level(), CurrentUser.userId());
     return ResponseEntity.noContent().build();
   }
 
@@ -149,7 +148,7 @@ public class AdminRoleController {
    */
   @PutMapping("/{roleId}/members/{userId}")
   public ResponseEntity<Void> addMember(@PathVariable Long roleId, @PathVariable Long userId) {
-    roleRepository.addMember(roleId, userId, currentUserId());
+    roleRepository.addMember(roleId, userId, CurrentUser.userId());
     return ResponseEntity.noContent().build();
   }
 
@@ -164,11 +163,5 @@ public class AdminRoleController {
   public ResponseEntity<Void> removeMember(@PathVariable Long roleId, @PathVariable Long userId) {
     roleRepository.removeMember(roleId, userId);
     return ResponseEntity.noContent().build();
-  }
-
-  /** The acting admin's user id for audit columns, or null in dev where the gate is open. */
-  private static Long currentUserId() {
-    var auth = SecurityContextHolder.getContext().getAuthentication();
-    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 }

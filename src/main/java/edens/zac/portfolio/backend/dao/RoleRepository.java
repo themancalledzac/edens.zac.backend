@@ -117,8 +117,27 @@ public class RoleRepository extends BaseDao {
 
   // ---- Membership ----
 
+  /**
+   * Add a user to a role. Idempotent.
+   *
+   * <p>Rejects a tag-only {@code PERSON} row. Since V35 a person tagged in photos and an account
+   * share one {@code users} table, so a person id and an account id are indistinguishable at the
+   * two admin endpoints that reach here -- both pass a path variable straight through. A PERSON row
+   * cannot log in today, so admitting one grants nobody anything now; the risk is the grant lying
+   * dormant until that person is upgraded to an account, which then inherits it silently.
+   *
+   * @throws IllegalArgumentException (400) when the id is not an account
+   */
   @Transactional
   public void addMember(Long roleId, Long userId, Long addedBy) {
+    Boolean isAccount =
+        namedParameterJdbcTemplate.queryForObject(
+            "SELECT COUNT(*) > 0 FROM users WHERE id = :userId AND status <> 'PERSON'",
+            createParameterSource().addValue("userId", userId),
+            Boolean.class);
+    if (!Boolean.TRUE.equals(isAccount)) {
+      throw new IllegalArgumentException("Role membership requires an account user: " + userId);
+    }
     update(
         """
         INSERT INTO role_member (role_id, user_id, added_by)

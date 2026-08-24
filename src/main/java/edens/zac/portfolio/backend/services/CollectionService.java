@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import static edens.zac.portfolio.backend.config.DefaultValues.default_content_per_page;
 
+import edens.zac.portfolio.backend.config.CurrentUser;
 import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.CollectionPeopleRepository;
@@ -535,7 +536,7 @@ public class CollectionService {
         .findBySlug(slug)
         .map(
             entity -> {
-              Long userId = currentUserId();
+              Long userId = CurrentUser.userId();
               if (userId != null && collectionAccessService.canView(userId, entity.getId())) {
                 return true;
               }
@@ -543,12 +544,6 @@ public class CollectionService {
                   request, slug, entity.getGalleryPassword(), clientGalleryAuthService);
             })
         .orElse(true);
-  }
-
-  /** The authenticated principal's user id, or null when the request is anonymous. */
-  private static Long currentUserId() {
-    var auth = SecurityContextHolder.getContext().getAuthentication();
-    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 
   /**

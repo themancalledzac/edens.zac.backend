@@ -60,23 +60,6 @@ public class PersonRepository extends BaseDao {
   }
 
   /**
-   * Of the given identity ids, those that are real accounts (status {@code <> 'PERSON'}) — drops
-   * tag-only PERSON rows. Replaces the pre-merge {@code findLinkedUserIdsByPersonIds}: it preserves
-   * the "only account-backed persons receive a role membership / role grant" rule now that a person
-   * tag and an account share one {@code users} row.
-   */
-  @Transactional(readOnly = true)
-  public List<Long> findAccountUserIdsByIds(List<Long> ids) {
-    if (ids == null || ids.isEmpty()) {
-      return List.of();
-    }
-    return query(
-        "SELECT id FROM users WHERE id IN (:ids) AND status <> 'PERSON'",
-        (rs, n) -> rs.getLong("id"),
-        createParameterSource().addValue("ids", ids));
-  }
-
-  /**
    * Find-or-create a person identity by name. A brand-new person is inserted into {@code users} as
    * a tag-only {@code PERSON} row (no account: {@code email}/{@code password_hash} null). Account
    * provisioning is a separate flow.

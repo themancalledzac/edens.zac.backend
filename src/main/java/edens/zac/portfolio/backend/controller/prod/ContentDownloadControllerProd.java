@@ -1,8 +1,8 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import edens.zac.portfolio.backend.config.CurrentUser;
 import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
-import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -188,17 +187,11 @@ public class ContentDownloadControllerProd {
    * collection's current password.
    */
   private boolean isDownloadAuthorized(HttpServletRequest request, CollectionEntity collection) {
-    Long userId = currentUserId();
+    Long userId = CurrentUser.userId();
     if (userId != null && collectionAccessService.isClient(userId, collection.getId())) {
       return true;
     }
     return GalleryAccessCookies.hasValidAccess(
         request, collection.getSlug(), collection.getGalleryPassword(), clientGalleryAuthService);
-  }
-
-  /** The authenticated principal's user id, or null when the request is anonymous. */
-  private static Long currentUserId() {
-    var auth = SecurityContextHolder.getContext().getAuthentication();
-    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 }
