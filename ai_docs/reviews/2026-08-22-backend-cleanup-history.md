@@ -1988,8 +1988,16 @@ that S-8 now edits code written today. Do it while it is fresh.
 
 ## S-8 outcome, 2026-08-24 -- a status change revokes the sessions already minted
 
-Shipped as [#204](https://github.com/themancalledzac/edens.zac.backend/pull/204). Suite 1,328 ->
-1,338 (+10). Three files of source, three of test.
+Shipped as [#204](https://github.com/themancalledzac/edens.zac.backend/pull/204), merged
+2026-08-24. Suite 1,328 -> 1,338 (+10). Real diff **+405 / -27 across 8 files** -- 75 changed lines
+of source, 200 of test, 157 of doc.
+
+**The test:source ratio was 2.7:1, and that is the third consecutive item where it landed near
+3:1.** S-9's three tests against eight source lines, S-7's suite move, and now this. The board has
+already priced two open items this way -- MR 19 #3 (`~-55 source against ~84 test sites`) and
+Wave 7's `AdminUserController` extraction (`~200 source lines move, but the test file is the hidden
+half`) -- so this is confirmation, not a new correction. Treat any remaining item quoting a
+source-only number as understating by roughly 3x unless it says otherwise.
 
 `SessionService.revokeAllForStatus(userId, newStatus)` over a new
 `UserSessionRepository.revokeAllForUser`, called from `AdminUserController.updateUser` on the line
