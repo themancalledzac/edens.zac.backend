@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.auth;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -163,6 +166,42 @@ class AuthControllerTest {
   // Helper to keep the never()-verify readable; Mockito's eq for boolean is fine inline too.
   private static boolean anyBooleanWrapper() {
     return org.mockito.ArgumentMatchers.anyBoolean();
+  }
+
+  /**
+   * Login is an ACTIVE-only allowlist, not a DISABLED denylist. The stub returning true for the
+   * real hash is deliberate and lenient: it makes this test red if the status test is removed,
+   * since the login would then succeed on a correct password. Asserting the real hash is never
+   * consulted pins the guard ahead of the password check, which is what keeps the non-ACTIVE branch
+   * paying the same dummy-BCrypt cost as unknown-email and so out of the enumeration oracle.
+   */
+  @ParameterizedTest
+  @EnumSource(names = {"DISABLED", "INVITED"})
+  void loginForNonActiveAccountReturns401AndCreatesNoSession(UserStatus status) throws Exception {
+    AppUserEntity user =
+        AppUserEntity.builder()
+            .id(1L)
+            .email("admin@example.com")
+            .passwordHash("{bcrypt}$2a$10$hash")
+            .webauthnUserHandle(UUID.randomUUID())
+            .status(status)
+            .build();
+    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(user));
+    lenient().when(passwordEncoder.matches("correct", "{bcrypt}$2a$10$hash")).thenReturn(true);
+
+    mockMvc
+        .perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginRequest("admin@example.com", "correct"))))
+        .andExpect(status().isUnauthorized());
+
+    verify(passwordEncoder, never()).matches("correct", "{bcrypt}$2a$10$hash");
+    verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+    verify(sessionService, never()).create(any(), anyBooleanWrapper(), any(), any());
   }
 
   @Test
