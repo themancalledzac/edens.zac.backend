@@ -13,6 +13,7 @@ import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
@@ -66,6 +67,7 @@ class WebAuthnServiceTest {
             .id(1L)
             .email("admin@example.com")
             .webauthnUserHandle(handle)
+            .status(UserStatus.ACTIVE)
             .build();
   }
 
@@ -178,6 +180,29 @@ class WebAuthnServiceTest {
 
     verify(sessionService).create(eq(admin), eq(true), eq(request), eq(response));
     assertThat(email).isEqualTo("admin@example.com");
+  }
+
+  @Test
+  void finishLoginOnNonActiveAccountIsRejectedAndCreatesNoSession() {
+    // A passkey outlives a status change, so a valid assertion is not proof the account may log in.
+    // Mutation this catches: delete the ACTIVE check in finishLogin and this goes green.
+    PublicKeyCredentialRequestOptions saved =
+        org.mockito.Mockito.mock(PublicKeyCredentialRequestOptions.class);
+    when(challengeStore.take("attempt-1")).thenReturn(Optional.of(saved));
+
+    PublicKeyCredentialUserEntity authedEntity =
+        org.mockito.Mockito.mock(PublicKeyCredentialUserEntity.class);
+    when(authedEntity.getId())
+        .thenReturn(new Bytes(handle.toString().getBytes(StandardCharsets.UTF_8)));
+    when(operations.authenticate(any())).thenReturn(authedEntity);
+    admin.setStatus(UserStatus.DISABLED);
+    when(appUserRepository.findByWebauthnUserHandle(handle)).thenReturn(Optional.of(admin));
+
+    assertThatThrownBy(
+            () -> service.finishLogin("attempt-1", validAssertionJson(), request, response))
+        .isInstanceOf(IllegalStateException.class);
+    verify(sessionService, never())
+        .create(any(), org.mockito.ArgumentMatchers.anyBoolean(), any(), any());
   }
 
   @Test

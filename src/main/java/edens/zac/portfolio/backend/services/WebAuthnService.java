@@ -6,6 +6,7 @@ import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
@@ -175,12 +176,18 @@ public class WebAuthnService {
    * Verify the assertion (user-verification + sign_count regression enforced inside the operations
    * call) and mint an mfa=true session for the resolved user.
    *
+   * <p>The account must be {@link UserStatus#ACTIVE}. A verified assertion proves possession of the
+   * credential, not that the account may still log in -- a passkey outlives any status change, so
+   * status is read here rather than inferred from the ceremony succeeding.
+   *
    * @param attemptId the per-attempt id (carried by the ezac_webauthn_attempt cookie)
    * @param credentialJson the raw W3C assertion credential JSON from {@code login/finish}
    * @param request the servlet request (IP / User-Agent for the session row)
    * @param response the Set-Cookie sink for the session cookie
    * @return the email address of the successfully authenticated user (used by the controller to
    *     reset the rate-limiter on success)
+   * @throws IllegalStateException if no challenge is in flight, or if the account behind the
+   *     assertion is not {@code ACTIVE}
    */
   public String finishLogin(
       String attemptId,
@@ -205,6 +212,11 @@ public class WebAuthnService {
             .findByWebauthnUserHandle(handle)
             .orElseThrow(
                 () -> new RuntimeException("Authenticated handle has no app_user: " + handle));
+
+    if (user.getStatus() != UserStatus.ACTIVE) {
+      log.warn("WebAuthn login rejected: userId={} status={}", user.getId(), user.getStatus());
+      throw new IllegalStateException("Account is not active");
+    }
 
     sessionService.create(user, true, request, response);
     return user.getEmail();
