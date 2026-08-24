@@ -18,7 +18,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173) |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). One residual carried forward, below. |
 | 4 — Comments and docs | MR 12-14 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock item is still open. |
-| 5 — Consolidations | MR 15-19 | not started |
+| 5 — Consolidations | MR 15-19 | **next: MR 15 #2** (one SecurityConfig matcher for the 18 `isRealUser` guards). Its refs were re-derived 2026-08-23 and had drifted -- read the table on the item, not the original line list. Read its guardrail before touching SecurityConfig. |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
@@ -49,7 +49,9 @@ verified done and ticked off in the history file.
   or the BFF -- already normalizes chunked to a fixed length, which would close this for free.
   Decide before adding code.
 - [ ] **`PersonRepository.findAccountUserIdsByIds` is still there and its deletion precondition is
-  false.** MR 1 deferred it to MR 5 pending "the only-accounts-get-grants rule is confirmed enforced
+  false.** *(Third carry: MR 1 -> MR 5 -> here. It is not being avoided, it is misfiled -- it was
+  entered as a deletion and it is actually a missing authorization check. Do it as security work or
+  drop it from the board, but stop re-deferring it as dead code.)* MR 1 deferred it to MR 5 pending "the only-accounts-get-grants rule is confirmed enforced
   elsewhere". It is not enforced anywhere: both `RoleRepository.addMember` call sites
   (`AdminRoleController`, `AdminUserController`) pass a path-variable user id straight through. So
   this is a live gap, not dead code. Belongs with MR 15 or a security follow-up, not a deletion MR.
@@ -286,8 +288,59 @@ and each needs its claim verified before acting (working rule 8).
 
 Consolidation #1 (one client-IP resolver) ships with bug #3 in MR 5.
 
-- [ ] #2. One SecurityConfig matcher instead of 17 copy-pasted guards. The identical 3-line `isRealUser` 401 guard opens every method across the six `/api/read/user/**` controllers (`UserControllerProd:25`; `UserFollowsControllerProd:38,49,59`; `UserSavesControllerProd:36,47,57,67`; `UserSelectsControllerProd:35,46,62`; `UserShareControllerProd:53,70,89,110`; `UserRatingOverrideControllerProd:43,61`). SecurityConfig already does exactly this for `/api/edit/**` with `hasRole("USER")`, which also excludes flyby principals. Add `requestMatchers("/api/read/user/**").hasRole("USER")` and delete all 17. ~51 lines.
+- [ ] #2. One SecurityConfig matcher instead of the copy-pasted `isRealUser` guards. **NEXT.** The identical 3-line 401 guard opens every method across the six user controllers. SecurityConfig already does this for `/api/edit/**` with `hasRole("USER")`, which also excludes flyby principals. Add `requestMatchers("/api/read/user/**").hasRole("USER")` and delete the guards. ~51 lines.
+
+  **Re-derived 2026-08-23 on `e815e9e`. The doc's refs had drifted three ways -- do not trust the originals:**
+
+  | Controller | Route | Guards | Doc said |
+  |---|---|---|---|
+  | `controller/prod/UserControllerProd` | `/api/read/user` | 25 | correct |
+  | `controller/prod/UserFollowsControllerProd` | `/api/read/user/follows` | 38, 49, 59 | correct |
+  | `controller/prod/UserSavesControllerProd` | `/api/read/user/saves` | 36, 47, 57, 67 | correct |
+  | `controller/prod/UserSelectsControllerProd` | `/api/read/user/selects` | 37, 48, 64 | 35, 46, 62 -- drifted |
+  | `controller/prod/UserShareControllerProd` | `/api/read/user/share` | 34, 53, 70, 89, 110 | missed the one at 34 |
+  | **`controller/user/`**`UserRatingOverrideControllerProd` | `/api/read/user/ratings` | 41, 54 | wrong package *and* wrong lines |
+
+  **The count is 18, not 17.** All six routes do sit under `/api/read/user/**`, so one matcher covers
+  them -- the item's core premise holds. Note `UserRatingOverrideControllerProd` lives in
+  `controller/user/`, a package `.claude/CLAUDE.md`'s project-structure block does not list.
+
+  **Do not sweep `isRealUser` by grep.** It has 23 occurrences in `src/main`; only these 18 are in
+  scope. `AuthPrincipal` (2) is the definition, and `AuthController` (1) and `WebAuthnController` (2)
+  are separate call sites this item does not touch.
 - [ ] #6. `currentUserId` exists in three controllers (`AdminUserController:472-475`, `AdminRoleController:170-173`, `ContentDownloadControllerProd:196-199`). Move it onto `AuthPrincipal`.
+
+### Guardrail for MR 15 #2: the dev toggle is not decoration
+
+The item says "SecurityConfig already does exactly this for `/api/edit/**`". It does -- but
+**`/api/edit/**`'s matcher sits INSIDE `if (enforceAdminAuthz)`**, and `application-dev.properties`
+sets `app.admin.enforce-authz=false`. So in dev that matcher is not applied at all, and
+`/api/edit/**` falls through to `anyRequest().permitAll()`. That is deliberate: local dev stays
+login-free.
+
+The 18 guards being deleted are **unconditional** -- they run in every profile. So copying
+`/api/edit/**`'s placement is not a refactor, it is a behavior change in dev, and a bad one: every
+guard is immediately followed by a `principal.userId()` call, so removing it in dev leaves a null
+principal reaching the service layer. Placing the matcher outside the toggle instead is also a
+change -- local dev would start requiring a login on the user routes, breaking the property the
+toggle exists to preserve.
+
+There is no placement that is purely behavior-preserving. **Do not pick one silently.** Report what
+each costs and let the user decide:
+
+- **Inside the toggle** (mirrors `/api/edit/**`): prod unchanged; dev loses the 401 and NPEs on a
+  null principal unless the controllers are also made null-safe.
+- **Outside the toggle**: behavior-preserving in every profile, because the guards it replaces were
+  unconditional -- but local dev now needs a session for `/api/read/user/**`.
+- **Outside, plus a dev-only permitAll for these routes**: keeps both properties, at the cost of one
+  more conditional in the chain.
+
+The second is the honest default -- it is the only one that preserves current behavior -- but it
+takes away a dev convenience, which is the user's call and not a refactor's.
+
+Working rule 12 applies to the comments here too. SecurityConfig's existing 24 explain exactly this
+toggle; whatever placement wins, that block's comment has to be updated with it, and it stays inline.
+
 
 ## MR 16 — Infrastructure classes
 
@@ -397,6 +450,16 @@ These are worth more than the bloat they replace.
 - [ ] The validators (`MetadataValidator`, `ContentImageUpdateValidator`) — 1-2 incidental references; they gate admin writes.
 
 Verified good, for the record: `AdminUserControllerTest` is real behavior testing; the auth-table truncation fix landed in `AbstractPostgresIntegrationTest`; no tests mock the deleted `collection.type` shape.
+
+---
+
+## Session log
+
+One line per session. Three entries in a row ending `Next: X` means X is being avoided -- say so and
+either make it real work or drop it. The verbose pre-split log is in the
+[history file](2026-08-22-backend-cleanup-history.md).
+
+- 2026-08-23 — shipped MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) and the tracker/history split ([#186](https://github.com/themancalledzac/edens.zac.backend/pull/186)); merged [#185](https://github.com/themancalledzac/edens.zac.backend/pull/185). Added working rules 11 and 12. Reconciled Waves 1-3 and surfaced 8 live items from "complete" waves. Re-derived MR 15 #2 (17 guards -> 18, one controller in the wrong package). Next: MR 15 #2.
 
 ---
 
