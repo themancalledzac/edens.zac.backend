@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.dao;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
@@ -39,6 +40,34 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     jdbc.update(
         "INSERT INTO collection (title, slug, visibility) VALUES (?, ?, 'UNLISTED')", slug, slug);
     return jdbc.queryForObject("SELECT id FROM collection WHERE slug=?", Long.class, slug);
+  }
+
+  private long seedPerson(String name) {
+    jdbc.update(
+        "INSERT INTO users (name, webauthn_user_handle, status) VALUES (?, gen_random_uuid(), 'PERSON')",
+        name);
+    return jdbc.queryForObject("SELECT id FROM users WHERE name=?", Long.class, name);
+  }
+
+  @Test
+  void addMemberRejectsTagOnlyPersonRow() {
+    long person = seedPerson("Tagged Only");
+    long coll = seedCollection("role-person-guard");
+    long roleId = repo.createRole("person guard", null);
+    repo.setCollectionGrant(roleId, coll, AccessLevel.GENERAL, null);
+
+    assertThatThrownBy(() -> repo.addMember(roleId, person, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("account user");
+
+    assertThat(repo.canView(person, coll)).isFalse();
+  }
+
+  @Test
+  void addMemberRejectsUnknownUserId() {
+    long roleId = repo.createRole("unknown guard", null);
+    assertThatThrownBy(() -> repo.addMember(roleId, 999_999L, null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
