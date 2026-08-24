@@ -376,14 +376,12 @@ class ContentModelConverter {
       return null;
     }
 
-    // Load tags from database if not already loaded
     Set<TagEntity> tags = entity.getTags();
     if (tags == null || tags.isEmpty()) {
       List<TagEntity> tagEntities = tagRepository.findContentTags(entity.getId());
       tags = new HashSet<>(tagEntities);
     }
 
-    // Load people from database if not already loaded
     Set<ContentPersonEntity> people = entity.getPeople();
     if (people == null || people.isEmpty()) {
       List<ContentPersonEntity> personEntities = personRepository.findContentPeople(entity.getId());
@@ -470,14 +468,12 @@ class ContentModelConverter {
       return null;
     }
 
-    // Load tags from database if not already loaded
     Set<TagEntity> tags = entity.getTags();
     if (tags == null || tags.isEmpty()) {
       List<TagEntity> tagEntities = tagRepository.findContentTags(entity.getId());
       tags = new HashSet<>(tagEntities);
     }
 
-    // Load people from database if not already loaded
     Set<ContentPersonEntity> people = entity.getPeople();
     if (people == null || people.isEmpty()) {
       List<ContentPersonEntity> personEntities = personRepository.findContentPeople(entity.getId());
@@ -581,7 +577,9 @@ class ContentModelConverter {
    * @param tagsByContentId Pre-loaded tags grouped by content id (covers cover-image ids)
    * @param peopleByContentId Pre-loaded people grouped by content id (covers cover-image ids)
    * @param locationsByContentId Pre-loaded locations grouped by content id (covers cover-image ids)
-   * @return The corresponding collection content model
+   * @return The corresponding collection content model, whose tag list is always empty --
+   *     nested-collection content blocks do not carry aggregated tags today. Only synthetic list
+   *     views ({@link SyntheticCollectionResolver}) enrich tags for client-side filtering.
    */
   public ContentModels.Collection buildCollectionModelWithBatchData(
       ContentCollectionEntity contentEntity,
@@ -651,8 +649,6 @@ class ContentModelConverter {
         coverImage,
         referencedCollection.getCollectionDate(),
         referencedCollection.getCollectionEndDate(),
-        // Nested-collection content blocks do not carry aggregated tags today; only synthetic list
-        // views (SyntheticCollectionResolver) enrich tags for client-side filtering.
         List.of(),
         referencedCollection.getVisibility());
   }

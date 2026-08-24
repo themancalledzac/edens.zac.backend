@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12a merged ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)); MR 12b merged ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178)), which filed bug #16. **Next up: MR 12c** -- the remaining twelve small files, re-derived at 68 comments. 315 in-method comments left in `src/main`. |
+| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). **Next up: MR 13a** -- `ImageProcessingService` + `ImageUploadPipelineService`, 117 comments. 247 in-method comments left in `src/main`. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -643,6 +643,14 @@ and deliberately left that question open -- see the decision item below.
   51 not 58, and 12c is 68 not 82) -- the note's totals include class-member-level comments the Wave
   4 header excludes. Measured MR 13 at 154, where the over-count pattern inverts, and split it 13a/13b
   in the doc before anyone starts it. Added Working rules 6 and 7. Next: MR 12c.
+- 2026-08-23 — shipped MR 12c (#180), completing MR 12. 68 comments across twelve files, promoted
+  into 11 javadocs, diff comment-only with zero blank-line churn. **No bugs found** -- every
+  checkable claim held, which Working rule 7 says to report as the outcome it is. Corrected the
+  note's "12 identical CDN comments" to 11 (it listed 11). Left
+  `CollectionAccessService.effectiveLevel` alone per the 12c guardrail and reported instead:
+  `canView`/`isClient` take a raw `Long userId`, never touch `effectiveLevel`, and are safe only
+  because a flyby principal's null userId cannot match `rm.user_id = :userId` -- an accident nothing
+  asserts. Filed as a Wave 3 follow-up. Next: MR 13a.
 
 ---
 
@@ -1031,18 +1039,80 @@ The same instinct will come up on `CollectionFlags` and `PaginationUtil`, both o
 enough to feel rewritable in one sitting. Same answer: comments only.
 
 The original per-file lists follow, kept as the record of intent (which comments were judged worth
-promoting) rather than as coordinates.
+promoting) rather than as coordinates. **All twelve done in [#180](https://github.com/themancalledzac/edens.zac.backend/pull/180)** -- see "MR 12c outcome" below.
 
-- [ ] `ContentModelConverter.java` — D: 379, 386, 473, 480, trailing 170. P: 654.
-- [ ] `ContentMutationUtil.java` — D: 384. P: 132.
-- [ ] `SyntheticCollectionResolver.java` — P: 38 (trimmed), 78, 95.
-- [ ] `TagService.java` — P: 65. D: 116.
-- [ ] `TagViewResolver.java` — D: 57, 65, 84. P: 71 (ordering-restoration rationale).
-- [ ] `MetadataService.java` — D: the 12 identical "Metadata mutation: drop the CDN copy..." comments at 55, 76, 101, 123, 144, 169, 192, 260, 313, 384, 410. Replace with one class-docblock sentence. P: 208.
-- [ ] `PaginationUtil.java` — D: 24, 27, 42, 45.
-- [ ] `UserPageAssembler.java` — P: 95 (V35 identity-merge, load-bearing), 117. D: 127. Trailing 206 is acceptable as a switch-arm note.
-- [ ] `UserMergeService.java` — P: 87. `CollectionAccessService.java` — P: 68, into the `effectiveLevel` docblock being rewritten anyway. `CollectionFlags.java` — D: 79, trailing 24.
-- [ ] `validator/ContentImageUpdateValidator.java` — D: 31. (51 died with the dead method in MR 1.)
+- [x] `ContentModelConverter.java` — D: 379, 386, 473, 480, trailing 170. P: 654.
+- [x] `ContentMutationUtil.java` — D: 384. P: 132.
+- [x] `SyntheticCollectionResolver.java` — P: 38 (trimmed), 78, 95.
+- [x] `TagService.java` — P: 65. D: 116.
+- [x] `TagViewResolver.java` — D: 57, 65, 84. P: 71 (ordering-restoration rationale).
+- [x] `MetadataService.java` — D: the 12 identical "Metadata mutation: drop the CDN copy..." comments at 55, 76, 101, 123, 144, 169, 192, 260, 313, 384, 410. Replace with one class-docblock sentence. P: 208.
+- [x] `PaginationUtil.java` — D: 24, 27, 42, 45.
+- [x] `UserPageAssembler.java` — P: 95 (V35 identity-merge, load-bearing), 117. D: 127. Trailing 206 is acceptable as a switch-arm note.
+- [x] `UserMergeService.java` — P: 87. `CollectionAccessService.java` — P: 68, into the `effectiveLevel` docblock being rewritten anyway. `CollectionFlags.java` — D: 79, trailing 24.
+- [x] `validator/ContentImageUpdateValidator.java` — D: 31. (51 died with the dead method in MR 1.)
+
+### MR 12c outcome (2026-08-23) — shipped as [#180](https://github.com/themancalledzac/edens.zac.backend/pull/180)
+
+All 68 in-method comments removed across the twelve files; every file now measures 0. The
+load-bearing ones were promoted into 11 javadocs, 6 of them newly added.
+
+**The diff is comment lines and nothing else, with zero blank-line churn.** `git diff -U0` filtered
+for anything that is not a `//`, `/**`, `*` or `*/` line returns empty, and the blank-line count is
+0 -- so Working rule 6's "name the dangling blank line in the PR" caveat did not apply here. Build
+green, 1315 tests, 0 failures. For a comments-only diff that is the whole proof.
+
+**No bugs found.** Per Working rule 7 this is the correct outcome to report, not a shallow pass.
+Every checkable claim in the 68 held under verification: the 11 CDN-invalidation comments matched
+their `markChanged()` calls, `deletePerson`'s guarded-delete reasoning matched the zero-row check,
+`TagViewResolver`'s ordering-restoration comment matched the re-key-and-re-stream code, and
+`UserMergeService`'s gross-versus-net counts matched `countImageTags`/`countCollectionTags`.
+
+Count correction, the fourth in a row but the first in the other direction: the note said "the 12
+identical CDN comments" and then listed 11 line numbers. There are 11. The file's total of 16 is
+unchanged -- 11 CDN + 3 guarded-delete + 2 upsert.
+
+Two comments the original lists marked `P:` were deleted instead, because the docblock above them
+already said the same thing: `ContentMutationUtil`'s "merge with existing locations" (the
+`associateLocationsByName` docblock already says "Additive: merges with the content's existing
+locations rather than replacing them") and `PaginationUtil`'s four normalization notes.
+
+#### The `effectiveLevel` report the guardrail asked for
+
+The guardrail said to promote `CollectionAccessService:68` as it stands and report what changing the
+method would do rather than doing it. Promoted as instructed; the method body is untouched. The
+finding, which confirms the unverified lead already filed at the bottom of this doc:
+
+**`canView` and `isClient` do not resolve through `effectiveLevel`, and the `effectiveLevel` docblock
+says they do.** They are two-line passthroughs to `RoleRepository.canView`/`isClient`, and -- unlike
+`hasAtLeast`, which really does call `effectiveLevel` -- they take a raw `Long userId` rather than an
+`AuthPrincipal`. A principal is never in scope, so the GENERAL share-link ceiling cannot apply to
+them.
+
+Five call sites are affected: `UserShareControllerProd:92`, `ContentDownloadControllerProd:192`,
+`UserRatingOverrideService:37`, `UserSelectsService:77`, `CollectionService:539`.
+
+They are safe today, by two independent accidents. A flyby principal carries a null `userId`, and
+`rm.user_id = :userId` never matches on NULL under SQL comparison semantics, so both queries count 0
+and return false. On top of that, three of the five sites guard first anyway -- `UserShareControllerProd`
+with `AuthPrincipal.isRealUser`, and `ContentDownloadControllerProd` and `CollectionService` with an
+explicit `userId != null`.
+
+Neither accident is asserted anywhere. No test pins the null-userId behavior of
+`RoleRepository.canView`, and nothing stops a future caller from resolving a share principal to a
+real user id before calling `canView` -- at which point a link holder gets view access the GENERAL
+ceiling was written to deny, and the docblock will still claim the ceiling covers them.
+
+What changing it would cost: routing both through `effectiveLevel` means changing their signatures
+from `Long userId` to `AuthPrincipal`, updating those five call sites, and accepting that `canView`
+becomes `hasAtLeast(principal, id, GENERAL)` -- which changes its result for a share principal from
+false to true inside the share's scope. That is a real behavior change on the download and selects
+paths, and it needs its own MR with its own tests. Filed as a Wave 3 follow-up rather than done here.
+The cheap half -- correcting the docblock to say that only `hasAtLeast` and
+`CollaboratorAccessInterceptor` resolve through `effectiveLevel`, and that `canView`/`isClient` are
+safe only via the null-userId accident -- is also deliberately not done here, because a docblock that
+describes access-control behavior should change in the MR that verifies that behavior, not in a
+comment sweep.
 
 ## MR 13 — Comment debloat: media pipeline
 
@@ -1087,7 +1157,7 @@ Path correction: `ImageMetadata.java` is in `services/`, not `model/` as the lis
   - `filterNonListedChildCollections` (`CollectionService:1536-1547`) describes a context-detection mode that no longer exists.
   - "previously spread across ContentProcessingUtil" rename-history at `ContentModelConverter:36-37` and `ContentMutationUtil:30-31` — that class is gone.
   - "PARENT-shaped" vocabulary at `CollectionService:103-104`, `TagViewResolver:22-23`, `UserPageAssembler:26, 38` — dead since the enum deletion.
-  - `CollectionAccessService.effectiveLevel` overclaims: it says `canView`/`isClient`/`hasAtLeast` all resolve through `effectiveLevel`'s GENERAL ceiling. `canView` and `isClient` actually hit the repository directly and are only safe because flyby principals carry a null userId, which nothing documents or asserts. Fix the docblock, or actually route them through `effectiveLevel`, before a future caller trusts it.
+  - `CollectionAccessService.effectiveLevel` overclaims: it says `canView`/`isClient`/`hasAtLeast` all resolve through `effectiveLevel`'s GENERAL ceiling. `canView` and `isClient` actually hit the repository directly and are only safe because flyby principals carry a null userId, which nothing documents or asserts. Fix the docblock, or actually route them through `effectiveLevel`, before a future caller trusts it. **VERIFIED 2026-08-23 during MR 12c** -- five affected call sites and the full cost of the fix are written up in the "MR 12c outcome" section. Now a Wave 3 follow-up, not a lead.
 - [ ] `.claude/CLAUDE.md` is wrong about the architecture it documents: "controller/prod/ - Production endpoints (@Profile(\"prod\"))". Zero controllers carry `@Profile`; everything serves in all profiles. Fix the doc.
 
 ---

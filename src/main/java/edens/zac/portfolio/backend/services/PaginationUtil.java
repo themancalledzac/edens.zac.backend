@@ -21,10 +21,8 @@ public class PaginationUtil {
    * @return Normalized Pageable with valid page and size
    */
   public static Pageable normalizeCollectionPageable(int page, int size) {
-    // Normalize page: 0-based; negative coerced to 0
     int normalizedPage = Math.max(0, page);
 
-    // Normalize size: must be positive; use default if invalid
     int normalizedSize = size <= 0 ? default_collection_per_page : size;
 
     return PageRequest.of(normalizedPage, normalizedSize);
@@ -39,10 +37,8 @@ public class PaginationUtil {
    * @return Normalized Pageable with valid page and size
    */
   public static Pageable normalizeContentPageable(int page, int size) {
-    // Normalize page: 0-based; negative coerced to 0
     int normalizedPage = Math.max(0, page);
 
-    // Normalize size: must be positive; use default if invalid
     int normalizedSize = size <= 0 ? default_content_per_page : size;
 
     return PageRequest.of(normalizedPage, normalizedSize);

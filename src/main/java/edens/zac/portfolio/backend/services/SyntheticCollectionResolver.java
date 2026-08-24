@@ -65,6 +65,19 @@ public class SyntheticCollectionResolver {
   /**
    * Resolve a synthetic slug into a container-shaped {@link CollectionModel}. Caller is responsible
    * for verifying the slug via {@link #isSyntheticSlug(String)} first.
+   *
+   * <p>Row selection differs per slug. {@code all-client-galleries} also includes wrapper
+   * collections holding at least one client-gallery child (wedding wrappers with ceremony/reception
+   * sub-galleries), so they appear alongside standalone client galleries. {@code all-collections}
+   * is permission-scoped by the caller's verified identity, not by the environment, and stays
+   * chronological (newest first) for its first paint; the frontend reorders client-side thereafter.
+   * {@code all-blogs} keys on {@code is_blog} with rating-first ordering and the environment-based
+   * scope. Every non-gallery slug excludes collections with zero content rows so the listing never
+   * shows empty tiles.
+   *
+   * <p>Each child's tags are batch-loaded in a single query and attached to the COLLECTION
+   * content-ref blocks, letting the frontend filter the synthetic list client-side by tag without a
+   * per-collection fetch. Collections with no tags get an empty list.
    */
   @Transactional(readOnly = true)
   public CollectionModel resolve(String slug, boolean isLocalEnvironment) {
@@ -75,13 +88,6 @@ public class SyntheticCollectionResolver {
 
     List<CollectionVisibility> allowed = CollectionVisibility.visibleScope(isLocalEnvironment);
 
-    // "all-client-galleries" includes wrapper collections holding >=1 client-gallery child
-    // (e.g. wedding wrappers with ceremony/reception sub-galleries) so they appear alongside
-    // standalone client galleries. "all-collections" is permission-scoped by the caller's verified
-    // identity (NOT the environment) and stays chronological (newest first) for its first paint;
-    // the frontend reorders client-side thereafter. all-blogs keys on is_blog with rating-first
-    // ordering and the env-based scope. All non-gallery slugs exclude
-    // collections that have zero content rows so the listing never shows empty tiles.
     List<CollectionEntity> rows;
     if (ALL_CLIENT_GALLERIES.equals(slug)) {
       rows = collectionRepository.findClientGalleriesAndQualifyingParents(allowed);
@@ -92,9 +98,6 @@ public class SyntheticCollectionResolver {
     }
     List<CollectionModel> children = collectionProcessingUtil.batchConvertToBasicModels(rows);
 
-    // Batch-load each child collection's tags (single query) and attach them to the COLLECTION
-    // content-ref blocks so the frontend can filter the synthetic list client-side by tag without a
-    // per-collection fetch. Collections with no tags get an empty list.
     List<Long> childIds = children.stream().map(CollectionModel::getId).toList();
     Map<Long, List<TagEntity>> tagsByCollectionId = tagRepository.findTagsByCollectionIds(childIds);
 

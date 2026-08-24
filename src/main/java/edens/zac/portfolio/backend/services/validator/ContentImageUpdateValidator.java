@@ -27,7 +27,6 @@ public class ContentImageUpdateValidator {
       throw new IllegalArgumentException("Image ID is required for updates");
     }
 
-    // Validate: if isFilm is being set to true, filmFormat must also be provided
     if (Boolean.TRUE.equals(request.getIsFilm())) {
       if (request.getFilmFormat() == null) {
         throw new IllegalArgumentException("filmFormat is required when isFilm is true");

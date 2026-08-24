@@ -40,6 +40,14 @@ public class TagViewResolver {
    * Resolves a slug into a tag-view PARENT model, or empty when no tag matches or the tag has no
    * visible members (caller 404s).
    *
+   * <p>A converted tag also resolves to empty: it has handed its slug to a real collection, which
+   * now renders instead.
+   *
+   * <p>{@code findImageContentByTagId} returns ids in the intended order, but {@code
+   * findImagesByIds} uses an unordered {@code WHERE c.id IN (:ids)} shared by four other callers,
+   * so it stays unordered. The fetched entities are re-keyed by id and re-streamed over the ordered
+   * id list to restore that order, dropping any id that resolved to no entity.
+   *
    * @param slug requested slug (caller has ruled out synthetic + real-collection slugs)
    * @param isLocalEnvironment dev expands visibility to UNLISTED/HIDDEN; prod is LISTED only
    */
@@ -54,24 +62,17 @@ public class TagViewResolver {
     }
     TagEntity tag = tagOpt.get();
 
-    // A converted tag has handed its slug to a real collection; that collection now renders
-    // instead.
     if (tag.getConvertedCollectionId() != null) {
       return Optional.empty();
     }
 
     List<CollectionVisibility> allowed = CollectionVisibility.visibleScope(isLocalEnvironment);
 
-    // Members: tagged collections first (deliberate collection-level tags), then tagged images.
     List<CollectionEntity> collectionRows =
         tagRepository.findCollectionsByTagId(tag.getId(), allowed);
     List<CollectionModel> memberCollections =
         collectionProcessingUtil.batchConvertToBasicModels(collectionRows);
 
-    // findImageContentByTagId returns ids in the intended order, but findImagesByIds uses an
-    // unordered "WHERE c.id IN (:ids)" (shared by 4 other callers, so it stays unordered).
-    // Re-key the fetched entities by id and re-stream over the ordered id list to restore order,
-    // dropping any id that resolved to no entity.
     List<Long> imageContentIds = tagRepository.findImageContentByTagId(tag.getId(), allowed);
     Map<Long, ContentImageEntity> imagesById =
         contentRepository.findImagesByIds(imageContentIds).stream()
@@ -81,7 +82,6 @@ public class TagViewResolver {
     List<ContentModels.Image> memberImages =
         contentModelConverter.batchConvertImageEntitiesToModels(imageEntities);
 
-    // A tag-view with zero members is not a page — fall through to 404.
     if (memberCollections.isEmpty() && memberImages.isEmpty()) {
       return Optional.empty();
     }

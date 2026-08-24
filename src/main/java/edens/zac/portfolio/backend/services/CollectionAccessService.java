@@ -59,15 +59,16 @@ public class CollectionAccessService {
    * isClient, hasAtLeast and CollaboratorAccessInterceptor all resolve through here, the GENERAL
    * ceiling covers the whole surface at once: a link holder can never download, tag, star or reach
    * /api/edit, without any of those paths needing to know that shares exist.
+   *
+   * <p>The share branch sits ahead of the admin check on purpose. A flyby is built with {@code
+   * isAdmin=false}, but ordering the branches this way means a share principal resolves as a share
+   * no matter what else it might later carry, rather than depending on that flag staying false.
    */
   @Transactional(readOnly = true)
   public Optional<AccessLevel> effectiveLevel(AuthPrincipal principal, Long collectionId) {
     if (principal == null) {
       return Optional.empty();
     }
-    // Ahead of the admin check on purpose. A flyby is built with isAdmin=false, but ordering the
-    // branches this way means a share principal is resolved as a share no matter what else it
-    // might later carry, rather than depending on that flag staying false.
     if (principal.shareId() != null) {
       return shareLinkService.levelFor(principal.shareId(), collectionId);
     }

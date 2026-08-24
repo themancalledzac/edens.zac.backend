@@ -27,7 +27,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Service for managing metadata entities: tags, people, cameras, lenses, film types, locations. */
+/**
+ * Service for managing metadata entities: tags, people, cameras, lenses, film types, locations.
+ *
+ * <p>Every mutating method calls {@link ReadCacheInvalidator#markChanged()} before doing any work,
+ * so the CDN copy of the read surface is dropped once the transaction commits.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -52,7 +57,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createTag(String tagName) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     metadataValidator.validateTagName(tagName);
     tagName = tagName.trim();
@@ -73,7 +77,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Records.Tag updateTag(Long id, String tagName) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     metadataValidator.validateTagName(tagName);
     tagName = tagName.trim();
@@ -98,7 +101,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteTag(Long id) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     tagRepository
         .findById(id)
@@ -120,7 +122,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createPerson(String personName) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     metadataValidator.validatePersonName(personName);
     personName = personName.trim();
@@ -141,7 +142,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Records.Person updatePerson(Long id, String personName) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     metadataValidator.validatePersonName(personName);
     personName = personName.trim();
@@ -163,18 +163,21 @@ public class MetadataService {
     return toPersonModel(saved);
   }
 
+  /**
+   * Deletes a person tag along with its content associations.
+   *
+   * <p>{@code findById} matches any {@code users} row, accounts included, so it cannot tell a
+   * person tag from an account. A zero-row {@code deletePersonById} means the id is an account;
+   * throwing there rolls the association deletes back with the transaction.
+   */
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deletePerson(Long id) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     personRepository
         .findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Person not found with ID: " + id));
     personRepository.deleteAllAssociationsByPersonId(id);
-    // Guarded delete: findById above matches any users row, accounts included, so it cannot tell a
-    // person tag from an account. 0 rows means the id is an account -- throwing here rolls the
-    // association deletes above back with the transaction.
     if (personRepository.deletePersonById(id) == 0) {
       throw new ResourceNotFoundException("Person not found with ID: " + id);
     }
@@ -190,11 +193,17 @@ public class MetadataService {
         .collect(Collectors.toList());
   }
 
+  /**
+   * Creates a camera, or updates an existing one's film metadata.
+   *
+   * <p>A camera of the same name may already exist (auto-created during a film upload), so the
+   * requested film metadata is applied to it rather than the request being rejected. A duplicate
+   * body serial number is still a conflict.
+   */
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createCamera(
       String cameraName, String bodySerialNumber, Boolean isFilm, FilmFormat defaultFilmFormat) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     if (cameraName == null || cameraName.trim().isEmpty()) {
       throw new IllegalArgumentException("cameraName is required");
@@ -210,8 +219,6 @@ public class MetadataService {
       }
     }
 
-    // Upsert: if the camera already exists (e.g. auto-created during a film upload),
-    // apply the requested film metadata instead of rejecting the request.
     Optional<ContentCameraEntity> existingByName =
         equipmentRepository.findCameraByNameIgnoreCase(cameraName);
     if (existingByName.isPresent()) {
@@ -262,7 +269,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createLens(String lensName, String lensSerialNumber) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     if (lensName == null || lensName.trim().isEmpty()) {
       throw new IllegalArgumentException("lensName is required");
@@ -315,7 +321,6 @@ public class MetadataService {
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Map<String, Object> createFilmType(
       String filmTypeName, String displayName, Integer defaultIso) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     metadataValidator.validateFilmType(filmTypeName, displayName, defaultIso);
     filmTypeName = filmTypeName.trim();
@@ -386,7 +391,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Records.Location updateLocation(Long id, String locationName) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     metadataValidator.validateLocationName(locationName);
     locationName = locationName.trim();
@@ -412,7 +416,6 @@ public class MetadataService {
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public void deleteLocation(Long id) {
-    // Metadata mutation: drop the CDN copy of the read surface once this commits.
     readCacheInvalidator.markChanged();
     locationRepository
         .findById(id)
