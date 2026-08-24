@@ -24,6 +24,15 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
 
+Three sections below are not waves and had no row here until 2026-08-24, which made them invisible
+to anyone navigating by this table:
+
+| Section | Status |
+|---|---|
+| [Open security findings](#open-security-findings) | **6 open, 2 HIGH.** The live priority. S-1 is next. |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
+| [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
+
 Original estimate: roughly 4,500-5,000 lines removed against a few hundred added. The test tree (32.6k lines) is larger than main (27.2k); about 8% of it tests the Java compiler and Lombok.
 
 | Category | Count | Deletable lines (est.) |
@@ -91,6 +100,31 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   status change.** Note this also settles the MR 15 #6 question of whether the accounts-only test
   should be an allowlist: admitting a DISABLED account to a role is not a dormant grant, it is a
   live one.
+
+  **NEXT UP, and here is the guardrail.** S-1 is next because it is the highest-severity open item,
+  it is COLD, and the password park explicitly does not cover it (status enforcement is not password
+  storage).
+
+  *Keep the check at the two chokepoints -- `AuthController.login` and `SessionService.resolve` --
+  and leave `AuthPrincipal` alone. Report what adding a status field to the principal would cost
+  rather than doing it.* The tempting move is to put status on `AuthPrincipal` so every call site can
+  check it. That is the shape MR 15 #2 just deleted: 17 copy-pasted per-endpoint guards replaced by
+  one chain matcher. Fanning a security decision back out across call sites would undo that lesson
+  in the same quarter it was learned. Two chokepoints cover every authenticated path, because
+  `SessionService.resolve` is the only thing that turns a cookie into a principal.
+
+  Two premises checked so nobody re-raises them:
+  - **An `IN ('ACTIVE')` allowlist would NOT break onboarding.** I assumed it would and was wrong.
+    `InviteController` sets the password hash and flips status to ACTIVE in the same transaction,
+    then creates the session directly -- so an INVITED user never authenticates through
+    `/api/auth/login` and has no password hash until redeem. Allowlist versus `<> 'DISABLED'` is a
+    free choice, not a constraint.
+  - **Do not fold S-2 in.** Different mechanism (a raw `UPDATE` in a merge path, not the auth path)
+    and it needs its own test. Separate MR.
+
+  Third part worth scoping deliberately: revoking live sessions when an admin sets DISABLED.
+  Rejecting at `resolve` already closes the hole for reads, so revocation is defense in depth and
+  can be its own commit -- but say which you did, rather than leaving it ambiguous.
 - [ ] **S-2 (MEDIUM). The MR 15 #6 `addMember` guard has a bypass.** `UserMergeService.merge` calls
   `RoleRepository.repointMemberships`, which runs a raw `UPDATE role_member SET user_id` and never
   goes through `addMember`. `requireMergeable` constrains only the *source* (must be PERSON); the
@@ -520,9 +554,21 @@ and each needs its claim verified before acting (working rule 8).
 - [ ] Fully qualified names inline: **14 sites, not 6.** The six named (`CollectionService.isGalleryAccessAuthorized`'s parameter -- the doc's `542`, then `533`, is now `534`, which is the third correction to one ref and the reason this item now names symbols; `CollectionProcessingUtil`, `TagViewResolver`, `GalleryAccessCookies`, `ContactMessageLimiter`, `Records.java`) plus eight in the data layer the original scan missed: `BaseDao` (3), `CollectionRepository`, `EquipmentRepository` (3), `PersonRepository`. Import-only, **zero test coupling**. `Records.java` still needs consolidation #20 first (the `FilmFormat` name clash).
 - [ ] `Optional.get()` -- **45 sites, not 17.** The 17 named are all still present; 28 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 3, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
 - [ ] Magic number 2500 at both resize call sites (`ImageProcessingService:192, 292`). Name it.
-- [ ] `JobStatus.status` is a stringly-typed field with its states in a trailing comment (`JobTrackingService`). **Split the item**: making it an enum is COLD and non-breaking (Jackson serializes an enum to the same string), but costs ~45 test references across `AdminControllerTest` and `ImageUploadPipelineServiceTest`. Adding `COMPLETED_WITH_ERRORS` instead of flipping a 500-file job to FAILED over one error is **BLOCKED** -- it is a new wire value, and the check is one grep of the frontend's job-status poller.
+- [ ] `JobStatus.status` is a stringly-typed field with its states in a trailing comment (`JobTrackingService`). **Split the item**: making it an enum is COLD and non-breaking (Jackson serializes an enum to the same string), but costs ~45 test references across `AdminControllerTest` and `ImageUploadPipelineServiceTest`. Adding `COMPLETED_WITH_ERRORS` instead of flipping a 500-file job to FAILED over one error is
+  **UNBLOCKED as of 2026-08-24** -- the check was run and there is no frontend job-status poller at
+  all. `jobId`, `JobStatus`, `job.status`, `jobStatus`, `/jobs/` and `from-disk` return zero hits
+  across the whole frontend `app/` tree, and no code compares against `'COMPLETED'`/`'FAILED'`/
+  `'PROCESSING'`/`'PENDING'`. The backend returns a `jobId` for polling that nobody polls. So the new
+  enum value breaks no consumer -- **and the more interesting finding is that the whole job-status
+  endpoint may be dead**, which belongs in Appendix C rather than being fixed here.
 - [ ] Verb-style routes `POST /collections/createCollection` and `POST /content/content` (plus a third the item missed, `GET /api/admin/collections/{slug}/update`). **Both confirmed live in the frontend** (`app/lib/api/collections.ts`, `app/lib/api/content.ts`, one caller each), with 61 backend test references. The alias half is COLD; the retire half needs a frontend release.
-- [ ] Route the gallery-access save failure through an exception instead of a `saved()` boolean with a hand-built 400 (`CollectionAdminController`). **This is an undeclared wire change**: today a failure returns 400 with a `GalleryAccessResponse` body; through an exception it returns 400 with `GlobalExceptionHandler.ErrorResponse`. 30 test references across 4 files. Check whether the frontend reads the failure body before doing it.
+- [ ] Route the gallery-access save failure through an exception instead of a `saved()` boolean with a hand-built 400 (`CollectionAdminController`). **This is an undeclared wire change**: today a failure returns 400 with a `GalleryAccessResponse` body; through an exception it returns 400 with `GlobalExceptionHandler.ErrorResponse`. 30 test references across 4 files. **Checked 2026-08-24 and the answer is yes, so this stays
+  BLOCKED and is now precisely specified.** `saveGalleryAccess` in the frontend's
+  `app/lib/api/collections.ts` reads `result.saved` and `result.reason` straight off the 400 body and
+  rethrows as `ApiError(result.reason ?? <fallback>)`. Routing through `GlobalExceptionHandler` would
+  return `ErrorResponse` instead, so `saved` and `reason` both come back undefined and the admin UI
+  silently degrades to the generic fallback message. **The blocker is a frontend change, and it is
+  small**: have the frontend read the `ErrorResponse` shape first, then land the backend change.
 
 ---
 
@@ -680,6 +726,20 @@ shipped.) The verbose pre-split log is in the
   cross-repo questions; found one live broken feature (`POST /api/read/user/share/email` is called
   by the frontend and does not exist). Next: S-1, then MR 19 #16.
 
+- 2026-08-24 (close-out) — resynced the palace backend wing (was 2 months stale at `c135980`, now
+  `d4a1307`, verified by content not status: `AuthPrincipal` indexes as the current 5-arg record
+  again). Parked the gallery-password decision on the user's call — neither "accept plaintext" nor
+  "redesign the fingerprint", because both skip what we want the passwords to do; direction is likely
+  hashed, to be designed. Scoped the park narrowly so S-1 and the `isPasswordProtected` field are not
+  blocked by it. **Closed two blocked items by looking**: `COMPLETED_WITH_ERRORS` is unblocked (there
+  is no frontend job poller at all — which surfaced a new lead that the whole job-status endpoint may
+  be dead), and the gallery-access `saved()` item stays blocked but is now specified (the frontend
+  does read `result.saved`/`result.reason` off the 400 body). **Found six stale worktree branches the
+  board never knew about**, none with an open PR; three hold zero commits, and
+  `0257-backend-security-bugs` turned out to be fully superseded by MR 5 *and* the origin of the S-4
+  untestable-test pattern — filed with a "do not rescue it" note. Gave the three non-wave sections
+  rows in the Progress table. Next: S-1.
+
 ---
 
 # Decisions needed from the user
@@ -794,6 +854,41 @@ on; the `isPasswordProtected` call is under "Decisions needed" because it needs 
   which had been hard-coding null and silently disabling the frontend's blog date ordering. The one
   remaining null is `Records.CollectionList.fromSibling`, by construction.
 
+# Stale side branches
+
+Found 2026-08-24 by `git worktree list` while resyncing the palace. **The board has never mentioned
+these and none has an open PR.** Six worktrees, all created before or during this cleanup effort and
+left behind while 25 MRs landed on `main` underneath them.
+
+- [ ] **Delete the three that hold nothing.** `feat/collection-debloat` (0 ahead, 117 behind),
+  `claude/auth-password-reset` (0 ahead, 38 behind) and `claude/one-way-collection-associations`
+  (0 ahead, 38 behind) have **zero unique commits**. They are worktrees holding no work. Per the
+  user's standing worktree rule these are theirs to remove, so this is a recommendation, not a
+  cleanup to perform unasked. Note `claude/auth-password-reset` is **not** a reason to unpark the
+  password decision -- it contains no commits.
+- [x] **`0257-backend-security-bugs` is fully superseded -- verified, safe to delete.** Its single
+  commit (2026-08-22, "close the admin delete-person and rate-limit holes (cleanup tracker MR 5)")
+  is a parallel implementation of MR 5, which shipped as
+  [#165](https://github.com/themancalledzac/edens.zac.backend/pull/165). All three of its
+  `deletePerson_*` tests already exist on `main` under identical names.
+
+  **And it is where the S-4 gap came from.** Its `ProdSecretGuardTest` additions are the reflective
+  `invokeVerify(guard)` tests that mutation later proved cannot fail, including the duplicated
+  `enforceAuthzDisabledThrowsEvenWithAGoodSecret`. So this branch is not a fix for S-3/S-4 waiting to
+  be salvaged -- it is their origin. **Do not "rescue" it into an MR**; that was the tempting wrong
+  move and it would re-land the untestable tests.
+
+  One nuance worth carrying into the S-3 fix: its `deletePerson_refusesAnAccountId` test stubs
+  `deletePersonById` to return 0 and asserts a 404. That covers the service's zero-rows handling,
+  which is real, and leaves the SQL predicate untested, which is S-3. Both statements are true at
+  once, and that is exactly why the gap survived review.
+- [ ] **Two July "wip" snapshots, 147-184 commits behind.** `0217-user-upgrade-be` (1 commit,
+  2026-07-28, `AdminUserController` + `UserRequests` + a 136-line `UserUpgradeIntegrationTest`) and
+  `chore/log-review-followups` (1 commit, 2026-07-28, `AdminController`/`TagRepository`/
+  `CollectionService`/`ContentService`). Both predate Waves 1-5, which rewrote every file they touch.
+  Decide per branch: salvage the test, or delete. `0217`'s integration test is the only part likely
+  to still be worth anything.
+
 # Appendix A — Cross-repo verification (highest value)
 
 The BFF verification pass in the frontend repo determines how much the backend findings above
@@ -837,6 +932,13 @@ Worth a targeted check; not asserted as findings.
 - [x] `PersonRepository.findAccountUserIdsByIds` -- **resolved in MR 15 #6.** It had zero callers in main and test, so the only-accounts-get-grants rule was documented and unenforced. The method was deleted and the rule enforced at `RoleRepository.addMember` instead. Low severity: admin-only endpoints, and a PERSON row cannot log in; the risk was a dormant grant surviving an upgrade to an account.
 - [x] `collection.rows_wide` -- **premise FALSE, confirmed 2026-08-24. The frontend DOES read it**: `CollectionPageWrapper` uses `collection.rowsWide ?? LAYOUT.defaultChunkSize` as the row-packer chunk size, so dropping the column changes public rendering. Struck as a lead.
 - [ ] `deleteImages`/`deleteGif` delete from S3 before the DB write inside the transaction (`ContentService:380, 543`). A DB failure orphans the row's URLs; consider afterCommit S3 deletes.
+- [ ] **The image-upload job-status endpoint may be entirely dead.** *(New lead 2026-08-24, found
+  while answering the `JobStatus` question.)* `POST /content/images/{id}/from-disk` returns 202 with
+  a `jobId` "for polling", and `GET /api/admin/content/images/jobs/{jobId}` serves the status -- but
+  the frontend never calls either. Zero hits for `jobId`, `jobs/` or `from-disk` across its `app/`
+  tree. If the disk-import flow is admin-CLI-only, the whole `JobTrackingService` surface plus its
+  ~45 test references may be dead weight. Confirm how disk import is actually triggered before
+  acting; this is the kind of "nobody calls it" claim that is wrong when a human uses curl.
 - [ ] `updateImages` builds `imageMap` with `Collectors.toMap`, which throws on a duplicate key, so two updates for the same image id in one request fail before any work happens. **Note this is a verified finding sitting in an "unverified leads" appendix** -- it was traced when proving the MR 1b guards unreachable. It belongs with bug #17 (same method) whenever that MR happens; left here with a pointer rather than moved, so the trail survives. Correction to the original wording: `GlobalExceptionHandler` maps `IllegalStateException` to **400**, not 500 (working rule 3).
 - [ ] `updateImages` reports per-item errors inside one transaction. Confirm a mid-item `DataAccessException` cannot leave an item half-applied (needs a test).
 - [ ] `contentDisposition` (`DownloadUrlService:126-127`) does not escape quotes in filenames. Depends on what `sanitizeFilename` strips.
