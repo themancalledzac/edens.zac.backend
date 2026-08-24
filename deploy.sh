@@ -42,10 +42,59 @@ if ! docker exec portfolio-postgres pg_isready -U ${POSTGRES_USER:-zedens} -q 2>
 fi
 echo "Database is healthy"
 
-# Free disk space before building (old images, build cache)
+# Free disk space before building (old images, build cache).
+#
+# The build needs several GB of headroom: the maven builder stage carries a full ~/.m2 plus the
+# target/ output, and the root volume also holds the postgres data dir and the nightly backups.
+# A deploy that runs out of space fails inside `mvn package` with "No space left on device", which
+# reads like a build error and is not one -- so check for the headroom first and say so plainly.
+#
+# The routine prune is deliberately gentle: keeping recent build cache and the maven base image is
+# what makes a same-day redeploy fast. Only when headroom is actually short does it escalate to
+# dropping all of it, because on a small instance re-pulling the base image and re-resolving every
+# dependency costs minutes.
+REQUIRED_FREE_MB=3500
+
+free_mb() {
+  df -Pm "$APP_DIR" | awk 'NR==2 {print $4}'
+}
+
 echo "Cleaning up old Docker resources..."
 docker image prune -f
 docker builder prune -f --filter "until=24h"
+
+if [ "$(free_mb)" -lt "$REQUIRED_FREE_MB" ]; then
+  echo "Only $(free_mb)MB free, below the ${REQUIRED_FREE_MB}MB the build needs -- escalating cleanup..."
+  docker builder prune -af
+  docker image prune -af
+  # Journal logs routinely reclaim 500MB+ and are the largest non-Docker consumer on this box.
+  if command -v journalctl > /dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo journalctl --vacuum-size=100M || true
+  fi
+  echo "After escalated cleanup: $(free_mb)MB free"
+fi
+
+if [ "$(free_mb)" -lt "$REQUIRED_FREE_MB" ]; then
+  echo ""
+  echo "======================================"
+  echo "DEPLOYMENT ABORTED -- not enough disk space to build"
+  echo "======================================"
+  echo ""
+  echo "Free: $(free_mb)MB. Needed: ${REQUIRED_FREE_MB}MB."
+  echo ""
+  echo "Nothing was stopped, so the currently running backend is untouched and still serving."
+  echo ""
+  echo "Largest consumers to check:"
+  echo "  df -h /"
+  echo "  docker system df"
+  echo "  du -sh ~/portfolio-backend/backups ~/portfolio-db/data 2>/dev/null"
+  echo "  sudo du -xh / 2>/dev/null | sort -rh | head -20"
+  echo ""
+  echo "If the volume is simply too small, grow it -- ai_docs/ai_ec2.md calls for 20GB+ and an"
+  echo "8GB root volume cannot hold Docker, the postgres data dir and the backups at once."
+  echo ""
+  exit 1
+fi
 
 # Build new image (bust source cache on new commits, keep dependency cache)
 echo "Building images..."
