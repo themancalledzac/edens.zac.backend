@@ -12,7 +12,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * In-memory job tracker for background disk upload processing. Thread-safe via ConcurrentHashMap
+ * In-memory job tracker for the background disk pipelines -- both the upload into a named
+ * collection and the tag-first ingest that groups by capture day. Thread-safe via ConcurrentHashMap
  * and AtomicInteger counters. Finished jobs auto-expire after 1 hour; running jobs are kept until
  * they finish.
  */

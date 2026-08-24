@@ -73,13 +73,15 @@ public class ReadCacheInvalidator {
   /**
    * Issue the invalidation once the write is durable.
    *
+   * <p>An unset {@code cloudfront.distribution-id} is expected until the CloudFront API origin is
+   * enabled; the CDN simply keeps serving its own TTL out. That skip logs at debug rather than warn
+   * so it is not noise in every dev run.
+   *
    * @param event the marker published by {@link #markChanged()}
    */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
   public void onReadSurfaceChanged(ReadSurfaceChanged event) {
     if (distributionId == null || distributionId.isBlank()) {
-      // Expected until the CloudFront API origin is enabled; the CDN simply keeps serving its
-      // own TTL out. Debug rather than warn so it is not noise in every dev run.
       log.debug("Skipping read-surface invalidation: cloudfront.distribution-id is not configured");
       return;
     }

@@ -110,6 +110,10 @@ public class EmailService {
   /**
    * Build and send one SES message, mapping both failure families onto {@code "ses-error"}.
    *
+   * <p>The two families are {@link SesV2Exception}, meaning the SES API rejected the request
+   * (verification, sandbox, recipient), and {@link SdkClientException}, meaning a client-side
+   * failure (timeout, credentials, region, network).
+   *
    * @param label short description used only for logging; never include a token or password
    */
   private SendResult dispatch(
@@ -137,8 +141,6 @@ public class EmailService {
       log.info("Sent {} (to={})", label, toEmail);
       return new SendResult(true, null);
     } catch (SesV2Exception | SdkClientException e) {
-      // SesV2Exception = SES API rejected the request (verification, sandbox, recipient).
-      // SdkClientException = client-side failure (timeout, credentials, region, network).
       log.error(
           "Failed to send {} (to={}, kind={}): {}",
           label,

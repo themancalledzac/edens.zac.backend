@@ -112,6 +112,10 @@ public class S3MultipartOutputStream extends OutputStream {
    * Flushes the trailing part and completes the multipart upload. Does nothing if the upload was
    * already aborted -- there is no upload left on S3 to complete, and asking S3 to complete an
    * aborted upload fails. Safe to call more than once.
+   *
+   * <p>A well-formed ZIP always has an end-of-central-directory record, so no part list is ever
+   * empty here in practice. The empty-list branch aborts anyway, because an empty multipart upload
+   * cannot be completed.
    */
   @Override
   public void close() {
@@ -126,8 +130,6 @@ public class S3MultipartOutputStream extends OutputStream {
       if (bufferLen > 0) {
         uploadBufferedPart();
       }
-      // A well-formed ZIP always has an end-of-central-directory record, so completedParts is never
-      // empty in practice. Guard anyway: an empty multipart upload cannot be completed.
       if (completedParts.isEmpty()) {
         abort();
         return;

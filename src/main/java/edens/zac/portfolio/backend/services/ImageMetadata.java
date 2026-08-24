@@ -228,7 +228,6 @@ public class ImageMetadata {
         return null;
       }
 
-      // Strip everything except digits and decimal point
       String numeric = rawValue.replaceAll("[^0-9.]", "");
 
       if (numeric.isEmpty()) {
@@ -244,6 +243,10 @@ public class ImageMetadata {
    * Time" tags from metadata-extractor already come formatted as "1/100 sec", but XMP ExposureTime
    * stores the raw decimal (e.g., "0.01"). This extractor converts decimals to fractions so the
    * display is consistent regardless of source.
+   *
+   * <p>Three cases, in order: a value already containing "/" passes through untouched; a decimal
+   * {@code >= 1} second is rounded and shown as-is ("2 sec"); a decimal {@code < 1} second becomes
+   * the reciprocal fraction ("1/100 sec"). Anything unparseable is returned as it came in.
    */
   public static class ShutterSpeedExtractor implements ValueExtractor {
     @Override
@@ -253,25 +256,21 @@ public class ImageMetadata {
       }
       String trimmed = rawValue.trim();
 
-      // Already in fraction or human-readable format (e.g., "1/100 sec") — pass through
       if (trimmed.contains("/")) {
         return trimmed;
       }
 
-      // Try to parse as a decimal and convert to fraction
       try {
         double value = Double.parseDouble(trimmed.replaceAll("[^0-9.]", ""));
         if (value <= 0) {
           return trimmed;
         }
 
-        // Values >= 1 second: display as-is with "sec" suffix (e.g., "2 sec", "30 sec")
         if (value >= 1.0) {
           long whole = Math.round(value);
           return whole + " sec";
         }
 
-        // Values < 1 second: convert to 1/N fraction
         long denominator = Math.round(1.0 / value);
         return "1/" + denominator + " sec";
       } catch (NumberFormatException e) {
