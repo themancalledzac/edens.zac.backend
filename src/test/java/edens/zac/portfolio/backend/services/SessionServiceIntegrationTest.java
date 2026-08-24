@@ -107,6 +107,47 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(sessionService.resolve(raw)).isEmpty();
   }
 
+  /**
+   * Disabling an account must kill the sessions it already holds, without anyone revoking them. The
+   * session row here stays live -- unrevoked and unexpired -- so the only thing that can reject it
+   * is the status test in {@code resolve}. Strip that test and this goes green with a principal in
+   * hand, which is the mutation it exists to catch. It has to run against a real database: every
+   * test that mocks {@code AppUserRepository} would return an ACTIVE entity regardless of what the
+   * column says.
+   */
+  @Test
+  void resolveRejectsSessionWhoseAccountWasDisabled() {
+    AppUserEntity admin = seedAdmin("disabled@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, false, request, response);
+    String raw = rawTokenFrom(response);
+    assertThat(sessionService.resolve(raw)).isPresent();
+
+    userRepository.updateStatus(admin.getId(), UserStatus.DISABLED);
+
+    assertThat(sessionService.resolve(raw)).isEmpty();
+    UserSessionEntity session =
+        sessionRepository.findByTokenHash(sessionService.sha256HexForTest(raw)).orElseThrow();
+    assertThat(session.getRevokedAt()).isNull();
+    assertThat(session.getExpiresAt()).isAfter(LocalDateTime.now());
+  }
+
+  /** The status test is an ACTIVE allowlist, so a demotion to INVITED lapses the session too. */
+  @Test
+  void resolveRejectsSessionWhoseAccountWasReturnedToInvited() {
+    AppUserEntity admin = seedAdmin("reinvited@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, false, request, response);
+    String raw = rawTokenFrom(response);
+    assertThat(sessionService.resolve(raw)).isPresent();
+
+    userRepository.updateStatus(admin.getId(), UserStatus.INVITED);
+
+    assertThat(sessionService.resolve(raw)).isEmpty();
+  }
+
   @Test
   void resolveSlidesLastSeenWhenStale() {
     AppUserEntity admin = seedAdmin("slide@example.com");

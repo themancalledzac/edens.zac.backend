@@ -5,6 +5,7 @@ import edens.zac.portfolio.backend.dao.UserSessionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.UserSessionEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
+import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
@@ -104,11 +105,14 @@ public class SessionService {
 
   /**
    * Resolve a raw cookie token to a principal. Returns empty if the session is unknown, revoked, or
-   * expired. Two timeouts bound the session: an <em>idle</em> timeout of {@code ttl-days} of
-   * inactivity (slid forward on each resolve once {@code last_seen_at} is older than the refresh
-   * threshold), and an <em>absolute</em> ceiling of {@code createdAt + max-lifetime-days} that the
-   * slide can never cross. Once the slid expiry reaches the absolute ceiling, the session stops
-   * renewing and lapses, so an actively-used session cannot live forever.
+   * expired, or if the account behind it is not {@link UserStatus#ACTIVE}. The status test is read
+   * fresh on every resolve, so disabling an account takes effect on its next request without
+   * touching the sessions it already holds. Two timeouts bound the session: an <em>idle</em>
+   * timeout of {@code ttl-days} of inactivity (slid forward on each resolve once {@code
+   * last_seen_at} is older than the refresh threshold), and an <em>absolute</em> ceiling of {@code
+   * createdAt + max-lifetime-days} that the slide can never cross. Once the slid expiry reaches the
+   * absolute ceiling, the session stops renewing and lapses, so an actively-used session cannot
+   * live forever.
    *
    * @param rawToken the raw value read from the {@code ezac_session} cookie
    * @return the principal, or empty when the session is not currently valid
@@ -142,6 +146,9 @@ public class SessionService {
       return Optional.empty();
     }
     AppUserEntity user = maybeUser.get();
+    if (user.getStatus() != UserStatus.ACTIVE) {
+      return Optional.empty();
+    }
     return Optional.of(
         new AuthPrincipal(user.getId(), user.getEmail(), user.isAdmin(), session.isMfaSatisfied()));
   }
