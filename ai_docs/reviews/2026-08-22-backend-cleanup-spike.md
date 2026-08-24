@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a merged ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) -- 117 comments, one stale docblock fixed. **MR 13 COMPLETE:** 13b ([#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)) -- 37 comments into 13 javadocs, no bugs found; 13c, a density pass over 13b's own docblocks (net -24 lines, -192 words) after the promotion was measured at +42% prose. **Next up: MR 14 -- read working rule 10 first.** 93 in-method comments left in `src/main`. |
+| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a merged ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) -- 117 comments, one stale docblock fixed. **MR 13 COMPLETE:** 13b ([#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)) -- 37 comments into 13 javadocs, no bugs found; 13c ([#184](https://github.com/themancalledzac/edens.zac.backend/pull/184)), a density pass over 13b's own docblocks (net -24 lines, -192 words) after the promotion was measured at +42% prose. **Wave 4 is a genuine debloat: -975 words across six MRs** (retro table below). **Next up: MR 14 -- read working rule 10 first.** 93 in-method comments left in `src/main`, re-derived below. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -741,6 +741,19 @@ and deliberately left that question open -- see the decision item below.
   and a fact promoted into a private method that its public caller already documented. 13c cut -24
   lines / -192 words with nothing lost, leaving 13b+13c at -4 lines / -14 words with all 37 comments
   gone. Next: MR 14, which has 93 comments and would have repeated this at three times the scale.
+- 2026-08-23 — reconciled after #183 and #184 both merged, and closed out MR 13. Ran the word-count
+  retro across all six Wave 4 MRs: **-975 words total**, with 13b the only inflation, so the trend was
+  sound and the defect was localized. 13a is the instructive one -- **+2 lines, -75 words** -- proving
+  line count is the wrong instrument rather than just that 13b was careless. Re-derived MR 14 at **93
+  comments across 20 files**, no split needed (12c shipped 82 as one). Measured its refs at **68%,
+  the best in Wave 4**, which inverts the discount working rule 5 taught: **decay tracks edit churn,
+  not doc age** -- Waves 1-3 and MR 12/13 all landed on `services/`, leaving `controller/`, `config/`
+  and `dao/` refs pristine. Distribution is bimodal (eleven files 100%, six 0%), so the average lies;
+  per-file table is in the MR 14 section. Found `AdminController` now has zero in-method comments, so
+  its item is done by attrition. Verified both of MR 14's checkable claims (the `password_hash`
+  docblock and the CLAUDE.md `@Profile` line) still hold. Flagged `ContentService:227` as MR 14's
+  guardrail -- it is bug #16's only evidence and reads exactly like the narration MR 14 deletes.
+  Next: MR 14.
 
 ---
 
@@ -1434,7 +1447,103 @@ three times across the file. Two docblocks (`S3MultipartOutputStream.close`,
 `ImageMetadata.ShutterSpeedExtractor`) were left alone: they were already dense, and cutting them
 further would have cost information rather than restatement.
 
+## Wave 4 retro — measured in words, 2026-08-23
+
+Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked
+net-positive. Both halves of that turned out to matter, and only one was a real problem.
+
+The stats quoted in these PRs were commit-level, which mixes this tracker's running log in with the
+code. 13b's headline `+161/-53` was 88 lines of doc and +20 of Java. **Quote Java-only stats for a
+code MR.** Then, separately, the Java itself has to be measured in words, because javadoc's `/**`,
+` * ` and `<p>` scaffolding counts as content and hides prose growth in the line count:
+
+| MR | Java lines | words of prose | |
+|---|---|---|---|
+| 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)) | -25 | **-378** | |
+| 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178)) | -37 | **-301** | |
+| 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180)) | -1 | **-207** | |
+| 13a ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) | +2 | **-75** | line count up, prose down |
+| 13b ([#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)) | +20 | **+178** | the only inflation |
+| 13c ([#184](https://github.com/themancalledzac/edens.zac.backend/pull/184)) | -24 | **-192** | the correction |
+| **Wave 4** | **-65** | **-975** | |
+
+So the trend was sound and 13b was the outlier, now corrected. Two things worth carrying forward.
+13a shows the divergence without the defect -- **+2 lines but -75 words** -- which is proof the line
+count is simply the wrong instrument, not just that 13b was sloppy. And 12a/12b, the two biggest
+sweeps, produced the two biggest prose reductions, so scale is not what causes inflation. Care is.
+Working rule 10 has the check.
+
 ## MR 14 — Comment debloat: controllers, config, data layer, and stale docblocks
+
+### MR 14 worklist — re-derived 2026-08-23 on `6b2dc61`, use this instead of the line refs below
+
+**93 in-method comments across 20 files. No split needed** -- that is close to 12c's 82, which shipped
+fine as one MR. If it does start feeling long, the fault line is `SecurityConfig` (24) alone versus
+the other nineteen files (69), not a controller/config/dao carve-up.
+
+| File | Comments |
+|---|---|
+| `config/SecurityConfig.java` | 24 |
+| `controller/admin/AdminUserController.java` | 10 |
+| `dao/ContentRepository.java` | 7 |
+| `services/AdminBootstrap.java` | 6 |
+| `controller/prod/CollectionControllerProd.java` | 6 |
+| `dao/RoleRepository.java` | 5 |
+| `controller/auth/AuthController.java` | 5 |
+| `config/JdbcPublicKeyCredentialUserEntityRepository.java` | 5 |
+| `controller/prod/ContentDownloadControllerProd.java` | 4 |
+| `services/ClientGalleryAuthService.java` | 3 |
+| `dao/CollectionRepository.java` | 3 |
+| `types/TextFormType.java`, `services/SessionService.java`, `controller/prod/ShareControllerProd.java`, `config/RequestMetricInterceptor.java`, `config/DatabaseInfoLogger.java`, `config/ClientGalleryAccessLimiter.java` | 2 each |
+| `services/ContentService.java`, `controller/auth/WebAuthnController.java`, `config/ClientIp.java` | 1 each |
+
+**The line refs below are 68% accurate -- the best in Wave 4, and this inverts working rule 5's
+expectation.** MR 12's were 36%, MR 13b's 4%. Do not discount MR 14's refs the way the last three
+MRs had to.
+
+The reason matters more than the number: **decay tracks how much a file was edited, not how old the
+doc is.** Waves 1-3 and MR 12/13 all landed on `services/`, so the `services/` refs rotted while
+`controller/`, `config/` and `dao/` sat untouched. The distribution is bimodal, not uniformly 68% --
+eleven files are at 100% and six are at 0%, so check per file rather than trusting the average:
+
+- **100% (trust these):** `AdminUserController`, `ShareControllerProd`, `SecurityConfig`,
+  `ClientGalleryAccessLimiter`, `DatabaseInfoLogger`, `JdbcPublicKeyCredentialUserEntityRepository`,
+  `RequestMetricInterceptor`, `SessionService`, `AdminBootstrap`, `RoleRepository`, `TextFormType`.
+- **Partial:** `CollectionControllerProd` 5/7, `ContentRepository` 4/7,
+  `ContentDownloadControllerProd` 2/13.
+- **0% (re-derive by name):** `AdminController`, `AuthController`, `WebAuthnController`,
+  `TomcatConfig`, `ClientGalleryAuthService`, `CollectionRepository`.
+
+`AdminController` now has **zero** in-method comments, so its `P: 232-233` item is finished by
+attrition -- drop it rather than hunting for it.
+
+### Guardrail for MR 14: `ContentService:227` is evidence, not a comment to sweep
+
+One of the 93 is quarantined. `ContentService:227` reads
+`// Batch save all successfully updated images for efficiency`, and it is the only remaining evidence
+of **bug #16** (`updateImages` claims a batch save it does not do), filed by MR 12b. The Wave 4
+guardrail already says to leave a bug-bearing comment until its own MR lands. It reads exactly like
+the redundant narration MR 14 is deleting everywhere else, which is precisely why a fresh session
+will delete it without noticing.
+
+Leave it. Report instead whether bug #16 is still real against current `updateImages` -- Working rule
+8 says a filed finding decays like any other note, and if it was fixed in passing then the comment
+can go with the fix rather than silently.
+
+Second, softer guardrail: `SecurityConfig`'s 24 are the densest security writing in the repo and the
+item below says keep every word. That instruction predates Working rule 10. Both hold -- keep every
+*fact*, but promoting 24 comments into one `filterChain` docblock is the exact shape that produced
+13b's +42%. Check the word count on that file specifically before opening the PR.
+
+### Two claims below, both verified 2026-08-23
+
+- `CollectionVisibility.java:12` does still say `password_hash`; the column is `gallery_password`
+  since V18. Real, and it is a docblock line rather than one of the 93.
+- `.claude/CLAUDE.md:19` does still claim `controller/prod/ - Production endpoints (@Profile("prod"))`.
+  Zero controllers carry `@Profile`. Two of them (`MessagesControllerAdmin`,
+  `RequestMetricController`) now carry docblocks explicitly saying they run in dev and prod with no
+  `@Profile` gating, so the code documents the opposite of the CLAUDE.md line. Real, and worth doing
+  in this MR since it is one line.
 
 - [ ] `AdminController.java` — P: 232-233 (with bug #4). `AdminUserController.java` — P: 216-218, 288-292 (invite-invalidation security rationale); D: 425-426. `AuthController.java` — D: 60, 70-71; P: 99-101. `WebAuthnController.java` — D: 142, 197. `ShareControllerProd.java` — P: 84-85. `CollectionControllerProd.java` — P: 104-109 (caching rationale); D: 222. `ContentDownloadControllerProd.java` — P: 72-75, 111-115, 148-149; D: 140-141.
 - [ ] `SecurityConfig.java` — P: 30-31, 48-53, 58-64, 67-73, 79-80, all into the `filterChain` docblock. This is the best security documentation in the repo; keep every word. `ClientGalleryAccessLimiter.java` — P: 45-46. `TomcatConfig.java` — D: 18 (wrong), P: 19. `DatabaseInfoLogger.java` — D: 32, 37. `DefaultValues.java` — P: 5. `JdbcPublicKeyCredentialUserEntityRepository.java` — P: 62-65, 73. `RequestMetricInterceptor.java` — D: 71, 77. `SessionService.java` — D: 132-133. `AdminBootstrap.java` — P: 81-86; the "Do not fix this into a single statement" warning must survive. `ClientGalleryAuthService.java` — D: 58, 63, 102.
