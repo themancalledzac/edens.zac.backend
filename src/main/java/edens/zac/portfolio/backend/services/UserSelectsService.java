@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.dao.UserSelectRepository;
 import edens.zac.portfolio.backend.entity.UserSelectEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.UserSelectGroup;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -30,8 +31,8 @@ public class UserSelectsService {
 
   /** Add an image to the user's selects, scoped to the collection. Idempotent. */
   @Transactional
-  public void add(Long userId, Long collectionId, Long contentId) {
-    requireCollectionAccess(userId, collectionId);
+  public void add(AuthPrincipal principal, Long collectionId, Long contentId) {
+    Long userId = requireCollectionAccess(principal, collectionId);
     userSelectRepository.insert(
         UserSelectEntity.builder()
             .userId(userId)
@@ -48,8 +49,8 @@ public class UserSelectsService {
 
   /** The selected image ids in one collection, newest-selected first. */
   @Transactional(readOnly = true)
-  public List<Long> listSelectIds(Long userId, Long collectionId) {
-    requireCollectionAccess(userId, collectionId);
+  public List<Long> listSelectIds(AuthPrincipal principal, Long collectionId) {
+    Long userId = requireCollectionAccess(principal, collectionId);
     return userSelectRepository.findContentIdsByUserIdAndCollectionId(userId, collectionId);
   }
 
@@ -73,9 +74,20 @@ public class UserSelectsService {
     return groups;
   }
 
-  private void requireCollectionAccess(Long userId, Long collectionId) {
-    if (!collectionAccessService.canView(userId, collectionId)) {
+  /**
+   * The caller's user id, once their VIEW access to the collection is established. Takes the whole
+   * principal so the global-admin sentinel counts; the id alone dropped it.
+   *
+   * <p>{@link AuthPrincipal#isRealUser} is checked first even though {@code /api/read/user/**} is
+   * already gated on {@code hasRole("USER")}. A share-link holder resolves GENERAL through {@code
+   * effectiveLevel} but has no user id, so without this the rows inserted below would be keyed on
+   * null if that route gating ever changed.
+   */
+  private Long requireCollectionAccess(AuthPrincipal principal, Long collectionId) {
+    if (!AuthPrincipal.isRealUser(principal)
+        || !collectionAccessService.canView(principal, collectionId)) {
       throw new AccessDeniedException("No gallery access for collection " + collectionId);
     }
+    return principal.userId();
   }
 }

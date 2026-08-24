@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,7 +72,7 @@ class UserSelectsControllerProdTest {
                 .content("{\"collectionId\":3,\"contentId\":42}"))
         .andExpect(status().isCreated());
 
-    verify(userSelectsService).add(7L, 3L, 42L);
+    verify(userSelectsService).add(client, 3L, 42L);
   }
 
   @Test
@@ -85,7 +86,7 @@ class UserSelectsControllerProdTest {
 
   @Test
   void listIdsReturnsArray() throws Exception {
-    when(userSelectsService.listSelectIds(7L, 3L)).thenReturn(List.of(42L, 43L));
+    when(userSelectsService.listSelectIds(client, 3L)).thenReturn(List.of(42L, 43L));
 
     mockMvc
         .perform(get("/api/read/user/selects").param("collectionId", "3").with(asUser(client)))
@@ -118,7 +119,7 @@ class UserSelectsControllerProdTest {
                 .content("{}"))
         .andExpect(status().isBadRequest());
 
-    verify(userSelectsService, never()).add(anyLong(), anyLong(), anyLong());
+    verify(userSelectsService, never()).add(any(), anyLong(), anyLong());
   }
 
   @Test
@@ -131,6 +132,6 @@ class UserSelectsControllerProdTest {
                 .content("{\"collectionId\":3}"))
         .andExpect(status().isBadRequest());
 
-    verify(userSelectsService, never()).add(anyLong(), anyLong(), anyLong());
+    verify(userSelectsService, never()).add(any(), anyLong(), anyLong());
   }
 }

@@ -34,7 +34,7 @@ public class UserSelectsControllerProd {
   @PostMapping
   public ResponseEntity<Void> add(
       @AuthenticationPrincipal AuthPrincipal principal, @Valid @RequestBody AddSelectRequest body) {
-    userSelectsService.add(principal.userId(), body.collectionId(), body.contentId());
+    userSelectsService.add(principal, body.collectionId(), body.contentId());
     return ResponseEntity.status(HttpStatus.CREATED).build();
   }
 
@@ -56,7 +56,7 @@ public class UserSelectsControllerProd {
       @AuthenticationPrincipal AuthPrincipal principal,
       @RequestParam(name = "collectionId", required = false) Long collectionId) {
     if (collectionId != null) {
-      List<Long> ids = userSelectsService.listSelectIds(principal.userId(), collectionId);
+      List<Long> ids = userSelectsService.listSelectIds(principal, collectionId);
       return ResponseEntity.ok(ids);
     }
     List<UserSelectGroup> groups = userSelectsService.listAll(principal.userId());

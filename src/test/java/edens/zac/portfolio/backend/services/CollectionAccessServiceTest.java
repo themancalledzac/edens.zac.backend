@@ -24,15 +24,48 @@ class CollectionAccessServiceTest {
   @InjectMocks private CollectionAccessService service;
 
   @Test
-  void canViewDelegatesToRepository() {
-    when(roleRepository.canView(1L, 9L)).thenReturn(true);
-    assertThat(service.canView(1L, 9L)).isTrue();
+  void canViewResolvesThroughEffectiveLevel() {
+    // S-6. This used to call roleRepository.canView directly, which is why neither the admin
+    // sentinel nor the share branch reached it. GENERAL is the floor of the ladder, so for a
+    // session principal "at least GENERAL" and "holds any grant" are the same question.
+    AuthPrincipal user = AuthPrincipal.client(1L, "c@b.com", true);
+    when(roleRepository.highestLevel(1L, 9L)).thenReturn(Optional.of(AccessLevel.GENERAL));
+    assertThat(service.canView(user, 9L)).isTrue();
+
+    when(roleRepository.highestLevel(1L, 10L)).thenReturn(Optional.empty());
+    assertThat(service.canView(user, 10L)).isFalse();
   }
 
   @Test
-  void isClientDelegatesToRepository() {
-    when(roleRepository.isClient(1L, 9L)).thenReturn(false);
-    assertThat(service.isClient(1L, 9L)).isFalse();
+  void isClientResolvesThroughEffectiveLevelAndNeedsClientOrHigher() {
+    AuthPrincipal user = AuthPrincipal.client(1L, "c@b.com", true);
+    when(roleRepository.highestLevel(1L, 9L)).thenReturn(Optional.of(AccessLevel.GENERAL));
+    assertThat(service.isClient(user, 9L)).isFalse();
+
+    when(roleRepository.highestLevel(1L, 10L)).thenReturn(Optional.of(AccessLevel.CLIENT));
+    assertThat(service.isClient(user, 10L)).isTrue();
+  }
+
+  @Test
+  void adminSatisfiesCanViewAndIsClientWithNoGrantAtAll() {
+    // Working rule 20: an admin is the owner. Before S-6 both of these were false for an admin
+    // holding no role membership, which is what sent them to a password prompt and a 401.
+    AuthPrincipal admin = new AuthPrincipal(1L, "a@b.com", true, true);
+    assertThat(service.canView(admin, 9L)).isTrue();
+    assertThat(service.isClient(admin, 9L)).isTrue();
+    verifyNoInteractions(roleRepository);
+  }
+
+  @Test
+  void shareHolderCanViewButNeverCountsAsClient() {
+    // The GENERAL ceiling is what makes routing isClient through effectiveLevel safe: a link
+    // holder gains nothing from it. canView does change for a share, which is why the two
+    // gallery-password gates screen with AuthPrincipal.isRealUser before asking.
+    AuthPrincipal flyby = AuthPrincipal.flyby(3L);
+    when(shareLinkService.levelFor(3L, 9L)).thenReturn(Optional.of(AccessLevel.GENERAL));
+    assertThat(service.canView(flyby, 9L)).isTrue();
+    assertThat(service.isClient(flyby, 9L)).isFalse();
+    verifyNoInteractions(roleRepository);
   }
 
   @Test

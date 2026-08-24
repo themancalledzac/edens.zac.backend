@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,7 +77,7 @@ class UserSavesControllerProdTest {
                 .content("{\"imageId\":42}"))
         .andExpect(status().isCreated());
 
-    verify(userSavesService).add(7L, 42L);
+    verify(userSavesService).add(client, 42L);
   }
 
   @Test
@@ -89,14 +90,14 @@ class UserSavesControllerProdTest {
                 .content("{\"imageId\":null}"))
         .andExpect(status().isBadRequest());
 
-    verify(userSavesService, never()).add(anyLong(), anyLong());
+    verify(userSavesService, never()).add(any(), anyLong());
   }
 
   @Test
   void addNonexistentImageIsNotFound() throws Exception {
     Mockito.doThrow(new ResourceNotFoundException("Image not found with ID: 999"))
         .when(userSavesService)
-        .add(7L, 999L);
+        .add(client, 999L);
 
     mockMvc
         .perform(

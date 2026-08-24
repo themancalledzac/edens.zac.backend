@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.dao.UserRatingOverrideRepository;
 import edens.zac.portfolio.backend.entity.UserRatingOverrideEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,7 +21,8 @@ import org.springframework.security.access.AccessDeniedException;
 @ExtendWith(MockitoExtension.class)
 class UserRatingOverrideServiceTest {
 
-  private static final Long USER = 1L;
+  private static final Long USER_ID = 1L;
+  private static final AuthPrincipal USER = AuthPrincipal.client(USER_ID, "u@example.com", true);
   private static final Long COLLECTION = 7L;
   private static final Long CONTENT = 42L;
 
@@ -41,7 +43,7 @@ class UserRatingOverrideServiceTest {
         ArgumentCaptor.forClass(UserRatingOverrideEntity.class);
     verify(overrideRepository).upsert(captor.capture());
     UserRatingOverrideEntity saved = captor.getValue();
-    assertThat(saved.getUserId()).isEqualTo(USER);
+    assertThat(saved.getUserId()).isEqualTo(USER_ID);
     assertThat(saved.getContentId()).isEqualTo(CONTENT);
     assertThat(saved.getCollectionId()).isEqualTo(COLLECTION);
     assertThat(saved.getRating()).isEqualTo(4);
@@ -71,13 +73,14 @@ class UserRatingOverrideServiceTest {
   void listReturnsScopedOverrides() {
     UserRatingOverrideEntity row =
         UserRatingOverrideEntity.builder()
-            .userId(USER)
+            .userId(USER_ID)
             .contentId(CONTENT)
             .collectionId(COLLECTION)
             .rating(3)
             .build();
-    when(overrideRepository.findByUserIdAndCollectionId(USER, COLLECTION)).thenReturn(List.of(row));
+    when(overrideRepository.findByUserIdAndCollectionId(USER_ID, COLLECTION))
+        .thenReturn(List.of(row));
 
-    assertThat(service().listForUserInCollection(USER, COLLECTION)).containsExactly(row);
+    assertThat(service().listForUserInCollection(USER_ID, COLLECTION)).containsExactly(row);
   }
 }

@@ -5,6 +5,7 @@ import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.UserSavedImageRepository;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.UserSavedImageEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.ContentModels;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -35,10 +36,21 @@ public class UserSavesService {
    * cannot distinguish "missing" from "exists but hidden" (no enumeration oracle). The visibility
    * check subsumes the old existence guard: an id with no visible LISTED/accessible membership
    * (including a nonexistent id) is treated as not found.
+   *
+   * <p>A global admin skips the visibility query entirely (working rule 20). The bypass sits here
+   * rather than in {@code isImageVisibleToUser}'s SQL on purpose: that query is {@code LISTED OR
+   * role grant} and has no {@code is_admin} term, and adding one would push an identity rule into a
+   * statement that several read paths share for filtering rather than for authorization. Non-admins
+   * take the identical query they always did, so the enumeration-oracle property above is
+   * untouched.
    */
   @Transactional
-  public void add(Long userId, Long imageId) {
-    if (!contentRepository.isImageVisibleToUser(imageId, userId)) {
+  public void add(AuthPrincipal principal, Long imageId) {
+    Long userId = AuthPrincipal.isRealUser(principal) ? principal.userId() : null;
+    if (userId == null) {
+      throw new ResourceNotFoundException("Image not found with ID: " + imageId);
+    }
+    if (!principal.isAdmin() && !contentRepository.isImageVisibleToUser(imageId, userId)) {
       throw new ResourceNotFoundException("Image not found with ID: " + imageId);
     }
     userSavedImageRepository.insert(

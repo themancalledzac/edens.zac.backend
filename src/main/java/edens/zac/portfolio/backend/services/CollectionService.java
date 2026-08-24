@@ -528,6 +528,13 @@ public class CollectionService {
    * (the latter is what makes a PARENT password also unlock its propagated CLIENT_GALLERY children,
    * and vice versa, without re-prompting). Returns {@code true} for unprotected or missing
    * collections — the GET handler still returns 200 with the stripped/empty model.
+   *
+   * <p>The grant check reads the whole principal, not just {@code CurrentUser.userId()}. Reading
+   * only the id dropped {@code isAdmin} before the check ran, so an admin holding no role on a
+   * protected gallery was sent to the password prompt (working rule 20: an admin is the owner and
+   * is never password-gated). {@link AuthPrincipal#isRealUser} screens first because a share-link
+   * holder resolves GENERAL through {@code effectiveLevel}, and a share link must not be a second
+   * way past this prompt.
    */
   @Transactional(readOnly = true)
   public boolean isGalleryAccessAuthorized(
@@ -536,8 +543,9 @@ public class CollectionService {
         .findBySlug(slug)
         .map(
             entity -> {
-              Long userId = CurrentUser.userId();
-              if (userId != null && collectionAccessService.canView(userId, entity.getId())) {
+              AuthPrincipal principal = CurrentUser.principal();
+              if (AuthPrincipal.isRealUser(principal)
+                  && collectionAccessService.canView(principal, entity.getId())) {
                 return true;
               }
               return GalleryAccessCookies.hasValidAccess(

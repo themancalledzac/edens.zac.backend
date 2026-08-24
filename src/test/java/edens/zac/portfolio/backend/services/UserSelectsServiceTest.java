@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.dao.UserSelectRepository;
 import edens.zac.portfolio.backend.entity.UserSelectEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.UserSelectGroup;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -26,11 +27,13 @@ class UserSelectsServiceTest {
 
   @InjectMocks private UserSelectsService service;
 
+  private static final AuthPrincipal USER = AuthPrincipal.client(7L, "u@example.com", true);
+
   @Test
   void addInsertsWhenUserHoldsMembership() {
-    when(collectionAccessService.canView(7L, 3L)).thenReturn(true);
+    when(collectionAccessService.canView(USER, 3L)).thenReturn(true);
 
-    service.add(7L, 3L, 42L);
+    service.add(USER, 3L, 42L);
 
     ArgumentCaptor<UserSelectEntity> captor = ArgumentCaptor.forClass(UserSelectEntity.class);
     verify(userSelectRepository).insert(captor.capture());
@@ -42,9 +45,9 @@ class UserSelectsServiceTest {
 
   @Test
   void addDeniedWhenNoMembership() {
-    when(collectionAccessService.canView(7L, 3L)).thenReturn(false);
+    when(collectionAccessService.canView(USER, 3L)).thenReturn(false);
 
-    assertThatThrownBy(() -> service.add(7L, 3L, 42L)).isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(() -> service.add(USER, 3L, 42L)).isInstanceOf(AccessDeniedException.class);
 
     verify(userSelectRepository, never()).insert(org.mockito.ArgumentMatchers.any());
   }
@@ -58,9 +61,9 @@ class UserSelectsServiceTest {
 
   @Test
   void listIdsRequiresMembership() {
-    when(collectionAccessService.canView(7L, 3L)).thenReturn(false);
+    when(collectionAccessService.canView(USER, 3L)).thenReturn(false);
 
-    assertThatThrownBy(() -> service.listSelectIds(7L, 3L))
+    assertThatThrownBy(() -> service.listSelectIds(USER, 3L))
         .isInstanceOf(AccessDeniedException.class);
 
     verify(userSelectRepository, never())
@@ -70,11 +73,11 @@ class UserSelectsServiceTest {
 
   @Test
   void listIdsReturnsForMember() {
-    when(collectionAccessService.canView(7L, 3L)).thenReturn(true);
+    when(collectionAccessService.canView(USER, 3L)).thenReturn(true);
     when(userSelectRepository.findContentIdsByUserIdAndCollectionId(7L, 3L))
         .thenReturn(List.of(42L, 43L));
 
-    assertThat(service.listSelectIds(7L, 3L)).containsExactly(42L, 43L);
+    assertThat(service.listSelectIds(USER, 3L)).containsExactly(42L, 43L);
   }
 
   @Test

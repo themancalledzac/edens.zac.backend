@@ -11,6 +11,7 @@ import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.UserSavedImageRepository;
 import edens.zac.portfolio.backend.entity.UserSavedImageEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,11 +28,14 @@ class UserSavesServiceTest {
 
   @InjectMocks private UserSavesService service;
 
+  private static final AuthPrincipal USER = AuthPrincipal.client(7L, "u@example.com", true);
+  private static final AuthPrincipal ADMIN = new AuthPrincipal(9L, "a@example.com", true, true);
+
   @Test
   void addInsertsWhenImageIsVisibleToUser() {
     when(contentRepository.isImageVisibleToUser(42L, 7L)).thenReturn(true);
 
-    service.add(7L, 42L);
+    service.add(USER, 42L);
 
     ArgumentCaptor<UserSavedImageEntity> captor =
         ArgumentCaptor.forClass(UserSavedImageEntity.class);
@@ -45,12 +49,25 @@ class UserSavesServiceTest {
   void addThrowsNotFoundWhenImageNotVisibleToUser() {
     when(contentRepository.isImageVisibleToUser(42L, 7L)).thenReturn(false);
 
-    assertThatThrownBy(() -> service.add(7L, 42L))
+    assertThatThrownBy(() -> service.add(USER, 42L))
         .isInstanceOf(ResourceNotFoundException.class)
         .hasMessageContaining("42");
 
     // Not-visible (or nonexistent) image must never reach the insert.
     verify(userSavedImageRepository, never()).insert(any());
+  }
+
+  @Test
+  void addSkipsTheVisibilityCheckForAnAdmin() {
+    // S-6 / working rule 20. An admin is the owner, so an image that lives only in a collection
+    // they hold no role grant on must not 404 on save. The visibility query is never asked.
+    service.add(ADMIN, 42L);
+
+    ArgumentCaptor<UserSavedImageEntity> captor =
+        ArgumentCaptor.forClass(UserSavedImageEntity.class);
+    verify(userSavedImageRepository).insert(captor.capture());
+    assertThat(captor.getValue().getUserId()).isEqualTo(9L);
+    verify(contentRepository, never()).isImageVisibleToUser(any(), any());
   }
 
   @Test

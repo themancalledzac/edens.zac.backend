@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -60,7 +61,7 @@ class UserShareControllerProdTest {
 
   @Test
   void addCollectionIsForbiddenWhenTheOwnerCannotViewIt() {
-    when(collectionAccessService.canView(7L, 99L)).thenReturn(false);
+    when(collectionAccessService.canView(OWNER, 99L)).thenReturn(false);
 
     assertThat(controller.addCollection(OWNER, 99L).getStatusCode())
         .isEqualTo(HttpStatus.FORBIDDEN);
@@ -71,7 +72,7 @@ class UserShareControllerProdTest {
 
   @Test
   void addCollectionOptsInWhenTheOwnerHoldsAGrant() {
-    when(collectionAccessService.canView(7L, 99L)).thenReturn(true);
+    when(collectionAccessService.canView(OWNER, 99L)).thenReturn(true);
     when(shareLinkService.findForUser(7L)).thenReturn(Optional.of(LINK));
 
     assertThat(controller.addCollection(OWNER, 99L).getStatusCode())
@@ -89,7 +90,7 @@ class UserShareControllerProdTest {
         .isEqualTo(HttpStatus.NO_CONTENT);
 
     verify(shareLinkService).removeOptIn(42L, 99L);
-    verify(collectionAccessService, never()).canView(anyLong(), anyLong());
+    verify(collectionAccessService, never()).canView(any(), anyLong());
   }
 
   @Test

@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.prod;
 import edens.zac.portfolio.backend.config.CurrentUser;
 import edens.zac.portfolio.backend.config.GalleryAccessCookies;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.services.ClientGalleryAuthService;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
@@ -175,6 +176,12 @@ public class ContentDownloadControllerProd {
    * from it (download gate: per-slug cookie only) — while the frontend rendered an enabled download
    * button. Read and download now grant on identical evidence.
    *
+   * <p>The grant check reads the whole principal rather than {@code CurrentUser.userId()}, which
+   * dropped {@code isAdmin} before it could count. An admin holding no CLIENT role on a protected
+   * gallery was 401'd on download while the read gate let them in; working rule 20 says an admin is
+   * the owner and hits neither. {@link AuthPrincipal#isRealUser} screens share-link holders out
+   * first, though the GENERAL ceiling would refuse them CLIENT anyway.
+   *
    * <p>The four-arg overload short-circuits to {@code true} on a null/blank password, which cannot
    * widen this gate: every caller supplies a collection already known to be protected. The two
    * loops take theirs from {@code findProtectedCollectionsForImage} / {@code
@@ -187,8 +194,9 @@ public class ContentDownloadControllerProd {
    * collection's current password.
    */
   private boolean isDownloadAuthorized(HttpServletRequest request, CollectionEntity collection) {
-    Long userId = CurrentUser.userId();
-    if (userId != null && collectionAccessService.isClient(userId, collection.getId())) {
+    AuthPrincipal principal = CurrentUser.principal();
+    if (AuthPrincipal.isRealUser(principal)
+        && collectionAccessService.isClient(principal, collection.getId())) {
       return true;
     }
     return GalleryAccessCookies.hasValidAccess(
