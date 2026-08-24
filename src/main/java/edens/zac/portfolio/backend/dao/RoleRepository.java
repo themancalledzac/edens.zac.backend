@@ -448,14 +448,36 @@ public class RoleRepository extends BaseDao {
         createParameterSource().addValue("userId", userId));
   }
 
-  /** Move the source user's role memberships onto the target, de-duped (identity merge). */
+  /**
+   * Move the source user's role memberships onto the target, de-duped (identity merge).
+   *
+   * <p>Upholds the same rule {@link #addMember} enforces: no {@code role_member} row may point at a
+   * tag-only {@code PERSON}. A merge target is not required to be an account -- de-duplicating two
+   * tag-only people is a normal operation -- so when the target is a PERSON the source's membership
+   * rows are dropped rather than moved. They are rows {@code addMember} would refuse to create,
+   * they grant nothing while they point at a PERSON, and moving them would carry an illegal state
+   * across the merge instead of ending it. Dropping matches what the schema does unaided: {@code
+   * role_member.user_id} is {@code ON DELETE CASCADE}, so anything left on the source vanishes when
+   * the caller deletes it.
+   *
+   * <p>The trailing delete clears whatever the guard refused to move. It is a no-op on every merge
+   * into an account, and it means this method leaves the table consistent on its own rather than
+   * depending on the caller to delete the source row.
+   *
+   * @return the number of membership rows dropped because the target cannot hold them; 0 on every
+   *     merge into an account
+   */
   @Transactional
-  public void repointMemberships(Long sourceId, Long targetId) {
+  public int repointMemberships(Long sourceId, Long targetId) {
     var p = createParameterSource().addValue("src", sourceId).addValue("tgt", targetId);
     update(
         "DELETE FROM role_member WHERE user_id = :src "
             + "AND role_id IN (SELECT role_id FROM role_member WHERE user_id = :tgt)",
         p);
-    update("UPDATE role_member SET user_id = :tgt WHERE user_id = :src", p);
+    update(
+        "UPDATE role_member SET user_id = :tgt WHERE user_id = :src "
+            + "AND EXISTS (SELECT 1 FROM users WHERE id = :tgt AND status <> 'PERSON')",
+        p);
+    return update("DELETE FROM role_member WHERE user_id = :src", p);
   }
 }
