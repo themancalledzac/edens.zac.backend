@@ -193,7 +193,9 @@ public class AdminUserController {
    * <p>Returns {@code 404} if no such user, {@code 409} if the target is not a {@code PERSON} (only
    * a tag-only identity can be upgraded), and {@code 409} if the email is already owned by another
    * user (checked before the write; a {@code DataIntegrityViolationException} is handled by {@link
-   * edens.zac.portfolio.backend.config.GlobalExceptionHandler} as belt-and-suspenders for races).
+   * edens.zac.portfolio.backend.config.GlobalExceptionHandler} as belt-and-suspenders for races). A
+   * {@code PERSON} row's email is NULL, so any match is necessarily a different account -- unlike
+   * {@link #updateUser}, there is no same-owner no-op here.
    *
    * @param id the {@code users.id} of the PERSON row to upgrade
    * @param request the upgrade parameters; email is normalized to lowercase
@@ -213,9 +215,6 @@ public class AdminUserController {
       return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
-    // The status gate above guarantees a tag-only row, whose email is NULL, so any hit here is
-    // necessarily a different account -- no same-owner escape hatch is reachable (unlike
-    // updateUser, where resubmitting the user's own address is a normal no-op).
     String email = request.email().toLowerCase();
     if (appUserRepository.findByEmail(email).isPresent()) {
       log.warn("Admin upgrade rejected: email already exists (userId={}, email={})", id, email);
@@ -414,6 +413,9 @@ public class AdminUserController {
    * tags + memberships onto the target, collapse duplicates, then hard-delete the source PERSON
    * row. Irreversible.
    *
+   * <p>The 404 and 409 are both decided inside the service's transaction (mirroring merge-preview);
+   * the controller does no existence lookup of its own.
+   *
    * @param targetId the surviving identity (kept)
    * @param request the source id to absorb
    * @return {@code 200} with {@link MergeResult}, {@code 404} if either id is missing, or {@code
@@ -422,8 +424,6 @@ public class AdminUserController {
   @PostMapping("/{targetId}/merge")
   public ResponseEntity<MergeResult> merge(
       @PathVariable Long targetId, @Valid @RequestBody MergeRequest request) {
-    // Missing-id 404 and rail 409 are both delegated to the service (mirrors merge-preview), which
-    // re-checks existence inside its own transaction — no redundant controller-level lookups.
     try {
       return ResponseEntity.ok(userMergeService.merge(request.sourceId(), targetId));
     } catch (NoSuchElementException e) {

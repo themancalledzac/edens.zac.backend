@@ -53,10 +53,8 @@ public enum TextFormType {
     }
 
     try {
-      // Try to match by enum name first
       return TextFormType.valueOf(value.toUpperCase());
     } catch (IllegalArgumentException e) {
-      // Try to match by display name
       for (TextFormType type : TextFormType.values()) {
         if (type.displayName.equalsIgnoreCase(value)) {
           return type;

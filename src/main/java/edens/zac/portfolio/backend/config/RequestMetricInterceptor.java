@@ -62,19 +62,21 @@ public class RequestMetricInterceptor implements HandlerInterceptor {
     this.clock = clock;
   }
 
+  /**
+   * Record one request against its route pattern. Unmapped requests are skipped; any failure is
+   * swallowed, because a metrics write must never break or slow the real response.
+   */
   @Override
   public void afterCompletion(
       HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
     try {
       String route = bestMatchingPattern(request);
       if (route == null) {
-        // No route pattern means the request was not mapped to a handler — nothing to bound.
         return;
       }
       String slug = extractSlug(request);
       requestMetricRepository.increment(LocalDate.now(clock), route, slug);
     } catch (Exception e) {
-      // Failure-safety: never let a metrics write break or slow the real response.
       log.warn("Failed to record request metric for {}", request.getRequestURI(), e);
     }
   }

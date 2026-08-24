@@ -67,12 +67,10 @@ public class ClientGalleryAuthService {
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
-    // Not password-protected -- allow access
     if (collection.getGalleryPassword() == null) {
       return true;
     }
 
-    // Password required but not provided
     if (password == null || password.isEmpty()) {
       return false;
     }
@@ -130,7 +128,6 @@ public class ClientGalleryAuthService {
       return false;
     }
 
-    // Non-protected collections are always accessible
     if (optCollection.get().getGalleryPassword() == null) {
       return true;
     }

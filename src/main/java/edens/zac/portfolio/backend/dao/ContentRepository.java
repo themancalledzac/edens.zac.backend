@@ -728,6 +728,11 @@ public class ContentRepository extends BaseDao {
   // Image Search Operations
   // ============================================================
 
+  /**
+   * Oldest-first by capture date. The order matches the FE's CHRONOLOGICAL displayMode (createdAt
+   * ASC); aligning it here avoids cross-page layout shifts when the FE re-sorts a growing paginated
+   * array.
+   */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> searchImages(ImageSearchRequest request, int limit, int offset) {
     StringBuilder sql = new StringBuilder(SELECT_CONTENT_IMAGE);
@@ -737,9 +742,6 @@ public class ContentRepository extends BaseDao {
     appendSearchConditions(sql, params, request);
     appendSearchGroupBy(sql, request);
 
-    // Oldest-first chronological order matches the FE's CHRONOLOGICAL displayMode
-    // (sorts by createdAt ASC). Aligning the BE order avoids cross-page layout
-    // shifts when results are paginated and FE re-sorts the growing array.
     sql.append(" ORDER BY ci.capture_date ASC NULLS LAST, c.created_at ASC");
     sql.append(" LIMIT :limit OFFSET :offset");
     params.addValue("limit", limit);

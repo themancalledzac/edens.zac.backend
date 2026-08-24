@@ -16,7 +16,7 @@ Package: `edens.zac.portfolio.backend`
 ```
 controller/admin/ - Admin/write endpoints, all profiles (gated by SecurityConfig hasRole("ADMIN"))
 controller/edit/  - Collaborator write endpoints, all profiles (gated by CollaboratorAccessInterceptor at COLLABORATOR+)
-controller/prod/  - Production endpoints (@Profile("prod"))
+controller/prod/  - Public read endpoints (/api/read/...), all profiles (no @Profile gating)
 services/         - Business logic (concrete *Service classes, no interface/Impl split)
 dao/              - Data access (JDBC via NamedParameterJdbcTemplate, not JPA repositories)
 entity/           - JPA entities (*Entity suffix)

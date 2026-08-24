@@ -17,7 +17,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-1--deletions) (#159, #160, #161, #162, #164) |
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173) |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). One residual carried forward, below. |
-| 4 — Comments and docs | MR 12-14 | MR 12 and MR 13 **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184). **Wave 4 is a genuine debloat: -975 words across six MRs** (retro below). **Next up: MR 14 -- read working rule 10 first.** 93 in-method comments left in `src/main`, re-derived below. |
+| 4 — Comments and docs | MR 12-14 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock item is still open. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -173,6 +173,28 @@ Learned while doing the MRs; they apply to every item still open, not just the o
     entries -- four of the eight are the same MR 25 deferral. Reconcile on the way out, not on the
     way in.
 
+12. **Promote a fact about the method; keep a warning about a line.** Rule 10 said measure before
+    promoting. MR 14 measured, and the answer changed what the wave rule should be. Promoting
+    `SecurityConfig`'s 24 comments into one `filterChain` docblock costs **+24 words (+9%)** even in
+    a careful draft that keeps every fact and states each rule once -- and the entire overhead is
+    anchor-naming, because a docblock has to write "on `/api/auth/me`, `/api/auth/logout`, ..." for
+    what an inline comment gets free from its position.
+
+    Worse, the comments that most deserve to survive are the ones a docblock cannot hold:
+    `RoleRepository`'s `\s` notes sit against the text block whose trailing `\s` they protect;
+    `AdminBootstrap`'s "do not fix this into a single statement" has to be next to the two
+    statements; `CollectionControllerProd` explains a `Cache-Control` call that is deliberately
+    *absent*. Move any of those to a docblock and the next editor changing the line never reads it.
+
+    So the test is not "is this inside a method body" but **what is this comment about**. A fact
+    about the whole method promotes cleanly -- a no-op override, a result ordering, a swallowed
+    failure. A warning attached to one line stays on that line. A comment that restates its code, or
+    that the docblock already carries, is a delete. MR 14's 93 split 19 / 66 / 7 that way.
+
+    This also explains why MR 12 and MR 13 swept so cleanly and MR 14 did not. Those files were
+    narrated; these were hardened by Waves 1-3, so their comments were written on purpose. **Check
+    which kind of file you are in before assuming the wave rule applies.**
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collided, and it was handled: `PersonRepository.deleteById` was listed under both MR 1 and bug #1, and was held until MR 5 because it had a live caller -- dangerous code, not dead code. It shipped with MR 5 and is gone.
@@ -186,7 +208,8 @@ Rule: no `//` comments inside method bodies in main code. Delete, or promote to 
 **Measured 2026-08-23, not estimated.** At the start of the wave `src/main` held 684 lines beginning
 with `//`, of which **567 sat at indent >= 4** -- inside method bodies, which is what this rule
 targets. The review's "~370 occurrences" premise was low by about 53%. MR 12 and MR 13 cleared 474
-of them; the 93 left are MR 14, below. MR 12's and MR 13's worklists, outcomes and guardrails are in
+of them. MR 14 dispositioned the last 93 and kept 66 by decision (working rule 12), so 67 remain
+in `src/main`. MR 12's and MR 13's worklists, outcomes and guardrails are in
 the [history file](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete).
 
 ## Wave 4 retro — measured in words, 2026-08-23
@@ -207,7 +230,8 @@ code MR.** Then, separately, the Java itself has to be measured in words, becaus
 | 13a ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) | +2 | **-75** | line count up, prose down |
 | 13b ([#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)) | +20 | **+178** | the only inflation |
 | 13c ([#184](https://github.com/themancalledzac/edens.zac.backend/pull/184)) | -24 | **-192** | the correction |
-| **Wave 4** | **-65** | **-975** | |
+| 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) | +4 | **-51** | lines up, prose down -- the 13a pattern again |
+| **Wave 4** | **-61** | **-1,026** | 500 in-method comments removed; 67 remain, 66 by decision |
 
 So the trend was sound and 13b was the outlier, now corrected. Two things worth carrying forward.
 13a shows the divergence without the defect -- **+2 lines but -75 words** -- which is proof the line
@@ -215,87 +239,44 @@ count is simply the wrong instrument, not just that 13b was sloppy. And 12a/12b,
 sweeps, produced the two biggest prose reductions, so scale is not what causes inflation. Care is.
 Working rule 10 has the check.
 
-## MR 14 — Comment debloat: controllers, config, data layer, and stale docblocks
+## MR 14 — Comment debloat: controllers, config, data layer — DONE ([PR #187](https://github.com/themancalledzac/edens.zac.backend/pull/187))
 
-### MR 14 worklist — re-derived 2026-08-23 on `6b2dc61`, use this instead of the line refs below
+93 in-method comments re-derived on `51fede9` and dispositioned: **7 deleted, 19 promoted, 66 kept
+inline, 1 quarantined.** Java-only **+4 lines / -51 words** -- the 13a pattern, line count up and
+prose down. Seven files went to zero; 20 files became 13. Full write-up in the
+[history file](2026-08-22-backend-cleanup-history.md#mr-14-outcome-2026-08-23).
 
-**93 in-method comments across 20 files. No split needed** -- that is close to 12c's 82, which shipped
-fine as one MR. If it does start feeling long, the fault line is `SecurityConfig` (24) alone versus
-the other nineteen files (69), not a controller/config/dao carve-up.
+The headline: **the wave rule did not fit this population**, and that is now working rule 12. Waves
+1-3 hardened exactly the `controller/`, `config/` and `dao/` files MR 14 targets, so most of these
+93 were written deliberately by this cleanup effort and guard a specific line rather than narrating
+the code. Only 7 restated the code they sat on.
 
-| File | Comments |
-|---|---|
-| `config/SecurityConfig.java` | 24 |
-| `controller/admin/AdminUserController.java` | 10 |
-| `dao/ContentRepository.java` | 7 |
-| `services/AdminBootstrap.java` | 6 |
-| `controller/prod/CollectionControllerProd.java` | 6 |
-| `dao/RoleRepository.java` | 5 |
-| `controller/auth/AuthController.java` | 5 |
-| `config/JdbcPublicKeyCredentialUserEntityRepository.java` | 5 |
-| `controller/prod/ContentDownloadControllerProd.java` | 4 |
-| `services/ClientGalleryAuthService.java` | 3 |
-| `dao/CollectionRepository.java` | 3 |
-| `types/TextFormType.java`, `services/SessionService.java`, `controller/prod/ShareControllerProd.java`, `config/RequestMetricInterceptor.java`, `config/DatabaseInfoLogger.java`, `config/ClientGalleryAccessLimiter.java` | 2 each |
-| `services/ContentService.java`, `controller/auth/WebAuthnController.java`, `config/ClientIp.java` | 1 each |
+`SecurityConfig`'s 24 were measured as the guardrail asked, and kept: promoting them into one
+`filterChain` docblock costs **+24 words (+9%)** even in a careful draft that states each rule once.
+The entire overhead is anchor-naming -- a docblock has to write "on `/api/auth/me`,
+`/api/auth/logout`, ..." for what position gives an inline comment free.
 
-**The line refs below are 68% accurate -- the best in Wave 4, and this inverts working rule 5's
-expectation.** MR 12's were 36%, MR 13b's 4%. Do not discount MR 14's refs the way the last three
-MRs had to.
+**Bug #16 is still real.** Verified against current `updateImages`: `ContentRepository.saveImage` is
+still a single-row INSERT/UPDATE, the loop still calls it once per image, and the log line still
+reads "Batch saved {}". The only `batchUpdate` in `ContentRepository` is in `saveContentPeople`, a
+different table. So N image edits still issue N statements. `ContentService:227` stays quarantined
+until the MR that adds a real batch save and fixes the log line with it.
 
-The reason matters more than the number: **decay tracks how much a file was edited, not how old the
-doc is.** Waves 1-3 and MR 12/13 all landed on `services/`, so the `services/` refs rotted while
-`controller/`, `config/` and `dao/` sat untouched. The distribution is bimodal, not uniformly 68% --
-eleven files are at 100% and six are at 0%, so check per file rather than trusting the average:
+Two doc claims shipped, both re-verified first. `CollectionVisibility`'s docblock said
+`password_hash`; V18 renamed the column to `gallery_password`. `.claude/CLAUDE.md` claimed
+`controller/prod/` is `@Profile("prod")` gated; it is not. On that second one the tracker was right
+and a naive grep is not -- the only two `@Profile` hits under `controller/` are javadoc text saying
+there is no such gating.
 
-- **100% (trust these):** `AdminUserController`, `ShareControllerProd`, `SecurityConfig`,
-  `ClientGalleryAccessLimiter`, `DatabaseInfoLogger`, `JdbcPublicKeyCredentialUserEntityRepository`,
-  `RequestMetricInterceptor`, `SessionService`, `AdminBootstrap`, `RoleRepository`, `TextFormType`.
-- **Partial:** `CollectionControllerProd` 5/7, `ContentRepository` 4/7,
-  `ContentDownloadControllerProd` 2/13.
-- **0% (re-derive by name):** `AdminController`, `AuthController`, `WebAuthnController`,
-  `TomcatConfig`, `ClientGalleryAuthService`, `CollectionRepository`.
+### Still open from MR 14 — stale docblocks
 
-`AdminController` now has **zero** in-method comments, so its `P: 232-233` item is finished by
-attrition -- drop it rather than hunting for it.
+Out of scope here by design: this MR was in-method comment lines only. These are docblock rewrites,
+and each needs its claim verified before acting (working rule 8).
 
-### Guardrail for MR 14: `ContentService:227` is evidence, not a comment to sweep
-
-One of the 93 is quarantined. `ContentService:227` reads
-`// Batch save all successfully updated images for efficiency`, and it is the only remaining evidence
-of **bug #16** (`updateImages` claims a batch save it does not do), filed by MR 12b. The Wave 4
-guardrail already says to leave a bug-bearing comment until its own MR lands. It reads exactly like
-the redundant narration MR 14 is deleting everywhere else, which is precisely why a fresh session
-will delete it without noticing.
-
-Leave it. Report instead whether bug #16 is still real against current `updateImages` -- Working rule
-8 says a filed finding decays like any other note, and if it was fixed in passing then the comment
-can go with the fix rather than silently.
-
-Second, softer guardrail: `SecurityConfig`'s 24 are the densest security writing in the repo and the
-item below says keep every word. That instruction predates Working rule 10. Both hold -- keep every
-*fact*, but promoting 24 comments into one `filterChain` docblock is the exact shape that produced
-13b's +42%. Check the word count on that file specifically before opening the PR.
-
-### Two claims below, both verified 2026-08-23
-
-- `CollectionVisibility.java:12` does still say `password_hash`; the column is `gallery_password`
-  since V18. Real, and it is a docblock line rather than one of the 93.
-- `.claude/CLAUDE.md:19` does still claim `controller/prod/ - Production endpoints (@Profile("prod"))`.
-  Zero controllers carry `@Profile`. Two of them (`MessagesControllerAdmin`,
-  `RequestMetricController`) now carry docblocks explicitly saying they run in dev and prod with no
-  `@Profile` gating, so the code documents the opposite of the CLAUDE.md line. Real, and worth doing
-  in this MR since it is one line.
-
-- [ ] `AdminController.java` — P: 232-233 (with bug #4). `AdminUserController.java` — P: 216-218, 288-292 (invite-invalidation security rationale); D: 425-426. `AuthController.java` — D: 60, 70-71; P: 99-101. `WebAuthnController.java` — D: 142, 197. `ShareControllerProd.java` — P: 84-85. `CollectionControllerProd.java` — P: 104-109 (caching rationale); D: 222. `ContentDownloadControllerProd.java` — P: 72-75, 111-115, 148-149; D: 140-141.
-- [ ] `SecurityConfig.java` — P: 30-31, 48-53, 58-64, 67-73, 79-80, all into the `filterChain` docblock. This is the best security documentation in the repo; keep every word. `ClientGalleryAccessLimiter.java` — P: 45-46. `TomcatConfig.java` — D: 18 (wrong), P: 19. `DatabaseInfoLogger.java` — D: 32, 37. `DefaultValues.java` — P: 5. `JdbcPublicKeyCredentialUserEntityRepository.java` — P: 62-65, 73. `RequestMetricInterceptor.java` — D: 71, 77. `SessionService.java` — D: 132-133. `AdminBootstrap.java` — P: 81-86; the "Do not fix this into a single statement" warning must survive. `ClientGalleryAuthService.java` — D: 58, 63, 102.
-- [ ] `CollectionRepository.java` — P: 1018-1020 ("ORDER BY is load-bearing", into the `findContentByContentIdsIn` docblock). `ContentRepository.java` — P: 217-220, 774-776. `RoleRepository.java` — P: 271-273 (the `\s` JEP 378 note, into the `insertInheritedGrant` docblock); D: 372, 393 once the docblock carries it. `CollaboratorRequests.java` — D: the ten trailing positional labels at 45-65; the docblock already enumerates denied fields. `TextFormType.java` — D: 56, 59. `UserStatus.java` — P: 7-8. `ContentEntity.java` — D: 33. `Records.java` and `CollectionRequests.java` — D: the two trailing "Prevent instantiation" comments. `CollectionVisibility.java:12` — fix "password_hash" to "gallery_password" (column renamed in V18).
-- [ ] Stale docblocks to rewrite, not delete:
-  - `filterNonListedChildCollections` (`CollectionService:1536-1547`) describes a context-detection mode that no longer exists.
-  - "previously spread across ContentProcessingUtil" rename-history at `ContentModelConverter:36-37` and `ContentMutationUtil:30-31` — that class is gone.
-  - "PARENT-shaped" vocabulary at `CollectionService:103-104`, `TagViewResolver:22-23`, `UserPageAssembler:26, 38` — dead since the enum deletion.
-  - `CollectionAccessService.effectiveLevel` overclaims: it says `canView`/`isClient`/`hasAtLeast` all resolve through `effectiveLevel`'s GENERAL ceiling. `canView` and `isClient` actually hit the repository directly and are only safe because flyby principals carry a null userId, which nothing documents or asserts. Fix the docblock, or actually route them through `effectiveLevel`, before a future caller trusts it. **VERIFIED 2026-08-23 during MR 12c** -- five affected call sites and the full cost of the fix are written up in the "MR 12c outcome" section. Now a Wave 3 follow-up, not a lead.
-- [ ] `.claude/CLAUDE.md` is wrong about the architecture it documents: "controller/prod/ - Production endpoints (@Profile(\"prod\"))". Zero controllers carry `@Profile`; everything serves in all profiles. Fix the doc.
+- [ ] `filterNonListedChildCollections` (`CollectionService`) describes a context-detection mode that no longer exists.
+- [ ] The "previously spread across ContentProcessingUtil" rename-history at `ContentModelConverter` and `ContentMutationUtil` -- that class is gone.
+- [ ] "PARENT-shaped" vocabulary at `CollectionService`, `TagViewResolver`, `UserPageAssembler` -- dead since the enum deletion.
+- [ ] `CollectionAccessService.effectiveLevel` overclaims: it says `canView`/`isClient`/`hasAtLeast` all resolve through `effectiveLevel`'s GENERAL ceiling. `canView` and `isClient` hit the repository directly and are only safe because flyby principals carry a null userId, which nothing documents or asserts. Five affected call sites and the full cost are in the history file's MR 12c outcome. A Wave 3 follow-up, not a comment sweep.
 
 ---
 

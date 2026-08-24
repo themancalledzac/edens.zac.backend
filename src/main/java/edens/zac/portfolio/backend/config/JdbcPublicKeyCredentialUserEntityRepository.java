@@ -57,20 +57,22 @@ public class JdbcPublicKeyCredentialUserEntityRepository
         .orElse(null);
   }
 
+  /**
+   * No-op. {@code app_user} rows come from the admin invite flow, not the WebAuthn ceremony, so the
+   * user must already exist before registration starts. The operations engine also calls this for
+   * an unknown username while minting login options; persisting would create an account from a
+   * login attempt (anti-enumeration).
+   */
   @Override
   public void save(PublicKeyCredentialUserEntity userEntity) {
-    // No-op: app_user rows are provisioned by the admin invite flow, not by the
-    // WebAuthn ceremony. The user must already exist before registration starts. The operations
-    // engine also invokes save() for an unknown username while minting login options; we do not
-    // persist here (anti-enumeration: no account is created from a login attempt).
     Optional.ofNullable(userEntity)
         .ifPresent(
             u -> log.debug("WebAuthn save() ignored for user handle (provisioned out-of-band)"));
   }
 
+  /** No-op. WebAuthn user-entity deletion is an out-of-band credential-management concern. */
   @Override
   public void delete(Bytes id) {
-    // No-op: WebAuthn user-entity deletion is an out-of-band credential-management concern.
     log.debug("WebAuthn user-entity delete() ignored");
   }
 
