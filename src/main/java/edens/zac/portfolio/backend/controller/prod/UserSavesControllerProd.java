@@ -33,7 +33,7 @@ public class UserSavesControllerProd {
   @PostMapping
   public ResponseEntity<Void> add(
       @AuthenticationPrincipal AuthPrincipal principal, @Valid @RequestBody AddSaveRequest body) {
-    userSavesService.add(principal.userId(), body.imageId());
+    userSavesService.add(principal, body.imageId());
     return ResponseEntity.status(HttpStatus.CREATED).build();
   }
 

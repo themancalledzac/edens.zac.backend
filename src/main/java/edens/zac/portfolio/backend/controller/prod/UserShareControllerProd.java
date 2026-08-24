@@ -76,11 +76,15 @@ public class UserShareControllerProd {
    * used to widen a share beyond what its owner can see. Opting in something you cannot view is a
    * 403 rather than a silent no-op, because the alternative -- accepting the row and quietly
    * dropping it from the scope -- would leave the owner believing they had shared something.
+   *
+   * <p>The check reads the whole principal, so a global admin passes it for any collection. That
+   * follows from working rule 20 rather than widening anything on its own: an admin can already
+   * view everything, and this gate only asks whether the owner can view what they are sharing.
    */
   @PutMapping("/collections/{collectionId}")
   public ResponseEntity<Void> addCollection(
       @AuthenticationPrincipal AuthPrincipal principal, @PathVariable Long collectionId) {
-    if (!collectionAccessService.canView(principal.userId(), collectionId)) {
+    if (!collectionAccessService.canView(principal, collectionId)) {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
     Optional<ShareLinkEntity> link = shareLinkService.findForUser(principal.userId());

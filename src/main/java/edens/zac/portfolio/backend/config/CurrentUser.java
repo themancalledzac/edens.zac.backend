@@ -20,10 +20,18 @@ public final class CurrentUser {
   private CurrentUser() {}
 
   /**
+   * @return the authenticated principal, or null when there is no authenticated principal
+   */
+  public static AuthPrincipal principal() {
+    var auth = SecurityContextHolder.getContext().getAuthentication();
+    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p : null;
+  }
+
+  /**
    * @return the authenticated principal's user id, or null when there is no authenticated principal
    */
   public static Long userId() {
-    var auth = SecurityContextHolder.getContext().getAuthentication();
-    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
+    AuthPrincipal p = principal();
+    return p != null ? p.userId() : null;
   }
 }

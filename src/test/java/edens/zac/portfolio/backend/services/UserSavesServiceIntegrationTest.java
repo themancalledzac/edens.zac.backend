@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.dao.RoleRepository;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
@@ -28,6 +29,11 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
   @Autowired private UserSavesService userSavesService;
   @Autowired private RoleRepository roleRepository;
   @Autowired private JdbcTemplate jdbcTemplate;
+
+  /** Wraps a seeded id as a non-admin session principal; the service now takes the principal. */
+  private static AuthPrincipal asUser(Long userId) {
+    return AuthPrincipal.client(userId, "saves-test@example.com", true);
+  }
 
   private Long seedUser(String email) {
     return jdbcTemplate.queryForObject(
@@ -136,8 +142,8 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Long imageB =
         seedVisibleImage("B's image", "https://cdn.example.com/" + UUID.randomUUID() + ".jpg");
 
-    userSavesService.add(userA, imageA);
-    userSavesService.add(userB, imageB);
+    userSavesService.add(asUser(userA), imageA);
+    userSavesService.add(asUser(userB), imageB);
 
     // User A sees only their own save; user B's save never leaks into A's list.
     assertThat(userSavesService.listSavedImageIds(userA)).containsExactly(imageA);
@@ -159,7 +165,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Long imageId =
         seedVisibleImage("Listed", "https://cdn.example.com/" + UUID.randomUUID() + ".jpg");
 
-    userSavesService.add(userId, imageId);
+    userSavesService.add(asUser(userId), imageId);
 
     assertThat(userSavesService.listSavedImageIds(userId)).containsExactly(imageId);
   }
@@ -171,7 +177,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Long hidden = seedCollection(CollectionVisibility.HIDDEN);
     addMembership(hidden, imageId, true);
 
-    assertThatThrownBy(() -> userSavesService.add(userId, imageId))
+    assertThatThrownBy(() -> userSavesService.add(asUser(userId), imageId))
         .isInstanceOf(ResourceNotFoundException.class);
 
     assertThat(userSavesService.listSavedImageIds(userId)).isEmpty();
@@ -185,7 +191,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Long unlisted = seedCollection(CollectionVisibility.UNLISTED);
     addMembership(unlisted, imageId, true);
 
-    assertThatThrownBy(() -> userSavesService.add(userId, imageId))
+    assertThatThrownBy(() -> userSavesService.add(asUser(userId), imageId))
         .isInstanceOf(ResourceNotFoundException.class);
   }
 
@@ -197,7 +203,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     addMembership(gated, imageId, true);
     grantMembership(userId, gated);
 
-    userSavesService.add(userId, imageId);
+    userSavesService.add(asUser(userId), imageId);
 
     assertThat(userSavesService.listSavedImageIds(userId)).containsExactly(imageId);
   }
@@ -211,7 +217,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Long listed = seedCollection(CollectionVisibility.LISTED);
     addMembership(listed, imageId, false);
 
-    assertThatThrownBy(() -> userSavesService.add(userId, imageId))
+    assertThatThrownBy(() -> userSavesService.add(asUser(userId), imageId))
         .isInstanceOf(ResourceNotFoundException.class);
   }
 
@@ -219,7 +225,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
   void addBlocksNonexistentImage() {
     Long userId = seedUser("saves-missing-" + UUID.randomUUID() + "@example.com");
 
-    assertThatThrownBy(() -> userSavesService.add(userId, 999_999_999L))
+    assertThatThrownBy(() -> userSavesService.add(asUser(userId), 999_999_999L))
         .isInstanceOf(ResourceNotFoundException.class);
   }
 
@@ -233,7 +239,7 @@ class UserSavesServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Long listed = seedCollection(CollectionVisibility.LISTED);
     addMembership(listed, imageId, true);
 
-    userSavesService.add(userId, imageId);
+    userSavesService.add(asUser(userId), imageId);
     assertThat(userSavesService.listSavedImageIds(userId)).containsExactly(imageId);
     assertThat(userSavesService.listSavedImages(userId))
         .extracting(ContentModels.Image::id)

@@ -1,6 +1,8 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -70,6 +73,15 @@ class ContentDownloadAuthTest {
   @AfterEach
   void clearSecurityContext() {
     SecurityContextHolder.clearContext();
+  }
+
+  /** The principal {@link #authenticate} installs, for stubbing the grant check against. */
+  private static final AuthPrincipal MEMBER = new AuthPrincipal(7L, "c@example.com", false, true);
+
+  private void authenticateAdmin(Long userId) {
+    var principal = new AuthPrincipal(userId, "admin@example.com", true, true);
+    SecurityContextHolder.getContext()
+        .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
   }
 
   private void authenticate(Long userId) {
@@ -130,7 +142,7 @@ class ContentDownloadAuthTest {
       authenticate(7L);
       when(contentService.findProtectedCollectionsForImage(10L))
           .thenReturn(List.of(protectedGallery()));
-      when(collectionAccessService.isClient(7L, 1L)).thenReturn(true);
+      when(collectionAccessService.isClient(MEMBER, 1L)).thenReturn(true);
       when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
 
@@ -140,11 +152,31 @@ class ContentDownloadAuthTest {
     }
 
     @Test
+    void adminPrincipal_redirects_withNoGrantAndNoCookie() throws Exception {
+      // S-6 / working rule 20. This gate read CurrentUser.userId(), so isAdmin never reached the
+      // CLIENT check and an admin was 401'd on a download from a gallery the read gate let them
+      // into. The whole principal must arrive here.
+      authenticateAdmin(1L);
+      when(contentService.findProtectedCollectionsForImage(10L))
+          .thenReturn(List.of(protectedGallery()));
+      when(collectionAccessService.isClient(any(AuthPrincipal.class), eq(1L))).thenReturn(true);
+      when(contentService.resolveImageDownload(10L, "web")).thenReturn(webResolution("img.webp"));
+      when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
+
+      mockMvc.perform(get("/api/read/content/images/10/download")).andExpect(status().isFound());
+
+      ArgumentCaptor<AuthPrincipal> captor = ArgumentCaptor.forClass(AuthPrincipal.class);
+      verify(collectionAccessService).isClient(captor.capture(), eq(1L));
+      assertThat(captor.getValue().isAdmin()).isTrue();
+      verify(clientGalleryAuthService, never()).validateAccessToken(any(), any());
+    }
+
+    @Test
     void nonClientMember_gets401() throws Exception {
       authenticate(7L);
       when(contentService.findProtectedCollectionsForImage(10L))
           .thenReturn(List.of(protectedGallery()));
-      when(collectionAccessService.isClient(7L, 1L)).thenReturn(false);
+      when(collectionAccessService.isClient(MEMBER, 1L)).thenReturn(false);
 
       mockMvc
           .perform(get("/api/read/content/images/10/download"))
@@ -194,7 +226,7 @@ class ContentDownloadAuthTest {
     void clientMember_redirects_withoutCookie() throws Exception {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
-      when(collectionAccessService.isClient(7L, 1L)).thenReturn(true);
+      when(collectionAccessService.isClient(MEMBER, 1L)).thenReturn(true);
       when(contentService.resolveCollectionDownloadEntries(1L, "web", null))
           .thenReturn(List.of(webResolution("img.webp")));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
@@ -210,7 +242,7 @@ class ContentDownloadAuthTest {
     void nonClientMember_gets401() throws Exception {
       authenticate(7L);
       when(collectionService.findEntityBySlug("smith-wedding")).thenReturn(protectedGallery());
-      when(collectionAccessService.isClient(7L, 1L)).thenReturn(false);
+      when(collectionAccessService.isClient(MEMBER, 1L)).thenReturn(false);
 
       mockMvc
           .perform(get("/api/read/collections/smith-wedding/download"))
@@ -257,7 +289,7 @@ class ContentDownloadAuthTest {
       when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
       when(contentService.findProtectedCollectionsForCollectionDownload(2L, null))
           .thenReturn(List.of(protectedGallery()));
-      when(collectionAccessService.isClient(7L, 1L)).thenReturn(true);
+      when(collectionAccessService.isClient(MEMBER, 1L)).thenReturn(true);
       when(contentService.resolveCollectionDownloadEntries(2L, "web", null))
           .thenReturn(List.of(webResolution("img.webp")));
       when(downloadUrlService.presignObject(any(), any(), any())).thenReturn(PRESIGNED);
@@ -277,7 +309,7 @@ class ContentDownloadAuthTest {
       when(collectionService.findEntityBySlug("open-portfolio")).thenReturn(openCollection());
       when(contentService.findProtectedCollectionsForCollectionDownload(2L, null))
           .thenReturn(List.of(protectedGallery()));
-      when(collectionAccessService.isClient(7L, 1L)).thenReturn(false);
+      when(collectionAccessService.isClient(MEMBER, 1L)).thenReturn(false);
 
       mockMvc
           .perform(get("/api/read/collections/open-portfolio/download"))

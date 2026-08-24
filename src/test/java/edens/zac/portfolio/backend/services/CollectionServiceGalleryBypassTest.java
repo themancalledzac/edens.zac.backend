@@ -1,6 +1,8 @@
 package edens.zac.portfolio.backend.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +20,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -59,10 +62,25 @@ class CollectionServiceGalleryBypassTest {
     SecurityContextHolder.clearContext();
   }
 
+  /** The principal {@link #authenticate} installs, for stubbing the grant check against. */
+  private static final AuthPrincipal MEMBER = new AuthPrincipal(7L, "c@example.com", false, true);
+
   private void authenticate(Long userId) {
     var principal = new AuthPrincipal(userId, "c@example.com", false, true);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+  }
+
+  private void authenticateAdmin(Long userId) {
+    var principal = new AuthPrincipal(userId, "admin@example.com", true, true);
+    SecurityContextHolder.getContext()
+        .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+  }
+
+  private void authenticateFlyby(Long shareId) {
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(AuthPrincipal.flyby(shareId), null, List.of()));
   }
 
   private CollectionEntity protectedCollection(Long id, String slug) {
@@ -78,7 +96,7 @@ class CollectionServiceGalleryBypassTest {
     CollectionEntity entity = protectedCollection(42L, "g");
     when(collectionRepository.findBySlug("g")).thenReturn(Optional.of(entity));
     authenticate(7L);
-    when(collectionAccessService.canView(7L, 42L)).thenReturn(true);
+    when(collectionAccessService.canView(MEMBER, 42L)).thenReturn(true);
 
     HttpServletRequest request = new MockHttpServletRequest();
     assertThat(service.isGalleryAccessAuthorized("g", request)).isTrue();
@@ -90,11 +108,49 @@ class CollectionServiceGalleryBypassTest {
   }
 
   @Test
+  void adminPrincipal_reachesTheGrantCheckWithItsAdminFlagIntact() {
+    // S-6 / working rule 20. This gate read CurrentUser.userId(), which threw isAdmin away before
+    // the check ran, so an admin holding no role grant was sent to the password prompt on their
+    // own site. What must be true now is that the whole principal arrives.
+    CollectionEntity entity = protectedCollection(42L, "g");
+    when(collectionRepository.findBySlug("g")).thenReturn(Optional.of(entity));
+    authenticateAdmin(1L);
+    when(collectionAccessService.canView(any(AuthPrincipal.class), eq(42L))).thenReturn(true);
+
+    assertThat(service.isGalleryAccessAuthorized("g", new MockHttpServletRequest())).isTrue();
+
+    ArgumentCaptor<AuthPrincipal> captor = ArgumentCaptor.forClass(AuthPrincipal.class);
+    verify(collectionAccessService).canView(captor.capture(), eq(42L));
+    assertThat(captor.getValue().isAdmin()).isTrue();
+    verify(clientGalleryAuthService, never())
+        .validateAccessToken(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void sharePrincipal_isNeverAsked_andStillFacesTheCookieGate() {
+    // The non-widening guard. canView now resolves GENERAL for a share-link holder, so without the
+    // AuthPrincipal.isRealUser screen a share link would become a second way past the password
+    // prompt. A flyby must not even reach the grant check.
+    CollectionEntity entity = protectedCollection(42L, "g");
+    when(collectionRepository.findBySlug("g")).thenReturn(Optional.of(entity));
+    authenticateFlyby(3L);
+    when(clientGalleryAuthService.validateAccessToken(
+            org.mockito.ArgumentMatchers.eq("g"), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(false);
+
+    assertThat(service.isGalleryAccessAuthorized("g", new MockHttpServletRequest())).isFalse();
+
+    verify(collectionAccessService, never())
+        .canView(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong());
+  }
+
+  @Test
   void loggedIn_noMembership_falls_through_to_cookieGate_andDenies() {
     CollectionEntity entity = protectedCollection(42L, "g");
     when(collectionRepository.findBySlug("g")).thenReturn(Optional.of(entity));
     authenticate(7L);
-    when(collectionAccessService.canView(7L, 42L)).thenReturn(false);
+    when(collectionAccessService.canView(MEMBER, 42L)).thenReturn(false);
     // No cookie present — cookie gate returns false.
     when(clientGalleryAuthService.validateAccessToken(
             org.mockito.ArgumentMatchers.eq("g"), org.mockito.ArgumentMatchers.any()))

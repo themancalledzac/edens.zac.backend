@@ -2183,6 +2183,102 @@ would send a future reader hunting in the wrong place. Both mutations were resto
 per working rule 15's second practical note.
 
 
+## S-6 outcome, 2026-08-24 -- an admin stops being bounced, and the sweep found a sixth site
+
+Shipped as [#207](https://github.com/themancalledzac/edens.zac.backend/pull/207), merged
+2026-08-24. Suite 1,341 -> 1,347 (+6), stacked on S-5. Real diff **+315 / -83 across 21 files** -- 11 source, 10
+test. This closes the security board.
+
+**The item said its scope was wider than two methods, and it was right by exactly one site.** It
+called for enumerating before fixing (working rule 16, pointed at a policy rather than a guard). The
+enumeration found **six** places an admin is denied, not the two `CollectionAccessService` methods
+the item named. The sixth -- `UserSavesService.add` -- was in no item on this board.
+
+### The six sites
+
+| # | Site | What an admin got | Why the flag was lost |
+|---|---|---|---|
+| 1 | `CollectionService.isGalleryAccessAuthorized` | password prompt on any protected gallery | read `CurrentUser.userId()` |
+| 2 | `ContentDownloadControllerProd.isDownloadAuthorized` | 401 on download | read `CurrentUser.userId()` |
+| 3 | `UserSelectsService.requireCollectionAccess` | 403 starring an image | service took a bare `Long userId` |
+| 4 | `UserRatingOverrideService.upsert` | 403 rating an image | service took a bare `Long userId` |
+| 5 | `UserSavesService.add` | **404** saving an image | `ContentRepository.isImageVisibleToUser` SQL has no `is_admin` term |
+| 6 | `UserShareControllerProd.addCollection` | 403 opting into their own share | had the principal and called `.userId()` on it |
+
+Sites 1 and 2 are the two the item described in prose. Sites 3, 4 and 6 are the same root cause one
+frame up. Site 5 is the one nothing had recorded, and it is the odd one out twice over: the denial
+is a 404 rather than a 403, and the check lives in SQL rather than in `CollectionAccessService`.
+
+### Site 5's fix sits above the SQL, deliberately
+
+`ContentRepository.isImageVisibleToUser` is `LISTED OR role grant`. Adding an `is_admin` term to that
+statement was the obvious move and is the wrong one: the query filters on several read paths, not
+only this authorization decision, so an identity rule inside it would apply in places nobody
+checked. The bypass is a `!principal.isAdmin() &&` in `UserSavesService.add` instead. Non-admins take
+the identical query they always did, so the deliberate 404-not-403 choice there (no enumeration
+oracle) is untouched.
+
+### The trap: routing `canView` through `effectiveLevel` also routes the share branch
+
+The item specified "route `canView` and `isClient` through `effectiveLevel`". Done literally that is
+correct for `isClient` and **widens `canView`**. `effectiveLevel` adds two branches, not one: the
+admin sentinel and the share branch. A share-link holder resolves GENERAL, so:
+
+- `isClient` through `effectiveLevel` -- a flyby is capped at GENERAL, `GENERAL.atLeast(CLIENT)` is
+  false, nothing changes. Safe.
+- `canView` through `effectiveLevel` -- a flyby returns **true**, and `isGalleryAccessAuthorized`
+  would have accepted a share link as an alternative to the gallery password prompt.
+
+Nobody asked for that. The two gallery gates screen with `AuthPrincipal.isRealUser` before asking,
+which reproduces exactly what the old `userId != null` did and holds the change to the admin
+sentinel alone. `sharePrincipal_isNeverAsked_andStillFacesTheCookieGate` is the guard, and it
+reddens when the screen is removed.
+
+**This is the fourth item in a row whose specified fix needed adjusting at implementation time** --
+S-7's `INVITED`-only allowlist, S-8's predicate divergence, S-5's bare `length < 0`, now this. Four
+for four is no longer a run of luck. Treat the fix text in a board item as a hypothesis to test
+against the code, not a specification to type in.
+
+### The SQL was checked before the swap, not after
+
+`canView` == `hasAtLeast(GENERAL)` and `isClient` == `hasAtLeast(CLIENT)` had to hold for a session
+principal or the swap would have changed more than intended. Both do, for reasons worth writing
+down. `RoleRepository.canView` counts rows in `role_member JOIN role_collection`; `highestLevel`
+takes the max level over the same join. GENERAL is rank 0, the floor, so "holds any grant" and "at
+least GENERAL" are the same question. `isClient` counts rows with `rank >= CLIENT.rank`, and a max is
+`>= CLIENT` exactly when some row is. Same join, same answer.
+
+### What was left alone, and why
+
+Four sites scope a **list** rather than deny a request. An admin sees a shorter list; nothing 4xx's.
+
+- `UserShareControllerProd:133` and `UserPageAssembler:64` -- both scope to
+  `memberCollectionIdsForUser`. The `/user` page is "your galleries", not "all galleries", and a
+  share picker offering an admin every collection on the site is a worse default than a short list.
+- `ContentRepository.findSavedImagesByUserId` -- re-applies the LISTED-or-grant filter on read, so an
+  admin's saved image drops out of their list if it stops being LISTED. Arguably wrong, but a filter,
+  not a denial.
+- `CollectionService.isChildExcluded` -- a `private static` with no principal argument, dropping
+  HIDDEN children from parent responses. Reaching it needs a signature change for a case nobody has
+  hit.
+
+Recorded so the next person does not re-derive them. Working rule 20 is about an admin being
+**bounced**; list scoping is a different question and that ruling did not settle it.
+
+### Mutation results (working rule 15)
+
+| Mutation | Reddens |
+|---|---|
+| `canView` back to `roleRepository.canView(principal.userId(), ...)` | `adminSatisfiesCanViewAndIsClientWithNoGrantAtAll`, `canViewResolvesThroughEffectiveLevel`, `shareHolderCanViewButNeverCountsAsClient` |
+| Drop the `isRealUser` screen in `isGalleryAccessAuthorized`, leaving a bare null check | `sharePrincipal_isNeverAsked_andStillFacesTheCookieGate` |
+| Drop `!principal.isAdmin() &&` in `UserSavesService.add` | `addSkipsTheVisibilityCheckForAnAdmin` |
+
+All three verified red, then restored with `touch` per working rule 15's second practical note. The
+two gate tests capture the argument and assert `isAdmin()` on it rather than stubbing an exact
+principal: the failure being guarded is a **stripped** principal reaching the check, and an
+exact-match stub cannot tell that apart from no call at all.
+
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked

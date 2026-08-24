@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **1 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)) S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)) and S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) all done. **The last live hole is closed** -- S-7 shut the invite re-activation path at both ends, and S-8 finished the pair of sweeps hanging off the admin status change. **S-6 is the last item on this board**, COLD and unblocked 2026-08-24 by the user's ruling that admin means owner (working rule 20). **next: S-6**, as its own MR. |
+| [Open security findings](#open-security-findings) | **0 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **1 open** (0 high, 0 blocked) — see below. S-1 through S-4 closed 2026-08-24; S-7, S-9, S-8 and S-5 closed 2026-08-24, S-7 taking the last live hole with it. Remaining S-6 is LOW and COLD | — |
+| Security findings | **0 open** — see below. All nine closed 2026-08-24. S-7 took the last live hole; S-6 closed the board | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -162,38 +162,33 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   Suite 1,338 -> 1,341. Full write-up in the
   [history file](2026-08-22-backend-cleanup-history.md#s-5-outcome-2026-08-24----a-body-with-no-declared-length-is-refused-instead-of-waved-through).
 
-- [ ] **S-6 (LOW). `CollectionAccessService.effectiveLevel` overclaims, and the consequence is the
-  opposite of what the tracker assumed.** *(Moved here 2026-08-24 from "Still open from MR 14 --
-  stale docblocks", where an access-control item did not belong; its own text already said "A Wave 3
-  follow-up, not a comment sweep".)* The docblock says `canView` / `isClient` / `hasAtLeast` all
-  resolve through `effectiveLevel`'s GENERAL ceiling. `canView` and `isClient` hit the repository
-  directly, skipping both branches `effectiveLevel` adds -- the share branch and the admin sentinel.
-  The tracker recorded this as a latent leak. It is not: it **fails closed**. An admin with no role
-  membership can see a HIDDEN client gallery (`viewerMaySeeHidden` uses `hasAtLeast`) and is then
-  bounced to the password prompt (`isGalleryAccessAuthorized` uses `canView`) and 401'd on download
-  (`isDownloadAuthorized` uses `isClient`). Fix the docblock and decide whether the admin sentinel
-  should apply to all three.
+- [x] **S-6 (LOW). `CollectionAccessService.effectiveLevel` overclaims.** **DONE** ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)).
+  The docblock claimed `canView` / `isClient` / `hasAtLeast` all resolved through `effectiveLevel`.
+  The first two queried `RoleRepository` directly, so neither the admin sentinel nor the share branch
+  reached them. Both go through `effectiveLevel` now and the docblock is true.
 
-  **UNBLOCKED 2026-08-24 -- the user answered, and answered wider than the question.** Asked whether
-  a non-member admin should be able to open and download a HIDDEN client gallery, the ruling was
-  categorical: *"an 'admin' has FULL ACCESS OVER EVERYTHING. think of 'admin' as 'OWNER'. it should
-  never have any password restrictions, any issues with ANY permissions."* See working rule 20.
+  **The item's scope warning was right, and short by one.** It said working rule 20 was a policy
+  rather than a ruling about one service, so the fix had to sweep. The sweep found **six** sites: the
+  two gallery gates (`isGalleryAccessAuthorized` password prompt, `isDownloadAuthorized` 401), three
+  callers passing a bare `Long userId` (`UserSelectsService`, `UserRatingOverrideService`,
+  `UserShareControllerProd.addCollection`), and one nothing had recorded -- **`UserSavesService.add`
+  404s an admin** saving an image whose only home is a collection they hold no grant on, because
+  `ContentRepository.isImageVisibleToUser` is `LISTED OR role grant` with no `is_admin` term. That one
+  is fixed above the SQL rather than in it: the query filters on several read paths, and an identity
+  rule inside it would apply where nobody looked.
 
-  So the fix is the permissive branch: **route `canView` and `isClient` through `effectiveLevel`**,
-  applying the admin sentinel to all three checks rather than just `hasAtLeast`. The docblock stops
-  being a lie in the same edit, because the code will then do what it already claims.
+  **Routing `canView` through `effectiveLevel` verbatim would have widened share links.**
+  `effectiveLevel` adds two branches, not one. A flyby resolves GENERAL, so `canView` returns true for
+  it and a share link would have become a second way past the gallery password prompt. `isClient` is
+  safe (the GENERAL ceiling refuses CLIENT), but the two gallery gates now screen with
+  `AuthPrincipal.isRealUser` first, reproducing the old `userId != null` exactly. Fourth consecutive
+  item whose specified fix needed adjusting when implemented.
 
-  **Scope is wider than the two methods, because the answer was.** "Never ... ANY permissions" is a
-  policy, not a ruling about one service, so this item must also sweep for other sites where an
-  admin can be bounced by a password prompt or a permission denial. A fix limited to
-  `CollectionAccessService` would close the item while leaving the policy half-applied. Enumerate
-  first, then fix -- working rule 16, pointed at a policy instead of a guard.
-
-  **Do not cite S-1's fail-closed reasoning against this.** S-1, S-7 and S-8 built ACTIVE-only
-  allowlists because those decide whether an account is *alive*. This decides what a live admin can
-  *reach*. Different question, and the answer goes the other way.
-
-  **COLD.**
+  **Four list-scoping sites were left alone on purpose** -- `memberCollectionIdsForUser` in the share
+  picker and on the `/user` page, `findSavedImagesByUserId`, and `isChildExcluded`. They shorten a
+  list rather than deny a request, and rule 20 settled bouncing, not scoping. Reasoning is in the
+  history file so nobody re-derives them. Suite 1,341 -> 1,347. Full write-up in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-6-outcome-2026-08-24----an-admin-stops-being-bounced-and-the-sweep-found-a-sixth-site).
 
 - [x] **S-7 (MEDIUM). Two more session-minting paths read no status.** **DONE**
   ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)). `InviteController.accept`
@@ -1018,6 +1013,7 @@ shipped.) The verbose pre-split log is in the
 
 - 2026-08-24 — shipped **S-7** ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), the last live hole on the board, and shipped **S-9** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Both halves of S-7 in one MR as specified. **The item's stated fix was wrong**: "require `INVITED`" would have broken admin-issued password reset, which redeems through the same endpoint for an ACTIVE user -- caught by reading `regenerateInvite`'s docblock before writing the guard, not after. Shipped `{INVITED, ACTIVE}`; the allowlist *form* still mattered because `UserStatus.PERSON` exists. Added working rule 18. Review then moved both guards out of their controllers into `UserInviteService` and replaced the comment blocks with a named `mayAcceptInvite` predicate, which incidentally closed the S-7/S-9 drift risk the S-9 item had flagged — one rule, two call sites. Added working rule 19. Suite 1,317 -> 1,328. Also, unrelated to the board: an EC2 deploy failed on a full 8GB root volume, fixed with a disk preflight in `deploy.sh` ([#198](https://github.com/themancalledzac/edens.zac.backend/pull/198), [#201](https://github.com/themancalledzac/edens.zac.backend/pull/201)) — the threshold in #198 was set by guess, aborted a legitimate deploy, and #201 corrects it from measured numbers and makes it overridable. Next: S-8.
 
+- 2026-08-24 — shipped **S-6** ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). **The security board is closed**: nine items, all done. **The item told the truth about its own scope and was still short by one.** It said rule 20 is a policy, not a ruling about one service, so enumerate before fixing -- and the enumeration found six admin-denial sites against the two the item named. The sixth, `UserSavesService.add` 404ing an admin, appeared in no item on this board and its check lives in SQL rather than in `CollectionAccessService`; it is fixed above the query on purpose, because that query filters on several read paths and an `is_admin` term inside it would apply where nobody looked. **The specified fix would have widened share links if typed in verbatim**: `effectiveLevel` adds two branches, not one, so routing `canView` through it hands a flyby GENERAL and turns a share link into a second way past the gallery password prompt. The two gates screen with `AuthPrincipal.isRealUser` first, which is exactly what the old `userId != null` did. That makes **four consecutive items whose specified fix needed adjusting at implementation time** (S-7, S-8, S-5, S-6) -- recorded in the history file as a pattern rather than a run of luck. **Four list-scoping sites were deliberately not fixed** and the reasoning written down, because rule 20 settled bouncing and not scoping. Suite 1,341 -> 1,347; three mutations verified red. Next: nothing on this board.
 - 2026-08-24 — shipped **S-5** ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)), which leaves **S-6 as the only item on the security board**. **The interesting part of the fix was the half the item did not specify**: it named the bypass (`getContentLengthLong()` returns -1 for chunked, so `-1 > 16384` is false) but not that a *bodiless* request reports -1 too. `MockHttpServletRequest.getContentLengthLong()` returns -1 whenever content is null, which is most of the existing suite -- so the obvious one-line fix, `reject if length < 0`, 411s every bodiless public request. The shipped guard is `length < 0 && Transfer-Encoding present`, and **the mutation run proved two pre-existing tests already caught the over-broad version**, which is the reverse of the usual working-rule-15 result. **Working rule 16 came back empty and that was worth recording**: `getContentLength` has two hits in the codebase, both in the same method, so unlike S-1 and S-8 the item's named site really was the only site. **The limiter-merge guardrail held and paid**: MR 19 #3's numbers were re-measured rather than repeated (every one held, exactly -- 7+24 and 7+32 test sites) and reading the three call sites turned up a blocker the board did not have, that `RateLimitFilter` needs `estimateAbilityToConsume` for `Retry-After` and so cannot use a `boolean allow(key)` signature. That item's verdict moved from "low priority" to "not worth doing". **Test:source was 3.6:1, the fourth near-3:1 in a row** and the smallest source change of the four, which suggests the ratio tracks the guard tests rather than the fix. Suite 1,338 -> 1,341. Next: S-6.
 - 2026-08-24 — close-out pass after #204. **Fixed three drifted refs**, and for the first time one sat *outside* the merge neighborhood: `AdminRoleController:150-167` was off by one (`149-166`) and nothing in #204 touched that file, so working rule 5's third principle held only for two of the three. The others were in-neighborhood as expected -- `#8`'s `AdminUserController` pair 336-353 -> 343-360, and the bare-array sites 149/321/376/389 -> 153/328/383/396. **Wave 7's `AdminUserController` item was re-measured and then de-positionalized**: its range list had drifted twice in two days, so the four `@Transactional` ranges are now named methods with start lines. That item is also growing faster than it is being done -- 469 -> 474 -> 481 source and 1,015 -> 1,097 -> 1,183 test across two consecutive security MRs, both of which added to the exact class it proposes to split. **`Optional.get()` re-derived clean**: 57 raw / 46 Optional, and this time the breakdown agrees too, unlike the 2026-08-24 pass where two files cancelled out. **S-8's test:source ratio was 2.7:1, the third near-3:1 in a row** -- recorded in the history file as confirmation of a pattern the board had already priced into two open items. **S-6 put to the user rather than left on the board a third time, and it came back wider than asked** -- not "yes, admins through" but "admin means OWNER, never any password restriction, never any permission issue", which is now working rule 20 and widens S-6's scope from two methods to a sweep. The security section is now 2 open, 0 blocked. Next: S-5, then S-6.
 - 2026-08-24 — shipped **S-8** ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), which closes the security board down to S-5 and S-6. **The item's one open judgement went the other way from its own default**: it said mirroring S-9's `mayAcceptInvite` boundary was the default and any divergence should be argued in the MR, and the argument won -- the session predicate is `mayHoldSession`, ACTIVE-only, because `resolve` has enforced ACTIVE-only since S-1 and a test says so deliberately. `{INVITED, ACTIVE}` would have left demoted accounts holding `user_session` rows that can never resolve, which is the thing the item asked to tidy. The two sweeps now run off two allowlists on adjacent lines of one handler, and that is correct rather than sloppy. Working rule 16 applied unprompted and paid: grepping `updateStatus` found three callers, and the enumeration is why only one gets the call. **The cost report was measured rather than argued** -- the CTE was actually written and the suite run, and the single resulting failure turned out to be the only mutation-detector for S-1, so folding the revoke into the DAO would have quietly disarmed an earlier fix. Suite 1,328 -> 1,338. Next: S-5, or answer S-6's blocking question.

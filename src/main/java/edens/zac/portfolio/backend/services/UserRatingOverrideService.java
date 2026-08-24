@@ -2,6 +2,7 @@ package edens.zac.portfolio.backend.services;
 
 import edens.zac.portfolio.backend.dao.UserRatingOverrideRepository;
 import edens.zac.portfolio.backend.entity.UserRatingOverrideEntity;
+import edens.zac.portfolio.backend.model.AuthPrincipal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,15 +27,19 @@ public class UserRatingOverrideService {
   /**
    * Upsert {@code user}'s override for {@code contentId} in {@code collectionId} to {@code rating}.
    *
+   * <p>Takes the whole principal rather than a bare id so the global-admin sentinel counts: an
+   * admin holding no CLIENT role was denied here, which working rule 20 says must not happen.
+   *
    * @throws IllegalArgumentException if rating is outside 0-5
-   * @throws AccessDeniedException if the user holds no CLIENT membership for the collection
+   * @throws AccessDeniedException if the caller holds no CLIENT membership for the collection
    */
   @Transactional
-  public void upsert(Long userId, Long collectionId, Long contentId, int rating) {
+  public void upsert(AuthPrincipal principal, Long collectionId, Long contentId, int rating) {
     if (rating < 0 || rating > 5) {
       throw new IllegalArgumentException("rating must be between 0 and 5, was " + rating);
     }
-    if (!collectionAccessService.isClient(userId, collectionId)) {
+    Long userId = AuthPrincipal.isRealUser(principal) ? principal.userId() : null;
+    if (userId == null || !collectionAccessService.isClient(principal, collectionId)) {
       throw new AccessDeniedException(
           "user " + userId + " may not override ratings in collection " + collectionId);
     }

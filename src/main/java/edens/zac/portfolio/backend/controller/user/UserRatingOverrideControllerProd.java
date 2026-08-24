@@ -20,7 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Authed-user endpoints for per-user rating overrides. PUT upserts an override (authz: the caller
  * must hold a CLIENT role grant for the collection — enforced in the service); GET lists the
  * caller's overrides for a collection. Both require a non-null principal (401 otherwise). Admins
- * use the canonical admin content path, not this endpoint.
+ * are expected to use the canonical admin content path, but are no longer refused here -- the
+ * CLIENT check resolves the global-admin sentinel (working rule 20).
  */
 @RestController
 @RequestMapping("/api/read/user/ratings")
@@ -38,7 +39,7 @@ public class UserRatingOverrideControllerProd {
       @AuthenticationPrincipal AuthPrincipal principal,
       @Valid @RequestBody UserRatingOverrideRequest request) {
     overrideService.upsert(
-        principal.userId(), request.collectionId(), request.contentId(), request.rating());
+        principal, request.collectionId(), request.contentId(), request.rating());
     return ResponseEntity.noContent().build();
   }
 
