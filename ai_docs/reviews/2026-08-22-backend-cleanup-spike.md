@@ -17,7 +17,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-1--deletions) (#159, #160, #161, #162, #164) |
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173) |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). One residual carried forward, below. |
-| 4 — Comments and docs | MR 12-14 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock item is still open. |
+| 4 — Comments and docs | MR 12-14 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock item is still open. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -230,7 +230,7 @@ code MR.** Then, separately, the Java itself has to be measured in words, becaus
 | 13a ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) | +2 | **-75** | line count up, prose down |
 | 13b ([#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)) | +20 | **+178** | the only inflation |
 | 13c ([#184](https://github.com/themancalledzac/edens.zac.backend/pull/184)) | -24 | **-192** | the correction |
-| 14 | +4 | **-51** | lines up, prose down -- the 13a pattern again |
+| 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) | +4 | **-51** | lines up, prose down -- the 13a pattern again |
 | **Wave 4** | **-61** | **-1,026** | 500 in-method comments removed; 67 remain, 66 by decision |
 
 So the trend was sound and 13b was the outlier, now corrected. Two things worth carrying forward.
@@ -239,7 +239,7 @@ count is simply the wrong instrument, not just that 13b was sloppy. And 12a/12b,
 sweeps, produced the two biggest prose reductions, so scale is not what causes inflation. Care is.
 Working rule 10 has the check.
 
-## MR 14 — Comment debloat: controllers, config, data layer — DONE
+## MR 14 — Comment debloat: controllers, config, data layer — DONE ([PR #187](https://github.com/themancalledzac/edens.zac.backend/pull/187))
 
 93 in-method comments re-derived on `51fede9` and dispositioned: **7 deleted, 19 promoted, 66 kept
 inline, 1 quarantined.** Java-only **+4 lines / -51 words** -- the 13a pattern, line count up and
