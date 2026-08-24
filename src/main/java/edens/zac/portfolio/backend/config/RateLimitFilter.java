@@ -34,9 +34,13 @@ import org.springframework.stereotype.Component;
  * <p>The filter also caps request body size on the same paths. Bean Validation bounds the contact
  * payload to 5320 characters, but {@code @Valid} runs after Jackson has already materialised the
  * whole body, so without this check a caller could push Jackson's 20MB string default through the
- * parser on every one of their 500 hourly requests. The cap is enforced from {@code Content-Length}
- * and therefore does not cover chunked requests, which arrive without one; those still reach
- * Jackson, bounded only by the container's own post limit.
+ * parser on every one of their 500 hourly requests.
+ *
+ * <p>The cap is read from {@code Content-Length}, which a chunked request does not send. A body
+ * that declares no length is rejected with {@code 411 Length Required} rather than passed through
+ * unmeasured, because otherwise {@code Transfer-Encoding: chunked} is a one-header bypass of the
+ * cap. Requests carrying no body at all also report no length, so the check keys on the {@code
+ * Transfer-Encoding} header and not on the missing length alone.
  */
 @Component
 @Order(2)
@@ -76,10 +80,11 @@ public class RateLimitFilter implements Filter {
   /**
    * Applies the rate-limit and body-size checks for {@code /api/public/**} requests. Requests that
    * exceed the per-IP limit receive a {@code 429 Too Many Requests} response with a {@code
-   * Retry-After} header, and requests declaring a body over {@link #MAX_PUBLIC_BODY_BYTES} receive
-   * a {@code 413 Payload Too Large}; all other requests are forwarded to the next filter.
+   * Retry-After} header, requests declaring a body over {@link #MAX_PUBLIC_BODY_BYTES} receive a
+   * {@code 413 Payload Too Large}, and requests sending a body without declaring its length receive
+   * a {@code 411 Length Required}; all other requests are forwarded to the next filter.
    *
-   * <p>The rate limit is consumed before the size check so that oversized requests still count
+   * <p>The rate limit is consumed before the size checks so that rejected requests still count
    * against the sender's hourly budget rather than being rejected for free.
    *
    * @param req the incoming servlet request
@@ -103,11 +108,18 @@ public class RateLimitFilter implements Filter {
     Bucket bucket = ipBuckets.get(ip, k -> newBucket(rateLimitPerHour));
 
     if (bucket.tryConsume(1)) {
-      if (request.getContentLengthLong() > MAX_PUBLIC_BODY_BYTES) {
-        log.warn(
-            "Rejecting oversized public request from IP {}: {} bytes",
-            ip,
-            request.getContentLengthLong());
+      long declaredBodyBytes = request.getContentLengthLong();
+      if (declaredBodyBytes < 0 && request.getHeader("Transfer-Encoding") != null) {
+        log.warn("Rejecting undeclared-length public request from IP {}", ip);
+        writeError(
+            response,
+            411,
+            "Length Required",
+            "Request body must declare a Content-Length. Chunked encoding is not accepted here.");
+        return;
+      }
+      if (declaredBodyBytes > MAX_PUBLIC_BODY_BYTES) {
+        log.warn("Rejecting oversized public request from IP {}: {} bytes", ip, declaredBodyBytes);
         writeError(
             response, 413, "Payload Too Large", "Request body exceeds the maximum accepted size.");
         return;

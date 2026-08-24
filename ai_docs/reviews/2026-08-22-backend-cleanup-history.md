@@ -2104,6 +2104,85 @@ and session revocation is a policy decision about that write, not a missing pred
 All four verified red, then restored with `touch` per working rule 15's second practical note.
 
 
+## S-5 outcome, 2026-08-24 -- a body with no declared length is refused instead of waved through
+
+Shipped as [#206](https://github.com/themancalledzac/edens.zac.backend/pull/206), merged
+2026-08-24. Suite 1,338 -> 1,341 (+3). Real diff **+70 / -11 across 2 files** -- 13 changed lines of
+source code, 10 of javadoc, 47 of test.
+
+**Test:source stayed near 3:1 for the fourth item running** -- 47 test lines against 13 of source
+code, or 3.6:1. S-9, S-7 and S-8 were the first three. The pattern the S-8 write-up recorded as
+"confirmation, not a new correction" now has a fourth data point, and this is the smallest source
+change of the four, which suggests the ratio is driven by the guard tests rather than by fix size.
+
+`RateLimitFilter` read `getContentLengthLong()` and compared it to `MAX_PUBLIC_BODY_BYTES`. That
+call returns **-1** for a chunked request, and `-1 > 16384` is false, so `Transfer-Encoding:
+chunked` was a one-header bypass of the cap: the body went to Jackson bounded only by its 20MB
+`StreamReadConstraints`. The fix rejects an undeclared-length body with **411 Length Required**
+before the size comparison, inside the same `tryConsume` branch so the rejection still costs the
+caller a token.
+
+### The check is not "reject -1", and that distinction is the whole design
+
+A request carrying no body at all also reports -1. `MockHttpServletRequest.getContentLengthLong()`
+returns -1 whenever `content` is null, which is every bodiless request in the suite. Keying the
+rejection on the missing length alone therefore 411s every GET on a public path -- there are none
+today, `MessagesControllerPublic` is the only controller under `/api/public/**` and it is
+POST-only, but the filter is keyed on a path prefix and the next public endpoint added inherits
+whatever this branch does.
+
+So the guard is `declaredBodyBytes < 0 && request.getHeader("Transfer-Encoding") != null`. For
+HTTP/1.1 that is exact rather than approximate: chunked is the only way to send a body without a
+`Content-Length`, and it is not legal to do so without the header. HTTP/2 would break the
+equivalence -- a DATA-frame body needs no `Transfer-Encoding` -- but http2 is not enabled here
+(no `server.http2.*` property, and `TomcatConfig` casts the protocol handler to
+`Http11NioProtocol`). **If http2 is ever turned on, this branch stops covering the case it was
+written for.** That is the one thing to re-check rather than assume.
+
+### 411, not 413
+
+413 would be a lie. A chunked request may well be under 16KB; what is wrong with it is that the
+filter cannot tell. 411 says exactly that, and it tells a legitimate caller what to change.
+
+### The severity call the item made held up
+
+The item downgraded this to LOW on the finding that the BFF sends
+`new Uint8Array(await req.arrayBuffer())`, so undici always sets a fixed `Content-Length` and
+nothing chunked leaves it. Chunked can only arrive direct-to-EC2, which requires the internal
+secret. Nothing in this MR changes that reasoning, and nothing found while doing it contradicts it.
+The fix is worth having because the filter now enforces what its own javadoc claims, not because a
+live hole was open.
+
+### Working rule 16: one site, and it was checked rather than assumed
+
+`grep -rn "getContentLength"` over `src/main` and `src/test` returns **two hits, both inside
+`RateLimitFilter`**, and both were the same expression evaluated twice in the old code (once for
+the comparison, once for the log). There is no second body-length reader in the codebase, so unlike
+S-1 and S-8 this item's named site really was the only site. Recorded because the rule is worth
+running even when it comes back empty -- the empty result is the finding.
+
+### The guardrail held: the three limiter cores were not touched
+
+The item and the user both said to leave MR 19 #3 alone and report the cost instead. It is reported
+under that item on the board, re-measured rather than repeated, and it turned up one thing the
+board did not have: `RateLimitFilter` needs `bucket.estimateAbilityToConsume(1)` for its
+`Retry-After` header, so the `boolean allow(String key)` signature the merge implies does not fit
+all three callers.
+
+### Mutation results (working rule 15)
+
+| Mutation | Reddens |
+|---|---|
+| Delete the 411 branch entirely (the pre-S-5 state) | `chunkedBodyIsRejectedWith411` and `chunkedRejectionStillConsumesTheRateLimitBudget` -- and nothing else, so the two new guards are the only detectors |
+| Drop the `Transfer-Encoding` conjunct, leaving `declaredBodyBytes < 0` | `requestWithNoBodyIsNotMistakenForChunked`, plus `firstTwoRequestsPass` and `differentIpsHaveIndependentBuckets` |
+
+The second row is worth reading carefully: **two pre-existing tests already caught the over-broad
+fix**, so the new precision test is not the only thing standing between the repo and a 411 on every
+bodiless public request. It was kept anyway because those two tests are named for rate limiting and
+would send a future reader hunting in the wrong place. Both mutations were restored with `touch`
+per working rule 15's second practical note.
+
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked

@@ -83,6 +83,53 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void chunkedBodyIsRejectedWith411() throws Exception {
+      // S-5. Content-Length is absent on a chunked request, so getContentLengthLong() reports -1
+      // and the 413 comparison can never fire. Before the 411 branch this request went straight to
+      // Jackson, capped only by its 20MB StreamReadConstraints instead of the intended 16KB.
+      var req = publicRequest("9.9.9.13");
+      req.addHeader("Transfer-Encoding", "chunked");
+      var resp = new MockHttpServletResponse();
+      FilterChain chain = mock(FilterChain.class);
+
+      filter.doFilter(req, resp, chain);
+
+      assertThat(resp.getStatus()).isEqualTo(411);
+      verify(chain, times(0)).doFilter(any(), any());
+    }
+
+    @Test
+    void requestWithNoBodyIsNotMistakenForChunked() throws Exception {
+      // A bodiless request also reports a length of -1, so keying the rejection on the missing
+      // length alone would 411 every GET on a public path. The check reads Transfer-Encoding.
+      var req = publicRequest("9.9.9.14");
+      var resp = new MockHttpServletResponse();
+      FilterChain chain = mock(FilterChain.class);
+
+      filter.doFilter(req, resp, chain);
+
+      assertThat(resp.getStatus()).isNotEqualTo(411);
+      verify(chain, times(1)).doFilter(any(), any());
+    }
+
+    @Test
+    void chunkedRejectionStillConsumesTheRateLimitBudget() throws Exception {
+      // Same ordering guarantee the 413 has: the bucket is consumed first, so a caller cannot
+      // probe for free by sending chunked. Capacity is 2, so two 411s must exhaust it.
+      for (int i = 0; i < 2; i++) {
+        var chunked = publicRequest("9.9.9.15");
+        chunked.addHeader("Transfer-Encoding", "chunked");
+        var chunkedResp = new MockHttpServletResponse();
+        filter.doFilter(chunked, chunkedResp, mock(FilterChain.class));
+        assertThat(chunkedResp.getStatus()).isEqualTo(411);
+      }
+
+      var resp = new MockHttpServletResponse();
+      filter.doFilter(publicRequest("9.9.9.15"), resp, mock(FilterChain.class));
+      assertThat(resp.getStatus()).isEqualTo(429);
+    }
+
+    @Test
     void oversizedBodyOnNonPublicPathIsUntouched() throws Exception {
       var req = new MockHttpServletRequest();
       req.setRequestURI("/api/admin/collections");
