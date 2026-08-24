@@ -58,7 +58,10 @@ was closed by MR 15 #6 (decided, not deferred), and the chunked-body residual mo
   also filed as "bug #16", which collides with the shipped Selects null-body bug; renumbered #17
   here.)* Re-verified live on `main`: `ContentRepository.saveImage` is a single-row INSERT/UPDATE,
   `updateImages` calls it once per image in a loop, and the log line still reads "Batch saved {}".
-  N image edits issue N statements. The quarantined comment in `ContentService` is this bug's only
+  N image edits issue N statements. **Re-verified live 2026-08-24 at `ContentService:228-233`** --
+  the comment says "Batch save all successfully updated images for efficiency", and the next three
+  lines are `for (ContentImageEntity image : imagesToSave) { contentRepository.saveImage(image); }`.
+  Premise intact, anchor refreshed. **COLD.** The quarantined comment in `ContentService` is this bug's only
   evidence and stays until the MR that adds a real batch save and fixes the log line with it.
 - [ ] **Four main-dead, test-live members owed to MR 25** (deleting them means editing test call
   sites, which is why MR 1a deferred them): `ContentService.resolveCollectionDownloadEntries` 2-arg
@@ -72,9 +75,24 @@ was closed by MR 15 #6 (decided, not deferred), and the chunked-body residual mo
   "zero `src/main` callers" heading. Disposition is now a decision, not a deferral: leave it. All 30
   call sites are one-liners, and deleting a 3-line convenience constructor to append `, null` at 29
   clean sites is not an improvement.
-- [ ] **V19's `admin_home_tile.cover_image_id`** is written by nothing and read by nothing
-  (`AdminHomeService` resolves covers by strategy). A schema change did not belong in a
-  pure-deletion MR. Drop it in a migration or document it as reserved. Also in "Decisions needed".
+- [ ] **V19's `admin_home_tile.cover_image_id`** -- **research COLD, disposition still a decision.**
+  Verified 2026-08-24: `AdminHomeTileRepository` is the only Java that touches `admin_home_tile`,
+  its sole statement is `SELECT tile_key, display_order`, and its `TileRow` record carries those two
+  fields only. There is no INSERT or UPDATE of the table from Java anywhere. V19 names the column in
+  its seed INSERT but every one of the ten seeded values is an explicit `NULL`, so "written by
+  nothing" is substantively right -- the only write the column has ever had is a NULL.
+
+  *(A first pass at this entry claimed "real values sit there and are never read". That was wrong --
+  reading V19's `VALUES` list corrects it, and the "Decisions needed" row had it right all along.
+  Recorded because the doc's existing row was more accurate than the fresh check, which is the
+  reverse of the usual failure and worth not forgetting.)*
+
+  Consequence: the column cannot have received a value through the application at all, so the
+  confirmation query the decision row suggests only guards against a manual DB edit. Disposition is
+  one migration either way -- `ALTER TABLE admin_home_tile DROP COLUMN cover_image_id;` or a comment
+  marking it reserved. Recommend dropping. Still listed under "Decisions needed" because it is a
+  schema call, not because anything is unresearched.
+
 - [ ] **Whether to ship a default DB password at all** is still undecided. MR 9a fixed the separator
   and preserved the existing default, so `spring.datasource.password` now falls back to `password`
   instead of `-password` -- the one line where that fix made a default more usable rather than less.
@@ -132,6 +150,10 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   a public-surface one -- worth fixing, not worth blocking on. The four `RateLimitFilterTest` cases
   all use `MockHttpServletRequest.setContent(byte[])`, which sets a real Content-Length, so the one
   input that bypasses the filter is the one input the tests cannot construct.
+
+  **COLD.** Nothing unanswered -- the BFF question the item raised is settled (it normalizes), the
+  severity call is made, and the test-construction problem is named. Note it shares a file with
+  MR 19 #3's third rate-limiter copy; whichever lands second rebases.
 - [ ] **S-6 (LOW). `CollectionAccessService.effectiveLevel` overclaims, and the consequence is the
   opposite of what the tracker assumed.** *(Moved here 2026-08-24 from "Still open from MR 14 --
   stale docblocks", where an access-control item did not belong; its own text already said "A Wave 3
@@ -143,6 +165,13 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   bounced to the password prompt (`isGalleryAccessAuthorized` uses `canView`) and 401'd on download
   (`isDownloadAuthorized` uses `isClient`). Fix the docblock and decide whether the admin sentinel
   should apply to all three.
+
+  **BLOCKED on the user, and this is the question:** should an admin with no role membership be able
+  to open and download a HIDDEN client gallery? Today they can see it listed and are then bounced at
+  the password prompt and 401'd on download -- inconsistent, but failing closed. "Yes" means routing
+  `canView` and `isClient` through `effectiveLevel` too; "no" means removing the admin sentinel from
+  `hasAtLeast` so the gallery stops being listed. **The docblock fix is not blocked** and can ship
+  either way, since it only has to describe what the code does.
 
 - [x] **S-7 (MEDIUM). Two more session-minting paths read no status.** **DONE**
   ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)). `InviteController.accept`
@@ -164,6 +193,22 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   guard in place a disabled account's sessions stop resolving on their next request, so revocation
   narrows the window from one request to zero and tidies `user_session` rows that will never resolve
   again. Defense in depth, not a live hole.
+
+  **Scope corrected 2026-08-24 (verified, and it is bigger than the item implies). There is no
+  user-scoped revoke primitive to call.** `UserSessionRepository` has exactly two write methods:
+  `touch` and `revokeByTokenHash` (a *token* hash, not a user id). So S-8 is not "add one call" --
+  it needs a new repository statement (`UPDATE user_session SET revoked_at = now() WHERE user_id =
+  :userId AND revoked_at IS NULL`), a service method to own it, and the call site. Premise otherwise
+  confirmed: `AppUserRepository.updateStatus` at `:103` is still a bare
+  `UPDATE users SET status = :status, updated_at = now() WHERE id = :id`.
+
+  **Shape it like S-9, which is its twin.** S-9 put the decision in
+  `UserInviteService.invalidateInvitesForStatus` and left `AdminUserController.updateUser`
+  delegating in one line; the session half should be the matching `SessionService` method, called
+  from the line directly below. Working rule 19 applies -- no branching in the controller.
+
+  **COLD.** The one open judgement is which statuses revoke, and it is not a blocker: mirroring
+  S-9's `mayAcceptInvite` boundary is the default, and any divergence should be argued in the MR.
 
 - [x] **S-9 (LOW). Disabling a user does not invalidate their outstanding invites.** **DONE** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Shipped as `UserInviteService.invalidateInvitesForStatus`, which reuses S-7's `mayAcceptInvite` predicate, so the "may this account hold a live invite" rule has one definition serving both the redemption site and the admin handler rather than two that can drift (working rule 14). Keyed on the resulting status, not on a transition, so re-applying a non-eligible status still sweeps an invite issued in between. **Zero churn to existing tests** -- all four pre-existing `invalidateInvites` assertions patch to INVITED or ACTIVE, so none observe the new call. Full write-up in the [history file](2026-08-22-backend-cleanup-history.md#s-9-outcome-2026-08-24----invites-die-with-the-account).
   Found while verifying S-7's precondition. `UserInviteService.invalidateInvites` exists and works,
@@ -602,7 +647,7 @@ and each needs its claim verified before acting (working rule 8).
 ## MR 17 — Controllers
 
 - [ ] #7. Admin image list duplicates the prod image search — same 12 `@RequestParam`s, same service call, different response wrapper (`AdminController.java:255-291` vs `ContentControllerProd.java:45-77`). Bind the filter once with a shared `@ModelAttribute` record, reuse prod's constraints, return one response type. **"Reuse prod's constraints" is an unpriced behavior change**: admin clamps with `Math.min(Math.max(size, 1), 200)` while prod validates with `@Min/@Max`, so admin `size=500` goes from silently returning 200 rows to a 400; defaults also differ (50 vs 30), and two frontend pages that pass no `size` would jump from 30 images to 50. **Do MR 19 #19 first** -- it is the same decision from the other direction, and #7 then shrinks to sharing the filter record. Realistic ~70 with test.
-- [ ] #8. Role membership is writable from two endpoint pairs backed by the same repository calls (`PUT`/`DELETE /api/admin/users/{id}/roles/{roleId}` in `AdminUserController:333-350` vs `PUT`/`DELETE /api/admin/roles/{roleId}/members/{userId}` in `AdminRoleController:150-167`). Keep the roles-side pair. **Blocker resolved 2026-08-24: the frontend uses BOTH**, driving two different screens (`RoleDetailView.tsx` calls the roles-side route, `UserRolesSection.tsx` the users-side). So this is a coordinated cross-repo change with deploy ordering, not a backend delete -- cheapest path is making the users-side method delegate to the roles-side one, leaving components untouched. **PR #191 lowered its priority**: both pairs now route through the guarded `RoleRepository.addMember`, so this is tidiness, not security. Scope must also include that method's docblock, which says "the two admin endpoints that reach here".
+- [ ] #8. Role membership is writable from two endpoint pairs backed by the same repository calls (`PUT`/`DELETE /api/admin/users/{id}/roles/{roleId}` in `AdminUserController:336-353` vs `PUT`/`DELETE /api/admin/roles/{roleId}/members/{userId}` in `AdminRoleController:150-167`). Keep the roles-side pair. **Blocker resolved 2026-08-24: the frontend uses BOTH**, driving two different screens (`RoleDetailView.tsx` calls the roles-side route, `UserRolesSection.tsx` the users-side). So this is a coordinated cross-repo change with deploy ordering, not a backend delete -- cheapest path is making the users-side method delegate to the roles-side one, leaving components untouched. **PR #191 lowered its priority**: both pairs now route through the guarded `RoleRepository.addMember`, so this is tidiness, not security. Scope must also include that method's docblock, which says "the two admin endpoints that reach here".
 
 ## MR 18 — Services
 
@@ -617,7 +662,7 @@ and each needs its claim verified before acting (working rule 8).
 - [ ] #14. `convertEntityToModel` loads the same content row twice (`ContentModelConverter.java:103-118`) — `findAllByIds` already returns typed subclasses, so drop the second typed fetch. Verify COLLECTION hydration first. Called 3x per GIF/text mutation.
 - [ ] #15. `getUpdateCollectionData` fetches the collection row twice and has an always-true null check (`CollectionService.java:822-848`).
 - [ ] #16. `findCurrentContentCollections` is an N+1 loop. **The best value item in Wave 5** -- and worse than described. `SELECT_CONTENT_COLLECTION` inner-joins `content_collection`, so every non-COLLECTION row returns empty: a 200-image collection removing one sub-collection issues **201 queries, 200 of them wasted**. It is on the write path, not public reads, which caps the impact. **Test coupling is one mock line** and the method is private. Best fix is a single query filtered by `cc.id IN (:ids) OR cc.referenced_collection_id IN (:ids)`, better than the item's two-query suggestion.
-- [ ] #17. Smaller items: `UserInviteService.validate`/`redeem` duplicate token resolution (85-130, into `findLiveInvite`); pagination normalization re-inlined at `CollectionService:127-130` (call `PaginationUtil`); `toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other (`CollectionProcessingUtil:569-596, 939-947`); `uploadToS3`/`streamFileToS3` duplicate key and URL construction (`ImageProcessingService:697-745`); EmailService HTML skeleton twice (optional, ~35 lines).
+- [ ] #17. Smaller items: `UserInviteService.validate`/`redeem` duplicate token resolution (now **140-152 and 220-237**, was 85-130; the file went 130 -> 238 lines under S-7/S-9, so re-read before quoting -- into `findLiveInvite`); pagination normalization re-inlined at `CollectionService:127-130` (call `PaginationUtil`); `toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other (`CollectionProcessingUtil:569-596, 939-947`); `uploadToS3`/`streamFileToS3` duplicate key and URL construction (`ImageProcessingService:697-745`); EmailService HTML skeleton twice (optional, ~35 lines).
 
   **Two sub-items struck 2026-08-24, both premises dead:**
   - *`ensureDimensions` twins* -- already refactored. The shared work is hoisted into
@@ -638,7 +683,7 @@ and each needs its claim verified before acting (working rule 8).
 
 ## MR 20 — The bare-array decision (breaking; coordinate with the frontend)
 
-- [ ] Decide first. **17 endpoints** (the prose said 15; the item's own list has always had 17, and 17 is what a re-derivation finds) return top-level JSON arrays against the stated "objects only" rule: `AdminController:85`; `AdminUserController:150, 318, 373, 386`; `AdminRoleController:49`; `CollectionAdminController:43`; `ContentControllerProd:85, 96, 107, 118, 130`; `UserFollowsControllerProd:58`; `UserSavesControllerProd:56, 65`; `UserSelectsControllerProd:59`; `UserRatingOverrideControllerProd:58`. `CollectionAdminController:37` even documents the violation as policy. Either wrap them in one breaking-change MR, or amend `.claude/CLAUDE.md` to bless bare arrays. Today the codebase carries two contradictory conventions.
+- [ ] Decide first. **17 endpoints** (the prose said 15; the item's own list has always had 17, and 17 is what a re-derivation finds) return top-level JSON arrays against the stated "objects only" rule: `AdminController:85`; `AdminUserController:149, 321, 376, 389`; `AdminRoleController:49`; `CollectionAdminController:43`; `ContentControllerProd:85, 96, 107, 118, 130`; `UserFollowsControllerProd:58`; `UserSavesControllerProd:56, 65`; `UserSelectsControllerProd:59`; `UserRatingOverrideControllerProd:58`. `CollectionAdminController:37` even documents the violation as policy. Either wrap them in one breaking-change MR, or amend `.claude/CLAUDE.md` to bless bare arrays. Today the codebase carries two contradictory conventions.
 
   **Frontend answer, 2026-08-24: it consumes bare arrays directly** at 20 call sites across
   `app/lib/api/{adminHome,roles,users,personal,selects,content}.ts`, typed as `T[]`. So wrapping is
@@ -676,7 +721,7 @@ and each needs its claim verified before acting (working rule 8).
 - [ ] Try-catch in controllers, **two sites** (not three -- the third went with bug #15 in MR 7, [#168](https://github.com/themancalledzac/edens.zac.backend/pull/168), confirmed gone by grep): `AdminUserController.mergePreview` and `.merge` (map via `ResourceNotFoundException` plus a new `ConflictException` handler). **Both methods have zero tests**, so this is an untested behavior change on two admin endpoints -- a risk, not a saving.
 - [ ] `@Value` field injection: **9 sites, not 3.** The three named (`CollectionControllerProd`, `ShareControllerProd`, `DownloadUrlService`) plus six in `S3Config` and `SesConfig` that feed `@Bean` methods -- same rule, same fix, and they fold into MR 16 #4. Move to constructor parameters, following the `WebAuthnController` pattern. Test coupling is exactly four `ReflectionTestUtils.setField` calls. Also `@Autowired` on constructors at `AuthLoginLimiter`, `ClientGalleryAccessLimiter`, `WebAuthnChallengeStore`, `WebAuthnService`. **The real size is 1 deletion and 3 comments**: only `AuthLoginLimiter` has a single constructor; the other three genuinely have two, where the second is the package-private test constructor, so `@Autowired` is load-bearing. Fifteen minutes.
 - [ ] Fully qualified names inline: **14 sites, not 6.** The six named (`CollectionService.isGalleryAccessAuthorized`'s parameter -- the doc's `542`, then `533`, is now `534`, which is the third correction to one ref and the reason this item now names symbols; `CollectionProcessingUtil`, `TagViewResolver`, `GalleryAccessCookies`, `ContactMessageLimiter`, `Records.java`) plus eight in the data layer the original scan missed: `BaseDao` (3), `CollectionRepository`, `EquipmentRepository` (3), `PersonRepository`. Import-only, **zero test coupling**. `Records.java` still needs consolidation #20 first (the `FilmFormat` name clash).
-- [ ] `Optional.get()` -- **46 sites, not 17.** *(45 -> 46 on 2026-08-24: S-1 added `maybeUser.get().getStatus()` to `AuthController.login`, taking that file 3 -> 4. Re-derived after the merge, not estimated -- the raw sweep went 56 -> 57 and the one new line is S-1's. This is the inventory rot working rule 5 warns about, caught by the scoped sweep rather than a full pass.)* The 17 named are all still present; 29 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 4, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
+- [ ] `Optional.get()` -- **46 sites, not 17.** *(45 -> 46 on 2026-08-24: S-1 added `maybeUser.get().getStatus()` to `AuthController.login`, taking that file 3 -> 4. Re-derived after the merge, not estimated -- the raw sweep went 56 -> 57 and the one new line is S-1's. This is the inventory rot working rule 5 warns about, caught by the scoped sweep rather than a full pass.)* The 17 named are all still present; 29 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 4, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. **Re-derived again 2026-08-24 after S-7/S-9, and the headline number survived for the wrong reason.** The raw sweep is still 57 and the Optional subset still 46 -- but two files moved and cancelled out: `InviteController` went **3 -> 2** (S-7 moved the accept body into the service) and `UserInviteService` went **2 -> 3** (`accept` added its own `maybeInvite.get()`). A total that holds while its components move is the most misleading state an inventory can be in, so trust the per-file breakdown here over the headline. Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
 - [ ] Magic number 2500 at both resize call sites (`ImageProcessingService:192, 292`). Name it.
 - [ ] `JobStatus.status` is a stringly-typed field with its states in a trailing comment (`JobTrackingService`). **Split the item**: making it an enum is COLD and non-breaking (Jackson serializes an enum to the same string), but costs ~45 test references across `AdminControllerTest` and `ImageUploadPipelineServiceTest`. Adding `COMPLETED_WITH_ERRORS` instead of flipping a 500-file job to FAILED over one error is
   **UNBLOCKED as of 2026-08-24** -- the check was run and there is no frontend job-status poller at
@@ -712,7 +757,7 @@ and each needs its claim verified before acting (working rule 8).
 
 ## MR 24 — Service extraction and remaining design items
 
-- [ ] `AdminUserController` is a service wearing a controller's clothes: two repositories and **six** services injected (not five) plus a `frontendBaseUrl`, 469 lines, entity building, multi-step `@Transactional` orchestration, afterCommit hooks (110-138, 202-237, 270-308, 436-469). Extract an `AdminUserService`. **Largest real cost in Wave 7**: ~200 source lines move, but `AdminUserControllerTest` is 1,015 lines and is the hidden half.
+- [ ] `AdminUserController` is a service wearing a controller's clothes: two repositories and **six** services injected (not five) plus a `frontendBaseUrl`, **474** lines (was 469; S-9 added the invite sweep), entity building, multi-step `@Transactional` orchestration, afterCommit hooks (110-138, 202-237, 270-308, 436-469). Extract an `AdminUserService`. **Largest real cost in Wave 7**: ~200 source lines move, but `AdminUserControllerTest` is **1,097** lines (was 1,015; S-9 added three tests) and is the hidden half.
 - [ ] Same shape, smaller: `UserShareControllerProd:124-152` computes grant and candidate sets inline with a repository. Move it into `ShareLinkService`.
 - [ ] `Synthetic.blogsOnly` is a constant at its only reachable call site (`SyntheticCollectionResolver:42-49, 86-92`), a transitional shape from the type-keyed catalog. Fold it out.
 - [ ] `MessageService` is a pure pass-through with a speculative docblock. Keep it for layering or delete it, but drop the justification.
@@ -924,6 +969,8 @@ shipped.) The verbose pre-split log is in the
   outstanding invites; `invalidateInvites` has exactly one caller, the email-change path). Next: S-7.
 
 - 2026-08-24 — shipped **S-7** ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), the last live hole on the board, and shipped **S-9** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Both halves of S-7 in one MR as specified. **The item's stated fix was wrong**: "require `INVITED`" would have broken admin-issued password reset, which redeems through the same endpoint for an ACTIVE user -- caught by reading `regenerateInvite`'s docblock before writing the guard, not after. Shipped `{INVITED, ACTIVE}`; the allowlist *form* still mattered because `UserStatus.PERSON` exists. Added working rule 18. Review then moved both guards out of their controllers into `UserInviteService` and replaced the comment blocks with a named `mayAcceptInvite` predicate, which incidentally closed the S-7/S-9 drift risk the S-9 item had flagged — one rule, two call sites. Added working rule 19. Suite 1,317 -> 1,328. Also, unrelated to the board: an EC2 deploy failed on a full 8GB root volume, fixed with a disk preflight in `deploy.sh` ([#198](https://github.com/themancalledzac/edens.zac.backend/pull/198), [#201](https://github.com/themancalledzac/edens.zac.backend/pull/201)) — the threshold in #198 was set by guess, aborted a legitimate deploy, and #201 corrects it from measured numbers and makes it overridable. Next: S-8.
+
+- 2026-08-24 — close-out pass, no code shipped. Reconciled the board after #199/#200/#202. **Fixed five drifted refs**, all in the neighborhood of what merged (working rule 5's third principle held): `#8` 333-350 -> 336-353, `#17`'s `UserInviteService` refs 85-130 -> 140-152/220-237 (that file went 130 -> 238 lines), the bare-array sites 150/318/373/386 -> 149/321/376/389, and Wave 7's two size claims (source 469 -> 474, test 1,015 -> 1,097). **`Optional.get()` held at 46 for the wrong reason** -- `InviteController` 3 -> 2 and `UserInviteService` 2 -> 3 cancelled out, so the headline was right while its components moved; the breakdown is now the source of truth, not the total. **Settled two items by looking**: bug #17 re-verified live at `ContentService:228-233` (premise intact, COLD), and `admin_home_tile.cover_image_id` researched to the end -- though a first pass at that entry got it *wrong* and the doc's existing row was more accurate, which is recorded in the item. **S-8's scope is bigger than its item implied**: there is no user-scoped session revoke primitive, only `revokeByTokenHash`, so it needs a new repository statement plus a service method, not one call. Stamped S-5 COLD, S-6 BLOCKED with the question written out, S-8 COLD. Next: S-8.
 
 ---
 
