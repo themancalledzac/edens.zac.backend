@@ -227,6 +227,11 @@ public final class ContentModels {
   /**
    * Collection reference content block. The {@code id} field is the content-table ID used for
    * reordering; {@code referencedCollectionId} navigates to the actual collection.
+   *
+   * <p>{@code isPasswordProtected} is a render hint, not a gate: it tells the frontend to draw a
+   * locked tile. {@code coverImage} is deliberately still populated alongside it, matching the
+   * detail response, which also returns the cover for a protected gallery. Password entry is
+   * enforced on the gallery's own route, not here.
    */
   public record Collection(
       Long id,
@@ -242,6 +247,7 @@ public final class ContentModels {
       String slug,
       @JsonProperty("isClient") boolean isClient,
       @JsonProperty("isBlog") boolean isBlog,
+      @JsonProperty("isPasswordProtected") boolean isPasswordProtected,
       ContentModels.Image coverImage,
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionEndDate,
@@ -280,6 +286,7 @@ public final class ContentModels {
           c.getSlug(),
           c.isClient(),
           c.isBlog(),
+          Boolean.TRUE.equals(c.getIsPasswordProtected()),
           c.getCoverImage(),
           c.getCollectionDate(),
           c.getCollectionEndDate(),
@@ -303,6 +310,7 @@ public final class ContentModels {
           slug,
           isClient,
           isBlog,
+          isPasswordProtected,
           coverImage,
           collectionDate,
           collectionEndDate,
@@ -330,6 +338,7 @@ public final class ContentModels {
           slug,
           isClient,
           isBlog,
+          isPasswordProtected,
           coverImage,
           collectionDate,
           collectionEndDate,

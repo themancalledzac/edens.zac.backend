@@ -626,6 +626,11 @@ class ContentModelConverter {
 
   /**
    * Assemble the {@link ContentModels.Collection} record shared by the singular and batch paths.
+   *
+   * <p>{@code referencedCollection} must be the hydrated row, not the id-only stub the content row
+   * mapper builds: {@code isPasswordProtected} reads {@code gallery_password} off it, and a stub
+   * reports a protected gallery as unprotected. Both callers hydrate first -- the singular path by
+   * refetching on a null title, the batch path from {@code referencedCollectionsById}.
    */
   private ContentModels.Collection buildCollectionRecord(
       ContentCollectionEntity contentEntity,
@@ -646,6 +651,7 @@ class ContentModelConverter {
         referencedCollection.getSlug(),
         referencedCollection.isClient(),
         referencedCollection.isBlog(),
+        referencedCollection.getGalleryPassword() != null,
         coverImage,
         referencedCollection.getCollectionDate(),
         referencedCollection.getCollectionEndDate(),
