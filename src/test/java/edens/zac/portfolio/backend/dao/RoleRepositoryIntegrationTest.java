@@ -313,6 +313,64 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(storedLevel(roleId, coll)).isEqualTo("CLIENT");
   }
 
+  /**
+   * The bypass S-2 names. {@code repointMemberships} runs a raw UPDATE and never calls {@code
+   * addMember}, so before the fix it would hand PERSON-B a membership {@code addMember} refuses to
+   * create. The precondition is a role_member row already pointing at a PERSON, which is what the
+   * rule going unenforced for the feature's whole life produced -- hence the direct INSERT here,
+   * since {@code addMember} will not make one.
+   *
+   * <p>Strip the {@code EXISTS ... status <> 'PERSON'} predicate from the UPDATE and this reddens
+   * on the first assertion, with the membership sitting on PERSON-B.
+   */
+  @Test
+  void repointMembershipsDropsMembershipsWhenTargetIsNotAnAccount() {
+    long sourcePerson = seedPerson("Merge Source Person");
+    long targetPerson = seedPerson("Merge Target Person");
+    long coll = seedCollection("role-merge-person-target");
+    long roleId = repo.createRole("merge person target", null);
+    repo.setCollectionGrant(roleId, coll, AccessLevel.GENERAL, null);
+    insertLegacyMembership(roleId, sourcePerson);
+
+    int dropped = repo.repointMemberships(sourcePerson, targetPerson);
+
+    assertThat(membershipCount(targetPerson)).isZero();
+    assertThat(membershipCount(sourcePerson)).isZero();
+    assertThat(dropped).isEqualTo(1);
+    assertThat(repo.canView(targetPerson, coll)).isFalse();
+  }
+
+  /** The guard must not break the merge it exists inside: an account target still collects them. */
+  @Test
+  void repointMembershipsMovesMembershipsWhenTargetIsAnAccount() {
+    long sourcePerson = seedPerson("Merge Source To Account");
+    long targetAccount = seedUser("Merge Target Account");
+    long coll = seedCollection("role-merge-account-target");
+    long roleId = repo.createRole("merge account target", null);
+    repo.setCollectionGrant(roleId, coll, AccessLevel.GENERAL, null);
+    insertLegacyMembership(roleId, sourcePerson);
+
+    int dropped = repo.repointMemberships(sourcePerson, targetAccount);
+
+    assertThat(membershipCount(targetAccount)).isEqualTo(1);
+    assertThat(membershipCount(sourcePerson)).isZero();
+    assertThat(dropped).isZero();
+    assertThat(repo.canView(targetAccount, coll)).isTrue();
+  }
+
+  /**
+   * A {@code role_member} row pointing at a PERSON. {@code addMember} refuses to create one, which
+   * is the point: these rows predate that guard.
+   */
+  private void insertLegacyMembership(long roleId, long userId) {
+    jdbc.update("INSERT INTO role_member (role_id, user_id) VALUES (?, ?)", roleId, userId);
+  }
+
+  private int membershipCount(long userId) {
+    return jdbc.queryForObject(
+        "SELECT COUNT(*) FROM role_member WHERE user_id=?", Integer.class, userId);
+  }
+
   private String storedLevel(long roleId, long collectionId) {
     return jdbc.queryForObject(
         "SELECT level FROM role_collection WHERE role_id=? AND collection_id=?",

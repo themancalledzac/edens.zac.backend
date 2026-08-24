@@ -74,9 +74,17 @@ public class UserMergeService {
     final int collapsed = personRepository.countCollisions(sourceId, targetId);
 
     personRepository.repointTags(sourceId, targetId);
-    roleRepository.repointMemberships(sourceId, targetId);
+    final int droppedMemberships = roleRepository.repointMemberships(sourceId, targetId);
     personRepository.deletePersonById(sourceId);
 
+    if (droppedMemberships > 0) {
+      log.warn(
+          "Merge {} -> {} dropped {} role membership(s): the target is not an account, and a"
+              + " role_member row may not point at a PERSON",
+          sourceId,
+          targetId,
+          droppedMemberships);
+    }
     log.info(
         "Merged person {} into {} (images={}, collections={}, collapsed={})",
         sourceId,

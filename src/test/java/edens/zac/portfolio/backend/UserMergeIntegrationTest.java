@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
+import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.services.UserMergeService;
+import edens.zac.portfolio.backend.types.AccessLevel;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -15,13 +17,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Round-trips {@link UserMergeService} against a real Postgres container: seeds two identities with
  * overlapping tags and asserts the merge re-points tags, collapses duplicates, and hard-deletes the
- * source — and that a real account can never be the source. Seeding mirrors {@link
- * IdentityMergeMigrationIntegrationTest} (post-V35 shape: {@code users} + {@code person_id} joins).
+ * source, that role memberships move only onto a target that can hold them, and that a real account
+ * can never be the source. Seeding mirrors {@link IdentityMergeMigrationIntegrationTest} (post-V35
+ * shape: {@code users} + {@code person_id} joins).
  */
 class UserMergeIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private JdbcTemplate jdbc;
   @Autowired private UserMergeService userMergeService;
+  @Autowired private RoleRepository roleRepository;
 
   private Long newPerson(String name) {
     jdbc.update(
@@ -173,5 +177,59 @@ class UserMergeIntegrationTest extends AbstractPostgresIntegrationTest {
     Long accountB = newAccount("loser@x.com", "Loser");
     assertThatThrownBy(() -> userMergeService.merge(accountB, accountA))
         .isInstanceOf(IllegalStateException.class);
+  }
+
+  /**
+   * S-2. {@code requireMergeable} constrains only the source, so a merge target may itself be a
+   * PERSON. Merging a PERSON that holds a legacy membership into another PERSON must not hand the
+   * survivor a membership {@code addMember} refuses to create. Strip the {@code status <> 'PERSON'}
+   * predicate from {@code repointMemberships} and this reddens with the membership on the target.
+   */
+  @Test
+  void mergeIntoPersonTargetDropsMembershipRatherThanCarryingItAcross() {
+    Long source = newPerson("S2 Source Person");
+    Long target = newPerson("S2 Target Person");
+    Long collection = newCollection();
+    Long roleId = newRoleGranting(collection, "s2 person merge");
+    insertLegacyMembership(roleId, source);
+
+    userMergeService.merge(source, target);
+
+    assertThat(membershipCount(target)).isZero();
+    assertThat(roleRepository.canView(target, collection)).isFalse();
+  }
+
+  /** The same merge into a real account still moves the membership, which is the feature. */
+  @Test
+  void mergeIntoAccountTargetCarriesMembershipAcross() {
+    Long source = newPerson("S2 Source To Account");
+    Long target = newAccount("s2-target@x.com", "S2 Target Account");
+    Long collection = newCollection();
+    Long roleId = newRoleGranting(collection, "s2 account merge");
+    insertLegacyMembership(roleId, source);
+
+    userMergeService.merge(source, target);
+
+    assertThat(membershipCount(target)).isEqualTo(1);
+    assertThat(roleRepository.canView(target, collection)).isTrue();
+  }
+
+  private Long newRoleGranting(Long collectionId, String roleName) {
+    Long roleId = roleRepository.createRole(roleName, null);
+    roleRepository.setCollectionGrant(roleId, collectionId, AccessLevel.GENERAL, null);
+    return roleId;
+  }
+
+  /**
+   * A {@code role_member} row pointing at a PERSON. {@code addMember} refuses to create one, which
+   * is the point: these rows predate that guard, so they exist in production and nowhere else.
+   */
+  private void insertLegacyMembership(Long roleId, Long userId) {
+    jdbc.update("INSERT INTO role_member (role_id, user_id) VALUES (?, ?)", roleId, userId);
+  }
+
+  private int membershipCount(Long userId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM role_member WHERE user_id = ?", Integer.class, userId);
   }
 }
