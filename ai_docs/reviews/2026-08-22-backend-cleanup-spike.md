@@ -17,7 +17,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-1--deletions) (#159, #160, #161, #162, #164). Two residuals carried forward, below. |
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173). One residual (bug #17) carried forward, below. |
-| 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). **Superseded by the 2026-08-24 review**: see "Open security findings" below, which now holds six items including two new HIGH ones. |
+| 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). **Superseded by the 2026-08-24 review**: see "Open security findings" below, which now holds seven items including two HIGH ones. |
 | 4 — Comments and docs | MR 12-14 | **mostly complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock **items** (four, not one) are still open. |
 | 5 — Consolidations | MR 15-19 | MR 15 #1, #2, #6 **done** ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165), [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). #6 closed the `PersonRepository` carry and taught working rule 14; its own guard was later found to have a bypass (security finding S-2). One MR 15 follow-up still open, below. **next: MR 19 #16** (the only real performance fix in the wave) or MR 16 #4/#5 (zero test coupling). |
 | 6 — Conventions | MR 20-22 | not started |
@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **6 open, 2 HIGH.** The live priority. S-1 is next. |
+| [Open security findings](#open-security-findings) | **7 open, 2 HIGH.** The live priority. S-1 done ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)); S-1 scoping found S-7 and split off S-8. **next: S-2.** |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **6 open** (2 high) — see below; the original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
+| Security findings | **7 open** (2 high) — see below. S-1 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by it. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -87,44 +87,14 @@ a Wave 3 residual here, `CollectionAccessService` filed under a comments wave, a
 that had no home at all. They live here now. Every item below was traced in code on `4976220`, and
 the two marked PROVEN were demonstrated by mutating the source and watching the suite.
 
-- [ ] **S-1 (HIGH). `UserStatus.DISABLED` is not enforced anywhere in the auth path.** Setting a user
-  DISABLED writes one column and changes nothing else: they can still log in, and any session they
-  already hold keeps resolving for its full window. `AuthController.login` checks
-  `passwordHash != null` and `passwordEncoder.matches`, then mints a session -- no status read.
-  `SessionService.resolve` checks token hash, `revokedAt` and `expiresAt` -- no status read.
-  `AppUserRepository.updateStatus` is a bare `UPDATE` with no session revocation. `users.status` is
-  read in exactly three places in `src/main` (`PersonRepository`'s delete guard, `RoleRepository`'s
-  new `addMember` guard, and the PERSON checks in `AdminUserController` / `UserMergeService`) and
-  none is in the auth path. `DISABLED` appears once in the whole test tree, in a test that only
-  asserts a non-PERSON row cannot be upgraded. **Fix is two guards plus session revocation on
-  status change.** Note this also settles the MR 15 #6 question of whether the accounts-only test
-  should be an allowlist: admitting a DISABLED account to a role is not a dormant grant, it is a
-  live one.
-
-  **NEXT UP, and here is the guardrail.** S-1 is next because it is the highest-severity open item,
-  it is COLD, and the password park explicitly does not cover it (status enforcement is not password
-  storage).
-
-  *Keep the check at the two chokepoints -- `AuthController.login` and `SessionService.resolve` --
-  and leave `AuthPrincipal` alone. Report what adding a status field to the principal would cost
-  rather than doing it.* The tempting move is to put status on `AuthPrincipal` so every call site can
-  check it. That is the shape MR 15 #2 just deleted: 17 copy-pasted per-endpoint guards replaced by
-  one chain matcher. Fanning a security decision back out across call sites would undo that lesson
-  in the same quarter it was learned. Two chokepoints cover every authenticated path, because
-  `SessionService.resolve` is the only thing that turns a cookie into a principal.
-
-  Two premises checked so nobody re-raises them:
-  - **An `IN ('ACTIVE')` allowlist would NOT break onboarding.** I assumed it would and was wrong.
-    `InviteController` sets the password hash and flips status to ACTIVE in the same transaction,
-    then creates the session directly -- so an INVITED user never authenticates through
-    `/api/auth/login` and has no password hash until redeem. Allowlist versus `<> 'DISABLED'` is a
-    free choice, not a constraint.
-  - **Do not fold S-2 in.** Different mechanism (a raw `UPDATE` in a merge path, not the auth path)
-    and it needs its own test. Separate MR.
-
-  Third part worth scoping deliberately: revoking live sessions when an admin sets DISABLED.
-  Rejecting at `resolve` already closes the hole for reads, so revocation is defense in depth and
-  can be its own commit -- but say which you did, rather than leaving it ambiguous.
+- [x] **S-1 (HIGH). `UserStatus.DISABLED` is not enforced anywhere in the auth path.** **DONE**
+  ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)). Two guards, both
+  mutation-verified: `AuthController.login` and `SessionService.resolve` now require `ACTIVE`.
+  Shipped the allowlist, not `<> DISABLED`. `AuthPrincipal` untouched -- the cost report the
+  guardrail asked for is in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-1-outcome-2026-08-24--userstatus-enforced-in-the-auth-path),
+  and the short version is that the field could only ever hold `ACTIVE`. Session revocation on
+  status change was deliberately NOT included; it is now **S-8**. Taught working rule 16.
 - [ ] **S-2 (MEDIUM). The MR 15 #6 `addMember` guard has a bypass.** `UserMergeService.merge` calls
   `RoleRepository.repointMemberships`, which runs a raw `UPDATE role_member SET user_id` and never
   goes through `addMember`. `requireMergeable` constrains only the *source* (must be PERSON); the
@@ -176,6 +146,27 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   bounced to the password prompt (`isGalleryAccessAuthorized` uses `canView`) and 401'd on download
   (`isDownloadAuthorized` uses `isClient`). Fix the docblock and decide whether the admin sentinel
   should apply to all three.
+
+- [ ] **S-7 (MEDIUM, new 2026-08-24). Two more session-minting paths read no status.** Found while
+  scoping S-1, which named only `AuthController.login`. There are **three** callers of
+  `sessionService.create`, not one, and S-1 guarded the first:
+  `WebAuthnService.finishLogin` resolves the user by WebAuthn handle and mints an `mfa=true` session
+  with no status read, so a DISABLED account holding a registered passkey still gets a 200 and a
+  cookie. `InviteController.accept` is worse than unguarded -- it calls
+  `appUserRepository.updateStatus(userId, ACTIVE)` unconditionally, so a DISABLED user who still
+  holds an unexpired, unused invite token **re-activates their own account** and is auto-logged in.
+  `UserInviteService.redeem` checks the token hash, expiry and single-use flag, and nothing about
+  the user.
+  *Severity is MEDIUM, not HIGH, and the reason is S-1:* `SessionService.resolve` reads status fresh
+  on every request, so neither path grants access -- the passkey session is dead on its next
+  request. The invite path is the real one, because it changes the column rather than riding a stale
+  read. Precondition is an outstanding invite (7-day TTL) against a since-disabled account.
+- [ ] **S-8 (LOW, split out of S-1 2026-08-24). `updateStatus` does not revoke live sessions.**
+  `AppUserRepository.updateStatus` is a bare `UPDATE` with no session revocation. S-1 shipped the
+  `resolve` guard and deliberately left this out, which was the scoping the item asked for: with the
+  guard in place a disabled account's sessions stop resolving on their next request, so revocation
+  narrows the window from one request to zero and tidies `user_session` rows that will never resolve
+  again. Defense in depth, not a live hole.
 
 ### Verified sound, do not re-open
 
@@ -403,6 +394,27 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     Practical note: run these with `-Dspotless.check.skip=true`. A mutation that shortens a line
     lets google-java-format reflow it, and the build then fails on formatting before a single test
     runs -- which looks exactly like a red test if you are not watching.
+
+16. **Count the callers of the thing being guarded, not the callers the item named.** S-1 named
+    `AuthController.login` as the login chokepoint and the whole item -- guardrail, premise checks,
+    scope -- was built on that. Grepping `sessionService.create` instead found **three** callers:
+    `AuthController.login`, `WebAuthnService.finishLogin`, and `InviteController.accept`, which
+    flips status to ACTIVE unconditionally and so lets a disabled account re-activate itself. Two of
+    the three were invisible to the item because it was keyed on the endpoint the reviewer happened
+    to read, and the review that produced S-1 had already traced `users.status` exhaustively -- it
+    just traced the wrong symbol, the column rather than the session constructor. They are S-7.
+
+    This is working rule 14 pointed at security rather than duplication. Rule 14 said re-derive a
+    duplication item by its code shape, not its helper name; the same failure produces an incomplete
+    *guard* when the item names one entry point and the guarded resource has several. Before
+    guarding an operation, grep the operation -- here `sessionService.create` -- and confirm the
+    item's entry-point list is the whole list.
+
+    The saving grace was placement, not luck. Because S-1 also guarded `SessionService.resolve`, the
+    universal chokepoint, the two missed minting paths grant no access. **A guard at the read
+    chokepoint covers entry points you failed to enumerate; a guard at an entry point covers only
+    that entry point.** When both are available, the read chokepoint is the one that must not be
+    skipped.
 
 ## Ordering note
 
@@ -739,6 +751,20 @@ shipped.) The verbose pre-split log is in the
   `0257-backend-security-bugs` turned out to be fully superseded by MR 5 *and* the origin of the S-4
   untestable-test pattern — filed with a "do not rescue it" note. Gave the three non-wave sections
   rows in the Progress table. Next: S-1.
+- 2026-08-24 — shipped **S-1** ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)):
+  `UserStatus.ACTIVE` now required at `AuthController.login` and `SessionService.resolve`. Both
+  guards mutation-verified per working rule 15 -- stripping the login guard turns the DISABLED
+  login into a **204**, stripping the resolve guard hands back a principal for a disabled account.
+  1304 tests -> 1308. Shipped the allowlist over `<> DISABLED` because it also fails closed for
+  `PERSON` and `INVITED` and for whatever status is added next. Folded the login guard into the
+  existing dummy-BCrypt branch rather than adding one after the password check, so the non-ACTIVE
+  case keeps the same timing as unknown-email instead of opening a sharper enumeration oracle.
+  `AuthPrincipal` left alone; the cost report is in the history file and the finding is that the
+  field could only ever hold `ACTIVE`, since the principal is built inside `resolve` immediately
+  after the guard. **Scoping S-1 found S-7**: `sessionService.create` has three callers, not the one
+  the item named, and `InviteController.accept` flips status to ACTIVE unconditionally, so a
+  disabled account holding an unexpired invite re-activates itself. Split revocation-on-status-change
+  out as S-8. Added working rule 16. Next: S-2.
 
 ---
 

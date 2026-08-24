@@ -1543,6 +1543,95 @@ users and were unaffected; two new tests cover a `PERSON` row and an unknown id.
 
 `mvn clean install` green at each commit. 1302 tests before, **1304 after**, 0 failures.
 
+## S-1 outcome, 2026-08-24 — `UserStatus` enforced in the auth path
+
+Two guards, both mutation-verified. `AuthController.login` and `SessionService.resolve` now require
+`UserStatus.ACTIVE`. 1304 tests before, **1308 after**.
+
+### The allowlist was the free choice, and it is the one that fails closed
+
+The item said allowlist versus `<> 'DISABLED'` was free, having already disproved the
+onboarding objection. Shipped the allowlist (`!= ACTIVE`), for a reason the item did not give:
+`UserStatus` has four values, and only one of them should be able to act. A denylist admits `PERSON`
+-- a tag-only identity with no login account -- and admits `INVITED`, which is reachable with a
+password hash still attached because an admin can PATCH an ACTIVE user back to INVITED without
+clearing it. It also means the next status added to the enum is admitted by default. This is the
+same fail-closed reasoning S-1 used to settle the MR 15 #6 allowlist question, applied to itself.
+
+### Where the login guard went, and why the position matters
+
+Into the existing `maybeUser.isEmpty() || passwordHash == null` branch as a third disjunct, not as a
+new branch after the password check. That branch already performs a dummy BCrypt against a constant
+hash to equalize response time between unknown-email and wrong-password. Folding the status test in
+means a non-ACTIVE account pays the identical cost and returns the identical 401, so the fix does
+not open the user-enumeration timing oracle the surrounding code exists to close. A separate guard
+placed after `passwordEncoder.matches` would have returned fast on a correct password for a disabled
+account, which is a worse oracle than the one being defended against -- it distinguishes "disabled
+with the right password" from every other failure.
+
+The test pins this: `verify(passwordEncoder, never()).matches("correct", "{bcrypt}$2a$10$hash")`.
+The real hash is never consulted, so the guard is provably ahead of the password check.
+
+### Mutation results (working rule 15)
+
+Both guards were stripped and the suite re-run, per rule 15's standard that a guard test only counts
+if it reddens.
+
+| Mutation | Result |
+|---|---|
+| Remove the status test from `SessionService.resolve` | **2 failures** -- `resolveRejectsSessionWhoseAccountWasDisabled`, `resolveRejectsSessionWhoseAccountWasReturnedToInvited` |
+| Remove `getStatus() != ACTIVE` from `AuthController.login` | **2 failures** -- both `loginForNonActiveAccountReturns401AndCreatesNoSession` cases, `Status expected:<401> but was:<204>` |
+
+The 204 is the finding stated as a test result: without the guard, a DISABLED account with a correct
+password logs in successfully.
+
+Two details that decide whether these tests can fail at all. The login test stubs the real hash to
+return true and marks the stub `lenient()` -- without that stub the mutated code would consult an
+unstubbed matcher, get `false`, and 401 anyway, producing a test that passes either way. And the
+resolve tests must be integration tests: `AppUserRepository` is mocked in every unit test that
+touches this path, and a mock returns whatever entity the test built regardless of the column, so
+the guard would be invisible. Rule 15's "testing through a mock of the thing under test" again.
+
+The resolve test also asserts the session row is still unrevoked and unexpired after the rejection,
+which is what makes it a status test rather than an accidental pass through the revocation branch.
+
+### What was NOT done, stated rather than left ambiguous
+
+**Session revocation on status change is not in this MR.** The item scoped it as defense in depth
+and asked for an explicit statement of which half shipped. `AppUserRepository.updateStatus` is still
+a bare `UPDATE`. The hole it would close is already closed for access: `resolve` reads status fresh
+on every request, so a disabled account's live sessions stop resolving on their next request without
+anyone touching `user_session`. What revocation would add is tidying the rows and cutting the window
+to zero rather than to one request. Still open, now S-8.
+
+### The `AuthPrincipal` cost, reported instead of implemented
+
+The guardrail asked for the price of putting status on the principal rather than paying it. It is
+higher than the call-site count suggests, and the field would be inert.
+
+Construction sites: **3 in main** (two of them are `AuthPrincipal`'s own `client` and `flyby`
+factories; the third is `SessionService`) and **30 across 21 test files**, all through the 4-arg
+convenience constructor the board already decided to keep. So the mechanical cost is 33 edits, or
+zero real edits and one hidden defect: give the 4-arg constructor a hardcoded `ACTIVE` default and
+all 30 test principals silently become ACTIVE, which is a field no test can ever exercise.
+
+The reason not to do it is stronger than the count. **The field could only ever hold `ACTIVE`.**
+`AuthPrincipal` is built once per request, inside `resolve`, immediately after the guard that
+rejects every non-ACTIVE account. Any code reading `principal.status()` runs strictly after that
+check has passed, so the field is a constant with a getter. A test asserting on it cannot fail --
+rule 15's "reports coverage" defect, built in by construction.
+
+And the fan-out is the shape MR 15 #2 just deleted: **21 `@AuthenticationPrincipal` parameters
+across 9 files** plus **6 `SecurityContextHolder` reads**, each a place someone could add a status
+check, none of which would be reachable. That is 17 copy-pasted guards growing back into 27, one
+quarter after one matcher replaced them.
+
+### Verification
+
+`mvn clean install` green -- spotless and checkstyle included. **1308 tests, 0 failures** (1304
+before; the 4 new are 2 parameterized login cases and 2 resolve cases).
+
+
 
 ---
 
