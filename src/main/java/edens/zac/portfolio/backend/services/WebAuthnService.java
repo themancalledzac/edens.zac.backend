@@ -174,8 +174,11 @@ public class WebAuthnService {
 
   /**
    * Verify the assertion (user-verification + sign_count regression enforced inside the operations
-   * call) and mint an mfa=true session for the resolved user, whose account must be {@link
-   * UserStatus#ACTIVE}.
+   * call) and mint an mfa=true session for the resolved user.
+   *
+   * <p>The account must be {@link UserStatus#ACTIVE}. A verified assertion proves possession of the
+   * credential, not that the account may still log in -- a passkey outlives any status change, so
+   * status is read here rather than inferred from the ceremony succeeding.
    *
    * @param attemptId the per-attempt id (carried by the ezac_webauthn_attempt cookie)
    * @param credentialJson the raw W3C assertion credential JSON from {@code login/finish}
@@ -210,9 +213,6 @@ public class WebAuthnService {
             .orElseThrow(
                 () -> new RuntimeException("Authenticated handle has no app_user: " + handle));
 
-    // A verified assertion proves possession of the credential, not that the account may still log
-    // in. The passkey outlives any status change, so status is read here rather than inferred from
-    // the ceremony succeeding.
     if (user.getStatus() != UserStatus.ACTIVE) {
       log.warn("WebAuthn login rejected: userId={} status={}", user.getId(), user.getStatus());
       throw new IllegalStateException("Account is not active");

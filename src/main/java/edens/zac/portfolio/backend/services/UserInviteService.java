@@ -1,11 +1,17 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.UserInviteRepository;
+import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.UserInviteEntity;
+import edens.zac.portfolio.backend.types.UserStatus;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +27,34 @@ public class UserInviteService {
   static final long INVITE_TTL_DAYS = 7;
 
   private final UserInviteRepository inviteRepository;
+  private final AppUserRepository appUserRepository;
+  private final PasswordEncoder passwordEncoder;
+  private final SessionService sessionService;
+
+  /** The outcome of {@link #accept}, which the controller maps to a status code. */
+  public enum AcceptResult {
+    /** The invite was redeemed, the account activated, and a session minted. */
+    ACCEPTED,
+    /** The token was unusable, or the account may not complete an accept. */
+    REJECTED
+  }
+
+  /**
+   * The statuses an account may hold and still complete an accept. {@code INVITED} is onboarding;
+   * {@code ACTIVE} is the admin-issued password reset, which redeems through the same endpoint (see
+   * {@link #regenerateInvite}). Every other status is refused, which is what stops a {@code
+   * DISABLED} holder of an unexpired invite from re-activating their own account.
+   *
+   * <p>Stated as an allowlist rather than a {@code != DISABLED} denylist on purpose: {@link
+   * UserStatus} also has {@code PERSON}, a tag-only identity with no login account, and a denylist
+   * would let one become a real account.
+   *
+   * @param status the account's current status
+   * @return whether an invite held against this account may still be redeemed
+   */
+  public static boolean mayAcceptInvite(UserStatus status) {
+    return status == UserStatus.INVITED || status == UserStatus.ACTIVE;
+  }
 
   /**
    * Create a new invite for an existing {@code app_user} row. Generates a 256-bit CSPRNG token,
@@ -99,6 +133,57 @@ public class UserInviteService {
       return Optional.empty();
     }
     return Optional.of(invite);
+  }
+
+  /**
+   * Redeem an invite into a usable account: consume the token, set the password and display name,
+   * activate the account, and mint a session.
+   *
+   * <p>The account's status is read and tested against {@link #mayAcceptInvite} <em>before</em> the
+   * activating write, so a status the invite lifecycle does not sanction never reaches the flip to
+   * {@code ACTIVE}. The redeem stands either way, so a token presented against such an account is
+   * spent rather than left live.
+   *
+   * @param rawToken the raw token from the invite URL
+   * @param displayName the chosen display name
+   * @param rawPassword the chosen password, encoded here
+   * @param request the servlet request (IP / User-Agent for the session row)
+   * @param response the Set-Cookie sink for the session cookie
+   * @return {@link AcceptResult#ACCEPTED}, or {@link AcceptResult#REJECTED} if the token is
+   *     unknown, expired, already used, or the account may not complete an accept
+   * @throws IllegalStateException if the redeemed invite points at no {@code app_user} row
+   */
+  @Transactional
+  public AcceptResult accept(
+      String rawToken,
+      String displayName,
+      String rawPassword,
+      HttpServletRequest request,
+      HttpServletResponse response) {
+    Optional<UserInviteEntity> maybeInvite = redeem(rawToken);
+    if (maybeInvite.isEmpty()) {
+      log.warn("Invite accept rejected: token already used or expired");
+      return AcceptResult.REJECTED;
+    }
+
+    Long userId = maybeInvite.get().getUserId();
+    AppUserEntity user =
+        appUserRepository
+            .findById(userId)
+            .orElseThrow(() -> new IllegalStateException("User disappeared after invite redeem"));
+
+    if (!mayAcceptInvite(user.getStatus())) {
+      log.warn("Invite accept rejected: userId={} status={}", userId, user.getStatus());
+      return AcceptResult.REJECTED;
+    }
+
+    appUserRepository.updatePasswordHash(userId, passwordEncoder.encode(rawPassword));
+    appUserRepository.updateName(userId, displayName);
+    appUserRepository.updateStatus(userId, UserStatus.ACTIVE);
+
+    sessionService.create(user, false, request, response);
+    log.info("Invite accepted: userId={}", userId);
+    return AcceptResult.ACCEPTED;
   }
 
   /**
