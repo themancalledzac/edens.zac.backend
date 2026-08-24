@@ -1690,6 +1690,92 @@ seeding and split merge coverage across two files in a repo mid-way through a du
 tracker's claim that "neither test added by #191 touches `repointMemberships`" was right but
 understated: **no test anywhere did**, in either file.
 
+## S-3 outcome, 2026-08-24 -- the delete-person guard has a test that can fail
+
+Two DAO tests, no source change. 1312 tests -> 1314.
+
+### Mutation results (working rule 15)
+
+The item's premise was re-proven before the fix and disproven after it. Stripping `AND status =
+'PERSON'` from `PersonRepository.deletePersonById` and running the **whole suite**:
+
+| | Result |
+|---|---|
+| Before (tracker's 2026-08-24 run, 1304 tests) | all pass |
+| After (this MR, 1314 tests) | **1 failure**, `PersonRepositoryIntegrationTest.deleteLeavesARealAccountStanding` |
+
+One failure and only one, which is the useful form of the result: it confirms the new test catches
+the mutation *and* re-confirms that nothing else in 1313 tests does. `MetadataServiceTest`'s
+`deletePerson_refusesAnAccountId` stays green under the mutation because it stubs
+`deletePersonById` to return 0 -- it tests the service's 0-to-404 conversion, which is real, and
+never reaches the SQL.
+
+`deleteRemovesATagOnlyPerson` is the positive counterpart and also stays green under the mutation,
+which is correct: stripping the predicate does not stop a PERSON row from deleting. Its job is the
+opposite mutation -- without it, a `deletePersonById` that deleted nothing at all would pass the
+guard test.
+
+### The test went in a new DAO file, not `UserMergeIntegrationTest`
+
+The item nominated `UserMergeIntegrationTest` on warm-context grounds: it already seeds PERSON and
+ACTIVE rows, and S-2 had just worked inside `deletePersonById`'s caller. Both true. It still went
+to a new `dao/PersonRepositoryIntegrationTest` instead, for two reasons.
+
+The first is that `src/test/.../dao/` is where this repo puts DAO-level guard tests, including
+S-2's own: `RoleRepositoryIntegrationTest` holds the DAO half of the S-2 pair and
+`UserMergeIntegrationTest` holds the service half. S-3's guard is a `PersonRepository` predicate
+with no service-level counterpart to pair with, so the DAO file is the whole of it. Of the 33 files
+in that directory, `PersonRepository` was the one guarded DAO with none.
+
+The second is that one of S-3's three premises was `find src/test -name "PersonRepository*"`
+returning nothing. Closing the finding without changing that leaves the premise reading true to the
+next reviewer, and the next mutation run finds coverage in a file named for a different service.
+
+This does not contradict S-2's thrown-away `UserMergeServiceIntegrationTest`. That draft was a
+*service* test duplicating the seeding in an existing service test file. This is a DAO test in the
+directory that had no file for this DAO.
+
+### What making `deletePersonById` throw would cost, reported instead of implemented
+
+The guardrail asked for the cost rather than the change. Grepping the method (working rule 16) gives
+**two** callers in `src/main`, and they want opposite things from a throw.
+
+| Caller | Uses the return how | What a throw does to it |
+|---|---|---|
+| `MetadataService.deletePerson:181` | `if (... == 0) throw new ResourceNotFoundException(...)` | nothing, if the DAO throws the same type; the 404 is already this behavior |
+| `UserMergeService.merge:78` | discards it | adds a third exception to a method whose javadoc lists two, on a path `requireMergeable` already guarantees is unreachable |
+
+So the throw buys almost nothing at the caller that motivates it. `MetadataService` already converts
+0 into a 404, and the transaction rollback the method's docblock describes happens either way --
+same transaction, same rollback, only the throw site moves down a layer.
+
+The cost is concentrated in three places:
+
+- **Policy moves into the DAO.** `PersonRepository` extends `BaseDao`, and every sibling returns a
+  count, an `Optional`, or void. For the throw to preserve today's 404 it has to be
+  `ResourceNotFoundException`, which is a `config`-package web concern; anything else changes the
+  admin API's status. Per working rule 3, `IllegalStateException` would make it a 400 -- exactly the
+  behavior change the guardrail rules out.
+- **The two callers want different policy.** `MetadataService` wants a 404. `UserMergeService` wants
+  "this cannot happen"; if it ever does, `requireMergeable` and the SQL predicate disagree, and
+  surfacing an invariant break as a 404 on the admin merge endpoint is the wrong answer. One shared
+  throw cannot serve both without a catch at one of them.
+- **Test coverage goes down, not up.** `MetadataServiceTest` has three sites stubbing the int
+  return. `deletePerson_refusesAnAccountId` becomes "stub a throw, assert it propagates", which
+  tests strictly less than the 0-to-404 conversion it tests now, because that conversion no longer
+  exists.
+
+The one real gap a throw would close is `UserMergeService.merge` silently discarding a 0. It is
+unreachable today -- `requireMergeable` throws `IllegalStateException` unless the source is a PERSON
+-- and if it is worth closing it is cheaper to close there, with `if (deletePersonById(sourceId) ==
+0) throw new IllegalStateException(...)` at that one call site, than by changing a primitive two
+callers share. Not filed as an item; noted here so the next reader does not re-derive it.
+
+### Not folded in
+
+S-4 stayed out, per the item. Same working rule, different mechanism (a Spring annotation, not a SQL
+predicate) and a different test type (context, not integration).
+
 
 ---
 

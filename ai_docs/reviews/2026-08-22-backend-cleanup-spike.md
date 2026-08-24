@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **6 open, 2 HIGH.** The live priority. S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)) and S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)) done; S-1 scoping found S-7 and split off S-8. **next: S-3** -- both remaining HIGHs are PROVEN untested, and S-3's caller is what S-2 just edited. Both stamped COLD 2026-08-24. |
+| [Open security findings](#open-security-findings) | **5 open, 1 HIGH.** The live priority. S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)) and S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) done; S-1 scoping found S-7 and split off S-8. **next: S-4**, the last PROVEN-untested item and the last HIGH. Stamped COLD 2026-08-24. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **6 open** (2 high) — see below. S-1 and S-2 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
+| Security findings | **5 open** (1 high) — see below. S-1, S-2 and S-3 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -102,31 +102,15 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   Full write-up in the
   [history file](2026-08-22-backend-cleanup-history.md#s-2-outcome-2026-08-24----the-merge-path-upholds-the-addmember-rule).
   Taught working rule 17.
-- [ ] **S-3 (HIGH, PROVEN untested). Bug #1's delete-person guard has no test that can fail.**
-  `PersonRepository.deletePersonById`'s `AND status = 'PERSON'` is the whole of a high-severity fix
-  (admin delete-person must not destroy a real account). Mutation run 2026-08-24: strip the
-  predicate and **all 1,304 tests still pass** *(baseline is now **1,312** after S-1 and S-2 --
-  re-run the mutation against that number, not 1,304)*. `MetadataServiceTest.deletePerson_...` only
-  `verify()`s a mocked call, `PersonRepository` is mocked everywhere it appears, and there is no
-  `PersonRepositoryTest`. Needs one integration test asserting an ACTIVE row survives the call.
-
-  **COLD, and re-verified 2026-08-24 after S-2, which touched this method's only caller.** All
-  three premises still hold on `f2cad5e`: the predicate is live at `PersonRepository.java:215`,
-  `find src/test -name "PersonRepository*"` returns nothing, and all ten test files naming
-  `PersonRepository` mock it. Next because its context is warm -- S-2 just worked inside
-  `UserMergeService.merge`, which is `deletePersonById`'s caller, and inside
-  `UserMergeIntegrationTest`, which is the natural home for the new test: it already seeds PERSON
-  and ACTIVE rows. **Do not mistake that file's `refusesToDeleteARealAccount` for coverage** -- it
-  guards `requireMergeable`'s source check and never reaches this SQL predicate, which is why the
-  mutation ran green with it present. Same shape as the two tests S-1 and S-2 just shipped.
-
-  *Guardrail: add the test, leave `deletePersonById`'s behavior alone.* The tempting adjacent change
-  is to make a non-PERSON delete throw instead of silently affecting zero rows, or to add a status
-  check in `MetadataService` before the call. Both change the admin API's response on an existing
-  path, which is not what a "this fix has no test" item asks for. Report what making it throw would
-  cost instead of doing it. And do not fold in S-4: same working rule, different mechanism (a SQL
-  predicate versus a Spring annotation) and different test type (integration versus context), so it
-  needs its own MR.
+- [x] **S-3 (HIGH, PROVEN untested). Bug #1's delete-person guard has no test that can fail.**
+  **DONE** ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)). Two DAO tests in
+  a new `dao/PersonRepositoryIntegrationTest`, no source change. Stripping `AND status = 'PERSON'`
+  now reddens exactly one test out of 1,314, which both proves the new guard test and re-confirms
+  that nothing else covers the predicate. `deletePersonById`'s behavior is unchanged; the cost of
+  making it throw is reported, not implemented. Full write-up, including why the test did not go in
+  `UserMergeIntegrationTest`, in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-3-outcome-2026-08-24----the-delete-person-guard-has-a-test-that-can-fail).
+  Sharpened working rule 15's practical note.
 - [ ] **S-4 (HIGH, PROVEN untested). `ProdSecretGuard` can be unwired silently.** Mutation run
   2026-08-24: delete `@PostConstruct` from `verify()` and **all 1,304 tests still pass** *(baseline
   is now **1,312** -- re-run against that)*, while the
@@ -430,6 +414,13 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     Practical note: run these with `-Dspotless.check.skip=true`. A mutation that shortens a line
     lets google-java-format reflow it, and the build then fails on formatting before a single test
     runs -- which looks exactly like a red test if you are not watching.
+
+    **Second practical note, learned in S-3: `touch` the source after restoring it, or run `mvn
+    clean test`.** Restoring with `sed -i.bak` + `mv` gives the restored file an mtime *older* than
+    the `.class` compiled during the mutation run, so maven-compiler-plugin skips it and the next
+    `mvn test` runs the mutated bytecode against restored source. S-3's restore looked like the
+    guard was still broken. The failure mode is worse in the other direction: restore a mutation you
+    meant to keep and the suite goes green on stale classes.
 
 16. **Count the callers of the thing being guarded, not the callers the item named.** S-1 named
     `AuthController.login` as the login chokepoint and the whole item -- guardrail, premise checks,
@@ -735,10 +726,12 @@ These are worth more than the bloat they replace.
 - [ ] **`UserRatingOverrideControllerProd` has no controller test at all** -- only a service test.
   *(New row 2026-08-24; noted in the history file after MR 15 #2 and never given one. It is also
   the endpoint whose bare-array response has no test either.)*
-- [ ] **Two guard tests that cannot fail, proven by mutation.** See **S-3** and **S-4** under "Open
-  security findings": bug #1's delete-person guard and `ProdSecretGuard`'s `@PostConstruct` can each
-  be removed with all 1,304 tests green. Fixing them is coverage work, so they are listed here too;
-  the evidence and the mutations are recorded with the security items and in working rule 15.
+- [ ] **One guard test that cannot fail, proven by mutation.** *(Was two. S-3 closed 2026-08-24 in
+  [#195](https://github.com/themancalledzac/edens.zac.backend/pull/195); bug #1's delete-person guard
+  now reddens one test when stripped.)* See **S-4** under "Open security findings":
+  `ProdSecretGuard`'s `@PostConstruct` can still be removed with the whole suite green. Fixing it is
+  coverage work, so it is listed here too; the evidence and the mutation are recorded with the
+  security item and in working rule 15.
 - [ ] **MR 11's headline security fix is untested.** Moving eight throw sites to bare
   `RuntimeException` -- so `WebAuthnService` and `JdbcUserCredentialRepository` stop echoing
   `app_user` ids and WebAuthn handles to unauthenticated callers in a 400 body -- has zero coverage.
