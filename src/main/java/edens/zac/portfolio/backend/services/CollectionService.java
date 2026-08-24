@@ -1614,12 +1614,11 @@ public class CollectionService {
    * <ul>
    *   <li>HIDDEN children never render publicly.
    *   <li>S3: an unprotected parent must not publish a password-protected child's title,
-   *       description or cover image. {@code ContentModels.Collection} has no {@code
-   *       isPasswordProtected} field, so the frontend cannot render a locked tile -- dropping the
-   *       block is the only correct behaviour available without a wire change, and this unit is
-   *       specified as a no-model-change unit. The alternative (emit {@code isPasswordProtected}
-   *       and null out {@code coverImage}/{@code description}) is deliberately NOT implemented;
-   *       there is no second code path.
+   *       description or cover image, so the block is dropped. {@code ContentModels.Collection} now
+   *       carries {@code isPasswordProtected}, so rendering a locked tile here is technically
+   *       possible -- it is still deliberately NOT done. The flag exists for the list and tag-view
+   *       paths, which serve a child directly rather than nested under someone else's parent; under
+   *       an unprotected parent the child's own gate never runs, so dropping stays correct.
    *   <li>S4: the UNLISTED relaxation is per child, not per model. It used to be computed once from
    *       the whole response ("any child is a client gallery"), so linking a single gallery under a
    *       wrapper un-hid every unrelated UNLISTED work-in-progress sibling.

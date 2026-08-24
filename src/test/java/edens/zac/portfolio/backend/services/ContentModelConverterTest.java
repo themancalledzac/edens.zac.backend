@@ -9,7 +9,9 @@ import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
+import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCameraEntity;
+import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
@@ -21,6 +23,7 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.Records;
+import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
@@ -376,6 +379,58 @@ public class ContentModelConverterTest {
     entity.setTextContent("This is test content");
     entity.setFormatType("markdown");
     return entity;
+  }
+
+  @Test
+  @DisplayName(
+      "Batch collection block carries isPasswordProtected from the hydrated referenced row")
+  void buildCollectionModelWithBatchData_reportsPasswordProtection() {
+    // Stripping the gallery_password read from buildCollectionRecord reddens this. The stub the
+    // content row mapper builds carries only an id, so the flag has to come from the pre-fetched
+    // map -- reading it off contentEntity.getReferencedCollection() would report false here.
+    CollectionEntity stub = new CollectionEntity();
+    stub.setId(30L);
+
+    ContentCollectionEntity block = new ContentCollectionEntity();
+    block.setId(9L);
+    block.setReferencedCollection(stub);
+
+    CollectionEntity protectedRow = new CollectionEntity();
+    protectedRow.setId(30L);
+    protectedRow.setTitle("Smith Wedding");
+    protectedRow.setSlug("smith-wedding");
+    protectedRow.setVisibility(CollectionVisibility.UNLISTED);
+    protectedRow.setGalleryPassword("sunshine");
+
+    ContentModels.Collection model =
+        contentModelConverter.buildCollectionModelWithBatchData(
+            block, null, Map.of(30L, protectedRow), Map.of(), Map.of(), Map.of(), Map.of());
+
+    assertTrue(model.isPasswordProtected());
+    assertEquals("smith-wedding", model.slug());
+  }
+
+  @Test
+  @DisplayName("Batch collection block reports an unprotected referenced row as not protected")
+  void buildCollectionModelWithBatchData_unprotectedReportsFalse() {
+    CollectionEntity stub = new CollectionEntity();
+    stub.setId(31L);
+
+    ContentCollectionEntity block = new ContentCollectionEntity();
+    block.setId(10L);
+    block.setReferencedCollection(stub);
+
+    CollectionEntity openRow = new CollectionEntity();
+    openRow.setId(31L);
+    openRow.setTitle("Iceland");
+    openRow.setSlug("iceland");
+    openRow.setVisibility(CollectionVisibility.LISTED);
+
+    ContentModels.Collection model =
+        contentModelConverter.buildCollectionModelWithBatchData(
+            block, null, Map.of(31L, openRow), Map.of(), Map.of(), Map.of(), Map.of());
+
+    assertFalse(model.isPasswordProtected());
   }
 
   private ContentGifEntity createContentGifEntity() {

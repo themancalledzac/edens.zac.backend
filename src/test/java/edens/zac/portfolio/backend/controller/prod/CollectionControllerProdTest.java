@@ -773,7 +773,10 @@ class CollectionControllerProdTest {
   }
 
   // ============================================================================
-  // BE-H5: coverImage must be stripped for protected galleries without a valid cookie
+  // BE-H5: coverImage is RETAINED for protected galleries, cookie or not. The banner here used to
+  // read "must be stripped", which contradicted all three tests below and led a frontend reviewer
+  // to build against a stripping behaviour that has never existed. What is withheld from an
+  // unauthorized viewer is content and contentCount, not the cover.
   // ============================================================================
 
   private CollectionModel createPasswordProtectedCollectionWithCover() {

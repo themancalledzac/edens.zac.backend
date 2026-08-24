@@ -10,9 +10,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Locks the exact JSON property names of the new client/blog booleans on every collection-bearing
- * payload. Guards against the Lombok/Jackson boolean-getter trap where a boolean {@code isClient}
- * getter {@code isClient()} silently serializes as {@code "client"}.
+ * Locks the exact JSON property names of the client/blog/password-protected booleans on every
+ * collection-bearing payload. Guards against the Lombok/Jackson boolean-getter trap where a boolean
+ * {@code isClient} getter {@code isClient()} silently serializes as {@code "client"}.
  */
 class CollectionFlagSerializationTest {
 
@@ -66,7 +66,9 @@ class CollectionFlagSerializationTest {
   }
 
   @Test
-  @DisplayName("ContentModels.Collection serializes isClient/isBlog under exactly those names")
+  @DisplayName(
+      "ContentModels.Collection serializes isClient/isBlog/isPasswordProtected under exactly those"
+          + " names")
   void contentModelsCollection_serializesExactFlagNames() throws Exception {
     ContentModels.Collection block =
         new ContentModels.Collection(
@@ -83,6 +85,7 @@ class CollectionFlagSerializationTest {
             "wrapped-gallery",
             true,
             false,
+            true,
             null,
             null,
             null,
@@ -95,8 +98,11 @@ class CollectionFlagSerializationTest {
     assertThat(json.get("isClient").booleanValue()).isTrue();
     assertThat(json.has("isBlog")).isTrue();
     assertThat(json.get("isBlog").booleanValue()).isFalse();
+    assertThat(json.has("isPasswordProtected")).isTrue();
+    assertThat(json.get("isPasswordProtected").booleanValue()).isTrue();
     assertThat(json.has("client")).isFalse();
     assertThat(json.has("blog")).isFalse();
+    assertThat(json.has("passwordProtected")).isFalse();
   }
 
   @Test

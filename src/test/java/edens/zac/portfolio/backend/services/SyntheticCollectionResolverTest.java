@@ -301,6 +301,39 @@ class SyntheticCollectionResolverTest {
   }
 
   @Test
+  void resolveAllCollectionsKeepsPasswordProtectedThroughTagEnrichment() {
+    // Two mutations redden this: dropping isPasswordProtected from fromCollectionModel, and
+    // dropping it from withTags(), which rebuilds the record on this exact path.
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder()
+                    .id(7L)
+                    .slug("smith-wedding")
+                    .visibility(CollectionVisibility.LISTED)
+                    .isPasswordProtected(true)
+                    .build(),
+                CollectionModel.builder()
+                    .id(8L)
+                    .slug("open-trip")
+                    .visibility(CollectionVisibility.LISTED)
+                    .build()));
+    when(tagRepository.findTagsByCollectionIds(List.of(7L, 8L)))
+        .thenReturn(
+            Map.of(7L, List.of(TagEntity.builder().id(2L).tagName("italy").slug("italy").build())));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    assertThat(out.getContent())
+        .extracting(block -> ((ContentModels.Collection) block).isPasswordProtected())
+        // The second model leaves the Boolean null, which must read false and not throw on
+        // unboxing.
+        .containsExactly(true, false);
+  }
+
+  @Test
   void resolveAllBlogsInProdFiltersToBlogTypeAndListedOnly() {
     when(collectionRepository.findNonEmptyOrderedByVisibilityIn(
             eq(List.of(CollectionVisibility.LISTED)), eq(true)))
