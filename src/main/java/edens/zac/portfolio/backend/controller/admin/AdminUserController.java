@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import edens.zac.portfolio.backend.config.CurrentUser;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.UserRoleRow;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserSummary;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRequest;
@@ -12,7 +13,6 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.UpgradeUserRequ
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
-import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.EmailService;
@@ -31,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -231,7 +230,7 @@ public class AdminUserController {
         "Admin upgraded PERSON to INVITED (userId={}, email={}, actorId={})",
         id,
         email,
-        currentUserId());
+        CurrentUser.userId());
     return ResponseEntity.ok(new CreateUserResponse(id, inviteUrl));
   }
 
@@ -331,7 +330,7 @@ public class AdminUserController {
    */
   @PutMapping("/{id}/roles/{roleId}")
   public ResponseEntity<Void> addUserToRole(@PathVariable Long id, @PathVariable Long roleId) {
-    roleRepository.addMember(roleId, id, currentUserId());
+    roleRepository.addMember(roleId, id, CurrentUser.userId());
     return ResponseEntity.noContent().build();
   }
 
@@ -466,11 +465,5 @@ public class AdminUserController {
             emailService.sendInviteEmail(email, displayName, inviteUrl);
           }
         });
-  }
-
-  /** The acting admin's user id for audit columns, or null in dev where the gate is open. */
-  private static Long currentUserId() {
-    var auth = SecurityContextHolder.getContext().getAuthentication();
-    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
   }
 }
