@@ -1776,6 +1776,67 @@ callers share. Not filed as an item; noted here so the next reader does not re-d
 S-4 stayed out, per the item. Same working rule, different mechanism (a Spring annotation, not a SQL
 predicate) and a different test type (context, not integration).
 
+## S-4 outcome, 2026-08-24 -- `ProdSecretGuard` cannot be unwired silently
+
+Four context tests and one deletion, no source change. 1314 tests -> 1317.
+
+### The gap was the annotation, not the method
+
+`ProdSecretGuard.verify()` is what stops prod booting on a default or blank `internal.api.secret`,
+or with `app.admin.enforce-authz=false`. Its six tests all routed through one `invokeVerify` helper
+doing `getDeclaredMethod("verify").setAccessible(true).invoke(...)`, so every one of them tested the
+method body on a hand-built object and not one could see the `@PostConstruct` that makes the
+container call it. Delete the annotation and the guard is dead at startup with the suite green.
+
+The fix is a `@Nested class Wiring` using `ApplicationContextRunner` -- a real context, the bean
+registered as a bean, the container calling `verify()`. `ApplicationContextRunner` was not used
+anywhere in this repo before; it is the right tool here because the alternative, a `@SpringBootTest`
+on the prod profile, would have to stand up the whole prod application -- datasource, S3,
+CloudFront, `InternalSecretFilter` -- to assert one bean refuses to construct.
+
+### Mutation results (working rule 15)
+
+Two mutations, two distinct reddenings:
+
+| Mutation | Result |
+|---|---|
+| delete `@PostConstruct` (the item's mutation) | 2 failures out of 1317: `prodRefusesToStartOnTheDefaultDevSecret`, `prodRefusesToStartWithTheAuthzGateOff` |
+| delete `@Profile("prod")` | 1 failure: `guardIsNotRegisteredOutsideProd` |
+
+`prodStartsOnARealSecret` is the control and asserts `hasSingleBean(ProdSecretGuard.class)`, not just
+`hasNotFailed()`. Without that assertion a context where the bean was never registered -- profile
+typo, `withUserConfiguration` dropped -- would read exactly like a guard that passed, and both
+failure tests would then be failing for a reason unrelated to the guard.
+
+`guardIsNotRegisteredOutsideProd` is not scope creep: `@Profile("prod")` and `@PostConstruct` are
+the same wiring, and a guard that throws on every profile would break dev boot rather than protect
+prod. The `@Profile` mutation demonstrates it -- with the annotation gone the non-prod context does
+not merely gain a bean, it fails to start.
+
+### The duplicate test, removed -- and the item's reason for it was slightly wrong
+
+`enforceAuthzDisabledThrowsEvenWithAGoodSecret` built the identical
+`new ProdSecretGuard(REAL_SECRET, false)` as `enforceAuthzDisabledThrows` directly above it and
+asserted `hasMessageNotContaining("internal.api.secret")`.
+
+The item said its distinguishing assertion "cannot be false". Checked rather than repeated (working
+rule 8): it **can** be false -- reword the authz message to mention `internal.api.secret` and it
+fails. That is a message-wording assertion, not a behavior one, and it is the only thing the test
+uniquely covered.
+
+The real reason it goes is that the independence it claims to test is already tested by the pair
+around it: `defaultDevSecretThrows` (bad secret, authz on) and `enforceAuthzDisabledThrows` (good
+secret, authz off) demonstrate the two checks fire independently, and the second pins the message
+positively. Deleted.
+
+### The tests went in the existing file
+
+`ProdSecretGuardTest` already existed and is where anyone looks for this class's coverage. The
+wiring tests went into a `@Nested class Wiring` inside it rather than a separate
+`ProdSecretGuardContextTest`, so the reflective tests and the tests that exist *because* the
+reflective ones cannot see the annotation sit next to each other. That is the opposite call from
+S-3, and for the opposite reason: S-3 had no file to join.
+
 
 ---
 
