@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a merged ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) -- 117 comments, one stale docblock fixed. **MR 13 COMPLETE:** 13b done -- 37 comments across the remaining seven media files, into 13 javadocs, no bugs found. **Next up: MR 14.** 93 in-method comments left in `src/main`. |
+| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a merged ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) -- 117 comments, one stale docblock fixed. **MR 13 COMPLETE:** 13b ([#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)) -- 37 comments into 13 javadocs, no bugs found; 13c, a density pass over 13b's own docblocks (net -24 lines, -192 words) after the promotion was measured at +42% prose. **Next up: MR 14 -- read working rule 10 first.** 93 in-method comments left in `src/main`. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -97,6 +97,27 @@ Learned while doing the MRs; they apply to every item still open, not just the o
    on one machine. Committing it was an accident that corrected a real fragility. The defect was the
    undisclosed diff, not the file's presence, and the rule above is about staging discipline, not
    about this file.
+
+10. **Promotion inflates. Measure a comment MR in words, not lines, and diff it against what the
+    docblock already says.** MR 13b removed 37 inline comments (422 words of prose) and added 600
+    words of javadoc -- **+42% prose in an MR called "debloat"** -- and nobody noticed from the diff
+    stat, because `+65/-45` looks near-neutral once javadoc's `/**`, ` * ` and `<p>` overhead is
+    counted as content. Line count hides prose growth; word count does not. Three causes, all
+    avoidable, all caught in review (MR 13c):
+    - **The same rule written into three docblocks.** The EXIF-over-XMP precedence went into
+      `extractFromStream`, `extractFromExifTag` AND `extractFromXmpDirectory`. This is exactly the
+      failure MR 12a already caught with the CDN invalidation comment -- three copies, fixed by
+      putting it in one class-level sentence. State a rule once, where it is enforced.
+    - **A dense existing docblock deleted and re-expanded.** `extractTagsAndPeopleFromXmp` had an
+      accurate 3-line summary; it was replaced with 11 lines across three paragraphs saying the same
+      thing plus examples. Promoting into a docblock does not mean rewriting the docblock.
+    - **A fact promoted that the caller already documented.** `writeZipEntries` got the `.error.txt`
+      placeholder rationale, which `zipToS3AndPresign`'s docblock one method above already stated.
+
+    So before promoting: read the docblock you are promoting INTO, and the one on its nearest public
+    caller. If either already says it, the comment is a delete, not a promote. Then check the MR in
+    words. 13b+13c combined is -4 lines and -14 words with all 37 comments gone, which is what a
+    debloat should look like; 13b alone was not.
 
 ## Ordering note
 
@@ -709,6 +730,17 @@ and deliberately left that question open -- see the decision item below.
   only on malformed input, where `parseImageDate` returns month **13** and builds an S3 path from it.
   Folding is therefore a behavior change with an S3-pathing consequence, not a refactor; re-scoped
   that half of consolidation #17 accordingly. Next: MR 14.
+- 2026-08-23 — shipped MR 13c after #183 merged, correcting 13b rather than carrying the defect into
+  MR 14. Prompted by the right question: the PRs kept growing while being called "debloat". Splitting
+  13b's `+161/-53` showed 88 lines of it was this tracker and only +20 was Java -- but measuring the
+  Java **in words** rather than lines showed +178 (+42%), because javadoc's `/**`, ` * ` and `<p>`
+  overhead makes real prose growth read as a near-neutral line count. **Line count is the wrong
+  metric for a comment MR.** Three causes, now Working rule 10: the EXIF-over-XMP precedence rule
+  written into three separate docblocks (the same three-copies failure MR 12a caught with the CDN
+  invalidation comment); a dense 3-line docblock deleted and re-expanded to 11 saying the same thing;
+  and a fact promoted into a private method that its public caller already documented. 13c cut -24
+  lines / -192 words with nothing lost, leaving 13b+13c at -4 lines / -14 words with all 37 comments
+  gone. Next: MR 14, which has 93 comments and would have repeated this at three times the scale.
 
 ---
 
@@ -1380,6 +1412,27 @@ Recommendation for consolidation #17: keep the `ensureDimensions` twins in scope
 duplication in this file -- and re-scope the date pair from "fold the two parsers" to "decide whether
 `parseImageDate` should stay permissive." That is a behavior decision with an S3-pathing consequence,
 not a refactor, and it wants its own MR and a test for the month-13 case.
+
+### MR 13c outcome (2026-08-23) — density pass over 13b's own docblocks
+
+Java diff: 4 files, +25/-49, **net -24 lines and -192 words of prose.** No comments removed and none
+added -- this MR only tightens the javadoc 13b wrote. Build green, 1315 tests, 0 failures.
+
+Filed because the question "we keep saying debloat, but the diffs keep growing" turned out to be
+correct once the numbers were separated. 13b's headline `+161/-53` was 88 lines of this tracker and
+only +20 of Java, so the doc was not the problem -- but measured in words the Java was **+178 (+42%)**,
+which is the opposite of a debloat. Working rule 10 records the three causes and the check that
+catches them.
+
+Combined, 13b+13c is what the MR should have been the first time: all 37 inline comments gone, 13
+docblocks carrying the load-bearing rules, and **-4 lines / -14 words** overall.
+
+Nothing was lost in the tightening. Every rule 13b identified as load-bearing is still documented --
+the XMP first-wins rule, EXIF-over-XMP precedence, the person-name filter, the ZIP sequence prefix,
+both date-format rules -- each now stated once, in the method that enforces it, instead of two or
+three times across the file. Two docblocks (`S3MultipartOutputStream.close`,
+`ImageMetadata.ShutterSpeedExtractor`) were left alone: they were already dense, and cutting them
+further would have cost information rather than restatement.
 
 ## MR 14 — Comment debloat: controllers, config, data layer, and stale docblocks
 

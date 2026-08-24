@@ -119,11 +119,8 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Read every directory in the file, EXIF first and XMP second, so that an EXIF value wins and XMP
-   * only fills the gaps it leaves.
-   *
-   * <p>Keywords are read from the first XMP directory that yields a non-empty result; later ones
-   * are skipped. A file with several XMP directories therefore gets one keyword set, not a merge.
+   * Read EXIF directories first, then XMP, so an EXIF value wins and XMP only fills the gaps.
+   * Keywords come from the first XMP directory yielding a non-empty result; later ones are skipped.
    */
   private MetadataExtractionResult extractFromStream(InputStream inputStream, String filename) {
     Map<String, String> metadata = new HashMap<>();
@@ -169,7 +166,7 @@ public class ImageMetadataExtractor {
 
   /**
    * Extract metadata from a single EXIF tag using the ImageMetadata enum configuration. First write
-   * wins: a field already in the map is left alone.
+   * wins.
    *
    * @param tag The EXIF tag to process
    * @param metadata The metadata map to populate
@@ -195,11 +192,8 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Extract metadata from XMP directory using the ImageMetadata enum configuration.
-   *
-   * <p>Each field's (namespace, propertyName) pairs are tried in priority order and the first one
-   * that yields a value wins. A field already extracted from EXIF is not overwritten, so this pass
-   * only fills gaps.
+   * Extract metadata from XMP directory using the ImageMetadata enum configuration. Each field's
+   * (namespace, propertyName) pairs are tried in priority order; the first value wins.
    *
    * @param xmpDirectory The XMP directory to process
    * @param metadata The metadata map to populate
@@ -266,19 +260,13 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Extract tags and people from XMP keyword arrays.
+   * Extract tags and people from XMP keyword arrays. Uses lr:hierarchicalSubject to distinguish
+   * people (under "People" parent) from tags. Falls back to dc:subject (flat keywords, all become
+   * tags) if hierarchical subjects are not present.
    *
-   * <p>lr:hierarchicalSubject is tried first, because Lightroom writes those keywords with their
-   * category parent attached. A "People|" parent marks a person, so "People|Jane Doe" yields the
-   * person "Jane Doe"; anything else keeps only its leaf segment, so "Weather|sunset" yields the
-   * tag "sunset".
-   *
-   * <p>Tags matching a person's name are then dropped, because Lightroom emits a person both under
-   * the "People|Name" hierarchy and as a standalone keyword -- without the filter the same name
-   * comes back as both a person and a tag.
-   *
-   * <p>With no hierarchical subjects present, flat dc:subject is the fallback. It carries no
-   * category parents, so every keyword becomes a tag and no people are separated out.
+   * <p>Non-people entries keep only their leaf segment, so "Weather|sunset" yields "sunset". Tags
+   * matching a person's name are then dropped: Lightroom emits a person both as "People|Name" and
+   * as a standalone keyword, so without the filter the name returns as both.
    *
    * @param xmpMeta The XMP metadata object
    * @return ExtractedKeywords with separated tag and people name lists
@@ -426,12 +414,9 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Parse year and month from an EXIF or XMP date string.
-   *
-   * <p>Both formats are handled without telling them apart: splitting on {@code [: T-]} breaks EXIF
-   * "2024:05:15 14:30:00" and ISO-8601 "2024-05-15T14:30:00" the same way, and year and month are
-   * the first two numeric runs either way. Only those two are read, so the rest of the string does
-   * not matter.
+   * Parse year and month from an EXIF or XMP date string. Splitting on {@code [: T-]} reads them as
+   * the first two numeric runs of either EXIF "2024:05:15 14:30:00" or ISO-8601
+   * "2024-05-15T14:30:00", so the two formats need not be told apart.
    *
    * @param createDate The capture date string from EXIF/XMP metadata
    * @param modifyDate The modify date string (Lightroom export date), used as fallback
@@ -472,10 +457,8 @@ public class ImageMetadataExtractor {
    *   <li>Date only (ISO): "2020-09-27" -> midnight
    * </ul>
    *
-   * <p>The two families are told apart by the fifth character: EXIF dates start "YYYY:" and ISO
-   * dates start "YYYY-". EXIF is normalized to ISO before parsing. Within ISO, a length-10 string
-   * is date-only, and a longer one carrying a "+" or a "-" past the day is read as an offset
-   * date-time and reduced to local time.
+   * <p>The two families are told apart by the fifth character, ":" versus "-", and EXIF is
+   * normalized to ISO before parsing.
    *
    * @param createDate The date string from EXIF or XMP metadata
    * @return The parsed LocalDateTime, or null if parsing fails

@@ -71,11 +71,9 @@ public class ReadCacheInvalidator {
   }
 
   /**
-   * Issue the invalidation once the write is durable.
-   *
-   * <p>An unset {@code cloudfront.distribution-id} is expected until the CloudFront API origin is
-   * enabled; the CDN simply keeps serving its own TTL out. That skip logs at debug rather than warn
-   * so it is not noise in every dev run.
+   * Issue the invalidation once the write is durable. An unset {@code cloudfront.distribution-id}
+   * is expected until the CloudFront API origin is enabled -- the CDN keeps serving its own TTL --
+   * so that skip logs at debug rather than warn.
    *
    * @param event the marker published by {@link #markChanged()}
    */

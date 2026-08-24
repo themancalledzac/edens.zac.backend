@@ -98,12 +98,9 @@ public class DownloadUrlService {
   }
 
   /**
-   * Write one ZIP entry per resolution, in order.
-   *
-   * <p>Entry names carry a sequence prefix because S3 keys are unique but {@code original_filename}
-   * values are not, and {@code ZipOutputStream} throws on a duplicate entry name. A per-image S3
-   * failure writes a {@code .error.txt} placeholder in that entry's place, so the recipient sees
-   * what is missing without the whole download being torn down.
+   * Write one ZIP entry per resolution, in order. Entry names carry a sequence prefix because S3
+   * keys are unique but {@code original_filename} values are not, and {@code ZipOutputStream}
+   * throws on a duplicate entry name.
    */
   private void writeZipEntries(ZipOutputStream zos, List<DownloadResolution> entries)
       throws IOException {
