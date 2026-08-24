@@ -53,7 +53,17 @@ echo "Database is healthy"
 # what makes a same-day redeploy fast. Only when headroom is actually short does it escalate to
 # dropping all of it, because on a small instance re-pulling the base image and re-resolving every
 # dependency costs minutes.
-REQUIRED_FREE_MB=3500
+# Measured on the real box, not guessed: the 8GB root volume holds ~5.7GB that never comes back
+# (~2.3GB of OS under /usr, the in-use backend and postgres images, the postgres data volume, and
+# the journal floor). A full reclaim tops out at ~2.3GB free -- repeat prunes return 0B -- so a
+# threshold above that aborts every deploy on this instance. Peak build demand is roughly 1.8GB.
+#
+# Overridable so this constant can never be the thing standing between you and a deploy:
+#   REQUIRED_FREE_MB=1500 ./deploy.sh
+#
+# The margin here is ~500MB and it is thin because the volume is 8GB where ai_docs/ai_ec2.md:410
+# asks for 20GB+. Raise this when the volume grows, or move the maven build off the box.
+REQUIRED_FREE_MB="${REQUIRED_FREE_MB:-2000}"
 
 free_mb() {
   df -Pm "$APP_DIR" | awk 'NR==2 {print $4}'
