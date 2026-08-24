@@ -711,7 +711,30 @@ shipped.) The verbose pre-split log is in the
   combination, though. Fix is one component plus the two-line frontend change already scoped.
 
 - [ ] Bare-array responses: wrap them (breaking) or amend CLAUDE.md (MR 20).
-- [ ] Gallery passwords: accept plaintext-at-rest formally, or redesign the fingerprint feature (MR 10).
+- [ ] **Gallery passwords — PARKED 2026-08-24 by decision. Do not act on this yet.** The item framed
+  it as a binary (accept plaintext-at-rest formally, or redesign the fingerprint feature). Neither
+  is being chosen, because the framing skips the question that has to come first: **what do we
+  actually want these passwords to do?** Stated direction, to be designed rather than assumed: we
+  will likely move to protected (hashed) passwords for user protection.
+
+  Nobody should open an MR against this until that design exists. Recording what a future design
+  pass has to reconcile, so the constraints are not re-derived from scratch:
+
+  - Hashing at rest breaks admin re-share, which is the reason the plaintext exists. Today the admin
+    manage page can display the password to re-send it. Any hashed design needs a different answer
+    for re-share (regenerate-and-resend, a one-time reveal at set time, or a separate sharable
+    token) and that is a product decision, not a storage one.
+  - `ClientGalleryAuthService` derives the shared-unlock fingerprint cookie from the password value,
+    which is what lets a parent password unlock propagated children. Hashing changes what that
+    fingerprint can be derived from.
+  - The per-slug cookie validates against the gallery it was issued for, and changing a password
+    revokes issued cookies. Whatever replaces plaintext has to preserve that revocation property.
+  - **S-1 is a separate problem and is NOT parked.** DISABLED accounts authenticating is about
+    account status enforcement in the auth path, not about how gallery passwords are stored. It
+    should be fixed on its own timeline.
+  - The `isPasswordProtected` wire field (under this same section) is also independent: it serializes
+    a boolean about whether protection exists, and never touches the password value or its storage.
+    Parking the storage question does not block it.
 - [x] SpotBugs: decided — delete all four artifacts. Done in MR 2. If static analysis is wanted
   later, introduce it fresh at a current version with a filter written from scratch.
 - [ ] `admin_home_tile.cover_image_id`: drop in a migration or document as reserved (MR 1, deferred). **Not blocked on research** -- zero Java references, V19 seeds all ten rows explicitly NULL, and nothing since writes it. One query (`SELECT count(*) FROM admin_home_tile WHERE cover_image_id IS NOT NULL`) confirms it never received a value. This needs a decision.
