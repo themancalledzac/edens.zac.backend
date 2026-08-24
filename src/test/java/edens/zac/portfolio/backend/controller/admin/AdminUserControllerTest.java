@@ -858,7 +858,7 @@ class AdminUserControllerTest {
           .andExpect(status().isOk());
 
       verify(appUserRepository).updateStatus(8L, UserStatus.DISABLED);
-      verify(userInviteService).invalidateInvites(8L);
+      verify(userInviteService).invalidateInvitesForStatus(8L, UserStatus.DISABLED);
     }
 
     @Test
@@ -881,7 +881,7 @@ class AdminUserControllerTest {
                   .content("{\"displayName\":\"Dan\",\"status\":\"DISABLED\"}"))
           .andExpect(status().isOk());
 
-      verify(userInviteService).invalidateInvites(9L);
+      verify(userInviteService).invalidateInvitesForStatus(9L, UserStatus.DISABLED);
     }
 
     @Test
@@ -908,7 +908,7 @@ class AdminUserControllerTest {
                   .content("{\"displayName\":\"Ken\",\"status\":\"ACTIVE\"}"))
           .andExpect(status().isOk());
 
-      verify(userInviteService, never()).invalidateInvites(anyLong());
+      verify(userInviteService).invalidateInvitesForStatus(8L, UserStatus.ACTIVE);
     }
 
     @Test

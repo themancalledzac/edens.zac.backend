@@ -124,6 +124,34 @@ class UserInviteServiceAcceptTest {
   }
 
   @Test
+  void invalidateInvitesForStatusSweepsWhenLeavingTheInviteLifecycle() {
+    // S-9: an invite outlives the account being disabled by up to its 7-day TTL, so the token must
+    // die with the transition. Mutation this catches: invert mayAcceptInvite here and a disabled
+    // user keeps a redeemable link.
+    when(inviteRepository.invalidateUnusedForUser(8L)).thenReturn(1);
+
+    assertThat(service.invalidateInvitesForStatus(8L, UserStatus.DISABLED)).isEqualTo(1);
+    verify(inviteRepository).invalidateUnusedForUser(8L);
+  }
+
+  @Test
+  void invalidateInvitesForStatusSweepsForPersonToo() {
+    when(inviteRepository.invalidateUnusedForUser(9L)).thenReturn(1);
+
+    assertThat(service.invalidateInvitesForStatus(9L, UserStatus.PERSON)).isEqualTo(1);
+    verify(inviteRepository).invalidateUnusedForUser(9L);
+  }
+
+  @Test
+  void invalidateInvitesForStatusLeavesEligibleAccountsAlone() {
+    // The scope guard: restoring an account must not break the password-reset link just sent to it,
+    // and a resend to an INVITED user must survive. Mutation this catches: sweep unconditionally.
+    assertThat(service.invalidateInvitesForStatus(8L, UserStatus.ACTIVE)).isZero();
+    assertThat(service.invalidateInvitesForStatus(8L, UserStatus.INVITED)).isZero();
+    verify(inviteRepository, never()).invalidateUnusedForUser(anyLong());
+  }
+
+  @Test
   void unusableTokenIsRejectedWithoutReadingTheUser() {
     when(inviteRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
 

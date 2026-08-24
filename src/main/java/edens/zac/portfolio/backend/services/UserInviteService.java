@@ -109,6 +109,27 @@ public class UserInviteService {
   }
 
   /**
+   * Kill the user's outstanding invites when {@code newStatus} moves the account out of the invite
+   * lifecycle, so a link issued before the change cannot outlive it by the remainder of its 7-day
+   * TTL. The same {@link #mayAcceptInvite} rule {@link #accept} enforces at redemption, applied
+   * here at the source.
+   *
+   * <p>Keyed on the resulting status rather than on a transition, so re-applying a non-eligible
+   * status still sweeps anything issued in between. A no-op when there is nothing to kill.
+   *
+   * @param userId the id of the {@code app_user} record whose status is changing
+   * @param newStatus the status the account is being set to
+   * @return the number of invites invalidated
+   */
+  @Transactional
+  public int invalidateInvitesForStatus(Long userId, UserStatus newStatus) {
+    if (mayAcceptInvite(newStatus)) {
+      return 0;
+    }
+    return invalidateInvites(userId);
+  }
+
+  /**
    * Validate a raw invite token. Returns the invite entity if the token is found, unexpired, and
    * not yet redeemed. Returns empty for unknown, expired, or already-used tokens.
    *

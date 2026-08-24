@@ -298,14 +298,7 @@ public class AdminUserController {
     }
     appUserRepository.updateName(id, request.displayName());
     appUserRepository.updateStatus(id, request.status());
-    // Moving the account out of the invite lifecycle kills its outstanding invites, which would
-    // otherwise stay redeemable for the rest of their 7-day TTL. Same two-status rule the
-    // redemption site enforces (InviteController.accept); this is the source end of it. Runs on the
-    // resulting status rather than on a transition, so re-applying DISABLED still sweeps anything
-    // issued in between -- the UPDATE affects zero rows when there is nothing to kill.
-    if (request.status() != UserStatus.INVITED && request.status() != UserStatus.ACTIVE) {
-      userInviteService.invalidateInvites(id);
-    }
+    userInviteService.invalidateInvitesForStatus(id, request.status());
     appUserRepository.updateDescription(id, request.description());
     AppUserEntity updated = appUserRepository.findById(id).orElseThrow();
     return ResponseEntity.ok(
