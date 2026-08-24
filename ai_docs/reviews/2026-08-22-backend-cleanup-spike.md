@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). **Next up: MR 13a** -- `ImageProcessingService` + `ImageUploadPipelineService`, 117 comments. 247 in-method comments left in `src/main`. |
+| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) done -- 117 comments, one stale docblock fixed. **Next up: MR 13b** -- the remaining seven media files, 37 comments. 130 in-method comments left in `src/main`. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -651,6 +651,16 @@ and deliberately left that question open -- see the decision item below.
   `canView`/`isClient` take a raw `Long userId`, never touch `effectiveLevel`, and are safe only
   because a flyby principal's null userId cannot match `rm.user_id = :userId` -- an accident nothing
   asserts. Filed as a Wave 3 follow-up. Next: MR 13a.
+- 2026-08-23 — shipped MR 13a (#181). 117 comments across the two media-pipeline services, into 14
+  javadocs. **The sizing note's 117 was exact** -- the first Wave 4 estimate needing no correction,
+  breaking a four-in-a-row over-count streak. Found a stale docblock by a comment/comment
+  contradiction rather than a comment/code one: `saveProcessedImages` said "in a single transaction"
+  while the PHASE 2 comment four methods above it (and the code) said per-image transactions. The
+  comment being deleted was the accurate one, which is how it surfaced -- a sweep is unusually good
+  at this because it puts both halves in view at once. Also found two `P:` instructions already
+  stale in the OTHER direction ("fix wrongness with bug #10" -- bug #10 is fixed and the comment is
+  now correct; and the RAW-scheduling staleness note -- already accurate), so Working rule 5's decay
+  applies to the `P:` judgment notes too, not just the `D:` line numbers. Next: MR 13b.
 
 ---
 
