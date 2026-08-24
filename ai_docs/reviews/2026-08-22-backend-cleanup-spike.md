@@ -88,9 +88,15 @@ Learned while doing the MRs; they apply to every item still open, not just the o
 9. **Commit with explicit paths, never `git add -A`.** This repo carries untracked review docs in
    `ai_docs/reviews/`. MR 12c's commit used `git add -A` and swept
    `ai_docs/reviews/2026-07-25-open-pr-review.md` (321 lines, untracked since before the session)
-   into PR #180, which merged with it. Harmless -- markdown, no code, CI green -- but the PR's diff
-   stopped matching its description, which is exactly the property that makes a comments-only MR
-   cheap to review. Stage the files the MR names and nothing else.
+   into PR #180, which merged with it. The PR's diff stopped matching its description, which is
+   exactly the property that makes a comments-only MR cheap to review. Stage the files the MR names
+   and nothing else.
+
+   **Do not "fix" this by deleting that file.** Appendix B is a scorecard written against it, and
+   that citation predates the sweep -- so the tracker had been depending on a doc that existed only
+   on one machine. Committing it was an accident that corrected a real fragility. The defect was the
+   undisclosed diff, not the file's presence, and the rule above is about staging discipline, not
+   about this file.
 
 ## Ordering note
 
@@ -676,7 +682,10 @@ and deliberately left that question open -- see the decision item below.
   stale in the OTHER direction ("fix wrongness with bug #10" -- bug #10 is fixed and the comment is
   now correct; and the RAW-scheduling staleness note -- already accurate), so Working rule 5's decay
   applies to the `P:` judgment notes too, not just the `D:` line numbers. Next: MR 13b.
-- 2026-08-24 — reconciled the board after #180 and #181 merged. Java diffs were +69/-70 (12c) and
+- 2026-08-24 — reconciled the board after #180 and #181 merged. Followed up on the `git add -A`
+  sweep and found the swept file is cited by Appendix B, from before the sweep -- so it belongs
+  tracked and the accident fixed a real fragility. Rule 9 amended to say so, because as first
+  written it invited a future session to delete a doc the tracker cites. Java diffs were +69/-70 (12c) and
   +131/-131 (13a). Re-derived MR 13b at **37, exactly the estimate** -- second exact call running,
   so the Wave 4 over-count pattern is done; stop discounting the remaining numbers. Measured 13b's
   line refs as the most decayed in the doc: `ImageMetadataExtractor` **1 of 24 (4%)**, worse than
