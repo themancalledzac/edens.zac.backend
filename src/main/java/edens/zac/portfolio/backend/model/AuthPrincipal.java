@@ -5,9 +5,9 @@ package edens.zac.portfolio.backend.model;
  * session principal owns data and has a {@code userId}; a share-link holder ("flyby") owns nothing
  * and has only a {@code shareId}.
  *
- * <p>That split is the safety property. A flyby has no {@code userId} by construction, so every
- * identity-bearing endpoint refuses it through the single {@code Principals.isRealUser} guard,
- * rather than each one having to know that shares exist.
+ * <p>That split is the safety property. A flyby has no {@code userId} by construction and is
+ * granted no authorities, so {@code SecurityConfig}'s {@code hasRole("USER")} matchers refuse it
+ * from the whole identity-bearing surface without any endpoint having to know that shares exist.
  */
 public record AuthPrincipal(
     Long userId, String email, boolean isAdmin, boolean mfaSatisfied, Long shareId) {
@@ -42,9 +42,11 @@ public record AuthPrincipal(
   }
 
   /**
-   * Whether this principal owns data -- the gate every self-scoped endpoint needs. False for
-   * anonymous (null) and false for a share-link holder, who has no {@code userId} to read or write
-   * anything against.
+   * Whether this principal owns data. False for anonymous (null) and false for a share-link holder,
+   * who has no {@code userId} to read or write anything against. This is the in-code equivalent of
+   * the {@code hasRole("USER")} matchers; the self-scoped routes are gated at the chain, so what is
+   * left here are the {@code /api/auth/**} handlers that branch on identity rather than reject on
+   * it.
    *
    * <p>Written as a null-tolerant static rather than an instance method so the anonymous and flyby
    * cases collapse into one check at the call site. Endpoints that key on {@code userId()} must use

@@ -54,6 +54,11 @@ public class SecurityConfig {
                   .requestMatchers("/api/auth/me", "/api/auth/logout")
                   .hasRole("USER")
                   .requestMatchers("/api/auth/webauthn/register/**")
+                  .hasRole("USER")
+                  // Outside the enforce-authz block below on purpose, unlike /api/edit/**: the
+                  // per-method guards this replaced ran in every profile, so moving it inside
+                  // would drop the 401 in dev and pass a null principal to the userId() behind it.
+                  .requestMatchers("/api/read/user/**")
                   .hasRole("USER");
               // /api/admin/** is the inner, app-layer gate. When enforce-authz is on (prod, and
               // the default everywhere else), these routes require a session principal whose user

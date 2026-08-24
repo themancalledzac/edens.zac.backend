@@ -1386,3 +1386,74 @@ Still real. `ContentRepository.saveImage` is a single-row INSERT/UPDATE; the loo
 calls it once per image; the log line still reads "Batch saved {} updated images". The only
 `batchUpdate` in `ContentRepository` is in `saveContentPeople`, a different table. N image edits
 issue N statements. The comment stays put.
+
+---
+
+## MR 15 #2 outcome, 2026-08-23
+
+One `requestMatchers("/api/read/user/**").hasRole("USER")` replacing **17** per-method `isRealUser`
+guards across six controllers. Java-only **main +21/-63 (net -42)**, **test +193/-191**, total -40.
+The item's "~51 lines" was exact for the guards themselves: 17 x 3 = 51, and the rest of the 63 is
+two now-unused `HttpStatus` imports plus three docblocks this change made false.
+
+### The guardrail's premise was false
+
+The guardrail costed three placements and called "outside the toggle" the honest default that
+"takes away a dev convenience". Verified against `143f471`: **there is no such convenience.** The 17
+guards were unconditional -- plain `if (!AuthPrincipal.isRealUser(principal))` with no profile check
+-- so an anonymous `GET /api/read/user/me/page` already 401'd in dev. Placing the matcher outside
+the toggle changes nothing in any profile.
+
+It also picked the wrong precedent. `SecurityConfig` already carries an **unconditional**
+`hasRole("USER")` matcher outside the toggle, for `/api/auth/me` and `/api/auth/logout`.
+`/api/edit/**` sits inside the toggle because it is a *write* surface dev wants login-free. An
+unconditional session-required read surface matches `/api/auth/me`, so the matcher went next to it.
+"Outside + dev-only permitAll" was rejected on the same finding: it would have *added* a dev
+convenience these routes never had.
+
+This is working rule 8 at the scale of a whole guardrail, not one `P:` note. Verified before acting;
+the note was as old as the line numbers next to it.
+
+### The count was 17, not 18
+
+The 2026-08-23 re-derivation raised 17 to 18 and said the doc "missed the one at 34" in
+`UserShareControllerProd`. Line 34 is a **javadoc line**, which a grep for `isRealUser` picks up:
+
+```
+ * identity is enforced here with {@code AuthPrincipal.isRealUser} rather than by a matcher. That
+```
+
+Its other two corrections hold and were worth having: `UserSelectsControllerProd` really had drifted
+35/46/62 -> 37/48/64, and `UserRatingOverrideControllerProd` really is in `controller/user/` at
+41/54. Removing the guards mechanically confirmed the total: 1 + 3 + 4 + 3 + 4 + 2 = 17.
+
+That same docblock had to be rewritten, along with two on `AuthPrincipal` -- all three asserted that
+identity is enforced in the controller "rather than by a matcher", which this MR inverts.
+
+### Two costs the item did not price
+
+**28 assertions across 6 test classes pinned the 401 at the controller.** All five MockMvc tests
+used `MockMvcBuilders.standaloneSetup`, which builds no security chain, and
+`UserShareControllerProdTest` called controller methods directly -- so none of them could survive
+the move. `FlybyWriteLockoutTest` (90 lines) existed solely to pin these guards and was deleted
+outright. Replaced by `config/UserRoutesAuthorizationWebMvcTest`: four tests on the real chain
+against the **real** controllers as beans, not stubs, because the risk this MR introduces is a route
+sitting outside the matcher's path pattern and only real `@RequestMapping` values catch that. It
+keeps the `verifyNoInteractions` property the deleted class was protecting.
+
+**A flyby's status changes 401 -> 403** on these 17 endpoints, accepted by decision. A share-link
+holder is authenticated but holds no authorities, so `hasRole` denies it as
+authenticated-but-unauthorized. `FlybyAccessWebMvcTest:83-84` already documents exactly this split
+for `/api/admin/**`. Anonymous stays 401. Both are now pinned.
+
+Verified equivalent otherwise: `SessionAuthenticationFilter:39` and `WebAuthnService:221` both grant
+`ROLE_USER`, and `SessionService.resolve:146` always builds a non-null `userId`, so
+`hasRole("USER")` and `isRealUser` accept exactly the same callers.
+
+### Verification
+
+Mutation-checked rather than assumed: with the matcher stripped, `UserRoutesAuthorizationWebMvcTest`
+fails; restored, the full suite is 1,302 green with 0 checkstyle violations.
+
+`UserRatingOverrideControllerProd` still has **no controller test at all** (only a service test) --
+a coverage gap for MR 26, not introduced here.

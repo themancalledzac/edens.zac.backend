@@ -65,18 +65,6 @@ class UserFollowsControllerProdTest {
   }
 
   @Test
-  void addAnonymousIsUnauthorized() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/read/user/follows")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"collectionId\":3}"))
-        .andExpect(status().isUnauthorized());
-
-    verify(userFollowsService, never()).add(anyLong(), anyLong());
-  }
-
-  @Test
   void addAuthenticatedReturns201AndCallsService() throws Exception {
     mockMvc
         .perform(
@@ -118,13 +106,6 @@ class UserFollowsControllerProdTest {
   }
 
   @Test
-  void deleteAnonymousIsUnauthorized() throws Exception {
-    mockMvc.perform(delete("/api/read/user/follows/3")).andExpect(status().isUnauthorized());
-
-    verify(userFollowsService, never()).remove(anyLong(), anyLong());
-  }
-
-  @Test
   void deleteReturns204() throws Exception {
     mockMvc
         .perform(delete("/api/read/user/follows/3").with(asUser(client)))
@@ -142,12 +123,5 @@ class UserFollowsControllerProdTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0]").value(3))
         .andExpect(jsonPath("$[1]").value(4));
-  }
-
-  @Test
-  void listAnonymousIsUnauthorized() throws Exception {
-    mockMvc.perform(get("/api/read/user/follows")).andExpect(status().isUnauthorized());
-
-    verify(userFollowsService, never()).listFollowedCollectionIds(anyLong());
   }
 }

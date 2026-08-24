@@ -18,7 +18,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173) |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). One residual carried forward, below. |
 | 4 — Comments and docs | MR 12-14 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock item is still open. |
-| 5 — Consolidations | MR 15-19 | **next: MR 15 #2** (one SecurityConfig matcher for the 18 `isRealUser` guards). Its refs were re-derived 2026-08-23 and had drifted -- read the table on the item, not the original line list. Read its guardrail before touching SecurityConfig. |
+| 5 — Consolidations | MR 15-19 | MR 15 #2 **done** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)) -- 17 guards, not 18, and the guardrail's premise was false. Taught working rule 13. **next: MR 15 #6** (`currentUserId` onto `AuthPrincipal`). |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
@@ -197,6 +197,27 @@ Learned while doing the MRs; they apply to every item still open, not just the o
     narrated; these were hardened by Waves 1-3, so their comments were written on purpose. **Check
     which kind of file you are in before assuming the wave rule applies.**
 
+13. **A guardrail decays like a line number, and a re-derivation is not self-verifying.** Rule 8
+    said a `P:` note rots the same way a `D:` coordinate does. MR 15 #2 found both failure modes at
+    once, in the freshest content on the board.
+
+    The guardrail -- written the day before, costing three placements and naming one "the honest
+    default" -- rested on a premise that was never checked against the code: that placing the
+    matcher outside the dev toggle would cost local dev a login-free convenience. **Those routes
+    were never login-free.** The 17 guards it was replacing had no profile check, so dev already
+    401'd. Two of the three options it presented were behavior *changes* and only one preserved
+    behavior; the decision it framed as a tradeoff did not exist. A guardrail that reasons from
+    "SecurityConfig already does X for `/api/edit/**`" has to check whether the thing being replaced
+    is conditional in the same way. It also missed that the chain already had the right precedent
+    sitting four lines above -- the unconditional `hasRole("USER")` on `/api/auth/me`.
+
+    And the re-derivation, which existed precisely to fix stale refs, introduced one of its own: it
+    raised the count 17 -> 18 by grepping `isRealUser` and counting a javadoc line that says the
+    word. It fixed two real drifts and added one miscount, so its net accuracy was better but not
+    clean. **Re-derived facts need the same verification as the facts they replace** -- a grep is
+    evidence of a string, not of a guard. Confirm a count by making the change and watching it come
+    out even, not by trusting the tally that motivated it.
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collided, and it was handled: `PersonRepository.deleteById` was listed under both MR 1 and bug #1, and was held until MR 5 because it had a live caller -- dangerous code, not dead code. It shipped with MR 5 and is gone.
@@ -288,59 +309,8 @@ and each needs its claim verified before acting (working rule 8).
 
 Consolidation #1 (one client-IP resolver) ships with bug #3 in MR 5.
 
-- [ ] #2. One SecurityConfig matcher instead of the copy-pasted `isRealUser` guards. **NEXT.** The identical 3-line 401 guard opens every method across the six user controllers. SecurityConfig already does this for `/api/edit/**` with `hasRole("USER")`, which also excludes flyby principals. Add `requestMatchers("/api/read/user/**").hasRole("USER")` and delete the guards. ~51 lines.
-
-  **Re-derived 2026-08-23 on `e815e9e`. The doc's refs had drifted three ways -- do not trust the originals:**
-
-  | Controller | Route | Guards | Doc said |
-  |---|---|---|---|
-  | `controller/prod/UserControllerProd` | `/api/read/user` | 25 | correct |
-  | `controller/prod/UserFollowsControllerProd` | `/api/read/user/follows` | 38, 49, 59 | correct |
-  | `controller/prod/UserSavesControllerProd` | `/api/read/user/saves` | 36, 47, 57, 67 | correct |
-  | `controller/prod/UserSelectsControllerProd` | `/api/read/user/selects` | 37, 48, 64 | 35, 46, 62 -- drifted |
-  | `controller/prod/UserShareControllerProd` | `/api/read/user/share` | 34, 53, 70, 89, 110 | missed the one at 34 |
-  | **`controller/user/`**`UserRatingOverrideControllerProd` | `/api/read/user/ratings` | 41, 54 | wrong package *and* wrong lines |
-
-  **The count is 18, not 17.** All six routes do sit under `/api/read/user/**`, so one matcher covers
-  them -- the item's core premise holds. Note `UserRatingOverrideControllerProd` lives in
-  `controller/user/`, a package `.claude/CLAUDE.md`'s project-structure block does not list.
-
-  **Do not sweep `isRealUser` by grep.** It has 23 occurrences in `src/main`; only these 18 are in
-  scope. `AuthPrincipal` (2) is the definition, and `AuthController` (1) and `WebAuthnController` (2)
-  are separate call sites this item does not touch.
+- [x] #2. One SecurityConfig matcher instead of the copy-pasted `isRealUser` guards. **DONE** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)). **17 guards, not 18** -- the re-derivation counted a javadoc line in `UserShareControllerProd`. The matcher went OUTSIDE the enforce-authz toggle, next to `/api/auth/me`: the guards it replaced were unconditional, so that is the only behavior-preserving placement, and the guardrail's "costs a dev convenience" was false -- dev already required a session on these routes. A flyby now gets 403 rather than 401 there, by decision. Java-only main -42; 28 controller-level assertions became `config/UserRoutesAuthorizationWebMvcTest`. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-2-outcome-2026-08-23).
 - [ ] #6. `currentUserId` exists in three controllers (`AdminUserController:472-475`, `AdminRoleController:170-173`, `ContentDownloadControllerProd:196-199`). Move it onto `AuthPrincipal`.
-
-### Guardrail for MR 15 #2: the dev toggle is not decoration
-
-The item says "SecurityConfig already does exactly this for `/api/edit/**`". It does -- but
-**`/api/edit/**`'s matcher sits INSIDE `if (enforceAdminAuthz)`**, and `application-dev.properties`
-sets `app.admin.enforce-authz=false`. So in dev that matcher is not applied at all, and
-`/api/edit/**` falls through to `anyRequest().permitAll()`. That is deliberate: local dev stays
-login-free.
-
-The 18 guards being deleted are **unconditional** -- they run in every profile. So copying
-`/api/edit/**`'s placement is not a refactor, it is a behavior change in dev, and a bad one: every
-guard is immediately followed by a `principal.userId()` call, so removing it in dev leaves a null
-principal reaching the service layer. Placing the matcher outside the toggle instead is also a
-change -- local dev would start requiring a login on the user routes, breaking the property the
-toggle exists to preserve.
-
-There is no placement that is purely behavior-preserving. **Do not pick one silently.** Report what
-each costs and let the user decide:
-
-- **Inside the toggle** (mirrors `/api/edit/**`): prod unchanged; dev loses the 401 and NPEs on a
-  null principal unless the controllers are also made null-safe.
-- **Outside the toggle**: behavior-preserving in every profile, because the guards it replaces were
-  unconditional -- but local dev now needs a session for `/api/read/user/**`.
-- **Outside, plus a dev-only permitAll for these routes**: keeps both properties, at the cost of one
-  more conditional in the chain.
-
-The second is the honest default -- it is the only one that preserves current behavior -- but it
-takes away a dev convenience, which is the user's call and not a refactor's.
-
-Working rule 12 applies to the comments here too. SecurityConfig's existing 24 explain exactly this
-toggle; whatever placement wins, that block's comment has to be updated with it, and it stays inline.
-
 
 ## MR 16 — Infrastructure classes
 
@@ -460,6 +430,7 @@ either make it real work or drop it. The verbose pre-split log is in the
 [history file](2026-08-22-backend-cleanup-history.md).
 
 - 2026-08-23 — shipped MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) and the tracker/history split ([#186](https://github.com/themancalledzac/edens.zac.backend/pull/186)); merged [#185](https://github.com/themancalledzac/edens.zac.backend/pull/185). Added working rules 11 and 12. Reconciled Waves 1-3 and surfaced 8 live items from "complete" waves. Re-derived MR 15 #2 (17 guards -> 18, one controller in the wrong package). Next: MR 15 #2.
+- 2026-08-23 — shipped MR 15 #2 ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)); merged [#188](https://github.com/themancalledzac/edens.zac.backend/pull/188). One matcher replaced **17** guards -- yesterday's re-derivation had counted a javadoc line, and its guardrail's dev-convenience premise was false, so the placement decision it framed as a tradeoff had only one behavior-preserving answer. Added working rule 13. Wave 5's first item is closed. Next: MR 15 #6 (`currentUserId` onto `AuthPrincipal`).
 
 ---
 
