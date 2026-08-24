@@ -81,6 +81,55 @@ class UserSessionRepositoryIntegrationTest extends AbstractPostgresIntegrationTe
   }
 
   @Test
+  void revokeAllForUserRevokesEveryLiveSessionAndReturnsTheCount() {
+    Long userId = seedUser("revoke-all@example.com");
+    sessionRepository.insert(newSession(userId, "hash-all-1"));
+    sessionRepository.insert(newSession(userId, "hash-all-2"));
+
+    assertThat(sessionRepository.revokeAllForUser(userId)).isEqualTo(2);
+    assertThat(sessionRepository.findByTokenHash("hash-all-1").orElseThrow().getRevokedAt())
+        .isNotNull();
+    assertThat(sessionRepository.findByTokenHash("hash-all-2").orElseThrow().getRevokedAt())
+        .isNotNull();
+  }
+
+  @Test
+  void revokeAllForUserLeavesOtherUsersSessionsAlone() {
+    // The mutation this catches: drop the user_id predicate and one admin disabling an account
+    // logs out every signed-in user on the site.
+    Long target = seedUser("revoke-target@example.com");
+    Long bystander = seedUser("revoke-bystander@example.com");
+    sessionRepository.insert(newSession(target, "hash-target"));
+    sessionRepository.insert(newSession(bystander, "hash-bystander"));
+
+    assertThat(sessionRepository.revokeAllForUser(target)).isEqualTo(1);
+    assertThat(sessionRepository.findByTokenHash("hash-bystander").orElseThrow().getRevokedAt())
+        .isNull();
+  }
+
+  @Test
+  void revokeAllForUserSkipsAlreadyRevokedSessions() {
+    // The revoked_at IS NULL predicate keeps the original timestamp and makes a repeat call a
+    // zero-row no-op. Mutation this catches: drop the predicate and a re-revoke re-stamps rows,
+    // moving the recorded revocation time forward.
+    Long userId = seedUser("revoke-twice@example.com");
+    sessionRepository.insert(newSession(userId, "hash-twice"));
+    sessionRepository.revokeByTokenHash("hash-twice");
+    LocalDateTime firstRevokedAt =
+        sessionRepository.findByTokenHash("hash-twice").orElseThrow().getRevokedAt();
+
+    assertThat(sessionRepository.revokeAllForUser(userId)).isZero();
+    assertThat(sessionRepository.findByTokenHash("hash-twice").orElseThrow().getRevokedAt())
+        .isEqualTo(firstRevokedAt);
+  }
+
+  @Test
+  void revokeAllForUserWithNoSessionsIsANoOp() {
+    Long userId = seedUser("revoke-none@example.com");
+    assertThat(sessionRepository.revokeAllForUser(userId)).isZero();
+  }
+
+  @Test
   void duplicateTokenHashViolatesUniqueConstraint() {
     Long userId = seedUser("dup-token@example.com");
     sessionRepository.insert(newSession(userId, "hash-dup"));

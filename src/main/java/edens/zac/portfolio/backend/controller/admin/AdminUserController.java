@@ -16,6 +16,7 @@ import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.EmailService;
+import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.services.UserFollowsService;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
@@ -72,6 +73,7 @@ public class AdminUserController {
   private final UserFollowsService userFollowsService;
   private final UserMergeService userMergeService;
   private final EmailService emailService;
+  private final SessionService sessionService;
   private final String frontendBaseUrl;
 
   public AdminUserController(
@@ -83,6 +85,7 @@ public class AdminUserController {
       UserFollowsService userFollowsService,
       UserMergeService userMergeService,
       EmailService emailService,
+      SessionService sessionService,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.appUserRepository = appUserRepository;
     this.userInviteService = userInviteService;
@@ -92,6 +95,7 @@ public class AdminUserController {
     this.userFollowsService = userFollowsService;
     this.userMergeService = userMergeService;
     this.emailService = emailService;
+    this.sessionService = sessionService;
     this.frontendBaseUrl = frontendBaseUrl;
   }
 
@@ -261,7 +265,9 @@ public class AdminUserController {
    *
    * <p>Setting a status outside the invite lifecycle ({@code INVITED} / {@code ACTIVE}) also
    * invalidates the user's outstanding invites, so disabling an account cannot be undone by a link
-   * issued before it.
+   * issued before it. Setting any status other than {@code ACTIVE} additionally revokes the
+   * sessions the account already holds -- the two sweeps key off different allowlists because an
+   * {@code INVITED} account may hold a live invite but may not hold a working session.
    *
    * @param id the {@code app_user.id}
    * @param request the new email (nullable = unchanged), display name (nullable), status
@@ -299,6 +305,7 @@ public class AdminUserController {
     appUserRepository.updateName(id, request.displayName());
     appUserRepository.updateStatus(id, request.status());
     userInviteService.invalidateInvitesForStatus(id, request.status());
+    sessionService.revokeAllForStatus(id, request.status());
     appUserRepository.updateDescription(id, request.description());
     AppUserEntity updated = appUserRepository.findById(id).orElseThrow();
     return ResponseEntity.ok(

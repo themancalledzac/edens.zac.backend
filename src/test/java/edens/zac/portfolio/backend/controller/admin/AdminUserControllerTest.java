@@ -23,6 +23,7 @@ import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.EmailService;
+import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.services.UserFollowsService;
 import edens.zac.portfolio.backend.services.UserInviteService;
 import edens.zac.portfolio.backend.services.UserMergeService;
@@ -57,6 +58,7 @@ class AdminUserControllerTest {
   @Mock private UserFollowsService userFollowsService;
   @Mock private UserMergeService userMergeService;
   @Mock private EmailService emailService;
+  @Mock private SessionService sessionService;
 
   // Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join.
   private static final String FRONTEND_BASE_URL = "https://app.example.com/";
@@ -73,6 +75,7 @@ class AdminUserControllerTest {
             userFollowsService,
             userMergeService,
             emailService,
+            sessionService,
             FRONTEND_BASE_URL);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
@@ -909,6 +912,89 @@ class AdminUserControllerTest {
           .andExpect(status().isOk());
 
       verify(userInviteService).invalidateInvitesForStatus(8L, UserStatus.ACTIVE);
+    }
+
+    @Test
+    void disablingUserRevokesLiveSessions() throws Exception {
+      // S-8: the sessions a disabled account already holds keep resolving until each one's next
+      // request reads the new status. Mutation this catches: drop the revoke call and the handler
+      // leaves live user_session rows behind.
+      AppUserEntity before =
+          AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.DISABLED)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Ken\",\"status\":\"DISABLED\"}"))
+          .andExpect(status().isOk());
+
+      verify(sessionService).revokeAllForStatus(8L, UserStatus.DISABLED);
+    }
+
+    @Test
+    void demotingUserToInvitedRevokesSessionsButKeepsInvites() throws Exception {
+      // The two sweeps run off different allowlists, and INVITED is the status that separates
+      // them: an INVITED account may hold a live invite, but may not hold a working session.
+      // Mutation this catches: key the session sweep off mayAcceptInvite and this goes red.
+      AppUserEntity before =
+          AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Ken\",\"status\":\"INVITED\"}"))
+          .andExpect(status().isOk());
+
+      verify(sessionService).revokeAllForStatus(8L, UserStatus.INVITED);
+      verify(userInviteService).invalidateInvitesForStatus(8L, UserStatus.INVITED);
+    }
+
+    @Test
+    void reEnablingUserToActiveDoesNotRevokeSessions() throws Exception {
+      // The scope guard: the handler always delegates, and the ACTIVE no-op is decided inside
+      // SessionService (proved in SessionServiceIntegrationTest). What this pins is that the
+      // controller passes the resulting status through rather than branching on it -- working
+      // rule 19. Mutation this catches: wrap the call in an `if (status == DISABLED)`.
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.DISABLED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Ken\",\"status\":\"ACTIVE\"}"))
+          .andExpect(status().isOk());
+
+      verify(sessionService).revokeAllForStatus(8L, UserStatus.ACTIVE);
     }
 
     @Test

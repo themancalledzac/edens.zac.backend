@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **3 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)) and S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)) all done. **The last live hole is closed** -- S-7 shut the invite re-activation path at both ends. What remains is S-5, S-6 and S-8, all LOW and all defense-in-depth. **next: S-8**, because it lands in the exact lines S-9 just changed and the tracker already argued the two belong together. |
+| [Open security findings](#open-security-findings) | **2 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)) and S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)) all done. **The last live hole is closed** -- S-7 shut the invite re-activation path at both ends, and S-8 finished the pair of sweeps hanging off the admin status change. What remains is S-5 (COLD) and S-6 (BLOCKED on a question), both LOW and both defense-in-depth. **next: S-5**, or answer S-6's question. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **3 open** (0 high) — see below. S-1 through S-4 closed 2026-08-24; S-7 and S-9 closed 2026-08-24, S-7 taking the last live hole with it. Remaining S-5/S-6/S-8 are all LOW | — |
+| Security findings | **2 open** (0 high) — see below. S-1 through S-4 closed 2026-08-24; S-7, S-9 and S-8 closed 2026-08-24, S-7 taking the last live hole with it. Remaining S-5/S-6 are both LOW | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -187,28 +187,26 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   javadoc carries the reasoning. Taught working rule 19. Full write-up in the
   [history file](2026-08-22-backend-cleanup-history.md#s-7-outcome-2026-08-24----status-is-read-before-a-session-is-minted).
 
-- [ ] **S-8 (LOW, split out of S-1 2026-08-24). `updateStatus` does not revoke live sessions.**
-  `AppUserRepository.updateStatus` is a bare `UPDATE` with no session revocation. S-1 shipped the
-  `resolve` guard and deliberately left this out, which was the scoping the item asked for: with the
-  guard in place a disabled account's sessions stop resolving on their next request, so revocation
-  narrows the window from one request to zero and tidies `user_session` rows that will never resolve
-  again. Defense in depth, not a live hole.
+- [x] **S-8 (LOW, split out of S-1 2026-08-24). `updateStatus` does not revoke live sessions.**
+  **DONE** ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)). Shipped as
+  `SessionService.revokeAllForStatus` over a new `UserSessionRepository.revokeAllForUser`, called
+  from `AdminUserController.updateUser` on the line below `invalidateInvitesForStatus` -- the shape
+  the item specified, with no branching in the controller.
 
-  **Scope corrected 2026-08-24 (verified, and it is bigger than the item implies). There is no
-  user-scoped revoke primitive to call.** `UserSessionRepository` has exactly two write methods:
-  `touch` and `revokeByTokenHash` (a *token* hash, not a user id). So S-8 is not "add one call" --
-  it needs a new repository statement (`UPDATE user_session SET revoked_at = now() WHERE user_id =
-  :userId AND revoked_at IS NULL`), a service method to own it, and the call site. Premise otherwise
-  confirmed: `AppUserRepository.updateStatus` at `:103` is still a bare
-  `UPDATE users SET status = :status, updated_at = now() WHERE id = :id`.
+  **The open judgement resolved by diverging from S-9, as the item allowed.** The session predicate
+  is `SessionService.mayHoldSession`, **ACTIVE only**, not `mayAcceptInvite`'s `{INVITED, ACTIVE}`.
+  `resolve` has enforced ACTIVE-only since S-1 and a test says so on purpose, so mirroring the
+  invite boundary would leave an `ACTIVE -> INVITED` demotion holding `user_session` rows that can
+  never resolve -- exactly the rows this item asked to tidy. The two sweeps therefore run off two
+  allowlists, and INVITED is what separates them: an INVITED account may hold a live invite but may
+  not hold a working session. Like S-9, the predicate serves two call sites (`resolve` and the
+  sweep), so it cannot drift.
 
-  **Shape it like S-9, which is its twin.** S-9 put the decision in
-  `UserInviteService.invalidateInvitesForStatus` and left `AdminUserController.updateUser`
-  delegating in one line; the session half should be the matching `SessionService` method, called
-  from the line directly below. Working rule 19 applies -- no branching in the controller.
-
-  **COLD.** The one open judgement is which statuses revoke, and it is not a blocker: mirroring
-  S-9's `mayAcceptInvite` boundary is the default, and any divergence should be argued in the MR.
+  **The cost of folding it into `updateStatus` was measured, not argued** -- the CTE was written and
+  the suite run: 1 failure, `resolveRejectsSessionWhoseAccountWasDisabled`, which is the *only*
+  mutation-detector for the S-1 fix. Revoking in the DAO would let the S-1 guard be deleted with the
+  suite still green. Full write-up in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-8-outcome-2026-08-24----a-status-change-revokes-the-sessions-already-minted).
 
 - [x] **S-9 (LOW). Disabling a user does not invalidate their outstanding invites.** **DONE** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Shipped as `UserInviteService.invalidateInvitesForStatus`, which reuses S-7's `mayAcceptInvite` predicate, so the "may this account hold a live invite" rule has one definition serving both the redemption site and the admin handler rather than two that can drift (working rule 14). Keyed on the resulting status, not on a transition, so re-applying a non-eligible status still sweeps an invite issued in between. **Zero churn to existing tests** -- all four pre-existing `invalidateInvites` assertions patch to INVITED or ACTIVE, so none observe the new call. Full write-up in the [history file](2026-08-22-backend-cleanup-history.md#s-9-outcome-2026-08-24----invites-die-with-the-account).
   Found while verifying S-7's precondition. `UserInviteService.invalidateInvites` exists and works,
@@ -970,6 +968,7 @@ shipped.) The verbose pre-split log is in the
 
 - 2026-08-24 — shipped **S-7** ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), the last live hole on the board, and shipped **S-9** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Both halves of S-7 in one MR as specified. **The item's stated fix was wrong**: "require `INVITED`" would have broken admin-issued password reset, which redeems through the same endpoint for an ACTIVE user -- caught by reading `regenerateInvite`'s docblock before writing the guard, not after. Shipped `{INVITED, ACTIVE}`; the allowlist *form* still mattered because `UserStatus.PERSON` exists. Added working rule 18. Review then moved both guards out of their controllers into `UserInviteService` and replaced the comment blocks with a named `mayAcceptInvite` predicate, which incidentally closed the S-7/S-9 drift risk the S-9 item had flagged — one rule, two call sites. Added working rule 19. Suite 1,317 -> 1,328. Also, unrelated to the board: an EC2 deploy failed on a full 8GB root volume, fixed with a disk preflight in `deploy.sh` ([#198](https://github.com/themancalledzac/edens.zac.backend/pull/198), [#201](https://github.com/themancalledzac/edens.zac.backend/pull/201)) — the threshold in #198 was set by guess, aborted a legitimate deploy, and #201 corrects it from measured numbers and makes it overridable. Next: S-8.
 
+- 2026-08-24 — shipped **S-8** ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), which closes the security board down to S-5 and S-6. **The item's one open judgement went the other way from its own default**: it said mirroring S-9's `mayAcceptInvite` boundary was the default and any divergence should be argued in the MR, and the argument won -- the session predicate is `mayHoldSession`, ACTIVE-only, because `resolve` has enforced ACTIVE-only since S-1 and a test says so deliberately. `{INVITED, ACTIVE}` would have left demoted accounts holding `user_session` rows that can never resolve, which is the thing the item asked to tidy. The two sweeps now run off two allowlists on adjacent lines of one handler, and that is correct rather than sloppy. Working rule 16 applied unprompted and paid: grepping `updateStatus` found three callers, and the enumeration is why only one gets the call. **The cost report was measured rather than argued** -- the CTE was actually written and the suite run, and the single resulting failure turned out to be the only mutation-detector for S-1, so folding the revoke into the DAO would have quietly disarmed an earlier fix. Suite 1,328 -> 1,338. Next: S-5, or answer S-6's blocking question.
 - 2026-08-24 — close-out pass, no code shipped. Reconciled the board after #199/#200/#202. **Fixed five drifted refs**, all in the neighborhood of what merged (working rule 5's third principle held): `#8` 333-350 -> 336-353, `#17`'s `UserInviteService` refs 85-130 -> 140-152/220-237 (that file went 130 -> 238 lines), the bare-array sites 150/318/373/386 -> 149/321/376/389, and Wave 7's two size claims (source 469 -> 474, test 1,015 -> 1,097). **`Optional.get()` held at 46 for the wrong reason** -- `InviteController` 3 -> 2 and `UserInviteService` 2 -> 3 cancelled out, so the headline was right while its components moved; the breakdown is now the source of truth, not the total. **Settled two items by looking**: bug #17 re-verified live at `ContentService:228-233` (premise intact, COLD), and `admin_home_tile.cover_image_id` researched to the end -- though a first pass at that entry got it *wrong* and the doc's existing row was more accurate, which is recorded in the item. **S-8's scope is bigger than its item implied**: there is no user-scoped session revoke primitive, only `revokeByTokenHash`, so it needs a new repository statement plus a service method, not one call. Stamped S-5 COLD, S-6 BLOCKED with the question written out, S-8 COLD. Next: S-8.
 
 ---

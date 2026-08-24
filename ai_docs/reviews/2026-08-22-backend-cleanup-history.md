@@ -1986,6 +1986,116 @@ MRs touching the same handler is worse than one. They were split on instruction;
 that S-8 now edits code written today. Do it while it is fresh.
 
 
+## S-8 outcome, 2026-08-24 -- a status change revokes the sessions already minted
+
+Shipped as [#204](https://github.com/themancalledzac/edens.zac.backend/pull/204). Suite 1,328 ->
+1,338 (+10). Three files of source, three of test.
+
+`SessionService.revokeAllForStatus(userId, newStatus)` over a new
+`UserSessionRepository.revokeAllForUser`, called from `AdminUserController.updateUser` on the line
+directly below `invalidateInvitesForStatus` -- the shape the item specified, and no branching in the
+controller (working rule 19).
+
+### The predicate diverges from S-9's, and that was the whole judgement
+
+The item left one thing open: which statuses revoke, with "mirror S-9's `mayAcceptInvite` boundary"
+named as the default and any divergence to be argued here. It diverges.
+
+`mayAcceptInvite` is `{INVITED, ACTIVE}`. The session predicate,
+`SessionService.mayHoldSession`, is **ACTIVE only** -- because that is what `SessionService.resolve`
+has enforced since S-1, and `resolveRejectsSessionWhoseAccountWasReturnedToInvited` was written to
+say so deliberately. Mirroring `mayAcceptInvite` would leave an `ACTIVE -> INVITED` demotion holding
+live `user_session` rows that can never resolve again -- precisely the rows the item asked to tidy.
+
+So the two sweeps run off two different allowlists, and `INVITED` is the status that separates them:
+**an INVITED account may hold a live invite, but may not hold a working session.** Both halves of
+that sentence are now pinned by a test that reddens if the other allowlist is substituted.
+
+Same one-definition-two-call-sites discipline S-9 used, though: `mayHoldSession` is called from
+`resolve` as well as from `revokeAllForStatus`, so the "may this account hold a session" rule cannot
+drift between the read site and the sweep site (working rule 14).
+
+### Working rule 16 applied: three callers, one call site
+
+The item named `updateUser`. Grepping `appUserRepository.updateStatus` rather than trusting that
+found three callers, and the enumeration is the reason only one gets the call:
+
+| Caller | Resulting status | Needs the sweep? |
+|---|---|---|
+| `AdminUserController.upgradeUser` | `PERSON -> INVITED` | No. A `PERSON` row has no password and no login; provably zero sessions to revoke. |
+| `UserInviteService.accept` | `-> ACTIVE` | No. `ACTIVE` is the allowlist; the call would be a no-op by construction. |
+| `AdminUserController.updateUser` | admin's choice | **Yes.** The only caller that can land on an ineligible status with sessions outstanding. |
+
+Rule 16 says a guard at a read chokepoint covers entry points you failed to enumerate. That still
+holds here and is why this stayed LOW: `resolve` rejects all three regardless.
+
+### The cost report the item was owed
+
+The instruction was to leave `AppUserRepository.updateStatus` alone and report what putting the
+revocation inside that statement would cost. **Measured, not estimated** -- the experiment was run.
+
+`updateStatus` was rewritten as a Postgres data-modifying CTE, so the revocation really is inside
+the one statement:
+
+```sql
+WITH u AS (
+  UPDATE users SET status = :status, updated_at = now() WHERE id = :id RETURNING id
+)
+UPDATE user_session SET revoked_at = now()
+WHERE user_id = (SELECT id FROM u) AND revoked_at IS NULL
+```
+
+Full suite against that: **1,338 run, 1 failure --
+`SessionServiceIntegrationTest.resolveRejectsSessionWhoseAccountWasDisabled:132`**, on its
+`assertThat(session.getRevokedAt()).isNull()` line.
+
+**That single failure is the cost, and it is larger than one red test.** That assertion is not
+incidental; the test's docblock says in as many words that it keeps the session row live -- unrevoked
+and unexpired -- so that the status test in `resolve` is the only thing that can reject it, and that
+stripping the status test is the mutation it exists to catch. It is the sole mutation-detector for
+the S-1 fix. Revoke inside `updateStatus` and the row is dead on arrival, so **the S-1 guard could
+be deleted and the suite would stay green.** Working rule 15 is exactly about this: a test that
+reports coverage it no longer has is worse than no test.
+
+The rest, in descending order:
+
+| | |
+|---|---|
+| Policy siting | "Which statuses revoke" moves into a DAO, where nobody reading the admin endpoint can see it, and applies to all three `updateStatus` callers rather than the one that needs it. |
+| `accept` ordering | `UserInviteService.accept` calls `updateStatus(userId, ACTIVE)` and *then* `sessionService.create`. An unconditional in-statement revoke is survivable only because the mint happens to come last. A future reorder logs the user out at the moment they finish onboarding. |
+| Table ownership | `AppUserRepository` would write `user_session`, a table it does not own. Nothing else in `dao/` writes across tables like this. |
+| The non-CTE alternative | Injecting `UserSessionRepository` into `AppUserRepository` -- a DAO-to-DAO dependency with no precedent in this codebase. |
+
+Against that, the thing the in-statement version would genuinely buy: atomicity with the status
+write for callers outside a transaction. It buys nothing here, because `updateUser` is already
+`@Transactional` and `revokeAllForStatus` joins that transaction.
+
+Working rule 17 says the repair for a bypassed guard belongs in the statement, not the caller's
+precondition. It does not apply: nothing bypasses anything here. `updateStatus` is a plain write,
+and session revocation is a policy decision about that write, not a missing predicate inside it.
+
+### What it cost where it actually went
+
+| | |
+|---|---|
+| Source | 3 files. New repository statement (12 lines), predicate + service method (~40 lines with javadoc), one delegating line in the controller. |
+| New dependency | One. `SessionService` injected into `AdminUserController` -- a 10th constructor arg, and the one real piece of churn in the MR. |
+| Query | One extra `UPDATE`, joining `updateUser`'s existing transaction. Zero rows when there is nothing to revoke. |
+| Existing test churn | **Zero assertions changed.** One mock field and one constructor arg in `AdminUserControllerTest.setUp`. |
+| New tests | 10 -- 4 repository, 3 service, 3 controller. |
+
+### Mutation results (working rule 15)
+
+| Mutation | Reddens |
+|---|---|
+| Delete the controller's delegating call | all 3 new `AdminUserControllerTest$UpdateUser` tests |
+| Widen `mayHoldSession` to `mayAcceptInvite`'s set | `revokeAllForStatusRevokesOnDemotionToInvited` **and** `resolveRejectsSessionWhoseAccountWasReturnedToInvited` -- the divergence is guarded at the sweep site and the read site independently |
+| Drop `user_id` from the `UPDATE` | `revokeAllForUserLeavesOtherUsersSessionsAlone` (this mutation logs out every user on the site) |
+| Drop `revoked_at IS NULL` | `revokeAllForUserSkipsAlreadyRevokedSessions` |
+
+All four verified red, then restored with `touch` per working rule 15's second practical note.
+
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked
