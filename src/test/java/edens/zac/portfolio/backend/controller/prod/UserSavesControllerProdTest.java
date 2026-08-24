@@ -67,18 +67,6 @@ class UserSavesControllerProdTest {
   }
 
   @Test
-  void addAnonymousIsUnauthorized() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/read/user/saves")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"imageId\":42}"))
-        .andExpect(status().isUnauthorized());
-
-    verify(userSavesService, never()).add(anyLong(), anyLong());
-  }
-
-  @Test
   void addAuthenticatedReturns201AndCallsService() throws Exception {
     mockMvc
         .perform(
@@ -120,13 +108,6 @@ class UserSavesControllerProdTest {
   }
 
   @Test
-  void deleteAnonymousIsUnauthorized() throws Exception {
-    mockMvc.perform(delete("/api/read/user/saves/42")).andExpect(status().isUnauthorized());
-
-    verify(userSavesService, never()).remove(anyLong(), anyLong());
-  }
-
-  @Test
   void deleteReturns204() throws Exception {
     mockMvc
         .perform(delete("/api/read/user/saves/42").with(asUser(client)))
@@ -144,13 +125,6 @@ class UserSavesControllerProdTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0]").value(42))
         .andExpect(jsonPath("$[1]").value(43));
-  }
-
-  @Test
-  void listAnonymousIsUnauthorized() throws Exception {
-    mockMvc.perform(get("/api/read/user/saves")).andExpect(status().isUnauthorized());
-
-    verify(userSavesService, never()).listSavedImageIds(anyLong());
   }
 
   private ContentModels.Image imageModel(Long id, String title, String imageUrl) {
@@ -203,12 +177,5 @@ class UserSavesControllerProdTest {
         .andExpect(jsonPath("$[0].title").value("Newer"))
         .andExpect(jsonPath("$[0].imageUrl").value("https://cdn.example.com/newer.jpg"))
         .andExpect(jsonPath("$[1].id").value(43));
-  }
-
-  @Test
-  void listImagesAnonymousIsUnauthorized() throws Exception {
-    mockMvc.perform(get("/api/read/user/saves/images")).andExpect(status().isUnauthorized());
-
-    verify(userSavesService, never()).listSavedImages(anyLong());
   }
 }

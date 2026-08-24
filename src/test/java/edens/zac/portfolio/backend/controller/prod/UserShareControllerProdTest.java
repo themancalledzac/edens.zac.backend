@@ -40,20 +40,6 @@ class UserShareControllerProdTest {
   private static final ShareLinkEntity LINK = ShareLinkEntity.builder().id(42L).userId(7L).build();
 
   @Test
-  void everyRouteRejectsAnonymousAndShareLinkHolders() {
-    // A recipient reaching these could otherwise reset the very link they are browsing on.
-    for (AuthPrincipal p : new AuthPrincipal[] {null, FLYBY}) {
-      assertThat(controller.settings(p).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-      assertThat(controller.rotate(p).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-      assertThat(controller.addCollection(p, 1L).getStatusCode())
-          .isEqualTo(HttpStatus.UNAUTHORIZED);
-      assertThat(controller.removeCollection(p, 1L).getStatusCode())
-          .isEqualTo(HttpStatus.UNAUTHORIZED);
-    }
-    verify(shareLinkService, never()).mintOrRotate(anyLong());
-  }
-
-  @Test
   void rotateReturnsTheRawTokenExactlyOnce() {
     when(shareLinkService.mintOrRotate(7L)).thenReturn("fresh-token");
     when(shareLinkService.findForUser(7L)).thenReturn(Optional.of(LINK));

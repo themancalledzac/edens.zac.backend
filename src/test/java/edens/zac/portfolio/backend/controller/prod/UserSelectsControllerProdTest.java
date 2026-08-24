@@ -62,18 +62,6 @@ class UserSelectsControllerProdTest {
   }
 
   @Test
-  void addAnonymousIsUnauthorized() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/read/user/selects")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"collectionId\":3,\"contentId\":42}"))
-        .andExpect(status().isUnauthorized());
-
-    verify(userSelectsService, never()).add(anyLong(), anyLong(), anyLong());
-  }
-
-  @Test
   void addAuthenticatedReturns201AndCallsService() throws Exception {
     mockMvc
         .perform(
@@ -117,13 +105,6 @@ class UserSelectsControllerProdTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].collectionId").value(3))
         .andExpect(jsonPath("$[0].contentIds[0]").value(42));
-  }
-
-  @Test
-  void listAllAnonymousIsUnauthorized() throws Exception {
-    mockMvc.perform(get("/api/read/user/selects")).andExpect(status().isUnauthorized());
-
-    verify(userSelectsService, never()).listAll(anyLong());
   }
 
   @Test

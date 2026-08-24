@@ -30,10 +30,10 @@ import org.springframework.web.bind.annotation.RestController;
  * The owner side of a share link: session-required, self-only. No route accepts a user id -- the
  * principal is the only subject, mirroring {@link UserControllerProd}.
  *
- * <p>Lives under {@code /api/read/**}, which {@code SecurityConfig} leaves {@code permitAll}, so
- * identity is enforced here with {@code AuthPrincipal.isRealUser} rather than by a matcher. That
- * check also excludes a share-link holder, which matters: a recipient reaching these routes could
- * otherwise reset the very link they are browsing on, or read the owner's grant candidates.
+ * <p>{@code SecurityConfig}'s {@code /api/read/user/**} matcher supplies that session requirement,
+ * and being {@code hasRole("USER")} it also excludes a share-link holder -- which matters
+ * specifically here: a recipient reaching these routes could otherwise reset the very link they are
+ * browsing on, or read the owner's grant candidates.
  */
 @RestController
 @RequestMapping("/api/read/user/share")
@@ -50,9 +50,6 @@ public class UserShareControllerProd {
   @GetMapping
   public ResponseEntity<ShareModels.ShareSettings> settings(
       @AuthenticationPrincipal AuthPrincipal principal) {
-    if (!AuthPrincipal.isRealUser(principal)) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
     return ResponseEntity.ok(buildSettings(principal.userId(), null));
   }
 
@@ -67,9 +64,6 @@ public class UserShareControllerProd {
   @PostMapping("/rotate")
   public ResponseEntity<ShareModels.ShareSettings> rotate(
       @AuthenticationPrincipal AuthPrincipal principal) {
-    if (!AuthPrincipal.isRealUser(principal)) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
     String raw = shareLinkService.mintOrRotate(principal.userId());
     log.info("Share link minted or rotated for user {}", principal.userId());
     return ResponseEntity.ok(buildSettings(principal.userId(), raw));
@@ -86,9 +80,6 @@ public class UserShareControllerProd {
   @PutMapping("/collections/{collectionId}")
   public ResponseEntity<Void> addCollection(
       @AuthenticationPrincipal AuthPrincipal principal, @PathVariable Long collectionId) {
-    if (!AuthPrincipal.isRealUser(principal)) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
     if (!collectionAccessService.canView(principal.userId(), collectionId)) {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
@@ -107,9 +98,6 @@ public class UserShareControllerProd {
   @DeleteMapping("/collections/{collectionId}")
   public ResponseEntity<Void> removeCollection(
       @AuthenticationPrincipal AuthPrincipal principal, @PathVariable Long collectionId) {
-    if (!AuthPrincipal.isRealUser(principal)) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
     Optional<ShareLinkEntity> link = shareLinkService.findForUser(principal.userId());
     if (link.isEmpty()) {
       return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

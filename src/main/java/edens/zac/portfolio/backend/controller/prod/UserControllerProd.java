@@ -4,7 +4,6 @@ import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.services.UserPageAssembler;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +21,6 @@ public class UserControllerProd {
   /** The signed-in user's synthetic collection; 401 when anonymous. Never accepts a client id. */
   @GetMapping("/me/page")
   public ResponseEntity<CollectionModel> myPage(@AuthenticationPrincipal AuthPrincipal principal) {
-    if (!AuthPrincipal.isRealUser(principal)) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
     return ResponseEntity.ok(userPageAssembler.assembleForUser(principal.userId()));
   }
 }
