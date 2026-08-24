@@ -830,6 +830,88 @@ class AdminUserControllerTest {
     }
 
     @Test
+    void disablingUserInvalidatesOutstandingInvites() throws Exception {
+      // S-9: an invite outlives the account being disabled by up to its 7-day TTL, so the token
+      // must die with the transition. Mutation this catches: drop the invalidate call and a
+      // disabled user keeps a redeemable link.
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.INVITED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.DISABLED)
+              .build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Ken\",\"status\":\"DISABLED\"}"))
+          .andExpect(status().isOk());
+
+      verify(appUserRepository).updateStatus(8L, UserStatus.DISABLED);
+      verify(userInviteService).invalidateInvites(8L);
+    }
+
+    @Test
+    void reDisablingAlreadyDisabledUserStillSweepsInvites() throws Exception {
+      // The sweep keys off the resulting status, not off a transition, so an invite issued while
+      // the account was already DISABLED is still killed. Mutation this catches: rewrite the
+      // condition as a transition test (before != DISABLED && after == DISABLED) and this goes red.
+      AppUserEntity dan =
+          AppUserEntity.builder()
+              .id(9L)
+              .email("dan@example.com")
+              .status(UserStatus.DISABLED)
+              .build();
+      when(appUserRepository.findById(9L)).thenReturn(Optional.of(dan));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/9")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Dan\",\"status\":\"DISABLED\"}"))
+          .andExpect(status().isOk());
+
+      verify(userInviteService).invalidateInvites(9L);
+    }
+
+    @Test
+    void reEnablingUserToActiveDoesNotInvalidateInvites() throws Exception {
+      // The scope guard on the other side: restoring an account must leave its admin-issued
+      // password-reset link alone. Mutation this catches: invalidate on every status write and
+      // an admin who re-enables a user silently breaks the reset link they just sent.
+      AppUserEntity before =
+          AppUserEntity.builder()
+              .id(8L)
+              .email("ken@example.com")
+              .status(UserStatus.DISABLED)
+              .build();
+      AppUserEntity after =
+          AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Ken\",\"status\":\"ACTIVE\"}"))
+          .andExpect(status().isOk());
+
+      verify(userInviteService, never()).invalidateInvites(anyLong());
+    }
+
+    @Test
     void emaillessPatchOnInvitedUserDoesNotInvalidateInvite() throws Exception {
       // An email-less PATCH (status/name only) never touches the email, so an INVITED user's
       // outstanding invite must survive — nothing about the login identity changed.
