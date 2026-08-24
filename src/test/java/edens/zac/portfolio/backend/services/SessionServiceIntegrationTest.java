@@ -133,6 +133,71 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(session.getExpiresAt()).isAfter(LocalDateTime.now());
   }
 
+  /**
+   * S-8: the admin status change revokes the session rows themselves, so the account stops
+   * resolving without depending on {@code resolve} reading status. Asserted on the row, not on
+   * {@code resolve}, because {@code resolve} already rejects a DISABLED account either way -- the
+   * revoked timestamp is the only thing that distinguishes this fix from the S-1 guard. Mutation
+   * this catches: drop the {@code revokeAllForUser} call and {@code revokedAt} stays null.
+   */
+  @Test
+  void revokeAllForStatusRevokesTheSessionRowsOfADisabledAccount() {
+    AppUserEntity admin = seedAdmin("revoke-status@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, false, request, response);
+    String raw = rawTokenFrom(response);
+
+    assertThat(sessionService.revokeAllForStatus(admin.getId(), UserStatus.DISABLED)).isEqualTo(1);
+
+    UserSessionEntity session =
+        sessionRepository.findByTokenHash(sessionService.sha256HexForTest(raw)).orElseThrow();
+    assertThat(session.getRevokedAt()).isNotNull();
+    assertThat(sessionService.resolve(raw)).isEmpty();
+  }
+
+  /**
+   * The sweep uses an ACTIVE-only allowlist rather than the {@code {INVITED, ACTIVE}} one that
+   * governs invites: a demotion to INVITED leaves sessions that can never resolve again, so they
+   * are revoked too. Mutation this catches: reuse {@code UserInviteService.mayAcceptInvite} here
+   * and the demoted account's rows stay live forever.
+   */
+  @Test
+  void revokeAllForStatusRevokesOnDemotionToInvited() {
+    AppUserEntity admin = seedAdmin("revoke-invited@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, false, request, response);
+    String raw = rawTokenFrom(response);
+
+    assertThat(sessionService.revokeAllForStatus(admin.getId(), UserStatus.INVITED)).isEqualTo(1);
+
+    assertThat(
+            sessionRepository
+                .findByTokenHash(sessionService.sha256HexForTest(raw))
+                .orElseThrow()
+                .getRevokedAt())
+        .isNotNull();
+  }
+
+  /**
+   * The scope guard on the other side: re-enabling an account must not log out the session the
+   * admin is holding. Mutation this catches: revoke on every status write and an admin who
+   * re-activates a user kills any session that user just established.
+   */
+  @Test
+  void revokeAllForStatusLeavesAnActiveAccountsSessionsAlone() {
+    AppUserEntity admin = seedAdmin("revoke-active@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, false, request, response);
+    String raw = rawTokenFrom(response);
+
+    assertThat(sessionService.revokeAllForStatus(admin.getId(), UserStatus.ACTIVE)).isZero();
+
+    assertThat(sessionService.resolve(raw)).isPresent();
+  }
+
   /** The status test is an ACTIVE allowlist, so a demotion to INVITED lapses the session too. */
   @Test
   void resolveRejectsSessionWhoseAccountWasReturnedToInvited() {

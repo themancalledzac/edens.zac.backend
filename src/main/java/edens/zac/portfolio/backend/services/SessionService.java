@@ -65,6 +65,24 @@ public class SessionService {
   }
 
   /**
+   * The only status under which a session resolves to a principal. {@code INVITED} is an account
+   * that has not finished onboarding, {@code DISABLED} is one that has been shut off, and {@code
+   * PERSON} is a tag-only identity with no login account -- none of the three may hold a working
+   * session, so {@code ACTIVE} is the whole allowlist.
+   *
+   * <p>Deliberately narrower than {@link UserInviteService#mayAcceptInvite}, which also admits
+   * {@code INVITED} because onboarding redeems an invite from that status. Nothing equivalent
+   * applies to sessions: an {@code INVITED} account's session is one left over from before a
+   * demotion, and it is already dead to {@link #resolve}.
+   *
+   * @param status the account's current status
+   * @return whether a session held by this account may still resolve
+   */
+  public static boolean mayHoldSession(UserStatus status) {
+    return status == UserStatus.ACTIVE;
+  }
+
+  /**
    * Mint a new session for {@code user}, persist its hashed token, and write the {@code
    * ezac_session} cookie onto {@code response}.
    *
@@ -105,7 +123,7 @@ public class SessionService {
 
   /**
    * Resolve a raw cookie token to a principal. Returns empty if the session is unknown, revoked, or
-   * expired, or if the account behind it is not {@link UserStatus#ACTIVE}. The status test is read
+   * expired, or if the account behind it fails {@link #mayHoldSession}. The status test is read
    * fresh on every resolve, so disabling an account takes effect on its next request without
    * touching the sessions it already holds. Two timeouts bound the session: an <em>idle</em>
    * timeout of {@code ttl-days} of inactivity (slid forward on each resolve once {@code
@@ -146,7 +164,7 @@ public class SessionService {
       return Optional.empty();
     }
     AppUserEntity user = maybeUser.get();
-    if (user.getStatus() != UserStatus.ACTIVE) {
+    if (!mayHoldSession(user.getStatus())) {
       return Optional.empty();
     }
     return Optional.of(
@@ -173,6 +191,35 @@ public class SessionService {
             .maxAge(0)
             .build()
             .toString());
+  }
+
+  /**
+   * Revoke every session the user holds when {@code newStatus} leaves them unable to hold one, so
+   * an admin status change takes effect on the sessions already minted rather than only on the next
+   * request each one makes. The same {@link #mayHoldSession} rule {@link #resolve} enforces at read
+   * time, applied here at the source.
+   *
+   * <p>Defense in depth, not a live hole: {@code resolve} reads status fresh, so a session whose
+   * account is no longer eligible already fails on its next use. What this adds is closing the
+   * window to zero and clearing {@code user_session} rows that can never resolve again.
+   *
+   * <p>Keyed on the resulting status rather than on a transition, matching {@link
+   * UserInviteService#invalidateInvitesForStatus}, so re-applying an ineligible status still sweeps
+   * a session minted in between. A no-op when there is nothing to revoke.
+   *
+   * @param userId the id of the {@code app_user} record whose status is changing
+   * @param newStatus the status the account is being set to
+   * @return the number of sessions revoked
+   */
+  public int revokeAllForStatus(Long userId, UserStatus newStatus) {
+    if (mayHoldSession(newStatus)) {
+      return 0;
+    }
+    int revoked = sessionRepository.revokeAllForUser(userId);
+    if (revoked > 0) {
+      log.info("Revoked sessions on status change: userId={} status={}", userId, newStatus);
+    }
+    return revoked;
   }
 
   /**

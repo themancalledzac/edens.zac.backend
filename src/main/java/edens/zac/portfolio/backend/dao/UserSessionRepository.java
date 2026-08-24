@@ -84,4 +84,19 @@ public class UserSessionRepository extends BaseDao {
     MapSqlParameterSource params = createParameterSource().addValue("tokenHash", tokenHash);
     update(sql, params);
   }
+
+  /**
+   * Revoke every session the user currently holds. The {@code revoked_at IS NULL} predicate keeps
+   * an earlier revocation timestamp intact and makes a repeat call a zero-row no-op.
+   *
+   * @param userId the {@code user_session.user_id} whose live sessions should be revoked
+   * @return the number of sessions revoked by this call
+   */
+  @Transactional
+  public int revokeAllForUser(Long userId) {
+    String sql =
+        "UPDATE user_session SET revoked_at = now() WHERE user_id = :userId AND revoked_at IS NULL";
+    MapSqlParameterSource params = createParameterSource().addValue("userId", userId);
+    return update(sql, params);
+  }
 }
