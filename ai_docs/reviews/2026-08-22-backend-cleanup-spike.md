@@ -24,13 +24,16 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
 
-Three sections below are not waves and had no row here until 2026-08-24, which made them invisible
-to anyone navigating by this table:
+Four sections below are not waves and had no row here until 2026-08-24, which made them invisible
+to anyone navigating by this table. **"Decisions needed from the user" was the fourth and was still
+missing its row until 2026-08-24's close-out** -- eight open items, invisible to this table, which
+is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
 | [Open security findings](#open-security-findings) | **0 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **3 open, 1 answered.** One is a live 404. **Holds the next item** -- `isPasswordProtected`, moved here from "Decisions needed" 2026-08-24 once its remaining decision was found to be already settled. The frontend's C6 is blocked on it. |
+| [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
 Original estimate: roughly 4,500-5,000 lines removed against a few hundred added. The test tree (32.6k lines) is larger than main (27.2k); about 8% of it tests the Java compiler and Lombok.
@@ -606,6 +609,29 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     some product claims are not written down anywhere in the code, and the only way to get them is
     to ask. S-6 sat BLOCKED for a day on a question that took one question to answer.
 
+21. **An item's premise is evidence. Its prescribed fix is a hypothesis. Four in a row now.**
+    Added 2026-08-24 after S-6. On S-7, S-8, S-5 and S-6 -- four consecutive items -- the item
+    correctly identified the problem and then specified a fix that would have shipped a bug if
+    typed in verbatim:
+
+    - **S-7** said "require `INVITED`". That kills admin-issued password reset, which redeems
+      through the same endpoint as an ACTIVE user.
+    - **S-8** named mirroring S-9's `{INVITED, ACTIVE}` as the default. That leaves demoted
+      accounts holding `user_session` rows that can never resolve -- the exact rows the item
+      asked to clear.
+    - **S-5** implied "the cap never fires, so reject when the length is -1". A request with no
+      body reports -1 too, so that 411s every bodiless request on a public path.
+    - **S-6** said "route `canView` through `effectiveLevel`". `effectiveLevel` adds two branches,
+      not one, so that also hands a share-link holder GENERAL and turns a share link into a second
+      way past the gallery password prompt.
+
+    The premise held all four times. The prescription failed all four times, and in three of them
+    the failure was **a case the item's author had not enumerated** rather than a mistake in
+    reasoning. So: treat the "Fix:" sentence in any remaining item as a starting hypothesis to test
+    against the code, and before implementing it, ask what inputs or principals the item did not
+    name. Working rule 16 is the specific instrument for this; rule 21 is why to keep reaching for
+    it even when the item looks fully specified.
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collided, and it was handled: `PersonRepository.deleteById` was listed under both MR 1 and bug #1, and was held until MR 5 because it had a live caller -- dangerous code, not dead code. It shipped with MR 5 and is gone.
@@ -657,12 +683,27 @@ and each needs its claim verified before acting (working rule 8).
 
 ### The MR 15 #6 follow-up, left open on purpose
 
-- [ ] Fold the last two copies of the same static read into `CurrentUser`: add
-  `CurrentUser.principal()`, have `userId()` delegate, and rewrite
-  `SyntheticCollectionResolver.currentPrincipal` (identical body, returns the principal) and
-  `CollectionService.viewerMaySeeHidden` (the read inlined, plus a `p.userId() != null` check
-  because it passes the whole principal to `hasAtLeast`). Mechanical and behavior-preserving. Out
-  of MR 15 #6's scope because the item said four.
+- [ ] Fold the last two copies of the same static read into `CurrentUser`. **Half of this shipped
+  inside S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) as a side
+  effect, not deliberately** -- S-6 needed the whole principal at two gates, so
+  `CurrentUser.principal()` now exists and `userId()` delegates to it. Verified 2026-08-24 at
+  `CurrentUser:25` and `:33`.
+
+  **What is left is smaller than the item was written for, and is now a pure delete-and-delegate**:
+  `SyntheticCollectionResolver.currentPrincipal` (`:146-149`, re-verified byte-identical to
+  `CurrentUser.principal()` -- delete it and call the shared one) and
+  `CollectionService.viewerMaySeeHidden` (**now `:1534`, was `:1531`** -- S-6's javadoc pushed it
+  down 3; replace the inlined read, keep the `p.userId() != null` check, which is load-bearing
+  because it passes the whole principal to `hasAtLeast`). Mechanical and behavior-preserving.
+
+  This is the third principle on the board's own front page: the item that just merged did part of
+  a later item's job without either item knowing. Nobody would have found this by reading the
+  board -- it turned up because the drift sweep is scoped to the merge neighborhood.
+
+  **COLD**, and cheaper than when it was written. Guardrail if picked up: the other three
+  `getContext().getAuthentication()` sites are **not** copies -- `CollaboratorAccessInterceptor`
+  resolves an access level, `FlybySessionFilter` tests whether an authentication already exists,
+  and `AuthController` serves `/api/auth/me`. None extracts a user id. Leave them.
 
   Already checked, do not re-flag: grepping the read shape
   (`getContext().getAuthentication()`) across `src/main` returns six sites. `CurrentUser` is the
@@ -758,10 +799,10 @@ and each needs its claim verified before acting (working rule 8).
 
 ## MR 22 — Remaining convention sweeps
 
-- [ ] `ResponseEntity<?>` twice: `UserSelectsControllerProd:59` (serves two different shapes from one GET — split or wrap) and `MessagesControllerPublic:43` (throw a `RateLimitedException` handled globally, which also unifies the three different 429 body shapes currently in play: empty at `AuthController:65`, Map at `CollectionControllerProd:182-183`, ErrorResponse at `MessagesControllerPublic:48-52`).
+- [ ] `ResponseEntity<?>` twice: `UserSelectsControllerProd.list` (**`:55`, was `:59`** -- re-verified 2026-08-24; serves two different shapes from one GET — split or wrap) and `MessagesControllerPublic:43` (throw a `RateLimitedException` handled globally, which also unifies the three different 429 body shapes currently in play: empty at `AuthController:65`, Map at `CollectionControllerProd:182-183`, ErrorResponse at `MessagesControllerPublic:48-52`).
 - [ ] Try-catch in controllers, **two sites** (not three -- the third went with bug #15 in MR 7, [#168](https://github.com/themancalledzac/edens.zac.backend/pull/168), confirmed gone by grep): `AdminUserController.mergePreview` and `.merge` (map via `ResourceNotFoundException` plus a new `ConflictException` handler). **Both methods have zero tests**, so this is an untested behavior change on two admin endpoints -- a risk, not a saving.
 - [ ] `@Value` field injection: **9 sites, not 3.** The three named (`CollectionControllerProd`, `ShareControllerProd`, `DownloadUrlService`) plus six in `S3Config` and `SesConfig` that feed `@Bean` methods -- same rule, same fix, and they fold into MR 16 #4. Move to constructor parameters, following the `WebAuthnController` pattern. Test coupling is exactly four `ReflectionTestUtils.setField` calls. Also `@Autowired` on constructors at `AuthLoginLimiter`, `ClientGalleryAccessLimiter`, `WebAuthnChallengeStore`, `WebAuthnService`. **The real size is 1 deletion and 3 comments**: only `AuthLoginLimiter` has a single constructor; the other three genuinely have two, where the second is the package-private test constructor, so `@Autowired` is load-bearing. Fifteen minutes.
-- [ ] Fully qualified names inline: **14 sites, not 6.** The six named (`CollectionService.isGalleryAccessAuthorized`'s parameter -- the doc's `542`, then `533`, is now `534`, which is the third correction to one ref and the reason this item now names symbols; `CollectionProcessingUtil`, `TagViewResolver`, `GalleryAccessCookies`, `ContactMessageLimiter`, `Records.java`) plus eight in the data layer the original scan missed: `BaseDao` (3), `CollectionRepository`, `EquipmentRepository` (3), `PersonRepository`. Import-only, **zero test coupling**. `Records.java` still needs consolidation #20 first (the `FilmFormat` name clash).
+- [ ] Fully qualified names inline: **14 sites, not 6.** The six named (`CollectionService.isGalleryAccessAuthorized`'s parameter -- the doc's `542`, then `533`, then `534`, **is now `541`** after S-6's javadoc, which is the **fourth** correction to one ref and the reason this item names symbols and not lines. Read the number as advisory and the symbol as the target; `CollectionProcessingUtil`, `TagViewResolver`, `GalleryAccessCookies`, `ContactMessageLimiter`, `Records.java`) plus eight in the data layer the original scan missed: `BaseDao` (3), `CollectionRepository`, `EquipmentRepository` (3), `PersonRepository`. Import-only, **zero test coupling**. `Records.java` still needs consolidation #20 first (the `FilmFormat` name clash).
 - [ ] `Optional.get()` -- **46 sites, not 17.** *(45 -> 46 on 2026-08-24: S-1 added `maybeUser.get().getStatus()` to `AuthController.login`, taking that file 3 -> 4. Re-derived after the merge, not estimated -- the raw sweep went 56 -> 57 and the one new line is S-1's. This is the inventory rot working rule 5 warns about, caught by the scoped sweep rather than a full pass.)* The 17 named are all still present; 29 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 4, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. **Re-derived again 2026-08-24 after S-7/S-9, and the headline number survived for the wrong reason.** The raw sweep is still 57 and the Optional subset still 46 -- but two files moved and cancelled out: `InviteController` went **3 -> 2** (S-7 moved the accept body into the service) and `UserInviteService` went **2 -> 3** (`accept` added its own `maybeInvite.get()`). A total that holds while its components move is the most misleading state an inventory can be in, so trust the per-file breakdown here over the headline. *Re-derived a third time 2026-08-24 after S-8: raw sweep **still 57**, Optional subset **still 46**, and this time for the right reason -- S-8 added no `.get()` at all (`AdminUserController` holds at 4, `SessionService` at 2). Two consecutive checks now agree on both the total and the breakdown.* Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
 - [ ] Magic number 2500 at both resize call sites (`ImageProcessingService:192, 292`). Name it.
 - [ ] `JobStatus.status` is a stringly-typed field with its states in a trailing comment (`JobTrackingService`). **Split the item**: making it an enum is COLD and non-breaking (Jackson serializes an enum to the same string), but costs ~45 test references across `AdminControllerTest` and `ImageUploadPipelineServiceTest`. Adding `COMPLETED_WITH_ERRORS` instead of flipping a 500-file job to FAILED over one error is
@@ -801,7 +842,7 @@ and each needs its claim verified before acting (working rule 8).
 - [ ] `AdminUserController` is a service wearing a controller's clothes: two repositories and **seven** services injected (was six; S-8 added `SessionService`) plus a `frontendBaseUrl`, **481** lines (469 -> 474 -> 481 across S-9 and S-8), entity building, multi-step `@Transactional` orchestration, afterCommit hooks. Extract an `AdminUserService`. **Largest real cost in Wave 7**: ~200 source lines move, but `AdminUserControllerTest` is **1,183** lines (1,015 -> 1,097 -> 1,183 across the same two MRs) and is the hidden half.
 
   *Positional refs replaced with names 2026-08-24, per working rule 5 -- this item's range list had drifted twice in two days.* The `@Transactional` orchestration blocks are `createUser` (`:114`), `regenerateInvite` (`:174`), `upgradeUser` (`:208`), `updateUser` (`:279`) and `merge` (`:436`); the afterCommit hook itself is `sendInviteEmailAfterCommit` (`:468`), called from the first three. **The item is growing faster than it is being done** -- two consecutive security MRs each added to the exact class this proposes to split, and the test file has grown 168 lines in two days. That is an argument for doing it sooner, not a reason to keep re-measuring it.
-- [ ] Same shape, smaller: `UserShareControllerProd:124-152` computes grant and candidate sets inline with a repository. Move it into `ShareLinkService`.
+- [ ] Same shape, smaller: `UserShareControllerProd` computes grant and candidate sets inline with a repository. Move it into `ShareLinkService`. **Re-derived 2026-08-24 and de-positionalized**: the old range `124-152` overran the end of a 145-line file. The work is two private methods -- `buildSettings` (`:116-128`) and `candidateCollections` (`:135-144`), the latter holding the `memberCollectionIdsForUser` call at `:137`.
 - [ ] `Synthetic.blogsOnly` is a constant at its only reachable call site (`SyntheticCollectionResolver:42-49, 86-92`), a transitional shape from the type-keyed catalog. Fold it out.
 - [ ] `MessageService` is a pure pass-through with a speculative docblock. Keep it for layering or delete it, but drop the justification.
 - [ ] The validator components (`MetadataValidator` repeats its 3-line null check **six** times, not four; `ContentValidator` is similar) are the "unnecessary utility classes" CLAUDE.md bans. Replace with bean validation on the DTOs when next touched. **~199 source lines across 3 files, not ~60**, plus `@Mock` removal in 6 test files and a constructor arg off 4 services -- a 10-file change, so "when next touched" is right.
@@ -880,7 +921,10 @@ These are worth more than the bloat they replace.
   the conclusion stands and is stronger: zero direct coverage on components that gate admin writes.
 - [ ] **`UserRatingOverrideControllerProd` has no controller test at all** -- only a service test.
   *(New row 2026-08-24; noted in the history file after MR 15 #2 and never given one. It is also
-  the endpoint whose bare-array response has no test either.)*
+  the endpoint whose bare-array response has no test either.)* **Re-verified 2026-08-24: still
+  true, and now worth more.** There is no `src/test/.../controller/user/` directory at all. S-6
+  changed this controller's call into the service to pass the whole `AuthPrincipal`, so a
+  controller test would now also be the only thing pinning that an admin is not 403'd here.
 - [x] **Two guard tests that cannot fail, proven by mutation. DONE 2026-08-24** -- S-3
   ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) and S-4
   ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)). Bug #1's delete-person
@@ -1013,11 +1057,13 @@ shipped.) The verbose pre-split log is in the
 
 - 2026-08-24 — shipped **S-7** ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), the last live hole on the board, and shipped **S-9** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Both halves of S-7 in one MR as specified. **The item's stated fix was wrong**: "require `INVITED`" would have broken admin-issued password reset, which redeems through the same endpoint for an ACTIVE user -- caught by reading `regenerateInvite`'s docblock before writing the guard, not after. Shipped `{INVITED, ACTIVE}`; the allowlist *form* still mattered because `UserStatus.PERSON` exists. Added working rule 18. Review then moved both guards out of their controllers into `UserInviteService` and replaced the comment blocks with a named `mayAcceptInvite` predicate, which incidentally closed the S-7/S-9 drift risk the S-9 item had flagged — one rule, two call sites. Added working rule 19. Suite 1,317 -> 1,328. Also, unrelated to the board: an EC2 deploy failed on a full 8GB root volume, fixed with a disk preflight in `deploy.sh` ([#198](https://github.com/themancalledzac/edens.zac.backend/pull/198), [#201](https://github.com/themancalledzac/edens.zac.backend/pull/201)) — the threshold in #198 was set by guess, aborted a legitimate deploy, and #201 corrects it from measured numbers and makes it overridable. Next: S-8.
 
-- 2026-08-24 — shipped **S-6** ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). **The security board is closed**: nine items, all done. **The item told the truth about its own scope and was still short by one.** It said rule 20 is a policy, not a ruling about one service, so enumerate before fixing -- and the enumeration found six admin-denial sites against the two the item named. The sixth, `UserSavesService.add` 404ing an admin, appeared in no item on this board and its check lives in SQL rather than in `CollectionAccessService`; it is fixed above the query on purpose, because that query filters on several read paths and an `is_admin` term inside it would apply where nobody looked. **The specified fix would have widened share links if typed in verbatim**: `effectiveLevel` adds two branches, not one, so routing `canView` through it hands a flyby GENERAL and turns a share link into a second way past the gallery password prompt. The two gates screen with `AuthPrincipal.isRealUser` first, which is exactly what the old `userId != null` did. That makes **four consecutive items whose specified fix needed adjusting at implementation time** (S-7, S-8, S-5, S-6) -- recorded in the history file as a pattern rather than a run of luck. **Four list-scoping sites were deliberately not fixed** and the reasoning written down, because rule 20 settled bouncing and not scoping. Suite 1,341 -> 1,347; three mutations verified red. Next: nothing on this board.
-- 2026-08-24 — shipped **S-5** ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)), which leaves **S-6 as the only item on the security board**. **The interesting part of the fix was the half the item did not specify**: it named the bypass (`getContentLengthLong()` returns -1 for chunked, so `-1 > 16384` is false) but not that a *bodiless* request reports -1 too. `MockHttpServletRequest.getContentLengthLong()` returns -1 whenever content is null, which is most of the existing suite -- so the obvious one-line fix, `reject if length < 0`, 411s every bodiless public request. The shipped guard is `length < 0 && Transfer-Encoding present`, and **the mutation run proved two pre-existing tests already caught the over-broad version**, which is the reverse of the usual working-rule-15 result. **Working rule 16 came back empty and that was worth recording**: `getContentLength` has two hits in the codebase, both in the same method, so unlike S-1 and S-8 the item's named site really was the only site. **The limiter-merge guardrail held and paid**: MR 19 #3's numbers were re-measured rather than repeated (every one held, exactly -- 7+24 and 7+32 test sites) and reading the three call sites turned up a blocker the board did not have, that `RateLimitFilter` needs `estimateAbilityToConsume` for `Retry-After` and so cannot use a `boolean allow(key)` signature. That item's verdict moved from "low priority" to "not worth doing". **Test:source was 3.6:1, the fourth near-3:1 in a row** and the smallest source change of the four, which suggests the ratio tracks the guard tests rather than the fix. Suite 1,338 -> 1,341. Next: S-6.
-- 2026-08-24 — close-out pass after #204. **Fixed three drifted refs**, and for the first time one sat *outside* the merge neighborhood: `AdminRoleController:150-167` was off by one (`149-166`) and nothing in #204 touched that file, so working rule 5's third principle held only for two of the three. The others were in-neighborhood as expected -- `#8`'s `AdminUserController` pair 336-353 -> 343-360, and the bare-array sites 149/321/376/389 -> 153/328/383/396. **Wave 7's `AdminUserController` item was re-measured and then de-positionalized**: its range list had drifted twice in two days, so the four `@Transactional` ranges are now named methods with start lines. That item is also growing faster than it is being done -- 469 -> 474 -> 481 source and 1,015 -> 1,097 -> 1,183 test across two consecutive security MRs, both of which added to the exact class it proposes to split. **`Optional.get()` re-derived clean**: 57 raw / 46 Optional, and this time the breakdown agrees too, unlike the 2026-08-24 pass where two files cancelled out. **S-8's test:source ratio was 2.7:1, the third near-3:1 in a row** -- recorded in the history file as confirmation of a pattern the board had already priced into two open items. **S-6 put to the user rather than left on the board a third time, and it came back wider than asked** -- not "yes, admins through" but "admin means OWNER, never any password restriction, never any permission issue", which is now working rule 20 and widens S-6's scope from two methods to a sweep. The security section is now 2 open, 0 blocked. Next: S-5, then S-6.
-- 2026-08-24 — shipped **S-8** ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), which closes the security board down to S-5 and S-6. **The item's one open judgement went the other way from its own default**: it said mirroring S-9's `mayAcceptInvite` boundary was the default and any divergence should be argued in the MR, and the argument won -- the session predicate is `mayHoldSession`, ACTIVE-only, because `resolve` has enforced ACTIVE-only since S-1 and a test says so deliberately. `{INVITED, ACTIVE}` would have left demoted accounts holding `user_session` rows that can never resolve, which is the thing the item asked to tidy. The two sweeps now run off two allowlists on adjacent lines of one handler, and that is correct rather than sloppy. Working rule 16 applied unprompted and paid: grepping `updateStatus` found three callers, and the enumeration is why only one gets the call. **The cost report was measured rather than argued** -- the CTE was actually written and the suite run, and the single resulting failure turned out to be the only mutation-detector for S-1, so folding the revoke into the DAO would have quietly disarmed an earlier fix. Suite 1,328 -> 1,338. Next: S-5, or answer S-6's blocking question.
 - 2026-08-24 — close-out pass, no code shipped. Reconciled the board after #199/#200/#202. **Fixed five drifted refs**, all in the neighborhood of what merged (working rule 5's third principle held): `#8` 333-350 -> 336-353, `#17`'s `UserInviteService` refs 85-130 -> 140-152/220-237 (that file went 130 -> 238 lines), the bare-array sites 150/318/373/386 -> 149/321/376/389, and Wave 7's two size claims (source 469 -> 474, test 1,015 -> 1,097). **`Optional.get()` held at 46 for the wrong reason** -- `InviteController` 3 -> 2 and `UserInviteService` 2 -> 3 cancelled out, so the headline was right while its components moved; the breakdown is now the source of truth, not the total. **Settled two items by looking**: bug #17 re-verified live at `ContentService:228-233` (premise intact, COLD), and `admin_home_tile.cover_image_id` researched to the end -- though a first pass at that entry got it *wrong* and the doc's existing row was more accurate, which is recorded in the item. **S-8's scope is bigger than its item implied**: there is no user-scoped session revoke primitive, only `revokeByTokenHash`, so it needs a new repository statement plus a service method, not one call. Stamped S-5 COLD, S-6 BLOCKED with the question written out, S-8 COLD. Next: S-8.
+- 2026-08-24 — shipped **S-8** ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), which closes the security board down to S-5 and S-6. **The item's one open judgement went the other way from its own default**: it said mirroring S-9's `mayAcceptInvite` boundary was the default and any divergence should be argued in the MR, and the argument won -- the session predicate is `mayHoldSession`, ACTIVE-only, because `resolve` has enforced ACTIVE-only since S-1 and a test says so deliberately. `{INVITED, ACTIVE}` would have left demoted accounts holding `user_session` rows that can never resolve, which is the thing the item asked to tidy. The two sweeps now run off two allowlists on adjacent lines of one handler, and that is correct rather than sloppy. Working rule 16 applied unprompted and paid: grepping `updateStatus` found three callers, and the enumeration is why only one gets the call. **The cost report was measured rather than argued** -- the CTE was actually written and the suite run, and the single resulting failure turned out to be the only mutation-detector for S-1, so folding the revoke into the DAO would have quietly disarmed an earlier fix. Suite 1,328 -> 1,338. Next: S-5, or answer S-6's blocking question.
+- 2026-08-24 — close-out pass after #204. **Fixed three drifted refs**, and for the first time one sat *outside* the merge neighborhood: `AdminRoleController:150-167` was off by one (`149-166`) and nothing in #204 touched that file, so working rule 5's third principle held only for two of the three. The others were in-neighborhood as expected -- `#8`'s `AdminUserController` pair 336-353 -> 343-360, and the bare-array sites 149/321/376/389 -> 153/328/383/396. **Wave 7's `AdminUserController` item was re-measured and then de-positionalized**: its range list had drifted twice in two days, so the four `@Transactional` ranges are now named methods with start lines. That item is also growing faster than it is being done -- 469 -> 474 -> 481 source and 1,015 -> 1,097 -> 1,183 test across two consecutive security MRs, both of which added to the exact class it proposes to split. **`Optional.get()` re-derived clean**: 57 raw / 46 Optional, and this time the breakdown agrees too, unlike the 2026-08-24 pass where two files cancelled out. **S-8's test:source ratio was 2.7:1, the third near-3:1 in a row** -- recorded in the history file as confirmation of a pattern the board had already priced into two open items. **S-6 put to the user rather than left on the board a third time, and it came back wider than asked** -- not "yes, admins through" but "admin means OWNER, never any password restriction, never any permission issue", which is now working rule 20 and widens S-6's scope from two methods to a sweep. The security section is now 2 open, 0 blocked. Next: S-5, then S-6.
+- 2026-08-24 — shipped **S-5** ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)), which leaves **S-6 as the only item on the security board**. **The interesting part of the fix was the half the item did not specify**: it named the bypass (`getContentLengthLong()` returns -1 for chunked, so `-1 > 16384` is false) but not that a *bodiless* request reports -1 too. `MockHttpServletRequest.getContentLengthLong()` returns -1 whenever content is null, which is most of the existing suite -- so the obvious one-line fix, `reject if length < 0`, 411s every bodiless public request. The shipped guard is `length < 0 && Transfer-Encoding present`, and **the mutation run proved two pre-existing tests already caught the over-broad version**, which is the reverse of the usual working-rule-15 result. **Working rule 16 came back empty and that was worth recording**: `getContentLength` has two hits in the codebase, both in the same method, so unlike S-1 and S-8 the item's named site really was the only site. **The limiter-merge guardrail held and paid**: MR 19 #3's numbers were re-measured rather than repeated (every one held, exactly -- 7+24 and 7+32 test sites) and reading the three call sites turned up a blocker the board did not have, that `RateLimitFilter` needs `estimateAbilityToConsume` for `Retry-After` and so cannot use a `boolean allow(key)` signature. That item's verdict moved from "low priority" to "not worth doing". **Test:source was 3.6:1, the fourth near-3:1 in a row** and the smallest source change of the four, which suggests the ratio tracks the guard tests rather than the fix. Suite 1,338 -> 1,341. Next: S-6.
+- 2026-08-24 — shipped **S-6** ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). **The security board is closed**: nine items, all done. **The item told the truth about its own scope and was still short by one.** It said rule 20 is a policy, not a ruling about one service, so enumerate before fixing -- and the enumeration found six admin-denial sites against the two the item named. The sixth, `UserSavesService.add` 404ing an admin, appeared in no item on this board and its check lives in SQL rather than in `CollectionAccessService`; it is fixed above the query on purpose, because that query filters on several read paths and an `is_admin` term inside it would apply where nobody looked. **The specified fix would have widened share links if typed in verbatim**: `effectiveLevel` adds two branches, not one, so routing `canView` through it hands a flyby GENERAL and turns a share link into a second way past the gallery password prompt. The two gates screen with `AuthPrincipal.isRealUser` first, which is exactly what the old `userId != null` did. That makes **four consecutive items whose specified fix needed adjusting at implementation time** (S-7, S-8, S-5, S-6) -- recorded in the history file as a pattern rather than a run of luck. **Four list-scoping sites were deliberately not fixed** and the reasoning written down, because rule 20 settled bouncing and not scoping. Suite 1,341 -> 1,347; three mutations verified red. Next: nothing on this board.
+
+- 2026-08-24 — close-out pass, no code shipped. **Verified both merged**: S-5 `516c276` (#206, squash) and S-6 `d79d30f` (#207, squash), branches deleted. **The security board is closed -- nine items, zero open.** **The drift sweep found the most valuable thing on this run and it was not a line number**: the `CurrentUser` fold item is now *half done*, because S-6 needed the whole principal at two gates and added `CurrentUser.principal()` with `userId()` delegating -- exactly clauses one and two of an item neither S-6 nor the item knew about. That is the board's third principle paying out literally, and it was only visible because the sweep is scoped to the merge neighborhood. **Four refs corrected, all inside that neighborhood**: `viewerMaySeeHidden` 1531 -> 1534, the `isGalleryAccessAuthorized` FQN 534 -> 541 (**fourth** correction to one ref), `UserSelectsControllerProd.list` 59 -> 55, and `UserShareControllerProd`'s `124-152` de-positionalized after the old range was found to **overrun the end of a 145-line file**. **Added working rule 21**, hoisted from a four-item pattern rather than one item: S-7, S-8, S-5 and S-6 each had a correct premise and a prescribed fix that would have shipped a bug verbatim, and in three of the four the miss was an unenumerated input, not bad reasoning. **Fixed the log itself** -- the last five entries were in reverse order, because recent sessions prepended where the file appends. Next: `isPasswordProtected` on the content-block path, chosen over the warmer `CurrentUser` fold because the frontend's C6 is blocked on it.
 
 ---
 
@@ -1035,20 +1081,6 @@ shipped.) The verbose pre-split log is in the
   #17.)* It returns **month 13** for a nonsense EXIF date and builds an S3 path out of it. Either
   reject the malformed date or clamp it -- both are behavior changes, so this needs a decision and
   its own small MR with a month-13 test.
-- [ ] **`isPasswordProtected` on the content-block path -- BLOCKING A FRONTEND ITEM.** *(New row
-  2026-08-24, from the frontend's cross-repo review; their item C6 is waiting on this.)*
-  Recommendation is **Option A: serialize `isPasswordProtected` on `ContentModels.Collection`.** The
-  frontend's Option B assumed "BE-H5 already strips the protected cover" -- **that premise is false
-  in both halves.** Verified: `ContentModels.Collection` carries `coverImage` and has no
-  `isPasswordProtected` component, and the three BE-H5 tests are named `...retainsCoverImage` and
-  assert the cover IS returned. The stale section banner above them, which still reads "coverImage
-  must be stripped", is what sent the frontend down the wrong branch. Three of the four content-block
-  builders (`SyntheticCollectionResolver`, `TagViewResolver`, `ContentModelConverter` before its
-  downstream filter) apply no password filter at all, and no read query filters on `gallery_password`.
-  **Honest scope: the exposure is latent, not live** -- it needs a collection that is both LISTED and
-  password-protected, and prod convention keeps protected work UNLISTED. Nothing enforces that
-  combination, though. Fix is one component plus the two-line frontend change already scoped.
-
 - [ ] Bare-array responses: wrap them (breaking) or amend CLAUDE.md (MR 20).
 - [ ] **Gallery passwords — PARKED 2026-08-24 by decision. Do not act on this yet.** The item framed
   it as a binary (accept plaintext-at-rest formally, or redesign the fingerprint feature). Neither
@@ -1106,7 +1138,48 @@ shipped.) The verbose pre-split log is in the
 # Cross-repo findings owed to the frontend
 
 Raised 2026-08-24. These are backend-side answers or backend-side work that the frontend is waiting
-on; the `isPasswordProtected` call is under "Decisions needed" because it needs a decision first.
+on. **The `isPasswordProtected` item moved here 2026-08-24**, from "Decisions needed", where this
+note used to say it belonged "because it needs a decision first". It does not any more: the item
+itself disproved Option B's premise in both halves, which leaves Option A as the only viable path,
+so what is left is implementation and not a call for the user to make. It is the **next** item.
+
+- [ ] **`isPasswordProtected` on the content-block path -- BLOCKING A FRONTEND ITEM.** *(New row
+  2026-08-24, from the frontend's cross-repo review; their item C6 is waiting on this.)*
+  Recommendation is **Option A: serialize `isPasswordProtected` on `ContentModels.Collection`.** The
+  frontend's Option B assumed "BE-H5 already strips the protected cover" -- **that premise is false
+  in both halves.** Verified: `ContentModels.Collection` carries `coverImage` and has no
+  `isPasswordProtected` component, and the three BE-H5 tests are named `...retainsCoverImage` and
+  assert the cover IS returned. The stale section banner above them, which still reads "coverImage
+  must be stripped", is what sent the frontend down the wrong branch. Three of the four content-block
+  builders (`SyntheticCollectionResolver`, `TagViewResolver`, `ContentModelConverter` before its
+  downstream filter) apply no password filter at all, and no read query filters on `gallery_password`.
+  **Honest scope: the exposure is latent, not live** -- it needs a collection that is both LISTED and
+  password-protected, and prod convention keeps protected work UNLISTED. Nothing enforces that
+  combination, though. Fix is one component plus the two-line frontend change already scoped.
+
+  **NEXT (chosen 2026-08-24, after the security board closed).** Picked over the warmer
+  `CurrentUser` fold because it is the only open item that another team is waiting on -- the
+  frontend's C6 is blocked until this ships -- and because it is already fully specified: Option A,
+  add an `isPasswordProtected` component to `ContentModels.Collection` and populate it where the
+  four content-block builders construct one.
+
+  **Guardrail, and it matters here.** The tempting adjacent change is to make the exposure
+  impossible rather than visible: adding a `gallery_password` filter to the read queries, or
+  stripping `coverImage` from protected collections the way the stale BE-H5 banner claims already
+  happens. **Leave both alone and report what changing them would cost.** Three reasons. The
+  frontend has already scoped its half against a serialized flag, so filtering server-side breaks
+  the contract they built to. The BE-H5 tests are named `...retainsCoverImage` and assert the cover
+  IS returned, so stripping it reddens tests that were written deliberately. And the exposure is
+  latent, not live -- it needs a collection that is simultaneously LISTED and password-protected,
+  which prod convention does not produce. Ship the flag; write down what the filter would take.
+
+  While in the file, **fix the stale section banner above the BE-H5 tests** that still reads
+  "coverImage must be stripped". It is not incidental tidying -- that banner is what sent the
+  frontend down the wrong branch and produced their false Option B premise. Leaving it correct-adjacent
+  costs the next cross-repo reader the same wrong turn.
+
+  **COLD.** Nothing unanswered. The recommendation is settled, the frontend's half is already
+  scoped, and the one premise anybody disputed was checked and found false.
 
 - [ ] **`POST /api/read/user/share/email` does not exist, and the frontend calls it.** Verified from
   both sides: `emailShareLink` in the frontend's `app/lib/api/share.ts` POSTs to that path, the UI is
