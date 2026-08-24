@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **6 open, 2 HIGH.** The live priority. S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)) and S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)) done; S-1 scoping found S-7 and split off S-8. **next: S-3 or S-4** (both PROVEN untested). |
+| [Open security findings](#open-security-findings) | **6 open, 2 HIGH.** The live priority. S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)) and S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)) done; S-1 scoping found S-7 and split off S-8. **next: S-3** -- both remaining HIGHs are PROVEN untested, and S-3's caller is what S-2 just edited. Both stamped COLD 2026-08-24. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -100,21 +100,46 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   carries the same `status <> 'PERSON'` test `addMember` enforces; when the target cannot hold
   memberships the source's rows are dropped rather than moved. Mutation-verified at both levels.
   Full write-up in the
-  [history file](2026-08-22-backend-cleanup-history.md#s-2-outcome-2026-08-24--the-merge-path-upholds-the-addmember-rule).
+  [history file](2026-08-22-backend-cleanup-history.md#s-2-outcome-2026-08-24----the-merge-path-upholds-the-addmember-rule).
   Taught working rule 17.
 - [ ] **S-3 (HIGH, PROVEN untested). Bug #1's delete-person guard has no test that can fail.**
   `PersonRepository.deletePersonById`'s `AND status = 'PERSON'` is the whole of a high-severity fix
   (admin delete-person must not destroy a real account). Mutation run 2026-08-24: strip the
-  predicate and **all 1,304 tests still pass**. `MetadataServiceTest.deletePerson_...` only
+  predicate and **all 1,304 tests still pass** *(baseline is now **1,312** after S-1 and S-2 --
+  re-run the mutation against that number, not 1,304)*. `MetadataServiceTest.deletePerson_...` only
   `verify()`s a mocked call, `PersonRepository` is mocked everywhere it appears, and there is no
   `PersonRepositoryTest`. Needs one integration test asserting an ACTIVE row survives the call.
+
+  **COLD, and re-verified 2026-08-24 after S-2, which touched this method's only caller.** All
+  three premises still hold on `f2cad5e`: the predicate is live at `PersonRepository.java:215`,
+  `find src/test -name "PersonRepository*"` returns nothing, and all ten test files naming
+  `PersonRepository` mock it. Next because its context is warm -- S-2 just worked inside
+  `UserMergeService.merge`, which is `deletePersonById`'s caller, and inside
+  `UserMergeIntegrationTest`, which is the natural home for the new test: it already seeds PERSON
+  and ACTIVE rows. **Do not mistake that file's `refusesToDeleteARealAccount` for coverage** -- it
+  guards `requireMergeable`'s source check and never reaches this SQL predicate, which is why the
+  mutation ran green with it present. Same shape as the two tests S-1 and S-2 just shipped.
+
+  *Guardrail: add the test, leave `deletePersonById`'s behavior alone.* The tempting adjacent change
+  is to make a non-PERSON delete throw instead of silently affecting zero rows, or to add a status
+  check in `MetadataService` before the call. Both change the admin API's response on an existing
+  path, which is not what a "this fix has no test" item asks for. Report what making it throw would
+  cost instead of doing it. And do not fold in S-4: same working rule, different mechanism (a SQL
+  predicate versus a Spring annotation) and different test type (integration versus context), so it
+  needs its own MR.
 - [ ] **S-4 (HIGH, PROVEN untested). `ProdSecretGuard` can be unwired silently.** Mutation run
-  2026-08-24: delete `@PostConstruct` from `verify()` and **all 1,304 tests still pass**, while the
+  2026-08-24: delete `@PostConstruct` from `verify()` and **all 1,304 tests still pass** *(baseline
+  is now **1,312** -- re-run against that)*, while the
   guard that stops prod booting with a default or blank `internal.api.secret` is dead at startup.
   All six `ProdSecretGuardTest` methods call `verify()` reflectively on a hand-built object, so they
   test the method and not the wiring. Needs a context test that boots the prod profile and expects
   failure. (Separately, `enforceAuthzDisabledThrowsEvenWithAGoodSecret` duplicates the test above
   it; its only distinguishing assertion cannot be false.)
+
+  **COLD, re-verified 2026-08-24.** `@PostConstruct` is live at `ProdSecretGuard.java:31` under
+  `@Profile("prod")` at `:18`, and all six test methods route through a single `invokeVerify` helper
+  doing `getDeclaredMethod("verify").setAccessible(true).invoke(...)` -- so not one of them can see
+  the annotation. Both duplicate methods still present.
 - [ ] **S-5 (LOW, downgraded 2026-08-24). Chunked bodies bypass the public body cap.**
   `RateLimitFilter` reads `getContentLengthLong()`, which is -1 for `Transfer-Encoding: chunked`, so
   a chunked request reaches Jackson capped only by its 20MB `StreamReadConstraints` instead of the
@@ -164,6 +189,17 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
 ### Verified sound, do not re-open
 
 Attacked on 2026-08-24 and held up, recorded so the next pass does not spend the time again.
+
+- **`RoleRepository.addMember`'s `<> 'PERSON'` denylist is correct as-is. Do not tighten it to an
+  ACTIVE allowlist.** S-1's item argued the opposite -- "admitting a DISABLED account to a role is
+  not a dormant grant, it is a live one" -- and used that to say the accounts-only test should be an
+  allowlist. **S-1 shipping falsified its own argument.** A DISABLED account can no longer
+  authenticate at either chokepoint, so a role membership it holds now grants exactly nothing until
+  an admin re-enables the account, which is the definition of dormant. The live-grant premise held
+  only while the auth-path hole was open, and closing that hole is what removed it. What remains is
+  a real but low-severity dormancy concern already stated in `addMember`'s own docblock, and the
+  same shape MR 15 #6 rated low. If someone still wants the allowlist, it needs a fresh argument,
+  not this one.
 
 - **The [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189) `/api/read/user/**`
   matcher.** All 17 replaced guards sit under the pattern; nothing shadows it (the five rules above
@@ -238,6 +274,13 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
    editing correct text to reintroduce a problem. Before acting on a `P:` note that asserts
    something is stale or wrong, verify the claim against the current code -- the note is as old as
    the line number next to it.
+
+   **Sharpened 2026-08-24: a note can be falsified by the very MR it is attached to.** S-1's item
+   justified a *second* change -- tightening `addMember` to an ACTIVE allowlist -- with a premise
+   ("a DISABLED account in a role is a live grant, not a dormant one") that was true only while
+   S-1's own hole was open. Shipping S-1 made it false. So when an item bundles "and this also
+   settles X", re-check X *after* the item lands, not before: the fix may have moved the ground the
+   side-argument stood on. Recorded in "Verified sound, do not re-open".
 9. **Commit with explicit paths, never `git add -A`.** This repo carries untracked review docs in
    `ai_docs/reviews/`. MR 12c's commit used `git add -A` and swept
    `ai_docs/reviews/2026-07-25-open-pr-review.md` (321 lines, untracked since before the session)
@@ -575,7 +618,7 @@ and each needs its claim verified before acting (working rule 8).
 - [ ] Try-catch in controllers, **two sites** (not three -- the third went with bug #15 in MR 7, [#168](https://github.com/themancalledzac/edens.zac.backend/pull/168), confirmed gone by grep): `AdminUserController.mergePreview` and `.merge` (map via `ResourceNotFoundException` plus a new `ConflictException` handler). **Both methods have zero tests**, so this is an untested behavior change on two admin endpoints -- a risk, not a saving.
 - [ ] `@Value` field injection: **9 sites, not 3.** The three named (`CollectionControllerProd`, `ShareControllerProd`, `DownloadUrlService`) plus six in `S3Config` and `SesConfig` that feed `@Bean` methods -- same rule, same fix, and they fold into MR 16 #4. Move to constructor parameters, following the `WebAuthnController` pattern. Test coupling is exactly four `ReflectionTestUtils.setField` calls. Also `@Autowired` on constructors at `AuthLoginLimiter`, `ClientGalleryAccessLimiter`, `WebAuthnChallengeStore`, `WebAuthnService`. **The real size is 1 deletion and 3 comments**: only `AuthLoginLimiter` has a single constructor; the other three genuinely have two, where the second is the package-private test constructor, so `@Autowired` is load-bearing. Fifteen minutes.
 - [ ] Fully qualified names inline: **14 sites, not 6.** The six named (`CollectionService.isGalleryAccessAuthorized`'s parameter -- the doc's `542`, then `533`, is now `534`, which is the third correction to one ref and the reason this item now names symbols; `CollectionProcessingUtil`, `TagViewResolver`, `GalleryAccessCookies`, `ContactMessageLimiter`, `Records.java`) plus eight in the data layer the original scan missed: `BaseDao` (3), `CollectionRepository`, `EquipmentRepository` (3), `PersonRepository`. Import-only, **zero test coupling**. `Records.java` still needs consolidation #20 first (the `FilmFormat` name clash).
-- [ ] `Optional.get()` -- **45 sites, not 17.** The 17 named are all still present; 28 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 3, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
+- [ ] `Optional.get()` -- **46 sites, not 17.** *(45 -> 46 on 2026-08-24: S-1 added `maybeUser.get().getStatus()` to `AuthController.login`, taking that file 3 -> 4. Re-derived after the merge, not estimated -- the raw sweep went 56 -> 57 and the one new line is S-1's. This is the inventory rot working rule 5 warns about, caught by the scoped sweep rather than a full pass.)* The 17 named are all still present; 29 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 4, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
 - [ ] Magic number 2500 at both resize call sites (`ImageProcessingService:192, 292`). Name it.
 - [ ] `JobStatus.status` is a stringly-typed field with its states in a trailing comment (`JobTrackingService`). **Split the item**: making it an enum is COLD and non-breaking (Jackson serializes an enum to the same string), but costs ~45 test references across `AdminControllerTest` and `ImageUploadPipelineServiceTest`. Adding `COMPLETED_WITH_ERRORS` instead of flipping a 500-file job to FAILED over one error is
   **UNBLOCKED as of 2026-08-24** -- the check was run and there is no frontend job-status poller at
@@ -786,6 +829,17 @@ shipped.) The verbose pre-split log is in the
   existed and the drafted `UserMergeServiceIntegrationTest` was a duplicate -- the tracker's
   "neither test added by #191 touches `repointMemberships`" understated it, since **no test anywhere
   did**. Next: S-3 or S-4, the two PROVEN-untested items.
+- 2026-08-24 (close-out) — verified **both merged**: S-1 `bc01452` (#192, squash) and S-2 `f2cad5e`
+  (#193, squash), all CI green. #193 needed a `rebase --onto main` because #192 squash-merged, so
+  its original commits were never on `main` by SHA. Scoped drift sweep over the eight files the two
+  MRs touched found **one inventory claim rotted**: `Optional.get()` 45 -> 46 sites, because S-1
+  added `maybeUser.get().getStatus()` (raw sweep 56 -> 57, exactly attributable) -- corrected in
+  place. **Found a premise S-1 falsified about itself**: its "a DISABLED account in a role is a live
+  grant, not a dormant one" argument for tightening `addMember` to an ACTIVE allowlist died when
+  S-1 closed the auth-path hole; filed under "Verified sound, do not re-open" and used to sharpen
+  working rule 8. Re-verified S-3's and S-4's premises against `f2cad5e` -- all still hold, both
+  now **COLD** with exact anchors (`PersonRepository.java:215`, `ProdSecretGuard.java:31`) and both
+  mutation baselines corrected 1,304 -> 1,312. Next: S-3.
 
 ---
 
