@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **5 open, 1 HIGH.** The live priority. S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)) and S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) done; S-1 scoping found S-7 and split off S-8. **next: S-4**, the last PROVEN-untested item and the last HIGH. Stamped COLD 2026-08-24. |
+| [Open security findings](#open-security-findings) | **4 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) and S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)) done; S-1 scoping found S-7 and split off S-8. Both PROVEN-untested items now redden under their mutations. **next: S-7**, the highest remaining severity and the only live hole left -- a DISABLED user holding an unexpired invite re-activates their own account. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **5 open** (1 high) — see below. S-1, S-2 and S-3 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
+| Security findings | **4 open** (0 high) — see below. S-1 through S-4 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -111,19 +111,14 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   `UserMergeIntegrationTest`, in the
   [history file](2026-08-22-backend-cleanup-history.md#s-3-outcome-2026-08-24----the-delete-person-guard-has-a-test-that-can-fail).
   Sharpened working rule 15's practical note.
-- [ ] **S-4 (HIGH, PROVEN untested). `ProdSecretGuard` can be unwired silently.** Mutation run
-  2026-08-24: delete `@PostConstruct` from `verify()` and **all 1,304 tests still pass** *(baseline
-  is now **1,312** -- re-run against that)*, while the
-  guard that stops prod booting with a default or blank `internal.api.secret` is dead at startup.
-  All six `ProdSecretGuardTest` methods call `verify()` reflectively on a hand-built object, so they
-  test the method and not the wiring. Needs a context test that boots the prod profile and expects
-  failure. (Separately, `enforceAuthzDisabledThrowsEvenWithAGoodSecret` duplicates the test above
-  it; its only distinguishing assertion cannot be false.)
-
-  **COLD, re-verified 2026-08-24.** `@PostConstruct` is live at `ProdSecretGuard.java:31` under
-  `@Profile("prod")` at `:18`, and all six test methods route through a single `invokeVerify` helper
-  doing `getDeclaredMethod("verify").setAccessible(true).invoke(...)` -- so not one of them can see
-  the annotation. Both duplicate methods still present.
+- [x] **S-4 (HIGH, PROVEN untested). `ProdSecretGuard` can be unwired silently.** **DONE**
+  ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)). A `@Nested class Wiring`
+  in `ProdSecretGuardTest` boots real contexts with `ApplicationContextRunner`, so the container is
+  what calls `verify()`. Deleting `@PostConstruct` now reddens two tests and deleting
+  `@Profile("prod")` reddens a third; the duplicate `enforceAuthzDisabledThrowsEvenWithAGoodSecret`
+  is gone. No source change. Full write-up, including why the item's reason for calling that test a
+  duplicate was slightly wrong, in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-4-outcome-2026-08-24----prodsecretguard-cannot-be-unwired-silently).
 - [ ] **S-5 (LOW, downgraded 2026-08-24). Chunked bodies bypass the public body cap.**
   `RateLimitFilter` reads `getContentLengthLong()`, which is -1 for `Transfer-Encoding: chunked`, so
   a chunked request reaches Jackson capped only by its 20MB `StreamReadConstraints` instead of the
@@ -726,12 +721,12 @@ These are worth more than the bloat they replace.
 - [ ] **`UserRatingOverrideControllerProd` has no controller test at all** -- only a service test.
   *(New row 2026-08-24; noted in the history file after MR 15 #2 and never given one. It is also
   the endpoint whose bare-array response has no test either.)*
-- [ ] **One guard test that cannot fail, proven by mutation.** *(Was two. S-3 closed 2026-08-24 in
-  [#195](https://github.com/themancalledzac/edens.zac.backend/pull/195); bug #1's delete-person guard
-  now reddens one test when stripped.)* See **S-4** under "Open security findings":
-  `ProdSecretGuard`'s `@PostConstruct` can still be removed with the whole suite green. Fixing it is
-  coverage work, so it is listed here too; the evidence and the mutation are recorded with the
-  security item and in working rule 15.
+- [x] **Two guard tests that cannot fail, proven by mutation. DONE 2026-08-24** -- S-3
+  ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) and S-4
+  ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)). Bug #1's delete-person
+  guard reddens one test when its SQL predicate is stripped; `ProdSecretGuard` reddens two when
+  `@PostConstruct` is deleted and a third when `@Profile("prod")` is. The mutations and their
+  results are recorded with the security items and in working rule 15.
 - [ ] **MR 11's headline security fix is untested.** Moving eight throw sites to bare
   `RuntimeException` -- so `WebAuthnService` and `JdbcUserCredentialRepository` stop echoing
   `app_user` ids and WebAuthn handles to unauthenticated callers in a 400 body -- has zero coverage.
