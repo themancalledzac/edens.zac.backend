@@ -1633,6 +1633,64 @@ before; the 4 new are 2 parameterized login cases and 2 resolve cases).
 
 
 
+## S-2 outcome, 2026-08-24 -- the merge path upholds the `addMember` rule
+
+One predicate plus a trailing delete, mutation-verified at both the DAO and the service level.
+1308 tests -> 1312.
+
+### The fix, and why it is not a target constraint
+
+The obvious move is to constrain the merge target in `requireMergeable` the way the source is
+constrained. That is wrong: de-duplicating two tag-only people is a normal operation, and a PERSON
+target is the ordinary case, not the suspicious one. Blocking it would break the feature to close
+the hole.
+
+So the guard went where the rule already lives -- the SQL. `repointMemberships` now carries the same
+`status <> 'PERSON'` test `addMember` enforces:
+
+    UPDATE role_member SET user_id = :tgt WHERE user_id = :src
+      AND EXISTS (SELECT 1 FROM users WHERE id = :tgt AND status <> 'PERSON')
+
+and a trailing `DELETE FROM role_member WHERE user_id = :src` clears whatever the guard refused to
+move, returning the count so `UserMergeService` can log it at WARN.
+
+Dropping rather than refusing is the right disposition because of what these rows are. A
+`role_member` row pointing at a PERSON is a row `addMember` will not create; it grants nothing while
+it points at a PERSON; and it exists only because the rule went unenforced for the feature's whole
+life. Moving it onto another PERSON would carry that illegal state across the merge instead of
+ending it. Dropping also matches what the schema does unaided -- `role_member.user_id` is `ON DELETE
+CASCADE` (V45), so anything left on the source vanishes when `deletePersonById` runs a line later.
+
+The trailing delete is therefore redundant in the merge path and kept anyway, so the method leaves
+the table consistent on its own rather than depending on a cascade three migrations away and a
+caller that happens to delete the source next. It is a no-op on every merge into an account.
+
+### Mutation results (working rule 15)
+
+Stripping the `EXISTS ... status <> 'PERSON'` predicate reddens **two tests at two levels**:
+
+| Test | Level |
+|---|---|
+| `RoleRepositoryIntegrationTest.repointMembershipsDropsMembershipsWhenTargetIsNotAnAccount` | DAO |
+| `UserMergeIntegrationTest.mergeIntoPersonTargetDropsMembershipRatherThanCarryingItAcross` | service |
+
+Both hold a positive counterpart asserting an account target still collects the membership, so the
+guard cannot be "passed" by breaking the merge outright.
+
+Both tests need a `role_member` row pointing at a PERSON, which `addMember` refuses to create, so
+both insert it with raw JDBC. That is not a shortcut -- it is the finding's precondition, and it is
+exactly the shape of the pre-`4976220` production rows.
+
+### The service tests went into the existing file
+
+`UserMergeIntegrationTest` already existed with the seed helpers and a class docblock describing
+this exact round-trip; its three tests simply never touched `role_member`. A new
+`UserMergeServiceIntegrationTest` was drafted first and thrown away -- it would have duplicated the
+seeding and split merge coverage across two files in a repo mid-way through a duplication wave. The
+tracker's claim that "neither test added by #191 touches `repointMemberships`" was right but
+understated: **no test anywhere did**, in either file.
+
+
 ---
 
 # Moved from the tracker 2026-08-24 (working rule 11)

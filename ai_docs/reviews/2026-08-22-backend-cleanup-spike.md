@@ -17,9 +17,9 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 |---|---|---|
 | 1 — Deletions | MR 1a-4 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-1--deletions) (#159, #160, #161, #162, #164). Two residuals carried forward, below. |
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173). One residual (bug #17) carried forward, below. |
-| 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). **Superseded by the 2026-08-24 review**: see "Open security findings" below, which now holds seven items including two HIGH ones. |
+| 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). **Superseded by the 2026-08-24 review**: see "Open security findings" below, which now holds six items including two HIGH ones. |
 | 4 — Comments and docs | MR 12-14 | **mostly complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock **items** (four, not one) are still open. |
-| 5 — Consolidations | MR 15-19 | MR 15 #1, #2, #6 **done** ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165), [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). #6 closed the `PersonRepository` carry and taught working rule 14; its own guard was later found to have a bypass (security finding S-2). One MR 15 follow-up still open, below. **next: MR 19 #16** (the only real performance fix in the wave) or MR 16 #4/#5 (zero test coupling). |
+| 5 — Consolidations | MR 15-19 | MR 15 #1, #2, #6 **done** ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165), [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). #6 closed the `PersonRepository` carry and taught working rule 14; its own guard was later found to have a bypass (security finding S-2, closed [#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)). One MR 15 follow-up still open, below. **next: MR 19 #16** (the only real performance fix in the wave) or MR 16 #4/#5 (zero test coupling). |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **7 open, 2 HIGH.** The live priority. S-1 done ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)); S-1 scoping found S-7 and split off S-8. **next: S-2.** |
+| [Open security findings](#open-security-findings) | **6 open, 2 HIGH.** The live priority. S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)) and S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)) done; S-1 scoping found S-7 and split off S-8. **next: S-3 or S-4** (both PROVEN untested). |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **7 open** (2 high) — see below. S-1 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by it. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
+| Security findings | **6 open** (2 high) — see below. S-1 and S-2 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -95,20 +95,13 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   [history file](2026-08-22-backend-cleanup-history.md#s-1-outcome-2026-08-24--userstatus-enforced-in-the-auth-path),
   and the short version is that the field could only ever hold `ACTIVE`. Session revocation on
   status change was deliberately NOT included; it is now **S-8**. Taught working rule 16.
-- [ ] **S-2 (MEDIUM). The MR 15 #6 `addMember` guard has a bypass.** `UserMergeService.merge` calls
-  `RoleRepository.repointMemberships`, which runs a raw `UPDATE role_member SET user_id` and never
-  goes through `addMember`. `requireMergeable` constrains only the *source* (must be PERSON); the
-  target is unconstrained and may itself be a PERSON. So merging PERSON-A, holding a legacy
-  membership row, into PERSON-B hands PERSON-B a membership `addMember` would refuse. The
-  precondition is a `role_member` row pointing at a PERSON id -- which is exactly what the rule
-  being unenforced for the feature's whole life produces, so pre-`4976220` prod rows are unguarded.
-  Neither test added by [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)
-  touches `repointMemberships`.
-  *For the record, a suspicion raised when picking this up was WRONG and should not be re-raised:
-  there is no unguarded "role grant half". `role_collection` is `(role_id, collection_id, level)`,
-  so grants attach to roles and never to a user. `role_member` is the only user-to-grant edge, and
-  `addMember` genuinely is the single choke point. The deleted docblock's "role membership / role
-  grant" was one rule stated twice.*
+- [x] **S-2 (MEDIUM). The MR 15 #6 `addMember` guard has a bypass.** **DONE**
+  ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)). `repointMemberships` now
+  carries the same `status <> 'PERSON'` test `addMember` enforces; when the target cannot hold
+  memberships the source's rows are dropped rather than moved. Mutation-verified at both levels.
+  Full write-up in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-2-outcome-2026-08-24--the-merge-path-upholds-the-addmember-rule).
+  Taught working rule 17.
 - [ ] **S-3 (HIGH, PROVEN untested). Bug #1's delete-person guard has no test that can fail.**
   `PersonRepository.deletePersonById`'s `AND status = 'PERSON'` is the whole of a high-severity fix
   (admin delete-person must not destroy a real account). Mutation run 2026-08-24: strip the
@@ -415,6 +408,24 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     chokepoint covers entry points you failed to enumerate; a guard at an entry point covers only
     that entry point.** When both are available, the read chokepoint is the one that must not be
     skipped.
+
+17. **Put the guard in the statement, not in the caller's precondition.** S-2's obvious fix was to
+    constrain the merge target in `requireMergeable` the way the source is constrained. That would
+    have closed the hole by breaking the feature: merging two tag-only people is a normal
+    de-duplication, so a PERSON target is the ordinary case. The fix that works is one predicate
+    inside `repointMemberships`'s own UPDATE, mirroring the test `addMember` runs.
+
+    The general form: when a raw statement bypasses a guard, the repair belongs in that statement,
+    not in a validation the caller runs first. A caller precondition has to be restated by every
+    future caller and tends to be phrased as "refuse the operation", which is usually too blunt --
+    the statement-level guard can express "do this much of it", which here is *move what the target
+    can hold and drop what it cannot*.
+
+    Corollary on disposition. Dropping rows quietly is normally wrong, but not when the rows are
+    ones the guard would refuse to create, grant nothing in their current state, and exist only
+    because the rule went unenforced. Check what the schema would do unaided before inventing a
+    policy -- `role_member.user_id` is `ON DELETE CASCADE`, so dropping was already the default and
+    repointing was the deviation. Log the count at WARN so the disposition is visible.
 
 ## Ordering note
 
@@ -765,6 +776,16 @@ shipped.) The verbose pre-split log is in the
   the item named, and `InviteController.accept` flips status to ACTIVE unconditionally, so a
   disabled account holding an unexpired invite re-activates itself. Split revocation-on-status-change
   out as S-8. Added working rule 16. Next: S-2.
+- 2026-08-24 — shipped **S-2** ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)):
+  `repointMemberships` now carries the same `status <> 'PERSON'` test `addMember` enforces, and
+  drops the source's membership rows when the target cannot hold them. Mutation-verified at two
+  levels -- stripping the predicate reddens one DAO test and one service test. 1308 tests -> 1312.
+  Rejected the tempting fix of constraining the merge target in `requireMergeable`: PERSON-into-
+  PERSON de-duplication is a normal operation, so that would have closed the hole by breaking the
+  feature. Added working rule 17. Found on the way in that `UserMergeIntegrationTest` already
+  existed and the drafted `UserMergeServiceIntegrationTest` was a duplicate -- the tracker's
+  "neither test added by #191 touches `repointMemberships`" understated it, since **no test anywhere
+  did**. Next: S-3 or S-4, the two PROVEN-untested items.
 
 ---
 
