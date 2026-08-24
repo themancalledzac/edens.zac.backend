@@ -18,7 +18,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173) |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). One residual carried forward, below. |
 | 4 — Comments and docs | MR 12-14 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock item is still open. |
-| 5 — Consolidations | MR 15-19 | MR 15 #2 **done** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)) -- 17 guards, not 18, and the guardrail's premise was false. Taught working rule 13. **next: MR 15 #6** (`currentUserId` onto `AuthPrincipal`). |
+| 5 — Consolidations | MR 15-19 | MR 15 #2 **merged** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), verified 2026-08-24) -- 17 guards, not 18, and the guardrail's premise was false. Taught working rule 13. **next: MR 15 #6** (`currentUserId`, which is four copies not three -- read the re-derived table and its guardrail). |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
@@ -55,6 +55,13 @@ verified done and ticked off in the history file.
   elsewhere". It is not enforced anywhere: both `RoleRepository.addMember` call sites
   (`AdminRoleController`, `AdminUserController`) pass a path-variable user id straight through. So
   this is a live gap, not dead code. Belongs with MR 15 or a security follow-up, not a deletion MR.
+
+  **Fourth carry as of 2026-08-24.** MR 15 opened and #2 shipped without touching it, which is the
+  exact pattern the session-log rule is meant to catch. It is not blocked and it is not hard -- it
+  is that nobody has decided whether it is a security fix or a non-item. **It does not get carried
+  again.** Either it goes in with MR 15 #6, which is already in these same admin controllers
+  (`AdminRoleController.addMember` at 152 and `AdminUserController` at 334 are the two unguarded
+  call sites), or it comes off the board. Decide when picking up #6, and record which.
 - [ ] **Four main-dead, test-live members owed to MR 25** (deleting them means editing test call
   sites, which is why MR 1a deferred them): `ContentService.resolveCollectionDownloadEntries` 2-arg
   overload (5 test sites), `DownloadResolution.extension` -- written, never read, docblock also
@@ -197,6 +204,18 @@ Learned while doing the MRs; they apply to every item still open, not just the o
     narrated; these were hardened by Waves 1-3, so their comments were written on purpose. **Check
     which kind of file you are in before assuming the wave rule applies.**
 
+    **Corollary, learned the hard way in MR 15 #2: this rule licenses keeping a comment, not
+    writing a long one.** That MR added an 8-line block to `SecurityConfig` and was called out for
+    it -- fairly. The rule permitted a comment there (a line-anchored warning: do not move this
+    matcher inside the toggle), but only about three lines of the eight carried it. The rest
+    enumerated the routes, which restates the `/api/read/user/**` pattern sitting on the next line,
+    and re-explained the `hasRole` versus `authenticated()` flyby rationale that the comment FOUR
+    LINES ABOVE already gave at length. That is working rule 10's "a fact the caller already
+    documented", inside a single method. So when adding a comment to a hardened file: read the
+    neighbouring comments first, delete anything they already say, and write only the one fact that
+    cannot be recovered from the code. In a repo that just removed 500 comments, a new one has to
+    earn each line.
+
 13. **A guardrail decays like a line number, and a re-derivation is not self-verifying.** Rule 8
     said a `P:` note rots the same way a `D:` coordinate does. MR 15 #2 found both failure modes at
     once, in the freshest content on the board.
@@ -310,7 +329,56 @@ and each needs its claim verified before acting (working rule 8).
 Consolidation #1 (one client-IP resolver) ships with bug #3 in MR 5.
 
 - [x] #2. One SecurityConfig matcher instead of the copy-pasted `isRealUser` guards. **DONE** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)). **17 guards, not 18** -- the re-derivation counted a javadoc line in `UserShareControllerProd`. The matcher went OUTSIDE the enforce-authz toggle, next to `/api/auth/me`: the guards it replaced were unconditional, so that is the only behavior-preserving placement, and the guardrail's "costs a dev convenience" was false -- dev already required a session on these routes. A flyby now gets 403 rather than 401 there, by decision. Java-only main -42; 28 controller-level assertions became `config/UserRoutesAuthorizationWebMvcTest`. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-2-outcome-2026-08-23).
-- [ ] #6. `currentUserId` exists in three controllers (`AdminUserController:472-475`, `AdminRoleController:170-173`, `ContentDownloadControllerProd:196-199`). Move it onto `AuthPrincipal`.
+- [ ] #6. `currentUserId` is duplicated. **NEXT.**
+
+  **Re-derived 2026-08-24 on `9d15784`. It is FOUR copies, not three, and the fourth is not a
+  controller:**
+
+  | File | Helper | Callers | Doc said |
+  |---|---|---|---|
+  | `controller/admin/AdminUserController` | 472 | 234, 334 | correct |
+  | `controller/admin/AdminRoleController` | 170 | 69, 124, 152 | correct |
+  | `controller/prod/ContentDownloadControllerProd` | 200 | 191 | 196-199 -- drifted |
+  | **`services/CollectionService`** | **549** | **538** | **missed entirely** |
+
+  All four bodies are byte-identical:
+
+  ```java
+  var auth = SecurityContextHolder.getContext().getAuthentication();
+  return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p.userId() : null;
+  ```
+
+  The docblocks are not, and the difference is the whole item. The two admin copies say "or null in
+  dev where the gate is open"; the two read-surface copies say "or null when the request is
+  anonymous". **Both nulls are load-bearing, for different reasons** -- see the guardrail.
+
+  The item's stated fix ("move it onto `AuthPrincipal`") does not survive contact with the code.
+  `AuthPrincipal` is a pure record in `model/` with no Spring dependency, and this helper is a
+  static `SecurityContextHolder` read, not a property of a principal instance. Putting it there
+  drags Spring Security's context into a model type. Decide the home as part of the MR -- a small
+  `config/` or `services/` helper next to the other security plumbing is the likelier answer.
+
+### Guardrail for MR 15 #6: both nulls are deliberate
+
+The consolidated helper must stay null-returning. It is tempting -- especially straight off MR 15
+#2, which proved a chain matcher guarantees a principal -- to make it `orElseThrow` on the grounds
+that every caller is now behind a gate. It is not, and the two null paths are different:
+
+- `AdminUserController` / `AdminRoleController` are `/api/admin/**`, which falls through to
+  `permitAll` in dev because `app.admin.enforce-authz=false`. Null there is the dev path, and these
+  values feed audit columns. Throwing breaks local admin writes.
+- `ContentDownloadControllerProd` / `CollectionService` sit on the public read surface, where
+  anonymous is a legitimate caller. `CollectionService.isGalleryAccessAuthorized` in particular
+  treats null as "not signed in, fall through to the gallery password cookie". Throwing turns an
+  anonymous gallery visit into a 500.
+
+**Leave the null contract alone and report what tightening it would cost.** If the four call sites
+genuinely want different behavior, that is a finding worth writing down, not a refactor to slip into
+a consolidation MR.
+
+Do not fold this into `AuthPrincipal.isRealUser` either. They look alike and are not: `isRealUser`
+tests an injected `@AuthenticationPrincipal` argument, this reads the static holder. After MR 15 #2
+`isRealUser` has six call sites left, all in `/api/auth/**`.
 
 ## MR 16 — Infrastructure classes
 
@@ -358,7 +426,7 @@ Consolidation #1 (one client-IP resolver) ships with bug #3 in MR 5.
 - [ ] `ResponseEntity<?>` twice: `UserSelectsControllerProd:59` (serves two different shapes from one GET — split or wrap) and `MessagesControllerPublic:43` (throw a `RateLimitedException` handled globally, which also unifies the three different 429 body shapes currently in play: empty at `AuthController:65`, Map at `CollectionControllerProd:182-183`, ErrorResponse at `MessagesControllerPublic:48-52`).
 - [ ] Try-catch in controllers, three sites: `AdminUserController:402-409, 427-433` (map via `ResourceNotFoundException` plus a new `ConflictException` handler). The third dies with bug #15 in MR 7.
 - [ ] `@Value` field injection: `CollectionControllerProd:55-56`, `ShareControllerProd:45-46`, `DownloadUrlService:54-55` — move to constructor parameters, following the `WebAuthnController` pattern. Also `@Autowired` on constructors at `AuthLoginLimiter:17`, `ClientGalleryAccessLimiter:31`, `WebAuthnChallengeStore:25`, `WebAuthnService:70` — remove where Spring can pick the constructor unaided, and document the exception where it cannot (two-constructor classes).
-- [ ] Fully qualified names inline: `CollectionService:542` (`jakarta.servlet.http.HttpServletRequest`), `CollectionProcessingUtil:828`, `TagViewResolver:115`, `GalleryAccessCookies:33-34`, `ContactMessageLimiter:40`, `Records.java:23` (root-caused by the name clash, consolidation #20).
+- [ ] Fully qualified names inline: `CollectionService:533` (`jakarta.servlet.http.HttpServletRequest` -- the doc's `542` is stale, corrected 2026-08-24; it is the `isGalleryAccessAuthorized` signature, which MR 15 #6 also touches), `CollectionProcessingUtil:828`, `TagViewResolver:115`, `GalleryAccessCookies:33-34`, `ContactMessageLimiter:40`, `Records.java:23` (root-caused by the name clash, consolidation #20).
 - [ ] `Optional.get()` x17, all guarded, all rule violations: `CollectionService:118, 122, 1157`; `ContentModelConverter:111`; `TagViewResolver:55`; `ContentMutationUtil:79, 298, 327, 435, 493`; `UserInviteService:94, 123`; `MetadataService:87, 156, 213, 348, 396`. Rewrite opportunistically when touching these methods.
 - [ ] Magic number 2500 at both resize call sites (`ImageProcessingService:192, 292`). Name it.
 - [ ] `JobStatus.status` is a stringly-typed field with its states in a trailing comment (`JobTrackingService:27`). Make it an enum. Consider COMPLETED_WITH_ERRORS instead of flipping a 500-file job to FAILED over one error (83-85).
@@ -431,6 +499,7 @@ either make it real work or drop it. The verbose pre-split log is in the
 
 - 2026-08-23 — shipped MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) and the tracker/history split ([#186](https://github.com/themancalledzac/edens.zac.backend/pull/186)); merged [#185](https://github.com/themancalledzac/edens.zac.backend/pull/185). Added working rules 11 and 12. Reconciled Waves 1-3 and surfaced 8 live items from "complete" waves. Re-derived MR 15 #2 (17 guards -> 18, one controller in the wrong package). Next: MR 15 #2.
 - 2026-08-23 — shipped MR 15 #2 ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)); merged [#188](https://github.com/themancalledzac/edens.zac.backend/pull/188). One matcher replaced **17** guards -- yesterday's re-derivation had counted a javadoc line, and its guardrail's dev-convenience premise was false, so the placement decision it framed as a tradeoff had only one behavior-preserving answer. Added working rule 13. Wave 5's first item is closed. Next: MR 15 #6 (`currentUserId` onto `AuthPrincipal`).
+- 2026-08-24 — verified [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189) merged (`9d15784`). Re-derived MR 15 #6 and it is **four copies, not three** -- `CollectionService:549` was missed entirely and is not a controller, and the item's stated fix (put it on `AuthPrincipal`) does not work, because that is a Spring-free record and this is a static context read. Wrote its guardrail: both null returns are load-bearing, for two different reasons. Corrected a stale MR 22 ref (`CollectionService:542` -> `533`) found on the way past. Added the working-rule-12 corollary on writing comments, after MR 15 #2 over-wrote one. Next: MR 15 #6.
 
 ---
 
