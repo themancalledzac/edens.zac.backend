@@ -108,11 +108,9 @@ public class EmailService {
   }
 
   /**
-   * Build and send one SES message, mapping both failure families onto {@code "ses-error"}.
-   *
-   * <p>The two families are {@link SesV2Exception}, meaning the SES API rejected the request
-   * (verification, sandbox, recipient), and {@link SdkClientException}, meaning a client-side
-   * failure (timeout, credentials, region, network).
+   * Build and send one SES message, mapping both failure families onto {@code "ses-error"}: {@link
+   * SesV2Exception} is the SES API rejecting the request (verification, sandbox, recipient), {@link
+   * SdkClientException} a client-side failure (timeout, credentials, region, network).
    *
    * @param label short description used only for logging; never include a token or password
    */
