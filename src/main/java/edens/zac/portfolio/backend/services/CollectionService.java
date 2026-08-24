@@ -61,7 +61,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -1532,8 +1531,8 @@ public class CollectionService {
 
   /** True when the current viewer is an admin or reaches the id through a role grant. */
   private boolean viewerMaySeeHidden(Long collectionId) {
-    var auth = SecurityContextHolder.getContext().getAuthentication();
-    if (auth == null || !(auth.getPrincipal() instanceof AuthPrincipal p) || p.userId() == null) {
+    AuthPrincipal p = CurrentUser.principal();
+    if (p == null || p.userId() == null) {
       return false;
     }
     return collectionAccessService.hasAtLeast(p, collectionId, AccessLevel.GENERAL);

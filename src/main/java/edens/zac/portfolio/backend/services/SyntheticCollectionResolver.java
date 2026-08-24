@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.config.CurrentUser;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
@@ -13,7 +14,6 @@ import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -130,7 +130,7 @@ public class SyntheticCollectionResolver {
    * LISTED only. Nothing client-supplied can widen the scope.
    */
   private List<CollectionEntity> findAllCollectionsForCurrentViewer() {
-    AuthPrincipal principal = currentPrincipal();
+    AuthPrincipal principal = CurrentUser.principal();
     if (principal != null && principal.isAdmin()) {
       return collectionRepository.findNonEmptyListedOrOwnedOrderByDate(ADMIN_SCOPE, List.of());
     }
@@ -140,12 +140,6 @@ public class SyntheticCollectionResolver {
             : collectionAccessService.memberCollectionIdsForUser(principal.userId());
     return collectionRepository.findNonEmptyListedOrOwnedOrderByDate(
         List.of(CollectionVisibility.LISTED), ownedIds);
-  }
-
-  /** The authenticated principal, or null when the request is anonymous. */
-  private static AuthPrincipal currentPrincipal() {
-    var auth = SecurityContextHolder.getContext().getAuthentication();
-    return (auth != null && auth.getPrincipal() instanceof AuthPrincipal p) ? p : null;
   }
 
   /** Map collection tag entities to serializable Records.Tag, tolerating a null/absent list. */
