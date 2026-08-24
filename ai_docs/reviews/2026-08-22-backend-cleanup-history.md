@@ -2279,6 +2279,136 @@ principal: the failure being guarded is a **stripped** principal reaching the ch
 exact-match stub cannot tell that apart from no call at all.
 
 
+## isPasswordProtected outcome, 2026-08-24 -- a locked tile can finally be drawn
+
+Shipped as [#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`.
+`ContentModels.Collection` carries an `isPasswordProtected` component, serialized under exactly that
+name. The frontend's C6 is unblocked. Java-only **+9 / -3** in `src/main`, plus 5 tests.
+
+### Working rule 21 on its first outing: "four builders" was two, and the two that mattered were not builders
+
+The item prescribed "add an `isPasswordProtected` component to `ContentModels.Collection` and
+populate it where the four content-block builders construct one". Grepping construction rather than
+builders gives a different list:
+
+| Site | Kind | Populated from |
+|---|---|---|
+| `ContentModels.Collection.fromCollectionModel` | construction | `CollectionModel.getIsPasswordProtected()` |
+| `ContentModelConverter.buildCollectionRecord` | construction | `referencedCollection.getGalleryPassword() != null` |
+| `Collection.withTags` | **copy** | threads the component |
+| `Collection.withOrderIndex` | **copy** | threads the component |
+
+The item's four "builders" are `SyntheticCollectionResolver`, `TagViewResolver`, `UserPageAssembler`
+and `ContentModelConverter` -- but the first three all call the same static factory, so there is one
+site behind three of them. That miscount is harmless. The copy methods are not.
+
+`withTags` runs on the synthetic-list path **immediately after** `fromCollectionModel`
+(`SyntheticCollectionResolver:108`). A record copy that omitted the new component would compile,
+serialize, and read `false` on `all-collections` and `all-blogs` while reading correctly on every
+other path -- so the flag would be wrong on precisely the list the frontend asked for it for, and
+right everywhere a spot-check would look. This is rule 21's "ask what inputs the item did not
+enumerate", where the unenumerated input is a *method*, not a caller. The precedent already existed
+one test away: `resolveAllCollectionsKeepsVisibilityThroughTagEnrichment` was written for the same
+hazard on `visibility`.
+
+Rule 14's corollary applies verbatim here and is worth restating in record terms: **on a record, the
+`with*` copy methods are construction sites.** A grep for `new ContentModels.Collection(` finds them;
+a grep for "builders" does not.
+
+### The nullability the item did not mention
+
+`CollectionModel.isPasswordProtected` is a `Boolean`, not a `boolean`, and `CollectionModel.builder()`
+leaves it null. `SyntheticCollectionResolverTest` builds models exactly that way. So
+`fromCollectionModel` reads it through `Boolean.TRUE.equals(...)`; plain unboxing would have NPE'd on
+the first anonymous request to a synthetic list. The guard test covers both a set flag and a null one
+in one assertion, which is why it is `containsExactly(true, false)` rather than a single value.
+
+### The data was checked at every path rather than assumed
+
+The flag is only as good as `gallery_password` being loaded. Verified:
+
+- Every query feeding `batchConvertToBasicModels` and `findByIds` runs through `COLLECTION_ROW_MAPPER`,
+  whose canonical `COLLECTION_COLUMN_NAMES` list includes `gallery_password` and whose mapper sets it.
+  That covers `findNonEmptyListedOrOwnedOrderByDate`, `findNonEmptyOrderedByVisibilityIn`,
+  `findClientGalleriesAndQualifyingParents` and `findCollectionsByTagId`.
+- `ContentCollectionEntity.referencedCollection` is an **id-only stub** -- `ContentRepository:143`
+  sets nothing but the id. Reading `getGalleryPassword()` off it returns null for a protected gallery.
+  Both callers hydrate first: the singular path refetches on a null title, the batch path substitutes
+  from `referencedCollectionsById`. `buildCollectionRecord`'s docblock now says so, because that is a
+  warning about a line and not a fact about the method (working rule 12).
+- The one narrow projection that omits `gallery_password`, `findCollectionListEntries` at
+  `CollectionRepository:606`, does not build content blocks. It backs
+  `GET /api/admin/collections/metadata`.
+
+### The cost report the guardrail was owed
+
+The guardrail named two adjacent changes and said to leave both alone and write down what they would
+take. Both are worse than the item's framing suggested.
+
+**A `gallery_password` filter on the read queries does not merely break a contract -- it empties a
+list.** `findClientGalleriesAndQualifyingParents` backs the `all-client-galleries` synthetic slug and
+selects `is_client = true` plus derived parents. Client galleries *are* the password-protected work.
+Filtering protected rows out of the read queries removes the entire content of that list, and the
+wedding-wrapper parents with it. The item costed this as a contract break with the frontend; the
+contract break is real but secondary. Two further costs: the frontend has already scoped its half of
+C6 against a serialized flag, and the nested case already has a boundary --
+`CollectionService.filterNonListedChildCollections` drops a protected child from an unprotected
+parent -- so a query-level filter would be a second enforcement point for a rule that already has one.
+
+**Stripping `coverImage` reddens tests that were written on purpose and splits list from detail.**
+Three tests assert the cover IS returned: `getCollectionBySlug_protectedNoCookie_retainsCoverImage`
+and its invalid-cookie and valid-cookie siblings. The detail response returns the cover for a
+protected gallery today, so stripping it on list paths only would make the two disagree about the
+same collection. What is actually withheld from an unauthorized viewer is `content` and
+`contentCount`, which those same tests pin.
+
+**The exposure both changes were aimed at stays latent, not live.** It needs a collection that is
+simultaneously LISTED and password-protected. Prod convention keeps protected work UNLISTED, and
+nothing enforces that -- which is the honest residual, unchanged by #209. #209 makes the state
+*visible* to the client rather than impossible, which is what the frontend asked for.
+
+### The second stale comment, and why it is worse than the banner
+
+The item sent this MR to fix one stale comment: the BE-H5 section banner reading "coverImage must be
+stripped", sitting above three tests named `...retainsCoverImage`. That was fixed, and the
+replacement says what is actually withheld and records that the old text crossed a repo boundary.
+
+Writing the cost report turned up a **second** one in the same file, and it is the worse of the two.
+`CollectionControllerProdTest` has a section headed "Fix 1: coverImage stripped for protected
+CLIENT_GALLERY on list endpoints", whose test comment names the stripper:
+`CollectionProcessingUtil.buildBasicModel`. That method sets `coverImage` unconditionally. The test
+hand-builds a model with `coverImage(null)` and mocks `CollectionService`, so it asserts controller
+pass-through and could not fail if stripping were added, removed, or never written.
+
+Two independent comments in one file claiming the same protection, neither true, is what made the
+frontend's Option B premise false **in both halves** rather than just one. That produced **working
+rule 22**. The row is left open under "Carried forward" rather than fixed here: it sits inside the
+guarded area, and deciding whether the section is a stale record or an unimplemented specification is
+work, not a comment edit.
+
+### Mutation results (working rule 15)
+
+| Mutation | Reddens |
+|---|---|
+| Drop the component from `Collection.withTags` | `resolveAllCollectionsKeepsPasswordProtectedThroughTagEnrichment` |
+| `fromCollectionModel` passes `false` | same test |
+| `buildCollectionRecord` passes `false` | `buildCollectionModelWithBatchData_reportsPasswordProtection` |
+
+All three verified red, then restored. **A restore lesson worth recording**: the first attempt used
+`git checkout` on a file holding uncommitted work and destroyed the whole change, not the mutation.
+Working rule 15's practical notes cover `touch` and stale classes but assume the change is committed.
+It is: **commit the MR before mutating it**, then `git checkout` is a safe restore.
+
+`buildCollectionModelWithBatchData` had **no test coverage at all** before this -- zero references
+across `src/test`. The two tests added for the flag are the first tests that method has ever had.
+
+### #210 is the natural next item, and it is already open
+
+The `CurrentUser` fold was the warmer item all along and was passed over only because another team
+was blocked on this one. It is now open as
+[#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), rebased onto `a6550b0`.
+After that, the `share/email` 404 is the last cross-repo item anyone is waiting on.
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked

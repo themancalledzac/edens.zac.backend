@@ -32,7 +32,7 @@ is the same failure the paragraph above was written to fix:
 | Section | Status |
 |---|---|
 | [Open security findings](#open-security-findings) | **0 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **3 open, 1 answered.** One is a live 404. **Holds the next item** -- `isPasswordProtected`, moved here from "Decisions needed" 2026-08-24 once its remaining decision was found to be already settled. The frontend's C6 is blocked on it. |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **2 open, 2 answered.** `isPasswordProtected` shipped ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)) and unblocked the frontend's C6. One of the two remaining is a live 404. |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -53,7 +53,32 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 Reconciled 2026-08-23 during the history split, re-reviewed 2026-08-24. Waves 1-3 read "complete"
 but held **eight live items**, collapsed into five entries. Since then: the `PersonRepository` entry
 was closed by MR 15 #6 (decided, not deferred), and the chunked-body residual moved to **S-5** under
-"Open security findings". What is left is below, plus one bug that never had a row at all.
+"Open security findings". What is left is below, plus one bug that never had a row at all and one
+found while costing #209's guardrail.
+
+- [ ] **The `coverImage` stripping that does not exist, and the test that cannot fail.** *(New row
+  2026-08-24, found while writing #209's cost report; taught **working rule 22**.)*
+  `CollectionControllerProdTest` has a section headed **"Fix 1: coverImage stripped for protected
+  CLIENT_GALLERY on list endpoints"**, and its test
+  `getAllCollections_protectedClientGallery_returnNullCoverImage` carries the comment "stripped by
+  `CollectionProcessingUtil.buildBasicModel`". **No such stripping exists** --
+  `buildBasicModel` sets `coverImage` unconditionally from `coverImagesById`, verified by read.
+  The test hand-builds a `CollectionModel` with `coverImage(null)` and mocks `CollectionService`, so
+  it asserts only that the controller passes through what the service handed it. Strip nothing,
+  change nothing, and it stays green: working rule 15's shape exactly, reporting coverage for a
+  security behavior that was never written.
+
+  **This is the second of the two comments in that file** that claim stripping. The first -- the
+  BE-H5 banner -- was corrected in #209, because it is the one that crossed the repo boundary and
+  produced the frontend's false premise. This one was left alone deliberately: it sits inside the
+  area #209's guardrail said not to touch, and changing it is a judgement about what the tests
+  should assert, not a comment fix.
+
+  **What to decide, and it is not obvious.** Either the section is a stale record of a fix that was
+  reverted or never landed, in which case delete the banner and rename the test to what it actually
+  asserts (controller pass-through); or list-endpoint stripping is genuinely wanted, in which case
+  the test is a specification with no implementation and the work is real. Do not resolve this by
+  reading the comment. #209's cost report has what implementing it would break.
 
 - [ ] **Bug #17 (medium) — `updateImages` claims a batch save it does not do.** *(New row
   2026-08-24. This finding has existed since MR 12b with a full write-up in the history file and
@@ -632,6 +657,30 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     name. Working rule 16 is the specific instrument for this; rule 21 is why to keep reaching for
     it even when the item looks fully specified.
 
+22. **A comment claiming a protection exists is a claim to check, not documentation to trust.**
+    Rule 7 warns against manufacturing a bug report out of a stale comment. This is the inverse, and
+    it costs more. `CollectionControllerProdTest` carried **two independent comments** asserting that
+    `coverImage` is stripped for password-protected collections. Neither is true:
+    `CollectionProcessingUtil.buildBasicModel` sets the cover unconditionally, and the three tests
+    under the first banner are named `...retainsCoverImage` and assert the opposite. One of the two
+    crossed a repo boundary and produced the frontend's false Option B premise -- which is what made
+    `isPasswordProtected` look like a decision to be made rather than an implementation to do.
+
+    The asymmetry is the point. A stale comment about **behavior** gets corrected the next time
+    somebody reads the code, because the code contradicts it in front of them. A stale comment about
+    a **protection** does not, because nobody re-derives a guarantee they have been told already
+    holds. It survives every reading until someone needs it to be true.
+
+    And the test named for the protection may be exactly the one that cannot fail.
+    `getAllCollections_protectedClientGallery_returnNullCoverImage` hand-builds a model with
+    `coverImage(null)` and mocks `CollectionService`, so it asserts controller pass-through and never
+    the stripping it is named for. Rule 15 called that shape worse than no test; a security claim in
+    the banner above it is how the shape survives review.
+
+    So before relying on any comment saying something is filtered, stripped, gated or scoped: find
+    the line that does it. If the only evidence is the comment plus a test whose own fixture supplies
+    the result, the protection does not exist.
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collided, and it was handled: `PersonRepository.deleteById` was listed under both MR 1 and bug #1, and was held until MR 5 because it had a live caller -- dangerous code, not dead code. It shipped with MR 5 and is gone.
@@ -683,34 +732,20 @@ and each needs its claim verified before acting (working rule 8).
 
 ### The MR 15 #6 follow-up, left open on purpose
 
-- [ ] Fold the last two copies of the same static read into `CurrentUser`. **Half of this shipped
-  inside S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) as a side
-  effect, not deliberately** -- S-6 needed the whole principal at two gates, so
-  `CurrentUser.principal()` now exists and `userId()` delegates to it. Verified 2026-08-24 at
-  `CurrentUser:25` and `:33`.
+- [ ] Fold the last two copies of the same static read into `CurrentUser`. **PR OPEN, not merged**
+  -- [#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), branched off `a6550b0`.
+  Both copies are gone: `SyntheticCollectionResolver.currentPrincipal` deleted (it was byte-identical
+  to `CurrentUser.principal()`) and `CollectionService.viewerMaySeeHidden` delegates, keeping its
+  `p.userId() != null` check. Behavior-preserving, no test changes, 1,350 green. Grepping the read
+  shape now returns four sites, not six.
 
-  **What is left is smaller than the item was written for, and is now a pure delete-and-delegate**:
-  `SyntheticCollectionResolver.currentPrincipal` (`:146-149`, re-verified byte-identical to
-  `CurrentUser.principal()` -- delete it and call the shared one) and
-  `CollectionService.viewerMaySeeHidden` (**now `:1534`, was `:1531`** -- S-6's javadoc pushed it
-  down 3; replace the inlined read, keep the `p.userId() != null` check, which is load-bearing
-  because it passes the whole principal to `hasAtLeast`). Mechanical and behavior-preserving.
+  The half that shipped by accident inside S-6 is what made this cheap -- `CurrentUser.principal()`
+  already existed. Tick this row when #210 merges.
 
-  This is the third principle on the board's own front page: the item that just merged did part of
-  a later item's job without either item knowing. Nobody would have found this by reading the
-  board -- it turned up because the drift sweep is scoped to the merge neighborhood.
-
-  **COLD**, and cheaper than when it was written. Guardrail if picked up: the other three
+  **Guardrail, still live for whoever reviews it:** the other three
   `getContext().getAuthentication()` sites are **not** copies -- `CollaboratorAccessInterceptor`
-  resolves an access level, `FlybySessionFilter` tests whether an authentication already exists,
-  and `AuthController` serves `/api/auth/me`. None extracts a user id. Leave them.
-
-  Already checked, do not re-flag: grepping the read shape
-  (`getContext().getAuthentication()`) across `src/main` returns six sites. `CurrentUser` is the
-  consolidated one, these two are the follow-up, and the remaining three are genuinely different
-  uses -- `CollaboratorAccessInterceptor` resolves an access level, `FlybySessionFilter` tests
-  whether an authentication already exists, and `AuthController` serves `/api/auth/me`. None of
-  the three extracts a user id.
+  resolves an access level, `FlybySessionFilter` tests whether an authentication already exists, and
+  `AuthController` serves `/api/auth/me`. None extracts a user id. Leave them.
 
 ## MR 16 — Infrastructure classes
 
@@ -1065,6 +1100,8 @@ shipped.) The verbose pre-split log is in the
 
 - 2026-08-24 — close-out pass, no code shipped. **Verified both merged**: S-5 `516c276` (#206, squash) and S-6 `d79d30f` (#207, squash), branches deleted. **The security board is closed -- nine items, zero open.** **The drift sweep found the most valuable thing on this run and it was not a line number**: the `CurrentUser` fold item is now *half done*, because S-6 needed the whole principal at two gates and added `CurrentUser.principal()` with `userId()` delegating -- exactly clauses one and two of an item neither S-6 nor the item knew about. That is the board's third principle paying out literally, and it was only visible because the sweep is scoped to the merge neighborhood. **Four refs corrected, all inside that neighborhood**: `viewerMaySeeHidden` 1531 -> 1534, the `isGalleryAccessAuthorized` FQN 534 -> 541 (**fourth** correction to one ref), `UserSelectsControllerProd.list` 59 -> 55, and `UserShareControllerProd`'s `124-152` de-positionalized after the old range was found to **overrun the end of a 145-line file**. **Added working rule 21**, hoisted from a four-item pattern rather than one item: S-7, S-8, S-5 and S-6 each had a correct premise and a prescribed fix that would have shipped a bug verbatim, and in three of the four the miss was an unenumerated input, not bad reasoning. **Fixed the log itself** -- the last five entries were in reverse order, because recent sessions prepended where the file appends. Next: `isPasswordProtected` on the content-block path, chosen over the warmer `CurrentUser` fold because the frontend's C6 is blocked on it.
 
+- 2026-08-24 — shipped **`isPasswordProtected` on the content-block path** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`), and opened the **`CurrentUser` fold** ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), rebased onto `a6550b0`, mergeable, 1,350 green). **Working rule 21 earned its keep on its first outing**: the item said to populate the flag "where the four content-block builders construct one", and there are **two** construction sites, not four -- plus two record copy methods the item never named. `withTags` is the one that mattered, because it rebuilds the record on the synthetic-list path immediately after `fromCollectionModel`, so a faithful reading of the item would have shipped a flag reading `false` on exactly the path the frontend's C6 needs and `true` everywhere else. **The costing the guardrail asked for found the sharper fact**: a `gallery_password` filter on the read queries would not merely break a contract, it would **empty `all-client-galleries`**, since that list selects `is_client = true` and client galleries are the protected ones. **Added working rule 22**, hoisted from a second stale comment found while costing: `CollectionControllerProdTest` claims `coverImage` stripping in **two** places, the behavior exists in neither, and the test named for it cannot fail. The banner that crossed the repo boundary was fixed in #209; the other is a new row under "Carried forward", because deciding it is work rather than a comment fix. Next: merge #210, then the `share/email` 404 -- the last cross-repo item another team is waiting on.
+
 ---
 
 # Decisions needed from the user
@@ -1138,48 +1175,12 @@ shipped.) The verbose pre-split log is in the
 # Cross-repo findings owed to the frontend
 
 Raised 2026-08-24. These are backend-side answers or backend-side work that the frontend is waiting
-on. **The `isPasswordProtected` item moved here 2026-08-24**, from "Decisions needed", where this
-note used to say it belonged "because it needs a decision first". It does not any more: the item
-itself disproved Option B's premise in both halves, which leaves Option A as the only viable path,
-so what is left is implementation and not a call for the user to make. It is the **next** item.
+on. **The `isPasswordProtected` item shipped from here 2026-08-24** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)).
+It had been moved here from "Decisions needed" earlier the same day, once the item was found to have
+disproved its own remaining decision -- which left implementation, not a call for the user to make.
+Worth keeping as precedent: an item parked for a decision may already contain the answer.
 
-- [ ] **`isPasswordProtected` on the content-block path -- BLOCKING A FRONTEND ITEM.** *(New row
-  2026-08-24, from the frontend's cross-repo review; their item C6 is waiting on this.)*
-  Recommendation is **Option A: serialize `isPasswordProtected` on `ContentModels.Collection`.** The
-  frontend's Option B assumed "BE-H5 already strips the protected cover" -- **that premise is false
-  in both halves.** Verified: `ContentModels.Collection` carries `coverImage` and has no
-  `isPasswordProtected` component, and the three BE-H5 tests are named `...retainsCoverImage` and
-  assert the cover IS returned. The stale section banner above them, which still reads "coverImage
-  must be stripped", is what sent the frontend down the wrong branch. Three of the four content-block
-  builders (`SyntheticCollectionResolver`, `TagViewResolver`, `ContentModelConverter` before its
-  downstream filter) apply no password filter at all, and no read query filters on `gallery_password`.
-  **Honest scope: the exposure is latent, not live** -- it needs a collection that is both LISTED and
-  password-protected, and prod convention keeps protected work UNLISTED. Nothing enforces that
-  combination, though. Fix is one component plus the two-line frontend change already scoped.
-
-  **NEXT (chosen 2026-08-24, after the security board closed).** Picked over the warmer
-  `CurrentUser` fold because it is the only open item that another team is waiting on -- the
-  frontend's C6 is blocked until this ships -- and because it is already fully specified: Option A,
-  add an `isPasswordProtected` component to `ContentModels.Collection` and populate it where the
-  four content-block builders construct one.
-
-  **Guardrail, and it matters here.** The tempting adjacent change is to make the exposure
-  impossible rather than visible: adding a `gallery_password` filter to the read queries, or
-  stripping `coverImage` from protected collections the way the stale BE-H5 banner claims already
-  happens. **Leave both alone and report what changing them would cost.** Three reasons. The
-  frontend has already scoped its half against a serialized flag, so filtering server-side breaks
-  the contract they built to. The BE-H5 tests are named `...retainsCoverImage` and assert the cover
-  IS returned, so stripping it reddens tests that were written deliberately. And the exposure is
-  latent, not live -- it needs a collection that is simultaneously LISTED and password-protected,
-  which prod convention does not produce. Ship the flag; write down what the filter would take.
-
-  While in the file, **fix the stale section banner above the BE-H5 tests** that still reads
-  "coverImage must be stripped". It is not incidental tidying -- that banner is what sent the
-  frontend down the wrong branch and produced their false Option B premise. Leaving it correct-adjacent
-  costs the next cross-repo reader the same wrong turn.
-
-  **COLD.** Nothing unanswered. The recommendation is settled, the frontend's half is already
-  scoped, and the one premise anybody disputed was checked and found false.
+- [x] **`isPasswordProtected` on the content-block path.** **DONE** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`). Option A shipped: `ContentModels.Collection` carries the flag, populated at both construction sites. The frontend's C6 is unblocked. The guardrail held -- the read-query password filter and `coverImage` stripping were left alone and costed instead. Taught **working rule 22**, and found a second stale comment worse than the banner it was sent to fix (see the new row under "Carried forward"). [Full write-up](2026-08-22-backend-cleanup-history.md#ispasswordprotected-outcome-2026-08-24----a-locked-tile-can-finally-be-drawn).
 
 - [ ] **`POST /api/read/user/share/email` does not exist, and the frontend calls it.** Verified from
   both sides: `emailShareLink` in the frontend's `app/lib/api/share.ts` POSTs to that path, the UI is
