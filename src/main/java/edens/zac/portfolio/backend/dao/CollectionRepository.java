@@ -936,14 +936,16 @@ public class CollectionRepository extends BaseDao {
     return queryForObject(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
   }
 
+  /**
+   * Rows for the given content ids, ordered by collection id. The ORDER BY is load-bearing: without
+   * it Postgres returns an arbitrary order, and any caller that resolves "the" parent of a piece of
+   * content picks a different collection on different requests (S1).
+   */
   @Transactional(readOnly = true)
   public List<CollectionContentEntity> findContentByContentIdsIn(List<Long> contentIds) {
     if (contentIds == null || contentIds.isEmpty()) {
       return List.of();
     }
-    // ORDER BY is load-bearing, not cosmetic: without it Postgres returns rows in an arbitrary
-    // order and any caller that resolves "the" parent of a piece of content picks a different
-    // collection on different requests (S1).
     String sql =
         SELECT_COLLECTION_CONTENT + " WHERE content_id IN (:contentIds) ORDER BY collection_id";
     MapSqlParameterSource params = createParameterSource().addValue("contentIds", contentIds);

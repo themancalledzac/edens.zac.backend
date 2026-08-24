@@ -22,6 +22,10 @@ class DatabaseInfoLogger {
     this.dataSource = dataSource;
   }
 
+  /**
+   * Log the active profiles, the configured datasource URL and username, and the driver and product
+   * actually connected. Never logs credentials.
+   */
   @PostConstruct
   void logDatabaseInfo() {
     String[] activeProfiles = environment.getActiveProfiles();
@@ -29,12 +33,10 @@ class DatabaseInfoLogger {
     String urlFromEnv = environment.getProperty("spring.datasource.url");
     String username = environment.getProperty("spring.datasource.username");
 
-    // Log environment-configured values
     log.info("Active Spring profiles: {}", profiles);
     log.info("Configured datasource URL: {}", urlFromEnv);
     log.info("Configured datasource username: {}", username);
 
-    // Try to log driver/product actually connected (without exposing sensitive data)
     try (Connection conn = dataSource.getConnection()) {
       DatabaseMetaData meta = conn.getMetaData();
       String productName = meta.getDatabaseProductName();

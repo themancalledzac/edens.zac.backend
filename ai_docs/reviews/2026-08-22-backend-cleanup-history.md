@@ -1328,3 +1328,61 @@ both date-format rules -- each now stated once, in the method that enforces it, 
 three times across the file. Two docblocks (`S3MultipartOutputStream.close`,
 `ImageMetadata.ShutterSpeedExtractor`) were left alone: they were already dense, and cutting them
 further would have cost information rather than restatement.
+
+---
+
+## MR 14 outcome (2026-08-23)
+
+Re-derived on `51fede9`: 93 in-method comments across 20 files, matching the count the tracker
+predicted exactly -- the first Wave 4 worklist that did not need re-deriving. Disposition:
+
+| | count | |
+|---|---|---|
+| deleted | 7 | restated the code, or the docblock already said it |
+| promoted | 19 | a fact about the whole method |
+| kept inline | 66 | a warning attached to one specific line |
+| quarantined | 1 | `ContentService:227`, bug #16's only evidence |
+
+Java-only **+4 lines / -51 words**. Twenty files became thirteen; seven went to zero
+(`ClientGalleryAuthService`, `TextFormType`, `DatabaseInfoLogger`, `ClientIp`,
+`JdbcPublicKeyCredentialUserEntityRepository`, `RequestMetricInterceptor`, `CollectionRepository`).
+
+### The seven deletes
+
+Three in `ClientGalleryAuthService` (`// Not password-protected -- allow access` above
+`if (getGalleryPassword() == null) return true;`, and two like it), two in `TextFormType`
+(`// Try to match by enum name first` above `valueOf(value.toUpperCase())`), one in
+`DatabaseInfoLogger` (`// Log environment-configured values` above three `log.info` calls), and
+`ClientIp:34` -- whose class javadoc already stated the same fact almost verbatim, which is
+precisely the check working rule 10 asks for.
+
+### The nineteen promotes
+
+`JdbcPublicKeyCredentialUserEntityRepository.save`/`delete` (5 lines) -- both are whole-method
+no-ops, and an `@Override` no-op is exactly what a docblock is for. `DatabaseInfoLogger` (1),
+`RequestMetricInterceptor.afterCompletion` (2), `ContentRepository.searchImages` (3, a
+caller-visible ordering contract), `CollectionRepository.findContentByContentIdsIn` (3, likewise),
+and `AdminUserController.upgradeUser` (3) and `.merge` (2), both folded into docblocks that already
+existed -- so each was compressed against what the docblock already said rather than appended.
+
+### Why 66 stayed
+
+The measurement is in working rule 12. `SecurityConfig`'s 24 were the test case the guardrail asked
+for: a careful promoted draft that keeps every fact and states each rule once still came to 289
+words against the inline 265, **+24 words (+9%)**, plus about ten lines of javadoc scaffolding. All
+of the overhead is anchor-naming. A docblock must write "on `/api/auth/me`, `/api/auth/logout`,
+`/api/auth/webauthn/register/**` and `/api/edit/**`" to say what an inline comment says by sitting
+on the line.
+
+The other durable cases: `RoleRepository`'s three `\s` notes sit against the text block whose
+trailing `\s` they protect, and an editor deleting that `\s` would never read a docblock;
+`AdminBootstrap`'s "Do not fix this into a single statement without preserving that property" has to
+be next to the two statements; `CollectionControllerProd`'s six lines explain a `Cache-Control` call
+that is deliberately *absent*, which no docblock can point at.
+
+### Bug #16, re-verified
+
+Still real. `ContentRepository.saveImage` is a single-row INSERT/UPDATE; the loop in `updateImages`
+calls it once per image; the log line still reads "Batch saved {} updated images". The only
+`batchUpdate` in `ContentRepository` is in `saveContentPeople`, a different table. N image edits
+issue N statements. The comment stays put.

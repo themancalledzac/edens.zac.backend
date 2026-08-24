@@ -9,7 +9,7 @@ import java.util.List;
  *
  * <p>LISTED - appears in list endpoints, searchable, allowed as visible child collection.
  *
- * <p>UNLISTED - direct slug access only (still requires password if password_hash set).
+ * <p>UNLISTED - direct slug access only (still requires password if gallery_password set).
  *
  * <p>HIDDEN - dev environment only; returns 404 for any non-local request.
  */

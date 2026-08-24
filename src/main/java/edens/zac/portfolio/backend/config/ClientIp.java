@@ -31,7 +31,6 @@ public final class ClientIp {
     if (realIp != null && !realIp.isBlank()) {
       return realIp.trim();
     }
-    // X-Forwarded-For without X-Real-IP = direct request, not through the proxy -- ignore it
     return request.getRemoteAddr();
   }
 }
