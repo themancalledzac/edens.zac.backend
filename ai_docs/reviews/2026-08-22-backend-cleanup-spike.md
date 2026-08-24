@@ -29,7 +29,7 @@ to anyone navigating by this table:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **4 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) and S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)) done; S-1 scoping found S-7 and split off S-8. Both PROVEN-untested items now redden under their mutations. **next: S-7**, the highest remaining severity and the only live hole left -- a DISABLED user holding an unexpired invite re-activates their own account. |
+| [Open security findings](#open-security-findings) | **5 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) and S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)) done; S-1 scoping found S-7 and split off S-8, and S-7's verification found S-9. Both PROVEN-untested items now redden under their mutations. **next: S-7**, the highest remaining severity and the only live hole left -- a DISABLED user holding an unexpired invite re-activates their own account. Fully specified 2026-08-24; the fix is an `INVITED` allowlist, not a product call. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | 2 open, 1 answered. One is a live 404. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -38,7 +38,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **4 open** (0 high) — see below. S-1 through S-4 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
+| Security findings | **5 open** (0 high) — see below. S-1 through S-4 closed 2026-08-24; S-7 (new) and S-8 (split from S-1) opened by S-1, S-9 opened by S-7's verification. The original "8 (1 high)" double-counted security bugs already in the Bugs row | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -158,12 +158,55 @@ the two marked PROVEN were demonstrated by mutating the source and watching the 
   on every request, so neither path grants access -- the passkey session is dead on its next
   request. The invite path is the real one, because it changes the column rather than riding a stale
   read. Precondition is an outstanding invite (7-day TTL) against a since-disabled account.
+
+  **COLD, fully re-verified against `4abb28e` 2026-08-24.** Every premise holds, with anchors:
+  `sessionService.create` has exactly three callers -- `AuthController.java:94` (guarded by S-1),
+  `InviteController.java:101`, `WebAuthnService.java:209`. `WebAuthnService.finishLogin` goes
+  `findByWebauthnUserHandle` -> `sessionService.create(user, true, ...)` with no status read between.
+  `InviteController.accept` calls `updateStatus(userId, UserStatus.ACTIVE)` unconditionally at
+  `:94`, seven lines before minting. S-1's guard is live at `SessionService.java:149`
+  (`if (user.getStatus() != UserStatus.ACTIVE) return Optional.empty()`), which is what makes the
+  passkey half harmless and the invite half real. `INVITE_TTL_DAYS = 7` confirmed at
+  `UserInviteService.java:21`.
+
+  **The fix is not blocked on a product call, and the reason is `UserStatus.INVITED`.** The item
+  reads as though "should accepting an invite activate a DISABLED user?" is an open question. It is
+  not -- the enum already answers it. The sanctioned lifecycle is `INVITED -> ACTIVE`:
+  `AdminUserController:123` creates invited users as `INVITED`, and the re-invite path at
+  `AdminUserController:224` deliberately sets a user *back* to `INVITED` before issuing a fresh
+  token. So an admin who wants a disabled user re-admitted already has a supported route, and
+  `accept` flipping `DISABLED -> ACTIVE` is simply a state transition the machine does not sanction.
+  The fix is to require `INVITED` at the flip -- an allowlist, the same shape S-1 shipped, not a
+  `<> DISABLED` denylist.
+
+  Both halves are one MR: same finding, same file pair, and the WebAuthn guard is three lines. Do
+  **not** fold in S-9 (below), which is the same hole's other end and a different mechanism.
 - [ ] **S-8 (LOW, split out of S-1 2026-08-24). `updateStatus` does not revoke live sessions.**
   `AppUserRepository.updateStatus` is a bare `UPDATE` with no session revocation. S-1 shipped the
   `resolve` guard and deliberately left this out, which was the scoping the item asked for: with the
   guard in place a disabled account's sessions stop resolving on their next request, so revocation
   narrows the window from one request to zero and tidies `user_session` rows that will never resolve
   again. Defense in depth, not a live hole.
+
+- [ ] **S-9 (LOW, new 2026-08-24). Disabling a user does not invalidate their outstanding invites.**
+  Found while verifying S-7's precondition. `UserInviteService.invalidateInvites` exists and works,
+  and has **exactly one caller**: `AdminUserController:292`, on the email-change path only
+  (`existing.getStatus() == UserStatus.INVITED && !email.equals(existing.getEmail())`). No status
+  transition calls it. So disabling an account leaves any unused, unexpired invite live for the
+  remainder of its 7 days.
+
+  This is the other end of S-7's invite hole. S-7 closes it at the redemption site by refusing a
+  `DISABLED -> ACTIVE` flip; S-9 closes it at the source by killing the token when the account is
+  disabled. Either alone stops the escalation, which is why this is LOW and not a duplicate of S-7 --
+  it is defense in depth, and the same argument S-8 makes about session revocation.
+
+  Deliberately **not** folded into S-7: different mechanism (invalidate-on-transition versus a guard
+  at the flip), different file, and folding it in would mean editing the admin status endpoint inside
+  an MR scoped to the auth paths. Ship S-7 first; this stays true either way.
+
+  *Related:* S-8 is the same shape for sessions. If both are done, do them together -- "disabling an
+  account revokes its live sessions and its outstanding invites" is one coherent change to one
+  endpoint, and two separate MRs touching the same handler is worse than one.
 
 ### Verified sound, do not re-open
 
@@ -416,6 +459,14 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     `mvn test` runs the mutated bytecode against restored source. S-3's restore looked like the
     guard was still broken. The failure mode is worse in the other direction: restore a mutation you
     meant to keep and the suite goes green on stale classes.
+
+    **Both gaps this rule was written from are now closed** -- S-3
+    ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)) and S-4
+    ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), 2026-08-24. The `1,304`
+    figures above are the historical baseline and are left as written; the suite is now **1,317**.
+    Stripping the delete-person predicate reddens one test, deleting `@PostConstruct` reddens two,
+    and deleting `@Profile("prod")` reddens a third. The rule stands as a rule -- what it stops
+    describing is a live hole on this board.
 
 16. **Count the callers of the thing being guarded, not the callers the item named.** S-1 named
     `AuthController.login` as the login chokepoint and the whole item -- guardrail, premise checks,
@@ -828,6 +879,28 @@ shipped.) The verbose pre-split log is in the
   working rule 8. Re-verified S-3's and S-4's premises against `f2cad5e` -- all still hold, both
   now **COLD** with exact anchors (`PersonRepository.java:215`, `ProdSecretGuard.java:31`) and both
   mutation baselines corrected 1,304 -> 1,312. Next: S-3.
+- 2026-08-24 — shipped **S-3** ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195))
+  and **S-4** ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), both merged,
+  all CI green. 1312 -> 1317 tests, no source change in either. **Both PROVEN-untested items are now
+  closed, so working rule 15 no longer describes a live hole** -- annotated in place rather than
+  rewritten, since the rule stands. S-3: two DAO tests; stripping the delete-person predicate now
+  reddens exactly one test of 1,317, which proves the guard *and* re-confirms nothing else covered
+  it. Put it in a new `dao/PersonRepositoryIntegrationTest` rather than `UserMergeIntegrationTest`
+  as the item suggested -- `dao/` is where this repo puts DAO guard tests (S-2's own included), and
+  one of S-3's premises was that `find src/test -name "PersonRepository*"` returned nothing.
+  Declined to make `deletePersonById` throw and costed it instead: two callers wanting opposite
+  policy, `MetadataService` already converts 0 to a 404, and the change would move HTTP status into
+  a DAO while making `MetadataServiceTest` test strictly less. S-4: a `@Nested class Wiring` using
+  `ApplicationContextRunner` (new to this repo); `@PostConstruct` deleted reddens two, `@Profile`
+  deleted reddens a third. Removed the duplicate `enforceAuthzDisabledThrowsEvenWithAGoodSecret`,
+  but **corrected the item's reason for calling it one** -- its assertion *can* be false, it is just
+  a wording assertion. New trap, folded into working rule 15: restoring a mutation with
+  `sed -i.bak` + `mv` leaves the source older than the `.class` built during the mutation run, so
+  the next `mvn test` silently runs mutated bytecode -- cost one confusing red run. **Settled S-7 by
+  looking** rather than leaving it vague: all premises verified against `4abb28e` with anchors, and
+  `UserStatus.INVITED` turns out to make the fix a specified allowlist rather than the product call
+  the item implied. That verification opened **S-9** (disabling a user does not invalidate their
+  outstanding invites; `invalidateInvites` has exactly one caller, the email-change path). Next: S-7.
 
 ---
 
