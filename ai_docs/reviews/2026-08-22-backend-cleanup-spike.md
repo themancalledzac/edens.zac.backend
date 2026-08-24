@@ -19,7 +19,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173). One residual (bug #17) carried forward, below. |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). **Superseded by the 2026-08-24 review**: see "Open security findings" below, which now holds six items including two HIGH ones. |
 | 4 — Comments and docs | MR 12-14 | **mostly complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock **items** (four, not one) are still open. |
-| 5 — Consolidations | MR 15-19 | MR 15 #1, #2, #6 **done** ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165), [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). #6 closed the `PersonRepository` carry and taught working rule 14; its own guard was later found to have a bypass (security finding S-2, closed [#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)). One MR 15 follow-up still open, below. **next: MR 19 #16** (the only real performance fix in the wave) or MR 16 #4/#5 (zero test coupling). |
+| 5 — Consolidations | MR 15-19 | MR 15 #1, #2, #6 **done** ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165), [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). #6 closed the `PersonRepository` carry and taught working rule 14; its own guard was later found to have a bypass (security finding S-2, closed [#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)). The last MR 15 follow-up closed 2026-08-24 ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210)) -- **MR 15 is fully done**; the `getContext().getAuthentication()` grep returning four sites is its completion condition and is satisfied. **next: MR 19 #16** (the only real performance fix in the wave) or MR 16 #4/#5 (zero test coupling). |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
@@ -32,7 +32,7 @@ is the same failure the paragraph above was written to fix:
 | Section | Status |
 |---|---|
 | [Open security findings](#open-security-findings) | **0 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **2 open, 2 answered.** `isPasswordProtected` shipped ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)) and unblocked the frontend's C6. One of the two remaining is a live 404. |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **2 open, 2 answered**, both COLD. **Holds the next item** -- the `share/email` 404, which stopped being a decision on 2026-08-24 when the frontend's contract turned out to match `EmailService.SendResult` field-for-field. `isPasswordProtected` shipped ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)) and unblocked the frontend's C6. |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -681,6 +681,25 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     the line that does it. If the only evidence is the comment plus a test whose own fixture supplies
     the result, the protection does not exist.
 
+23. **"My merge did not move this ref" is not "this ref is correct."** Recorded against my own
+    claim. #211's close-out ran the scoped drift sweep, found that #209's two edits sat below every
+    line the board cites into those files, and reported "no ref shifted -- verified rather than
+    assumed." That was true and nearly worthless. The very next sweep re-derived the same refs
+    against source instead of against the diff and found **five of six already wrong**:
+    `CollectionService.java` `460-490` -> `466-496` and `822-848` -> `846-915`,
+    `SyntheticCollectionResolver` `153` -> `150` and `86-92` -> `97`, and `CollectionService`
+    `912-914` -> `931-933`. None of that drift came from #209. All of it predated the session that
+    declared the neighborhood clean.
+
+    The third principle says the board decays fastest where work has landed, and that is still
+    right -- it is why the sweep is scoped. But it licenses the wrong check if you read it as "find
+    what my diff moved". **The scoped sweep selects which refs to verify; it does not tell you they
+    are fine because you did not touch them.** Open the file and match the anchor text every time.
+
+    The tell that this went wrong is a sweep that reports zero corrections. Every sweep on this
+    board that actually re-derived found something: five refs, then three, then four. A clean
+    result is likelier to mean the wrong question was asked than that the board is finally accurate.
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collided, and it was handled: `PersonRepository.deleteById` was listed under both MR 1 and bug #1, and was held until MR 5 because it had a live caller -- dangerous code, not dead code. It shipped with MR 5 and is gone.
@@ -730,22 +749,21 @@ and each needs its claim verified before acting (working rule 8).
 - [x] #2. One SecurityConfig matcher instead of the copy-pasted `isRealUser` guards. **DONE** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)). **17 guards, not 18** -- the re-derivation counted a javadoc line in `UserShareControllerProd`. The matcher went OUTSIDE the enforce-authz toggle, next to `/api/auth/me`: the guards it replaced were unconditional, so that is the only behavior-preserving placement, and the guardrail's "costs a dev convenience" was false -- dev already required a session on these routes. A flyby now gets 403 rather than 401 there, by decision. Java-only main -42; 28 controller-level assertions became `config/UserRoutesAuthorizationWebMvcTest`. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-2-outcome-2026-08-23).
 - [x] #6. `currentUserId` is duplicated. **DONE** ([#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). Four copies became `config/CurrentUser.userId()`, joining `ClientIp` and `GalleryAccessCookies` as a static helper next to the security plumbing. The item's "move it onto `AuthPrincipal`" does not work -- that is a Spring-free record and this is a static context read. The null contract was left alone and costed instead: the four admin sites break local dev only, the two read-surface sites 500 a logged-out visitor, so it is two problems and not one. Java-only main -26 lines / +36 words. Two more copies of the same read were found and deliberately not folded in (`SyntheticCollectionResolver.currentPrincipal`, `CollectionService.viewerMaySeeHidden`) -- see rule 14. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-6-outcome-2026-08-24).
 
-### The MR 15 #6 follow-up, left open on purpose
+### The MR 15 #6 follow-up — closed 2026-08-24
 
-- [ ] Fold the last two copies of the same static read into `CurrentUser`. **PR OPEN, not merged**
-  -- [#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), branched off `a6550b0`.
-  Both copies are gone: `SyntheticCollectionResolver.currentPrincipal` deleted (it was byte-identical
-  to `CurrentUser.principal()`) and `CollectionService.viewerMaySeeHidden` delegates, keeping its
-  `p.userId() != null` check. Behavior-preserving, no test changes, 1,350 green. Grepping the read
-  shape now returns four sites, not six.
+- [x] Fold the last two copies of the same static read into `CurrentUser`. **DONE**
+  ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), squash `c1f482e`).
+  `SyntheticCollectionResolver.currentPrincipal` deleted, `CollectionService.viewerMaySeeHidden`
+  delegates, both files drop their `SecurityContextHolder` import. Java-only **-11 / +4**,
+  behavior-preserving, no test changes. Grepping the read shape across `src/main` now returns
+  **four** sites, not six -- `CurrentUser` plus the three that are not copies
+  (`CollaboratorAccessInterceptor` resolves an access level, `FlybySessionFilter` tests whether an
+  authentication exists, `AuthController` serves `/api/auth/me`). **The MR 15 #6 thread is now
+  fully closed**, four sessions after it opened.
 
-  The half that shipped by accident inside S-6 is what made this cheap -- `CurrentUser.principal()`
-  already existed. Tick this row when #210 merges.
-
-  **Guardrail, still live for whoever reviews it:** the other three
-  `getContext().getAuthentication()` sites are **not** copies -- `CollaboratorAccessInterceptor`
-  resolves an access level, `FlybySessionFilter` tests whether an authentication already exists, and
-  `AuthController` serves `/api/auth/me`. None extracts a user id. Leave them.
+  Coverage was proven rather than assumed: replacing each delegation with a hard-coded `null`
+  reddens 4 errors in `SyntheticCollectionResolverTest` and 3 in
+  `CollectionServiceTest$EnforceVisibilityVisibilityRules`.
 
 ## MR 16 — Infrastructure classes
 
@@ -770,14 +788,14 @@ and each needs its claim verified before acting (working rule 8).
 
 - [ ] #9. The from-disk and ingest background loops are ~70 lines of copy-paste (`ImageUploadPipelineService.java:279-392` vs `405-524`), including a CREATE/UPDATE switch the ingest loop already merged. One shared loop with a `(fileEntry, prepared) -> collectionId` resolver. **Three copies, not two** -- the CREATE/UPDATE arms inside `processFilesFromDiskLoop` are a third. Net deletion ~110, better than the stated ~85, and all source: **zero forced test churn**.
 - [ ] #10. `updateGif` reimplements the tag/people/location merge blocks that `ContentMutationUtil` already owns as `updateImage*Optimized` (`ContentService.java:581-653` vs `ContentMutationUtil.java:199-259`). **"The helpers only use the content id" is FALSE** -- all three call `setTags`/`setPeople`/`setLocations`, which are declared on subclasses, not `ContentEntity`. The fix needs a return-the-set signature, not a retype, and it converts `ContentServiceTest.updateGif_persistsPeopleAndLocations` into a weaker test. Realistic ~180, not ~40.
-- [ ] #11. Four near-identical BFS walks: `RoleGrantPropagationService.java:168-223` (three) plus `CollectionService.java:460-490` (`validateNoLinkCycle` and a byte-identical `parentIdsOf`). One `walk(root, neighborsFn)` helper. **Five walks, not four** -- `propagateToVisibleSubtree` is a fifth the line range missed. ~95 lines, zero test churn, pinned by 33 integration tests. **Best value in MR 18.**
+- [ ] #11. Four near-identical BFS walks: `RoleGrantPropagationService.java:168-223` (three) plus `CollectionService.java:466-496` (`validateNoLinkCycle` and a byte-identical `parentIdsOf`). One `walk(root, neighborsFn)` helper. **Five walks, not four** -- `propagateToVisibleSubtree` is a fifth the line range missed. ~95 lines, zero test churn, pinned by 33 integration tests. **Best value in MR 18.**
 - [ ] #12. `nextOrderIndex` logic. **Five places, not four** -- `TagService` is the fifth. Do it by keeping `ContentService.nextOrderIndex` as a one-line delegate, which makes test churn zero; the naive version costs 15 stub edits in `ImageUploadPipelineServiceTest` for 5 lines of dedupe. **Do it the delegate way or not at all.**
-- [ ] #13. Entity-to-Record mapping and case-insensitive sort duplicated across four files (`Records.Tag` mapping at `ContentModelConverter:343`, `MetadataService:434-436`, `SyntheticCollectionResolver:153`, `ContentService:1025`; Location mapping/sort twice). Static `from(entity)` factories on the records. **Counts are 10 tag + 4 location sites, not 6+2, and the estimate is the worst on the board: net ~0 lines**, because every copy and every replacement is one line. The suggested fix also flips the layering -- `Records.java` currently imports nothing from `entity`. **The finding worth keeping is not the dedupe**: `ContentModelConverter` and `CollectionProcessingUtil` sort their output and `MetadataService`/`SyntheticCollectionResolver`/`ContentService` do not, which is a live API-ordering inconsistency. Split that out and drop the rest.
+- [ ] #13. Entity-to-Record mapping and case-insensitive sort duplicated across four files (`Records.Tag` mapping at `ContentModelConverter:343`, `MetadataService:434-436`, `SyntheticCollectionResolver:150`, `ContentService:1025`; Location mapping/sort twice). Static `from(entity)` factories on the records. **Counts are 10 tag + 4 location sites, not 6+2, and the estimate is the worst on the board: net ~0 lines**, because every copy and every replacement is one line. The suggested fix also flips the layering -- `Records.java` currently imports nothing from `entity`. **The finding worth keeping is not the dedupe**: `ContentModelConverter` and `CollectionProcessingUtil` sort their output and `MetadataService`/`SyntheticCollectionResolver`/`ContentService` do not, which is a live API-ordering inconsistency. Split that out and drop the rest.
 
 ## MR 19 — Query efficiency and data layer
 
 - [ ] #14. `convertEntityToModel` loads the same content row twice (`ContentModelConverter.java:103-118`) — `findAllByIds` already returns typed subclasses, so drop the second typed fetch. Verify COLLECTION hydration first. Called 3x per GIF/text mutation.
-- [ ] #15. `getUpdateCollectionData` fetches the collection row twice and has an always-true null check (`CollectionService.java:822-848`).
+- [ ] #15. `getUpdateCollectionData` fetches the collection row twice and has an always-true null check (`CollectionService.java:846-915`).
 - [ ] #16. `findCurrentContentCollections` is an N+1 loop. **The best value item in Wave 5** -- and worse than described. `SELECT_CONTENT_COLLECTION` inner-joins `content_collection`, so every non-COLLECTION row returns empty: a 200-image collection removing one sub-collection issues **201 queries, 200 of them wasted**. It is on the write path, not public reads, which caps the impact. **Test coupling is one mock line** and the method is private. Best fix is a single query filtered by `cc.id IN (:ids) OR cc.referenced_collection_id IN (:ids)`, better than the item's two-query suggestion.
 - [ ] #17. Smaller items: `UserInviteService.validate`/`redeem` duplicate token resolution (now **140-152 and 220-237**, was 85-130; the file went 130 -> 238 lines under S-7/S-9, so re-read before quoting -- into `findLiveInvite`); pagination normalization re-inlined at `CollectionService:127-130` (call `PaginationUtil`); `toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other (`CollectionProcessingUtil:569-596, 939-947`); `uploadToS3`/`streamFileToS3` duplicate key and URL construction (`ImageProcessingService:697-745`); EmailService HTML skeleton twice (optional, ~35 lines).
 
@@ -792,7 +810,7 @@ and each needs its claim verified before acting (working rule 8).
     "Decisions needed".
 - [ ] #18. `EquipmentRepository` repeats each SELECT column list **3-4 times per list across 3 lists** (not "6+ times" -- cameras 4x, lenses 4x, film types 3x, so ~15-20 lines not ~25) while sibling repositories hoist constants (`AppUserRepository`, `ShareLinkRepository`, `WebAuthnCredentialRepository`, `CollectionRepository` all do it right). Hoist per-entity constants. ~25 lines.
 - [ ] #19. `model/ImageSearchResponse.java` is a strict subset of `model/PagedResponse.java`. Replace it with `PagedResponse<ContentModels.Image>`. **Unblocked 2026-08-24**: the frontend reads only `result.content`, never `totalElements`/`totalPages`, and ignores unknown keys, so growing the contract is safe. `AdminController` already re-wraps into `PagedResponse`, so 4 more lines vanish as a bonus. **Do this before MR 17 #7.**
-- [ ] #20. `Records.FilmFormat` (DTO) shadows the `FilmFormat` enum, forcing a fully-qualified name at `Records.java:23` and duplicating the mapping at `ContentControllerProd:147-149` and `CollectionService:912-914`. Rename the record `FilmFormatOption`, import the enum, one static factory.
+- [ ] #20. `Records.FilmFormat` (DTO) shadows the `FilmFormat` enum, forcing a fully-qualified name at `Records.java:23` and duplicating the mapping at `ContentControllerProd:147-149` and `CollectionService:931-933`. Rename the record `FilmFormatOption`, import the enum, one static factory.
 
 ---
 
@@ -878,7 +896,7 @@ and each needs its claim verified before acting (working rule 8).
 
   *Positional refs replaced with names 2026-08-24, per working rule 5 -- this item's range list had drifted twice in two days.* The `@Transactional` orchestration blocks are `createUser` (`:114`), `regenerateInvite` (`:174`), `upgradeUser` (`:208`), `updateUser` (`:279`) and `merge` (`:436`); the afterCommit hook itself is `sendInviteEmailAfterCommit` (`:468`), called from the first three. **The item is growing faster than it is being done** -- two consecutive security MRs each added to the exact class this proposes to split, and the test file has grown 168 lines in two days. That is an argument for doing it sooner, not a reason to keep re-measuring it.
 - [ ] Same shape, smaller: `UserShareControllerProd` computes grant and candidate sets inline with a repository. Move it into `ShareLinkService`. **Re-derived 2026-08-24 and de-positionalized**: the old range `124-152` overran the end of a 145-line file. The work is two private methods -- `buildSettings` (`:116-128`) and `candidateCollections` (`:135-144`), the latter holding the `memberCollectionIdsForUser` call at `:137`.
-- [ ] `Synthetic.blogsOnly` is a constant at its only reachable call site (`SyntheticCollectionResolver:42-49, 86-92`), a transitional shape from the type-keyed catalog. Fold it out.
+- [ ] `Synthetic.blogsOnly` is a constant at its only reachable call site (`SyntheticCollectionResolver:42-49, 97`), a transitional shape from the type-keyed catalog. Fold it out.
 - [ ] `MessageService` is a pure pass-through with a speculative docblock. Keep it for layering or delete it, but drop the justification.
 - [ ] The validator components (`MetadataValidator` repeats its 3-line null check **six** times, not four; `ContentValidator` is similar) are the "unnecessary utility classes" CLAUDE.md bans. Replace with bean validation on the DTOs when next touched. **~199 source lines across 3 files, not ~60**, plus `@Mock` removal in 6 test files and a constructor arg off 4 services -- a 10-file change, so "when next touched" is right.
 - [ ] Executor handling in `ImageUploadPipelineService`: `rawUploadExecutor` now runs whole disk and ingest jobs, so it is misnamed and mis-documented, and `shutdown()` shuts down both executors but awaits only `rawUploadExecutor`. **All three sub-claims verified 2026-08-24. This is a real bug (an unwaited executor on shutdown), not a design note** -- ~10 lines in one file. Promote it out of the "remaining design items" list.
@@ -916,6 +934,20 @@ and each needs its claim verified before acting (working rule 8).
 - [ ] `ImageUploadPipelineServiceTest`'s 1:1 verify ratio suggests some verify-only tests worth a pass.
 
 ### Positional constructors that block the `TestFixtures` pass
+
+**Sizing note added 2026-08-24 from #209, and it applies to every item that adds a field to a
+record.** The `isPasswordProtected` item read as "one component plus the two-line frontend change".
+The record change was indeed one line. The MR was four files and five test edits, because adding a
+component to a record costs: the component, **every `with*` copy method** (two here, and the one on
+the hot path was the one the item never named), and **every positional construction site in test**
+(four here, across two files). None of that is visible from the item's wording.
+
+So when sizing any "add a field to X" item on this board, run
+`grep -rn "new <Record>(" src/main src/test` first and count. That number, not the record edit, is
+the size. It is also the argument for the `TestFixtures` pass below: the four positional sites #209
+had to touch are the same shape this section exists to remove, and each future record change pays
+that toll again until it lands.
+
 
 *(Retitled 2026-08-24. The old title said "Main-dead, test-live (carried from MR 1a)" and neither half held: `AuthPrincipal`'s 4-arg constructor has a main caller, and MR 1a's own history records it as not-dead rather than deferred.)*
 
@@ -1102,6 +1134,8 @@ shipped.) The verbose pre-split log is in the
 
 - 2026-08-24 — shipped **`isPasswordProtected` on the content-block path** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`), and opened the **`CurrentUser` fold** ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), rebased onto `a6550b0`, mergeable, 1,350 green). **Working rule 21 earned its keep on its first outing**: the item said to populate the flag "where the four content-block builders construct one", and there are **two** construction sites, not four -- plus two record copy methods the item never named. `withTags` is the one that mattered, because it rebuilds the record on the synthetic-list path immediately after `fromCollectionModel`, so a faithful reading of the item would have shipped a flag reading `false` on exactly the path the frontend's C6 needs and `true` everywhere else. **The costing the guardrail asked for found the sharper fact**: a `gallery_password` filter on the read queries would not merely break a contract, it would **empty `all-client-galleries`**, since that list selects `is_client = true` and client galleries are the protected ones. **Added working rule 22**, hoisted from a second stale comment found while costing: `CollectionControllerProdTest` claims `coverImage` stripping in **two** places, the behavior exists in neither, and the test named for it cannot fail. The banner that crossed the repo boundary was fixed in #209; the other is a new row under "Carried forward", because deciding it is work rather than a comment fix. Next: merge #210, then the `share/email` 404 -- the last cross-repo item another team is waiting on.
 
+- 2026-08-24 — close-out pass, no code shipped. **Verified merged**: #210 `c1f482e` and #211 `9e363fa`, both of which landed *while the previous close-out was being written* -- so #211 went in saying "#210 PR OPEN, not merged" and was stale before it merged. The MR 15 #6 thread is **fully closed**, four sessions after it opened. **The sweep found five drifted refs and all five indict the previous sweep**, which reported the same neighborhood clean: `CollectionService` `460-490` -> `466-496`, `822-848` -> `846-915` and `912-914` -> `931-933`, `SyntheticCollectionResolver` `153` -> `150` and `86-92` -> `97`. None of that drift came from #209 -- the previous pass checked whether its own diff had moved them, which is a different and much weaker question. **Added working rule 23** for exactly that, and the tell it names is a sweep reporting zero corrections. **Step 3 paid out biggest**: the `share/email` item said "decide whether to build it or have the frontend remove the button", and three facts settled it in one pass -- the frontend's `ShareEmailResult {sent, reason}` is field-for-field `EmailService.SendResult`, which **already exists**, and both sides already handle `email.enabled=false` gracefully, so it ships without SES configured. The item went from a product decision to a specified one-endpoint build. Also added a sizing note to MR 25: "add a field to a record" costs the record plus every `with*` copy and every positional test construction, which is why #209 was four files. Next: `share/email`.
+
 ---
 
 # Decisions needed from the user
@@ -1182,13 +1216,53 @@ Worth keeping as precedent: an item parked for a decision may already contain th
 
 - [x] **`isPasswordProtected` on the content-block path.** **DONE** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`). Option A shipped: `ContentModels.Collection` carries the flag, populated at both construction sites. The frontend's C6 is unblocked. The guardrail held -- the read-query password filter and `coverImage` stripping were left alone and costed instead. Taught **working rule 22**, and found a second stale comment worse than the banner it was sent to fix (see the new row under "Carried forward"). [Full write-up](2026-08-22-backend-cleanup-history.md#ispasswordprotected-outcome-2026-08-24----a-locked-tile-can-finally-be-drawn).
 
-- [ ] **`POST /api/read/user/share/email` does not exist, and the frontend calls it.** Verified from
-  both sides: `emailShareLink` in the frontend's `app/lib/api/share.ts` POSTs to that path, the UI is
-  fully built and reachable in `ShareCard.tsx`, and `UserShareControllerProd` declares only a GET,
-  `POST /rotate`, and PUT/DELETE on `/collections/{collectionId}`. A grep for `share/email` across
-  `controller/` returns nothing. **A signed-in user clicking the share-email button gets a 404
-  today.** This is the mirror image of the usual question on this board -- a frontend caller with no
-  backend endpoint. Decide whether to build it or have the frontend remove the button.
+- [ ] **`POST /api/read/user/share/email` does not exist, and the frontend calls it. COLD, and it
+  is a build, not a decision.** Verified from both sides: `emailShareLink` in the frontend's
+  `app/lib/api/share.ts:176` POSTs to that path, `ShareCard.tsx:113` calls it from a reachable
+  button, and `UserShareControllerProd` (`@RequestMapping("/api/read/user/share")`) declares only
+  `GET`, `POST /rotate`, and `PUT`/`DELETE` on `/collections/{collectionId}`. **A signed-in user
+  clicking the share-email button gets a 404 today.**
+
+  **The item used to end "decide whether to build it or have the frontend remove the button". That
+  decision is settled by three facts found 2026-08-24, and all three point the same way:**
+
+  1. **The contract is already fully specified by the caller.** Request body is `{ toEmail }`.
+     Response is `ShareEmailResult { sent: boolean; reason: string | null }`
+     (`share.ts:60-63`).
+  2. **The backend already has that exact record.** `EmailService.SendResult(boolean sent, String
+     reason)` at `EmailService:56` matches the frontend's type field-for-field. Nothing new needs
+     designing; the endpoint returns what `EmailService` already returns.
+  3. **The degraded path is already handled on both sides.** `EmailService` short-circuits to
+     `new SendResult(false, "email-disabled")` when `email.enabled` is false, and `ShareCard`
+     renders that as "Email is not switched on right now -- copy the link and send it yourself."
+     **So this ships without SES being configured**, which is what made it look expensive.
+
+  `AdminUserController.sendInviteEmailAfterCommit` is the in-repo precedent for the whole shape:
+  best-effort delivery that never fails the request, typed reason instead of a throw, and an
+  `afterCommit` hook so a rollback cannot mail a live link.
+
+  **Scope: one `@PostMapping("/email")` on `UserShareControllerProd`, one `sendShareLinkEmail`
+  method on `EmailService` alongside the two that exist, one request record. No new response type.**
+
+  **NEXT (chosen 2026-08-24).** It is the only open item another team is waiting on, it is a live
+  404 in shipped UI, and step 3 of this pass turned it from a decision into a specified build.
+
+  **Guardrail, and the first one is the dangerous one. Leave the share-link lifecycle alone and
+  report what changing it would do.** "Email the share link" reads like it should hand the
+  recipient a fresh link, and `rotateShareLink` is sitting right there in the same controller. It
+  must not be called. The frontend's own docblock states the invariant -- *"Emails the link that is
+  already in circulation. Does not mint a new one, so emailing a second person cannot cut off the
+  first"* -- so rotating on send would silently revoke a link a previous recipient is still using,
+  and it would fail quietly, because the sender sees a success either way.
+
+  Second, smaller: **do not refactor `sendGalleryPasswordEmail` and `sendInviteEmail` into a shared
+  template path while adding the third.** Three near-identical senders is a real consolidation and
+  it belongs to MR 24, not inside a feature MR that another team is waiting on. Add the third
+  alongside them and note the duplication.
+
+  And do not make the request fail when `email.enabled` is false. Both sides already handle
+  `sent: false` -- that is the whole reason this ships without SES.
+
 - [ ] **Actuator defense-in-depth.** The frontend was the only gate on `/api/proxy/actuator/**` and
   has now fixed its side. The backend is already sound and was verified by live probe: exposure is
   `management.endpoints.web.exposure.include=health` only, so `/actuator/env` and `/configprops` are
