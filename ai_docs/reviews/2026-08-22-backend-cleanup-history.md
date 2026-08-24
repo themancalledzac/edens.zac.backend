@@ -2409,6 +2409,44 @@ was blocked on this one. It is now open as
 [#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), rebased onto `a6550b0`.
 After that, the `share/email` 404 is the last cross-repo item anyone is waiting on.
 
+## CurrentUser fold outcome, 2026-08-24 -- the MR 15 #6 thread closes four sessions later
+
+Shipped as [#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), squash `c1f482e`.
+Java-only **-11 / +4**, behavior-preserving, no test changes.
+`SyntheticCollectionResolver.currentPrincipal` deleted, `CollectionService.viewerMaySeeHidden`
+delegates to `CurrentUser.principal()`, both files drop their `SecurityContextHolder` import.
+
+### The estimate was right for once, and the reason is worth keeping
+
+This item was written expecting to build the shared helper. By the time it was picked up, S-6 had
+already added `CurrentUser.principal()` for its own reasons, so what remained was delete-and-delegate
+and the MR came in almost exactly as re-scoped. **The item got cheaper while sitting still**, which
+is the opposite of the usual direction on this board and the payoff for re-verifying an item's scope
+at pickup rather than trusting the version written when it was filed.
+
+### Coverage proven, not assumed
+
+Working rule 15 applies to refactors too, in a weaker form: the risk is not a fix that cannot fail
+but a delegation nothing exercises. Replacing each call with a hard-coded `null` reddens **4 errors
+in `SyntheticCollectionResolverTest`** and **3 in `CollectionServiceTest$EnforceVisibilityVisibilityRules`**,
+so both folded sites are under real coverage.
+
+### The grep that defines "done"
+
+`getContext().getAuthentication()` across `src/main` now returns **four** sites, down from six.
+`CurrentUser` is the consolidated one; the other three are not copies and none extracts a user id --
+`CollaboratorAccessInterceptor` resolves an access level, `FlybySessionFilter` tests whether an
+authentication already exists, `AuthController` serves `/api/auth/me`. That grep is the item's
+completion condition and it is now satisfied. Do not re-open this on a future sweep.
+
+### What the close-out that followed got wrong
+
+#211 reported the merge neighborhood clean after checking whether #209's diff had moved any cited
+ref. It had not. But five refs into those same files were **already** wrong from earlier drift, and
+the next sweep found all five. That produced **working rule 23**: "my merge did not move this ref"
+is not "this ref is correct", and a sweep reporting zero corrections is evidence of the wrong
+question rather than an accurate board.
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked
