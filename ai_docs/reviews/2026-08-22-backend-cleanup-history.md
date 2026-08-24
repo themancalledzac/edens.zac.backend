@@ -1542,3 +1542,67 @@ users and were unaffected; two new tests cover a `PERSON` row and an unknown id.
 ### Verification
 
 `mvn clean install` green at each commit. 1302 tests before, **1304 after**, 0 failures.
+
+
+---
+
+# Moved from the tracker 2026-08-24 (working rule 11)
+
+These were closed-out write-ups still sitting in the tracker. Content unchanged.
+
+## Wave 4 retro — measured in words, 2026-08-23
+
+Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked
+net-positive. Both halves of that turned out to matter, and only one was a real problem.
+
+The stats quoted in these PRs were commit-level, which mixes this tracker's running log in with the
+code. 13b's headline `+161/-53` was 88 lines of doc and +20 of Java. **Quote Java-only stats for a
+code MR.** Then, separately, the Java itself has to be measured in words, because javadoc's `/**`,
+` * ` and `<p>` scaffolding counts as content and hides prose growth in the line count:
+
+| MR | Java lines | words of prose | |
+|---|---|---|---|
+| 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)) | -25 | **-378** | |
+| 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178)) | -37 | **-301** | |
+| 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180)) | -1 | **-207** | |
+| 13a ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) | +2 | **-75** | line count up, prose down |
+| 13b ([#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)) | +20 | **+178** | the only inflation |
+| 13c ([#184](https://github.com/themancalledzac/edens.zac.backend/pull/184)) | -24 | **-192** | the correction |
+| 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) | +4 | **-51** | lines up, prose down -- the 13a pattern again |
+| **Wave 4** | **-61** | **-1,026** | 500 in-method comments removed; 67 remain, 66 by decision |
+
+So the trend was sound and 13b was the outlier, now corrected. Two things worth carrying forward.
+13a shows the divergence without the defect -- **+2 lines but -75 words** -- which is proof the line
+count is simply the wrong instrument, not just that 13b was sloppy. And 12a/12b, the two biggest
+sweeps, produced the two biggest prose reductions, so scale is not what causes inflation. Care is.
+Working rule 10 has the check.
+
+## MR 14 — Comment debloat: controllers, config, data layer — DONE ([PR #187](https://github.com/themancalledzac/edens.zac.backend/pull/187))
+
+93 in-method comments re-derived on `51fede9` and dispositioned: **7 deleted, 19 promoted, 66 kept
+inline, 1 quarantined.** Java-only **+4 lines / -51 words** -- the 13a pattern, line count up and
+prose down. Seven files went to zero; 20 files became 13. Full write-up in the
+[history file](2026-08-22-backend-cleanup-history.md#mr-14-outcome-2026-08-23).
+
+The headline: **the wave rule did not fit this population**, and that is now working rule 12. Waves
+1-3 hardened exactly the `controller/`, `config/` and `dao/` files MR 14 targets, so most of these
+93 were written deliberately by this cleanup effort and guard a specific line rather than narrating
+the code. Only 7 restated the code they sat on.
+
+`SecurityConfig`'s 24 were measured as the guardrail asked, and kept: promoting them into one
+`filterChain` docblock costs **+24 words (+9%)** even in a careful draft that states each rule once.
+The entire overhead is anchor-naming -- a docblock has to write "on `/api/auth/me`,
+`/api/auth/logout`, ..." for what position gives an inline comment free.
+
+**Bug #16 is still real.** Verified against current `updateImages`: `ContentRepository.saveImage` is
+still a single-row INSERT/UPDATE, the loop still calls it once per image, and the log line still
+reads "Batch saved {}". The only `batchUpdate` in `ContentRepository` is in `saveContentPeople`, a
+different table. So N image edits still issue N statements. `ContentService:227` stays quarantined
+until the MR that adds a real batch save and fixes the log line with it.
+
+Two doc claims shipped, both re-verified first. `CollectionVisibility`'s docblock said
+`password_hash`; V18 renamed the column to `gallery_password`. `.claude/CLAUDE.md` claimed
+`controller/prod/` is `@Profile("prod")` gated; it is not. On that second one the tracker was right
+and a naive grep is not -- the only two `@Profile` hits under `controller/` are javadoc text saying
+there is no such gating.
+
