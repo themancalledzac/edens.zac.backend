@@ -13,7 +13,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 1 — Deletions | MR 1a-4 | MR 1a merged ([#159](https://github.com/themancalledzac/edens.zac.backend/pull/159)); MR 1b merged ([#160](https://github.com/themancalledzac/edens.zac.backend/pull/160)); MR 2 merged ([#161](https://github.com/themancalledzac/edens.zac.backend/pull/161)); MR 3 merged ([#162](https://github.com/themancalledzac/edens.zac.backend/pull/162)); MR 4 done ([#164](https://github.com/themancalledzac/edens.zac.backend/pull/164)). **Wave 1 complete.** |
 | 2 — Bugs | MR 5-9 | MR 5 done ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)); MR 6 done ([#166](https://github.com/themancalledzac/edens.zac.backend/pull/166)); MR 7 done ([#168](https://github.com/themancalledzac/edens.zac.backend/pull/168); originally [#167](https://github.com/themancalledzac/edens.zac.backend/pull/167), which merged into the already-squashed MR 6 branch and never reached main); MR 8 bug #5 done ([#169](https://github.com/themancalledzac/edens.zac.backend/pull/169)); bug #6 done ([#170](https://github.com/themancalledzac/edens.zac.backend/pull/170), shipped as its own MR); MR 9 split in two -- MR 9a (bugs #8 and #9) done ([#172](https://github.com/themancalledzac/edens.zac.backend/pull/172)); MR 9b (the remaining 12 low-priority fixes) done ([#173](https://github.com/themancalledzac/edens.zac.backend/pull/173)). **Wave 2 complete.** |
 | 3 — Security hardening | MR 10-11 | MR 11 done ([#176](https://github.com/themancalledzac/edens.zac.backend/pull/176)); MR 10 done ([#175](https://github.com/themancalledzac/edens.zac.backend/pull/175)). **Wave 3 complete.** |
-| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a merged ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) -- 117 comments, one stale docblock fixed. **Next up: MR 13b** -- the remaining seven media files, re-derived at 37 (the doc's estimate was exact). 130 in-method comments left in `src/main`. |
+| 4 — Comments and docs | MR 12-14 | MR 12 COMPLETE: 12a ([#177](https://github.com/themancalledzac/edens.zac.backend/pull/177)), 12b ([#178](https://github.com/themancalledzac/edens.zac.backend/pull/178), filed bug #16), 12c ([#180](https://github.com/themancalledzac/edens.zac.backend/pull/180), no bugs found). MR 13a merged ([#181](https://github.com/themancalledzac/edens.zac.backend/pull/181)) -- 117 comments, one stale docblock fixed. **MR 13 COMPLETE:** 13b done -- 37 comments across the remaining seven media files, into 13 javadocs, no bugs found. **Next up: MR 14.** 93 in-method comments left in `src/main`. |
 | 5 — Consolidations | MR 15-19 | not started |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
@@ -694,6 +694,21 @@ and deliberately left that question open -- see the decision item below.
   not 318-340; the repeated date parse is 428/467, not 350-371 which is `recordKeywordFlags`).
   Added Working rule 8 (`P:` notes decay like `D:` refs) and Working rule 9 (never `git add -A`;
   12c's commit swept an untracked 321-line review doc into #180). Next: MR 13b.
+- 2026-08-23 — shipped MR 13b (#183), which completes MR 13 and leaves 93 in-method comments in
+  `src/main`, all MR 14's. 37 comments into 13 javadocs, no bugs found. The re-derived 37 was exact,
+  making three exact Wave 4 calls in a row -- the over-count era is over and the doc's remaining
+  numbers should be read straight. Two comments the worklist filed as redundant narration turned out
+  load-bearing: the XMP first-wins rule across multiple directories, and the EXIF-over-XMP precedence
+  contract. That is the inverse of MR 13a's lesson -- 13a found `P:` notes telling it to fix things
+  already fixed, 13b found `D:` notes telling it to delete things worth keeping. **Working rule 8
+  generalizes: a `D:`/`P:` classification decays like a line number does, in both directions. Re-read
+  the comment before trusting either verdict.**
+  Costed the date-parsing fold the guardrail deferred and found the guardrail's own premise wrong:
+  only `parseExifDateToLocalDateTime` detects format, `parseImageDate` sidesteps detection with a
+  permissive split, so the two share knowledge and not code. Probed the built class -- they diverge
+  only on malformed input, where `parseImageDate` returns month **13** and builds an S3 path from it.
+  Folding is therefore a behavior change with an S3-pathing consequence, not a refactor; re-scoped
+  that half of consolidation #17 accordingly. Next: MR 14.
 
 ---
 
@@ -1247,7 +1262,7 @@ face value.
 4% is the worst yet measured -- worse than `ContentService`'s 8%, which was the previous record.
 Do not read the lists below as coordinates. The real comments are:
 
-- [ ] `ImageMetadataExtractor.java` (22) — extraction narration at 128, 135, 139, 180, 183, 203,
+- [x] `ImageMetadataExtractor.java` (22) — extraction narration at 128, 135, 139, 180, 183, 203,
       211, 217 is redundant with the method names and goes. The load-bearing set is the XMP keyword
       logic at 274-318: hierarchical subjects first because Lightroom writes category parents,
       `"People|Jane Doe"` to a person, `"Weather|sunset"` to the leaf tag, the person-name filter
@@ -1255,19 +1270,19 @@ Do not read the lists below as coordinates. The real comments are:
       `dc:subject` fallback with no people distinction. That belongs in the
       `extractTagsAndPeopleFromXmp` docblock. Date-format notes at 431, 474-498 explain EXIF
       `YYYY:` versus ISO `YYYY-` detection -- promote, see the guardrail.
-- [ ] `ImageMetadata.java` (5) — 231, 256, 261, 268, 274, all describing the shutter-speed
+- [x] `ImageMetadata.java` (5) — 231, 256, 261, 268, 274, all describing the shutter-speed
       formatting ladder (pass through an existing fraction, `>= 1 sec` displays as-is, `< 1 sec`
       becomes `1/N`). One docblock on the formatter.
-- [ ] `DownloadUrlService.java` (4) — both blocks are load-bearing and promote: 104-105 (S3 keys are
+- [x] `DownloadUrlService.java` (4) — both blocks are load-bearing and promote: 104-105 (S3 keys are
       unique but `original_filename` is not, so entries are sequence-prefixed or `ZipOutputStream`
       throws on duplicate names) and 113-114 (a per-image failure writes a placeholder rather than
       tearing down the whole ZIP).
-- [ ] `S3MultipartOutputStream.java` (2) — 129-130, why the empty-`completedParts` guard exists
+- [x] `S3MultipartOutputStream.java` (2) — 129-130, why the empty-`completedParts` guard exists
       despite a well-formed ZIP always having an end-of-central-directory record.
-- [ ] `EmailService.java` (2) — 140-141, the `SesV2Exception` versus `SdkClientException` split.
-- [ ] `ReadCacheInvalidator.java` (2) — 81-82, why the failure logs at debug rather than warn
+- [x] `EmailService.java` (2) — 140-141, the `SesV2Exception` versus `SdkClientException` split.
+- [x] `ReadCacheInvalidator.java` (2) — 81-82, why the failure logs at debug rather than warn
       (expected until the CloudFront API origin is enabled).
-- [ ] `JobTrackingService.java` (0) — no in-method comments. The class docblock (now at 14-18, not
+- [x] `JobTrackingService.java` (0) — no in-method comments. The class docblock (now at 14-18, not
       14-15) says "background disk upload processing"; it also tracks ingest jobs, since
       `ingestFilesGroupedByDay` calls `createJob`. One-line fix.
 
@@ -1292,6 +1307,79 @@ The original per-file lists follow, kept as the record of intent rather than as 
 - [ ] `ImageMetadata.java` — D: 245, 270, 275, 282, 288.
 - [ ] `ImageMetadataExtractor.java` — D: 114, 121, 166, 169, 189, 197, 203, 208, 259, 299, 353, 396, 401, 409, 411, 415, 420, 443. P: 75, 98, 125, 269, 275, 286-287.
 - [ ] `S3MultipartOutputStream.java` — P: 119-120. `DownloadUrlService.java` — P: 91, 93, 104-105, 113-114. `EmailService.java` — P: 140-141. `ReadCacheInvalidator.java` — P: 81-82. `JobTrackingService.java` — the class doc at 14-15 also tracks ingest; update it.
+
+### MR 13b outcome (2026-08-23) — shipped as [#183](https://github.com/themancalledzac/edens.zac.backend/pull/183)
+
+Java diff: 7 files, +65/-45. All 37 in-method comments removed; all seven files now measure 0.
+The re-derived 37 was exact -- third Wave 4 estimate in a row needing no correction. 93 in-method
+comments left in `src/main`, all of them MR 14's.
+
+Promoted into 13 javadocs, 2 of them newly added on private methods (`DownloadUrlService.writeZipEntries`,
+`ImageMetadataExtractor.extractFromStream`). Diff is comment lines and nothing else -- verified by
+`git diff -U0` filtered for anything that is not a `//`, `*`, `/**`, `*/` or blank line, which came
+back empty both before and after `spotless:apply`. No blank-line removals: none of the 37 sat at the
+end of a method body, so Working rule 6's dangling-blank case did not arise. Build green, 1315 tests,
+0 failures -- the same count as 13a, as a comments-only MR should be.
+
+**No bugs found.** Per Working rule 7 that is the reportable outcome, not a shallow pass. Every
+checkable claim in the 37 held against its code, including the two the worklist called out as
+load-bearing (the XMP person-name filter and the ZIP sequence prefix), both verified by reading the
+branch they describe.
+
+**Two comments were doing more than the worklist credited them with**, and both became docblock
+sentences rather than deletions. `extractFromStream`'s "stop after first non-empty result" is a
+first-wins rule across multiple XMP directories -- a file with several gets one keyword set, not a
+merge, and nothing else in the file said so. The "Only set if not already extracted from EXIF" pair
+at the two extractor methods is the EXIF-over-XMP precedence contract; the worklist listed both as
+redundant narration to delete.
+
+`JobTrackingService`'s class-doc fix was real and is done. Verified before editing per Working rule 8:
+`createJob` has exactly two callers, `processFilesFromDisk` and `ingestFilesGroupedByDay`, so
+"background disk upload processing" did understate it. Doc now names both pipelines.
+
+### The date-parsing fold, costed (guardrail follow-up)
+
+The guardrail's premise is off, and that is the main finding. It says the two parsers "each do their
+own EXIF-versus-ISO format detection." Only one does. `parseExifDateToLocalDateTime` detects on
+`charAt(4)` (`:` is EXIF, `-` is ISO). `parseImageDate` detects nothing -- it splits on `[: T-]` and
+reads the first two numeric runs, which lands identically on both formats. What the two share is the
+knowledge that EXIF uses `:` where ISO uses `-`, not a line of code. There is no common parse step to
+extract, so the duplication being folded is about two lines of *documentation*, which 13b just wrote
+into both docblocks.
+
+Measured on the built class, the two disagree wherever the input is malformed:
+
+| Input | `parseImageDate` | `parseExifDateToLocalDateTime` |
+|---|---|---|
+| `2024:05:15 14:30:00` | 2024/5 | `2024-05-15T14:30` |
+| `2024-05-15T14:30:00` | 2024/5 | `2024-05-15T14:30` |
+| `2024:05:15` | 2024/5 | `2024-05-15T00:00` |
+| `2024:05` | 2024/5 | `null` |
+| `2024:13:45 99:99:99` | **2024/13** | `null` |
+
+So the fold is a behavior change in both directions, which is why it does not belong in a
+comments-only MR:
+
+- **Routing `parseImageDate` through the strict parser tightens it.** Truncated-but-usable dates that
+  yield a year and month today would return `null`, fall through to the modify-date branch, and end
+  at `LocalDate.now()`. That silently moves which `year/month` prefix an image lands under in S3, for
+  exactly the malformed inputs least likely to be covered by a test.
+- **It also fixes something.** `parseImageDate` currently returns month 13 for a nonsense date and
+  builds an S3 path out of it. Not filed as a bug -- no comment contradicted the code, and it needs
+  malformed EXIF to reach -- but it is a real robustness gap and the fold would close it.
+
+On the specific question the guardrail asks: the `int[]` and `LocalDateTime` returns cannot share a
+parse step cheaply. A shared `Optional<LocalDateTime>` core makes `parseImageDate` strict, which is
+the regression above; keeping today's tolerance means retaining the permissive split inside the core
+as a fallback, so both paths survive and an abstraction is added over them. A shared
+"normalize EXIF to ISO" helper is worse: `parseExifDateToLocalDateTime` already does that inline, and
+`parseImageDate` needs two integers, not normalized text, so the helper would add a call and a string
+allocation while removing nothing.
+
+Recommendation for consolidation #17: keep the `ensureDimensions` twins in scope -- that is the real
+duplication in this file -- and re-scope the date pair from "fold the two parsers" to "decide whether
+`parseImageDate` should stay permissive." That is a behavior decision with an S3-pathing consequence,
+not a refactor, and it wants its own MR and a test for the month-13 case.
 
 ## MR 14 — Comment debloat: controllers, config, data layer, and stale docblocks
 

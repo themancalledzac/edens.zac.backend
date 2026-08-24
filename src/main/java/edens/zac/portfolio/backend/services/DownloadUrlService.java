@@ -97,12 +97,18 @@ public class DownloadUrlService {
     return presignObject(key, "application/zip", zipFilename);
   }
 
+  /**
+   * Write one ZIP entry per resolution, in order.
+   *
+   * <p>Entry names carry a sequence prefix because S3 keys are unique but {@code original_filename}
+   * values are not, and {@code ZipOutputStream} throws on a duplicate entry name. A per-image S3
+   * failure writes a {@code .error.txt} placeholder in that entry's place, so the recipient sees
+   * what is missing without the whole download being torn down.
+   */
   private void writeZipEntries(ZipOutputStream zos, List<DownloadResolution> entries)
       throws IOException {
     int seq = 0;
     for (DownloadResolution entry : entries) {
-      // S3 keys are unique but original_filenames are not — prefix with a sequence number so
-      // ZipOutputStream never throws on duplicate entry names.
       GetObjectRequest req =
           GetObjectRequest.builder().bucket(bucketName).key(entry.s3Key()).build();
       try (ResponseInputStream<GetObjectResponse> in = s3Client.getObject(req)) {
@@ -110,8 +116,6 @@ public class DownloadUrlService {
         in.transferTo(zos);
         zos.closeEntry();
       } catch (SdkException e) {
-        // Per-image failure must not corrupt the rest of the ZIP: write a placeholder so the
-        // recipient sees something is missing without tearing down the whole download.
         log.warn(
             "Failed to fetch S3 object for ZIP entry (key={}): {}", entry.s3Key(), e.getMessage());
         zos.putNextEntry(new ZipEntry(String.format("%03d_%s.error.txt", seq++, entry.filename())));

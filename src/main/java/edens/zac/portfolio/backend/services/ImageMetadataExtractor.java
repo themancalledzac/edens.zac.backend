@@ -118,6 +118,13 @@ public class ImageMetadataExtractor {
     return result;
   }
 
+  /**
+   * Read every directory in the file, EXIF first and XMP second, so that an EXIF value wins and XMP
+   * only fills the gaps it leaves.
+   *
+   * <p>Keywords are read from the first XMP directory that yields a non-empty result; later ones
+   * are skipped. A file with several XMP directories therefore gets one keyword set, not a merge.
+   */
   private MetadataExtractionResult extractFromStream(InputStream inputStream, String filename) {
     Map<String, String> metadata = new HashMap<>();
     ExtractedKeywords keywords = ExtractedKeywords.EMPTY;
@@ -125,18 +132,15 @@ public class ImageMetadataExtractor {
     try {
       Metadata imageMetadata = ImageMetadataReader.readMetadata(inputStream);
 
-      // Extract EXIF metadata for all defined fields
       for (Directory directory : imageMetadata.getDirectories()) {
         for (Tag tag : directory.getTags()) {
           extractFromExifTag(tag, metadata);
         }
       }
 
-      // Extract XMP metadata for all defined fields + keywords/people
       for (XmpDirectory xmpDirectory : imageMetadata.getDirectoriesOfType(XmpDirectory.class)) {
         extractFromXmpDirectory(xmpDirectory, metadata);
 
-        // Extract tags and people from XMP keyword arrays (stop after first non-empty result)
         if (keywords.tags().isEmpty() && keywords.people().isEmpty()) {
           try {
             XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
@@ -164,7 +168,8 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Extract metadata from a single EXIF tag using the ImageMetadata enum configuration.
+   * Extract metadata from a single EXIF tag using the ImageMetadata enum configuration. First write
+   * wins: a field already in the map is left alone.
    *
    * @param tag The EXIF tag to process
    * @param metadata The metadata map to populate
@@ -177,10 +182,8 @@ public class ImageMetadataExtractor {
       return;
     }
 
-    // Try each metadata field
     for (ImageMetadata.MetadataField field : ImageMetadata.MetadataField.values()) {
       if (field.getExifTags().matches(tagName)) {
-        // Only set if not already extracted
         if (!metadata.containsKey(field.getFieldName())) {
           String extractedValue = field.getExtractor().extract(description);
           if (extractedValue != null) {
@@ -194,13 +197,16 @@ public class ImageMetadataExtractor {
   /**
    * Extract metadata from XMP directory using the ImageMetadata enum configuration.
    *
+   * <p>Each field's (namespace, propertyName) pairs are tried in priority order and the first one
+   * that yields a value wins. A field already extracted from EXIF is not overwritten, so this pass
+   * only fills gaps.
+   *
    * @param xmpDirectory The XMP directory to process
    * @param metadata The metadata map to populate
    */
   private void extractFromXmpDirectory(XmpDirectory xmpDirectory, Map<String, String> metadata) {
     XMPMeta xmpMeta = xmpDirectory.getXMPMeta();
 
-    // Try each metadata field
     for (ImageMetadata.MetadataField field : ImageMetadata.MetadataField.values()) {
       ImageMetadata.XmpProperty xmpProperty = field.getXmpProperty();
 
@@ -208,13 +214,11 @@ public class ImageMetadataExtractor {
         continue;
       }
 
-      // Try each (namespace, propertyName) pair in priority order
       for (ImageMetadata.XmpProperty.NamespaceProp entry : xmpProperty.getEntries()) {
         try {
           XMPProperty prop = xmpMeta.getProperty(entry.namespace(), entry.propertyName());
 
           if (prop != null && prop.getValue() != null) {
-            // Only set if not already extracted from EXIF
             if (!metadata.containsKey(field.getFieldName())) {
               String extractedValue = field.getExtractor().extract(prop.getValue());
               if (extractedValue != null) {
@@ -262,16 +266,25 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Extract tags and people from XMP keyword arrays. Uses lr:hierarchicalSubject to distinguish
-   * people (under "People" parent) from tags. Falls back to dc:subject (flat keywords, all become
-   * tags) if hierarchical subjects are not present.
+   * Extract tags and people from XMP keyword arrays.
+   *
+   * <p>lr:hierarchicalSubject is tried first, because Lightroom writes those keywords with their
+   * category parent attached. A "People|" parent marks a person, so "People|Jane Doe" yields the
+   * person "Jane Doe"; anything else keeps only its leaf segment, so "Weather|sunset" yields the
+   * tag "sunset".
+   *
+   * <p>Tags matching a person's name are then dropped, because Lightroom emits a person both under
+   * the "People|Name" hierarchy and as a standalone keyword -- without the filter the same name
+   * comes back as both a person and a tag.
+   *
+   * <p>With no hierarchical subjects present, flat dc:subject is the fallback. It carries no
+   * category parents, so every keyword becomes a tag and no people are separated out.
    *
    * @param xmpMeta The XMP metadata object
    * @return ExtractedKeywords with separated tag and people name lists
    */
   private ExtractedKeywords extractTagsAndPeopleFromXmp(
       XMPMeta xmpMeta, Map<String, String> metadata) {
-    // Try hierarchical subjects first (Lightroom writes these with category parents)
     List<String> hierarchicalSubjects =
         extractXmpArrayItems(xmpMeta, NS_LIGHTROOM, "hierarchicalSubject");
 
@@ -281,13 +294,11 @@ public class ImageMetadataExtractor {
 
       for (String subject : hierarchicalSubjects) {
         if (subject.toLowerCase().startsWith("people|")) {
-          // "People|Jane Doe" → person "Jane Doe"
           String personName = subject.substring("people|".length()).trim();
           if (!personName.isEmpty()) {
             people.add(personName);
           }
         } else {
-          // "Weather|sunset" → tag "sunset" (leaf segment)
           String leaf =
               subject.contains("|")
                   ? subject.substring(subject.lastIndexOf('|') + 1).trim()
@@ -302,8 +313,6 @@ public class ImageMetadataExtractor {
         }
       }
 
-      // Filter out any tag that matches a person name — Lightroom adds people keywords
-      // both under "People|Name" hierarchy AND as standalone keywords
       if (!people.isEmpty()) {
         Set<String> peopleNamesLower = new HashSet<>();
         for (String name : people) {
@@ -315,7 +324,6 @@ public class ImageMetadataExtractor {
       return new ExtractedKeywords(tags, people);
     }
 
-    // Fallback: flat dc:subject — all become tags, no people distinction
     List<String> dcSubjects = extractXmpArrayItems(xmpMeta, XMPConst.NS_DC, "subject");
 
     List<String> tags = new ArrayList<>();
@@ -418,8 +426,12 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Parse year and month from EXIF date string. EXIF date format is typically "2024:05:15
-   * 14:30:00".
+   * Parse year and month from an EXIF or XMP date string.
+   *
+   * <p>Both formats are handled without telling them apart: splitting on {@code [: T-]} breaks EXIF
+   * "2024:05:15 14:30:00" and ISO-8601 "2024-05-15T14:30:00" the same way, and year and month are
+   * the first two numeric runs either way. Only those two are read, so the rest of the string does
+   * not matter.
    *
    * @param createDate The capture date string from EXIF/XMP metadata
    * @param modifyDate The modify date string (Lightroom export date), used as fallback
@@ -428,7 +440,6 @@ public class ImageMetadataExtractor {
   public int[] parseImageDate(String createDate, String modifyDate) {
     if (createDate != null && !createDate.isEmpty()) {
       try {
-        // EXIF format: "2024:05:15 14:30:00" or ISO-8601: "2024-05-15T14:30:00"
         String[] parts = createDate.split("[: T-]");
         return new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
       } catch (Exception e) {
@@ -461,6 +472,11 @@ public class ImageMetadataExtractor {
    *   <li>Date only (ISO): "2020-09-27" -> midnight
    * </ul>
    *
+   * <p>The two families are told apart by the fifth character: EXIF dates start "YYYY:" and ISO
+   * dates start "YYYY-". EXIF is normalized to ISO before parsing. Within ISO, a length-10 string
+   * is date-only, and a longer one carrying a "+" or a "-" past the day is read as an offset
+   * date-time and reduced to local time.
+   *
    * @param createDate The date string from EXIF or XMP metadata
    * @return The parsed LocalDateTime, or null if parsing fails
    */
@@ -471,12 +487,10 @@ public class ImageMetadataExtractor {
 
     String trimmed = createDate.trim();
 
-    // Detect format: EXIF dates start with "YYYY:" while ISO dates start with "YYYY-"
     boolean isExifFormat = trimmed.length() > 4 && trimmed.charAt(4) == ':';
 
     try {
       if (isExifFormat) {
-        // EXIF format: "2020:09:27 08:42:51" -> "2020-09-27T08:42:51"
         String normalized = trimmed.replaceFirst(":", "-").replaceFirst(":", "-").replace(" ", "T");
         if (normalized.length() == 10) {
           return LocalDate.parse(normalized).atStartOfDay();
@@ -484,18 +498,14 @@ public class ImageMetadataExtractor {
         return LocalDateTime.parse(normalized);
       }
 
-      // ISO format from XMP: "2020-09-27T08:42:51" or "2020-09-27T08:42:51-07:00"
       if (trimmed.length() == 10) {
-        // Date only: "2020-09-27"
         return LocalDate.parse(trimmed).atStartOfDay();
       }
 
-      // Try ISO with timezone offset first (e.g. "2020-09-27T08:42:51-07:00")
       if (trimmed.length() > 19 && (trimmed.contains("+") || trimmed.lastIndexOf('-') > 10)) {
         return OffsetDateTime.parse(trimmed).toLocalDateTime();
       }
 
-      // Standard ISO: "2020-09-27T08:42:51"
       return LocalDateTime.parse(trimmed);
     } catch (DateTimeParseException e) {
       log.warn(
@@ -507,7 +517,8 @@ public class ImageMetadataExtractor {
   }
 
   /**
-   * Parse a string to an Integer, returning a default value if parsing fails.
+   * Parse a string to an Integer, returning a default value if parsing fails. Characters other than
+   * digits and a minus sign are stripped first, so "ISO 400" reads as 400.
    *
    * @param value The string value to parse
    * @param defaultValue The default value to return if parsing fails
@@ -518,7 +529,6 @@ public class ImageMetadataExtractor {
       return defaultValue;
     }
     try {
-      // Remove any non-numeric characters except minus sign
       String cleaned = value.replaceAll("[^0-9-]", "");
       return Integer.parseInt(cleaned);
     } catch (NumberFormatException e) {
