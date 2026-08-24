@@ -70,7 +70,8 @@ public class InviteController {
    * @param token the raw invite token from the URL
    * @param body the chosen display name and password (validated)
    * @return {@code 204 No Content} (+ Set-Cookie), {@code 410 Gone} if the token is already used or
-   *     expired, or {@code 400 Bad Request} for validation failures
+   *     expired or the account may not complete an accept, or {@code 400 Bad Request} for
+   *     validation failures
    */
   @PostMapping("/{token}/accept")
   @Transactional
@@ -89,14 +90,24 @@ public class InviteController {
     UserInviteEntity invite = maybeInvite.get();
     Long userId = invite.getUserId();
 
-    appUserRepository.updatePasswordHash(userId, passwordEncoder.encode(body.password()));
-    appUserRepository.updateName(userId, body.displayName());
-    appUserRepository.updateStatus(userId, UserStatus.ACTIVE);
-
     AppUserEntity user =
         appUserRepository
             .findById(userId)
             .orElseThrow(() -> new IllegalStateException("User disappeared after invite redeem"));
+
+    // Allowlist the two statuses the invite lifecycle sanctions: INVITED is onboarding, and ACTIVE
+    // is the admin-issued password reset, which redeems through this same endpoint
+    // (AdminUserController.regenerateInvite). Anything else must not reach the ACTIVE flip below --
+    // a DISABLED holder of an unexpired invite would otherwise re-activate their own account. The
+    // redeem above already stands, so the rejected token is spent either way.
+    if (user.getStatus() != UserStatus.INVITED && user.getStatus() != UserStatus.ACTIVE) {
+      log.warn("Invite accept rejected: userId={} status={}", userId, user.getStatus());
+      return ResponseEntity.status(HttpStatus.GONE).build();
+    }
+
+    appUserRepository.updatePasswordHash(userId, passwordEncoder.encode(body.password()));
+    appUserRepository.updateName(userId, body.displayName());
+    appUserRepository.updateStatus(userId, UserStatus.ACTIVE);
 
     sessionService.create(user, false, request, response);
     log.info("Invite accepted: userId={}", userId);

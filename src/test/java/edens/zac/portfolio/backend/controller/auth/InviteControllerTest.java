@@ -58,14 +58,19 @@ class InviteControllerTest {
     return UserInviteEntity.builder().id(1L).userId(userId).email(email).build();
   }
 
-  private AppUserEntity activeUser(Long id, String email, String displayName) {
+  private AppUserEntity userWithStatus(
+      Long id, String email, String displayName, UserStatus status) {
     return AppUserEntity.builder()
         .id(id)
         .email(email)
         .name(displayName)
-        .status(UserStatus.INVITED)
+        .status(status)
         .webauthnUserHandle(UUID.randomUUID())
         .build();
+  }
+
+  private AppUserEntity invitedUser(Long id, String email, String displayName) {
+    return userWithStatus(id, email, displayName, UserStatus.INVITED);
   }
 
   @Nested
@@ -76,7 +81,7 @@ class InviteControllerTest {
       when(userInviteService.validate("good-token"))
           .thenReturn(Optional.of(invite(10L, "bob@example.com")));
       when(appUserRepository.findById(10L))
-          .thenReturn(Optional.of(activeUser(10L, "bob@example.com", "Bob")));
+          .thenReturn(Optional.of(invitedUser(10L, "bob@example.com", "Bob")));
 
       mockMvc
           .perform(get("/api/auth/invite/good-token"))
@@ -90,7 +95,7 @@ class InviteControllerTest {
       when(userInviteService.validate("good-token"))
           .thenReturn(Optional.of(invite(10L, "bob@example.com")));
       when(appUserRepository.findById(10L))
-          .thenReturn(Optional.of(activeUser(10L, "bob@example.com", null)));
+          .thenReturn(Optional.of(invitedUser(10L, "bob@example.com", null)));
 
       mockMvc
           .perform(get("/api/auth/invite/good-token"))
@@ -113,7 +118,7 @@ class InviteControllerTest {
     @Test
     void validTokenAcceptsAndReturns204WithSession() throws Exception {
       UserInviteEntity inv = invite(10L, "bob@example.com");
-      AppUserEntity user = activeUser(10L, "bob@example.com", "OldName");
+      AppUserEntity user = invitedUser(10L, "bob@example.com", "OldName");
 
       when(userInviteService.redeem("good-token")).thenReturn(Optional.of(inv));
       when(appUserRepository.findById(10L)).thenReturn(Optional.of(user));
@@ -130,6 +135,75 @@ class InviteControllerTest {
       verify(appUserRepository).updateName(10L, "Bob");
       verify(appUserRepository).updateStatus(10L, UserStatus.ACTIVE);
       verify(sessionService).create(eq(user), eq(false), any(), any());
+    }
+
+    @Test
+    void activeUserAcceptsForPasswordResetAndReturns204() throws Exception {
+      // AdminUserController.regenerateInvite issues a reset link for an ACTIVE user, who redeems it
+      // through this same endpoint. Mutation this catches: narrow the allowlist to INVITED alone
+      // and admin-issued password reset starts returning 410.
+      UserInviteEntity inv = invite(11L, "amy@example.com");
+      AppUserEntity user = userWithStatus(11L, "amy@example.com", "Amy", UserStatus.ACTIVE);
+
+      when(userInviteService.redeem("reset-token")).thenReturn(Optional.of(inv));
+      when(appUserRepository.findById(11L)).thenReturn(Optional.of(user));
+      when(passwordEncoder.encode("newpass1")).thenReturn("{bcrypt}hashed");
+
+      mockMvc
+          .perform(
+              post("/api/auth/invite/reset-token/accept")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Amy\",\"password\":\"newpass1\"}"))
+          .andExpect(status().isNoContent());
+
+      verify(appUserRepository).updatePasswordHash(11L, "{bcrypt}hashed");
+      verify(sessionService).create(eq(user), eq(false), any(), any());
+    }
+
+    @Test
+    void disabledUserCannotAcceptAndReturns410() throws Exception {
+      // S-7: a disabled account holding an unexpired invite must not re-activate itself. Mutation
+      // this catches: drop the status guard and the DISABLED user is flipped ACTIVE and logged in.
+      UserInviteEntity inv = invite(12L, "dan@example.com");
+
+      when(userInviteService.redeem("stale-token")).thenReturn(Optional.of(inv));
+      when(appUserRepository.findById(12L))
+          .thenReturn(
+              Optional.of(userWithStatus(12L, "dan@example.com", "Dan", UserStatus.DISABLED)));
+
+      mockMvc
+          .perform(
+              post("/api/auth/invite/stale-token/accept")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Dan\",\"password\":\"newpass1\"}"))
+          .andExpect(status().isGone());
+
+      verify(appUserRepository, never()).updatePasswordHash(anyLong(), anyString());
+      verify(appUserRepository, never()).updateName(anyLong(), anyString());
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(sessionService, never()).create(any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    void personRowCannotAcceptAndReturns410() throws Exception {
+      // PERSON is a tag-only identity with no login account. Mutation this catches: rewrite the
+      // allowlist as a "status != DISABLED" denylist and a PERSON row becomes a real account.
+      UserInviteEntity inv = invite(13L, "pat@example.com");
+
+      when(userInviteService.redeem("person-token")).thenReturn(Optional.of(inv));
+      when(appUserRepository.findById(13L))
+          .thenReturn(
+              Optional.of(userWithStatus(13L, "pat@example.com", "Pat", UserStatus.PERSON)));
+
+      mockMvc
+          .perform(
+              post("/api/auth/invite/person-token/accept")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Pat\",\"password\":\"newpass1\"}"))
+          .andExpect(status().isGone());
+
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(sessionService, never()).create(any(), anyBoolean(), any(), any());
     }
 
     @Test
