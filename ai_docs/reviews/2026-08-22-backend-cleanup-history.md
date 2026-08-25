@@ -2589,6 +2589,62 @@ That generalises, and it is working rule 25.
 exclude line, and running the end-to-end test with an empty exclude.
 
 
+## MR 19 #16 outcome, 2026-08-25 -- the suggested clause was the bug
+
+**Shipped:** [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216).
+
+### The N+1, as described
+
+`findCurrentContentCollections` read every join row in the parent, then asked the database about
+each one individually. `SELECT_CONTENT_COLLECTION` inner-joins `content_collection`, so every image
+in the parent bought an empty result: removing one sub-collection from a 200-image collection issued
+**201 queries, 200 of them answering nothing**. Admin write path, not public reads, which caps it.
+
+Replaced by one query in `ContentRepository`. The matching moved into SQL and the service kept only
+its logging.
+
+### Where the item was wrong, and why it would not have been caught
+
+The item proposed `cc.id IN (:ids) OR cc.referenced_collection_id IN (:ids)`. That clause alone
+**drops the parent scope**, which the loop had for free by construction -- it iterated one parent's
+join rows, so scoping was structural rather than expressed.
+
+Typed verbatim, it matches blocks linked under a different parent. The damage is not a bad read:
+`removeContentFromCollection` is parent-scoped and would delete nothing. But `onChildUnlinked` fires
+off the same result list, so **role-grant propagation would run for a parent-child link that never
+existed** -- invisible in the response, surfacing later as someone's access.
+
+It would also have passed review and passed a mocked test. `CollectionServiceTest` stubs the
+repository, so the service test proves the call happens once and can say nothing about which rows
+come back. That is why the new coverage is an integration test against real Postgres, and why the
+mutation matters: drop the `collection_content` join and
+`doesNotReachIntoADifferentParentsLinks` goes red. Three mutations verified red in total -- the
+parent scope, matching only on the block id, and adding a `visible = true` filter.
+
+No `visible` filter, deliberately: the replaced loop had none, and an unlink has to reach a hidden
+link. The mutation pins that too, which is the only reason it counts as a decision rather than an
+omission.
+
+### Estimate versus actual
+
+"Test coupling is one mock line" -- it was two stubs
+(`findContentByCollectionIdOrderByOrderIndex` and `findCollectionContentById`), both in
+`removesCurrentFromEachRemoveIdParentChildren`. Small in absolute terms, but the failure mode is the
+one rule 21 names: **the item counted the call it was thinking about and not the ones around it.**
+Other stubs of those two methods elsewhere in the suite belong to unrelated paths and were untouched
+-- which is exactly why the count has to be derived rather than recalled.
+
+Net diff: +38 source in `ContentRepository`, -25 in `CollectionService`, one dead import, one dead
+test fixture, +7 integration tests.
+
+### What it made deletable, and what was deliberately left alone
+
+`findCollectionContentById` now has exactly one caller left, `ContentModelConverter`. **MR 19 #14
+removes that one**, at which point it and `findTextById` both drop to zero callers. Left in place
+here on purpose: a repository deletion is Wave 1 work and does not belong riding along on a query
+fix. The guardrail is written into #14 rather than left as a note.
+
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked
