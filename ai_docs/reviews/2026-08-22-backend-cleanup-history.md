@@ -2701,3 +2701,133 @@ Two doc claims shipped, both re-verified first. `CollectionVisibility`'s docbloc
 and a naive grep is not -- the only two `@Profile` hits under `controller/` are javadoc text saying
 there is no such gating.
 
+
+## S-10 outcome (2026-08-25) -- redemption-time identity, and the narrowing cost report
+
+Shipped as [#221](https://github.com/themancalledzac/edens.zac.backend/pull/221). +111/-11 across
+four files. Suite 1,377 -> 1,381, checkstyle and spotless clean.
+
+### What shipped
+
+One named predicate on `UserInviteService`, beside `mayAcceptInvite`:
+
+```java
+static boolean inviteAddressMatchesAccount(UserInviteEntity invite, AppUserEntity user) {
+  return user.getEmail() != null && user.getEmail().equalsIgnoreCase(invite.getEmail());
+}
+```
+
+tested in `accept` immediately after the status test. Three decisions inside those two lines:
+
+- **After `redeem()`, not before.** The existing status rejection deliberately spends the token
+  before refusing, so a link presented against an ineligible account is burnt rather than left live
+  for a second attempt. A stale-address token deserves the same treatment for the same reason.
+- **`equalsIgnoreCase`.** Every write path lowercases before storing (`createUser`, `upgradeUser`
+  and `updateUser` all call `.toLowerCase()`), so a case difference can only come from a row
+  predating that. It is not an identity change, and a case-sensitive comparison would refuse a real
+  invitee -- working rule 18's failure-closed shape, which surfaces weeks later as "reset is broken".
+- **Null guard on the account side only.** `user_invite.email` is `NOT NULL` in V32, so the invite
+  side cannot be null. `users.email` has been nullable since V35 relaxed it for tag-only PERSON rows.
+  `String.equalsIgnoreCase(null)` returns false rather than throwing, so only the receiver needs the
+  guard.
+
+### The narrowing cost report the guardrail asked for
+
+The guardrail quarantined `mayAcceptInvite` and asked what dropping ACTIVE back out of it would
+cost. Six costs. The third is the one that makes the report worth having.
+
+1. **It removes the only password reset in the repo.** `grep -rni "password-reset\|forgot"` across
+   `src/main` returns two javadoc mentions and no route. `POST /api/admin/users/{id}/invite` is the
+   entire mechanism; there is no self-service flow to fall back to.
+2. **It fails silently, at the invitee.** `AdminUserController.regenerateInvite` has no status gate,
+   so it would keep returning `200` with an invite URL for an ACTIVE account. The admin sends the
+   link believing it works; the user hits `410 Gone` days later. Making the narrowing fail loudly
+   means also gating that endpoint -- work the narrowing does not include, and which is now filed
+   separately as **S-21**.
+3. **It silently changes a second method.** `invalidateInvitesForStatus` sweeps when
+   `!mayAcceptInvite(newStatus)`. Narrow the predicate and `invalidateInvitesForStatus(id, ACTIVE)`
+   starts sweeping, so **every** admin PATCH that sets status ACTIVE kills that account's outstanding
+   invites -- including a reset link issued moments earlier, and including the ordinary "restore a
+   disabled account" flow. This is a behavior change in a different file, reachable from a different
+   endpoint, and **nothing in S-10's write-up points at it.** It is working rule 29's first case.
+4. **Test cost.** `activeUserAcceptsForPasswordReset` and
+   `invalidateInvitesForStatusLeavesEligibleAccountsAlone` both redden. The first exists specifically
+   to catch this narrowing -- it is S-7's own guard against being reverted.
+5. **Doc cost.** `SessionService.mayHoldSession`'s docblock states it is "deliberately narrower than
+   `UserInviteService#mayAcceptInvite`, which also admits `INVITED`". Narrowed, the two sets become
+   equal rather than nested and that paragraph stops being true.
+6. **It does not close the class of bug.** `accept` would still redeem an INVITED account's invite
+   against an address it was never issued to. The targeted sweep in `updateUser` covers that path
+   today, but as a caller precondition rather than a guard at the operation -- working rule 17's
+   shape, and the reason the fix belongs at redemption regardless of what the predicate says.
+
+**Not verified, and it changes only how loudly the narrowing fails, not whether it fails:** whether
+the frontend admin UI exposes a reset button and what it renders on a `410`. There is no frontend
+checkout on this machine.
+
+**Conclusion: narrowing is the wrong seam.** The eligibility predicate answers "is this account alive
+enough to redeem an invite". S-10 is a question about *which* invite, which is identity, not
+eligibility. Working rule 20's trap is adjacent and worth restating: rule 20 does not license
+loosening status allowlists, and this report does not license tightening one either -- the allowlist
+was never the defect.
+
+### Why widening the `AdminUserController` sweep was also refused
+
+The second half of the guardrail. Firing the sweep on every email change regardless of status looks
+like the same fix. It closes this instance and leaves `accept` willing to redeem an invite against an
+address it was never issued to, so it protects exactly the paths someone remembered to enumerate.
+Working rule 16's principle: a guard at the read chokepoint covers entry points you failed to list;
+a guard at one entry point covers that entry point.
+
+### Comments corrected, and why that was not scope creep
+
+Two comments asserted "an ACTIVE user has no pending onboarding invite to hijack" -- in
+`AdminUserController.updateUser` and in
+`AdminUserControllerTest.changingActiveUserEmailDoesNotTouchInvites`. S-7 falsified both when it
+widened `mayAcceptInvite`, and the first **is the premise S-10 is built on**. Neither behavior
+changed. Working rule 22 is the argument for fixing them in the same MR rather than filing them: a
+stale comment about a *protection* does not get corrected by the next reader, because nobody
+re-derives a guarantee they have been told already holds.
+
+### Mutation evidence, stated precisely
+
+TDD, RED first. On unfixed `main`, three of the four new tests fail:
+`inviteIssuedToAnAddressTheAccountNoLongerHoldsIsRejected`, `aRejectedStaleInviteIsStillSpent`,
+`anAccountWithNoEmailIsRejected`. The fourth, `anInviteAddressDifferingOnlyInCaseStillAccepts`,
+**passes both before and after by design** -- it guards the direction the fix must not break, and it
+is not a regression detector for the fix itself. Recorded here rather than left to be inferred from a
+test count, because working rule 15's whole complaint is about tests that report coverage they do not
+have.
+
+## S-11 outcome (2026-08-25) -- the guard clause, and a fact the board already had
+
+Shipped as [#222](https://github.com/themancalledzac/edens.zac.backend/pull/222). +97/-11 across
+three files. Suite 1,377 -> 1,381.
+
+One clause in `ProdSecretGuard` mirroring the `internal.api.secret` clause (null, blank, or the known
+dev default), plus an `ACCESS_TOKEN_SECRET` block in `.env.example` naming what the value protects
+and what rotating it costs.
+
+**The compose default was kept deliberately.** Removing `:-dev-access-token-secret` leaves the
+variable set-but-empty inside the container rather than absent, so `TokenCipher` would derive its key
+from `sha256("")` -- more predictable, not safer. The startup guard is the seam; compose is not.
+
+**The second consumer was already on the board.** S-11's severity paragraph traced `TokenCipher`
+alone. `ClientGalleryAuthService` uses the same value as the HMAC key for `generateAccessToken`,
+`generatePasswordAccessToken` and `passwordFingerprint` -- and the tracker's own "Unsettled" bullet on
+rotation had listed all three uses since it was written. This was a section-integrity failure, not a
+research gap, and it is half of working rule 29.
+
+What it adds to the severity, in both directions so neither half gets re-derived:
+`passwordFingerprint`'s docblock claims the fingerprint "is not derivable without the server secret",
+and the `gallery_access_pw_<fingerprint>` cookie **name** carries that fingerprint -- so a known key
+turns an observed cookie name into an offline dictionary attack on the gallery password. It is **not**
+a forgery bypass: both validators recompute the expected HMAC from the gallery's *stored* password,
+so minting a valid token still requires knowing that password.
+
+**Mutation evidence.** Deleting the new clause reddens all four new tests, including
+`Wiring.prodRefusesToStartOnTheDefaultDevAccessTokenSecret`, which boots a real prod context via
+`ApplicationContextRunner` so the container rather than a reflective call runs the check -- the exact
+gap S-4 was opened to close. The two pre-existing wiring tests now supply a real access-token secret,
+so each still fails only for the reason it names. Source restored with `touch`, per working rule 15's
+note on stale `.class` files.

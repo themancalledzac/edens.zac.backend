@@ -19,7 +19,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 2 — Bugs | MR 5-9 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173). One residual (bug #17) carried forward, below. |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). **Superseded by the 2026-08-24 review**: see "Open security findings" below, which now holds six items including two HIGH ones. |
 | 4 — Comments and docs | MR 12-14 | **mostly complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) below. **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 found the wave rule does not fit hardened files and produced working rule 12; its stale-docblock **items** (four, not one) are still open. |
-| 5 — Consolidations | MR 15-19 | MR 15 #1, #2, #6 **done** ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165), [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). #6 closed the `PersonRepository` carry and taught working rule 14; its own guard was later found to have a bypass (security finding S-2, closed [#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)). The last MR 15 follow-up closed 2026-08-24 ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210)) -- **MR 15 is fully done**; the `getContext().getAuthentication()` grep returning four sites is its completion condition and is satisfied. MR 19 #16 shipped 2026-08-25 ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)) -- 201 queries to 1, and the board's suggested WHERE clause turned out to drop the parent scope. MR 19 #14 shipped 2026-08-25 ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218)) -- two queries to one, and **the first item in seven to need no adjustment at implementation time**, which is what broke the streak the full-board review's case rested on. **next: MR 16 #4/#5 (zero test coupling)** -- but the 2026-08-25 review reopened the security board with two HIGH findings, and those outrank it. |
+| 5 — Consolidations | MR 15-19 | MR 15 #1, #2, #6 **done** ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165), [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189), [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)). #6 closed the `PersonRepository` carry and taught working rule 14; its own guard was later found to have a bypass (security finding S-2, closed [#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)). The last MR 15 follow-up closed 2026-08-24 ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210)) -- **MR 15 is fully done**; the `getContext().getAuthentication()` grep returning four sites is its completion condition and is satisfied. MR 19 #16 shipped 2026-08-25 ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)) -- 201 queries to 1, and the board's suggested WHERE clause turned out to drop the parent scope. MR 19 #14 shipped 2026-08-25 ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218)) -- two queries to one, and **the first item in seven to need no adjustment at implementation time**, which is what broke the streak the full-board review's case rested on. **next: MR 16 #4/#5 (zero test coupling)** -- still outranked by the security board, though both HIGH findings closed 2026-08-25 (#221, #222) and what remains there is MEDIUM. |
 | 6 — Conventions | MR 20-22 | not started |
 | 7 — Structure | MR 23-24 | not started |
 | 8 — Tests | MR 25-26 | not started |
@@ -31,8 +31,8 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **REOPENED 2026-08-25: 10 open, 2 HIGH, 2 blocked on the user.** The split full-board review re-attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-20 below. S-19 closed the same day by reading the live frontend. Eight are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **next: S-10, then S-11.** The nine closed items are still closed and are listed after the new ones. Historical: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the wave rows above, MR 19 #16 or MR 16 #4/#5. |
+| [Open security findings](#open-security-findings) | **8 open, 0 HIGH, 2 blocked on the user** (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **next: S-15, then S-12.** S-15 is next rather than the higher-severity S-12 because it lives in the method #221 just edited and its one unknown was discharged in that pass (working rule 27) -- its stated fix names a method that does not exist. The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the security board (S-15), not from this one. *(Corrected 2026-08-25: this row pointed at "MR 19 #16 or MR 16 #4/#5" and MR 19 #16 shipped as [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216) the day before. A next-pointer inside a closed section is exactly the kind that rots unwatched, because nobody re-reads a board row marked done.)* |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -41,7 +41,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **0 open** — see below. All nine closed 2026-08-24. S-7 took the last live hole; S-6 closed the board | — |
+| Security findings | **8 open, 0 HIGH** — see below. The board reopened 2026-08-25 with 11 new findings; S-19 settled, S-10 and S-11 shipped, S-21 filed | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -143,8 +143,8 @@ Verification status is stated per item and is not uniform. **S-10 and S-11 were 
 re-verified line by line before being written here**; the rest carry the reviewing agent's trace and
 should be re-confirmed at implementation time, per working rule 21.
 
-- [ ] **S-10 (HIGH, verified). An admin-issued reset invite survives an email change, and redeeming
-  it is account takeover.** `AdminUserController.updateUser` sweeps invites only when
+- [x] **S-10 (HIGH, verified). An admin-issued reset invite survives an email change, and redeeming
+  it is account takeover.** **DONE** ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221), 2026-08-25.) `AdminUserController.updateUser` sweeps invites only when
   `existing.getStatus() == UserStatus.INVITED`, and its comment says "ACTIVE users have no pending
   onboarding invite to hijack." **S-7 made that false.** S-7 widened `mayAcceptInvite` to
   `{INVITED, ACTIVE}` precisely so `regenerateInvite` -- which has no status restriction -- can mint
@@ -175,10 +175,53 @@ should be re-confirmed at implementation time, per working rule 21.
   change looks like the same fix and is not: it papers over the missing identity check while leaving
   `accept` willing to redeem an invite against an address it was never issued to.
 
-  **COLD** -- fully specified, no open question.
+  **Shipped as specified, which is the second item in a row to need no adjustment.** Every premise
+  re-read on `main` before a line was written and all four held. +111/-11 across four files; suite
+  1,377 -> 1,381.
 
-- [ ] **S-11 (HIGH, verified). `ACCESS_TOKEN_SECRET` has a public default and no startup guard,
-  which voids the at-rest property #213 claims.** `docker-compose.yml` supplies
+  The fix is a named predicate beside `mayAcceptInvite`, per working rule 19:
+  `inviteAddressMatchesAccount(invite, user)`, tested in `accept` immediately after the status test.
+  Three choices worth carrying forward: it sits **after** `redeem()`, so a hijacked token is spent
+  rather than left live for a second attempt (matching the status rejection); it compares
+  **case-insensitively**, because every write path lowercases and a case difference is not an
+  identity change; and it **null-guards the account side**, because `users.email` is nullable for
+  PERSON rows since V35 and a security check must not throw.
+
+  **Working rule 24 applied at the input end and paid.** Before believing the scope: `user_invite.email`
+  is `NOT NULL` in V32 and `UserInviteRepository`'s row mapper does select it, so the value the fix
+  consumes always exists and there are no legacy NULL rows to fail closed on. Then the issue-time
+  check: all three minting paths write the invite email equal to the account email (`createUser`
+  inserts then mints with the same value; `regenerateInvite` passes `user.getEmail()`; `upgradeUser`
+  calls `updateEmail` *before* minting). Nothing legitimate diverges, so the check refuses only a
+  subsequent email change -- which is the attack.
+
+  **The guardrail's cost report, and the part the item did not name.** Full version in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-10-outcome-2026-08-25----redemption-time-identity-and-the-narrowing-cost-report).
+  The headline: narrowing `mayAcceptInvite` removes the only password reset in the repo (grep for
+  `password-reset`/`forgot` across `src/main` returns two javadoc mentions and no route) and it
+  breaks *silently*, because `regenerateInvite` has no status gate and would keep returning 200 with
+  a link that 410s days later at the invitee. **The cost the item missed is a second caller**:
+  `invalidateInvitesForStatus` sweeps when `!mayAcceptInvite(newStatus)`, so narrowing the predicate
+  would make every admin PATCH that sets status ACTIVE kill that account's outstanding invites,
+  including a reset link issued moments earlier. That is a behavior change in a different method,
+  invisible from S-10's own text, and it is why **working rule 29** exists.
+
+  **Two comments corrected, because S-7 falsified them and one is this item's own premise.**
+  `AdminUserController.updateUser` and `AdminUserControllerTest.changingActiveUserEmailDoesNotTouchInvites`
+  both said an ACTIVE user has no pending onboarding invite to hijack. Neither behavior changed --
+  the sweep is still INVITED-only and the test's assertion is unchanged -- but both now say *why*
+  the sweep is scoped that way and where the ACTIVE case is handled instead. Working rule 22's
+  asymmetry is the reason this was not left for later: a stale comment about a **protection** is not
+  corrected by the next reader, because nobody re-derives a guarantee they have been told holds.
+
+  **Mutation evidence.** TDD RED first: three of the four new tests fail on unfixed code. The fourth,
+  `anInviteAddressDifferingOnlyInCaseStillAccepts`, passes before and after **by design** -- it
+  guards the direction the fix must not break, per working rule 18's point that a wrong allowlist
+  fails closed and surfaces late as "reset is broken". Stated here rather than implied, so nobody
+  counts it as a regression detector it is not.
+
+- [x] **S-11 (HIGH, verified). `ACCESS_TOKEN_SECRET` has a public default and no startup guard,
+  which voids the at-rest property #213 claims.** **DONE** ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222), 2026-08-25.) `docker-compose.yml` supplies
   `${ACCESS_TOKEN_SECRET:-dev-access-token-secret}`, and `.env.example` never mentions the variable
   at all -- it lists `INTERNAL_API_SECRET` and `INTERNAL_API_SECRET_NEXT` only. `TokenCipher` derives
   its AES-256-GCM key from exactly this value (`app.access-token.secret`, sha256 of the string), and
@@ -196,8 +239,38 @@ should be re-confirmed at implementation time, per working rule 21.
   "No new env var" was scored as a simplification win in #213 and is also how this got past the only
   startup check the repo has. Fix is one clause in `ProdSecretGuard` plus a line in `.env.example`.
 
-  **COLD for the guard and the example file.** The severity depends on the profile question below,
-  but the fix does not -- the guard is correct to add regardless of what prod is currently named.
+  Shipped as specified: one clause in `ProdSecretGuard` (null, blank, or the known dev default,
+  mirroring the `internal.api.secret` clause) plus an `ACCESS_TOKEN_SECRET` block in `.env.example`
+  naming what the value protects and what rotating it costs. +97/-11; suite 1,377 -> 1,381.
+
+  **The compose default stays, and that was a decision, not an oversight.** Removing
+  `:-dev-access-token-secret` leaves the variable set-but-empty inside the container rather than
+  absent, so `TokenCipher` would derive its key from `sha256("")` -- a more predictable key, not a
+  safer one. The startup guard is the right seam; compose is not.
+
+  **The item named one consumer and the doc already knew there were three.** S-11's severity
+  paragraph traced `TokenCipher` only. Grepping the property key finds `ClientGalleryAuthService`
+  using the same value as the HMAC key for `generateAccessToken`, `generatePasswordAccessToken` and
+  `passwordFingerprint`. That is not a new discovery -- **the "Unsettled" bullet on rotation, fifty
+  lines below in this same document, already listed all three uses.** The fact was on the board and
+  S-11 did not carry it, which is a section-integrity failure rather than a research gap, and the
+  more useful lesson: a finding written in one section does not reach the item that needs it.
+
+  What the second consumer adds to the severity, stated precisely so it is not overclaimed:
+  `passwordFingerprint`'s own docblock says the fingerprint "is not derivable without the server
+  secret", and the `gallery_access_pw_<fingerprint>` cookie **name** carries that fingerprint -- so a
+  known key turns an observed cookie name into an offline dictionary attack on the gallery password.
+  It is **not** a forgery bypass: both `validateAccessToken` and `validatePasswordAccessToken`
+  recompute the expected HMAC from the gallery's *stored* password, so minting a valid token still
+  requires knowing that password. Recorded in both directions so nobody re-derives either half.
+
+  **Mutation evidence, which is the whole point on this file.** S-4 exists because
+  `ProdSecretGuardTest`'s unit cases call `verify()` reflectively on a hand-built object and cannot
+  see `@PostConstruct`. Deleting the new clause reddens **all four** new tests including the
+  `ApplicationContextRunner` case, which boots a real prod context so the container is what runs the
+  check. The two pre-existing wiring tests now supply a real access-token secret, so each still fails
+  only for the reason it names. Source restored with `touch` afterwards per working rule 15's note on
+  stale `.class` files.
 
 - [ ] **S-12 (MEDIUM-HIGH, agent trace). Dormant `role_member` rows on a PERSON become live grants on
   upgrade.** S-2 closed `addMember` and `repointMemberships`. `AdminUserController.upgradeUser` is
@@ -231,6 +304,23 @@ should be re-confirmed at implementation time, per working rule 21.
   only way to evict a stolen session is an admin round-trip to DISABLED and back. **Resetting your
   password is the thing users do when they think they are compromised**, which is what makes this
   worth more than its severity suggests.
+
+  **Premise re-verified 2026-08-25 while shipping S-10, which edits the same method. It holds, and
+  the item's prescribed fix does not.** `accept` still writes the hash and calls
+  `sessionService.create` with nothing in between. But `SessionService` has **no**
+  `revokeAllForUser` -- its public surface is `create`, `resolve`, `revoke(rawToken, response)` and
+  `revokeAllForStatus(userId, newStatus)`. The classification table's "S-8 already built it" is
+  **wrong**: S-8 built `revokeAllForStatus`, which delegates to the repository's `revokeAllForUser`
+  only when `!mayHoldSession(newStatus)`. Calling it with ACTIVE is a **no-op by construction**,
+  because `mayHoldSession(ACTIVE)` is true. The repository method exists; the service does not expose
+  it.
+
+  So the work is a new public `revokeAllForUser(Long)` on `SessionService` plus one call in `accept`
+  -- still small, still COLD, but not the one-liner the item implied.
+
+  **The ordering trap the item does not name:** `accept` mints a fresh session on the same request.
+  Revoke after `create` and the user is logged out by their own password reset. The revoke has to run
+  before the mint, and the test has to assert that ordering rather than just that both were called.
 
 - [ ] **S-16 (MEDIUM, agent trace). The revoke-on-status sweep covers sessions and invites and misses
   share links.** `ShareLinkService.resolveByRawToken` reads no owner status, and the scope query
@@ -283,26 +373,57 @@ should be re-confirmed at implementation time, per working rule 21.
   a fifth `UserStatus` and updating `mayHoldSession` leaves both admitting it -- the exact drift
   S-9's refactor was done to prevent on the invite side.
 
+- [ ] **S-21 (LOW, verified 2026-08-25). `regenerateInvite` mints a link for accounts that can never
+  redeem it.** *(Filed while costing S-10's guardrail -- the endpoint had to be read to establish
+  what narrowing `mayAcceptInvite` would break, and this fell out of the same read.)*
+  `AdminUserController.regenerateInvite` looks the user up by id and mints an invite with **no status
+  check at all**. `accept` refuses anything outside `{INVITED, ACTIVE}`, so for a DISABLED account the
+  admin gets `200` and a URL, the invitee gets the email, clicks it, and receives `410 Gone`. Nothing
+  anywhere says the account was ineligible.
+
+  Traced, not assumed: for a PERSON row the failure is louder and differently wrong -- `users.email`
+  is NULL for PERSON, `user_invite.email` is `NOT NULL` in V32, so the insert raises
+  `DataIntegrityViolationException` and `GlobalExceptionHandler` turns it into a `409` reading "Data
+  integrity violation: duplicate or invalid data". A schema constraint is doing the job a status
+  check should do, and it reports the wrong reason.
+
+  **No test covers this.** `AdminUserControllerTest` has a happy path and a 404; every other
+  `regenerateInvite` assertion is a `verify(never())` on a different endpoint's path. So the mutation
+  a fix would need to catch has nothing guarding it today.
+
+  Fix is a status gate on the endpoint returning `409`, keyed on `UserInviteService.mayAcceptInvite`
+  so the eligibility rule keeps one definition (working rule 14). **Low severity because it grants
+  nothing** -- redemption is already refused; the cost is an admin who believes they sent a working
+  link. **COLD.**
+
 #### Classification of the reopened items (2026-08-25)
 
 Every item above is stamped, so none of them reads as available and then eats a session.
 
 | Item | State | If BLOCKED, the question and who answers it |
 |---|---|---|
-| S-10 | **COLD** | -- fully specified, guardrail written |
-| S-11 | **COLD** | -- the guard clause is right regardless of the profile answer |
+| S-10 | **DONE** ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) | -- shipped as specified 2026-08-25 |
+| S-11 | **DONE** ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)) | -- shipped as specified 2026-08-25 |
 | S-12 | **COLD** | -- purge on upgrade, same shape as S-2's two fixes |
 | S-13 | **COLD** | -- constrain the request enum; no consumer sends `PERSON` |
 | S-14 | **BLOCKED on the user.** Is an admin allowed to put an arbitrary collection into another user's share scope? The fix depends on the answer: if no, the gate needs an ownership test rather than `canView`; if yes, this is documentation, not a bug. |
-| S-15 | **COLD** | -- call `revokeAllForUser` in `accept`; S-8 already built it |
+| S-15 | **COLD** | -- **corrected 2026-08-25**: `SessionService` has no `revokeAllForUser`, and `revokeAllForStatus(id, ACTIVE)` is a no-op. Add the method, then call it *before* the mint. Still no open question |
 | S-16 | **BLOCKED on the user.** Should disabling an account kill its share links, or only suspend them? Revoking is destructive and not reversible by re-enabling; suspending needs a status join on every resolve. |
 | S-17 | **COLD** | -- extend the limiter past `/api/public/`; the four limiters already have disjoint key spaces |
 | S-18 | **COLD** | -- four names onto the exclude list, plus a test that is not self-referential (see below) |
 | S-20 | **COLD** | -- route the two inlined checks through `mayHoldSession` |
+| S-21 | **COLD** | -- status gate on `regenerateInvite`, keyed on `mayAcceptInvite` |
 
-S-19 closed as not-live, above. **Two of eleven are blocked, and both blockers are product calls
-rather than research** -- neither can be settled by reading code, which is why they are named here in
-the form the user can answer.
+S-19 closed as not-live, above. **Two of the original eleven are blocked, and both blockers are
+product calls rather than research** -- neither can be settled by reading code, which is why they are
+named here in the form the user can answer.
+
+**Updated 2026-08-25 after the close-out:** S-10 and S-11 shipped, S-21 was filed and stamped COLD,
+and S-15's row was corrected. That correction is the one worth noticing -- S-15 was stamped COLD on
+the strength of "S-8 already built it", and the method it named does not exist. **A COLD stamp
+asserts there is no unanswered question; it does not assert the prescribed fix compiles.** Working
+rule 21 already says the fix is a hypothesis, and this table is where that distinction keeps getting
+lost, because a single word in a status column reads as a warranty over the whole item.
 
 #### Tests that cannot fail (2026-08-25)
 
@@ -326,8 +447,11 @@ coverage. The review checked the security tests against that standard and six fa
   account deletable through the people-delete endpoint. The mutation S-3 stated does redden it; this
   one does not.
 - [ ] `ProdSecretGuardTest.Wiring` registers the guard class by hand, so moving it out of the
-  component-scanned package keeps all four green while prod boots unguarded. The two mutations S-4
-  stated do redden it.
+  component-scanned package keeps every case green while prod boots unguarded. The two mutations S-4
+  stated do redden it. **Count corrected 2026-08-25: five wiring cases, not four** -- #222 added
+  `prodRefusesToStartOnTheDefaultDevAccessTokenSecret`. The item is unchanged in substance and
+  slightly worse in scale: the new clause is guarded by the same hand-registration, so
+  `withUserConfiguration` still stands between this test and the thing it claims to prove.
 - [ ] **Nothing pins that the share-link GET is `no-store`.** #213 put a bearer token in that
   response body; the cache-control default-deny list enumerates six sibling routes and not this one.
   Adding it to `PUBLIC_ROUTES` reddens nothing, and the read cache policy sets `s-maxage` for
@@ -342,7 +466,12 @@ coverage. The review checked the security tests against that standard and six fa
   `/api/admin/**` and `/api/edit/**`, and neither `ProdSecretGuard` nor `InternalSecretFilter`
   exists to object. S-4 proved the `@Profile("prod")` wiring works; **nothing proves prod is named
   prod.** Settle by reading `SPRING_PROFILES_ACTIVE` on the live host, or by hitting the origin
-  without `X-Internal-Secret` and confirming a 403. This gates the severity of S-11 and S-19 both.
+  without `X-Internal-Secret` and confirming a 403. **Re-scoped 2026-08-25:** S-19 settled and S-11's
+  fix shipped, so this no longer gates either fix. What it now gates is whether S-11's guard *runs* --
+  `ProdSecretGuard` is `@Profile("prod")`, so on a host named `default` the new
+  `app.access-token.secret` clause is as absent as the rest of it. It is a live question about a
+  live host and the only one on this board that can be answered with a single request; it survives
+  only because it needs credentials or network access this session did not have.
 - [ ] **Whether Tomcat surfaces `Transfer-Encoding` to `getHeader()`.** S-5's entire fix depends on
   it, and its only test uses `MockHttpServletRequest`, which returns whatever the test put in. If
   Tomcat consumes the header while installing the chunked input filter, the branch never fires and
@@ -355,6 +484,14 @@ coverage. The review checked the security tests against that standard and six fa
   plainly: the deployment docs put the `.env` and the nightly `pg_dump` backups in the same home
   directory on the same host, so the encryption buys real protection against an S3-only leak and
   roughly one `cat` against host compromise.
+
+  **Partly addressed 2026-08-25 by #222, and worth being precise about which part.** `.env.example`
+  now states the rotation cost at the point of configuration -- rotating invalidates every stored
+  share link and every live gallery unlock cookie. That makes the cost visible; it does not make the
+  key rotatable. The question stays open, and it is now the last unaddressed half of S-11.
+
+  **This bullet is also where S-11's missing fact was sitting.** It listed all three uses of the
+  secret while S-11's own severity paragraph named only `TokenCipher`. See S-11's outcome above.
 - [ ] **`SessionService.resolve` slides the session window before reading status**, so a non-ACTIVE
   account's session gets its expiry pushed forward before rejection. Latent only because S-8 revokes
   on every path that reaches it. Reordering the two blocks costs nothing.
@@ -486,7 +623,9 @@ coverage. The review checked the security tests against that standard and six fa
 
 - [x] **S-9 (LOW). Disabling a user does not invalidate their outstanding invites.** **DONE** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Shipped as `UserInviteService.invalidateInvitesForStatus`, which reuses S-7's `mayAcceptInvite` predicate, so the "may this account hold a live invite" rule has one definition serving both the redemption site and the admin handler rather than two that can drift (working rule 14). Keyed on the resulting status, not on a transition, so re-applying a non-eligible status still sweeps an invite issued in between. **Zero churn to existing tests** -- all four pre-existing `invalidateInvites` assertions patch to INVITED or ACTIVE, so none observe the new call. Full write-up in the [history file](2026-08-22-backend-cleanup-history.md#s-9-outcome-2026-08-24----invites-die-with-the-account).
   Found while verifying S-7's precondition. `UserInviteService.invalidateInvites` exists and works,
-  and has **exactly one caller**: `AdminUserController:292`, on the email-change path only
+  and has **exactly one caller**: the targeted sweep inside `AdminUserController.updateUser`, guarded
+  by `existing.getStatus() == UserStatus.INVITED` (`:304` as of #221; the doc said `:292`, drifted by
+  twelve and corrected 2026-08-25 -- find it by the guard, not the number), on the email-change path only
   (`existing.getStatus() == UserStatus.INVITED && !email.equals(existing.getEmail())`). No status
   transition calls it. So disabling an account leaves any unused, unexpired invite live for the
   remainder of its 7 days.
@@ -1020,6 +1159,36 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     And **"the PR is merged" is not "the change is on `main`"**: verify with
     `git log origin/main --grep` or by grepping `origin/main`'s copy of the file for a string the
     change introduced. MERGED is a statement about a PR, not about `main`.
+
+29. **A cost report has the same completeness requirement as a guard: enumerate every consumer of
+    the thing being quarantined.** Rule 16 said grep the operation being guarded rather than the
+    entry point the item named. Rules 13 and 21 said guardrails and prescribed fixes decay. This is
+    the third face of the same failure and it showed up twice in one session, on two unrelated items.
+
+    S-10's guardrail asked what narrowing `mayAcceptInvite` would cost. The obvious costs -- password
+    reset stops working, one test reddens -- are both about `accept`, the caller the item discusses.
+    The cost that is not in the item is `invalidateInvitesForStatus`, a **second caller** of the same
+    predicate, which sweeps when `!mayAcceptInvite(newStatus)`. Narrowing it silently converts every
+    admin PATCH setting status ACTIVE into an invite purge. Nothing in S-10 points at that method.
+
+    S-11 named `TokenCipher` as the consumer of `app.access-token.secret`. Grepping the **property
+    key** rather than the class finds `ClientGalleryAuthService` signing gallery access tokens and
+    password fingerprints with it -- a second confidentiality claim the same public default voids.
+
+    So before writing a cost report, or scoping the impact of a shared value: **grep the thing, not
+    the class or method the item discusses.** For a predicate, grep the predicate. For a secret, grep
+    the property key. The item names the consumer its author was reading at the time.
+
+    The corollary is why this is worth a rule rather than a note. A guardrail exists to stop the next
+    session making a change nobody costed -- so a cost report that enumerates only the callers the
+    item already discussed **licenses exactly the change the guardrail was protecting against**, with
+    a written analysis attached that makes it look considered.
+
+    And the S-11 half carries a second lesson about this document rather than the code: the three
+    uses of that secret were **already written down**, in the "Unsettled" bullet on rotation, fifty
+    lines below S-11. A fact filed in one section does not reach the item that needs it. When filing
+    a finding, grep this doc for the symbol before assuming the fact is new -- and when picking up an
+    item, grep this doc for its symbols before trusting the item's own scope.
 
 ## Full-board review: run 2026-08-25, split rather than whole
 
@@ -1784,3 +1953,26 @@ Worth a targeted check; not asserted as findings.
 # Appendix D — Not yet started
 
 - [ ] `ml_image_tagging` (design doc, 0% implemented) is still the largest unstarted feature. No stubs in `src/` to maintain, so it costs nothing until you start.
+
+- 2026-08-25 -- shipped **S-10** ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221))
+  and **S-11** ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), **both HIGH
+  findings on the reopened security board, both mutation-verified, both shipped as specified.** That
+  makes three items in a row needing no adjustment at implementation time (MR 19 #14, S-10, S-11),
+  which is the streak escalation condition 2 of the deferred full-board slice rested on -- it stays
+  deferred, and working rule 27 keeps looking like the right explanation: none of the three carried an
+  open question into implementation. S-10 is redemption-time identity in `UserInviteService.accept`,
+  built on a named predicate rather than a comment (rule 19); its guardrail held --
+  `mayAcceptInvite` and the `AdminUserController` sweep are both untouched -- and **the cost report
+  the guardrail asked for found a cost the item did not name**, a second caller of the predicate
+  (`invalidateInvitesForStatus`) whose behavior narrowing would silently invert. S-11 is one clause
+  in `ProdSecretGuard` plus the `.env.example` line; its second consumer,
+  `ClientGalleryAuthService`, **was already recorded in this doc's own "Unsettled" bullet** and S-11
+  never carried it. Those two together are **working rule 29**. Filed **S-21** (LOW, verified):
+  `regenerateInvite` has no status gate, so a DISABLED account gets a 200 and a link that 410s, and a
+  PERSON row gets a 409 from a NOT NULL constraint doing a status check's job -- found while costing
+  S-10's guardrail, untested today. Reconcile corrections: **S-15's COLD stamp rested on a method
+  that does not exist** (`SessionService.revokeAllForUser`; `revokeAllForStatus(id, ACTIVE)` is a
+  no-op by construction), `AdminUserController:292` had drifted to `:304` and is now de-positionalized,
+  and `ProdSecretGuardTest.Wiring` is five cases rather than four. Also corrected two comments S-7
+  had falsified, one of them S-10's own premise. Security board: 11 open -> 8, **0 HIGH**. Next:
+  **S-15**, then S-12.
