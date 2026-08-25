@@ -2120,19 +2120,12 @@ class CollectionServiceTest {
           CollectionEntity.builder().id(55L).title("Existing").build();
       ContentCollectionEntity currentAsContent =
           ContentCollectionEntity.builder().id(900L).referencedCollection(current).build();
-      CollectionContentEntity joinRow =
-          CollectionContentEntity.builder()
-              .id(800L)
-              .collectionId(55L)
-              .contentId(900L)
-              .visible(true)
-              .build();
       when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
       when(collectionRepository.findById(55L)).thenReturn(Optional.of(existingParent));
-      when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(55L))
-          .thenReturn(List.of(joinRow));
-      when(contentRepository.findCollectionContentById(900L))
-          .thenReturn(Optional.of(currentAsContent));
+      // One lookup, scoped to the parent. The matching itself is SQL now, covered by
+      // ContentRepositoryUnlinkLookupIntegrationTest.
+      when(contentRepository.findCollectionContentInCollectionMatching(55L, List.of(7L)))
+          .thenReturn(List.of(currentAsContent));
       when(collectionRepository.countContentByCollectionId(55L)).thenReturn(2L);
 
       service.updateContent(
