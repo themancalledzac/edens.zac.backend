@@ -31,7 +31,7 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **REOPENED 2026-08-25: 11 open, 2 HIGH.** The split full-board review re-attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-20 below. **next: S-10, then S-11.** The nine closed items are still closed and are listed after the new ones. Historical: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
+| [Open security findings](#open-security-findings) | **REOPENED 2026-08-25: 10 open, 2 HIGH, 2 blocked on the user.** The split full-board review re-attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-20 below. S-19 closed the same day by reading the live frontend. Eight are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **next: S-10, then S-11.** The nine closed items are still closed and are listed after the new ones. Historical: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the wave rows above, MR 19 #16 or MR 16 #4/#5. |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
@@ -165,6 +165,18 @@ should be re-confirmed at implementation time, per working rule 21.
   the invite records the address it was issued to, and redemption should require it still be the
   account's address. Check that against the reset flow before assuming it.
 
+  **Guardrail: leave `mayAcceptInvite` alone and report what narrowing it would cost.** The tempting
+  adjacent change is to revert S-7 and drop ACTIVE back out of the predicate, which closes this by
+  removing the feature S-7 shipped -- admin-issued password resets stop working. The seam this fix
+  belongs on is redemption-time identity, not the eligibility predicate. If narrowing turns out to
+  be right anyway, that is a decision for the user, so report the cost rather than making it.
+
+  **Also leave the invite sweep in `AdminUserController` alone.** Widening it to fire on every email
+  change looks like the same fix and is not: it papers over the missing identity check while leaving
+  `accept` willing to redeem an invite against an address it was never issued to.
+
+  **COLD** -- fully specified, no open question.
+
 - [ ] **S-11 (HIGH, verified). `ACCESS_TOKEN_SECRET` has a public default and no startup guard,
   which voids the at-rest property #213 claims.** `docker-compose.yml` supplies
   `${ACCESS_TOKEN_SECRET:-dev-access-token-secret}`, and `.env.example` never mentions the variable
@@ -183,6 +195,9 @@ should be re-confirmed at implementation time, per working rule 21.
   #213 then made a second secret confidentiality-critical and never extended the guard to it.
   "No new env var" was scored as a simplification win in #213 and is also how this got past the only
   startup check the repo has. Fix is one clause in `ProdSecretGuard` plus a line in `.env.example`.
+
+  **COLD for the guard and the example file.** The severity depends on the profile question below,
+  but the fix does not -- the guard is correct to add regardless of what prod is currently named.
 
 - [ ] **S-12 (MEDIUM-HIGH, agent trace). Dormant `role_member` rows on a PERSON become live grants on
   upgrade.** S-2 closed `addMember` and `repointMemberships`. `AdminUserController.upgradeUser` is
@@ -240,20 +255,54 @@ should be re-confirmed at implementation time, per working rule 21.
   (`@EnableScheduling` is on). `InternalSecretFilter` still covers them in prod -- but #214 exists
   precisely as the layer for when it does not.
 
-- [ ] **S-19 (LOW-MEDIUM, agent trace, blocked on a frontend read). The bug #3 fix swapped one
-  spoofable header for another.** `ClientIp` trusts `X-Real-IP` unconditionally and its javadoc calls
-  the header's presence "the trust signal" -- the same reasoning used to reject `X-Forwarded-For`.
-  Both are settable by anything that reaches the backend. In prod `InternalSecretFilter` blocks
-  unauthenticated direct hits, so this is defense-in-depth today. **It goes live if the Next.js BFF
-  forwards a client-supplied `X-Real-IP` rather than overwriting it**, because then
-  `AuthLoginLimiter`'s `ip|email` key is defeated by rotating one header from any browser and
-  login brute-force limiting stops existing. Read the frontend proxy route before ranking this.
+- [x] **S-19 (settled 2026-08-25, not live). The bug #3 fix swapped one spoofable header for
+  another.** `ClientIp` trusts `X-Real-IP` unconditionally and its javadoc calls the header's
+  presence "the trust signal" -- the same reasoning used to reject `X-Forwarded-For`. The question
+  was whether the Next.js BFF forwards a client-supplied value. **Read the live frontend and it does
+  not.** `forwardHeaders` in `app/api/proxy/[...path]/route.ts` now lists `x-real-ip` in its strip
+  set, so a client's own header never survives the hop, and it re-injects `X-Real-IP` from
+  `x-vercel-forwarded-for`'s first hop, falling back to the **last** hop of `x-forwarded-for`
+  (appended by the trusted edge on CloudFront/Amplify). Its comment says outright that `x-real-ip`
+  is not trusted because it is forgeable on Amplify. So `AuthLoginLimiter`'s `ip|email` key is not
+  defeated by header rotation, and login brute-force limiting works.
+
+  **The palace's copy of that file was two months stale and said the opposite** -- `x-real-ip` was
+  not in the strip list in the indexed version, and the fallback chain was different. The finding
+  only closed because the live file was read. Working rule 5's principle applies to indexed code as
+  much as to line numbers.
+
+  **What survives is a documentation bug, filed rather than fixed here**: the backend's `ClientIp`
+  javadoc still calls the header's presence "the trust signal", which is now actively misleading --
+  the frontend deliberately does not trust it and the backend's protection comes from the strip plus
+  `InternalSecretFilter`, not from the header meaning anything. Correct that docblock when next in
+  the file. **Cross-repo note: the frontend already solved this and the backend never heard.**
 
 - [ ] **S-20 (MEDIUM, agent trace). "May hold a session" exists in three places and only one of them
   is `mayHoldSession`.** S-8's write-up claims the predicate serves both `resolve` and the sweep so
   it cannot drift. `AuthController` and `WebAuthnService` both inline `getStatus() != ACTIVE`. Adding
   a fifth `UserStatus` and updating `mayHoldSession` leaves both admitting it -- the exact drift
   S-9's refactor was done to prevent on the invite side.
+
+#### Classification of the reopened items (2026-08-25)
+
+Every item above is stamped, so none of them reads as available and then eats a session.
+
+| Item | State | If BLOCKED, the question and who answers it |
+|---|---|---|
+| S-10 | **COLD** | -- fully specified, guardrail written |
+| S-11 | **COLD** | -- the guard clause is right regardless of the profile answer |
+| S-12 | **COLD** | -- purge on upgrade, same shape as S-2's two fixes |
+| S-13 | **COLD** | -- constrain the request enum; no consumer sends `PERSON` |
+| S-14 | **BLOCKED on the user.** Is an admin allowed to put an arbitrary collection into another user's share scope? The fix depends on the answer: if no, the gate needs an ownership test rather than `canView`; if yes, this is documentation, not a bug. |
+| S-15 | **COLD** | -- call `revokeAllForUser` in `accept`; S-8 already built it |
+| S-16 | **BLOCKED on the user.** Should disabling an account kill its share links, or only suspend them? Revoking is destructive and not reversible by re-enabling; suspending needs a status join on every resolve. |
+| S-17 | **COLD** | -- extend the limiter past `/api/public/`; the four limiters already have disjoint key spaces |
+| S-18 | **COLD** | -- four names onto the exclude list, plus a test that is not self-referential (see below) |
+| S-20 | **COLD** | -- route the two inlined checks through `mayHoldSession` |
+
+S-19 closed as not-live, above. **Two of eleven are blocked, and both blockers are product calls
+rather than research** -- neither can be settled by reading code, which is why they are named here in
+the form the user can answer.
 
 #### Tests that cannot fail (2026-08-25)
 
@@ -309,7 +358,7 @@ coverage. The review checked the security tests against that standard and six fa
 - [ ] **`SessionService.resolve` slides the session window before reading status**, so a non-ACTIVE
   account's session gets its expiry pushed forward before rejection. Latent only because S-8 revokes
   on every path that reaches it. Reordering the two blocks costs nothing.
-- [ ] **`RoleRepository.canView` and `isClient` now have zero `src/main` callers** after S-6 routed
+- [x] **`RoleRepository.canView` and `isClient` have zero `src/main` callers -- confirmed 2026-08-25**, after S-6 routed
   everything through `effectiveLevel`. They are the bug S-6 fixed, still sitting in the DAO under the
   right names and still green in tests. Wave 1 deletion candidates, and the names are the hazard.
 
@@ -956,6 +1005,22 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     every branch the code has, not the one the question asked about -- #14's question named
     COLLECTION and the answer that mattered covered TEXT and GIF too.
 
+28. **A stacked PR whose base merges first strands the work on a dead branch.** #219 was opened
+    against `docs/close-out-216` because #217 was still open. #217 merged to `main` first, and #219
+    then merged into a branch that `main` had already absorbed and moved past. Both PRs read MERGED.
+    Neither `gh pr list` nor the PR state said anything was wrong. **The doc pass -- a reopened
+    security board with two HIGH findings -- was not on `main` and nothing surfaced that.**
+
+    Worse, the stranded branch could not simply be merged forward: it predated #218, so merging it
+    would have reverted `ContentModelConverter`. The fix was to cherry-pick the single doc commit
+    onto a fresh branch off `main`.
+
+    Two rules come out of it. **Do not stack a docs PR on an open PR** -- wait for the base to merge
+    and branch off `main`, since a docs close-out has no code dependency that justifies the risk.
+    And **"the PR is merged" is not "the change is on `main`"**: verify with
+    `git log origin/main --grep` or by grepping `origin/main`'s copy of the file for a string the
+    change introduced. MERGED is a statement about a PR, not about `main`.
+
 ## Full-board review: run 2026-08-25, split rather than whole
 
 Recommended 2026-08-24 on three escalation conditions. **Run 2026-08-25 as two of the three slices,
@@ -1501,6 +1566,23 @@ shipped.) The verbose pre-split log is in the
 - 2026-08-25 -- shipped **MR 19 #16** ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)), the `findCurrentContentCollections` N+1: 201 queries down to 1. **The item's diagnosis was exact and its suggested fix was a silent bug.** `cc.id IN (:ids) OR cc.referenced_collection_id IN (:ids)` drops the parent scope that the loop had for free by construction, so it matches blocks linked under a different parent -- `removeContentFromCollection` is parent-scoped and deletes nothing, but `onChildUnlinked` still fires role-grant propagation for a link that never existed. Verified against real Postgres rather than Mockito, because every property at issue lives in the SQL; the drop-the-parent-scope mutation is what turns `doesNotReachIntoADifferentParentsLinks` red. **Drift sweep: nine refs corrected, one correct.** #11 `466-496`->`465-495`, #15 `846-915`->`845-914`, #20 `931-933`->`930-932`, #17 `CollectionService` `127-130`->`142-144` (and three lines, not four), #17 `CollectionProcessingUtil` `569-596`->`566-589` and `939-947`->`924-932`, MR 24's three `UserShareControllerProd` refs `116-128`/`135-144`/`137`->`183-197`/`204-213`/`206`. Only five of the nine are attributable to this session's merges; **the `CollectionProcessingUtil` pair sits in a file none of #213/#214/#216 touched**, which is the third consecutive sweep to find drift outside the neighborhood it was scoped to. **Added working rule 26** from MR 24's bullet, which "de-positionalized" itself on 2026-08-24 by writing three fresher line numbers and had all three invalidated by #213 hours later. **Step 3 settled two facts.** #14's "verify COLLECTION hydration first" is discharged for all four content types -- `findAllByIds` uses the identical `SELECT_CONTENT_*` fragment and `CONTENT_*_ROW_MAPPER` as each single-id finder, so the re-fetch is byte-identical -- which makes #14 COLD and fully specified. And #17's "EmailService HTML skeleton twice" is now **three times**, since #213 added `buildShareLinkHtml` under a guardrail not to fold it in; #213's write-up sent that consolidation to MR 24, which was wrong, and it is corrected here. Suite 1,368 -> 1,375, 0 checkstyle; three mutations verified red. Next: MR 19 #14. **Recommending a full-board review** -- see the note under "Ordering note".
 
 - 2026-08-25 -- shipped **MR 19 #14** ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218)) and **ran the full-board review, split into two of its three slices**. #14 is two queries to one in `convertEntityToModel`, and it is **the first item in seven to need no adjustment at implementation time** -- premise, ref and fix all correct as written. That broke the streak which was escalation condition 2 of the review's own case, so the per-item re-estimate slice was **deferred** rather than run, and **working rule 27** records what actually separates the clean item from the six: #14's open question was discharged in a prior pass, so nothing unknown reached implementation. The method **had no test at all** (the test named for it calls a different method); the two added tests redden under the restore-the-switch mutation and **nothing else in the suite does**, so 1,375 tests were blind to which query hydrated that entity. The guardrail's deletion report is filed under the item: both dead finders cost ~10 lines and zero test edits to delete, no cascade, and **the only coupling is one #218 created** -- its own two `verify(never())` mutation-detectors, which deleting the finders replaces with a compile error, a stronger guarantee. Suite 1,375 -> 1,377, 0 checkstyle. **The unscoped ref sweep found ~30 of ~75 refs drifted**, most outside any recent merge neighborhood, which converts escalation condition 1 from an assertion into a measurement; `isGalleryAccessAuthorized`'s FQN ref drifted a **fifth** time and its number is now deleted rather than corrected, and `UserSelectsControllerProd.list` turned out to be carried twice on the board with only one copy maintained. **The security re-attack reopened the board**: 11 findings, 2 HIGH, plus 6 security tests that cannot fail and 5 unsettled questions. **Both HIGH findings are cross-fix and were independently re-verified line by line before filing.** S-10: S-7 widened `mayAcceptInvite` to admit ACTIVE, which silently falsified the comment in `AdminUserController` asserting ACTIVE users have no redeemable invite -- so an admin-issued reset link survives an email correction and `accept` never compares the invite's email to the account's, making redemption by the old inbox a takeover. S-11: #213 made `ACCESS_TOKEN_SECRET` confidentiality-critical while `docker-compose.yml` still defaults it to a value printed in the public repo and `.env.example` never mentions it, so `ProdSecretGuard` -- the thing S-4 hardened -- does not cover the secret that now protects share links at rest. **Neither was findable by a single-item review, which is the answer to whether condition 3 was worth the spend.** Next: S-10, then S-11; MR 16 #4/#5 is still the next non-security item.
+
+- 2026-08-25 -- close-out pass, no code shipped. **The reconcile caught a stranding.** #217, #218 and
+  #219 all read MERGED, and the doc pass was not on `main`: #219 was stacked on `docs/close-out-216`,
+  #217 merged that branch to `main` first, and #219 then landed into a branch `main` had already
+  moved past. The branch could not be merged forward either -- it predates #218 and would have
+  reverted `ContentModelConverter` -- so the single doc commit was cherry-picked onto `main`. That is
+  **working rule 28**, and the checkable form of it is that MERGED describes a PR, not `main`.
+  **Settled two of the five unsettled questions by looking.** S-19 is closed as not-live: the live
+  frontend `forwardHeaders` strips `x-real-ip` and re-injects it from an edge-controlled source, with
+  a comment saying outright that the client header is not trusted -- so login brute-force limiting
+  works. **The palace's copy of that file was two months stale and said the opposite**, which is the
+  reason the item stayed open a day longer than it needed to. And `RoleRepository.canView`/`isClient`
+  are confirmed dead in `src/main` -- the live callers are the same-named `CollectionAccessService`
+  methods, which is the hazard, not a coincidence. All eleven reopened items are now stamped COLD or
+  BLOCKED; **two are blocked, both on product calls the user has to make** (S-14: may an admin put an
+  arbitrary collection into another user's share scope? S-16: should disabling an account revoke its
+  share links or suspend them?). Next: S-10.
 
 
 # Decisions needed from the user
