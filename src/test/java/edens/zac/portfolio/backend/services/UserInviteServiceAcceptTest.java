@@ -44,11 +44,15 @@ class UserInviteServiceAcceptTest {
   @InjectMocks private UserInviteService service;
 
   private void givenRedeemableToken(Long userId) {
+    givenRedeemableToken(userId, "bob@example.com");
+  }
+
+  private void givenRedeemableToken(Long userId, String issuedTo) {
     UserInviteEntity invite =
         UserInviteEntity.builder()
             .id(1L)
             .userId(userId)
-            .email("bob@example.com")
+            .email(issuedTo)
             .expiresAt(LocalDateTime.now().plusDays(3))
             .build();
     when(inviteRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invite));
@@ -56,10 +60,13 @@ class UserInviteServiceAcceptTest {
   }
 
   private void givenUser(Long id, UserStatus status) {
+    givenUser(id, status, "bob@example.com");
+  }
+
+  private void givenUser(Long id, UserStatus status, String email) {
     when(appUserRepository.findById(id))
         .thenReturn(
-            Optional.of(
-                AppUserEntity.builder().id(id).email("bob@example.com").status(status).build()));
+            Optional.of(AppUserEntity.builder().id(id).email(email).status(status).build()));
   }
 
   @Test
@@ -120,6 +127,67 @@ class UserInviteServiceAcceptTest {
 
     assertThat(result).isEqualTo(AcceptResult.REJECTED);
     verify(appUserRepository, never()).updateStatus(anyLong(), any());
+    verify(sessionService, never()).create(any(), anyBoolean(), any(), any());
+  }
+
+  @Test
+  void inviteIssuedToAnAddressTheAccountNoLongerHoldsIsRejected() {
+    // S-10: an admin mints a reset link for old@example.com, then corrects the account's email.
+    // The account is ACTIVE, so neither invite sweep in AdminUserController fires, and the old
+    // inbox still holds a live token. Redemption must refuse it -- otherwise whoever controls the
+    // prior address sets a password and takes the account.
+    // Mutation this catches: drop the email test from accept and this goes green on a takeover.
+    givenRedeemableToken(14L, "old@example.com");
+    givenUser(14L, UserStatus.ACTIVE, "new@example.com");
+
+    AcceptResult result = service.accept("raw-token", "Mal", "newpass1", request, response);
+
+    assertThat(result).isEqualTo(AcceptResult.REJECTED);
+    verify(appUserRepository, never()).updatePasswordHash(anyLong(), anyString());
+    verify(appUserRepository, never()).updateName(anyLong(), anyString());
+    verify(appUserRepository, never()).updateStatus(anyLong(), any());
+    verify(sessionService, never()).create(any(), anyBoolean(), any(), any());
+  }
+
+  @Test
+  void aRejectedStaleInviteIsStillSpent() {
+    // Same shape as the status rejection: the token is redeemed before the account is read, so a
+    // link presented against an address that has moved on is burnt rather than left live for a
+    // second attempt.
+    givenRedeemableToken(15L, "old@example.com");
+    givenUser(15L, UserStatus.ACTIVE, "new@example.com");
+
+    assertThat(service.accept("raw-token", "Mal", "newpass1", request, response))
+        .isEqualTo(AcceptResult.REJECTED);
+    verify(inviteRepository).markUsedIfUnused(anyLong(), any());
+  }
+
+  @Test
+  void anInviteAddressDifferingOnlyInCaseStillAccepts() {
+    // The legitimate case the guard must not break. Every write path lowercases before storing, so
+    // this only arises for rows predating that -- but a case-sensitive comparison would reject a
+    // real invitee, and per working rule 18 a wrong allowlist fails closed and surfaces late.
+    // Mutation this catches: swap equalsIgnoreCase for equals.
+    givenRedeemableToken(16L, "Bob@Example.com");
+    givenUser(16L, UserStatus.INVITED, "bob@example.com");
+    when(passwordEncoder.encode("newpass1")).thenReturn("{bcrypt}hashed");
+
+    AcceptResult result = service.accept("raw-token", "Bob", "newpass1", request, response);
+
+    assertThat(result).isEqualTo(AcceptResult.ACCEPTED);
+    verify(appUserRepository).updateStatus(16L, UserStatus.ACTIVE);
+  }
+
+  @Test
+  void anAccountWithNoEmailIsRejected() {
+    // users.email is nullable (V35 relaxed it for tag-only PERSON rows), so the comparison has to
+    // survive a null on the account side rather than throwing out of a security check.
+    givenRedeemableToken(17L, "old@example.com");
+    givenUser(17L, UserStatus.ACTIVE, null);
+
+    AcceptResult result = service.accept("raw-token", "Mal", "newpass1", request, response);
+
+    assertThat(result).isEqualTo(AcceptResult.REJECTED);
     verify(sessionService, never()).create(any(), anyBoolean(), any(), any());
   }
 

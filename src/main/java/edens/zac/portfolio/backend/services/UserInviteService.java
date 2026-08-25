@@ -57,6 +57,24 @@ public class UserInviteService {
   }
 
   /**
+   * Whether the invite is still bound to the account it would activate. An invite records the
+   * address it was issued to; if the account's login email has since changed, the link belongs to
+   * the prior inbox and redeeming it would hand that holder the corrected account.
+   *
+   * <p>Compared case-insensitively: every write path lowercases before storing, so a case
+   * difference can only come from a row predating that and is not an identity change. A {@code
+   * null} account email matches nothing -- {@code users.email} is nullable for tag-only {@code
+   * PERSON} rows, which {@link #mayAcceptInvite} already refuses.
+   *
+   * @param invite the redeemed invite
+   * @param user the account the invite points at
+   * @return whether the invite's address is still the account's
+   */
+  static boolean inviteAddressMatchesAccount(UserInviteEntity invite, AppUserEntity user) {
+    return user.getEmail() != null && user.getEmail().equalsIgnoreCase(invite.getEmail());
+  }
+
+  /**
    * Create a new invite for an existing {@code app_user} row. Generates a 256-bit CSPRNG token,
    * stores its hash with a 7-day expiry, and returns the raw token for embedding in the invite URL.
    *
@@ -162,8 +180,9 @@ public class UserInviteService {
    *
    * <p>The account's status is read and tested against {@link #mayAcceptInvite} <em>before</em> the
    * activating write, so a status the invite lifecycle does not sanction never reaches the flip to
-   * {@code ACTIVE}. The redeem stands either way, so a token presented against such an account is
-   * spent rather than left live.
+   * {@code ACTIVE}. The address the invite was issued to is tested against the account's current
+   * email in the same place, via {@link #inviteAddressMatchesAccount}. The redeem stands either
+   * way, so a token presented against such an account is spent rather than left live.
    *
    * @param rawToken the raw token from the invite URL
    * @param displayName the chosen display name
@@ -171,7 +190,8 @@ public class UserInviteService {
    * @param request the servlet request (IP / User-Agent for the session row)
    * @param response the Set-Cookie sink for the session cookie
    * @return {@link AcceptResult#ACCEPTED}, or {@link AcceptResult#REJECTED} if the token is
-   *     unknown, expired, already used, or the account may not complete an accept
+   *     unknown, expired, already used, issued to an address the account no longer holds, or the
+   *     account may not complete an accept
    * @throws IllegalStateException if the redeemed invite points at no {@code app_user} row
    */
   @Transactional
@@ -187,7 +207,8 @@ public class UserInviteService {
       return AcceptResult.REJECTED;
     }
 
-    Long userId = maybeInvite.get().getUserId();
+    UserInviteEntity invite = maybeInvite.get();
+    Long userId = invite.getUserId();
     AppUserEntity user =
         appUserRepository
             .findById(userId)
@@ -195,6 +216,14 @@ public class UserInviteService {
 
     if (!mayAcceptInvite(user.getStatus())) {
       log.warn("Invite accept rejected: userId={} status={}", userId, user.getStatus());
+      return AcceptResult.REJECTED;
+    }
+
+    if (!inviteAddressMatchesAccount(invite, user)) {
+      log.warn(
+          "Invite accept rejected: issued address is no longer the account's (userId={} inviteId={})",
+          userId,
+          invite.getId());
       return AcceptResult.REJECTED;
     }
 

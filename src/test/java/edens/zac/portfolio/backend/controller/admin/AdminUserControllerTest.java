@@ -780,9 +780,10 @@ class AdminUserControllerTest {
 
     @Test
     void changingActiveUserEmailDoesNotTouchInvites() throws Exception {
-      // Scope guard: an ACTIVE user has no pending onboarding invite to hijack, so an email
-      // change must NOT reach into invite rows (an ACTIVE user's stray unused invite, if one
-      // even exists, is not the account-takeover concern here).
+      // Scope guard: an email change on an ACTIVE user must NOT reach into invite rows. That
+      // account can hold a redeemable admin-issued reset link (S-7), so this is not "there is
+      // nothing to hijack" -- the takeover it would enable is refused at redemption instead, by
+      // UserInviteService.accept comparing the invite's issued address to the account's (S-10).
       AppUserEntity before =
           AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
       AppUserEntity after =
