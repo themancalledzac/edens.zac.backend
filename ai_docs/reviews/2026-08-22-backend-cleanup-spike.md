@@ -32,7 +32,7 @@ is the same failure the paragraph above was written to fix:
 | Section | Status |
 |---|---|
 | [Open security findings](#open-security-findings) | **0 open, 0 HIGH.** S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)) all done. **This board is closed.** S-7 shut the invite re-activation path at both ends, S-8 finished the pair of sweeps hanging off the admin status change, and S-6 applied working rule 20 across six sites -- one more than any item had recorded. **next: nothing here.** What is left is the MR sections below, and MR 19 #3 was re-measured during S-5 and moved to "not worth doing". |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **2 open, 2 answered**, both COLD. **Holds the next item** -- the `share/email` 404, which stopped being a decision on 2026-08-24 when the frontend's contract turned out to match `EmailService.SendResult` field-for-field. `isPasswordProtected` shipped ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)) and unblocked the frontend's C6. |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the wave rows above, MR 19 #16 or MR 16 #4/#5. |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -700,6 +700,46 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     board that actually re-derived found something: five refs, then three, then four. A clean
     result is likelier to mean the wrong question was asked than that the board is finally accurate.
 
+24. **A specified fix can be impossible, not merely imprecise. Check that the inputs it assumes
+    exist before scheduling it as next.** The `share/email` item was specified down to the file
+    list -- "one `@PostMapping` on `UserShareControllerProd`, one `sendShareLinkEmail` method on
+    `EmailService` alongside the two that exist, one request record. No new response type" -- and
+    chosen as next precisely because that scope looked small. None of it was wrong. All of it was
+    unbuildable: the endpoint would have had **nothing to put in the email**, because the frontend
+    sends `{ toEmail }` alone and V56 stored only the token's hash. The real change needed a
+    migration, a new crypto class, and a decision about the at-rest security property of
+    `share_link` -- none of which appear anywhere in the item.
+
+    The three facts that promoted this item from a decision to a build were all about the
+    **output** end: the response record exists, the reason codes exist, both sides handle
+    `email.enabled=false`. Nobody asked the corresponding question at the **input** end -- where
+    does the link itself come from. An item can be verified from both sides of a repo boundary,
+    as this one was, and still never have its own inputs checked.
+
+    This makes **five consecutive items whose specified fix needed adjusting at implementation
+    time** (S-7, S-8, S-5, S-6, `share/email`). The first four were imprecise; the fifth was
+    impossible, which is a different failure and a worse one, because imprecision surfaces while
+    you type and impossibility does not surface until you look for a value that was never there.
+
+    So for any item about to be picked up: name the inputs its fix consumes, and confirm each one
+    is reachable from where the fix will run. For a fix that sends, displays, or forwards a value,
+    that means asking where the value is read from before believing the scope.
+
+25. **When a hardening rests on a framework ordering guarantee, test the guarantee, not the
+    config string.** The actuator item specified an exclude list plus "a test that reads
+    `src/main/resources` directly per working rule 2". That test is necessary and it is not
+    sufficient: it proves the property is present, which is not the claim the hardening makes. The
+    claim is that Boot applies exclude **after** include, so the shipped list survives a stray
+    `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*`. That ordering was quoted in this board and had
+    never been executed here.
+
+    Booting the app with `include=*` on top of the shipped exclude cost one test class and settled
+    it: the eight endpoints 404, health still 200s. The mutation is what makes it worth keeping --
+    empty the exclude and `/actuator/env` answers 200 on the app port, so the assertion
+    distinguishes the two worlds instead of passing in both. Rule 15's complaint about tests whose
+    own fixture supplies the result applies to config tests too, and a string-equality test on a
+    property file is the easiest place to land one.
+
 ## Ordering note
 
 The original review put bug fixes first so deletions would rebase cleanly. We inverted that and started with deletions, because they are compiler-verified and carry no behavior change. The bug MRs rebase onto the deletions instead. Only one item actually collided, and it was handled: `PersonRepository.deleteById` was listed under both MR 1 and bug #1, and was held until MR 5 because it had a live caller -- dangerous code, not dead code. It shipped with MR 5 and is gone.
@@ -1138,6 +1178,9 @@ shipped.) The verbose pre-split log is in the
 
 ---
 
+- 2026-08-24 -- shipped **`share/email`** ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and **actuator hardening** ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **The cross-repo board is closed; nothing is owed to another team.** The headline is that **the item could not be built as specified**, and the specification was the most detailed on this board -- file list, method names, "no new response type". The endpoint would have had nothing to put in the email: the frontend sends `{ toEmail }` alone and V56 stored only the token's hash, so the share URL is not reconstructible server-side. The two ways out were rotating on send, which the item's own guardrail forbids, or storing a copy the owner can read back. **The frontend had already assumed the second and said so in a docblock** -- "a link minted before the backend stored a decryptable copy" -- which is the contract of `fec14e7`, a commit written 2026-08-14 and orphaned when it landed 14 minutes after its PR merged. This is that commit rebased, and **three of its parts had gone stale underneath it, all from MR 15 #6**: its migration number V57 is now `lowercase_text_format_type`; its `isRealUser` guard and its every-route-401 test would have reinstated the controller-level pattern #191 deliberately moved into `SecurityConfig`; and its `@Value` field violates CLAUDE.md's constructor-injection rule. That taught **working rule 24** -- five consecutive items have needed adjusting at implementation time, and this is the first that was impossible rather than imprecise. **Working rule 25 came out of the actuator MR going one step past its own spec**: the item asked to pin the shipped exclude string, but the hardening rests on "Boot applies exclude after include", an ordering this board quoted and never executed. Booting with `include=*` confirms it, and the mutation confirms the test is not vacuous -- with the exclude emptied, `/actuator/env` answers 200 on the app port. Drift sweep, scoped to the touched neighborhood per rule 23: the board carries exactly **one** line ref into these files, `EmailService:56`, correct on `main` today and becoming `:61` once #213 merges -- recorded rather than left to rot, and the ref moves to the history file with its item anyway. Suites 1,350 -> 1,361 (#213) and -> 1,357 (#214), 0 checkstyle; five mutations verified red across the two. **Not done and flagged in both the PR and the history file: `share/email` has no rate limit.** Next: nothing on the cross-repo board -- MR 19 #16 or MR 16 #4/#5.
+
+
 # Decisions needed from the user
 
 - [ ] **Should `app.admin.enforce-authz=true` become unconditional?** *(New row 2026-08-24. MR 15 #6
@@ -1216,64 +1259,24 @@ Worth keeping as precedent: an item parked for a decision may already contain th
 
 - [x] **`isPasswordProtected` on the content-block path.** **DONE** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`). Option A shipped: `ContentModels.Collection` carries the flag, populated at both construction sites. The frontend's C6 is unblocked. The guardrail held -- the read-query password filter and `coverImage` stripping were left alone and costed instead. Taught **working rule 22**, and found a second stale comment worse than the banner it was sent to fix (see the new row under "Carried forward"). [Full write-up](2026-08-22-backend-cleanup-history.md#ispasswordprotected-outcome-2026-08-24----a-locked-tile-can-finally-be-drawn).
 
-- [ ] **`POST /api/read/user/share/email` does not exist, and the frontend calls it. COLD, and it
-  is a build, not a decision.** Verified from both sides: `emailShareLink` in the frontend's
-  `app/lib/api/share.ts:176` POSTs to that path, `ShareCard.tsx:113` calls it from a reachable
-  button, and `UserShareControllerProd` (`@RequestMapping("/api/read/user/share")`) declares only
-  `GET`, `POST /rotate`, and `PUT`/`DELETE` on `/collections/{collectionId}`. **A signed-in user
-  clicking the share-email button gets a 404 today.**
+- [x] **`POST /api/read/user/share/email`.** **DONE** ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)).
+  The frontend's live 404 is closed. **The specified scope was not buildable** -- "one
+  `@PostMapping`, one `sendShareLinkEmail`, one request record" leaves the endpoint with nothing to
+  put in the email, because V56 stored only the token's hash and the frontend sends `{ toEmail }`
+  alone. Shipped by rebasing the orphaned `fec14e7`: V58 adds `token_cipher` (AES-256-GCM on the
+  existing `app.access-token.secret`, no new env var), `token_hash` keeps its lookup job untouched.
+  The guardrail held -- `mintOrRotate` is never called and a test pins it. Taught **working rule
+  24**. [Full write-up](2026-08-22-backend-cleanup-history.md#shareemail-outcome-2026-08-24----the-first-item-that-could-not-be-built-as-written).
 
-  **The item used to end "decide whether to build it or have the frontend remove the button". That
-  decision is settled by three facts found 2026-08-24, and all three point the same way:**
+- [x] **Actuator defense-in-depth.** **DONE** ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)).
+  Explicit `management.endpoints.web.exposure.exclude` shipped, plus the first test anywhere
+  asserting actuator exposure. Went past the item on purpose: pinning the shipped string proves
+  nothing about whether exclude beats include, so an end-to-end test boots the app with
+  `include=*` and confirms the eight endpoints 404 while health still 200s. **The ordering the
+  item asserted is now verified rather than quoted**, and the mutation proves it is load-bearing:
+  with the exclude emptied, `/actuator/env` answers 200 on the app port.
+  [Full write-up](2026-08-22-backend-cleanup-history.md#actuator-outcome-2026-08-24----the-guarantee-tested-rather-than-the-string).
 
-  1. **The contract is already fully specified by the caller.** Request body is `{ toEmail }`.
-     Response is `ShareEmailResult { sent: boolean; reason: string | null }`
-     (`share.ts:60-63`).
-  2. **The backend already has that exact record.** `EmailService.SendResult(boolean sent, String
-     reason)` at `EmailService:56` matches the frontend's type field-for-field. Nothing new needs
-     designing; the endpoint returns what `EmailService` already returns.
-  3. **The degraded path is already handled on both sides.** `EmailService` short-circuits to
-     `new SendResult(false, "email-disabled")` when `email.enabled` is false, and `ShareCard`
-     renders that as "Email is not switched on right now -- copy the link and send it yourself."
-     **So this ships without SES being configured**, which is what made it look expensive.
-
-  `AdminUserController.sendInviteEmailAfterCommit` is the in-repo precedent for the whole shape:
-  best-effort delivery that never fails the request, typed reason instead of a throw, and an
-  `afterCommit` hook so a rollback cannot mail a live link.
-
-  **Scope: one `@PostMapping("/email")` on `UserShareControllerProd`, one `sendShareLinkEmail`
-  method on `EmailService` alongside the two that exist, one request record. No new response type.**
-
-  **NEXT (chosen 2026-08-24).** It is the only open item another team is waiting on, it is a live
-  404 in shipped UI, and step 3 of this pass turned it from a decision into a specified build.
-
-  **Guardrail, and the first one is the dangerous one. Leave the share-link lifecycle alone and
-  report what changing it would do.** "Email the share link" reads like it should hand the
-  recipient a fresh link, and `rotateShareLink` is sitting right there in the same controller. It
-  must not be called. The frontend's own docblock states the invariant -- *"Emails the link that is
-  already in circulation. Does not mint a new one, so emailing a second person cannot cut off the
-  first"* -- so rotating on send would silently revoke a link a previous recipient is still using,
-  and it would fail quietly, because the sender sees a success either way.
-
-  Second, smaller: **do not refactor `sendGalleryPasswordEmail` and `sendInviteEmail` into a shared
-  template path while adding the third.** Three near-identical senders is a real consolidation and
-  it belongs to MR 24, not inside a feature MR that another team is waiting on. Add the third
-  alongside them and note the duplication.
-
-  And do not make the request fail when `email.enabled` is false. Both sides already handle
-  `sent: false` -- that is the whole reason this ships without SES.
-
-- [ ] **Actuator defense-in-depth.** The frontend was the only gate on `/api/proxy/actuator/**` and
-  has now fixed its side. The backend is already sound and was verified by live probe: exposure is
-  `management.endpoints.web.exposure.include=health` only, so `/actuator/env` and `/configprops` are
-  not registered, and `InternalSecretFilter` 403s everything except the three health URIs. Probing
-  the EC2 origin directly on 8080 with no secret returned `/actuator/health` 200 and `/actuator/env`,
-  `/configprops`, `/actuator` all 403. **Two cheap hardening steps are still worth taking**, because
-  working rule 1 says an injected env var outranks a property: add an explicit
-  `management.endpoints.web.exposure.exclude=env,configprops,beans,mappings,heapdump,threaddump,loggers,shutdown`
-  (Boot applies exclude after include, so it survives a stray `MANAGEMENT_..._INCLUDE=*` in a prod
-  `.env`), and pin the shipped value with a test that reads `src/main/resources` directly per working
-  rule 2. There is currently no test asserting actuator exposure at all.
 - [x] **Is `collectionDate` populated? Yes, everywhere** -- list, detail and content-block paths, all
   three confirmed by live request. Backend item #157 merged as
   [#157](https://github.com/themancalledzac/edens.zac.backend/pull/157) and fixed a *third*

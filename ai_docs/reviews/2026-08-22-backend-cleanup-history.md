@@ -2447,6 +2447,148 @@ the next sweep found all five. That produced **working rule 23**: "my merge did 
 is not "this ref is correct", and a sweep reporting zero corrections is evidence of the wrong
 question rather than an accurate board.
 
+## `share/email` outcome, 2026-08-24 -- the first item that could not be built as written
+
+**Shipped:** [#213](https://github.com/themancalledzac/edens.zac.backend/pull/213). Closes the live
+404 the frontend has been hitting since its PR #251 merged.
+
+### The specification was complete and unbuildable
+
+The item named the files, the method, and the response type: "one `@PostMapping` on
+`UserShareControllerProd`, one `sendShareLinkEmail` method on `EmailService` alongside the two that
+exist, one request record. No new response type." It was chosen as next because that scope looked
+small.
+
+The endpoint would have had **nothing to put in the email**. `emailShareLink` sends `{ toEmail }`
+and nothing else, and V56 stored only `token_hash`, so the share URL cannot be reconstructed
+server-side. `ShareSettings.token` said as much in its own javadoc: "the raw value is unrecoverable
+once issued".
+
+Only two ways out existed, and the item forbade one of them. Rotating on send would have revoked
+the link every prior recipient holds -- silently, since the sender sees `sent: true` either way.
+The other was storing a copy the owner can read back.
+
+**The frontend had already made that choice and written it down.** Its `ShareSettings.token`
+docblock reads *"Null when it cannot be recovered -- a link minted before the backend stored a
+decryptable copy"*. That is not a hypothetical; it is the contract of `fec14e7`, a commit written
+2026-08-14 and orphaned when it landed 14 minutes after its PR merged. The frontend shipped against
+a backend design that never got merged, and the board recorded the resulting 404 without noticing
+why the two sides disagreed.
+
+This is working rule 24. Verifying an item from both sides of a repo boundary -- which this one had
+been -- checks the **output** end. Nobody asked where the link itself comes from.
+
+### What shipped
+
+`fec14e7` rebased onto `04c0c2d`. V58 adds `token_cipher`; `token_hash` keeps its job as the unique
+lookup index, so `resolveByRawToken` is untouched. AES-256-GCM keyed on the existing
+`app.access-token.secret` -- **no new env var**. `TokenCipher` sits alongside `TokenUtil`, and the
+split is the point: hashing is right when the server only needs to RECOGNISE a credential,
+encryption when its owner needs to READ it back.
+
+The guardrail held. `revealToken` is a read; `mintOrRotate` is never called and a test pins it. An
+unrecoverable link is a 409, not a silent no-op. No `afterCommit` hook, unlike the invite flow,
+because nothing is written and a rollback cannot erase the token.
+
+### Three adaptations the orphaned commit could not have known about
+
+All three trace to MR 15 #6 ([#191](https://github.com/themancalledzac/edens.zac.backend/pull/191))
+landing after it.
+
+1. Its migration was numbered V57, which `main` now uses for `lowercase_text_format_type`.
+   Renumbered to V58, along with every V57 reference in the share files.
+2. Its `emailLink` opened with an `isRealUser` guard, and it carried a test pinning a 401 from every
+   share route. #191 moved that enforcement into `SecurityConfig`'s `/api/read/user/**` matcher and
+   **deleted exactly those assertions** -- 28 of them across six test classes. Applying the commit
+   verbatim would have reinstated a pattern this repo removed on purpose. Both dropped;
+   `/share/email` added to `UserRoutesAuthorizationWebMvcTest`, where the rest of the surface lives.
+3. `frontendBaseUrl` was a `@Value` field. Converted to a constructor argument matching
+   `AdminUserController`, since CLAUDE.md forbids field injection.
+
+A cherry-pick that applies with two cosmetic conflicts is not a cherry-pick that is correct. The
+conflicts were in javadoc; every real adaptation was in code that merged cleanly.
+
+### What changing the lifecycle would do -- asked for, and not done
+
+Rotating on send revokes every prior recipient's link **and** every cookie minted from it, since the
+flyby cookie value IS the raw token. One row per user, rotation in place, so opt-ins survive and
+access does not.
+
+What did change is storage, not lifecycle. `share_link` stops being useless on its own: a database
+dump **plus** the configured `ACCESS_TOKEN_SECRET` now yields live share links. Encrypted rather
+than plaintext because the key lives in configuration, so a dump alone still yields nothing -- the
+property hashing was there to provide.
+
+**One deploy consequence.** Rotating `ACCESS_TOKEN_SECRET` no longer affects only gallery HMAC
+tokens. Share links keep resolving, because lookup is still by hash, but every stored token becomes
+unreadable: every owner's page falls back to "reset to get a new link" and `/email` 409s. The same
+applies to `share_link` rows that already exist, which have no ciphertext. Degradation, not
+breakage, by design.
+
+Unchanged: mint/rotate semantics, the GENERAL ceiling, scope resolution, cookie lifetime.
+
+### Deliberately not done
+
+The three email senders stay duplicated rather than folded into a shared template -- that is MR 24,
+and the bodies make opposite promises (an invite works once and expires; a share link works until
+its owner resets it), so they must not be made to mirror each other.
+
+**`/share/email` has no rate limit.** Flagged in `fec14e7`'s own message and still true. Blast
+radius is small -- invite-only accounts, and the address is logged while the link never is -- but a
+per-user limiter along the lines of `AuthLoginLimiter` is the right next step before this sees real
+use.
+
+### Verification
+
+1,361 tests, 0 failures, 0 checkstyle violations. Three mutations verified red: sending a freshly
+minted link, dropping the trailing-slash strip, and returning the ciphertext undecrypted.
+
+### Ref drift
+
+`EmailService:56` -- the board's only line ref into any touched file -- is correct on `main` today
+and becomes `:61` once #213 merges.
+
+---
+
+## Actuator outcome, 2026-08-24 -- the guarantee tested rather than the string
+
+**Shipped:** [#214](https://github.com/themancalledzac/edens.zac.backend/pull/214).
+
+The backend was already sound and had been verified by live probe: exposure was `include=health`
+only, and `InternalSecretFilter` 403s everything but the three health URIs. The frontend has closed
+its `/api/proxy/actuator/**` side. This is a third layer.
+
+It is worth having because the first two are code and this is configuration. Working rule 1 says an
+injected env var outranks a property, so `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*` in a deployed
+`.env` would register `/actuator/env` and `/actuator/configprops` with nothing in the repo to
+notice. And nothing anywhere asserted actuator exposure at all.
+
+`management.endpoints.web.exposure.exclude=env,configprops,beans,mappings,heapdump,threaddump,loggers,shutdown`
+-- everything that dumps configuration, dumps process state, or mutates the running app.
+
+### Where it went past the item, and why
+
+The item asked for a test pinning the shipped value, read from `src/main/resources` per working rule
+2. That test exists (`ActuatorExposureTest`) and it is not sufficient. It proves the property is
+present, which is not the claim the hardening makes. The claim is that **Boot applies exclude after
+include** -- an ordering this board quoted and nobody here had executed.
+
+`ActuatorExposureEndToEndTest` boots the app with `include=*` on top of the shipped exclude. The
+eight endpoints 404; `/actuator/health` still 200s. The ordering holds.
+
+The mutation is what makes it worth keeping: empty the exclude, and `/actuator/env` answers **200**
+on the app port. The assertion distinguishes the two worlds instead of passing in both -- which is
+rule 15's complaint applied to config, and a string-equality test on a property file is the easiest
+place to land the shape rule 15 warns about.
+
+That generalises, and it is working rule 25.
+
+### Verification
+
+1,357 tests, 0 failures, 0 checkstyle violations. Two mutations verified red: deleting the shipped
+exclude line, and running the end-to-end test with an empty exclude.
+
+
 ## Wave 4 retro — measured in words, 2026-08-23
 
 Prompted by a fair challenge: the MRs kept being called "debloat" while the diffs looked
