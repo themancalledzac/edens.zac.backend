@@ -297,7 +297,9 @@ public class AdminUserController {
       // old link was bound to the prior address, so whoever still holds it (e.g. the prior inbox)
       // could otherwise redeem it onto the now-corrected account. The admin must issue a fresh
       // invite to the new address. A no-op change (same address, any casing) leaves the invite
-      // live; ACTIVE users have no pending onboarding invite to hijack.
+      // live. An ACTIVE user's admin-issued reset link is deliberately not swept here: S-7 made
+      // ACTIVE redeemable, so the protection is UserInviteService.accept refusing any invite whose
+      // issued address is no longer the account's, which covers this without a status-keyed sweep.
       if (existing.getStatus() == UserStatus.INVITED && !email.equals(existing.getEmail())) {
         userInviteService.invalidateInvites(id);
       }
