@@ -23,6 +23,13 @@ public class ShareLinkEntity {
   private String tokenHash;
 
   /**
+   * The same token, encrypted (see TokenCipher). Exists only so the owner can see their own live
+   * link again to re-send it; never used for lookup, since AES-GCM output differs per call. Null
+   * for rows minted before V58, which the owner's page reports as needing a reset.
+   */
+  private String tokenCipher;
+
+  /**
    * The ceiling a holder of this link resolves to inside the share's scope. Always {@code GENERAL}
    * today; the column admits {@code CLIENT} so a future download toggle needs no migration.
    */

@@ -24,26 +24,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class ShareLinkService {
 
   private final ShareLinkRepository shareLinkRepository;
+  private final TokenCipher tokenCipher;
 
   /**
    * Create the user's link, or reset an existing one. Reset rotates the token on the existing row,
-   * so the owner's opt-in collections survive it; only the secret changes. The raw token is
-   * returned for embedding in the URL and is never stored.
+   * so the owner's opt-in collections survive it; only the secret changes.
    *
    * @param userId the owner
-   * @return the raw token -- the caller's only chance to see it
+   * @return the raw token, for building the shareable URL
    */
   @Transactional
   public String mintOrRotate(Long userId) {
     String raw = TokenUtil.generateRawToken();
     String hash = TokenUtil.sha256Hex(raw);
+    String cipher = tokenCipher.encrypt(raw);
 
-    int rotated = shareLinkRepository.rotateToken(userId, hash);
+    int rotated = shareLinkRepository.rotateToken(userId, hash, cipher);
     if (rotated == 0) {
       shareLinkRepository.insert(
           ShareLinkEntity.builder()
               .userId(userId)
               .tokenHash(hash)
+              .tokenCipher(cipher)
               .level(AccessLevel.GENERAL)
               .build());
       log.debug("Minted a new share link for user {}", userId);
@@ -51,6 +53,23 @@ public class ShareLinkService {
       log.debug("Rotated the share link token for user {}", userId);
     }
     return raw;
+  }
+
+  /**
+   * The owner's own live token, so they can copy or re-send the link they already gave out.
+   *
+   * <p>This is what makes a share link behave the way its owner expects -- send it to one person
+   * today, the same link to someone else next month, and it keeps working until they reset it.
+   * Storing only the hash meant the link was visible exactly once and re-sending required a reset,
+   * which would have broken the first recipient.
+   *
+   * @return the raw token, or empty when it cannot be recovered -- a row minted before V58, or one
+   *     encrypted under a since-changed secret. Callers surface that as "reset to get a new link"
+   *     rather than an error.
+   */
+  @Transactional(readOnly = true)
+  public Optional<String> revealToken(Long userId) {
+    return findForUser(userId).map(ShareLinkEntity::getTokenCipher).map(tokenCipher::decrypt);
   }
 
   /**

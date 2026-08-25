@@ -3,22 +3,29 @@ package edens.zac.portfolio.backend.controller.prod;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.ShareLinkEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.ShareModels;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionProcessingUtil;
+import edens.zac.portfolio.backend.services.EmailService;
 import edens.zac.portfolio.backend.services.ShareLinkService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 class UserShareControllerProdTest {
 
@@ -29,20 +36,26 @@ class UserShareControllerProdTest {
   private final CollectionProcessingUtil collectionProcessingUtil =
       mock(CollectionProcessingUtil.class);
 
+  private final AppUserRepository appUserRepository = mock(AppUserRepository.class);
+  private final EmailService emailService = mock(EmailService.class);
+
   private final UserShareControllerProd controller =
       new UserShareControllerProd(
           shareLinkService,
           collectionAccessService,
           collectionRepository,
-          collectionProcessingUtil);
+          collectionProcessingUtil,
+          appUserRepository,
+          emailService,
+          "https://zacedens.com/");
 
   private static final AuthPrincipal OWNER = AuthPrincipal.client(7L, "owner@example.com", true);
-  private static final AuthPrincipal FLYBY = AuthPrincipal.flyby(42L);
   private static final ShareLinkEntity LINK = ShareLinkEntity.builder().id(42L).userId(7L).build();
 
   @Test
-  void rotateReturnsTheRawTokenExactlyOnce() {
+  void theLiveLinkStaysReadableAfterTheRequestThatMintedIt() {
     when(shareLinkService.mintOrRotate(7L)).thenReturn("fresh-token");
+    when(shareLinkService.revealToken(7L)).thenReturn(Optional.of("fresh-token"));
     when(shareLinkService.findForUser(7L)).thenReturn(Optional.of(LINK));
     when(shareLinkService.optInCollectionIds(42L)).thenReturn(List.of());
     when(collectionAccessService.memberCollectionIdsForUser(7L)).thenReturn(List.of());
@@ -54,9 +67,60 @@ class UserShareControllerProdTest {
     assertThat(afterRotate).isNotNull();
     assertThat(afterRotate.token()).isEqualTo("fresh-token");
     assertThat(afterRotate.exists()).isTrue();
-    // Only the hash is stored, so a later read can never surface it again.
+    // The whole point of V58: a later read still surfaces it, so sending the same link to a second
+    // person is a copy rather than a reset that would cut off the first.
     assertThat(afterRead).isNotNull();
-    assertThat(afterRead.token()).isNull();
+    assertThat(afterRead.token()).isEqualTo("fresh-token");
+  }
+
+  @Test
+  void anUnrecoverableTokenReadsAsNullRatherThanFailing() {
+    // Rows minted before V58 have no ciphertext. The page shows "reset to get a new link".
+    when(shareLinkService.revealToken(7L)).thenReturn(Optional.empty());
+    when(shareLinkService.findForUser(7L)).thenReturn(Optional.of(LINK));
+    when(shareLinkService.optInCollectionIds(42L)).thenReturn(List.of());
+    when(collectionAccessService.memberCollectionIdsForUser(7L)).thenReturn(List.of());
+    when(collectionRepository.findCollectionIdsByPersonId(7L)).thenReturn(List.of());
+
+    ShareModels.ShareSettings settings = controller.settings(OWNER).getBody();
+
+    assertThat(settings).isNotNull();
+    assertThat(settings.exists()).isTrue();
+    assertThat(settings.token()).isNull();
+  }
+
+  @Test
+  void emailSendsTheLinkAlreadyInCirculationRatherThanMintingAFreshOne() {
+    when(shareLinkService.revealToken(7L)).thenReturn(Optional.of("live-token"));
+    when(appUserRepository.findById(7L))
+        .thenReturn(Optional.of(AppUserEntity.builder().id(7L).name("Ada").build()));
+    when(emailService.sendShareLinkEmail(eq("mum@example.com"), eq("Ada"), anyString()))
+        .thenReturn(new EmailService.SendResult(true, null));
+
+    ResponseEntity<ShareModels.ShareEmailResult> response =
+        controller.emailLink(OWNER, new ShareModels.SendShareLinkRequest("mum@example.com"));
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().sent()).isTrue();
+    // Emailing a second person must not invalidate the first person's copy.
+    verify(shareLinkService, never()).mintOrRotate(anyLong());
+    // Trailing slash stripped, so the emailed link matches the copied one byte for byte.
+    verify(emailService)
+        .sendShareLinkEmail("mum@example.com", "Ada", "https://zacedens.com/s/live-token");
+  }
+
+  @Test
+  void emailIsAConflictWhenTheLinkCannotBeRecovered() {
+    when(shareLinkService.revealToken(7L)).thenReturn(Optional.empty());
+
+    assertThat(
+            controller
+                .emailLink(OWNER, new ShareModels.SendShareLinkRequest("mum@example.com"))
+                .getStatusCode())
+        .isEqualTo(HttpStatus.CONFLICT);
+
+    verifyNoInteractions(emailService);
   }
 
   @Test
