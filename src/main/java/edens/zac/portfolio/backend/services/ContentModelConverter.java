@@ -83,8 +83,10 @@ class ContentModelConverter {
   }
 
   /**
-   * Convert a ContentEntity to its corresponding ContentModel with join table metadata. Loads the
-   * typed content entity from the repository and populates collection-specific fields.
+   * Convert a ContentEntity to its corresponding ContentModel with join table metadata. Reads the
+   * content row once: findAllByIds buckets by content_type and returns the typed subclass, using
+   * the same SELECT fragment and row mapper as the per-type single-id finders, so a second typed
+   * fetch would return an identically hydrated entity.
    *
    * @param entity The join table entry (CollectionContentEntity) containing content and metadata
    * @return The corresponding content model with join table metadata populated
@@ -100,32 +102,15 @@ class ContentModelConverter {
       return null;
     }
 
-    Optional<ContentEntity> baseContentOpt =
+    Optional<ContentEntity> contentOpt =
         contentRepository.findAllByIds(List.of(contentId)).stream().findFirst();
-    if (baseContentOpt.isEmpty()) {
+    if (contentOpt.isEmpty()) {
       log.error(
           "Content entity {} not found for CollectionContentEntity {}", contentId, entity.getId());
       return null;
     }
 
-    ContentEntity baseContent = baseContentOpt.get();
-    ContentEntity content =
-        switch (baseContent.getContentType()) {
-          case IMAGE -> contentRepository.findImageById(contentId).orElse(null);
-          case TEXT -> contentRepository.findTextById(contentId).orElse(null);
-          case GIF -> contentRepository.findGifById(contentId).orElse(null);
-          case COLLECTION -> contentRepository.findCollectionContentById(contentId).orElse(null);
-        };
-
-    if (content == null) {
-      log.error(
-          "Failed to load typed content entity {} for CollectionContentEntity {}",
-          contentId,
-          entity.getId());
-      return null;
-    }
-
-    return convertBulkLoadedContentToModel(content, entity);
+    return convertBulkLoadedContentToModel(contentOpt.get(), entity);
   }
 
   /**

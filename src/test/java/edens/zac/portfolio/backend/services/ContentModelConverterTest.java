@@ -9,6 +9,7 @@ import edens.zac.portfolio.backend.dao.ContentRepository;
 import edens.zac.portfolio.backend.dao.LocationRepository;
 import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
+import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCameraEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
@@ -149,6 +150,64 @@ public class ContentModelConverterTest {
               contentModelConverter.convertRegularContentEntityToModel(entity);
             });
     assertTrue(exception.getMessage().contains("Unknown content type"));
+  }
+
+  @Test
+  @DisplayName("convertEntityToModel reads the content row once, with no second typed fetch")
+  void convertEntityToModel_textBlock_doesNotRefetchTypedRow() {
+    // Restoring the per-type switch reddens this. findAllByIds already returns the typed
+    // subclass, so a re-fetch through findTextById is a second query for the same row -- and
+    // with the repository mocked it would come back empty and turn the model null.
+    ContentTextEntity text = createTextContentEntity();
+    CollectionContentEntity joinEntry = new CollectionContentEntity();
+    joinEntry.setId(500L);
+    joinEntry.setContentId(text.getId());
+    joinEntry.setOrderIndex(3);
+    joinEntry.setVisible(true);
+
+    when(contentRepository.findAllByIds(List.of(text.getId()))).thenReturn(List.of(text));
+
+    ContentModel result = contentModelConverter.convertEntityToModel(joinEntry);
+
+    assertInstanceOf(ContentModels.Text.class, result);
+    ContentModels.Text textModel = (ContentModels.Text) result;
+    assertEquals(text.getTextContent(), textModel.textContent());
+    assertEquals(3, textModel.orderIndex());
+    verify(contentRepository, times(1)).findAllByIds(List.of(text.getId()));
+    verify(contentRepository, never()).findTextById(anyLong());
+  }
+
+  @Test
+  @DisplayName("convertEntityToModel uses the pre-fetched collection block without re-fetching")
+  void convertEntityToModel_collectionBlock_doesNotRefetchTypedRow() {
+    // The COLLECTION branch is the one that has to stay a ContentCollectionEntity: if the
+    // pre-fetched entity were not the typed subclass, convertBulkLoadedContentToModel logs and
+    // returns null. Restoring findCollectionContentById reddens this the same way.
+    CollectionEntity referenced = new CollectionEntity();
+    referenced.setId(42L);
+    referenced.setTitle("Smith Wedding");
+    referenced.setSlug("smith-wedding");
+    referenced.setVisibility(CollectionVisibility.UNLISTED);
+
+    ContentCollectionEntity block = new ContentCollectionEntity();
+    block.setId(77L);
+    block.setContentType(ContentType.COLLECTION);
+    block.setReferencedCollection(referenced);
+
+    CollectionContentEntity joinEntry = new CollectionContentEntity();
+    joinEntry.setId(501L);
+    joinEntry.setContentId(77L);
+    joinEntry.setOrderIndex(0);
+    joinEntry.setVisible(true);
+
+    when(contentRepository.findAllByIds(List.of(77L))).thenReturn(List.of(block));
+
+    ContentModel result = contentModelConverter.convertEntityToModel(joinEntry);
+
+    assertInstanceOf(ContentModels.Collection.class, result);
+    assertEquals("smith-wedding", ((ContentModels.Collection) result).slug());
+    verify(contentRepository, times(1)).findAllByIds(List.of(77L));
+    verify(contentRepository, never()).findCollectionContentById(anyLong());
   }
 
   @Test
