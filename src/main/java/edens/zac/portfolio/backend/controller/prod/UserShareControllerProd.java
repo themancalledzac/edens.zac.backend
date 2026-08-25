@@ -1,6 +1,8 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
+import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ShareLinkEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
@@ -8,13 +10,15 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ShareModels;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionProcessingUtil;
+import edens.zac.portfolio.backend.services.EmailService;
 import edens.zac.portfolio.backend.services.ShareLinkService;
+import jakarta.validation.Valid;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,7 +42,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/read/user/share")
-@RequiredArgsConstructor
 @Slf4j
 public class UserShareControllerProd {
 
@@ -45,8 +49,32 @@ public class UserShareControllerProd {
   private final CollectionAccessService collectionAccessService;
   private final CollectionRepository collectionRepository;
   private final CollectionProcessingUtil collectionProcessingUtil;
+  private final AppUserRepository appUserRepository;
+  private final EmailService emailService;
+  private final String frontendBaseUrl;
 
-  /** The owner's current link state. Never returns the raw token -- only its hash is stored. */
+  /** Explicit rather than {@code @RequiredArgsConstructor} so the base URL binds as an argument. */
+  public UserShareControllerProd(
+      ShareLinkService shareLinkService,
+      CollectionAccessService collectionAccessService,
+      CollectionRepository collectionRepository,
+      CollectionProcessingUtil collectionProcessingUtil,
+      AppUserRepository appUserRepository,
+      EmailService emailService,
+      @Value("${email.frontend-base-url}") String frontendBaseUrl) {
+    this.shareLinkService = shareLinkService;
+    this.collectionAccessService = collectionAccessService;
+    this.collectionRepository = collectionRepository;
+    this.collectionProcessingUtil = collectionProcessingUtil;
+    this.appUserRepository = appUserRepository;
+    this.emailService = emailService;
+    this.frontendBaseUrl = frontendBaseUrl;
+  }
+
+  /**
+   * The owner's current link state, including the live token so the page can render a copyable
+   * link. Recovering it needs the server secret, not just the database -- see {@code TokenCipher}.
+   */
   @GetMapping
   public ResponseEntity<ShareModels.ShareSettings> settings(
       @AuthenticationPrincipal AuthPrincipal principal) {
@@ -59,7 +87,9 @@ public class UserShareControllerProd {
    * fresh token on the same row. Resetting invalidates the previously shared URL and every cookie
    * minted from it, while keeping the opt-in collections.
    *
-   * <p>The returned raw token is the caller's only chance to see it.
+   * <p>This is the only destructive route here, and the UI should say so plainly: anyone already
+   * holding the old link loses access the moment it is called. Re-sending to a new person does NOT
+   * require it -- {@link #settings} returns the live link for exactly that reason.
    */
   @PostMapping("/rotate")
   public ResponseEntity<ShareModels.ShareSettings> rotate(
@@ -67,6 +97,41 @@ public class UserShareControllerProd {
     String raw = shareLinkService.mintOrRotate(principal.userId());
     log.info("Share link minted or rotated for user {}", principal.userId());
     return ResponseEntity.ok(buildSettings(principal.userId(), raw));
+  }
+
+  /**
+   * Email the sender's own link to someone.
+   *
+   * <p>Sends the link already in circulation rather than minting a fresh one, so emailing a second
+   * person does not invalidate the first person's copy. A link that cannot be recovered (minted
+   * before V58) is a 409: the honest answer is "reset to get a new one", not a silent no-op.
+   *
+   * <p>Delivery is best-effort and never fails the request. {@link EmailService} returns a typed
+   * reason instead of throwing, and short-circuits while {@code email.enabled} is false -- so the
+   * copy-link flow behaves identically whether or not email is switched on. No transaction hook is
+   * needed here (unlike the invite flow) because nothing is written: the token already exists and a
+   * rollback cannot erase it.
+   */
+  @PostMapping("/email")
+  public ResponseEntity<ShareModels.ShareEmailResult> emailLink(
+      @AuthenticationPrincipal AuthPrincipal principal,
+      @Valid @RequestBody ShareModels.SendShareLinkRequest body) {
+    Optional<String> token = shareLinkService.revealToken(principal.userId());
+    if (token.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+    String ownerName =
+        appUserRepository.findById(principal.userId()).map(AppUserEntity::getName).orElse(null);
+    EmailService.SendResult result =
+        emailService.sendShareLinkEmail(body.toEmail(), ownerName, buildShareUrl(token.get()));
+    // The address is logged, the link never is.
+    log.info("Share link email requested by user {} (sent={})", principal.userId(), result.sent());
+    return ResponseEntity.ok(new ShareModels.ShareEmailResult(result.sent(), result.reason()));
+  }
+
+  /** Byte-identical to the link the owner copies, matching how the invite flow builds its URL. */
+  private String buildShareUrl(String rawToken) {
+    return frontendBaseUrl.replaceAll("/+$", "") + "/s/" + rawToken;
   }
 
   /**
@@ -111,15 +176,19 @@ public class UserShareControllerProd {
   }
 
   /**
-   * @param rawToken the freshly minted token to surface, or null on a plain read
+   * @param freshToken the token just minted by a rotate, or null on a plain read -- in which case
+   *     the owner's live token is decrypted from storage so they can copy or re-send the link they
+   *     already gave out, without resetting it and breaking the recipient already using it
    */
-  private ShareModels.ShareSettings buildSettings(Long userId, String rawToken) {
+  private ShareModels.ShareSettings buildSettings(Long userId, String freshToken) {
     Optional<ShareLinkEntity> link = shareLinkService.findForUser(userId);
     List<Long> optedIn =
         link.map(l -> shareLinkService.optInCollectionIds(l.getId())).orElseGet(List::of);
+    String token =
+        freshToken != null ? freshToken : shareLinkService.revealToken(userId).orElse(null);
     return new ShareModels.ShareSettings(
         link.isPresent(),
-        rawToken,
+        token,
         link.map(ShareLinkEntity::getCreatedAt).orElse(null),
         link.map(ShareLinkEntity::getRotatedAt).orElse(null),
         link.map(ShareLinkEntity::getLastUsedAt).orElse(null),

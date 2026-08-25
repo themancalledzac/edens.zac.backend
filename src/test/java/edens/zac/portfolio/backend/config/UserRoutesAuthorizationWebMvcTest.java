@@ -14,11 +14,13 @@ import edens.zac.portfolio.backend.controller.prod.UserSavesControllerProd;
 import edens.zac.portfolio.backend.controller.prod.UserSelectsControllerProd;
 import edens.zac.portfolio.backend.controller.prod.UserShareControllerProd;
 import edens.zac.portfolio.backend.controller.user.UserRatingOverrideControllerProd;
+import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.entity.ShareLinkEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.CollectionProcessingUtil;
+import edens.zac.portfolio.backend.services.EmailService;
 import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.services.ShareLinkService;
 import edens.zac.portfolio.backend.services.UserFollowsService;
@@ -36,6 +38,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -90,6 +93,8 @@ class UserRoutesAuthorizationWebMvcTest {
   @MockBean private CollectionAccessService collectionAccessService;
   @MockBean private CollectionRepository collectionRepository;
   @MockBean private CollectionProcessingUtil collectionProcessingUtil;
+  @MockBean private AppUserRepository appUserRepository;
+  @MockBean private EmailService emailService;
 
   @Test
   void anonymousIsRefusedFromEveryUserRoute() throws Exception {
@@ -119,6 +124,12 @@ class UserRoutesAuthorizationWebMvcTest {
     mockMvc.perform(delete("/api/read/user/follows/42")).andExpect(status().isUnauthorized());
     mockMvc.perform(post("/api/read/user/share/rotate")).andExpect(status().isUnauthorized());
     mockMvc.perform(put("/api/read/user/share/collections/5")).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(
+            post("/api/read/user/share/email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"toEmail\":\"mum@example.com\"}"))
+        .andExpect(status().isUnauthorized());
     verifyNoServiceWasReached();
   }
 
@@ -146,7 +157,8 @@ class UserRoutesAuthorizationWebMvcTest {
         userSavesService,
         userSelectsService,
         userRatingOverrideService,
-        collectionAccessService);
+        collectionAccessService,
+        emailService);
   }
 
   @Configuration
@@ -182,12 +194,17 @@ class UserRoutesAuthorizationWebMvcTest {
         ShareLinkService shareLinkService,
         CollectionAccessService collectionAccessService,
         CollectionRepository collectionRepository,
-        CollectionProcessingUtil collectionProcessingUtil) {
+        CollectionProcessingUtil collectionProcessingUtil,
+        AppUserRepository appUserRepository,
+        EmailService emailService) {
       return new UserShareControllerProd(
           shareLinkService,
           collectionAccessService,
           collectionRepository,
-          collectionProcessingUtil);
+          collectionProcessingUtil,
+          appUserRepository,
+          emailService,
+          "https://zacedens.com");
     }
   }
 }

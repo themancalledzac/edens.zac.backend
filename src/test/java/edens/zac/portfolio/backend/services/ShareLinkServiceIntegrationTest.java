@@ -100,6 +100,28 @@ class ShareLinkServiceIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   @Test
+  void revealTokenReturnsTheSameLinkThatIsAlreadyInCirculation() {
+    Long userId = seedUser();
+    String raw = shareLinkService.mintOrRotate(userId);
+
+    // The owner can send the same link to a second person weeks later without a reset, which is
+    // what a hash-only design made impossible.
+    assertThat(shareLinkService.revealToken(userId)).contains(raw);
+    // And it still resolves -- reveal is a read, not a re-issue.
+    assertThat(shareLinkService.resolveByRawToken(raw)).isPresent();
+  }
+
+  @Test
+  void revealTokenFollowsARotationAndIsEmptyForAUserWithNoLink() {
+    Long userId = seedUser();
+    shareLinkService.mintOrRotate(userId);
+    String second = shareLinkService.mintOrRotate(userId);
+
+    assertThat(shareLinkService.revealToken(userId)).contains(second);
+    assertThat(shareLinkService.revealToken(seedUser())).isEmpty();
+  }
+
+  @Test
   void resetPreservesTheOwnersOptInCollections() {
     Long userId = seedUser();
     Long granted = seedCollection();
