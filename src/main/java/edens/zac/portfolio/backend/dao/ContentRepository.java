@@ -1070,6 +1070,44 @@ public class ContentRepository extends BaseDao {
     return queryForObject(sql, CONTENT_COLLECTION_ROW_MAPPER, params);
   }
 
+  /**
+   * The sub-collection blocks inside one parent that match any of the given ids, by either the
+   * block's own id or the id of the collection it references.
+   *
+   * <p>Both id kinds are accepted because the API response exposes both: {@code id} is the content
+   * block, {@code referencedCollectionId} is the collection it points at, and callers have been
+   * observed sending either.
+   *
+   * <p>The {@code collection_content} join is what scopes the result to this parent, and it is not
+   * optional. Matching on {@code cc.id}/{@code cc.referenced_collection_id} alone would return
+   * blocks linked under a different parent entirely, which for the unlink path would fire grant
+   * propagation for a parent-child link that never existed.
+   *
+   * <p>No {@code visible} filter, deliberately: an unlink has to reach a hidden link too.
+   *
+   * @param collectionId the parent whose contents are searched
+   * @param ids content-block ids or referenced-collection ids, mixed freely
+   * @return matching blocks in the parent's display order, empty when nothing matches
+   */
+  @Transactional(readOnly = true)
+  public List<ContentCollectionEntity> findCollectionContentInCollectionMatching(
+      Long collectionId, List<Long> ids) {
+    if (collectionId == null || ids == null || ids.isEmpty()) {
+      return List.of();
+    }
+    String sql =
+        SELECT_CONTENT_COLLECTION
+            + """
+            JOIN collection_content link ON link.content_id = c.id
+            WHERE link.collection_id = :collectionId
+              AND (cc.id IN (:ids) OR cc.referenced_collection_id IN (:ids))
+            ORDER BY link.order_index ASC
+            """;
+    MapSqlParameterSource params =
+        createParameterSource().addValue("collectionId", collectionId).addValue("ids", ids);
+    return query(sql, CONTENT_COLLECTION_ROW_MAPPER, params);
+  }
+
   @Transactional(readOnly = true)
   public Optional<ContentCollectionEntity> findCollectionContentByReferencedCollectionId(
       Long referencedCollectionId) {

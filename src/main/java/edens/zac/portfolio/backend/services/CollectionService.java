@@ -37,7 +37,6 @@ import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -1335,6 +1334,12 @@ public class CollectionService {
    * flexibility: the former matches the API response's {@code id} field, the latter its {@code
    * referencedCollectionId} field.
    *
+   * <p>One query. This used to read every join row in the parent and then ask the database about
+   * each one individually, which cost a query per content block -- and {@code
+   * SELECT_CONTENT_COLLECTION} inner-joins {@code content_collection}, so every image in the parent
+   * bought an empty result. Removing one sub-collection from a 200-image collection issued 201
+   * queries, 200 of them answering nothing.
+   *
    * @param parentCollection The parent collection to search in
    * @param idsToRemove IDs to match - can be either ContentCollectionEntity IDs or referenced
    *     collection IDs
@@ -1346,40 +1351,9 @@ public class CollectionService {
       return Collections.emptyList();
     }
 
-    List<ContentCollectionEntity> matchingContentCollections = new ArrayList<>();
-
-    List<CollectionContentEntity> joinEntries =
-        collectionRepository.findContentByCollectionIdOrderByOrderIndex(parentCollection.getId());
-
-    for (CollectionContentEntity joinEntry : joinEntries) {
-      Long contentId = joinEntry.getContentId();
-      if (contentId == null) {
-        continue;
-      }
-
-      ContentCollectionEntity contentCollectionEntity =
-          contentRepository.findCollectionContentById(contentId).orElse(null);
-      if (contentCollectionEntity != null) {
-        Long contentCollectionId = contentCollectionEntity.getId();
-        CollectionEntity referencedCollection = contentCollectionEntity.getReferencedCollection();
-        Long referencedCollectionId =
-            referencedCollection != null ? referencedCollection.getId() : null;
-
-        boolean matchesContentId = idsToRemove.contains(contentCollectionId);
-        boolean matchesReferencedId =
-            referencedCollectionId != null && idsToRemove.contains(referencedCollectionId);
-
-        if (matchesContentId || matchesReferencedId) {
-          matchingContentCollections.add(contentCollectionEntity);
-          log.debug(
-              "Found matching ContentCollectionEntity {} (referencedCollectionId={}) for removal"
-                  + " (matched by {})",
-              contentCollectionId,
-              referencedCollectionId,
-              matchesContentId ? "contentId" : "referencedCollectionId");
-        }
-      }
-    }
+    List<ContentCollectionEntity> matchingContentCollections =
+        contentRepository.findCollectionContentInCollectionMatching(
+            parentCollection.getId(), idsToRemove);
 
     if (matchingContentCollections.isEmpty()) {
       log.debug(
