@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -98,6 +100,37 @@ class UserInviteServiceAcceptTest {
     assertThat(result).isEqualTo(AcceptResult.ACCEPTED);
     verify(appUserRepository).updatePasswordHash(11L, "{bcrypt}hashed");
     verify(sessionService).create(any(), anyBoolean(), any(), any());
+  }
+
+  @Test
+  void acceptRevokesTheAccountsOtherSessionsBeforeMintingItsOwn() {
+    // S-15: this call is also the admin-issued password reset, and resetting a password is what a
+    // user does when they think they are compromised -- so a stolen cookie must not survive it.
+    // The ordering is the fix, not just the call: revoke after the mint and the user is logged out
+    // by their own reset. Mutation this catches: swap the two lines and inOrder fails.
+    givenRedeemableToken(18L);
+    givenUser(18L, UserStatus.ACTIVE);
+    when(passwordEncoder.encode("newpass1")).thenReturn("{bcrypt}hashed");
+
+    assertThat(service.accept("raw-token", "Bob", "newpass1", request, response))
+        .isEqualTo(AcceptResult.ACCEPTED);
+
+    InOrder ordered = inOrder(sessionService);
+    ordered.verify(sessionService).revokeAllForUser(18L);
+    ordered.verify(sessionService).create(any(), anyBoolean(), any(), any());
+  }
+
+  @Test
+  void aRejectedAcceptRevokesNothing() {
+    // The revoke sits below the guards, so a token refused for status or address must not log the
+    // account out. Mutation this catches: hoist the revoke above the mayAcceptInvite test and a
+    // stale link becomes a way to end a live session without redeeming anything.
+    givenRedeemableToken(19L);
+    givenUser(19L, UserStatus.DISABLED);
+
+    assertThat(service.accept("raw-token", "Dan", "newpass1", request, response))
+        .isEqualTo(AcceptResult.REJECTED);
+    verify(sessionService, never()).revokeAllForUser(anyLong());
   }
 
   @Test
