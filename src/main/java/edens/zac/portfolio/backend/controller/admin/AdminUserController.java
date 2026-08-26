@@ -200,6 +200,10 @@ public class AdminUserController {
    * {@code PERSON} row's email is NULL, so any match is necessarily a different account -- unlike
    * {@link #updateUser}, there is no same-owner no-op here.
    *
+   * <p>Because the row id survives the flip, so would any {@code role_member} row already pointing
+   * at the person -- a grant that is dormant while the row is a PERSON and live the moment it is
+   * not. {@link RoleRepository#dropMembershipsIfPerson} runs before the status write to drop them.
+   *
    * @param id the {@code users.id} of the PERSON row to upgrade
    * @param request the upgrade parameters; email is normalized to lowercase
    * @return {@code 200} with {@link CreateUserResponse}
@@ -225,6 +229,7 @@ public class AdminUserController {
     }
 
     appUserRepository.updateEmail(id, email);
+    roleRepository.dropMembershipsIfPerson(id);
     appUserRepository.updateStatus(id, UserStatus.INVITED);
     String rawToken = userInviteService.regenerateInvite(id, email);
     String inviteUrl = buildInviteUrl(rawToken);
@@ -262,6 +267,12 @@ public class AdminUserController {
    * {@code 409 Conflict} if another user already owns it — resubmitting the user's own email (any
    * casing) succeeds. A {@code null}, empty, or omitted email leaves it unchanged (whitespace-only
    * is rejected with {@code 400} by the {@code @Email} constraint before this method runs).
+   *
+   * <p>This endpoint takes a bare status and does not require the existing row to be an account, so
+   * it is the second path that can turn a {@code PERSON} into one -- {@link #upgradeUser} is the
+   * first. It runs the same {@link RoleRepository#dropMembershipsIfPerson} sweep for that reason.
+   * The sweep is keyed on what the row is now rather than on the transition, so it is a no-op for
+   * every account and needs no branch here.
    *
    * <p>Setting a status outside the invite lifecycle ({@code INVITED} / {@code ACTIVE}) also
    * invalidates the user's outstanding invites, so disabling an account cannot be undone by a link
@@ -305,6 +316,7 @@ public class AdminUserController {
       }
     }
     appUserRepository.updateName(id, request.displayName());
+    roleRepository.dropMembershipsIfPerson(id);
     appUserRepository.updateStatus(id, request.status());
     userInviteService.invalidateInvitesForStatus(id, request.status());
     sessionService.revokeAllForStatus(id, request.status());

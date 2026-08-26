@@ -150,6 +150,49 @@ public class RoleRepository extends BaseDao {
             .addValue("addedBy", addedBy));
   }
 
+  /**
+   * Drop every {@code role_member} row the user holds, but only while that user is still a tag-only
+   * {@code PERSON}. Enforces the invariant {@link #addMember} states -- no membership row may point
+   * at a PERSON -- at the moment such a row would stop being harmless.
+   *
+   * <p>Such a row is not dormant at the authorization layer: {@link #canView} joins {@code
+   * role_member} to {@code role_collection} and tests no status, so it already answers true for the
+   * PERSON. What makes it harmless today is only that a PERSON has no way to authenticate. Turning
+   * the row into an account supplies exactly that, and the row id does not change across the flip,
+   * so the new account inherits whatever was pointing at the person the moment it can log in.
+   * {@code addMember} has refused to create such rows since the S-2 fix and {@code
+   * repointMemberships} drops rather than moves them, but no migration ever purged the rows that
+   * predate the guard -- so the precondition is existing data rather than something an attacker has
+   * to arrange.
+   *
+   * <p>The PERSON test lives inside the statement rather than in a caller's precondition (working
+   * rule 17), so this is safe to call unconditionally from any path that may be about to change a
+   * status: it deletes nothing at all for a real account, whose memberships are legitimate.
+   *
+   * <p>Dropping rather than preserving matches {@link #repointMemberships}: these are rows {@code
+   * addMember} would refuse to create, they grant nothing in their current state, and they exist
+   * only because the rule went unenforced. The count is logged at WARN so the disposition is
+   * visible rather than silent.
+   *
+   * @param userId the {@code users.id} whose dormant grants should be dropped
+   * @return the number of membership rows dropped; 0 for any user that is not a PERSON
+   */
+  @Transactional
+  public int dropMembershipsIfPerson(Long userId) {
+    int dropped =
+        update(
+            "DELETE FROM role_member WHERE user_id = :userId "
+                + "AND EXISTS (SELECT 1 FROM users WHERE id = :userId AND status = 'PERSON')",
+            createParameterSource().addValue("userId", userId));
+    if (dropped > 0) {
+      log.warn(
+          "Dropped {} dormant role grant(s) on a PERSON row before a status change (userId={})",
+          dropped,
+          userId);
+    }
+    return dropped;
+  }
+
   @Transactional
   public void removeMember(Long roleId, Long userId) {
     update(

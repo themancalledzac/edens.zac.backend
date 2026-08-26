@@ -359,6 +359,44 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   /**
+   * S-12: a grant sitting on a PERSON is dormant only while the row stays a PERSON. Upgrading that
+   * row into an account keeps its id, so the grant would come live under a login. Mutation this
+   * catches: drop the DELETE and the membership survives the sweep.
+   */
+  @Test
+  void dropMembershipsIfPersonClearsADormantGrant() {
+    long person = seedPerson("Dormant Grant Person");
+    long roleId = repo.createRole("dormant-grant-role", null);
+    insertLegacyMembership(roleId, person);
+    assertThat(membershipCount(person)).isEqualTo(1);
+
+    assertThat(repo.dropMembershipsIfPerson(person)).isEqualTo(1);
+    assertThat(membershipCount(person)).isZero();
+  }
+
+  /**
+   * The scope guard on the other side, and the reason the PERSON test lives inside the statement:
+   * the sweep is called unconditionally from two admin endpoints, so it must be a no-op for a real
+   * account. Mutation this catches: drop the {@code EXISTS ... status = 'PERSON'} clause and an
+   * ordinary admin PATCH strips the user's roles.
+   */
+  @Test
+  void dropMembershipsIfPersonLeavesAnAccountsMembershipsAlone() {
+    long user = seedUser("Legitimate Member");
+    long roleId = repo.createRole("legitimate-member-role", null);
+    repo.addMember(roleId, user, null);
+
+    assertThat(repo.dropMembershipsIfPerson(user)).isZero();
+    assertThat(membershipCount(user)).isEqualTo(1);
+  }
+
+  /** Nothing to drop is not an error, since both callers run it on every request. */
+  @Test
+  void dropMembershipsIfPersonIsANoOpForAPersonWithNoGrants() {
+    assertThat(repo.dropMembershipsIfPerson(seedPerson("Ungranted Person"))).isZero();
+  }
+
+  /**
    * A {@code role_member} row pointing at a PERSON. {@code addMember} refuses to create one, which
    * is the point: these rows predate that guard.
    */
