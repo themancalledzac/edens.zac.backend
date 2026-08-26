@@ -14,10 +14,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 class UserInviteServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private UserInviteService inviteService;
+  @Autowired private SessionService sessionService;
   @Autowired private UserInviteRepository inviteRepository;
   @Autowired private AppUserRepository userRepository;
   @Autowired private JdbcTemplate jdbcTemplate;
@@ -30,6 +33,26 @@ class UserInviteServiceIntegrationTest extends AbstractPostgresIntegrationTest {
             .webauthnUserHandle(UUID.randomUUID())
             .status(UserStatus.INVITED)
             .build());
+  }
+
+  private Long seedActiveUser(String email) {
+    return userRepository.insert(
+        AppUserEntity.builder()
+            .email(email)
+            .name(email)
+            .webauthnUserHandle(UUID.randomUUID())
+            .status(UserStatus.ACTIVE)
+            .build());
+  }
+
+  // Extract the raw ezac_session value from the Set-Cookie header.
+  private String rawTokenFrom(MockHttpServletResponse response) {
+    String setCookie = response.getHeader("Set-Cookie");
+    assertThat(setCookie).isNotNull().contains("ezac_session=");
+    String afterName =
+        setCookie.substring(setCookie.indexOf("ezac_session=") + "ezac_session=".length());
+    int semi = afterName.indexOf(';');
+    return semi >= 0 ? afterName.substring(0, semi) : afterName;
   }
 
   @Test
@@ -120,6 +143,36 @@ class UserInviteServiceIntegrationTest extends AbstractPostgresIntegrationTest {
         "UPDATE user_invite SET expires_at = now() - INTERVAL '1 day' WHERE token_hash = ?", hash);
 
     assertThat(inviteService.redeem(raw)).isEmpty();
+  }
+
+  /**
+   * S-15: completing a password reset evicts every session the account already holds, and keeps the
+   * one it mints. The mock-level test in {@code UserInviteServiceAcceptTest} pins the call order;
+   * this pins what that order means against a real {@code user_session} table. Two mutations it
+   * catches: drop the revoke and the prior session still resolves, or move the revoke below {@link
+   * SessionService#create} and the fresh one comes back revoked.
+   */
+  @Test
+  void acceptRevokesPriorSessionsAndLeavesTheFreshOneLive() {
+    Long userId = seedActiveUser("reset@example.com");
+    MockHttpServletResponse priorLogin = new MockHttpServletResponse();
+    sessionService.create(
+        userRepository.findById(userId).orElseThrow(),
+        false,
+        new MockHttpServletRequest(),
+        priorLogin);
+    String stolen = rawTokenFrom(priorLogin);
+    assertThat(sessionService.resolve(stolen)).isPresent();
+
+    String raw = inviteService.regenerateInvite(userId, "reset@example.com");
+    MockHttpServletResponse afterReset = new MockHttpServletResponse();
+    assertThat(
+            inviteService.accept(
+                raw, "Reset User", "brand-new-pass", new MockHttpServletRequest(), afterReset))
+        .isEqualTo(UserInviteService.AcceptResult.ACCEPTED);
+
+    assertThat(sessionService.resolve(stolen)).isEmpty();
+    assertThat(sessionService.resolve(rawTokenFrom(afterReset))).isPresent();
   }
 
   @Test

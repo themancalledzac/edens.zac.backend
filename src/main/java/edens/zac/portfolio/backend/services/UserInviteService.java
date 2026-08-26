@@ -184,6 +184,13 @@ public class UserInviteService {
    * email in the same place, via {@link #inviteAddressMatchesAccount}. The redeem stands either
    * way, so a token presented against such an account is spent rather than left live.
    *
+   * <p>Sessions the account already holds are revoked, because this is also the admin-issued
+   * password reset (see {@link #regenerateInvite}) and setting a new password must evict whoever
+   * held the old one. The revoke runs <em>before</em> {@link SessionService#create}, so the session
+   * minted here survives it and the user is not logged out by their own reset. It is unconditional
+   * rather than routed through {@link SessionService#revokeAllForStatus}, which tests the resulting
+   * status and so is a no-op for the {@code ACTIVE} account this exists to protect.
+   *
    * @param rawToken the raw token from the invite URL
    * @param displayName the chosen display name
    * @param rawPassword the chosen password, encoded here
@@ -231,8 +238,9 @@ public class UserInviteService {
     appUserRepository.updateName(userId, displayName);
     appUserRepository.updateStatus(userId, UserStatus.ACTIVE);
 
+    int revoked = sessionService.revokeAllForUser(userId);
     sessionService.create(user, false, request, response);
-    log.info("Invite accepted: userId={}", userId);
+    log.info("Invite accepted: userId={} sessionsRevoked={}", userId, revoked);
     return AcceptResult.ACCEPTED;
   }
 

@@ -215,11 +215,27 @@ public class SessionService {
     if (mayHoldSession(newStatus)) {
       return 0;
     }
-    int revoked = sessionRepository.revokeAllForUser(userId);
+    int revoked = revokeAllForUser(userId);
     if (revoked > 0) {
       log.info("Revoked sessions on status change: userId={} status={}", userId, newStatus);
     }
     return revoked;
+  }
+
+  /**
+   * Revoke every session the user currently holds, whatever their status. The unconditional form of
+   * {@link #revokeAllForStatus}, for callers whose reason to evict is an event rather than a
+   * status: {@link UserInviteService#accept} completing a password reset, where the account is and
+   * stays {@code ACTIVE} and so {@code revokeAllForStatus} would be a no-op by construction.
+   *
+   * <p>Only sessions live at the moment of the call are affected, so a caller that mints a
+   * replacement afterwards keeps it. Callers that mint must revoke <em>first</em> for that reason.
+   *
+   * @param userId the id of the {@code app_user} record whose sessions should be revoked
+   * @return the number of sessions revoked
+   */
+  public int revokeAllForUser(Long userId) {
+    return sessionRepository.revokeAllForUser(userId);
   }
 
   /**
