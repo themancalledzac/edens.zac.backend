@@ -1,9 +1,11 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -743,6 +745,58 @@ class AdminUserControllerTest {
           .andExpect(status().isBadRequest());
 
       verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
+    }
+
+    @Test
+    void updateWithPersonStatusReturns400AndWritesNothing() throws Exception {
+      // S-13. PERSON is a tag-only identity, not an account lifecycle state. Writing it here would
+      // make PersonRepository.deletePersonById -- which hard-deletes on AND status = 'PERSON' --
+      // match a real account, and would leave that account's role_member rows on a person.
+      // Rejection is at the input, so nothing in the controller body runs: no sweep, no write.
+      // The row is stubbed lenient() on purpose -- it is never read, and stubbing it is what makes
+      // the mutation land where it matters: drop @AccountStatus and this PATCH succeeds with 200
+      // and writes PERSON, rather than 404-ing on an unstubbed lookup.
+      AppUserEntity existing =
+          AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
+      lenient().when(appUserRepository.findById(8L)).thenReturn(Optional.of(existing));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Ken\",\"status\":\"PERSON\"}"))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.message", containsString("not an account status")));
+
+      verify(appUserRepository, never()).updateStatus(anyLong(), any());
+      verify(appUserRepository, never()).updateName(anyLong(), anyString());
+      verify(roleRepository, never()).dropMembershipsIfPerson(anyLong());
+    }
+
+    @Test
+    void updatePersonToActiveStillSucceeds() throws Exception {
+      // The other direction stays open: PATCHing a PERSON to an account status is how a person
+      // becomes an account outside upgradeUser, and S-12's sweep depends on it running.
+      // Constraining
+      // the request enum must not close it.
+      AppUserEntity before =
+          AppUserEntity.builder().id(8L).name("Dana").status(UserStatus.PERSON).build();
+      AppUserEntity after =
+          AppUserEntity.builder().id(8L).name("Dana").status(UserStatus.ACTIVE).build();
+      when(appUserRepository.findById(8L))
+          .thenReturn(Optional.of(before))
+          .thenReturn(Optional.of(after));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"displayName\":\"Dana\",\"status\":\"ACTIVE\"}"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.status", is("ACTIVE")));
+
+      verify(roleRepository).dropMembershipsIfPerson(8L);
+      verify(appUserRepository).updateStatus(8L, UserStatus.ACTIVE);
     }
 
     @Test

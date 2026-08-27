@@ -268,11 +268,17 @@ public class AdminUserController {
    * casing) succeeds. A {@code null}, empty, or omitted email leaves it unchanged (whitespace-only
    * is rejected with {@code 400} by the {@code @Email} constraint before this method runs).
    *
-   * <p>This endpoint takes a bare status and does not require the existing row to be an account, so
-   * it is the second path that can turn a {@code PERSON} into one -- {@link #upgradeUser} is the
-   * first. It runs the same {@link RoleRepository#dropMembershipsIfPerson} sweep for that reason.
-   * The sweep is keyed on what the row is now rather than on the transition, so it is a no-op for
-   * every account and needs no branch here.
+   * <p>This endpoint does not require the existing row to be an account, so it is the second path
+   * that can turn a {@code PERSON} into one -- {@link #upgradeUser} is the first. It runs the same
+   * {@link RoleRepository#dropMembershipsIfPerson} sweep for that reason. The sweep is keyed on
+   * what the row is now rather than on the transition, so it is a no-op for every account and needs
+   * no branch here.
+   *
+   * <p>The reverse direction is closed at the input instead: {@link AccountStatus} rejects {@code
+   * status: PERSON} with {@code 400}, so an account cannot be moved into the tag-only identity
+   * state here. Doing that at the input rather than with a second sweep after the write is
+   * deliberate -- a sweep placed there would cover this direction and stop covering {@code PERSON
+   * -> account}, and running both would delete a real account's role grants on the way to PERSON.
    *
    * <p>Setting a status outside the invite lifecycle ({@code INVITED} / {@code ACTIVE}) also
    * invalidates the user's outstanding invites, so disabling an account cannot be undone by a link
