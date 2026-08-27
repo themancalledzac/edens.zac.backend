@@ -274,6 +274,62 @@ class AdminUserControllerTest {
       verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
       verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
     }
+
+    @Test
+    void regenerateForActiveUserReturns200() throws Exception {
+      // The admin-issued password reset. ACTIVE is on the mayAcceptInvite allowlist and the gate
+      // must not close it -- this is the second of the two statuses this endpoint exists to serve.
+      AppUserEntity carol =
+          AppUserEntity.builder()
+              .id(6L)
+              .email("carol@example.com")
+              .name("Carol")
+              .status(UserStatus.ACTIVE)
+              .build();
+      when(appUserRepository.findById(6L)).thenReturn(Optional.of(carol));
+      when(userInviteService.regenerateInvite(6L, "carol@example.com")).thenReturn("reset-token");
+
+      mockMvc
+          .perform(post("/api/admin/users/6/invite"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/reset-token"));
+    }
+
+    @Test
+    void regenerateForDisabledUserReturns409AndMintsNothing() throws Exception {
+      // S-21. accept() refuses DISABLED, so without this gate the admin got a 200 and a URL, the
+      // invitee got the email, clicked it, and received 410 Gone -- with nothing anywhere saying
+      // the account was ineligible.
+      AppUserEntity dana =
+          AppUserEntity.builder()
+              .id(7L)
+              .email("dana@example.com")
+              .name("Dana")
+              .status(UserStatus.DISABLED)
+              .build();
+      when(appUserRepository.findById(7L)).thenReturn(Optional.of(dana));
+
+      mockMvc.perform(post("/api/admin/users/7/invite")).andExpect(status().isConflict());
+
+      verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
+      verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
+    }
+
+    @Test
+    void regenerateForPersonReturns409BeforeTheSchemaRejectsIt() throws Exception {
+      // S-21, the louder half. A PERSON row's users.email is NULL and user_invite.email is NOT NULL
+      // (V32), so the insert raised DataIntegrityViolationException and GlobalExceptionHandler
+      // reported "duplicate or invalid data" -- a schema constraint doing a status check's job and
+      // naming the wrong reason. The gate now answers first, and the insert is never attempted.
+      AppUserEntity person =
+          AppUserEntity.builder().id(8L).email(null).name("Evan").status(UserStatus.PERSON).build();
+      when(appUserRepository.findById(8L)).thenReturn(Optional.of(person));
+
+      mockMvc.perform(post("/api/admin/users/8/invite")).andExpect(status().isConflict());
+
+      verify(userInviteService, never()).regenerateInvite(anyLong(), any());
+      verify(emailService, never()).sendInviteEmail(any(), any(), anyString());
+    }
   }
 
   @Nested
