@@ -31,8 +31,8 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **8 open, 0 HIGH, 2 blocked on the user** (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **next: S-15, then S-12.** S-15 is next rather than the higher-severity S-12 because it lives in the method #221 just edited and its one unknown was discharged in that pass (working rule 27) -- its stated fix names a method that does not exist. The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the security board (S-15), not from this one. *(Corrected 2026-08-25: this row pointed at "MR 19 #16 or MR 16 #4/#5" and MR 19 #16 shipped as [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216) the day before. A next-pointer inside a closed section is exactly the kind that rots unwatched, because nobody re-reads a board row marked done.)* |
+| [Open security findings](#open-security-findings) | **7 open, 0 HIGH, 2 blocked on the user** (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **Both shipped 2026-08-26**: S-15 ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) and S-12 ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)), each mutation-verified. Sequencing S-15 first on working rule 27 was right -- the correction made to it on 2026-08-25 was what made it cheap, since its originally-stated fix named a method that does not compile. **next: S-13**, whose premise S-12 just re-verified and whose scope S-12 just sharpened (see working rule 30); then S-21 or S-20, both LOW/MEDIUM and both re-anchored 2026-08-26. The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the security board (S-13 as of 2026-08-26; this row said S-15, which shipped as #224), not from this one. *(Corrected 2026-08-25: this row pointed at "MR 19 #16 or MR 16 #4/#5" and MR 19 #16 shipped as [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216) the day before. A next-pointer inside a closed section is exactly the kind that rots unwatched, because nobody re-reads a board row marked done.)* |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -41,7 +41,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **8 open, 0 HIGH** — see below. The board reopened 2026-08-25 with 11 new findings; S-19 settled, S-10 and S-11 shipped, S-21 filed | — |
+| Security findings | **7 open, 0 HIGH** — see below. Reopened 2026-08-25 with 11; S-19 settled, S-10/S-11/S-15/S-12 shipped, S-21 filed. *(This cell and the section row both read "8" from 2026-08-25 until 2026-08-26: filing S-21 incremented neither, so the board undercounted itself by one for a day. Counting the checkboxes is the check -- `grep -c '^- \[ \] \*\*S-'`.)* | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -272,13 +272,32 @@ should be re-confirmed at implementation time, per working rule 21.
   only for the reason it names. Source restored with `touch` afterwards per working rule 15's note on
   stale `.class` files.
 
-- [ ] **S-12 (MEDIUM-HIGH, agent trace). Dormant `role_member` rows on a PERSON become live grants on
-  upgrade.** S-2 closed `addMember` and `repointMemberships`. `AdminUserController.upgradeUser` is
+- [x] **S-12 (MEDIUM-HIGH, agent trace). Dormant `role_member` rows on a PERSON become live grants on
+  upgrade.** **DONE** ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225),
+  2026-08-26.) S-2 closed `addMember` and `repointMemberships`. `AdminUserController.upgradeUser` is
   the third path and the dangerous direction: it verifies the row is PERSON, sets an email, flips it
   to INVITED and mints an invite, with no `role_member` purge. The row id never changes, so any grant
   already pointing at that PERSON survives onto the live account. `RoleRepository` names this exact
   risk in `addMember`'s own docblock. **No migration ever purged pre-guard rows**, so the
   precondition is existing prod data rather than something an attacker has to arrange.
+
+  **Shipped as `RoleRepository.dropMembershipsIfPerson`**, +186/-0, suite 1,385 -> 1,391. Full
+  write-up in the [history file](2026-08-22-backend-cleanup-history.md#s-12-outcome-2026-08-26----a-second-path-and-an-item-whose-harm-model-was-wrong).
+  Two corrections the item needed, both found by following the rules rather than the text:
+
+  **Working rule 16 found a second path.** `updateUser` takes a bare `UserStatus` and never checks the
+  existing row is an account, so an admin PATCH turns a PERSON into one without touching
+  `upgradeUser`. Both call sites run the sweep, each with its own test -- a fix wired into one of them
+  passes the other's suite completely.
+
+  **"Dormant" is wrong.** `canView` joins `role_member` to `role_collection` and tests no status, so
+  it already answers true for the PERSON. The harmlessness lives in the login path, not the
+  authorization path the item points at, and the upgrade supplies exactly the login. Found because a
+  scene-setting assertion that `canView` was false **failed**.
+
+  **Not done, deliberately:** a migration purging pre-guard rows at rest. Not needed for the security
+  property, and a destructive data change against rows nobody has inventoried -- a separate call
+  rather than something ridden in on a security fix.
 
 - [ ] **S-13 (MEDIUM, agent trace). The admin update endpoint accepts `status: PERSON`.**
   `UserRequests` types the field as the bare `UserStatus` enum; the javadoc one line above says
@@ -286,6 +305,33 @@ should be re-confirmed at implementation time, per working rule 21.
   `PersonRepository.deletePersonById`'s `AND status = 'PERSON'` match a real account, which the
   people-delete endpoint hard-deletes with memberships cascading. It also manufactures exactly the
   `role_member`-on-a-PERSON state S-2 exists to prevent, on a path neither S-2 guard covers.
+
+  **Both premises re-verified 2026-08-26 while shipping S-12, which edits this same method.**
+  `PersonRepository.deletePersonById` is still `DELETE FROM users WHERE id = :id AND status =
+  'PERSON'`, and `UpdateUserRequest.status` is still a bare `@NotNull UserStatus`. Intact.
+
+  **S-12 does NOT close the second half of this item, and cannot be made to.** The obvious reading
+  after #225 is that `dropMembershipsIfPerson` in `updateUser` already handles the
+  `role_member`-on-a-PERSON state. It does not: the sweep runs **before** the status write, so for an
+  ACTIVE account being PATCHed to PERSON the row is still an account when the sweep reads it, the
+  sweep is a no-op, and the flip then leaves exactly the illegal rows. Moving the sweep after the
+  write would fix this direction and **silently break S-12's**, because `PERSON -> account` would
+  then read an account and sweep nothing. See working rule 30. The fix for this item is still
+  constraining the request enum so `PERSON` never arrives -- which closes both halves at the input
+  end rather than fighting the ordering.
+
+  **Guardrail: leave the `dropMembershipsIfPerson` call site in `updateUser` where it is, and report
+  what moving it below `appUserRepository.updateStatus` would do.** This is the tempting adjacent
+  change and it is wrong in a way that hides: moving it closes this item's direction, reopens S-12's,
+  and **every test #225 added stays green**, because they all seed a PERSON and assert on the state
+  after the call rather than on when the call ran. If the analysis says two sweeps are wanted, that
+  is a data-loss decision for the user (an `account -> PERSON` sweep deletes a real account's role
+  grants), so report it rather than making it.
+
+  **Also worth checking before assuming the scope:** whether any consumer actually sends a status at
+  all on a PATCH that is not meant to change one. `UpdateUserRequest.status` is `@NotNull`, so every
+  caller must send something -- constraining the type is not free if a frontend sends the row's
+  current status back verbatim and that status is ever `PERSON`. Working rule 24 at the input end.
 
 - [ ] **S-14 (MEDIUM, agent trace). S-6 turned `addCollection` from a read decision into a durable
   third-party grant.** `UserShareControllerProd.addCollection` gates on `canView`, then writes a
@@ -297,8 +343,9 @@ should be re-confirmed at implementation time, per working rule 21.
   that grants access to someone else.** This is the first item to argue a previous fix was too
   broad rather than too narrow.
 
-- [ ] **S-15 (MEDIUM, agent trace). Completing a password reset does not revoke the account's other
-  sessions.** `UserInviteService.accept` writes the new password hash and mints a new session without
+- [x] **S-15 (MEDIUM, agent trace). Completing a password reset does not revoke the account's other
+  sessions.** **DONE** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224),
+  2026-08-26.) `UserInviteService.accept` writes the new password hash and mints a new session without
   calling `revokeAllForUser`. A stolen session cookie survives the reset and keeps sliding its 60-day
   window. S-8 built the primitive and wired it only into the admin status-change path, so today the
   only way to evict a stolen session is an admin round-trip to DISABLED and back. **Resetting your
@@ -321,6 +368,17 @@ should be re-confirmed at implementation time, per working rule 21.
   **The ordering trap the item does not name:** `accept` mints a fresh session on the same request.
   Revoke after `create` and the user is logged out by their own password reset. The revoke has to run
   before the mint, and the test has to assert that ordering rather than just that both were called.
+
+  **Shipped as the corrected version specified**, +112/-2, suite 1,385 -> 1,388. Full write-up in the
+  [history file](2026-08-22-backend-cleanup-history.md#s-15-outcome-2026-08-26----the-missing-method-and-why-the-existing-sweep-could-not-be-reused).
+  Three things to carry: the revoke sits **below** the status and address guards, so a refused token
+  cannot log somebody out (`aRejectedAcceptRevokesNothing`); working rule 16 came back **clean** for
+  once -- `updatePasswordHash` has exactly one `src/main` caller, so "accept only" was the whole set
+  rather than a narrowing; and the guardrail's cost report is in the history file. Its headline:
+  routing through `revokeAllForStatus` is a **silent no-op**, and making it work means changing
+  `mayHoldSession`, whose other two consumers are `resolve` (every authenticated request) and
+  `updateUser` -- where an ACTIVE write must stay a no-op or every admin PATCH becomes a session
+  purge.
 
 - [ ] **S-16 (MEDIUM, agent trace). The revoke-on-status sweep covers sessions and invites and misses
   share links.** `ShareLinkService.resolveByRawToken` reads no owner status, and the scope query
@@ -373,6 +431,13 @@ should be re-confirmed at implementation time, per working rule 21.
   a fifth `UserStatus` and updating `mayHoldSession` leaves both admitting it -- the exact drift
   S-9's refactor was done to prevent on the invite side.
 
+  **Re-verified 2026-08-26** (SessionService was edited by #224, so this is in the neighborhood).
+  Grepping `UserStatus.ACTIVE` across `src/main` returns exactly six hits: the two predicates, one
+  seed in `AdminBootstrap`, one write in `UserInviteService.accept`, and the two inlined comparisons
+  this item names -- `AuthController` (`!= ACTIVE`, in the login guard's three-clause `if`) and
+  `WebAuthnService` (`!= ACTIVE`, guarding `finishLogin`). Premise intact, count exact, and #224 did
+  not add a seventh. **COLD.**
+
 - [ ] **S-21 (LOW, verified 2026-08-25). `regenerateInvite` mints a link for accounts that can never
   redeem it.** *(Filed while costing S-10's guardrail -- the endpoint had to be read to establish
   what narrowing `mayAcceptInvite` would break, and this fell out of the same read.)*
@@ -396,6 +461,14 @@ should be re-confirmed at implementation time, per working rule 21.
   nothing** -- redemption is already refused; the cost is an admin who believes they sent a working
   link. **COLD.**
 
+  **Re-verified 2026-08-26** (`AdminUserController` and `UserInviteService` were both edited by #224
+  and #225, so this is in the neighborhood). The endpoint still looks the user up by id and mints
+  with no status test. One thing to know before fixing it that the item does not say: `upgradeUser`
+  calls the **service** method `userInviteService.regenerateInvite` directly, not this endpoint, and
+  it does so *after* flipping the row to INVITED. So a gate on the controller endpoint leaves
+  `upgradeUser` working, and a gate pushed down into the service would also pass -- but only because
+  of that ordering, which #225 did not change and a future edit could.
+
 #### Classification of the reopened items (2026-08-25)
 
 Every item above is stamped, so none of them reads as available and then eats a session.
@@ -404,10 +477,10 @@ Every item above is stamped, so none of them reads as available and then eats a 
 |---|---|---|
 | S-10 | **DONE** ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) | -- shipped as specified 2026-08-25 |
 | S-11 | **DONE** ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)) | -- shipped as specified 2026-08-25 |
-| S-12 | **COLD** | -- purge on upgrade, same shape as S-2's two fixes |
-| S-13 | **COLD** | -- constrain the request enum; no consumer sends `PERSON` |
+| S-12 | **DONE** ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)) | -- shipped 2026-08-26; needed a second call site the item did not name, and its "dormant" framing was wrong |
+| S-13 | **COLD** | -- constrain the request enum; no consumer sends `PERSON`. Premise re-verified 2026-08-26; **S-12 does not cover its direction** (working rule 30) |
 | S-14 | **BLOCKED on the user.** Is an admin allowed to put an arbitrary collection into another user's share scope? The fix depends on the answer: if no, the gate needs an ownership test rather than `canView`; if yes, this is documentation, not a bug. |
-| S-15 | **COLD** | -- **corrected 2026-08-25**: `SessionService` has no `revokeAllForUser`, and `revokeAllForStatus(id, ACTIVE)` is a no-op. Add the method, then call it *before* the mint. Still no open question |
+| S-15 | **DONE** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) | -- shipped 2026-08-26 exactly as the 2026-08-25 correction specified; the first item in this batch to need **no** adjustment at implementation time |
 | S-16 | **BLOCKED on the user.** Should disabling an account kill its share links, or only suspend them? Revoking is destructive and not reversible by re-enabling; suspending needs a status join on every resolve. |
 | S-17 | **COLD** | -- extend the limiter past `/api/public/`; the four limiters already have disjoint key spaces |
 | S-18 | **COLD** | -- four names onto the exclude list, plus a test that is not self-referential (see below) |
@@ -1189,6 +1262,30 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     lines below S-11. A fact filed in one section does not reach the item that needs it. When filing
     a finding, grep this doc for the symbol before assuming the fact is new -- and when picking up an
     item, grep this doc for its symbols before trusting the item's own scope.
+
+30. **A sweep keyed on the row's current state guards one direction of a transition, and its
+    placement is what picks the direction.** S-12's `dropMembershipsIfPerson` has to run *before* the
+    status write: it deletes only while the row is still a PERSON, which is exactly the window that
+    catches `PERSON -> account`. That placement makes it structurally incapable of catching
+    `account -> PERSON`, because at sweep time the row is still an account and the statement matches
+    nothing.
+
+    This is not a defect to fix by moving the call. Move it after the write and the two directions
+    simply swap -- S-13's hole closes and S-12's reopens, with every S-12 test still green, because
+    those tests seed a PERSON and would keep passing right up until the flip stopped being swept.
+    Two sweeps would be needed to cover both, and then the second one deletes a real account's roles
+    on the way to PERSON, which is a data-loss decision rather than a guard.
+
+    The general form: **a guard that reads mutable state is really a guard on a moment**, and the
+    moment is chosen by where the call sits relative to the mutation. Before writing one, say out
+    loud which transition it covers and which it therefore does not -- then check whether the
+    direction it does not cover is somebody else's open item. Here it is S-13's, and S-13's own fix
+    (refuse `PERSON` in the request at all) is better than either sweep, because it closes both
+    halves at the input end instead of fighting the ordering.
+
+    The corollary is about reading a board, not writing code: when an item ships, do not assume it
+    subsumes a neighbouring item that names the same method. #225 edits the exact line S-13 is about
+    and closes none of it.
 
 ## Full-board review: run 2026-08-25, split rather than whole
 
@@ -1976,3 +2073,16 @@ Worth a targeted check; not asserted as findings.
   and `ProdSecretGuardTest.Wiring` is five cases rather than four. Also corrected two comments S-7
   had falsified, one of them S-10's own premise. Security board: 11 open -> 8, **0 HIGH**. Next:
   **S-15**, then S-12.
+- 2026-08-26 — shipped **S-15** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224),
+  +112/-2) and **S-12** ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225),
+  +186/-0); suite 1,385 -> 1,391. S-15 needed **no** adjustment, because the 2026-08-25 pass had
+  already corrected its non-existent method -- working rule 27 paying out a second time. S-12 needed
+  two: working rule 16 found a **second call site** (`updateUser`, which the item never mentions),
+  and the item's "dormant" framing was **wrong** -- `canView` tests no status, so the grant already
+  resolved; a scene-setting assertion failing is what exposed it. Delivered the guardrail's cost
+  report rather than the change: routing S-15 through `revokeAllForStatus` is a silent no-op whose
+  repair would turn every ACTIVE admin PATCH into a session purge. Added **working rule 30** (a
+  state-keyed sweep guards one direction; placement picks it), which corrects **S-13** -- #225 edits
+  S-13's own method and closes none of it. Board integrity: the security count read **8 when it was
+  9** from the moment S-21 was filed; corrected, and now 7. Re-anchored S-20 and S-21 against the
+  files #224/#225 touched; both intact, both still COLD. Next: **S-13**.

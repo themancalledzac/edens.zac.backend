@@ -2831,3 +2831,142 @@ so minting a valid token still requires knowing that password.
 gap S-4 was opened to close. The two pre-existing wiring tests now supply a real access-token secret,
 so each still fails only for the reason it names. Source restored with `touch`, per working rule 15's
 note on stale `.class` files.
+
+## S-15 outcome (2026-08-26) -- the missing method, and why the existing sweep could not be reused
+
+**Shipped** as [#224](https://github.com/themancalledzac/edens.zac.backend/pull/224), +112/-2 across
+four files. Suite 1,385 -> 1,388.
+
+### What shipped
+
+`SessionService.revokeAllForUser(Long)`, a public pass-through over the repository method that
+already existed, plus one call in `UserInviteService.accept` before the mint. `revokeAllForStatus`
+now delegates to it so "revoke all" keeps one definition (working rule 14).
+
+The doc's 2026-08-25 correction was right and was the whole reason this item was cheap: the item's
+prescribed `revokeAllForUser` did not exist on the service. Had that correction not been made, the
+session would have opened by typing a call to a method that does not compile.
+
+### Three choices worth carrying forward
+
+The revoke runs **before** `create`. Only sessions live at the moment of the call are affected, so
+the fresh session survives; revoke after the mint and the user is logged out by their own password
+reset. Both the mock test and the DB test assert the ordering rather than just the calls.
+
+The revoke sits **below** the status and address guards. A token refused for either reason must not
+end a live session -- otherwise a stale link becomes a way to log somebody out without redeeming
+anything. That is `aRejectedAcceptRevokesNothing`.
+
+The count folds into the existing `Invite accepted` log line rather than adding a second line.
+
+### The guardrail's cost report: what routing through `revokeAllForStatus` would do
+
+Asked for by the user, and answered by grepping the predicate rather than the method the item
+discusses (working rule 29).
+
+**As-is it is a silent no-op.** `revokeAllForStatus(id, ACTIVE)` returns 0 before touching the
+repository, because `mayHoldSession(ACTIVE)` is true. That is the dangerous shape, not merely a
+useless one: a mock-based test asserting `verify(sessionService).revokeAllForStatus(...)` would go
+green and report coverage for a fix that does nothing. Working rule 15's exact failure.
+
+Making it work means changing `mayHoldSession`, which has **two other consumers**:
+
+- `SessionService.resolve` -- the read chokepoint on every authenticated request. Loosening the
+  predicate so ACTIVE no longer "may hold" means no session resolves for anyone.
+- `AdminUserController.updateUser`, which calls `revokeAllForStatus(id, request.status())`. If ACTIVE
+  stopped being a no-op there, **every admin PATCH leaving a user ACTIVE becomes a session purge** --
+  re-enabling a user would kill the session they just established. That is precisely the scenario
+  `revokeAllForStatusLeavesAnActiveAccountsSessionsAlone` was written to catch, and it is the same
+  second-caller failure working rule 29 was written from.
+
+The seam is wrong independent of the cost. `revokeAllForStatus` answers "this status cannot hold a
+session". S-15 needs "this event invalidated the credential". The account is ACTIVE before and
+after, so no status-keyed sweep can express it.
+
+### Scope check that came back clean
+
+Working rule 16 says grep the operation being guarded. The operation is the password write:
+`appUserRepository.updatePasswordHash` has **exactly one caller in `src/main`**, which is `accept`.
+So the user's "accept only" scope was the whole set rather than a narrowing -- worth recording
+because rule 16 has widened the scope on three previous items and this is the first time it
+confirmed it.
+
+### Mutation evidence
+
+Both mutations reddened **both** tests, which is the point of having a mock test and a DB test
+rather than one of each kind:
+
+| Mutation | Result |
+|---|---|
+| move the revoke below `create` | mock `InOrder` fails; DB test finds the fresh session revoked |
+| drop the revoke entirely | mock `never()` fails; DB test finds the prior session still resolving |
+
+Source restored with `touch` afterwards per working rule 15's note on stale `.class` files.
+
+## S-12 outcome (2026-08-26) -- a second path, and an item whose harm model was wrong
+
+**Shipped** as [#225](https://github.com/themancalledzac/edens.zac.backend/pull/225), +186/-0 across
+four files. Suite 1,385 -> 1,391.
+
+### What shipped
+
+`RoleRepository.dropMembershipsIfPerson(Long)` -- one `DELETE` carrying its own `EXISTS (SELECT 1
+FROM users WHERE id = :userId AND status = 'PERSON')` test, mirroring `repointMemberships`'s inverted
+form of the same idiom. Called from two places in `AdminUserController`.
+
+The guard is in the statement rather than a caller's precondition (working rule 17), which is what
+makes it safe to call unconditionally: it deletes nothing for a real account, so neither call site
+needs a branch and no future caller has to restate the rule.
+
+### The item named one path; there are two
+
+Working rule 16 again, and the second time in one session it changed the scope. The operation is "a
+PERSON row becomes an account", and `appUserRepository.updateStatus` has two admin callers:
+
+- `upgradeUser` -- the path S-12 describes.
+- `updateUser` -- takes a bare `UserStatus` and never checks the existing row is an account, so an
+  admin PATCH reaches the identical state without going through `upgradeUser` at all.
+
+Both run the sweep, and each has its own test, because a fix wired into only one of them passes the
+other's test suite completely.
+
+### Where the item's harm model was wrong
+
+S-12 calls these grants **dormant**. They are not dormant at the authorization layer. `canView` joins
+`role_member` to `role_collection` and tests **no status at all**, so it already answers `true` for
+the PERSON. What makes the grant harmless today is only that a PERSON has no way to authenticate --
+and the upgrade supplies exactly that, which is why the inheritance is instant rather than something
+that has to be triggered later.
+
+This surfaced the expensive way, which is the part worth recording: the first draft of the test
+opened with `assertThat(roleRepository.canView(person, collection)).isFalse()` as a
+scene-setting assertion and **failed on that line**. The corrected test asserts `true` before and
+`false` after, which is a strictly stronger claim -- it shows the sweep removing access that already
+resolved, not access that was hypothetical.
+
+Working rule 21 says the premise is evidence and the fix is a hypothesis. This is a third category:
+**the item's account of why the bad state is currently harmless is also a hypothesis**, and here it
+was wrong in the safe direction. The harmlessness lived in the login path, not in the authorization
+path the item pointed at.
+
+### Mutation evidence
+
+Three mutations, each caught by a different test, which is the evidence that the two call sites are
+independently guarded:
+
+| Mutation | Caught by |
+|---|---|
+| strip `status = 'PERSON'` from the DELETE | `dropMembershipsIfPersonLeavesAnAccountsMembershipsAlone` and `patchingARealAccountLeavesItsMembershipsAlone` |
+| drop the sweep from `upgradeUser` | `upgradeDropsAGrantThatWasDormantWhileTheRowWasAPerson` |
+| drop the sweep from `updateUser` | `patchingAPersonIntoAnAccountAlsoDropsTheDormantGrant` |
+
+### Deliberately not done
+
+**A migration purging every pre-guard `role_member` row on a PERSON.** It would close this at rest as
+well as in flight. It is not needed for the security property -- no code path can create such a row
+any more, and the sweep catches any that exist at the moment they would start mattering -- and it is
+a destructive data change against rows nobody has inventoried. Left as a separate call rather than
+ridden in on a security fix.
+
+**The opposite direction.** See working rule 30: this sweep cannot cover `account -> PERSON`, and
+that gap is S-13's, not a defect in this fix.
