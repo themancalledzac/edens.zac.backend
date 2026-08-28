@@ -3182,3 +3182,466 @@ Both are carried forward as **working rule 35**.
 **Widening `RateLimitFilter` past `/api/public/`.** Explicitly out of scope by instruction. The
 per-path map the frontend board asked for before a second public endpoint lands is still unbuilt, and
 this MR did not touch it.
+
+## S-3 test outcome (2026-08-28) -- the surviving side was tested with one status
+
+Shipped as [#235](https://github.com/themancalledzac/edens.zac.backend/pull/235). Suite 1,411 ->
+1,414. Closes the third of the six "tests that cannot fail".
+
+### What was wrong
+
+`PersonRepositoryIntegrationTest` is S-3's entire deliverable -- the only test that sees
+`deletePersonById`'s `AND status = 'PERSON'` against real SQL, because every other test naming the
+method mocks `PersonRepository`. It seeded **ACTIVE and PERSON only**.
+
+Rewrite the predicate as `AND status <> 'ACTIVE'` and both cases stay green: an ACTIVE row still
+survives, a PERSON row is still deleted. Meanwhile every INVITED and DISABLED account becomes
+deletable through the admin people-delete endpoint, cascading sessions, passkeys, invites, saves,
+follows and share links -- the exact damage bug #1 was fixed to prevent. **The mutation S-3 stated
+did redden the test; this one did not**, which is why the gap survived the item that created the
+file.
+
+### What shipped
+
+The surviving side is parameterized over every non-PERSON `UserStatus` rather than over one of them.
+Working rule 33's pin sits beside it -- `personIsTheOnlyStatusThisMethodMayDelete` -- because a
+derived case list shrinks silently when a constant is deleted.
+
+### Mutation evidence
+
+| Mutation | Result |
+|---|---|
+| `= 'PERSON'` -> `<> 'ACTIVE'` (the invisible one) | 2 failures, INVITED and DISABLED, case count unchanged at 5 |
+| guard made vacuously true | 3 failures, all `expected: 0 but was: 1` |
+| fifth `UserStatus` added | cases 5 -> 6, the new status passes on its own, **and the pin reddens** |
+
+The third is the one worth keeping: it shows rule 33's pairing end to end. The derived list absorbed
+a new status silently and correctly, and the pin turned that silence into a decision.
+
+### A trap for anyone running mutations in this repo
+
+**S-3's stated mutation cannot be run as written.** Stripping `AND status = 'PERSON'` shortens the
+SQL string, google-java-format reflows it, `spotless:check` fails, and **the build dies before a
+single test runs**. That reads as "the mutation reddened the build" while proving nothing.
+
+Use a mutation that preserves line shape -- `AND status IS NOT NULL` makes the guard vacuously true
+without changing formatting. **And check the `Tests run:` count in the output: no such line at all
+means the mutation never reached the tests.** This applies to every mutation on this board, not just
+this item.
+
+### Not done here
+
+No doc update shipped with it. #235 merged with no tracker or history entry at all, four minutes
+before the close-out that would have caught it. Recorded rather than hidden, because it is the same
+omission working rule 38 had just been written for.
+
+### Moved from the tracker 2026-08-28 (the split had lapsed at 27 entries)
+
+- 2026-08-23 — shipped MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)) and the tracker/history split ([#186](https://github.com/themancalledzac/edens.zac.backend/pull/186)); merged [#185](https://github.com/themancalledzac/edens.zac.backend/pull/185). Added working rules 11 and 12. Reconciled Waves 1-3 and surfaced 8 live items from "complete" waves. Re-derived MR 15 #2 (17 guards -> 18, one controller in the wrong package). Next: MR 15 #2.
+- 2026-08-23 — shipped MR 15 #2 ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)); merged [#188](https://github.com/themancalledzac/edens.zac.backend/pull/188). One matcher replaced **17** guards -- yesterday's re-derivation had counted a javadoc line, and its guardrail's dev-convenience premise was false, so the placement decision it framed as a tradeoff had only one behavior-preserving answer. Added working rule 13. Wave 5's first item is closed. Next: MR 15 #6 (`currentUserId` onto `AuthPrincipal`).
+- 2026-08-24 — verified [#189](https://github.com/themancalledzac/edens.zac.backend/pull/189) merged (`9d15784`). Re-derived MR 15 #6 and it is **four copies, not three** -- `CollectionService:549` was missed entirely and is not a controller, and the item's stated fix (put it on `AuthPrincipal`) does not work, because that is a Spring-free record and this is a static context read. Wrote its guardrail: both null returns are load-bearing, for two different reasons. Corrected a stale MR 22 ref (`CollectionService:542` -> `533`) found on the way past. Added the working-rule-12 corollary on writing comments, after MR 15 #2 over-wrote one. Next: MR 15 #6.
+- 2026-08-24 — shipped MR 15 #6: four `currentUserId` copies became `config/CurrentUser.userId()`
+  (main -26 lines / +36 words), and **closed the `PersonRepository.findAccountUserIdsByIds` carry**
+  rather than let it reach a fifth. That one was decided, not deferred: zero callers in main *and*
+  test, so its "only accounts get grants" rule was unenforced; the method was the wrong shape (a
+  `List` query for two single-id call sites), so it was deleted and the rule enforced at
+  `RoleRepository.addMember`, the choke point both admin controllers share. Low severity and said
+  so -- admin-only routes, and a PERSON row cannot log in; the risk is a dormant grant. The item's
+  "move it onto `AuthPrincipal`" was rejected with a reason. The null contract was left alone and
+  costed instead, and it turns out to be two separate problems, not one. Added working rule 14
+  after finding two more copies of the same read that a name-grep could not see. 1304 tests green.
+  Next: MR 16.
+
+- 2026-08-24 — **full critical review of the board**, mirroring the pass the frontend ran on its own.
+  Eight parallel read-only agents (ref verification, premise+estimate+COLD/BLOCKED by wave,
+  adversarial security re-review, regression hunt, board reconciliation, cross-repo), then every
+  correction applied in one pass. Headline findings, each verified personally rather than taken on
+  report: **two new security findings** — `UserStatus.DISABLED` is enforced nowhere in the auth path
+  (S-1, HIGH), and MR 15 #6's own `addMember` guard is bypassed by `UserMergeService`
+  (S-2). **Two guard tests proven unable to fail by mutation** — all 1,304 tests pass with bug #1's
+  delete-person guard stripped, and all 1,304 pass with `ProdSecretGuard` unwired (S-3, S-4;
+  working rule 15). **Main is not shrinking**: the four MR 24 services went 5,107 → 5,083 across 24
+  MRs, and `ImageProcessingService` grew. Of ~130 refs in open items, 79 had drifted, 3 were dead
+  and 11 carried a wrong claim. Four premises were FALSE (`role.kind`, `AuthPrincipal` main-dead,
+  MR 25's same-pass coupling, consolidation #17's EXIF/ISO half) and two sub-items were struck.
+  Nothing in Wave 5 was genuinely blocked — every "blocked" item was answered by one grep of the
+  sibling repo or one live request. Gave board rows to six findings that had prose and no checkbox,
+  renumbered the colliding bug #16 → #17, moved `effectiveLevel` out of a comments wave into the new
+  security section, and moved 56 lines of closed write-up to history per rule 11. Added working rule
+  15 and widened rule 5 beyond Wave 4. Answered all three Appendix A questions and all three
+  cross-repo questions; found one live broken feature (`POST /api/read/user/share/email` is called
+  by the frontend and does not exist). Next: S-1, then MR 19 #16.
+
+- 2026-08-24 (close-out) — resynced the palace backend wing (was 2 months stale at `c135980`, now
+  `d4a1307`, verified by content not status: `AuthPrincipal` indexes as the current 5-arg record
+  again). Parked the gallery-password decision on the user's call — neither "accept plaintext" nor
+  "redesign the fingerprint", because both skip what we want the passwords to do; direction is likely
+  hashed, to be designed. Scoped the park narrowly so S-1 and the `isPasswordProtected` field are not
+  blocked by it. **Closed two blocked items by looking**: `COMPLETED_WITH_ERRORS` is unblocked (there
+  is no frontend job poller at all — which surfaced a new lead that the whole job-status endpoint may
+  be dead), and the gallery-access `saved()` item stays blocked but is now specified (the frontend
+  does read `result.saved`/`result.reason` off the 400 body). **Found six stale worktree branches the
+  board never knew about**, none with an open PR; three hold zero commits, and
+  `0257-backend-security-bugs` turned out to be fully superseded by MR 5 *and* the origin of the S-4
+  untestable-test pattern — filed with a "do not rescue it" note. Gave the three non-wave sections
+  rows in the Progress table. Next: S-1.
+- 2026-08-24 — shipped **S-1** ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)):
+  `UserStatus.ACTIVE` now required at `AuthController.login` and `SessionService.resolve`. Both
+  guards mutation-verified per working rule 15 -- stripping the login guard turns the DISABLED
+  login into a **204**, stripping the resolve guard hands back a principal for a disabled account.
+  1304 tests -> 1308. Shipped the allowlist over `<> DISABLED` because it also fails closed for
+  `PERSON` and `INVITED` and for whatever status is added next. Folded the login guard into the
+  existing dummy-BCrypt branch rather than adding one after the password check, so the non-ACTIVE
+  case keeps the same timing as unknown-email instead of opening a sharper enumeration oracle.
+  `AuthPrincipal` left alone; the cost report is in the history file and the finding is that the
+  field could only ever hold `ACTIVE`, since the principal is built inside `resolve` immediately
+  after the guard. **Scoping S-1 found S-7**: `sessionService.create` has three callers, not the one
+  the item named, and `InviteController.accept` flips status to ACTIVE unconditionally, so a
+  disabled account holding an unexpired invite re-activates itself. Split revocation-on-status-change
+  out as S-8. Added working rule 16. Next: S-2.
+- 2026-08-24 — shipped **S-2** ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)):
+  `repointMemberships` now carries the same `status <> 'PERSON'` test `addMember` enforces, and
+  drops the source's membership rows when the target cannot hold them. Mutation-verified at two
+  levels -- stripping the predicate reddens one DAO test and one service test. 1308 tests -> 1312.
+  Rejected the tempting fix of constraining the merge target in `requireMergeable`: PERSON-into-
+  PERSON de-duplication is a normal operation, so that would have closed the hole by breaking the
+  feature. Added working rule 17. Found on the way in that `UserMergeIntegrationTest` already
+  existed and the drafted `UserMergeServiceIntegrationTest` was a duplicate -- the tracker's
+  "neither test added by #191 touches `repointMemberships`" understated it, since **no test anywhere
+  did**. Next: S-3 or S-4, the two PROVEN-untested items.
+- 2026-08-24 (close-out) — verified **both merged**: S-1 `bc01452` (#192, squash) and S-2 `f2cad5e`
+  (#193, squash), all CI green. #193 needed a `rebase --onto main` because #192 squash-merged, so
+  its original commits were never on `main` by SHA. Scoped drift sweep over the eight files the two
+  MRs touched found **one inventory claim rotted**: `Optional.get()` 45 -> 46 sites, because S-1
+  added `maybeUser.get().getStatus()` (raw sweep 56 -> 57, exactly attributable) -- corrected in
+  place. **Found a premise S-1 falsified about itself**: its "a DISABLED account in a role is a live
+  grant, not a dormant one" argument for tightening `addMember` to an ACTIVE allowlist died when
+  S-1 closed the auth-path hole; filed under "Verified sound, do not re-open" and used to sharpen
+  working rule 8. Re-verified S-3's and S-4's premises against `f2cad5e` -- all still hold, both
+  now **COLD** with exact anchors (`PersonRepository.java:215`, `ProdSecretGuard.java:31`) and both
+  mutation baselines corrected 1,304 -> 1,312. Next: S-3.
+- 2026-08-24 — shipped **S-3** ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195))
+  and **S-4** ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), both merged,
+  all CI green. 1312 -> 1317 tests, no source change in either. **Both PROVEN-untested items are now
+  closed, so working rule 15 no longer describes a live hole** -- annotated in place rather than
+  rewritten, since the rule stands. S-3: two DAO tests; stripping the delete-person predicate now
+  reddens exactly one test of 1,317, which proves the guard *and* re-confirms nothing else covered
+  it. Put it in a new `dao/PersonRepositoryIntegrationTest` rather than `UserMergeIntegrationTest`
+  as the item suggested -- `dao/` is where this repo puts DAO guard tests (S-2's own included), and
+  one of S-3's premises was that `find src/test -name "PersonRepository*"` returned nothing.
+  Declined to make `deletePersonById` throw and costed it instead: two callers wanting opposite
+  policy, `MetadataService` already converts 0 to a 404, and the change would move HTTP status into
+  a DAO while making `MetadataServiceTest` test strictly less. S-4: a `@Nested class Wiring` using
+  `ApplicationContextRunner` (new to this repo); `@PostConstruct` deleted reddens two, `@Profile`
+  deleted reddens a third. Removed the duplicate `enforceAuthzDisabledThrowsEvenWithAGoodSecret`,
+  but **corrected the item's reason for calling it one** -- its assertion *can* be false, it is just
+  a wording assertion. New trap, folded into working rule 15: restoring a mutation with
+  `sed -i.bak` + `mv` leaves the source older than the `.class` built during the mutation run, so
+  the next `mvn test` silently runs mutated bytecode -- cost one confusing red run. **Settled S-7 by
+  looking** rather than leaving it vague: all premises verified against `4abb28e` with anchors, and
+  `UserStatus.INVITED` turns out to make the fix a specified allowlist rather than the product call
+  the item implied. That verification opened **S-9** (disabling a user does not invalidate their
+  outstanding invites; `invalidateInvites` has exactly one caller, the email-change path). Next: S-7.
+
+- 2026-08-24 — shipped **S-7** ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), the last live hole on the board, and shipped **S-9** ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)). Both halves of S-7 in one MR as specified. **The item's stated fix was wrong**: "require `INVITED`" would have broken admin-issued password reset, which redeems through the same endpoint for an ACTIVE user -- caught by reading `regenerateInvite`'s docblock before writing the guard, not after. Shipped `{INVITED, ACTIVE}`; the allowlist *form* still mattered because `UserStatus.PERSON` exists. Added working rule 18. Review then moved both guards out of their controllers into `UserInviteService` and replaced the comment blocks with a named `mayAcceptInvite` predicate, which incidentally closed the S-7/S-9 drift risk the S-9 item had flagged — one rule, two call sites. Added working rule 19. Suite 1,317 -> 1,328. Also, unrelated to the board: an EC2 deploy failed on a full 8GB root volume, fixed with a disk preflight in `deploy.sh` ([#198](https://github.com/themancalledzac/edens.zac.backend/pull/198), [#201](https://github.com/themancalledzac/edens.zac.backend/pull/201)) — the threshold in #198 was set by guess, aborted a legitimate deploy, and #201 corrects it from measured numbers and makes it overridable. Next: S-8.
+
+- 2026-08-24 — close-out pass, no code shipped. Reconciled the board after #199/#200/#202. **Fixed five drifted refs**, all in the neighborhood of what merged (working rule 5's third principle held): `#8` 333-350 -> 336-353, `#17`'s `UserInviteService` refs 85-130 -> 140-152/220-237 (that file went 130 -> 238 lines), the bare-array sites 150/318/373/386 -> 149/321/376/389, and Wave 7's two size claims (source 469 -> 474, test 1,015 -> 1,097). **`Optional.get()` held at 46 for the wrong reason** -- `InviteController` 3 -> 2 and `UserInviteService` 2 -> 3 cancelled out, so the headline was right while its components moved; the breakdown is now the source of truth, not the total. **Settled two items by looking**: bug #17 re-verified live at `ContentService:228-233` (premise intact, COLD), and `admin_home_tile.cover_image_id` researched to the end -- though a first pass at that entry got it *wrong* and the doc's existing row was more accurate, which is recorded in the item. **S-8's scope is bigger than its item implied**: there is no user-scoped session revoke primitive, only `revokeByTokenHash`, so it needs a new repository statement plus a service method, not one call. Stamped S-5 COLD, S-6 BLOCKED with the question written out, S-8 COLD. Next: S-8.
+- 2026-08-24 — shipped **S-8** ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), which closes the security board down to S-5 and S-6. **The item's one open judgement went the other way from its own default**: it said mirroring S-9's `mayAcceptInvite` boundary was the default and any divergence should be argued in the MR, and the argument won -- the session predicate is `mayHoldSession`, ACTIVE-only, because `resolve` has enforced ACTIVE-only since S-1 and a test says so deliberately. `{INVITED, ACTIVE}` would have left demoted accounts holding `user_session` rows that can never resolve, which is the thing the item asked to tidy. The two sweeps now run off two allowlists on adjacent lines of one handler, and that is correct rather than sloppy. Working rule 16 applied unprompted and paid: grepping `updateStatus` found three callers, and the enumeration is why only one gets the call. **The cost report was measured rather than argued** -- the CTE was actually written and the suite run, and the single resulting failure turned out to be the only mutation-detector for S-1, so folding the revoke into the DAO would have quietly disarmed an earlier fix. Suite 1,328 -> 1,338. Next: S-5, or answer S-6's blocking question.
+- 2026-08-24 — close-out pass after #204. **Fixed three drifted refs**, and for the first time one sat *outside* the merge neighborhood: `AdminRoleController:150-167` was off by one (`149-166`) and nothing in #204 touched that file, so working rule 5's third principle held only for two of the three. The others were in-neighborhood as expected -- `#8`'s `AdminUserController` pair 336-353 -> 343-360, and the bare-array sites 149/321/376/389 -> 153/328/383/396. **Wave 7's `AdminUserController` item was re-measured and then de-positionalized**: its range list had drifted twice in two days, so the four `@Transactional` ranges are now named methods with start lines. That item is also growing faster than it is being done -- 469 -> 474 -> 481 source and 1,015 -> 1,097 -> 1,183 test across two consecutive security MRs, both of which added to the exact class it proposes to split. **`Optional.get()` re-derived clean**: 57 raw / 46 Optional, and this time the breakdown agrees too, unlike the 2026-08-24 pass where two files cancelled out. **S-8's test:source ratio was 2.7:1, the third near-3:1 in a row** -- recorded in the history file as confirmation of a pattern the board had already priced into two open items. **S-6 put to the user rather than left on the board a third time, and it came back wider than asked** -- not "yes, admins through" but "admin means OWNER, never any password restriction, never any permission issue", which is now working rule 20 and widens S-6's scope from two methods to a sweep. The security section is now 2 open, 0 blocked. Next: S-5, then S-6.
+- 2026-08-24 — shipped **S-5** ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)), which leaves **S-6 as the only item on the security board**. **The interesting part of the fix was the half the item did not specify**: it named the bypass (`getContentLengthLong()` returns -1 for chunked, so `-1 > 16384` is false) but not that a *bodiless* request reports -1 too. `MockHttpServletRequest.getContentLengthLong()` returns -1 whenever content is null, which is most of the existing suite -- so the obvious one-line fix, `reject if length < 0`, 411s every bodiless public request. The shipped guard is `length < 0 && Transfer-Encoding present`, and **the mutation run proved two pre-existing tests already caught the over-broad version**, which is the reverse of the usual working-rule-15 result. **Working rule 16 came back empty and that was worth recording**: `getContentLength` has two hits in the codebase, both in the same method, so unlike S-1 and S-8 the item's named site really was the only site. **The limiter-merge guardrail held and paid**: MR 19 #3's numbers were re-measured rather than repeated (every one held, exactly -- 7+24 and 7+32 test sites) and reading the three call sites turned up a blocker the board did not have, that `RateLimitFilter` needs `estimateAbilityToConsume` for `Retry-After` and so cannot use a `boolean allow(key)` signature. That item's verdict moved from "low priority" to "not worth doing". **Test:source was 3.6:1, the fourth near-3:1 in a row** and the smallest source change of the four, which suggests the ratio tracks the guard tests rather than the fix. Suite 1,338 -> 1,341. Next: S-6.
+- 2026-08-24 — shipped **S-6** ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). **The security board is closed**: nine items, all done. **The item told the truth about its own scope and was still short by one.** It said rule 20 is a policy, not a ruling about one service, so enumerate before fixing -- and the enumeration found six admin-denial sites against the two the item named. The sixth, `UserSavesService.add` 404ing an admin, appeared in no item on this board and its check lives in SQL rather than in `CollectionAccessService`; it is fixed above the query on purpose, because that query filters on several read paths and an `is_admin` term inside it would apply where nobody looked. **The specified fix would have widened share links if typed in verbatim**: `effectiveLevel` adds two branches, not one, so routing `canView` through it hands a flyby GENERAL and turns a share link into a second way past the gallery password prompt. The two gates screen with `AuthPrincipal.isRealUser` first, which is exactly what the old `userId != null` did. That makes **four consecutive items whose specified fix needed adjusting at implementation time** (S-7, S-8, S-5, S-6) -- recorded in the history file as a pattern rather than a run of luck. **Four list-scoping sites were deliberately not fixed** and the reasoning written down, because rule 20 settled bouncing and not scoping. Suite 1,341 -> 1,347; three mutations verified red. Next: nothing on this board.
+
+- 2026-08-24 — close-out pass, no code shipped. **Verified both merged**: S-5 `516c276` (#206, squash) and S-6 `d79d30f` (#207, squash), branches deleted. **The security board is closed -- nine items, zero open.** **The drift sweep found the most valuable thing on this run and it was not a line number**: the `CurrentUser` fold item is now *half done*, because S-6 needed the whole principal at two gates and added `CurrentUser.principal()` with `userId()` delegating -- exactly clauses one and two of an item neither S-6 nor the item knew about. That is the board's third principle paying out literally, and it was only visible because the sweep is scoped to the merge neighborhood. **Four refs corrected, all inside that neighborhood**: `viewerMaySeeHidden` 1531 -> 1534, the `isGalleryAccessAuthorized` FQN 534 -> 541 (**fourth** correction to one ref), `UserSelectsControllerProd.list` 59 -> 55, and `UserShareControllerProd`'s `124-152` de-positionalized after the old range was found to **overrun the end of a 145-line file**. **Added working rule 21**, hoisted from a four-item pattern rather than one item: S-7, S-8, S-5 and S-6 each had a correct premise and a prescribed fix that would have shipped a bug verbatim, and in three of the four the miss was an unenumerated input, not bad reasoning. **Fixed the log itself** -- the last five entries were in reverse order, because recent sessions prepended where the file appends. Next: `isPasswordProtected` on the content-block path, chosen over the warmer `CurrentUser` fold because the frontend's C6 is blocked on it.
+
+- 2026-08-24 — shipped **`isPasswordProtected` on the content-block path** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`), and opened the **`CurrentUser` fold** ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), rebased onto `a6550b0`, mergeable, 1,350 green). **Working rule 21 earned its keep on its first outing**: the item said to populate the flag "where the four content-block builders construct one", and there are **two** construction sites, not four -- plus two record copy methods the item never named. `withTags` is the one that mattered, because it rebuilds the record on the synthetic-list path immediately after `fromCollectionModel`, so a faithful reading of the item would have shipped a flag reading `false` on exactly the path the frontend's C6 needs and `true` everywhere else. **The costing the guardrail asked for found the sharper fact**: a `gallery_password` filter on the read queries would not merely break a contract, it would **empty `all-client-galleries`**, since that list selects `is_client = true` and client galleries are the protected ones. **Added working rule 22**, hoisted from a second stale comment found while costing: `CollectionControllerProdTest` claims `coverImage` stripping in **two** places, the behavior exists in neither, and the test named for it cannot fail. The banner that crossed the repo boundary was fixed in #209; the other is a new row under "Carried forward", because deciding it is work rather than a comment fix. Next: merge #210, then the `share/email` 404 -- the last cross-repo item another team is waiting on.
+
+- 2026-08-24 — close-out pass, no code shipped. **Verified merged**: #210 `c1f482e` and #211 `9e363fa`, both of which landed *while the previous close-out was being written* -- so #211 went in saying "#210 PR OPEN, not merged" and was stale before it merged. The MR 15 #6 thread is **fully closed**, four sessions after it opened. **The sweep found five drifted refs and all five indict the previous sweep**, which reported the same neighborhood clean: `CollectionService` `460-490` -> `466-496`, `822-848` -> `846-915` and `912-914` -> `931-933`, `SyntheticCollectionResolver` `153` -> `150` and `86-92` -> `97`. None of that drift came from #209 -- the previous pass checked whether its own diff had moved them, which is a different and much weaker question. **Added working rule 23** for exactly that, and the tell it names is a sweep reporting zero corrections. **Step 3 paid out biggest**: the `share/email` item said "decide whether to build it or have the frontend remove the button", and three facts settled it in one pass -- the frontend's `ShareEmailResult {sent, reason}` is field-for-field `EmailService.SendResult`, which **already exists**, and both sides already handle `email.enabled=false` gracefully, so it ships without SES configured. The item went from a product decision to a specified one-endpoint build. Also added a sizing note to MR 25: "add a field to a record" costs the record plus every `with*` copy and every positional test construction, which is why #209 was four files. Next: `share/email`.
+
+---
+
+- 2026-08-24 -- shipped **`share/email`** ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and **actuator hardening** ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **The cross-repo board is closed; nothing is owed to another team.** The headline is that **the item could not be built as specified**, and the specification was the most detailed on this board -- file list, method names, "no new response type". The endpoint would have had nothing to put in the email: the frontend sends `{ toEmail }` alone and V56 stored only the token's hash, so the share URL is not reconstructible server-side. The two ways out were rotating on send, which the item's own guardrail forbids, or storing a copy the owner can read back. **The frontend had already assumed the second and said so in a docblock** -- "a link minted before the backend stored a decryptable copy" -- which is the contract of `fec14e7`, a commit written 2026-08-14 and orphaned when it landed 14 minutes after its PR merged. This is that commit rebased, and **three of its parts had gone stale underneath it, all from MR 15 #6**: its migration number V57 is now `lowercase_text_format_type`; its `isRealUser` guard and its every-route-401 test would have reinstated the controller-level pattern #191 deliberately moved into `SecurityConfig`; and its `@Value` field violates CLAUDE.md's constructor-injection rule. That taught **working rule 24** -- five consecutive items have needed adjusting at implementation time, and this is the first that was impossible rather than imprecise. **Working rule 25 came out of the actuator MR going one step past its own spec**: the item asked to pin the shipped exclude string, but the hardening rests on "Boot applies exclude after include", an ordering this board quoted and never executed. Booting with `include=*` confirms it, and the mutation confirms the test is not vacuous -- with the exclude emptied, `/actuator/env` answers 200 on the app port. Drift sweep, scoped to the touched neighborhood per rule 23: the board carries exactly **one** line ref into these files, `EmailService:56`, correct on `main` today and becoming `:61` once #213 merges -- recorded rather than left to rot, and the ref moves to the history file with its item anyway. Suites 1,350 -> 1,361 (#213) and -> 1,357 (#214), 0 checkstyle; five mutations verified red across the two. **Not done and flagged in both the PR and the history file: `share/email` has no rate limit.** Next: nothing on the cross-repo board -- MR 19 #16 or MR 16 #4/#5.
+
+
+- 2026-08-25 -- shipped **MR 19 #16** ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)), the `findCurrentContentCollections` N+1: 201 queries down to 1. **The item's diagnosis was exact and its suggested fix was a silent bug.** `cc.id IN (:ids) OR cc.referenced_collection_id IN (:ids)` drops the parent scope that the loop had for free by construction, so it matches blocks linked under a different parent -- `removeContentFromCollection` is parent-scoped and deletes nothing, but `onChildUnlinked` still fires role-grant propagation for a link that never existed. Verified against real Postgres rather than Mockito, because every property at issue lives in the SQL; the drop-the-parent-scope mutation is what turns `doesNotReachIntoADifferentParentsLinks` red. **Drift sweep: nine refs corrected, one correct.** #11 `466-496`->`465-495`, #15 `846-915`->`845-914`, #20 `931-933`->`930-932`, #17 `CollectionService` `127-130`->`142-144` (and three lines, not four), #17 `CollectionProcessingUtil` `569-596`->`566-589` and `939-947`->`924-932`, MR 24's three `UserShareControllerProd` refs `116-128`/`135-144`/`137`->`183-197`/`204-213`/`206`. Only five of the nine are attributable to this session's merges; **the `CollectionProcessingUtil` pair sits in a file none of #213/#214/#216 touched**, which is the third consecutive sweep to find drift outside the neighborhood it was scoped to. **Added working rule 26** from MR 24's bullet, which "de-positionalized" itself on 2026-08-24 by writing three fresher line numbers and had all three invalidated by #213 hours later. **Step 3 settled two facts.** #14's "verify COLLECTION hydration first" is discharged for all four content types -- `findAllByIds` uses the identical `SELECT_CONTENT_*` fragment and `CONTENT_*_ROW_MAPPER` as each single-id finder, so the re-fetch is byte-identical -- which makes #14 COLD and fully specified. And #17's "EmailService HTML skeleton twice" is now **three times**, since #213 added `buildShareLinkHtml` under a guardrail not to fold it in; #213's write-up sent that consolidation to MR 24, which was wrong, and it is corrected here. Suite 1,368 -> 1,375, 0 checkstyle; three mutations verified red. Next: MR 19 #14. **Recommending a full-board review** -- see the note under "Ordering note".
+
+- 2026-08-25 -- shipped **MR 19 #14** ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218)) and **ran the full-board review, split into two of its three slices**. #14 is two queries to one in `convertEntityToModel`, and it is **the first item in seven to need no adjustment at implementation time** -- premise, ref and fix all correct as written. That broke the streak which was escalation condition 2 of the review's own case, so the per-item re-estimate slice was **deferred** rather than run, and **working rule 27** records what actually separates the clean item from the six: #14's open question was discharged in a prior pass, so nothing unknown reached implementation. The method **had no test at all** (the test named for it calls a different method); the two added tests redden under the restore-the-switch mutation and **nothing else in the suite does**, so 1,375 tests were blind to which query hydrated that entity. The guardrail's deletion report is filed under the item: both dead finders cost ~10 lines and zero test edits to delete, no cascade, and **the only coupling is one #218 created** -- its own two `verify(never())` mutation-detectors, which deleting the finders replaces with a compile error, a stronger guarantee. Suite 1,375 -> 1,377, 0 checkstyle. **The unscoped ref sweep found ~30 of ~75 refs drifted**, most outside any recent merge neighborhood, which converts escalation condition 1 from an assertion into a measurement; `isGalleryAccessAuthorized`'s FQN ref drifted a **fifth** time and its number is now deleted rather than corrected, and `UserSelectsControllerProd.list` turned out to be carried twice on the board with only one copy maintained. **The security re-attack reopened the board**: 11 findings, 2 HIGH, plus 6 security tests that cannot fail and 5 unsettled questions. **Both HIGH findings are cross-fix and were independently re-verified line by line before filing.** S-10: S-7 widened `mayAcceptInvite` to admit ACTIVE, which silently falsified the comment in `AdminUserController` asserting ACTIVE users have no redeemable invite -- so an admin-issued reset link survives an email correction and `accept` never compares the invite's email to the account's, making redemption by the old inbox a takeover. S-11: #213 made `ACCESS_TOKEN_SECRET` confidentiality-critical while `docker-compose.yml` still defaults it to a value printed in the public repo and `.env.example` never mentions it, so `ProdSecretGuard` -- the thing S-4 hardened -- does not cover the secret that now protects share links at rest. **Neither was findable by a single-item review, which is the answer to whether condition 3 was worth the spend.** Next: S-10, then S-11; MR 16 #4/#5 is still the next non-security item.
+
+- 2026-08-25 -- close-out pass, no code shipped. **The reconcile caught a stranding.** #217, #218 and
+  #219 all read MERGED, and the doc pass was not on `main`: #219 was stacked on `docs/close-out-216`,
+  #217 merged that branch to `main` first, and #219 then landed into a branch `main` had already
+  moved past. The branch could not be merged forward either -- it predates #218 and would have
+  reverted `ContentModelConverter` -- so the single doc commit was cherry-picked onto `main`. That is
+  **working rule 28**, and the checkable form of it is that MERGED describes a PR, not `main`.
+  **Settled two of the five unsettled questions by looking.** S-19 is closed as not-live: the live
+  frontend `forwardHeaders` strips `x-real-ip` and re-injects it from an edge-controlled source, with
+  a comment saying outright that the client header is not trusted -- so login brute-force limiting
+  works. **The palace's copy of that file was two months stale and said the opposite**, which is the
+  reason the item stayed open a day longer than it needed to. And `RoleRepository.canView`/`isClient`
+  are confirmed dead in `src/main` -- the live callers are the same-named `CollectionAccessService`
+  methods, which is the hazard, not a coincidence. All eleven reopened items are now stamped COLD or
+  BLOCKED; **two are blocked, both on product calls the user has to make** (S-14: may an admin put an
+  arbitrary collection into another user's share scope? S-16: should disabling an account revoke its
+  share links or suspend them?). Next: S-10.
+
+
+# Decisions needed from the user
+
+- [ ] **Should `app.admin.enforce-authz=true` become unconditional?** *(New row 2026-08-24. MR 15 #6
+  costed the `currentUserId` null contract and found it is two problems, not one: the four
+  `/api/admin/**` null sites exist only because the gate falls through to `permitAll` in dev. Making
+  the flag unconditional closes all four properly. That is a dev-ergonomics decision, not a
+  consolidation, which is why it is here and not in Wave 5.)* Trade-off is local admin convenience
+  against an always-on admin gate. The two public-read null sites are correct as they stand and
+  should not be touched either way.
+- [ ] **Should `parseImageDate` stay permissive?** *(New row 2026-08-24. Noted in the history file
+  during MR 13 and never given a row; it also replaces the struck EXIF/ISO half of consolidation
+  #17.)* It returns **month 13** for a nonsense EXIF date and builds an S3 path out of it. Either
+  reject the malformed date or clamp it -- both are behavior changes, so this needs a decision and
+  its own small MR with a month-13 test.
+- [ ] Bare-array responses: wrap them (breaking) or amend CLAUDE.md (MR 20).
+- [ ] **Gallery passwords — PARKED 2026-08-24 by decision. Do not act on this yet.** The item framed
+  it as a binary (accept plaintext-at-rest formally, or redesign the fingerprint feature). Neither
+  is being chosen, because the framing skips the question that has to come first: **what do we
+  actually want these passwords to do?** Stated direction, to be designed rather than assumed: we
+  will likely move to protected (hashed) passwords for user protection.
+
+  Nobody should open an MR against this until that design exists. Recording what a future design
+  pass has to reconcile, so the constraints are not re-derived from scratch:
+
+  - Hashing at rest breaks admin re-share, which is the reason the plaintext exists. Today the admin
+    manage page can display the password to re-send it. Any hashed design needs a different answer
+    for re-share (regenerate-and-resend, a one-time reveal at set time, or a separate sharable
+    token) and that is a product decision, not a storage one.
+  - `ClientGalleryAuthService` derives the shared-unlock fingerprint cookie from the password value,
+    which is what lets a parent password unlock propagated children. Hashing changes what that
+    fingerprint can be derived from.
+  - The per-slug cookie validates against the gallery it was issued for, and changing a password
+    revokes issued cookies. Whatever replaces plaintext has to preserve that revocation property.
+  - **S-1 is a separate problem and is NOT parked.** DISABLED accounts authenticating is about
+    account status enforcement in the auth path, not about how gallery passwords are stored. It
+    should be fixed on its own timeline.
+  - The `isPasswordProtected` wire field (under this same section) is also independent: it serializes
+    a boolean about whether protection exists, and never touches the password value or its storage.
+    Parking the storage question does not block it.
+- [x] SpotBugs: decided — delete all four artifacts. Done in MR 2. If static analysis is wanted
+  later, introduce it fresh at a current version with a filter written from scratch.
+- [ ] `admin_home_tile.cover_image_id`: drop in a migration or document as reserved (MR 1, deferred). **Not blocked on research** -- zero Java references, V19 seeds all ten rows explicitly NULL, and nothing since writes it. One query (`SELECT count(*) FROM admin_home_tile WHERE cover_image_id IS NOT NULL`) confirms it never received a value. This needs a decision.
+- [ ] `role.kind`. **Premise FALSE, corrected 2026-08-24.** The item says it is "written as constant
+  'SHARED' and read by nothing". `RoleRepository` does write `'SHARED'`, but `V45__create_roles.sql`
+  writes `'PERSONAL'` in its backfill and joins on `r.kind = 'PERSONAL'` twice more. So the column
+  carries **two** values in any database that ran V45 against a non-empty `user_collection`, and it
+  is the only surviving marker of which roles the migration auto-created versus which an admin made
+  deliberately. "Read by nothing" is true of the Java layer only. **Changes the disposition from
+  "likely droppable" to "check prod first, it may be carrying provenance":**
+  `SELECT kind, count(*) FROM role GROUP BY kind;`
+- [x] Unknown-JSON-key policy (C8). **Answered 2026-08-24 -- nothing to research, the decision just
+  needed writing down.** `FAIL_ON_UNKNOWN_PROPERTIES` is disabled (Boot's default; no
+  `spring.jackson.deserialization.*` override anywhere), and it is already **pinned by a test** --
+  `CollectionTypeAbsentFromWireTest` asserts it is false. So the de-facto policy is "ignore unknown
+  keys", it is enforced, and flipping it would break that test and be a breaking wire change. That
+  is the argument for leaving it off. Recorded.
+- [ ] Partial indexes on `is_blog`/`is_client` (C7, "if scale demands"). **The item names the wrong
+  measurement.** "Check request metrics" points at the `request_metric` table, which is readable
+  (via `GET /api/admin/metrics/requests` or one SELECT) but counts HTTP requests per route per day
+  and says nothing about whether an index helps -- and V44's own header admits those counts
+  undercount because of ISR and CloudFront caching. What decides this is table size and selectivity:
+  `SELECT count(*), count(*) FILTER (WHERE is_blog), count(*) FILTER (WHERE is_client) FROM
+  collection;` plus `EXPLAIN ANALYZE` on the six `CollectionRepository` queries that filter on those
+  flags. Confirmed: **no index on either column exists** -- V50 adds them as plain `BOOLEAN NOT NULL
+  DEFAULT FALSE` with only a CHECK constraint.
+
+---
+
+# Cross-repo findings owed to the frontend
+
+Raised 2026-08-24. These are backend-side answers or backend-side work that the frontend is waiting
+on. **The `isPasswordProtected` item shipped from here 2026-08-24** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)).
+It had been moved here from "Decisions needed" earlier the same day, once the item was found to have
+disproved its own remaining decision -- which left implementation, not a call for the user to make.
+Worth keeping as precedent: an item parked for a decision may already contain the answer.
+
+- [x] **`isPasswordProtected` on the content-block path.** **DONE** ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209), squash `a6550b0`). Option A shipped: `ContentModels.Collection` carries the flag, populated at both construction sites. The frontend's C6 is unblocked. The guardrail held -- the read-query password filter and `coverImage` stripping were left alone and costed instead. Taught **working rule 22**, and found a second stale comment worse than the banner it was sent to fix (see the new row under "Carried forward"). [Full write-up](2026-08-22-backend-cleanup-history.md#ispasswordprotected-outcome-2026-08-24----a-locked-tile-can-finally-be-drawn).
+
+- [x] **`POST /api/read/user/share/email`.** **DONE** ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)).
+  The frontend's live 404 is closed. **The specified scope was not buildable** -- "one
+  `@PostMapping`, one `sendShareLinkEmail`, one request record" leaves the endpoint with nothing to
+  put in the email, because V56 stored only the token's hash and the frontend sends `{ toEmail }`
+  alone. Shipped by rebasing the orphaned `fec14e7`: V58 adds `token_cipher` (AES-256-GCM on the
+  existing `app.access-token.secret`, no new env var), `token_hash` keeps its lookup job untouched.
+  The guardrail held -- `mintOrRotate` is never called and a test pins it. Taught **working rule
+  24**. [Full write-up](2026-08-22-backend-cleanup-history.md#shareemail-outcome-2026-08-24----the-first-item-that-could-not-be-built-as-written).
+
+- [x] **Actuator defense-in-depth.** **DONE** ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)).
+  Explicit `management.endpoints.web.exposure.exclude` shipped, plus the first test anywhere
+  asserting actuator exposure. Went past the item on purpose: pinning the shipped string proves
+  nothing about whether exclude beats include, so an end-to-end test boots the app with
+  `include=*` and confirms the eight endpoints 404 while health still 200s. **The ordering the
+  item asserted is now verified rather than quoted**, and the mutation proves it is load-bearing:
+  with the exclude emptied, `/actuator/env` answers 200 on the app port.
+  [Full write-up](2026-08-22-backend-cleanup-history.md#actuator-outcome-2026-08-24----the-guarantee-tested-rather-than-the-string).
+
+- [x] **Is `collectionDate` populated? Yes, everywhere** -- list, detail and content-block paths, all
+  three confirmed by live request. Backend item #157 merged as
+  [#157](https://github.com/themancalledzac/edens.zac.backend/pull/157) and fixed a *third*
+  projection, the narrow `findCollectionListEntries` behind `GET /api/admin/collections/metadata`,
+  which had been hard-coding null and silently disabling the frontend's blog date ordering. The one
+  remaining null is `Records.CollectionList.fromSibling`, by construction.
+
+# Stale side branches
+
+Found 2026-08-24 by `git worktree list` while resyncing the palace. **The board has never mentioned
+these and none has an open PR.** Six worktrees, all created before or during this cleanup effort and
+left behind while 25 MRs landed on `main` underneath them.
+
+- [ ] **Delete the three that hold nothing.** `feat/collection-debloat` (0 ahead, 117 behind),
+  `claude/auth-password-reset` (0 ahead, 38 behind) and `claude/one-way-collection-associations`
+  (0 ahead, 38 behind) have **zero unique commits**. They are worktrees holding no work. Per the
+  user's standing worktree rule these are theirs to remove, so this is a recommendation, not a
+  cleanup to perform unasked. Note `claude/auth-password-reset` is **not** a reason to unpark the
+  password decision -- it contains no commits.
+- [x] **`0257-backend-security-bugs` is fully superseded -- verified, safe to delete.** Its single
+  commit (2026-08-22, "close the admin delete-person and rate-limit holes (cleanup tracker MR 5)")
+  is a parallel implementation of MR 5, which shipped as
+  [#165](https://github.com/themancalledzac/edens.zac.backend/pull/165). All three of its
+  `deletePerson_*` tests already exist on `main` under identical names.
+
+  **And it is where the S-4 gap came from.** Its `ProdSecretGuardTest` additions are the reflective
+  `invokeVerify(guard)` tests that mutation later proved cannot fail, including the duplicated
+  `enforceAuthzDisabledThrowsEvenWithAGoodSecret`. So this branch is not a fix for S-3/S-4 waiting to
+  be salvaged -- it is their origin. **Do not "rescue" it into an MR**; that was the tempting wrong
+  move and it would re-land the untestable tests.
+
+  One nuance worth carrying into the S-3 fix: its `deletePerson_refusesAnAccountId` test stubs
+  `deletePersonById` to return 0 and asserts a 404. That covers the service's zero-rows handling,
+  which is real, and leaves the SQL predicate untested, which is S-3. Both statements are true at
+  once, and that is exactly why the gap survived review.
+- [ ] **Two July "wip" snapshots, 147-184 commits behind.** `0217-user-upgrade-be` (1 commit,
+  2026-07-28, `AdminUserController` + `UserRequests` + a 136-line `UserUpgradeIntegrationTest`) and
+  `chore/log-review-followups` (1 commit, 2026-07-28, `AdminController`/`TagRepository`/
+  `CollectionService`/`ContentService`). Both predate Waves 1-5, which rewrote every file they touch.
+  Decide per branch: salvage the test, or delete. `0217`'s integration test is the only part likely
+  to still be worth anything.
+
+# Appendix A — Cross-repo verification (highest value)
+
+The BFF verification pass in the frontend repo determines how much the backend findings above
+actually matter in prod. **All three answered 2026-08-24 by reading
+`app/api/proxy/[...path]/route.ts` in the sibling repo. All three come back clean.**
+
+- [x] **Does the BFF strip inbound client-supplied `X-Real-IP`? Yes.** `forwardHeaders()` builds a
+  fresh `Headers` and copies through a denylist covering `x-real-ip`, `x-forwarded-for`,
+  `cf-connecting-ip` and the `x-vercel-ip-*` set, then re-injects a value taken from
+  `x-vercel-forwarded-for` or the last `x-forwarded-for` hop, regex-validated. Every backend limiter
+  keying on `X-Real-IP` is safe through this path.
+- [x] **Does it restrict which paths get the internal secret? Yes.** `isProxyableApiPath` normalizes
+  through `new URL(...)` and requires `/api/`, rejecting with 404 *before* the secret is attached.
+  Confirmed live: `/api/proxy/actuator/env` returns 404, and so does a dot-segment walk.
+- [x] **Does anything cap request body size? Yes, hand-rolled.** 16KB for JSON, 25MB for multipart,
+  checked against declared `Content-Length` and then re-checked authoritatively after buffering.
+  **One caveat worth carrying**: the authoritative check runs after `await req.arrayBuffer()`, so a
+  body with a spoofed `Content-Length: 0` is fully buffered before rejection.
+
+This also resolved the backend's own chunked-body question -- see **S-5**, now downgraded.
+
+# Appendix B — Prior-review scorecard
+
+Against `ai_docs/reviews/2026-07-25-open-pr-review.md`, backend items: 25 landed, 10 moot (superseded by the typeless phase-2 merge), **1 partial, 2 still open** (recounted 2026-08-24 against the itemization below, which never supported "2 partial, 3 open").
+
+- Still open: C7 partial indexes on `is_blog`/`is_client` (explicitly optional). **C8 is now closed** -- the policy is recorded under "Decisions needed". **`CollectionControllerDevTest` naming drift is closed too**: MR 4 shipped as [#164](https://github.com/themancalledzac/edens.zac.backend/pull/164) and no `*DevTest*` file exists anywhere in the tree.
+- Partial: `CollectionList.fromSibling` exists, but two positional construction sites remain (`CollectionRepository`, `CollectionService` -- verified still true, line refs dropped per working rule 5). Related, found 2026-08-24: `fromSibling` passes `null` for `collectionDate` by construction, which is the one place that field is still null on the wire.
+- Everything else verified landed (all-blogs on `is_blog`, no-flags INFO log, `@Valid` on `TagAdminController`, typeFilter deleted, column-list dedup, flag-triplication gone, the 1.6 test adds, the 1.7 comment fixes) or mooted by V51/V52.
+
+# Appendix C — Unverified leads
+
+Worth a targeted check; not asserted as findings.
+
+- [x] Possibly-dead endpoints -- **all three confirmed ALIVE 2026-08-24 by grepping the frontend.
+  Do not delete any of them.** `GET /api/admin/collections/metadata` has 5 call sites
+  (`app/lib/api/collections.ts` into the explore page, collections panel, collection-edit hook and
+  two admin pages). Both role-membership pairs are live, driving two different screens (see MR 17
+  #8). Ids-only `GET /api/read/user/saves` is called from `app/lib/api/personal.ts` into
+  `CollectionPageWrapper`, and the frontend types it as a bare `number[]`.
+- [x] `role.kind` -- **premise disproved 2026-08-24**, V45 also writes `'PERSONAL'`. Full correction under "Decisions needed"; it may be carrying provenance.
+- [x] `PersonRepository.findAccountUserIdsByIds` -- **resolved in MR 15 #6.** It had zero callers in main and test, so the only-accounts-get-grants rule was documented and unenforced. The method was deleted and the rule enforced at `RoleRepository.addMember` instead. Low severity: admin-only endpoints, and a PERSON row cannot log in; the risk was a dormant grant surviving an upgrade to an account.
+- [x] `collection.rows_wide` -- **premise FALSE, confirmed 2026-08-24. The frontend DOES read it**: `CollectionPageWrapper` uses `collection.rowsWide ?? LAYOUT.defaultChunkSize` as the row-packer chunk size, so dropping the column changes public rendering. Struck as a lead.
+- [ ] `deleteImages`/`deleteGif` delete from S3 before the DB write inside the transaction (`ContentService.deleteImageFromS3` before `deleteImageById`, **`354-356` as of #218**; `deleteGifFromS3` before `deleteGifById`, **`518-519`**). A DB failure orphans the row's URLs; consider afterCommit S3 deletes.
+- [ ] **The image-upload job-status endpoint may be entirely dead.** *(New lead 2026-08-24, found
+  while answering the `JobStatus` question.)* `POST /content/images/{id}/from-disk` returns 202 with
+  a `jobId` "for polling", and `GET /api/admin/content/images/jobs/{jobId}` serves the status -- but
+  the frontend never calls either. Zero hits for `jobId`, `jobs/` or `from-disk` across its `app/`
+  tree. If the disk-import flow is admin-CLI-only, the whole `JobTrackingService` surface plus its
+  ~45 test references may be dead weight. Confirm how disk import is actually triggered before
+  acting; this is the kind of "nobody calls it" claim that is wrong when a human uses curl.
+- [ ] `updateImages` builds `imageMap` with `Collectors.toMap`, which throws on a duplicate key, so two updates for the same image id in one request fail before any work happens. **Note this is a verified finding sitting in an "unverified leads" appendix** -- it was traced when proving the MR 1b guards unreachable. It belongs with bug #17 (same method) whenever that MR happens; left here with a pointer rather than moved, so the trail survives. Correction to the original wording: `GlobalExceptionHandler` maps `IllegalStateException` to **400**, not 500 (working rule 3).
+- [ ] `updateImages` reports per-item errors inside one transaction. Confirm a mid-item `DataAccessException` cannot leave an item half-applied (needs a test).
+- [ ] `contentDisposition` (`DownloadUrlService.contentDisposition`, **`127-128` as of #218**) does not escape quotes in filenames. Depends on what `sanitizeFilename` strips.
+- [ ] `TagService.convertTagToCollection` briefly persists under a temp slug, visible to a concurrent reader, and may burn a `-1` suffix.
+- [ ] `WebAuthnController.registerStart`/`loginStart` declare `throws Exception`; serialization failures become generic 500s.
+- [ ] ID-list DAO fetches have no ORDER BY. Spot-checked callers re-order, but not all 7+ call sites were traced.
+- [ ] `CollectionServiceTest` was profiled in parts, not read line-by-line. **The original line ranges (937-1385, 1555-2017) are dead** -- pure positions in a file that has grown to 2,644 lines, with no symbol to recover them by. Re-derive from the current tree or drop the lead (working rule 5).
+
+# Appendix D — Not yet started
+
+- [ ] `ml_image_tagging` (design doc, 0% implemented) is still the largest unstarted feature. No stubs in `src/` to maintain, so it costs nothing until you start.
+
+- 2026-08-25 -- shipped **S-10** ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221))
+  and **S-11** ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), **both HIGH
+  findings on the reopened security board, both mutation-verified, both shipped as specified.** That
+  makes three items in a row needing no adjustment at implementation time (MR 19 #14, S-10, S-11),
+  which is the streak escalation condition 2 of the deferred full-board slice rested on -- it stays
+  deferred, and working rule 27 keeps looking like the right explanation: none of the three carried an
+  open question into implementation. S-10 is redemption-time identity in `UserInviteService.accept`,
+  built on a named predicate rather than a comment (rule 19); its guardrail held --
+  `mayAcceptInvite` and the `AdminUserController` sweep are both untouched -- and **the cost report
+  the guardrail asked for found a cost the item did not name**, a second caller of the predicate
+  (`invalidateInvitesForStatus`) whose behavior narrowing would silently invert. S-11 is one clause
+  in `ProdSecretGuard` plus the `.env.example` line; its second consumer,
+  `ClientGalleryAuthService`, **was already recorded in this doc's own "Unsettled" bullet** and S-11
+  never carried it. Those two together are **working rule 29**. Filed **S-21** (LOW, verified):
+  `regenerateInvite` has no status gate, so a DISABLED account gets a 200 and a link that 410s, and a
+  PERSON row gets a 409 from a NOT NULL constraint doing a status check's job -- found while costing
+  S-10's guardrail, untested today. Reconcile corrections: **S-15's COLD stamp rested on a method
+  that does not exist** (`SessionService.revokeAllForUser`; `revokeAllForStatus(id, ACTIVE)` is a
+  no-op by construction), `AdminUserController:292` had drifted to `:304` and is now de-positionalized,
+  and `ProdSecretGuardTest.Wiring` is five cases rather than four. Also corrected two comments S-7
+  had falsified, one of them S-10's own premise. Security board: 11 open -> 8, **0 HIGH**. Next:
+  **S-15**, then S-12.
+- 2026-08-26 — shipped **S-15** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224),
+  +112/-2) and **S-12** ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225),
+  +186/-0); suite 1,385 -> 1,391. S-15 needed **no** adjustment, because the 2026-08-25 pass had
+  already corrected its non-existent method -- working rule 27 paying out a second time. S-12 needed
+  two: working rule 16 found a **second call site** (`updateUser`, which the item never mentions),
+  and the item's "dormant" framing was **wrong** -- `canView` tests no status, so the grant already
+  resolved; a scene-setting assertion failing is what exposed it. Delivered the guardrail's cost
+  report rather than the change: routing S-15 through `revokeAllForStatus` is a silent no-op whose
+  repair would turn every ACTIVE admin PATCH into a session purge. Added **working rule 30** (a
+  state-keyed sweep guards one direction; placement picks it), which corrects **S-13** -- #225 edits
+  S-13's own method and closes none of it. Board integrity: the security count read **8 when it was
+  9** from the moment S-21 was filed; corrected, and now 7. Re-anchored S-20 and S-21 against the
+  files #224/#225 touched; both intact, both still COLD. Next: **S-13**.
+- 2026-08-27 — shipped **S-13** ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227),
+  +117/-6) and **S-21** ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228),
+  +77/-1); suite 1,391 -> 1,397. **Both shipped as specified, needing no adjustment** -- the second
+  and third in a row, which inverts the streak working rule 27 was written about; what the three
+  share is that each had been re-verified against the code within two days of implementation.
+  S-13's consumer check (working rule 24, at the input end) came back clean against `edens.zac`
+  `18eb038`: no shipped path can send `PERSON`, because the panel hides Update for PERSON rows and
+  the detail page branches away before the editor mounts. Delivered the working-rule-30 guardrail as
+  a **report, not a change** -- moving `dropMembershipsIfPerson` below the status write closes S-13's
+  direction, reopens S-12's, and leaves every test #225 added green; two sweeps would need a
+  data-loss decision from the user. S-21's own 2026-08-26 note is what picked its fix's placement
+  (controller, not service). **Reconcile corrections, and one is a miss by the previous pass:**
+  S-20's recorded grep asserts six hits and returns **seven** -- the extra is a javadoc `{@link}`
+  added by #199 on 2026-08-24, so the count was wrong when written on 2026-08-26, though the premise
+  and the six code sites are intact. MR 19 #17's `UserInviteService` refs had drifted from #224 and
+  were **not caught by the #226 close-out**, which is drift outside its neighborhood and one of the
+  two escalation conditions now met. MR 24's `AdminUserController` numbers re-measured (481 -> **520**
+  main, 1,183 -> **1,294** test, +27% test in four days across four security MRs) and its positional
+  refs **deleted rather than refreshed**, since refreshing them is what working rule 26 exists to
+  forbid and this item did it to itself. MR 23's request-records item re-counted 11 -> **13 files**:
+  #227 added a second constraint/validator pair to `controller/admin/`, so that package now holds
+  bean-validation types by precedent rather than decision. Added **working rule 31** (a grep-based
+  count must exclude comments; second javadoc miscount on this board) and **working rule 32** (a
+  mutation is evidence only if you read *why* it reddened -- S-13's first mutation gave the right
+  color for the wrong reason). Security board: 7 open -> **5, only 3 actionable**. Next: **S-20**.
+  **Recommending a full-board review** -- see the note below.
