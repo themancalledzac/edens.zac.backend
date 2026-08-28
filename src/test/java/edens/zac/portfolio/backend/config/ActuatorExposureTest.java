@@ -73,9 +73,6 @@ class ActuatorExposureTest {
   @Test
   @DisplayName("the exclude list covers every config-dumping and state-mutating endpoint")
   void exposureExclude_namesEverySensitiveEndpoint() throws IOException {
-    // Boot applies exclude after include, so this survives a stray
-    // MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=* injected into a deployed environment -- which
-    // working rule 1 says would otherwise outrank the include property above.
     assertThat(shippedList("management.endpoints.web.exposure.exclude"))
         .containsExactlyInAnyOrderElementsOf(MUST_BE_EXCLUDED);
   }
