@@ -30,10 +30,15 @@ class ActuatorExposureTest {
   private static final Path SHIPPED = Path.of("src", "main", "resources", "application.properties");
 
   /**
-   * Endpoints that must never be reachable. Each either dumps configuration, dumps process state,
-   * or mutates the running application.
+   * Endpoints that must never be reachable. Each either dumps configuration (env, configprops,
+   * beans, mappings, conditions, flyway, scheduledtasks), dumps process state (heapdump,
+   * threaddump), or mutates the running application (loggers, shutdown, caches).
+   *
+   * <p>This is the expectation, written out independently of the shipped property so that dropping
+   * a name from the property file reddens something. {@link ActuatorExposureEndToEndTest} shares it
+   * rather than keeping a third copy that could drift.
    */
-  private static final List<String> MUST_BE_EXCLUDED =
+  static final List<String> MUST_BE_EXCLUDED =
       List.of(
           "env",
           "configprops",
@@ -42,7 +47,11 @@ class ActuatorExposureTest {
           "heapdump",
           "threaddump",
           "loggers",
-          "shutdown");
+          "shutdown",
+          "caches",
+          "conditions",
+          "flyway",
+          "scheduledtasks");
 
   private static String shippedProperty(String key) throws IOException {
     Properties properties = new Properties();
