@@ -31,8 +31,8 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **7 open, 0 HIGH, 2 blocked on the user** (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **Both shipped 2026-08-26**: S-15 ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) and S-12 ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)), each mutation-verified. Sequencing S-15 first on working rule 27 was right -- the correction made to it on 2026-08-25 was what made it cheap, since its originally-stated fix named a method that does not compile. **next: S-13**, whose premise S-12 just re-verified and whose scope S-12 just sharpened (see working rule 30); then S-21 or S-20, both LOW/MEDIUM and both re-anchored 2026-08-26. The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the security board (S-13 as of 2026-08-26; this row said S-15, which shipped as #224), not from this one. *(Corrected 2026-08-25: this row pointed at "MR 19 #16 or MR 16 #4/#5" and MR 19 #16 shipped as [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216) the day before. A next-pointer inside a closed section is exactly the kind that rots unwatched, because nobody re-reads a board row marked done.)* |
+| [Open security findings](#open-security-findings) | **5 open, 0 HIGH, 2 blocked on the user** — so **only 3 are actionable**, all MEDIUM: S-17, S-18, S-20. **Both shipped 2026-08-27**: S-13 ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227)) and S-21 ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228)), each mutation-verified, each shipped as specified with no adjustment — the second and third in a row, which inverts working rule 27's streak. **next: S-20**, whose fix is the same shape as S-21's (route inlined status checks through the one named predicate) and whose context is warm; then S-18 or S-17. **S-20's own count claim was corrected 2026-08-27** — its recorded grep returns seven, not six, and has since 2026-08-24; the premise is intact and the extra hit is javadoc (working rule 31). Historical detail below. *Prior history, kept:* (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **Both shipped 2026-08-26**: S-15 ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) and S-12 ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)), each mutation-verified. Sequencing S-15 first on working rule 27 was right -- the correction made to it on 2026-08-25 was what made it cheap, since its originally-stated fix named a method that does not compile. (That pass's next-pointer read "next: S-13, then S-21 or S-20"; S-13 and S-21 both shipped 2026-08-27, and the live pointer is at the head of this cell.) The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the security board (**S-20** as of 2026-08-27; this row has now named S-15, then S-13, both since shipped), not from this one. **The recurring fix for this row is to stop naming an item at all**: it is a closed section, so any pointer it carries is a copy of the security row's, one edit behind. It now says "see the security board row" and nothing more. *(Corrected 2026-08-25: this row pointed at "MR 19 #16 or MR 16 #4/#5" and MR 19 #16 shipped as [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216) the day before. A next-pointer inside a closed section is exactly the kind that rots unwatched, because nobody re-reads a board row marked done.)* |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
 
@@ -41,7 +41,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **7 open, 0 HIGH** — see below. Reopened 2026-08-25 with 11; S-19 settled, S-10/S-11/S-15/S-12 shipped, S-21 filed. *(This cell and the section row both read "8" from 2026-08-25 until 2026-08-26: filing S-21 incremented neither, so the board undercounted itself by one for a day. Counting the checkboxes is the check -- `grep -c '^- \[ \] \*\*S-'`.)* | — |
+| Security findings | **5 open, 0 HIGH, only 3 actionable** — see below. Reopened 2026-08-25 with 11; S-19 settled, S-10/S-11/S-15/S-12/S-13/S-21 shipped. *(This cell and the section row both read "8" from 2026-08-25 until 2026-08-26: filing S-21 incremented neither, so the board undercounted itself by one for a day. Counting the checkboxes is the check -- `grep -c '^- \[ \] \*\*S-'`, which returns 5 as of 2026-08-27.)* | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
 | Duplication consolidations (main) | 20 findings | ~500 |
@@ -299,7 +299,8 @@ should be re-confirmed at implementation time, per working rule 21.
   property, and a destructive data change against rows nobody has inventoried -- a separate call
   rather than something ridden in on a security fix.
 
-- [ ] **S-13 (MEDIUM, agent trace). The admin update endpoint accepts `status: PERSON`.**
+- [x] **S-13 (MEDIUM, agent trace). The admin update endpoint accepts `status: PERSON`.** **DONE**
+  ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227), 2026-08-27.)
   `UserRequests` types the field as the bare `UserStatus` enum; the javadoc one line above says
   "INVITED / ACTIVE / DISABLED" and nothing enforces it. Two requests then make
   `PersonRepository.deletePersonById`'s `AND status = 'PERSON'` match a real account, which the
@@ -332,6 +333,34 @@ should be re-confirmed at implementation time, per working rule 21.
   all on a PATCH that is not meant to change one. `UpdateUserRequest.status` is `@NotNull`, so every
   caller must send something -- constraining the type is not free if a frontend sends the row's
   current status back verbatim and that status is ever `PERSON`. Working rule 24 at the input end.
+
+  **Outcome 2026-08-27.** Shipped as `@AccountStatus` + `AccountStatusValidator` on
+  `UpdateUserRequest.status`, mirroring the `@GrantableLevel` / `GrantableLevelValidator` pair
+  already in `controller/admin/` for the identical shape of problem (an enum field that must exclude
+  one constant). +117/-6 across five files. **Shipped as specified, with no adjustment needed** --
+  the second such item in a row after S-15, which is what broke the six-item streak working rule 27
+  was written about.
+
+  **The consumer check the item demanded came back clean, and it was worth running.** Checked
+  `edens.zac` at `18eb038`: `UserManagementPanel` renders Merge/Upgrade instead of Update for a
+  `PERSON` row and sets `onActivate={undefined}` so row-click navigation is off;
+  `/admin/users/[id]/page.tsx` branches on `user.status === 'PERSON'` before `AdminUserSpaceEditor`
+  mounts; both `STATUS_OPTIONS` lists are `['INVITED','ACTIVE','DISABLED']`. No shipped path sends
+  `PERSON`, and no backend test does either -- `UserUpgradeIntegrationTest` PATCHes a PERSON *to*
+  ACTIVE, which stays allowed and is now pinned by `updatePersonToActiveStillSucceeds`.
+
+  **The guardrail held and the report is recorded above under working rule 30** -- the
+  `dropMembershipsIfPerson` call site in `updateUser` is unchanged. Moving it below the status write
+  closes this direction, reopens S-12's, and leaves every test #225 added green. Two sweeps would
+  cover both and the second deletes a real account's role grants on the way to PERSON, which is a
+  data-loss decision for the user. Not made.
+
+  **Trap for the next mutation check, and it cost a wrong turn here.** The rejection test stubs
+  `findById` with `lenient()` **on purpose**. Without that stub the un-annotated build returns
+  `404` on an unstubbed lookup, which reddens the test for the wrong reason and proves nothing about
+  the guard. With it, dropping `@AccountStatus` makes the PATCH return `200` and write `PERSON` --
+  the actual defect. **A mutation that reddens a test is not automatically evidence; check that it
+  reddens it via the behavior under test.** See also working rule 32.
 
 - [ ] **S-14 (MEDIUM, agent trace). S-6 turned `addCollection` from a read decision into a durable
   third-party grant.** `UserShareControllerProd.addCollection` gates on `canView`, then writes a
@@ -438,8 +467,44 @@ should be re-confirmed at implementation time, per working rule 21.
   `WebAuthnService` (`!= ACTIVE`, guarding `finishLogin`). Premise intact, count exact, and #224 did
   not add a seventh. **COLD.**
 
-- [ ] **S-21 (LOW, verified 2026-08-25). `regenerateInvite` mints a link for accounts that can never
-  redeem it.** *(Filed while costing S-10's guardrail -- the endpoint had to be read to establish
+  **The count above is wrong and was wrong when it was written. Corrected 2026-08-27.** That grep
+  returns **seven**, and has since 2026-08-24. The seventh is
+  `WebAuthnService:179` -- a **javadoc** line, `{@link UserStatus#ACTIVE}`, added by
+  [#199](https://github.com/themancalledzac/edens.zac.backend/pull/199) two days *before* the
+  re-verification that claimed six. So the 2026-08-26 pass either did not run the command it cited
+  or reported a remembered number.
+
+  **The premise and the work are unaffected: there are still exactly six *code* sites and still
+  exactly two inlined comparisons.** What is wrong is the recorded check. Use
+  `grep -rn 'UserStatus\.ACTIVE' src/main --include='*.java' | grep -v '\*'` -- seven raw, six code.
+  This is the **second** time a javadoc line has broken a grep-based count on this board; the first
+  was `isRealUser` at `UserShareControllerProd:34`, recorded in the history file. Two occurrences of
+  the same trap is a rule, so it is now **working rule 31**. Still **COLD**.
+
+  **Picked as next 2026-08-27**, because its fix is the same move S-21 just made one file over:
+  route an inlined status test through the single named predicate that already states the rule, so
+  the rule keeps one definition (working rule 14). `AuthController` and `WebAuthnService` call
+  `SessionService.mayHoldSession(user.getStatus())` instead of `getStatus() != UserStatus.ACTIVE`.
+  Two lines, plus whatever the two call sites need to see the static import.
+
+  **Guardrail: leave `UserInviteService.mayAcceptInvite` alone, and report what merging the two
+  predicates would do.** This is the tempting adjacent change and it is wrong. `mayHoldSession` is
+  `== ACTIVE`; `mayAcceptInvite` is `INVITED || ACTIVE`. They look like near-duplicates one refactor
+  away from each other, and they are **deliberately different**: an INVITED account may hold a live
+  invite and may not hold a working session, which is exactly why #224's `updateUser` docblock says
+  "the two sweeps key off different allowlists". Fold them together and an INVITED account gets a
+  session, or a DISABLED-then-reinvited account stops being able to redeem -- depending on which
+  definition wins. Do not unify them. If the analysis says a shared abstraction is right anyway,
+  report it and let the user decide.
+
+  **Second, smaller guardrail: do not restructure `AuthController`'s login guard.** The status test
+  sits inside a three-clause `if` alongside the user-exists and password checks, and merging its
+  branches is a behavior change hiding in a readability change. Substitute the predicate into the
+  clause and leave the shape of the `if` alone.
+
+- [x] **S-21 (LOW, verified 2026-08-25). `regenerateInvite` mints a link for accounts that can never
+  redeem it.** **DONE**
+  ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228), 2026-08-27.) *(Filed while costing S-10's guardrail -- the endpoint had to be read to establish
   what narrowing `mayAcceptInvite` would break, and this fell out of the same read.)*
   `AdminUserController.regenerateInvite` looks the user up by id and mints an invite with **no status
   check at all**. `accept` refuses anything outside `{INVITED, ACTIVE}`, so for a DISABLED account the
@@ -469,6 +534,27 @@ should be re-confirmed at implementation time, per working rule 21.
   `upgradeUser` working, and a gate pushed down into the service would also pass -- but only because
   of that ordering, which #225 did not change and a future edit could.
 
+  **Outcome 2026-08-27.** Shipped as specified: `if (!UserInviteService.mayAcceptInvite(...))` ->
+  `409` at the top of the endpoint, keyed on the same allowlist `accept` enforces at redemption so
+  the eligibility rule keeps one definition (working rule 14). +21/-1 in `AdminUserController`,
+  +56 in its test.
+
+  **The 2026-08-26 note about `upgradeUser` decided the fix's placement**, which is the payoff for
+  writing it down instead of leaving it re-derivable. The gate went on the **controller endpoint**,
+  not pushed into the service, precisely because a service-level gate would pass only by accident of
+  `upgradeUser`'s internal ordering.
+
+  **The "no test covers this" note was exact and is now closed.** Three tests added where there had
+  been a happy path and a 404: `regenerateForActiveUserReturns200` (pins the password-reset path the
+  gate must not close), `regenerateForDisabledUserReturns409AndMintsNothing`, and
+  `regenerateForPersonReturns409BeforeTheSchemaRejectsIt`. Mutation-verified: with the guard removed
+  both 409 tests return `200`.
+
+  **This is the third consecutive item to need no adjustment at implementation time** (S-15, S-13,
+  S-21). Working rule 27's streak has inverted, and what all three share is that each had been
+  re-verified against the code within two days of being implemented. That is the variable -- not
+  item size, and not how carefully the fix was originally specified.
+
 #### Classification of the reopened items (2026-08-25)
 
 Every item above is stamped, so none of them reads as available and then eats a session.
@@ -478,14 +564,14 @@ Every item above is stamped, so none of them reads as available and then eats a 
 | S-10 | **DONE** ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) | -- shipped as specified 2026-08-25 |
 | S-11 | **DONE** ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)) | -- shipped as specified 2026-08-25 |
 | S-12 | **DONE** ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)) | -- shipped 2026-08-26; needed a second call site the item did not name, and its "dormant" framing was wrong |
-| S-13 | **COLD** | -- constrain the request enum; no consumer sends `PERSON`. Premise re-verified 2026-08-26; **S-12 does not cover its direction** (working rule 30) |
+| S-13 | **DONE** ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227)) | -- shipped 2026-08-27 as specified; the consumer check it demanded came back clean, and the working-rule-30 guardrail held |
 | S-14 | **BLOCKED on the user.** Is an admin allowed to put an arbitrary collection into another user's share scope? The fix depends on the answer: if no, the gate needs an ownership test rather than `canView`; if yes, this is documentation, not a bug. |
 | S-15 | **DONE** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) | -- shipped 2026-08-26 exactly as the 2026-08-25 correction specified; the first item in this batch to need **no** adjustment at implementation time |
 | S-16 | **BLOCKED on the user.** Should disabling an account kill its share links, or only suspend them? Revoking is destructive and not reversible by re-enabling; suspending needs a status join on every resolve. |
 | S-17 | **COLD** | -- extend the limiter past `/api/public/`; the four limiters already have disjoint key spaces |
 | S-18 | **COLD** | -- four names onto the exclude list, plus a test that is not self-referential (see below) |
 | S-20 | **COLD** | -- route the two inlined checks through `mayHoldSession` |
-| S-21 | **COLD** | -- status gate on `regenerateInvite`, keyed on `mayAcceptInvite` |
+| S-21 | **DONE** ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228)) | -- shipped 2026-08-27 as specified; the item's own 2026-08-26 `upgradeUser` note is what picked the gate's placement |
 
 S-19 closed as not-live, above. **Two of the original eleven are blocked, and both blockers are
 product calls rather than research** -- neither can be settled by reading code, which is why they are
@@ -1287,6 +1373,44 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     subsumes a neighbouring item that names the same method. #225 edits the exact line S-13 is about
     and closes none of it.
 
+31. **A grep-based count that includes comments will drift on the next docblock edit, and the item
+    will assert a number its own stated command does not return.** S-20 recorded "grepping
+    `UserStatus.ACTIVE` across `src/main` returns exactly six hits" on 2026-08-26. It returned seven
+    then and returns seven now: the extra is `WebAuthnService:179`, a javadoc `{@link
+    UserStatus#ACTIVE}` added by #199 on 2026-08-24, two days *before* the count was written down.
+    The premise survived -- there really are six code sites -- but the verification everyone was
+    meant to re-run says otherwise, which means the next session either "finds a new site" that
+    isn't one, or stops trusting the item.
+
+    This is the **second** time on this board. The first was the 2026-08-23 re-derivation raising
+    the `isRealUser` guard count 17 -> 18 on the strength of `UserShareControllerProd:34`, also a
+    javadoc line. Both times the count was defended as mechanical *because* it came from a grep.
+
+    So: **when a count is the item's evidence, the recorded command must exclude comments**, and the
+    item should say what the raw number is too, so a future re-run that gets the bigger number
+    recognizes itself instead of filing a finding. For Java here, appending `| grep -v '\*'` is
+    enough. State it as "seven raw, six code" rather than "six".
+
+32. **A mutation that reddens the test is not evidence until you check *why* it reddened.** S-13's
+    rejection test initially failed under mutation with `expected:<400> but was:<404>` -- the right
+    color for the wrong reason. `findById` was unstubbed, so removing the constraint just let the
+    request reach a controller that 404'd on a missing row; the test would have passed identically
+    against a build that wrote `PERSON` to a row that *did* exist. Stubbing `findById` with
+    `lenient()` -- deliberately stubbing something the passing path never reads -- moved the mutation
+    result to `200`, which is the actual defect.
+
+    The general form: **a mutation test proves the guard exists only if the mutant fails at the guard
+    and then proceeds to do the wrong thing.** A mutant that dies earlier, on a fixture gap, proves
+    the fixture is thin. Read the failure message, not the pass/fail bit. This is working rule 15's
+    problem in the mirror -- rule 15 is a test that cannot fail, this is a test that fails for a
+    reason unrelated to what it claims to test, and both report coverage that is not there.
+
+    Related mechanical trap, cost a wrong turn the same session: restoring a mutated source file
+    with `mv file.bak file` preserves the backup's **older mtime**, so `maven-compiler-plugin` skips
+    recompiling and the next run silently tests the mutated bytecode. The symptom is a test failing
+    after you restored the fix. Use `touch` on the restored file, or `git checkout --` **only if the
+    change is committed** -- on an uncommitted edit that command deletes the work.
+
 ## Full-board review: run 2026-08-25, split rather than whole
 
 Recommended 2026-08-24 on three escalation conditions. **Run 2026-08-25 as two of the three slices,
@@ -1480,7 +1604,7 @@ and each needs its claim verified before acting (working rule 8).
   `removeContentFromCollection` is parent-scoped and would delete nothing, but `onChildUnlinked`
   would still fire role-grant propagation for a link that never existed. Test coupling was two
   stub lines, not one. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-19-16-outcome-2026-08-25----the-suggested-clause-was-the-bug).
-- [ ] #17. Smaller items: `UserInviteService.validate`/`redeem` duplicate token resolution (now **140-152 and 220-237**, was 85-130; the file went 130 -> 238 lines under S-7/S-9, so re-read before quoting -- into `findLiveInvite`); pagination normalization re-inlined in `CollectionService.getCollectionWithPagination` (**`143-145` as of #218, was `142-144` then `127-130`, and it is three lines not four**; call `PaginationUtil`); `toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other (`CollectionProcessingUtil.toEntity` **`566-589`** and `applyPaginationDefaults` **`924-932`** as of 2026-08-25, were `569-596, 939-947` -- **neither file was touched by #213/#214/#216, so this drift predates them**); `uploadToS3`/`streamFileToS3` duplicate key and URL construction (`ImageProcessingService:697-745`); EmailService HTML skeleton **three times, not twice** -- `buildHtml`, `buildInviteHtml` and `buildShareLinkHtml`, the third added by [#213](https://github.com/themancalledzac/edens.zac.backend/pull/213) under an explicit guardrail not to fold it in there (optional, **~50-70 lines now, not ~35**). #213's own write-up sent this consolidation to MR 24; that was wrong, it lives here and has always lived here.
+- [ ] #17. Smaller items: `UserInviteService.validate`/`redeem` duplicate token resolution (**`validate` 158-175 and `redeem` 257-274 as of 2026-08-27**; was 140-152 / 220-237, and before that 85-130 -- the file has gone 130 -> 238 -> 275 lines under S-7/S-9/S-15, **so stop quoting ranges for this one and find the two methods by name** -- into `findLiveInvite`); pagination normalization re-inlined in `CollectionService.getCollectionWithPagination` (**`143-145` as of #218, was `142-144` then `127-130`, and it is three lines not four**; call `PaginationUtil`); `toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other (`CollectionProcessingUtil.toEntity` **`566-589`** and `applyPaginationDefaults` **`924-932`** as of 2026-08-25, were `569-596, 939-947` -- **neither file was touched by #213/#214/#216, so this drift predates them**); `uploadToS3`/`streamFileToS3` duplicate key and URL construction (`ImageProcessingService:697-745`); EmailService HTML skeleton **three times, not twice** -- `buildHtml`, `buildInviteHtml` and `buildShareLinkHtml`, the third added by [#213](https://github.com/themancalledzac/edens.zac.backend/pull/213) under an explicit guardrail not to fold it in there (optional, **~50-70 lines now, not ~35**). #213's own write-up sent this consolidation to MR 24; that was wrong, it lives here and has always lived here.
 
   **Two sub-items struck 2026-08-24, both premises dead:**
   - *`ensureDimensions` twins* -- already refactored. The shared work is hoisted into
@@ -1571,13 +1695,25 @@ and each needs its claim verified before acting (working rule 8).
   reaches up into the controller layer. Also unlisted and the same smell: `GrantableLevel` and
   `GrantableLevelValidator` are non-controller types sitting in `controller/admin/`. Eleven files,
   zero net lines.
+
+  **Re-counted 2026-08-27: thirteen files, and the validator smell doubled.** S-13
+  ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227)) added `AccountStatus` and
+  `AccountStatusValidator` to `controller/admin/` -- deliberately, because mirroring the
+  `GrantableLevel` pair was the right call for that fix and this item is not blocking. But it means
+  the package now holds **two** constraint/validator pairs, so what was an aside is a small pattern:
+  `controller/admin/` is where bean-validation types live in this codebase, by precedent rather than
+  by decision. **Decide that explicitly when this MR runs** -- either a `validation/` package for all
+  four, or say in the doc that constraints live beside the requests they constrain. Leaving it
+  undecided is how a third pair gets added the same way.
 - [ ] Optional: drop the `*Prod` suffix now that no controller carries `@Profile` (verified: the only two `@Profile` hits under `controller/` are javadoc text saying there is no gating). **10 main classes plus 10 test classes, 23 files touched -- much the largest item in MR 23, and it should not share an MR with the two cheap moves above.**
 
 ## MR 24 — Service extraction and remaining design items
 
-- [ ] `AdminUserController` is a service wearing a controller's clothes: two repositories and **seven** services injected (was six; S-8 added `SessionService`) plus a `frontendBaseUrl`, **481** lines (469 -> 474 -> 481 across S-9 and S-8), entity building, multi-step `@Transactional` orchestration, afterCommit hooks. Extract an `AdminUserService`. **Largest real cost in Wave 7**: ~200 source lines move, but `AdminUserControllerTest` is **1,183** lines (1,015 -> 1,097 -> 1,183 across the same two MRs) and is the hidden half.
+- [ ] `AdminUserController` is a service wearing a controller's clothes: two repositories and **seven** services injected (was six; S-8 added `SessionService`) plus a `frontendBaseUrl`, **520** lines (469 -> 474 -> 481 -> 520 across S-9, S-8, and then S-13/S-21 together), entity building, multi-step `@Transactional` orchestration, afterCommit hooks. Extract an `AdminUserService`. **Largest real cost in Wave 7**: ~200 source lines move, but `AdminUserControllerTest` is **1,294** lines (1,015 -> 1,097 -> 1,183 -> 1,294) and is the hidden half.
 
-  *Positional refs replaced with names 2026-08-24, per working rule 5 -- this item's range list had drifted twice in two days.* The `@Transactional` orchestration blocks are `createUser` (`:114`), `regenerateInvite` (`:174`), `upgradeUser` (`:208`), `updateUser` (`:279`) and `merge` (`:436`); the afterCommit hook itself is `sendInviteEmailAfterCommit` (`:468`), called from the first three. **The item is growing faster than it is being done** -- two consecutive security MRs each added to the exact class this proposes to split, and the test file has grown 168 lines in two days. That is an argument for doing it sooner, not a reason to keep re-measuring it.
+  *Positional refs replaced with names 2026-08-24, per working rule 5 -- this item's range list had drifted twice in two days.* **They were re-added as fresh line numbers anyway, and drifted a third time on 2026-08-27** when #227/#228 landed; that is working rule 26 happening inside the very item that recorded the lesson. **The numbers are now gone for good. Find these by name.** The `@Transactional` orchestration blocks are `createUser`, `regenerateInvite`, `upgradeUser`, `updateUser` and `merge`; the afterCommit hook itself is `sendInviteEmailAfterCommit`, called from the first three.
+
+  **The item is growing faster than it is being done, and the rate is increasing** -- 469 -> 520 main and 1,015 -> 1,294 test across **four** security MRs, all of which edited the exact class this proposes to split. The test file has grown **279 lines, 27%, in four days**. Every one of those MRs was small and correct; the point is that the extraction's cost is set by how often this class is touched, and it is touched constantly. **This is now the strongest do-it-sooner argument on the board.**
 - [ ] Same shape, smaller: `UserShareControllerProd` computes grant and candidate sets inline with a repository. Move it into `ShareLinkService`. **Re-derived 2026-08-24 and de-positionalized**: the old range `124-152` overran the end of a 145-line file. The work is two private methods -- `buildSettings` and `candidateCollections`, the latter
   holding the `memberCollectionIdsForUser` call. **Find them by name.** The 2026-08-24 pass
   "de-positionalized" this by writing fresher numbers (`:116-128`, `:135-144`, `:137`), and
@@ -2086,3 +2222,56 @@ Worth a targeted check; not asserted as findings.
   S-13's own method and closes none of it. Board integrity: the security count read **8 when it was
   9** from the moment S-21 was filed; corrected, and now 7. Re-anchored S-20 and S-21 against the
   files #224/#225 touched; both intact, both still COLD. Next: **S-13**.
+- 2026-08-27 — shipped **S-13** ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227),
+  +117/-6) and **S-21** ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228),
+  +77/-1); suite 1,391 -> 1,397. **Both shipped as specified, needing no adjustment** -- the second
+  and third in a row, which inverts the streak working rule 27 was written about; what the three
+  share is that each had been re-verified against the code within two days of implementation.
+  S-13's consumer check (working rule 24, at the input end) came back clean against `edens.zac`
+  `18eb038`: no shipped path can send `PERSON`, because the panel hides Update for PERSON rows and
+  the detail page branches away before the editor mounts. Delivered the working-rule-30 guardrail as
+  a **report, not a change** -- moving `dropMembershipsIfPerson` below the status write closes S-13's
+  direction, reopens S-12's, and leaves every test #225 added green; two sweeps would need a
+  data-loss decision from the user. S-21's own 2026-08-26 note is what picked its fix's placement
+  (controller, not service). **Reconcile corrections, and one is a miss by the previous pass:**
+  S-20's recorded grep asserts six hits and returns **seven** -- the extra is a javadoc `{@link}`
+  added by #199 on 2026-08-24, so the count was wrong when written on 2026-08-26, though the premise
+  and the six code sites are intact. MR 19 #17's `UserInviteService` refs had drifted from #224 and
+  were **not caught by the #226 close-out**, which is drift outside its neighborhood and one of the
+  two escalation conditions now met. MR 24's `AdminUserController` numbers re-measured (481 -> **520**
+  main, 1,183 -> **1,294** test, +27% test in four days across four security MRs) and its positional
+  refs **deleted rather than refreshed**, since refreshing them is what working rule 26 exists to
+  forbid and this item did it to itself. MR 23's request-records item re-counted 11 -> **13 files**:
+  #227 added a second constraint/validator pair to `controller/admin/`, so that package now holds
+  bean-validation types by precedent rather than decision. Added **working rule 31** (a grep-based
+  count must exclude comments; second javadoc miscount on this board) and **working rule 32** (a
+  mutation is evidence only if you read *why* it reddened -- S-13's first mutation gave the right
+  color for the wrong reason). Security board: 7 open -> **5, only 3 actionable**. Next: **S-20**.
+  **Recommending a full-board review** -- see the note below.
+
+### Full-board review recommended again, 2026-08-27
+
+Not run. Two of the escalation conditions hold, and the skill's bar is two:
+
+1. **Drift has outrun the scoped check.** MR 19 #17's `UserInviteService` refs drifted under #224 and
+   the 2026-08-27 sweep found them -- but #224 merged *before* the #226 close-out, which was scoped
+   to exactly those files and did not catch them. A ref that survives the sweep aimed at it is the
+   definition of the cheap check failing.
+2. **Security-relevant work has merged as a set with nothing reviewing it as a set.** S-15, S-12,
+   S-13 and S-21 all shipped since the 2026-08-25 review, all four touching `AdminUserController`,
+   `UserInviteService` or `RoleRepository`, and three of the four turn on the *interaction* between
+   status writes, sweeps and guards -- exactly the class of defect the 2026-08-25 split review found
+   by attacking the closed set as a group and that nine single-item reviews had missed. S-13 and S-12
+   are already a documented instance of two shipped fixes whose placement is coupled (working rule
+   30). Nothing has checked the other pairs.
+
+Also worth noting though not itself a condition: **S-20's count was wrong for four days and survived
+a re-verification that cited the command**. Single-item re-checks are re-reading the item, not
+re-running it.
+
+Against running it: the last one was only two days ago, the board's actionable security surface is
+down to three MEDIUM items, and no estimate has blown out in three consecutive items. **The
+recommendation is to run slices 1 and 5 only** -- the unscoped ref sweep, which is cheap and which
+condition 1 says is now overdue, and the adversarial re-review of the four merged security fixes as
+a group, which is what condition 2 asks for. Skip the per-item re-estimate slice; working rule 27's
+streak has inverted and there is no evidence it is needed.
