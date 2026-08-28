@@ -65,10 +65,18 @@ public class SessionService {
   }
 
   /**
-   * The only status under which a session resolves to a principal. {@code INVITED} is an account
-   * that has not finished onboarding, {@code DISABLED} is one that has been shut off, and {@code
-   * PERSON} is a tag-only identity with no login account -- none of the three may hold a working
-   * session, so {@code ACTIVE} is the whole allowlist.
+   * The only status under which an account may hold a session. {@code INVITED} is an account that
+   * has not finished onboarding, {@code DISABLED} is one that has been shut off, and {@code PERSON}
+   * is a tag-only identity with no login account -- none of the three may hold a working session,
+   * so {@code ACTIVE} is the whole allowlist.
+   *
+   * <p>This is the single definition for the whole session lifecycle, at both ends. It gates
+   * <em>minting</em> in {@code AuthController.login} and {@link WebAuthnService#finishLogin}, and
+   * <em>reading</em> in {@link #resolve} and {@link #revokeAllForStatus}. Those four sites used to
+   * be two calls and two inlined {@code != ACTIVE} comparisons, which meant a fifth {@code
+   * UserStatus} could be refused a session on resolve and still be handed one at login. Add a
+   * status and every one of the four moves together; add a call site and route it here rather than
+   * comparing to a literal.
    *
    * <p>Deliberately narrower than {@link UserInviteService#mayAcceptInvite}, which also admits
    * {@code INVITED} because onboarding redeems an invite from that status. Nothing equivalent
@@ -76,7 +84,7 @@ public class SessionService {
    * demotion, and it is already dead to {@link #resolve}.
    *
    * @param status the account's current status
-   * @return whether a session held by this account may still resolve
+   * @return whether this account may hold a session
    */
   public static boolean mayHoldSession(UserStatus status) {
     return status == UserStatus.ACTIVE;
