@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import edens.zac.portfolio.backend.config.ShareEmailLimiter;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
@@ -51,6 +52,7 @@ public class UserShareControllerProd {
   private final CollectionProcessingUtil collectionProcessingUtil;
   private final AppUserRepository appUserRepository;
   private final EmailService emailService;
+  private final ShareEmailLimiter shareEmailLimiter;
   private final String frontendBaseUrl;
 
   /** Explicit rather than {@code @RequiredArgsConstructor} so the base URL binds as an argument. */
@@ -61,6 +63,7 @@ public class UserShareControllerProd {
       CollectionProcessingUtil collectionProcessingUtil,
       AppUserRepository appUserRepository,
       EmailService emailService,
+      ShareEmailLimiter shareEmailLimiter,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.shareLinkService = shareLinkService;
     this.collectionAccessService = collectionAccessService;
@@ -68,6 +71,7 @@ public class UserShareControllerProd {
     this.collectionProcessingUtil = collectionProcessingUtil;
     this.appUserRepository = appUserRepository;
     this.emailService = emailService;
+    this.shareEmailLimiter = shareEmailLimiter;
     this.frontendBaseUrl = frontendBaseUrl;
   }
 
@@ -106,6 +110,12 @@ public class UserShareControllerProd {
    * person does not invalidate the first person's copy. A link that cannot be recovered (minted
    * before V58) is a 409: the honest answer is "reset to get a new one", not a silent no-op.
    *
+   * <p>Rate-limited per sender by {@link ShareEmailLimiter}, checked before anything else. Being
+   * authenticated is not what makes this endpoint safe to call in a loop: every call is an SES send
+   * to an address the caller chooses, so a signed-in user was an open mail relay for this domain's
+   * reputation. The check runs ahead of the token lookup so a limited caller learns nothing about
+   * whether a link exists.
+   *
    * <p>Delivery is best-effort and never fails the request. {@link EmailService} returns a typed
    * reason instead of throwing, and short-circuits while {@code email.enabled} is false -- so the
    * copy-link flow behaves identically whether or not email is switched on. No transaction hook is
@@ -116,6 +126,10 @@ public class UserShareControllerProd {
   public ResponseEntity<ShareModels.ShareEmailResult> emailLink(
       @AuthenticationPrincipal AuthPrincipal principal,
       @Valid @RequestBody ShareModels.SendShareLinkRequest body) {
+    if (!shareEmailLimiter.allow(principal.userId())) {
+      log.warn("Share link email rate-limited for user {}", principal.userId());
+      return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
+    }
     Optional<String> token = shareLinkService.revealToken(principal.userId());
     if (token.isEmpty()) {
       return ResponseEntity.status(HttpStatus.CONFLICT).build();
@@ -124,7 +138,6 @@ public class UserShareControllerProd {
         appUserRepository.findById(principal.userId()).map(AppUserEntity::getName).orElse(null);
     EmailService.SendResult result =
         emailService.sendShareLinkEmail(body.toEmail(), ownerName, buildShareUrl(token.get()));
-    // The address is logged, the link never is.
     log.info("Share link email requested by user {} (sent={})", principal.userId(), result.sent());
     return ResponseEntity.ok(new ShareModels.ShareEmailResult(result.sent(), result.reason()));
   }

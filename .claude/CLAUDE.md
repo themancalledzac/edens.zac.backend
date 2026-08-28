@@ -45,6 +45,19 @@ config/           - Spring configuration
 - Logging: SLF4J with Logback, never `System.out.println`
 - ASCII only -- no emojis, Unicode symbols, or special characters
 
+### Comments: NEVER write inline comments
+This is absolute. Do not write `//` comments inside method bodies, constructors, test
+methods, or against fields. Not to explain a decision, not to justify a design, not to
+mark a section, not to record why a test is shaped the way it is. There is no threshold
+of importance that earns one.
+
+Javadoc (`/** ... */`) on a class, method, or field is the only place prose belongs. If
+something needs saying, say it there. If it does not fit in a docblock, it does not go in
+the file -- put it in the PR description or the review doc.
+
+When editing any file, delete the inline comments you find in it. Do not preserve one
+because it looks useful.
+
 ### API Design
 - NEVER expose entities directly -- always use DTOs/Models
 - Use `ResponseEntity<T>` with typed returns (never `ResponseEntity<?>`)
