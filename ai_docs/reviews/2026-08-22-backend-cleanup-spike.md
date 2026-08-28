@@ -674,8 +674,8 @@ Every item above is stamped, so none of them reads as available and then eats a 
 | S-14 | **BLOCKED on the user.** Is an admin allowed to put an arbitrary collection into another user's share scope? The fix depends on the answer: if no, the gate needs an ownership test rather than `canView`; if yes, this is documentation, not a bug. |
 | S-15 | **DONE** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) | -- shipped 2026-08-26 exactly as the 2026-08-25 correction specified; the first item in this batch to need **no** adjustment at implementation time |
 | S-16 | **BLOCKED on the user.** Should disabling an account kill its share links, or only suspend them? Revoking is destructive and not reversible by re-enabling; suspending needs a status join on every resolve. |
-| S-17 | **DONE** ([#233](https://github.com/themancalledzac/edens.zac.backend/pull/233)) | -- shipped 2026-08-28, **not** as specified. The stated fix was "extend the limiter past `/api/public/`"; the user directed a dedicated `ShareEmailLimiter` instead, leaving `RateLimitFilter`'s prefix alone. Test-dominated as predicted: source +38, tests +104. Taught working rule 35 |
-| S-18 | **DONE** ([#232](https://github.com/themancalledzac/edens.zac.backend/pull/232)) | -- shipped 2026-08-28 as specified. All four verified reachable by probe before the fix (`include=*`, exclude emptied, all four returned 200) rather than by reading the property. The include-only model was reported on and rejected -- see working rule 34 |
+| S-17 | **DONE** ([#233](https://github.com/themancalledzac/edens.zac.backend/pull/233)) | -- shipped 2026-08-28 **not** as specified (a dedicated limiter, not a wider `RateLimitFilter`); taught working rule 35. Outcome: [history](2026-08-22-backend-cleanup-history.md) |
+| S-18 | **DONE** ([#232](https://github.com/themancalledzac/edens.zac.backend/pull/232)) | -- shipped 2026-08-28 as specified; taught working rule 34. Outcome: [history](2026-08-22-backend-cleanup-history.md) |
 | S-20 | **DONE** ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230)) | -- shipped 2026-08-28 as specified, fourth in a row; its guardrail report says do **not** unify the two predicates, and its test work produced working rule 33 |
 | S-21 | **DONE** ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228)) | -- shipped 2026-08-27 as specified; the item's own 2026-08-26 `upgradeUser` note is what picked the gate's placement |
 
@@ -1675,6 +1675,26 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     load-bearing -- a mutation-verification note, a check-ordering rationale, a cache-TTL choice.
     That feeling is not an exemption, it is the signal. #233 shipped 31 of them, every one written
     deliberately.
+
+38. **A close-out is two files. It is not done until the history file has the outcome.** Working
+    rule 11 already said this and **three consecutive close-outs ignored it**: #229, #231 and the
+    first draft of #234 all wrote their outcome detail into the tracker and sent nothing to
+    [`2026-08-22-backend-cleanup-history.md`](2026-08-22-backend-cleanup-history.md). That file's
+    last entry was S-12 on 2026-08-26 while five MRs shipped -- #227, #228, #230, #232, #233.
+
+    Rule 11 failed as written because it describes where prose *belongs* and nothing checks that it
+    arrived. A tracker that keeps growing still looks like a tracker being maintained, and the file
+    that stopped changing is the one nobody opens. Backfilled 2026-08-28; the three older entries
+    are marked *backfilled* because they are reconstructed from what the tracker recorded rather
+    than measured fresh, and that distinction must survive.
+
+    **The check is the diff, not the intention.** A close-out MR touching only one of the two files
+    is wrong on its face. `git show --stat` must list both. If an MR genuinely has no outcome to
+    record -- a pure correction, say -- write that in the commit message rather than leaving the
+    single-file diff to be read as an oversight.
+
+    This is the second rule on this board about a check that exists and does not get run (see rule
+    36). Both have the same fix: make the omission visible in the diff rather than asking for care.
 
 ## Full-board review: run 2026-08-25, split rather than whole
 

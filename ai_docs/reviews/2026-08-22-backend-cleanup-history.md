@@ -2970,3 +2970,215 @@ ridden in on a security fix.
 
 **The opposite direction.** See working rule 30: this sweep cannot cover `account -> PERSON`, and
 that gap is S-13's, not a defect in this fix.
+
+## Backfill note (2026-08-28) -- five outcomes this file never received
+
+Working rule 11 splits a close-out across two files: the tracker gets one line plus any working rule
+taught, and the outcome detail comes here. **Three consecutive doc close-outs sent nothing here at
+all.** This file's last entry before this note was S-12, 2026-08-26. Since then #227, #228, #230,
+#232 and #233 all shipped and all five write-ups went into the tracker instead -- which is the exact
+bloat rule 11 was written to stop, and it went unnoticed because a tracker that grows still looks
+like a tracker being maintained.
+
+**The three entries below marked *backfilled* are reconstructed from what the tracker recorded, not
+measured fresh.** They are accurate to the record and should not be read as independent verification.
+The S-18 and S-17 entries are first-hand.
+
+Working rule 38 exists so the next close-out cannot repeat this.
+
+## S-13 outcome (2026-08-27) -- constrained at the input, not at the ordering *(backfilled)*
+
+Shipped as [#227](https://github.com/themancalledzac/edens.zac.backend/pull/227).
+
+`UserRequests` typed the field as the bare `UserStatus` enum while the javadoc one line above said
+"INVITED / ACTIVE / DISABLED", with nothing enforcing it. Two requests then made
+`PersonRepository.deletePersonById`'s `AND status = 'PERSON'` match a real account, which the
+people-delete endpoint hard-deletes with memberships cascading. It also manufactured exactly the
+`role_member`-on-a-PERSON state S-2 exists to prevent, on a path neither S-2 guard covered.
+
+**Why the fix went to the request type rather than the sweep.** After #225 the obvious reading was
+that `dropMembershipsIfPerson` in `updateUser` already handled it. It did not: the sweep runs
+*before* the status write, so for an ACTIVE account being PATCHed to PERSON the row is still an
+account when the sweep reads it, the sweep is a no-op, and the flip leaves the illegal rows. Moving
+the sweep below the write would have fixed this direction and **silently broken S-12's**, because
+`PERSON -> account` would then read an account and sweep nothing -- with every test #225 added
+staying green, since they all seed a PERSON and assert on state after the call rather than on when
+the call ran. Constraining the request enum closes both halves at the input end instead of fighting
+the ordering. That asymmetry is working rule 30.
+
+**Taught working rule 32.** S-13's first mutation reddened for the wrong reason -- the right colour
+from the wrong cause. A mutation is evidence only once you read *why* it went red.
+
+## S-21 outcome (2026-08-27) -- a schema constraint doing a status check's job *(backfilled)*
+
+Shipped as [#228](https://github.com/themancalledzac/edens.zac.backend/pull/228). Filed while costing
+S-10's guardrail, which asked what narrowing `mayAcceptInvite` would break.
+
+`AdminUserController.regenerateInvite` looked the user up by id and minted an invite with **no status
+check at all**. `accept` refuses anything outside `{INVITED, ACTIVE}`, so for a DISABLED account the
+admin got `200` and a URL, the invitee got the email, clicked it, and received `410 Gone`. Nothing
+anywhere said the account was ineligible.
+
+**Traced rather than assumed:** for a PERSON row the failure was louder and differently wrong.
+`users.email` is NULL for PERSON and `user_invite.email` is `NOT NULL` in V32, so the insert raised
+`DataIntegrityViolationException` and `GlobalExceptionHandler` turned it into a `409` reading "Data
+integrity violation: duplicate or invalid data". A schema constraint was doing a status check's job
+and reporting the wrong reason for it.
+
+**No test covered this before the fix.** `AdminUserControllerTest` had a happy path and a 404; every
+other `regenerateInvite` assertion was a `verify(never())` on a different endpoint's path.
+
+The gate keys on `UserInviteService.mayAcceptInvite` so eligibility keeps one definition (working
+rule 14). Low severity because it grants nothing -- redemption was already refused; the cost was an
+admin believing they had sent a working link.
+
+## S-20 outcome (2026-08-28) -- the guardrail that said do not unify *(backfilled)*
+
+Shipped as [#230](https://github.com/themancalledzac/edens.zac.backend/pull/230), +97/-30, suite
+1,399 -> 1,403. Fourth consecutive item needing no adjustment, which retired working rule 27's streak
+rather than merely inverting it.
+
+`AuthController` and `WebAuthnService` both inlined `getStatus() != ACTIVE` while
+`SessionService.mayHoldSession` existed as the named predicate. Adding a fifth `UserStatus` and
+updating the predicate would have left both call sites admitting it.
+
+**The guardrail was delivered as a report, and its answer was no.** Do **not** unify `mayHoldSession`
+with `mayAcceptInvite`. The only non-breaking direction admits INVITED to sessions, and
+`WebAuthnService.finishLogin` is a live hole under it, because a passkey outlives a status change.
+
+**Closed one "tests that cannot fail" bullet and corrected its premise.** `AuthControllerTest` had
+been described as already catching the passkey gap; it had itself omitted PERSON. Both tests were
+defective, not one.
+
+**Taught working rule 33.** A test deriving its cases from the thing under test cannot detect that
+thing widening: mutating the predicate made both parameterized suites emit *fewer cases* and stay
+green -- `AuthControllerTest` 13 -> 11, `WebAuthnServiceTest` 12 -> 10.
+
+**The count correction that took three passes.** The recorded `UserStatus.ACTIVE` sweep was called
+six, then corrected to seven, then corrected back to six on 2026-08-28. Seven comes only from an
+*unescaped* `.` matching the `#` in `{@link UserStatus#ACTIVE}`, so three passes argued about a
+number while running different commands. #230 deleted that javadoc line and the sweep now returns
+four, all code. Working rule 31.
+
+## S-18 outcome (2026-08-28) -- probed before fixed, and the test that could not see an omission
+
+Shipped as [#232](https://github.com/themancalledzac/edens.zac.backend/pull/232). Suite 1,403.
+
+### What shipped
+
+`caches`, `conditions`, `flyway` and `scheduledtasks` onto the actuator exclude list. All four meet
+#214's own stated criterion and none was on it.
+
+| Endpoint | Why it meets the criterion |
+|---|---|
+| `caches` | carries DELETE operations, so it mutates the running app |
+| `conditions` | the full auto-configuration report |
+| `flyway` | migration history; `flyway-core` is a real dependency and `spring.flyway.enabled=true` |
+| `scheduledtasks` | `@EnableScheduling` is on `Application` |
+
+### Verified by probe, not by reading
+
+The app was booted with `management.endpoints.web.exposure.include=*` and the exclude emptied before
+anything was changed. **All four returned 200.** The premise was confirmed against a running context
+rather than inferred from the property file, which also proved each of the four was genuinely
+registrable rather than merely absent from a list.
+
+### The test that reported coverage it did not have
+
+`ActuatorExposureEndToEndTest` iterated `SHIPPED_EXCLUDE_LITERAL.split(",")`. A name missing from the
+exclude value was therefore missing from the assertion too, so `caches` was reachable under
+`include=*` for as long as nobody thought to add it. The loop now iterates
+`ActuatorExposureTest.MUST_BE_EXCLUDED` -- the expectation, which the configuration cannot edit.
+Sharing that one list rather than copying it holds the tree at two denylists, the expectation and the
+shipped literal, instead of three.
+
+This is working rule 33's species and it was found before rule 33 was written.
+
+### Mutation evidence
+
+Dropping `caches` from the properties file **and** the literal together -- the exact mutation the old
+loop could not see, because a consistent edit keeps `excludeLiteralMatchesTheShippedFile` green --
+reddens the probe with `/actuator/caches is reachable with include=*, expected: 404 NOT_FOUND but
+was: 200 OK`. Going all-green from there now requires deleting the name from `MUST_BE_EXCLUDED` as
+well, which is a visible decision.
+
+### The include-only report, and why it was refused
+
+The instruction was to report rather than switch. The case for include-only is real: an allowlist
+names one endpoint instead of twelve and never has to chase whatever Boot ships next, and S-18 is an
+instance of that upkeep being paid late.
+
+It was refused because Boot resolves `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` from the environment
+above `application.properties` (working rule 1). A stray `INCLUDE=*` in a deployed `.env` replaces
+the include value outright; exclude applies after it and survives, include-only has nothing left. The
+allowlist cannot defend the one scenario the layer exists for, because in that scenario the allowlist
+is what was replaced. **And include-only would not have prevented S-18 anyway** -- `include=health`
+already left those four off, so they were reachable only under the injected wildcard, meaning the
+finding lived entirely inside the layer include-only proposed to delete.
+
+Filed, not built: a `ProdSecretGuard`-shaped boot check reading the *resolved* exposure include and
+refusing to start unless it is `health`. That defends the injected-env case without enumerating a
+single endpoint name, and is the only thing that would make both the exclude list and
+`MUST_BE_EXCLUDED` deletable. Carried forward as **working rule 34**.
+
+## S-17 outcome (2026-08-28) -- not as specified, and two failures of the same kind
+
+Shipped as [#233](https://github.com/themancalledzac/edens.zac.backend/pull/233). Suite 1,411.
+
+### What shipped, and how it differs from the item
+
+The item's stated fix was "extend the limiter past `/api/public/`". **That is not what shipped.** The
+user directed a dedicated `ShareEmailLimiter`, leaving `RateLimitFilter`'s prefix untouched. The run
+of items needing no adjustment ends at five.
+
+`POST /api/read/user/share/email` had no limit at all, so any signed-in user could POST in a loop,
+each call an SES send to an address they choose, from `no-reply@zacedens.com`, DKIM-signed by the
+real domain, carrying a genuine clean-reputation link, with part of the subject line coming from the
+sender's own display name. The board had recorded this as a token-guessing risk; it is an
+authenticated open mail relay and the damage is SES reputation.
+
+### Two choices worth carrying forward
+
+**Keyed on the sender's user id and nothing else.** A `(sender, recipient)` key would bound repeat
+mail to one victim while leaving a blast across many addresses unbounded, which is the shape that
+costs the domain its reputation.
+
+**A global daily cap alongside the per-sender one**, for the reason `ContactMessageLimiter` has one:
+the damage is shared. An SES suspension takes the invite email and the gallery-password email down
+with it, so a per-sender limit -- which bounds each account but scales with the number of accounts --
+does not protect the resource at risk. Accounts are invite-only, so that scaling is slow rather than
+free, but the cap costs nothing and is the only limit whose key a caller cannot pick.
+
+The limit is checked ahead of the token lookup, so a limited caller cannot distinguish a missing
+share link from a present one.
+
+### Mutation evidence
+
+| Mutation | Result |
+|---|---|
+| remove the controller's limiter check | both new controller tests redden |
+| move the check *after* the token lookup | both redden |
+| swap the global cap behind the per-sender bucket | the ordering test reddens |
+
+### Where this MR failed twice, and what it taught
+
+**A test of its own that could not fail.** The third mutation passed on the first attempt. The
+ordering test spent the global cap and never let it refill, and once the cap is spent both orderings
+refuse everything forever, so no assertion could separate them. Rewritten with a global period short
+enough to refill inside the test, which makes the drained per-sender token observable. This is a
+fourth species alongside rules 15, 32 and 33: **a test observing the system only in a state where
+every variant behaves identically.**
+
+**A wiring break every unit test was blind to.** The package-private `Duration` constructor makes two
+constructors, so Spring found no default one and **the application context failed to start** --
+every integration test in the tree errored while every unit test stayed green, because they all build
+the limiter by hand. `@Autowired` on the property constructor, as `ClientGalleryAccessLimiter`
+already does. A bean's own unit tests cannot see a wiring break; only the full build can.
+
+Both are carried forward as **working rule 35**.
+
+### Deliberately not done
+
+**Widening `RateLimitFilter` past `/api/public/`.** Explicitly out of scope by instruction. The
+per-path map the frontend board asked for before a second public endpoint lands is still unbuilt, and
+this MR did not touch it.
