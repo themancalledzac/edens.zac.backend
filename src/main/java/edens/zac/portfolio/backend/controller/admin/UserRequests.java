@@ -58,6 +58,12 @@ public final class UserRequests {
    * it to lowercase and returns {@code 409 Conflict} if another user already owns it. {@code
    * displayName} may be {@code null} to clear it; {@code status} is required.
    *
+   * <p>{@code status} is constrained to the account subset by {@link AccountStatus}: {@code PERSON}
+   * is rejected with {@code 400} rather than written. Admin has no reason to move an account into
+   * the tag-only identity state, and letting it happen would make {@code
+   * PersonRepository.deletePersonById} -- which hard-deletes on {@code AND status = 'PERSON'} --
+   * match a real account, and would strand the account's {@code role_member} rows on a person.
+   *
    * @param email the new account email, or {@code null}/empty to leave it unchanged
    * @param displayName the new display name, or {@code null} to clear
    * @param status the new lifecycle status (INVITED / ACTIVE / DISABLED)
@@ -66,7 +72,7 @@ public final class UserRequests {
   public record UpdateUserRequest(
       @Email String email,
       String displayName,
-      @NotNull UserStatus status,
+      @NotNull @AccountStatus UserStatus status,
       @Size(max = 500) String description) {}
 
   /**
