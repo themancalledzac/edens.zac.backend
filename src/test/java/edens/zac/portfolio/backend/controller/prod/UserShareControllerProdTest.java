@@ -78,15 +78,12 @@ class UserShareControllerProdTest {
     assertThat(afterRotate).isNotNull();
     assertThat(afterRotate.token()).isEqualTo("fresh-token");
     assertThat(afterRotate.exists()).isTrue();
-    // The whole point of V58: a later read still surfaces it, so sending the same link to a second
-    // person is a copy rather than a reset that would cut off the first.
     assertThat(afterRead).isNotNull();
     assertThat(afterRead.token()).isEqualTo("fresh-token");
   }
 
   @Test
   void anUnrecoverableTokenReadsAsNullRatherThanFailing() {
-    // Rows minted before V58 have no ciphertext. The page shows "reset to get a new link".
     when(shareLinkService.revealToken(7L)).thenReturn(Optional.empty());
     when(shareLinkService.findForUser(7L)).thenReturn(Optional.of(LINK));
     when(shareLinkService.optInCollectionIds(42L)).thenReturn(List.of());
@@ -114,9 +111,7 @@ class UserShareControllerProdTest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().sent()).isTrue();
-    // Emailing a second person must not invalidate the first person's copy.
     verify(shareLinkService, never()).mintOrRotate(anyLong());
-    // Trailing slash stripped, so the emailed link matches the copied one byte for byte.
     verify(emailService)
         .sendShareLinkEmail("mum@example.com", "Ada", "https://zacedens.com/s/live-token");
   }
@@ -141,7 +136,6 @@ class UserShareControllerProdTest {
     assertThat(controller.addCollection(OWNER, 99L).getStatusCode())
         .isEqualTo(HttpStatus.FORBIDDEN);
 
-    // The toggle must not be able to widen a share past what its owner can see.
     verify(shareLinkService, never()).addOptIn(anyLong(), anyLong());
   }
 
@@ -158,7 +152,6 @@ class UserShareControllerProdTest {
 
   @Test
   void removeCollectionIsNotGatedOnACurrentGrant() {
-    // If the owner's access was revoked they must still be able to take it out of their share.
     when(shareLinkService.findForUser(7L)).thenReturn(Optional.of(LINK));
 
     assertThat(controller.removeCollection(OWNER, 99L).getStatusCode())
@@ -173,7 +166,6 @@ class UserShareControllerProdTest {
     when(shareLinkService.findForUser(7L)).thenReturn(Optional.of(LINK));
     when(shareLinkService.optInCollectionIds(42L)).thenReturn(List.of());
     when(collectionAccessService.memberCollectionIdsForUser(7L)).thenReturn(List.of(1L, 2L));
-    // Tagged-in collections are already in every share, so they are not offered as toggles.
     when(collectionRepository.findCollectionIdsByPersonId(7L)).thenReturn(List.of(1L));
     when(collectionRepository.findByIds(List.of(2L))).thenReturn(List.of());
     when(collectionProcessingUtil.batchConvertToBasicModels(List.of())).thenReturn(List.of());
@@ -204,8 +196,6 @@ class UserShareControllerProdTest {
 
     controller.emailLink(OWNER, new ShareModels.SendShareLinkRequest("mum@example.com"));
 
-    // Not merely "returns 429" -- a limited caller must not be able to tell a missing link from a
-    // present one, which means the lookup must not run at all.
     verify(shareLinkService, never()).revealToken(anyLong());
   }
 }

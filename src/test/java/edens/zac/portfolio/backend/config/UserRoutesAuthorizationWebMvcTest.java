@@ -117,8 +117,6 @@ class UserRoutesAuthorizationWebMvcTest {
 
   @Test
   void theNestedWriteRoutesAreCoveredToo() throws Exception {
-    // The matcher carries no HttpMethod and the write routes sit a segment or two deeper
-    // (/saves/{id}, /share/collections/{id}), so this pins that "/**" really does span them.
     mockMvc.perform(delete("/api/read/user/saves/42")).andExpect(status().isUnauthorized());
     mockMvc.perform(delete("/api/read/user/selects/42")).andExpect(status().isUnauthorized());
     mockMvc.perform(delete("/api/read/user/follows/42")).andExpect(status().isUnauthorized());
@@ -135,7 +133,6 @@ class UserRoutesAuthorizationWebMvcTest {
 
   @Test
   void aSignedInUserReachesTheUserRoutes() throws Exception {
-    // The other direction: a matcher that refused everyone would pass both tests above.
     when(sessionService.resolve("session-token"))
         .thenReturn(Optional.of(new AuthPrincipal(7L, "user@example.com", false, true)));
     when(userFollowsService.listFollowedCollectionIds(7L)).thenReturn(List.of(1L));
@@ -204,8 +201,6 @@ class UserRoutesAuthorizationWebMvcTest {
           collectionProcessingUtil,
           appUserRepository,
           emailService,
-          // A real limiter with a budget nothing here can exhaust. This test asks who the security
-          // chain lets through, and a mock returning false would answer a different question.
           new ShareEmailLimiter(10_000, 1_000_000),
           "https://zacedens.com");
     }

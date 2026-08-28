@@ -138,7 +138,6 @@ public class UserShareControllerProd {
         appUserRepository.findById(principal.userId()).map(AppUserEntity::getName).orElse(null);
     EmailService.SendResult result =
         emailService.sendShareLinkEmail(body.toEmail(), ownerName, buildShareUrl(token.get()));
-    // The address is logged, the link never is.
     log.info("Share link email requested by user {} (sent={})", principal.userId(), result.sent());
     return ResponseEntity.ok(new ShareModels.ShareEmailResult(result.sent(), result.reason()));
   }

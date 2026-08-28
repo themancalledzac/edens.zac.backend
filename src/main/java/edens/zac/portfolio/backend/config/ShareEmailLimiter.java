@@ -63,8 +63,6 @@ public class ShareEmailLimiter {
       int perSenderPerWindow, Duration window, int globalPerPeriod, Duration globalPeriod) {
     this.perSenderPerWindow = perSenderPerWindow;
     this.window = window;
-    // Idle expiry longer than the window so a sender cannot reset their count by pausing for
-    // exactly the refill interval. 10k entries caps memory, mirroring the other two limiters.
     this.buckets =
         Caffeine.newBuilder()
             .expireAfterAccess(window.plus(Duration.ofMinutes(15)))
