@@ -167,8 +167,20 @@ public class AdminUserController {
    * the user's prior unused invites so only the newest link is live; the account status is
    * unchanged.
    *
+   * <p>Refuses with {@code 409} any account that could not redeem the link, keyed on the same
+   * {@link UserInviteService#mayAcceptInvite} allowlist {@link UserInviteService#accept} enforces
+   * at redemption, so the eligibility rule keeps one definition. Without it a {@code DISABLED}
+   * account got a {@code 200} and a URL that answers {@code 410 Gone} when the invitee clicks it,
+   * and a {@code PERSON} row -- whose {@code users.email} is NULL against a {@code NOT NULL
+   * user_invite .email} -- got a {@code 409} from the schema reading "duplicate or invalid data",
+   * which is a constraint doing a status check's job and naming the wrong reason.
+   *
+   * <p>{@link #upgradeUser} is unaffected: it calls {@link UserInviteService#regenerateInvite}
+   * directly rather than this endpoint, and does so after flipping the row to {@code INVITED}.
+   *
    * @param id the {@code app_user.id} to re-invite
-   * @return {@code 200} with {@link CreateUserResponse}, or {@code 404} if no such user
+   * @return {@code 200} with {@link CreateUserResponse}, {@code 404} if no such user, or {@code
+   *     409} if the account's status could not redeem the link
    */
   @PostMapping("/{id}/invite")
   @Transactional
@@ -178,6 +190,13 @@ public class AdminUserController {
       return ResponseEntity.notFound().build();
     }
     AppUserEntity user = maybeUser.get();
+    if (!UserInviteService.mayAcceptInvite(user.getStatus())) {
+      log.warn(
+          "Admin regenerate-invite rejected: user {} cannot redeem an invite (status={})",
+          id,
+          user.getStatus());
+      return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
     String rawToken = userInviteService.regenerateInvite(user.getId(), user.getEmail());
     String inviteUrl = buildInviteUrl(rawToken);
     sendInviteEmailAfterCommit(user.getEmail(), user.getName(), inviteUrl);
