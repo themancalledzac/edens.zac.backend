@@ -26,6 +26,12 @@ import org.springframework.http.HttpStatus;
  *
  * <p>The exclude value here is a literal because {@code @SpringBootTest} properties are annotation
  * constants. {@link #excludeLiteralMatchesTheShippedFile()} keeps it honest.
+ *
+ * <p>The probe loop iterates {@link ActuatorExposureTest#MUST_BE_EXCLUDED}, not the exclude value
+ * it is testing. Iterating the exclude value made an omission structurally invisible: drop a name
+ * from the shipped file and the literal together and the loop simply stopped probing it, so {@code
+ * caches} was reachable under {@code include=*} for as long as nobody thought to add it. The
+ * expectation has to be written down somewhere the config cannot edit.
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -37,7 +43,8 @@ import org.springframework.http.HttpStatus;
 class ActuatorExposureEndToEndTest extends AbstractPostgresIntegrationTest {
 
   static final String SHIPPED_EXCLUDE_LITERAL =
-      "env,configprops,beans,mappings,heapdump,threaddump,loggers,shutdown";
+      "env,configprops,beans,mappings,heapdump,threaddump,loggers,shutdown,"
+          + "caches,conditions,flyway,scheduledtasks";
 
   @LocalServerPort private int port;
 
@@ -54,7 +61,7 @@ class ActuatorExposureEndToEndTest extends AbstractPostgresIntegrationTest {
   @Test
   @DisplayName("exclude beats include=*, so the sensitive endpoints are not even registered")
   void sensitiveEndpoints_areNotRegistered_evenWhenIncludeIsWildcard() {
-    for (String endpoint : SHIPPED_EXCLUDE_LITERAL.split(",")) {
+    for (String endpoint : ActuatorExposureTest.MUST_BE_EXCLUDED) {
       assertThat(statusOf("/actuator/" + endpoint))
           .as("/actuator/%s is reachable with include=*", endpoint)
           .isEqualTo(HttpStatus.NOT_FOUND);
