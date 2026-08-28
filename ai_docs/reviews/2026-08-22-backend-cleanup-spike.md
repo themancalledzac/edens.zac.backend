@@ -31,7 +31,7 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **5 open, 0 HIGH, 2 blocked on the user** — so **only 3 are actionable**, all MEDIUM: S-17, S-18, S-20. **Both shipped 2026-08-27**: S-13 ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227)) and S-21 ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228)), each mutation-verified, each shipped as specified with no adjustment — the second and third in a row, which inverts working rule 27's streak. **next: S-20**, whose fix is the same shape as S-21's (route inlined status checks through the one named predicate) and whose context is warm; then S-18 or S-17. **S-20's own count claim was corrected 2026-08-27** — its recorded grep returns seven, not six, and has since 2026-08-24; the premise is intact and the extra hit is javadoc (working rule 31). Historical detail below. *Prior history, kept:* (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **Both shipped 2026-08-26**: S-15 ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) and S-12 ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)), each mutation-verified. Sequencing S-15 first on working rule 27 was right -- the correction made to it on 2026-08-25 was what made it cheap, since its originally-stated fix named a method that does not compile. (That pass's next-pointer read "next: S-13, then S-21 or S-20"; S-13 and S-21 both shipped 2026-08-27, and the live pointer is at the head of this cell.) The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
+| [Open security findings](#open-security-findings) | **4 open, 0 HIGH, 2 blocked on the user** — so **only 2 are actionable**, both MEDIUM: S-17 and S-18, and both premises were re-verified against `main` on 2026-08-28. **S-20 shipped 2026-08-28** ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230), +97/-30), mutation-verified, as specified — the **fourth in a row needing no adjustment**, which retires working rule 27's streak as a live concern. **next: S-18, then S-17** — S-18 first because it is the cheaper of the two and its test fix is already inside its own scope. Both should be sized as **test-dominated**: S-20's source diff was +18/-14 and its tests +82/-16, the same estimate failure the doc has now named twice. **S-20's 2026-08-27 count correction was itself wrong and is corrected 2026-08-28** — the recorded escaped-dot grep returns six and always did; seven comes only from an *unescaped* `.` matching the `#` in `{@link UserStatus#ACTIVE}`, so three passes argued about a number while running different commands (working rule 31, rewritten). The question is now moot: #230 deleted that javadoc line and the sweep returns four, all code. Historical detail below. *Prior history, kept:* (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **Both shipped 2026-08-26**: S-15 ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) and S-12 ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)), each mutation-verified. Sequencing S-15 first on working rule 27 was right -- the correction made to it on 2026-08-25 was what made it cheap, since its originally-stated fix named a method that does not compile. (That pass's next-pointer read "next: S-13, then S-21 or S-20"; S-13 and S-21 both shipped 2026-08-27, and the live pointer is at the head of this cell.) The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the security board (**S-20** as of 2026-08-27; this row has now named S-15, then S-13, both since shipped), not from this one. **The recurring fix for this row is to stop naming an item at all**: it is a closed section, so any pointer it carries is a copy of the security row's, one edit behind. It now says "see the security board row" and nothing more. *(Corrected 2026-08-25: this row pointed at "MR 19 #16 or MR 16 #4/#5" and MR 19 #16 shipped as [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216) the day before. A next-pointer inside a closed section is exactly the kind that rots unwatched, because nobody re-reads a board row marked done.)* |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
@@ -425,12 +425,50 @@ should be re-confirmed at implementation time, per working rule 21.
   acceptance. **The damage is SES reputation, and it is shared** -- a suspension takes the invite
   email and the gallery-password email down with it.
 
+  **Re-verified 2026-08-28. Premise exact.** `RateLimitFilter:102` still reads
+  `if (!request.getRequestURI().startsWith("/api/public/"))` and returns early for everything else;
+  the endpoint is `POST /api/read/user/share/email`, outside that prefix, so it is unlimited today.
+  **COLD**, and second in the run after S-18.
+
+  **Size it as test-dominated**, same correction as S-18: the limiter wiring is small and the real
+  deliverable is a test that reddens when the limit is removed.
+
+  **Guardrail: do not widen `RateLimitFilter`'s prefix test.** The tempting one-line fix is to
+  change `/api/public/` to `/api/` so the filter covers this endpoint too. That puts a per-IP
+  limiter **and the 16KB body cap** in front of every authenticated endpoint in the app, including
+  admin upload paths whose bodies are deliberately large -- a behavior change across dozens of
+  routes smuggled in as a security fix for one. Add a dedicated limiter for this endpoint following
+  the `AuthLoginLimiter` pattern instead, and leave the filter's prefix alone; the item's own note
+  that "the four limiters already have disjoint key spaces" is what makes a fifth one safe. Report
+  what widening the prefix would cost rather than doing it.
+
 - [ ] **S-18 (MEDIUM, agent trace). #214's exclude list misses four endpoints that meet its own
   stated criterion.** The criterion is "dumps configuration, dumps process state, or mutates the
   running app". Available under `include=*` and not excluded: `caches` (has delete operations, so it
   mutates), `conditions` (full auto-config report), `flyway` (migration history) and `scheduledtasks`
   (`@EnableScheduling` is on). `InternalSecretFilter` still covers them in prod -- but #214 exists
   precisely as the layer for when it does not.
+
+  **Re-verified 2026-08-28. Premise exact.** `application.properties:70` excludes exactly
+  `env,configprops,beans,mappings,heapdump,threaddump,loggers,shutdown`; all four named endpoints
+  are still absent, and `:69` still includes `health` alone. **COLD**, and picked as next.
+
+  **Size it as test-dominated.** The config change is four names on one line. The deliverable is the
+  test, because this item's own scope already carries the first bullet of "Tests that cannot fail":
+  `ActuatorExposureEndToEndTest` iterates the denylist it is testing, so an omission like `caches`
+  is structurally invisible and no change to `src/main` can redden it. Fixing the config without
+  fixing that test ships a wider exclude list guarded by the same blind spot that let the four
+  through. This is the same shape as **working rule 33** -- a test that reads its expectations from
+  the thing under test -- so the fix is the same: assert the four newly-excluded names literally,
+  and watch the case count when you change the parameterization.
+
+  **Guardrail: do not switch the exposure model.** The tempting adjacent change is to drop the
+  exclude list and rely on `include=health` alone, on the reasoning that an allowlist is stricter
+  than a denylist and makes the item disappear. Leave `:69` as it is and only add to `:70`. #214
+  shipped this belt-and-braces arrangement deliberately and its end-to-end test exists to prove
+  exclude beats include under `include=*`; collapsing to one mechanism deletes the property that
+  test was written to establish. If the analysis says include-only is right anyway, report what it
+  would change and let the user decide.
 
 - [x] **S-19 (settled 2026-08-25, not live). The bug #3 fix swapped one spoofable header for
   another.** `ClientIp` trusts `X-Real-IP` unconditionally and its javadoc calls the header's
@@ -454,8 +492,10 @@ should be re-confirmed at implementation time, per working rule 21.
   `InternalSecretFilter`, not from the header meaning anything. Correct that docblock when next in
   the file. **Cross-repo note: the frontend already solved this and the backend never heard.**
 
-- [ ] **S-20 (MEDIUM, agent trace). "May hold a session" exists in three places and only one of them
-  is `mayHoldSession`.** S-8's write-up claims the predicate serves both `resolve` and the sweep so
+- [x] **S-20 (MEDIUM, agent trace). "May hold a session" exists in three places and only one of them
+  is `mayHoldSession`.** **DONE**
+  ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230), 2026-08-28, +97/-30.)
+  S-8's write-up claims the predicate serves both `resolve` and the sweep so
   it cannot drift. `AuthController` and `WebAuthnService` both inline `getStatus() != ACTIVE`. Adding
   a fifth `UserStatus` and updating `mayHoldSession` leaves both admitting it -- the exact drift
   S-9's refactor was done to prevent on the invite side.
@@ -501,6 +541,69 @@ should be re-confirmed at implementation time, per working rule 21.
   sits inside a three-clause `if` alongside the user-exists and password checks, and merging its
   branches is a behavior change hiding in a readability change. Substitute the predicate into the
   clause and leave the shape of the `if` alone.
+
+  **Outcome 2026-08-28.** Shipped as specified. Both sites call
+  `SessionService.mayHoldSession(...)`; the three-clause `if` keeps its shape; the now-unused
+  `UserStatus` import came out of both files. `mayHoldSession`'s docblock now names all four call
+  sites and states that one definition governs both ends of the lifecycle -- minting at
+  `AuthController.login` and `WebAuthnService.finishLogin`, reading at `resolve` and
+  `revokeAllForStatus`. **Fourth consecutive item to need no adjustment at implementation time**
+  (S-15, S-13, S-21, S-20), and the fourth to have been re-verified against the code within two days
+  of being implemented.
+
+  **Estimate versus actual: "two lines, plus whatever the two call sites need to see the static
+  import" was right about `src/main` and silent about the tests, which were four fifths of the
+  diff.** Source was +18/-14 across three files. Tests were +82/-16. This is the *same* failure mode
+  the doc already named once -- estimates that count source lines and forget the test file -- and it
+  has now recurred on an item small enough that the miss looked harmless. Applied forward: **S-17
+  and S-18 should both be re-sized as test-dominated**, because each is a few lines of config or
+  wiring whose real deliverable is a regression test that can fail, and S-18's stated scope already
+  admits this ("four names onto the exclude list, plus a test that is not self-referential").
+
+  **The guardrail's report, delivered instead of the change.** Unifying the two predicates is a
+  one-way street and the only non-breaking direction re-opens a closed hole. Narrowing
+  `mayAcceptInvite` to `ACTIVE` breaks onboarding outright -- `accept` would refuse every
+  first-time invite. So unification means widening `mayHoldSession` to admit `INVITED`, which lands
+  differently at each of its four sites: `resolve` starts returning a principal for a demoted
+  account (`resolveRejectsSessionWhoseAccountWasReturnedToInvited` goes red, and it documents that
+  as intentional); `revokeAllForStatus` stops sweeping on `ACTIVE -> INVITED`, so those rows stay
+  live *and* now resolve; `AuthController.login` is latent rather than live, because an `INVITED`
+  account has no password hash and the `getPasswordHash() == null` clause catches it -- defended by
+  ordering, not by the status test; and **`WebAuthnService.finishLogin` is a live hole**, because a
+  passkey outlives a status change and nothing else guards that door. `INVITED` is precisely the
+  status where the two questions must differ. **Do not unify.** What the two should share is a
+  convention, not an implementation: never compare a `UserStatus` to a literal outside these two
+  methods. S-20 makes that true for sessions; it was already true for invites.
+
+  **Trap found by mutation, not by reading -- this is the item's most reusable output.** Both
+  parameterized login tests were written to derive their cases from `mayHoldSession`, so a fifth
+  `UserStatus` would be covered automatically. That derivation **cannot police the predicate it
+  derives from**: mutating `mayHoldSession` to `!= DISABLED` made both tests emit *fewer cases* and
+  stay green -- `AuthControllerTest` 13 -> 11, `WebAuthnServiceTest` 12 -> 10. Green, and testing
+  less than before. The fix is one literal pin,
+  `SessionServiceIntegrationTest.mayHoldSessionAdmitsActiveAndNothingElse`, which reddens on a
+  widened predicate and on a fifth `UserStatus` -- the second is the intended cost, since session
+  eligibility should be a decision rather than an inherited default. Generalized as **working rule
+  33**.
+
+  The derivation still earned its place: it exposed a real gap the board had only half-recorded.
+  See the correction under "Tests that cannot fail" below.
+
+  **Mutations verified red and read for why (working rules 15, 32):** widening `mayHoldSession` to
+  `!= DISABLED` reddens the new pin plus the two pre-existing INVITED resolve/sweep tests; deleting
+  the `AuthController` clause gives 3 failures, `Status expected:<401> but was:<204>`, one per
+  ineligible status; deleting the `WebAuthnService` guard gives 3 failures, `Expecting code to raise
+  a throwable`. One wrong turn worth recording: the first mutation run came back red from
+  **spotless**, not from a test, because `mvn test` runs the format check first. Use
+  `-Dspotless.check.skip=true` when mutating source, or you will read a formatting failure as
+  evidence the guard is load-bearing -- working rule 32's exact failure mode, one layer out from the
+  test.
+
+  **Side effect worth knowing: this item deleted its own grep evidence.** `WebAuthnService:179`'s
+  `{@link UserStatus#ACTIVE}` javadoc is gone, replaced by a link to `mayHoldSession`. The
+  `UserStatus.ACTIVE` sweep over `src/main` now returns four, all code, and the escaped/unescaped
+  discrepancy that made this item's count a three-pass argument no longer has anything to disagree
+  about.
 
 - [x] **S-21 (LOW, verified 2026-08-25). `regenerateInvite` mints a link for accounts that can never
   redeem it.** **DONE**
@@ -568,9 +671,9 @@ Every item above is stamped, so none of them reads as available and then eats a 
 | S-14 | **BLOCKED on the user.** Is an admin allowed to put an arbitrary collection into another user's share scope? The fix depends on the answer: if no, the gate needs an ownership test rather than `canView`; if yes, this is documentation, not a bug. |
 | S-15 | **DONE** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) | -- shipped 2026-08-26 exactly as the 2026-08-25 correction specified; the first item in this batch to need **no** adjustment at implementation time |
 | S-16 | **BLOCKED on the user.** Should disabling an account kill its share links, or only suspend them? Revoking is destructive and not reversible by re-enabling; suspending needs a status join on every resolve. |
-| S-17 | **COLD** | -- extend the limiter past `/api/public/`; the four limiters already have disjoint key spaces |
-| S-18 | **COLD** | -- four names onto the exclude list, plus a test that is not self-referential (see below) |
-| S-20 | **COLD** | -- route the two inlined checks through `mayHoldSession` |
+| S-17 | **COLD**, premise re-verified 2026-08-28 | -- extend the limiter past `/api/public/`; the four limiters already have disjoint key spaces. `RateLimitFilter:102` still reads `if (!request.getRequestURI().startsWith("/api/public/"))`, and the endpoint is `/api/read/user/share/email`, outside that prefix. Size it as test-dominated |
+| S-18 | **COLD**, premise re-verified 2026-08-28 | -- four names onto the exclude list, plus a test that is not self-referential (see below). `application.properties:70` excludes exactly `env,configprops,beans,mappings,heapdump,threaddump,loggers,shutdown`; `caches`, `conditions`, `flyway` and `scheduledtasks` are all still absent. Size it as test-dominated |
+| S-20 | **DONE** ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230)) | -- shipped 2026-08-28 as specified, fourth in a row; its guardrail report says do **not** unify the two predicates, and its test work produced working rule 33 |
 | S-21 | **DONE** ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228)) | -- shipped 2026-08-27 as specified; the item's own 2026-08-26 `upgradeUser` note is what picked the gate's placement |
 
 S-19 closed as not-live, above. **Two of the original eleven are blocked, and both blockers are
@@ -598,9 +701,33 @@ coverage. The review checked the security tests against that standard and six fa
   its comment claims: `SessionService` is a mock and `mayHoldSession` is static. The mutation is
   caught by `SessionServiceIntegrationTest` instead. **False attribution, not a missing test** --
   worth fixing the comment so the next reader does not trust the wrong test.
-- [ ] `WebAuthnServiceTest` covers DISABLED only. Rewriting the guard as `== DISABLED` stays green
+
+  **Re-verified 2026-08-28** (S-20 changed `mayHoldSession`'s call sites, so this is in the
+  neighborhood). Claim intact: the comment at `AdminUserControllerTest:1059` still reads "Mutation
+  this catches: key the session sweep off `mayAcceptInvite` and this goes red", and the test still
+  mocks `SessionService`. Still a one-line comment fix, still open. **The correct pointer is now
+  more specific than it was**: #230 added
+  `SessionServiceIntegrationTest.mayHoldSessionAdmitsActiveAndNothingElse`, which is the test that
+  actually reddens on that mutation, so the comment should name it rather than gesturing at the
+  file.
+- [x] `WebAuthnServiceTest` covers DISABLED only. Rewriting the guard as `== DISABLED` stays green
   while admitting INVITED and PERSON passkey logins, both reachable. `AuthControllerTest`
-  parameterizes over both and does catch it; this one should too.
+  parameterizes over both and does catch it; this one should too. **DONE**
+  ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230), 2026-08-28) -- closed as a
+  side effect of S-20, since both tests had to be touched to route the guards through the predicate.
+  Both now derive their cases from `mayHoldSession` and run all three ineligible statuses.
+
+  **The item's own premise was half wrong, in the direction that made it look smaller.**
+  "`AuthControllerTest` parameterizes over both and does catch it" -- it parameterized over
+  `{DISABLED, INVITED}` via a hardcoded `@EnumSource(names = ...)` and **omitted PERSON**. So both
+  tests had the gap, not one, and the item's own comparison was pointing at a second instance of the
+  defect as if it were the fix. A `PERSON` row has no password hash, so the login path was covered
+  by an adjacent clause rather than by the status test -- which is exactly why nobody noticed. The
+  passkey path had no such backstop.
+
+  Carried forward as **working rule 33**: the replacement derives its cases from the predicate,
+  which fixes the omission permanently but introduces a blind spot of its own, so the allowlist is
+  now pinned separately.
 - [ ] `PersonRepositoryIntegrationTest` (S-3's whole deliverable) seeds both accounts ACTIVE, so
   mutating `status = 'PERSON'` to `status <> 'ACTIVE'` passes while making every INVITED and DISABLED
   account deletable through the people-delete endpoint. The mutation S-3 stated does redden it; this
@@ -1391,6 +1518,23 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     recognizes itself instead of filing a finding. For Java here, appending `| grep -v '\*'` is
     enough. State it as "seven raw, six code" rather than "six".
 
+    **Corrected 2026-08-28, and the correction above was itself wrong.** The 2026-08-26 count of six
+    was *right for the command the item recorded*. `grep -rn 'UserStatus\.ACTIVE'` -- escaped dot --
+    returns six and always did. Seven comes only from the **unescaped** `UserStatus.ACTIVE`, where
+    `.` is a regex wildcard matching the `#` in `{@link UserStatus#ACTIVE}`. So the 2026-08-27 pass
+    ran a different command than the one it accused the earlier pass of not running, then filed the
+    discrepancy as that pass's error. Nobody had failed to run anything.
+
+    Worse, the prescribed remedy `| grep -v '\*'` returns six from a six-line input -- the right
+    number for the wrong reason, working rule 32 happening inside working rule 31's own text.
+
+    **The real rule is narrower and more useful than "exclude comments": a recorded grep must be
+    recorded exactly as run, escaping included, because an unescaped `.` silently matches `#`, `$`
+    and every other separator a Java reference can use.** Comments are one way to get a phantom hit;
+    regex metacharacters are the way that bit this board, and the `isRealUser` precedent should be
+    re-checked against the same possibility rather than assumed to be the same trap. Three passes
+    argued about this count and all three were reasoning about different commands.
+
 32. **A mutation that reddens the test is not evidence until you check *why* it reddened.** S-13's
     rejection test initially failed under mutation with `expected:<400> but was:<404>` -- the right
     color for the wrong reason. `findById` was unstubbed, so removing the constraint just let the
@@ -1410,6 +1554,37 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     recompiling and the next run silently tests the mutated bytecode. The symptom is a test failing
     after you restored the fix. Use `touch` on the restored file, or `git checkout --` **only if the
     change is committed** -- on an uncommitted edit that command deletes the work.
+
+    Second mechanical trap, found 2026-08-28 by S-20: `mvn test` runs **spotless before the tests**,
+    so a hand-edited mutation that breaks formatting reddens the build without a single test having
+    run. The output is a diff, not an assertion failure, and it is easy to skim as success. Mutate
+    with `-Dspotless.check.skip=true`.
+
+33. **A test that derives its cases from the thing under test cannot detect that thing widening.**
+    S-20 routed two inlined status checks through `SessionService.mayHoldSession`, then made both
+    parameterized login tests build their case lists by asking `mayHoldSession` which statuses it
+    refuses. That is genuinely drift-proof for the **call sites** -- add a fifth `UserStatus` and
+    both login doors get covered automatically -- and completely blind to the **definition**.
+    Mutating the predicate to `!= DISABLED` did not fail the tests; it made them emit fewer cases.
+    `AuthControllerTest` went 13 -> 11 and `WebAuthnServiceTest` 12 -> 10, both green, both now
+    testing less than before the mutation.
+
+    This is a third species alongside working rules 15 and 32. Rule 15 is a test that cannot fail.
+    Rule 32 is a test that fails for the wrong reason. This is a test that **quietly stops asking**
+    -- the suite total drops and nothing turns red, so the only visible signal is a number nobody
+    reads.
+
+    **The fix is not to abandon derivation, which caught a real gap here** (the hardcoded list it
+    replaced had silently omitted `PERSON` for months). It is to pair it with exactly one literal
+    pin of the definition, placed where the definition lives -- for S-20,
+    `SessionServiceIntegrationTest.mayHoldSessionAdmitsActiveAndNothingElse`. Derived sources for
+    the call sites, one written-out allowlist for the rule. **Watch the case count when mutating a
+    parameterized test**: a green run with fewer cases than the baseline is a failure wearing a pass.
+
+    Asymmetry left open by S-20 and worth closing when someone is next in that file:
+    `UserInviteService.mayAcceptInvite` has no equivalent pin. It is covered by named per-status
+    cases in `UserInviteServiceAcceptTest`, so a fifth `UserStatus` reddens the session predicate's
+    pin and nothing on the invite side.
 
 ## Full-board review: run 2026-08-25, split rather than whole
 
@@ -1663,7 +1838,30 @@ and each needs its claim verified before acting (working rule 8).
 - [ ] Try-catch in controllers, **two sites** (not three -- the third went with bug #15 in MR 7, [#168](https://github.com/themancalledzac/edens.zac.backend/pull/168), confirmed gone by grep): `AdminUserController.mergePreview` and `.merge` (map via `ResourceNotFoundException` plus a new `ConflictException` handler). **Both methods have zero tests**, so this is an untested behavior change on two admin endpoints -- a risk, not a saving.
 - [ ] `@Value` field injection: **9 sites, not 3.** The three named (`CollectionControllerProd`, `ShareControllerProd`, `DownloadUrlService`) plus six in `S3Config` and `SesConfig` that feed `@Bean` methods -- same rule, same fix, and they fold into MR 16 #4. Move to constructor parameters, following the `WebAuthnController` pattern. Test coupling is exactly four `ReflectionTestUtils.setField` calls. Also `@Autowired` on constructors at `AuthLoginLimiter`, `ClientGalleryAccessLimiter`, `WebAuthnChallengeStore`, `WebAuthnService`. **The real size is 1 deletion and 3 comments**: only `AuthLoginLimiter` has a single constructor; the other three genuinely have two, where the second is the package-private test constructor, so `@Autowired` is load-bearing. Fifteen minutes.
 - [ ] Fully qualified names inline: **14 sites, not 6.** The six named (`CollectionService.isGalleryAccessAuthorized`'s parameter -- the doc's `542`, then `533`, then `534`, then `541`, **is `539` as of #218 -- the fifth correction to one ref, so stop writing the number** after S-6's javadoc, which is the **fourth** correction to one ref and the reason this item names symbols and not lines. Read the number as advisory and the symbol as the target; `CollectionProcessingUtil`, `TagViewResolver`, `GalleryAccessCookies`, `ContactMessageLimiter`, `Records.java`) plus eight in the data layer the original scan missed: `BaseDao` (3), `CollectionRepository`, `EquipmentRepository` (3), `PersonRepository`. Import-only, **zero test coupling**. `Records.java` still needs consolidation #20 first (the `FilmFormat` name clash).
-- [ ] `Optional.get()` -- **47 sites as of #218, 46 on `main`; not the 17 originally named.** *(Re-derived a fourth time 2026-08-25 by the unscoped sweep, and this time a component moved without the total holding: `UserShareControllerProd` is **3, not 2** -- #213 added `buildShareUrl(token.get())`. #218 adds one in `ContentModelConverter`, exactly attributable. Raw sweep 58 on the branch, 57 on `main`; the 11 Atomic exclusions still check out.)* **The claim "the 17 named are all still present" cannot be checked and arithmetic says it is wrong**: the originally-named files now hold 14 between them, and the 17 were never enumerated, so the sentence is unverifiable by construction. Drop it rather than carry it. *(Earlier re-derivations, kept for the pattern they show -- 45 -> 46 on 2026-08-24: S-1 added `maybeUser.get().getStatus()` to `AuthController.login`, taking that file 3 -> 4. Re-derived after the merge, not estimated -- the raw sweep went 56 -> 57 and the one new line is S-1's. This is the inventory rot working rule 5 warns about, caught by the scoped sweep rather than a full pass.)* The 17 named are all still present; 29 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 4, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. **Re-derived again 2026-08-24 after S-7/S-9, and the headline number survived for the wrong reason.** The raw sweep is still 57 and the Optional subset still 46 -- but two files moved and cancelled out: `InviteController` went **3 -> 2** (S-7 moved the accept body into the service) and `UserInviteService` went **2 -> 3** (`accept` added its own `maybeInvite.get()`). A total that holds while its components move is the most misleading state an inventory can be in, so trust the per-file breakdown here over the headline. *Re-derived a third time 2026-08-24 after S-8: raw sweep **still 57**, Optional subset **still 46**, and this time for the right reason -- S-8 added no `.get()` at all (`AdminUserController` holds at 4, `SessionService` at 2). Two consecutive checks now agree on both the total and the breakdown.* Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
+- [ ] `Optional.get()` -- **numbers corrected 2026-08-28; see the correction immediately below
+  before trusting anything in this bullet.**
+
+  **Re-derived 2026-08-28 during the S-20 close-out, and two of the three recorded numbers are
+  wrong.** This was found *outside* the neighborhood of what merged, which is itself the signal.
+  (1) The raw sweep is **58 on `main`**, not 57. It has been 58 at every commit back through #221 --
+  checked at `cc31113`, `98e8a40`, `6154a86`, `ad9cac3`, `12807b8`, `c899d6e`, `dd0d7d0`, `a105b6b`
+  -- so "58 on the branch, 57 on `main`" stopped describing `main` at least seven merges ago and
+  survived a full-board review plus three close-outs. (2) **The Atomic exclusion count is wrong by
+  more than half: five, not eleven.** Only two files in `src/main` import
+  `java.util.concurrent.atomic` at all -- `JobTrackingService` (four `.get()` on
+  `job.processed/created/updated/skipped`) and `AdminHomeService` (one, `cache.get()`). (3) So the
+  Optional subset is **~53, not 46** -- the problem is materially *larger* than recorded, and the
+  item has been re-derived four times without anyone re-checking the subtrahend.
+
+  Do not treat 53 as verified either. It is `58 - 5` and the remainder still needs per-line
+  classification: `.get()` with empty parens also covers `Supplier`, `ThreadLocal` and `Future`, and
+  nobody has walked the 53. **The next session to touch this bullet should classify the lines rather
+  than adjust the arithmetic**, and record the command with its escaping per working rule 31 --
+  filtering by the literal word "atomic" on the matched line returns zero, because the variables are
+  named `job` and `cache`, which is how the 11 survived this long.
+
+  *Historical claim, kept for the pattern:* **47 sites as of #218, 46 on `main`; not the 17
+  originally named.** *(Re-derived a fourth time 2026-08-25 by the unscoped sweep, and this time a component moved without the total holding: `UserShareControllerProd` is **3, not 2** -- #213 added `buildShareUrl(token.get())`. #218 adds one in `ContentModelConverter`, exactly attributable. Raw sweep 58 on the branch, 57 on `main`; the 11 Atomic exclusions still check out.)* **The claim "the 17 named are all still present" cannot be checked and arithmetic says it is wrong**: the originally-named files now hold 14 between them, and the 17 were never enumerated, so the sentence is unverifiable by construction. Drop it rather than carry it. *(Earlier re-derivations, kept for the pattern they show -- 45 -> 46 on 2026-08-24: S-1 added `maybeUser.get().getStatus()` to `AuthController.login`, taking that file 3 -> 4. Re-derived after the merge, not estimated -- the raw sweep went 56 -> 57 and the one new line is S-1's. This is the inventory rot working rule 5 warns about, caught by the scoped sweep rather than a full pass.)* The 17 named are all still present; 29 more sit in twelve files the original scan never covered (`AdminUserController` 4, `AuthController` 4, `InviteController` 3, `ImageProcessingService` 5, `UserMergeService` 3, `UserShareControllerProd` 2, `ClientGalleryAuthService` 2, `SessionService` 2, and one each in `LocationRepository`, `TagRepository`, `AdminBootstrap`, `ImageUploadPipelineService`). A raw `.get()` sweep returns 56 lines; 11 are `AtomicInteger`/`AtomicReference`, not `Optional`. **Re-derived again 2026-08-24 after S-7/S-9, and the headline number survived for the wrong reason.** The raw sweep is still 57 and the Optional subset still 46 -- but two files moved and cancelled out: `InviteController` went **3 -> 2** (S-7 moved the accept body into the service) and `UserInviteService` went **2 -> 3** (`accept` added its own `maybeInvite.get()`). A total that holds while its components move is the most misleading state an inventory can be in, so trust the per-file breakdown here over the headline. *Re-derived a third time 2026-08-24 after S-8: raw sweep **still 57**, Optional subset **still 46**, and this time for the right reason -- S-8 added no `.get()` at all (`AdminUserController` holds at 4, `SessionService` at 2). Two consecutive checks now agree on both the total and the breakdown.* Zero test coupling. **This is not an MR** -- the doc's own "rewrite opportunistically when touching these methods" is the right disposition, now with the real denominator.
 - [ ] Magic number 2500 at both resize call sites (`ImageProcessingService`, **`191` and `282` as of #218**). Name it.
 - [ ] `JobStatus.status` is a stringly-typed field with its states in a trailing comment (`JobTrackingService`). **Split the item**: making it an enum is COLD and non-breaking (Jackson serializes an enum to the same string), but costs ~45 test references across `AdminControllerTest` and `ImageUploadPipelineServiceTest`. Adding `COMPLETED_WITH_ERRORS` instead of flipping a 500-file job to FAILED over one error is
   **UNBLOCKED as of 2026-08-24** -- the check was run and there is no frontend job-status poller at
@@ -2248,6 +2446,60 @@ Worth a targeted check; not asserted as findings.
   mutation is evidence only if you read *why* it reddened -- S-13's first mutation gave the right
   color for the wrong reason). Security board: 7 open -> **5, only 3 actionable**. Next: **S-20**.
   **Recommending a full-board review** -- see the note below.
+- 2026-08-28 — shipped **S-20** ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230),
+  +97/-30); suite 1,399 -> 1,403. Shipped as specified, **fourth consecutive item needing no
+  adjustment**, so working rule 27's streak is retired rather than merely inverted. Delivered the
+  guardrail as a report: **do not unify `mayHoldSession` with `mayAcceptInvite`** -- the only
+  non-breaking direction admits INVITED to sessions, and `WebAuthnService.finishLogin` is a live
+  hole under it because a passkey outlives a status change. Closed one "tests that cannot fail"
+  bullet as a side effect and **corrected its premise**: `AuthControllerTest` was described as
+  already catching the gap and had itself omitted PERSON, so both tests were defective, not one.
+  Added **working rule 33** (a test deriving its cases from the thing under test cannot detect that
+  thing widening -- mutating the predicate made both suites emit *fewer cases* and stay green,
+  13 -> 11 and 12 -> 10). **Four recorded numbers corrected, three of them found unprompted**:
+  S-20's own 2026-08-27 grep correction was wrong (escaped vs unescaped dot -- the original six was
+  right, and #230 has since deleted the disputed javadoc line, leaving four); the recorded suite
+  total was 1,397 when `main` measured 1,399; and the `Optional.get()` bullet's Atomic exclusions
+  are **five, not eleven**, making its subset ~53 rather than 46 -- that last one **outside the
+  neighborhood of anything recently merged**. Re-verified S-17 and S-18 premises against `main`;
+  both exact, both COLD, both re-sized as test-dominated. Security board: 5 open -> **4, only 2
+  actionable**. Next: **S-18, then S-17**. **Full-board review still recommended, slices 1 and 5,
+  with slice 1 re-scoped to re-run recorded commands rather than only chase refs** -- see the note
+  above.
+
+### Full-board review: recommendation restated 2026-08-28, and the case got stronger
+
+**Still not run. Run slices 1 and 5. Skip the per-item re-estimate slice.** The 2026-08-27 note
+below stands; what changed in one day is the evidence for condition 1, which was the weaker of the
+two.
+
+The S-20 close-out found **three more wrong recorded numbers without going looking for them**:
+
+1. S-20's own 2026-08-27 count correction was wrong, and wrong in a way that accused an earlier pass
+   of negligence it had not committed. Escaped versus unescaped dot. Three consecutive passes
+   argued about that number while running different commands.
+2. The suite total. The board recorded 1,397 after #228; `mvn clean install` on `main` at `dd0d7d0`
+   reports **1,399**.
+3. The `Optional.get()` inventory's Atomic exclusion count is **five, not eleven**, which makes the
+   Optional subset ~53 rather than 46. That bullet has been re-derived four times and nobody
+   re-checked the subtrahend. **This one is outside the neighborhood of anything that recently
+   merged**, which is the specific trigger the escalation list names.
+
+The pattern across all three is sharper than "drift": **every one of them is a number that a
+previous pass wrote down as verified, and two of them are corrections that introduced a new error
+while fixing an old one.** The doc's own line -- "single-item re-checks are re-reading the item, not
+re-running it" -- is the diagnosis, and slice 1 should be scoped to act on it. **Re-run every
+recorded command and re-measure every recorded count, rather than only chasing `file:line` refs.**
+Refs are the cheap half of the problem and, on the evidence of this week, the less broken half.
+
+Condition 2 is unchanged and now covers five merged fixes rather than four. S-20 adds two call sites
+to a predicate that S-8 and S-15 already coupled to `AdminUserController`, and the S-13/S-12
+placement coupling recorded under working rule 30 has an untested analogue in that widened surface.
+
+**Honest note on payoff, so the cost is not oversold:** with S-20 closed the actionable security
+surface is two MEDIUM items. This review's return is mostly the board's own reliability rather than
+new security findings. That is still worth buying, because the board's entire value is being trusted
+later, and it has now been wrong about a number on four consecutive passes.
 
 ### Full-board review recommended again, 2026-08-27
 
