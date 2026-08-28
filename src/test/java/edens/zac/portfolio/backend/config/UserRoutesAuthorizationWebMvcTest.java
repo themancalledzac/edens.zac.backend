@@ -204,6 +204,9 @@ class UserRoutesAuthorizationWebMvcTest {
           collectionProcessingUtil,
           appUserRepository,
           emailService,
+          // A real limiter with a budget nothing here can exhaust. This test asks who the security
+          // chain lets through, and a mock returning false would answer a different question.
+          new ShareEmailLimiter(10_000, 1_000_000),
           "https://zacedens.com");
     }
   }

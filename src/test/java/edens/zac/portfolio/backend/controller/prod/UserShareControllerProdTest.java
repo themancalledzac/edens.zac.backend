@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import edens.zac.portfolio.backend.config.ShareEmailLimiter;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.CollectionRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
@@ -23,6 +24,8 @@ import edens.zac.portfolio.backend.services.EmailService;
 import edens.zac.portfolio.backend.services.ShareLinkService;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +41,7 @@ class UserShareControllerProdTest {
 
   private final AppUserRepository appUserRepository = mock(AppUserRepository.class);
   private final EmailService emailService = mock(EmailService.class);
+  private final ShareEmailLimiter shareEmailLimiter = mock(ShareEmailLimiter.class);
 
   private final UserShareControllerProd controller =
       new UserShareControllerProd(
@@ -47,7 +51,14 @@ class UserShareControllerProdTest {
           collectionProcessingUtil,
           appUserRepository,
           emailService,
+          shareEmailLimiter,
           "https://zacedens.com/");
+
+  /** Every test but the rate-limit ones assumes an unlimited sender, as before the limiter. */
+  @BeforeEach
+  void allowSendsByDefault() {
+    when(shareEmailLimiter.allow(anyLong())).thenReturn(true);
+  }
 
   private static final AuthPrincipal OWNER = AuthPrincipal.client(7L, "owner@example.com", true);
   private static final ShareLinkEntity LINK = ShareLinkEntity.builder().id(42L).userId(7L).build();
@@ -170,5 +181,31 @@ class UserShareControllerProdTest {
     controller.settings(OWNER);
 
     verify(collectionRepository).findByIds(List.of(2L));
+  }
+
+  @Test
+  @DisplayName("a rate-limited sender gets 429 and SES is never called")
+  void emailIsRefusedWhenTheSenderIsRateLimited() {
+    when(shareEmailLimiter.allow(7L)).thenReturn(false);
+
+    assertThat(
+            controller
+                .emailLink(OWNER, new ShareModels.SendShareLinkRequest("mum@example.com"))
+                .getStatusCode())
+        .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    verifyNoInteractions(emailService);
+  }
+
+  @Test
+  @DisplayName(
+      "the limit is checked before the token lookup, so a 429 leaks nothing about the link")
+  void rateLimitIsCheckedAheadOfTheConflictPath() {
+    when(shareEmailLimiter.allow(7L)).thenReturn(false);
+
+    controller.emailLink(OWNER, new ShareModels.SendShareLinkRequest("mum@example.com"));
+
+    // Not merely "returns 429" -- a limited caller must not be able to tell a missing link from a
+    // present one, which means the lookup must not run at all.
+    verify(shareLinkService, never()).revealToken(anyLong());
   }
 }
