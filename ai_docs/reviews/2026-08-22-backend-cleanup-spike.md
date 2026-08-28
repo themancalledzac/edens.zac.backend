@@ -31,7 +31,7 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **4 open, 0 HIGH, 2 blocked on the user** — so **only 2 are actionable**, both MEDIUM: S-17 and S-18, and both premises were re-verified against `main` on 2026-08-28. **S-20 shipped 2026-08-28** ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230), +97/-30), mutation-verified, as specified — the **fourth in a row needing no adjustment**, which retires working rule 27's streak as a live concern. **next: S-18, then S-17** — S-18 first because it is the cheaper of the two and its test fix is already inside its own scope. Both should be sized as **test-dominated**: S-20's source diff was +18/-14 and its tests +82/-16, the same estimate failure the doc has now named twice. **S-20's 2026-08-27 count correction was itself wrong and is corrected 2026-08-28** — the recorded escaped-dot grep returns six and always did; seven comes only from an *unescaped* `.` matching the `#` in `{@link UserStatus#ACTIVE}`, so three passes argued about a number while running different commands (working rule 31, rewritten). The question is now moot: #230 deleted that javadoc line and the sweep returns four, all code. Historical detail below. *Prior history, kept:* (reopened 2026-08-25 with 11; S-19 settled the same day, S-10 and S-11 shipped). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25, both mutation-verified. S-21 was filed while costing S-10's guardrail. Six are COLD; S-14 and S-16 are blocked on product calls named in the classification table. **Both shipped 2026-08-26**: S-15 ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) and S-12 ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)), each mutation-verified. Sequencing S-15 first on working rule 27 was right -- the correction made to it on 2026-08-25 was what made it cheap, since its originally-stated fix named a method that does not compile. (That pass's next-pointer read "next: S-13, then S-21 or S-20"; S-13 and S-21 both shipped 2026-08-27, and the live pointer is at the head of this cell.) The nine originally-closed items are still closed and are listed after the new ones: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
+| [Open security findings](#open-security-findings) | **2 open, 0 HIGH, and both are blocked on the user** — so **nothing here is actionable**. S-14 and S-16 are product calls (named in the classification table), not research: neither can be settled by reading code. **The actionable security board is empty for the first time since 2026-08-25.** **Both shipped 2026-08-28**: S-18 ([#232](https://github.com/themancalledzac/edens.zac.backend/pull/232)) and S-17 ([#233](https://github.com/themancalledzac/edens.zac.backend/pull/233)), each mutation-verified, each test-dominated exactly as this row predicted — the estimate rule finally held two in a row. S-18 shipped as specified; **S-17 did not** — its stated fix was to widen `RateLimitFilter` past `/api/public/` and the user directed a dedicated limiter instead, so the run of "as specified" ends at five. **next: not from this board.** The next item comes from *Tests that cannot fail* (four still open) or the bug list. **S-20 shipped 2026-08-28** ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230), +97/-30), mutation-verified, as specified. Its 2026-08-27 count correction was itself wrong and was corrected 2026-08-28 — the recorded escaped-dot grep returns six and always did; seven comes only from an *unescaped* `.` matching the `#` in `{@link UserStatus#ACTIVE}`, so three passes argued about a number while running different commands (working rule 31). Moot now: #230 deleted that javadoc line and the sweep returns four, all code. *Prior history, kept:* (reopened 2026-08-25 with 11; S-19 settled the same day). The split full-board review attacked the closed set as a group and found what nine single-item reviews could not -- see S-10 through S-21 below. **Both HIGH findings are closed**: S-10 ([#221](https://github.com/themancalledzac/edens.zac.backend/pull/221)) and S-11 ([#222](https://github.com/themancalledzac/edens.zac.backend/pull/222)), both 2026-08-25. S-21 was filed while costing S-10's guardrail. **Shipped 2026-08-26**: S-15 ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) and S-12 ([#225](https://github.com/themancalledzac/edens.zac.backend/pull/225)). Sequencing S-15 first on working rule 27 was right -- the 2026-08-25 correction to it was what made it cheap, since its originally-stated fix named a method that does not compile. **Shipped 2026-08-27**: S-13 ([#227](https://github.com/themancalledzac/edens.zac.backend/pull/227)) and S-21 ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228)). The nine originally-closed items are still closed: S-1 ([#192](https://github.com/themancalledzac/edens.zac.backend/pull/192)), S-2 ([#193](https://github.com/themancalledzac/edens.zac.backend/pull/193)), S-3 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195)), S-4 ([#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)), S-7 ([#199](https://github.com/themancalledzac/edens.zac.backend/pull/199)), S-9 ([#200](https://github.com/themancalledzac/edens.zac.backend/pull/200)), S-8 ([#204](https://github.com/themancalledzac/edens.zac.backend/pull/204)), S-5 ([#206](https://github.com/themancalledzac/edens.zac.backend/pull/206)) and S-6 ([#207](https://github.com/themancalledzac/edens.zac.backend/pull/207)). |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **0 open. This board is closed.** All four done 2026-08-24: `collectionDate` ([#157](https://github.com/themancalledzac/edens.zac.backend/pull/157)), `isPasswordProtected` ([#209](https://github.com/themancalledzac/edens.zac.backend/pull/209)), `share/email` ([#213](https://github.com/themancalledzac/edens.zac.backend/pull/213)) and actuator hardening ([#214](https://github.com/themancalledzac/edens.zac.backend/pull/214)). **Nothing is owed to another team.** `share/email` closed the last live 404 in shipped frontend UI and taught working rule 24. **next: nothing here** -- the next item comes from the security board (**S-20** as of 2026-08-27; this row has now named S-15, then S-13, both since shipped), not from this one. **The recurring fix for this row is to stop naming an item at all**: it is a closed section, so any pointer it carries is a copy of the security row's, one edit behind. It now says "see the security board row" and nothing more. *(Corrected 2026-08-25: this row pointed at "MR 19 #16 or MR 16 #4/#5" and MR 19 #16 shipped as [#216](https://github.com/themancalledzac/edens.zac.backend/pull/216) the day before. A next-pointer inside a closed section is exactly the kind that rots unwatched, because nobody re-reads a board row marked done.)* |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **7 open**, and only 3 are live questions -- `enforce-authz`, `parseImageDate`, and bare-array responses. The rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs, all superseded. |
@@ -41,9 +41,10 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **17** (5 high) | — |
-| Security findings | **5 open, 0 HIGH, only 3 actionable** — see below. Reopened 2026-08-25 with 11; S-19 settled, S-10/S-11/S-15/S-12/S-13/S-21 shipped. *(This cell and the section row both read "8" from 2026-08-25 until 2026-08-26: filing S-21 incremented neither, so the board undercounted itself by one for a day. Counting the checkboxes is the check -- `grep -c '^- \[ \] \*\*S-'`, which returns 5 as of 2026-08-27.)* | — |
+| Security findings | **2 open, 0 HIGH, 0 actionable** — both remaining are blocked on product calls. See below. *(This cell read "5 open, only 3 actionable" from 2026-08-27 until 2026-08-28 while the section row above already said 4 and 2: [#231](https://github.com/themancalledzac/edens.zac.backend/pull/231) updated one of the two cells and not the other, which is the **third** time these two have disagreed. Counting the checkboxes is the check -- `grep -c '^- \[ \] \*\*S-'`, which returns 2 as of 2026-08-28. Working rule 36 makes running it a condition of editing either cell.)* | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
-| Inline comments (main, rule violations) | ~~370~~ **567 measured** | ~300 net (also low) |
+| Inline comments (main) | ~~370~~ **567 measured** | ~300 net (also low) |
+| ^ **re-scoped 2026-08-28** | Working rule 37 turns this from a debloat nice-to-have into a standing rule: **every** inline comment in `src/main` and `src/test` is now a violation, not just the ones a rule flagged. 567 was measured against the old criterion and is a floor. **Do not sweep this in one MR** -- it is the shape CLAUDE.md and working rule 11 both warn about. Take it per package, and take the files working rule 12 protected first (`RoleRepository`, `AdminBootstrap`, `CollectionControllerProd`, `SecurityConfig`), since those carry comments a superseded rule deliberately preserved. | — |
 | Duplication consolidations (main) | 20 findings | ~500 |
 | Dead/boilerplate tests | **10 findings** | ~2,700 (+700 optional) |
 | Build/config rot | **9 findings** | ~150 |
@@ -416,7 +417,8 @@ should be re-confirmed at implementation time, per working rule 21.
   link keeps serving every collection they are tagged in to anyone holding the URL. #213 sharpens
   this by making that link durable and re-readable rather than a one-shot value.
 
-- [ ] **S-17 (MEDIUM, agent trace). `share/email` with no rate limit is an authenticated open mail
+- [x] **S-17 (DONE [#233](https://github.com/themancalledzac/edens.zac.backend/pull/233), 2026-08-28.)
+  `share/email` with no rate limit is an authenticated open mail
   relay.** The board already recorded "no rate limit" as a known gap and framed it as a
   token-guessing risk. It is not: `RateLimitFilter` covers `/api/public/` only, so any signed-in user
   can POST unbounded to the endpoint, each call an SES send to an arbitrary address from
@@ -442,7 +444,8 @@ should be re-confirmed at implementation time, per working rule 21.
   that "the four limiters already have disjoint key spaces" is what makes a fifth one safe. Report
   what widening the prefix would cost rather than doing it.
 
-- [ ] **S-18 (MEDIUM, agent trace). #214's exclude list misses four endpoints that meet its own
+- [x] **S-18 (DONE [#232](https://github.com/themancalledzac/edens.zac.backend/pull/232), 2026-08-28.)
+  #214's exclude list misses four endpoints that meet its own
   stated criterion.** The criterion is "dumps configuration, dumps process state, or mutates the
   running app". Available under `include=*` and not excluded: `caches` (has delete operations, so it
   mutates), `conditions` (full auto-config report), `flyway` (migration history) and `scheduledtasks`
@@ -671,8 +674,8 @@ Every item above is stamped, so none of them reads as available and then eats a 
 | S-14 | **BLOCKED on the user.** Is an admin allowed to put an arbitrary collection into another user's share scope? The fix depends on the answer: if no, the gate needs an ownership test rather than `canView`; if yes, this is documentation, not a bug. |
 | S-15 | **DONE** ([#224](https://github.com/themancalledzac/edens.zac.backend/pull/224)) | -- shipped 2026-08-26 exactly as the 2026-08-25 correction specified; the first item in this batch to need **no** adjustment at implementation time |
 | S-16 | **BLOCKED on the user.** Should disabling an account kill its share links, or only suspend them? Revoking is destructive and not reversible by re-enabling; suspending needs a status join on every resolve. |
-| S-17 | **COLD**, premise re-verified 2026-08-28 | -- extend the limiter past `/api/public/`; the four limiters already have disjoint key spaces. `RateLimitFilter:102` still reads `if (!request.getRequestURI().startsWith("/api/public/"))`, and the endpoint is `/api/read/user/share/email`, outside that prefix. Size it as test-dominated |
-| S-18 | **COLD**, premise re-verified 2026-08-28 | -- four names onto the exclude list, plus a test that is not self-referential (see below). `application.properties:70` excludes exactly `env,configprops,beans,mappings,heapdump,threaddump,loggers,shutdown`; `caches`, `conditions`, `flyway` and `scheduledtasks` are all still absent. Size it as test-dominated |
+| S-17 | **DONE** ([#233](https://github.com/themancalledzac/edens.zac.backend/pull/233)) | -- shipped 2026-08-28, **not** as specified. The stated fix was "extend the limiter past `/api/public/`"; the user directed a dedicated `ShareEmailLimiter` instead, leaving `RateLimitFilter`'s prefix alone. Test-dominated as predicted: source +38, tests +104. Taught working rule 35 |
+| S-18 | **DONE** ([#232](https://github.com/themancalledzac/edens.zac.backend/pull/232)) | -- shipped 2026-08-28 as specified. All four verified reachable by probe before the fix (`include=*`, exclude emptied, all four returned 200) rather than by reading the property. The include-only model was reported on and rejected -- see working rule 34 |
 | S-20 | **DONE** ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230)) | -- shipped 2026-08-28 as specified, fourth in a row; its guardrail report says do **not** unify the two predicates, and its test work produced working rule 33 |
 | S-21 | **DONE** ([#228](https://github.com/themancalledzac/edens.zac.backend/pull/228)) | -- shipped 2026-08-27 as specified; the item's own 2026-08-26 `upgradeUser` note is what picked the gate's placement |
 
@@ -690,13 +693,23 @@ lost, because a single word in a status column reads as a warranty over the whol
 #### Tests that cannot fail (2026-08-25)
 
 Working rule 15 says a regression test that cannot fail is worse than none because it reports
-coverage. The review checked the security tests against that standard and six fail it:
+coverage. The review checked the security tests against that standard and six failed it.
 
-- [ ] `ActuatorExposureEndToEndTest` iterates the denylist itself, so an omission like `caches` is
-  structurally invisible, and it supplies its own exclude via `@SpringBootTest(properties=...)` --
-  **no change to `src/main` can redden it.** It proves Boot's ordering, which was #214's point, but
-  it is not a regression detector for the shipped config. Only the literal-match test links it to
-  production.
+**Status 2026-08-28: two closed, four open.** With the actionable security board now empty, **this
+section is the next source of work** -- three of the four open items are missing coverage of a
+security behaviour that is live in `main`, and each already carries the mutation that should redden
+it, so none of them needs re-derivation before someone starts.
+
+- [x] **Closed by [#232](https://github.com/themancalledzac/edens.zac.backend/pull/232), 2026-08-28.**
+  `ActuatorExposureEndToEndTest` iterated the denylist itself, so an omission like `caches` was
+  structurally invisible, and it supplied its own exclude via `@SpringBootTest(properties=...)` --
+  **no change to `src/main` could redden it.** The loop now iterates
+  `ActuatorExposureTest.MUST_BE_EXCLUDED`, the expectation list, which the config cannot edit.
+  Sharing that one list rather than copying it keeps the tree at two denylists (the expectation and
+  the shipped literal) instead of three. Mutation-verified: dropping `caches` from the properties
+  file **and** the literal together -- the exact mutation the old loop could not see -- reddens it
+  with `/actuator/caches is reachable with include=*, expected 404 but was 200`. This is working
+  rule 33's species and it was found before rule 33 was written.
 - [ ] `AdminUserControllerTest.demotingUserToInvitedRevokesSessionsButKeepsInvites` cannot catch what
   its comment claims: `SessionService` is a mock and `mayHoldSession` is static. The mutation is
   caught by `SessionServiceIntegrationTest` instead. **False attribution, not a missing test** --
@@ -1077,7 +1090,7 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     entries -- four of the eight are the same MR 25 deferral. Reconcile on the way out, not on the
     way in.
 
-12. **Promote a fact about the method; keep a warning about a line.** Rule 10 said measure before
+12. **SUPERSEDED 2026-08-28 by working rule 37 -- do not follow this rule.** *Promote a fact about the method; keep a warning about a line.* Rule 10 said measure before
     promoting. MR 14 measured, and the answer changed what the wave rule should be. Promoting
     `SecurityConfig`'s 24 comments into one `filterChain` docblock costs **+24 words (+9%)** even in
     a careful draft that keeps every fact and states each rule once -- and the entire overhead is
@@ -1585,6 +1598,83 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     `UserInviteService.mayAcceptInvite` has no equivalent pin. It is covered by named per-status
     cases in `UserInviteServiceAcceptTest`, so a fifth `UserStatus` reddens the session predicate's
     pin and nothing on the invite side.
+
+34. **An allowlist is not defence in depth when the allowlist is the thing an attacker overwrites.**
+    S-18 raised the obvious question: why keep a twelve-name actuator exclude list at all, when
+    `management.endpoints.web.exposure.include=health` already names one endpoint and never has to
+    chase whatever Spring Boot ships next? The include-only model was considered and **rejected**.
+
+    Boot resolves `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` from the environment *above*
+    `application.properties`, which is working rule 1. A stray `INCLUDE=*` in a deployed `.env`
+    replaces the include value outright. The exclude list applies after include and survives that;
+    include-only has nothing left to apply. The allowlist cannot defend the one scenario the layer
+    exists for, because in that scenario the allowlist is what was replaced.
+
+    The trade is also not symmetric. A missing name in the denylist exposes one endpoint and the fix
+    is one word -- that is exactly what S-18 was. One injected env var under include-only exposes
+    every endpoint at once. **And include-only would not have prevented S-18**: `include=health`
+    already left those four off, so they were reachable only under the injected-wildcard scenario.
+    The finding lived entirely inside the layer include-only proposed to delete.
+
+    **The real follow-up, filed not built:** a `ProdSecretGuard`-shaped boot check that reads the
+    *resolved* exposure include and refuses to start unless it is `health`. That defends the
+    injected-env case without enumerating a single endpoint name, and it is the only thing that
+    would make both the exclude list and `MUST_BE_EXCLUDED` deletable.
+
+    Generally: before replacing a denylist with an allowlist, ask what overrides the allowlist.
+
+35. **A green unit-test run is not evidence the change works. Mutate the test you just wrote, and
+    run the full build before claiming a wiring change is done.** #233 produced two failures of this
+    in one MR, from opposite directions.
+
+    **The test that could not fail.** `ShareEmailLimiterTest` got a case asserting the global cap is
+    checked before the per-sender bucket, so refusals do not drain a sender's budget. It passed. The
+    mutation -- swap the two checks -- **also passed**. The test spent the global cap and never let
+    it refill, and once the cap is spent both orderings refuse everything forever, so no assertion
+    could separate them. The fix was a global period short enough to refill inside the test, which
+    makes the drained token observable. This is a fourth species alongside rules 15, 32 and 33: not
+    derived from the thing under test, not failing for the wrong reason, but **observing the system
+    only in a state where every variant behaves identically**. Writing the test is not the check.
+    Running the mutation is.
+
+    **The wiring break every unit test was blind to.** `ShareEmailLimiter` has a package-private
+    `Duration` constructor for timing tests, which makes two constructors. Spring then looked for a
+    default one and **the application context failed to start** -- every integration test in the
+    tree errored. Every unit test stayed green, because they all build the limiter by hand. A bean's
+    own unit tests cannot see a wiring break by construction; only the full build can. `@Autowired`
+    on the property constructor, exactly as `ClientGalleryAccessLimiter` already does. Mirror the
+    sibling completely, not just its shape.
+
+36. **The two security-count cells drift because they are edited one at a time.** The section row
+    and the category row both state the open count. They have now disagreed three times.
+    [#231](https://github.com/themancalledzac/edens.zac.backend/pull/231) is the cleanest case: it
+    correctly moved the section row to "4 open, 2 actionable" and left the category row reading "5
+    open, 3 actionable", so a doc MR whose entire purpose was correcting recorded numbers shipped a
+    fresh disagreement between two cells forty lines apart.
+
+    The check is one command and it is not optional: `grep -c '^- \[ \] \*\*S-'`. **Run it, put
+    the number in both cells, and do not edit either cell without editing the other.** The board has
+    twice written a rule about counting and twice miscounted afterwards, so the rule is now about
+    the edit being atomic rather than about being careful.
+
+37. **Never write inline comments. This supersedes working rule 12.** Standing instruction from the
+    user, 2026-08-28, after finding them in [#233](https://github.com/themancalledzac/edens.zac.backend/pull/233).
+    No `//` inside method bodies, constructors, test methods, or against fields -- not to explain a
+    decision, justify a design, mark a section, or record why a test is shaped the way it is. There
+    is no threshold of importance that earns one. Javadoc is the only place prose goes in a source
+    file; anything that does not fit in a docblock belongs in the PR description or in this document.
+    When editing any file for any reason, delete the inline comments already in it.
+
+    **Working rule 12 said the opposite** -- that a comment anchored to a specific line
+    (`RoleRepository`'s `\s` notes, `AdminBootstrap`'s "do not fix this into a single statement")
+    should survive because a docblock cannot hold it. That reasoning is now void. Rule 12 is
+    retained above only as history and must not be followed; the files it named still carry the
+    comments it protected and are owed a sweep.
+
+    The trap worth recording: the comments hardest not to write are the ones that feel
+    load-bearing -- a mutation-verification note, a check-ordering rationale, a cache-TTL choice.
+    That feeling is not an exemption, it is the signal. #233 shipped 31 of them, every one written
+    deliberately.
 
 ## Full-board review: run 2026-08-25, split rather than whole
 
