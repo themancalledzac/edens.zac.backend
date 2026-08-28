@@ -11,6 +11,7 @@ import edens.zac.portfolio.backend.entity.UserSessionEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.types.UserStatus;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -301,5 +302,27 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     Optional<AuthPrincipal> principal = sessionService.resolve(raw);
     assertThat(principal).isPresent();
     assertThat(principal.get().mfaSatisfied()).isTrue();
+  }
+
+  /**
+   * Pins the allowlist itself, written out, over the whole enum. The four call sites now route
+   * through {@link SessionService#mayHoldSession}, and both parameterized login tests ({@code
+   * AuthControllerTest}, {@code WebAuthnServiceTest}) build their cases by asking the predicate
+   * which statuses it refuses. That coupling is the point of the refactor and it is also why those
+   * two tests cannot police the predicate: widening {@code mayHoldSession} makes them emit fewer
+   * cases rather than fail. Verified, not assumed -- mutating the predicate to {@code != DISABLED}
+   * took AuthControllerTest from 13 cases to 11 and WebAuthnServiceTest from 12 to 10, both still
+   * green.
+   *
+   * <p>So the guard against a silently-widened allowlist lives here, and only here, stated as a
+   * literal. Adding a fifth {@code UserStatus} reddens this test, which is the intended cost:
+   * session eligibility becomes a decision someone makes rather than a default they inherit.
+   */
+  @Test
+  void mayHoldSessionAdmitsActiveAndNothingElse() {
+    assertThat(Arrays.stream(UserStatus.values()).filter(SessionService::mayHoldSession))
+        .containsExactly(UserStatus.ACTIVE);
+    assertThat(Arrays.stream(UserStatus.values()).filter(s -> !SessionService.mayHoldSession(s)))
+        .containsExactlyInAnyOrder(UserStatus.INVITED, UserStatus.DISABLED, UserStatus.PERSON);
   }
 }

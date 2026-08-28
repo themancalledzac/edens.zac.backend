@@ -21,16 +21,18 @@ import edens.zac.portfolio.backend.model.LoginRequest;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.types.UserStatus;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -169,15 +171,31 @@ class AuthControllerTest {
   }
 
   /**
-   * Login is an ACTIVE-only allowlist, not a DISABLED denylist. The stub returning true for the
-   * real hash is deliberate and lenient: it makes this test red if the status test is removed,
-   * since the login would then succeed on a correct password. Asserting the real hash is never
-   * consulted pins the guard ahead of the password check, which is what keeps the non-ACTIVE branch
-   * paying the same dummy-BCrypt cost as unknown-email and so out of the enumeration oracle.
+   * Every status the login guard must refuse, read off {@link SessionService#mayHoldSession} rather
+   * than written out. Deriving the cases from the predicate the guard now calls is what keeps the
+   * two in step: a status added to the enum arrives here on its own, and if it is later admitted to
+   * {@code mayHoldSession} it leaves here on its own too.
+   *
+   * @return the statuses under which an account may not hold a session
+   */
+  private static Stream<UserStatus> statusesThatMayNotHoldSession() {
+    return Arrays.stream(UserStatus.values()).filter(s -> !SessionService.mayHoldSession(s));
+  }
+
+  /**
+   * Login is an allowlist, not a DISABLED denylist. The stub returning true for the real hash is
+   * deliberate and lenient: it makes this test red if the status test is removed, since the login
+   * would then succeed on a correct password. Asserting the real hash is never consulted pins the
+   * guard ahead of the password check, which is what keeps the ineligible branch paying the same
+   * dummy-BCrypt cost as unknown-email and so out of the enumeration oracle.
+   *
+   * <p>The cases come from {@link #statusesThatMayNotHoldSession()} rather than a written-out list,
+   * so a fifth {@code UserStatus} is covered here the moment {@link SessionService#mayHoldSession}
+   * refuses it. The list this replaced named DISABLED and INVITED and silently omitted PERSON.
    */
   @ParameterizedTest
-  @EnumSource(names = {"DISABLED", "INVITED"})
-  void loginForNonActiveAccountReturns401AndCreatesNoSession(UserStatus status) throws Exception {
+  @MethodSource("statusesThatMayNotHoldSession")
+  void loginForIneligibleAccountReturns401AndCreatesNoSession(UserStatus status) throws Exception {
     AppUserEntity user =
         AppUserEntity.builder()
             .id(1L)

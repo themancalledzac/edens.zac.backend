@@ -10,7 +10,6 @@ import edens.zac.portfolio.backend.model.LoginRequest;
 import edens.zac.portfolio.backend.model.MeResponse;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
 import edens.zac.portfolio.backend.services.SessionService;
-import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -41,11 +40,11 @@ public class AuthController {
 
   /**
    * Precomputed BCrypt hash used to equalize the response time of the branches that reject before
-   * the real password check -- unknown email, no password hash, and an account that is not ACTIVE
-   * -- with the wrong-password branch. Without this, an attacker could distinguish "no such user"
-   * (fast) from "wrong password" (slow BCrypt) via timing — a user-enumeration oracle. We always
-   * call {@code passwordEncoder.matches} and discard the result so every branch pays the same
-   * BCrypt cost.
+   * the real password check -- unknown email, no password hash, and an account that fails {@link
+   * SessionService#mayHoldSession} -- with the wrong-password branch. Without this, an attacker
+   * could distinguish "no such user" (fast) from "wrong password" (slow BCrypt) via timing — a
+   * user-enumeration oracle. We always call {@code passwordEncoder.matches} and discard the result
+   * so every branch pays the same BCrypt cost.
    */
   private static final String DUMMY_HASH =
       "{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOe4LqswmsWnGKD.QZEWMbwIQfRoZxNfy";
@@ -78,7 +77,7 @@ public class AuthController {
     Optional<AppUserEntity> maybeUser = appUserRepository.findByEmail(email);
     if (maybeUser.isEmpty()
         || maybeUser.get().getPasswordHash() == null
-        || maybeUser.get().getStatus() != UserStatus.ACTIVE) {
+        || !SessionService.mayHoldSession(maybeUser.get().getStatus())) {
       passwordEncoder.matches(body.password(), DUMMY_HASH);
       loginLimiter.recordFailure(ip, email);
       log.warn("Failed auth login for email={} ip={}", email, ip);

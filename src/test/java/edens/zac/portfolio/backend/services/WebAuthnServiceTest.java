@@ -17,11 +17,15 @@ import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.web.webauthn.api.Bytes;
@@ -182,10 +186,23 @@ class WebAuthnServiceTest {
     assertThat(email).isEqualTo("admin@example.com");
   }
 
-  @Test
-  void finishLoginOnNonActiveAccountIsRejectedAndCreatesNoSession() {
+  /**
+   * Every status the login guard must refuse, read off {@link SessionService#mayHoldSession} rather
+   * than written out. Deriving the cases from the predicate {@code finishLogin} now calls is what
+   * keeps the two in step: a status added to the enum arrives here on its own. This test used to
+   * run DISABLED alone, so INVITED and PERSON reached the passkey path untested.
+   *
+   * @return the statuses under which an account may not hold a session
+   */
+  private static Stream<UserStatus> statusesThatMayNotHoldSession() {
+    return Arrays.stream(UserStatus.values()).filter(s -> !SessionService.mayHoldSession(s));
+  }
+
+  @ParameterizedTest
+  @MethodSource("statusesThatMayNotHoldSession")
+  void finishLoginOnIneligibleAccountIsRejectedAndCreatesNoSession(UserStatus status) {
     // A passkey outlives a status change, so a valid assertion is not proof the account may log in.
-    // Mutation this catches: delete the ACTIVE check in finishLogin and this goes green.
+    // Mutation this catches: delete the mayHoldSession check in finishLogin and this goes green.
     PublicKeyCredentialRequestOptions saved =
         org.mockito.Mockito.mock(PublicKeyCredentialRequestOptions.class);
     when(challengeStore.take("attempt-1")).thenReturn(Optional.of(saved));
@@ -195,7 +212,7 @@ class WebAuthnServiceTest {
     when(authedEntity.getId())
         .thenReturn(new Bytes(handle.toString().getBytes(StandardCharsets.UTF_8)));
     when(operations.authenticate(any())).thenReturn(authedEntity);
-    admin.setStatus(UserStatus.DISABLED);
+    admin.setStatus(status);
     when(appUserRepository.findByWebauthnUserHandle(handle)).thenReturn(Optional.of(admin));
 
     assertThatThrownBy(
