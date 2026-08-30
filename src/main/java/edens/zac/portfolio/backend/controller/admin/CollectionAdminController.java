@@ -53,6 +53,17 @@ public class CollectionAdminController {
         .toList();
   }
 
+  /**
+   * Set or clear a collection's gallery password and recipient list, mailing the password to every
+   * address in the request.
+   *
+   * <p>The send loop is deliberately uncapped (S-24, decided 2026-08-30). One request mails N
+   * addresses, N being whatever the caller supplies, and neither {@code RateLimitFilter} (which
+   * covers {@code /api/public/} only) nor {@code ShareEmailLimiter} (keyed to the one share
+   * endpoint) covers this path. That is accepted rather than overlooked: the endpoint is behind
+   * {@code hasRole("ADMIN")}, the highest trust level in the system, and an admin sending a gallery
+   * password to a client list is the feature. Revisit if this ever becomes reachable below admin.
+   */
   @PostMapping("/{id}/gallery-access")
   public ResponseEntity<GalleryAccessResponse> updateGalleryAccess(
       @PathVariable Long id, @Valid @RequestBody GalleryAccessRequest request) {

@@ -502,6 +502,11 @@ public class AdminUserController {
    *
    * <p>With no active transaction (standalone MockMvc tests) there is nothing to wait for, so the
    * send happens immediately.
+   *
+   * <p>No rate limiter covers this send, on any of its three callers ({@code createUser}, {@code
+   * regenerateInvite}, {@code upgradeUser}). That is accepted rather than overlooked (S-24, decided
+   * 2026-08-30): all three are behind {@code hasRole("ADMIN")}, the highest trust level in the
+   * system, and each sends one email per request. Revisit if any becomes reachable below admin.
    */
   private void sendInviteEmailAfterCommit(String email, String displayName, String inviteUrl) {
     if (!TransactionSynchronizationManager.isSynchronizationActive()) {

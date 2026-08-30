@@ -34,9 +34,9 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **5 open (S-14, S-16, S-22, S-23, S-24), 0 HIGH — 2 actionable (S-22, S-23, both COLD), 3 counting S-24's quick user call; S-14 and S-16 are product calls blocked on the user.** 19 closed, one ledger line each below; bodies and outcomes in [history](2026-08-22-backend-cleanup-history.md#security-findings--closed-moved-2026-08-29). The 2026-08-29 adversarial re-review attacked the merged set as a group and returned **0 HIGH, 0 MEDIUM**. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **5** — run it and update this row and the estimate cell together. Prior row narrative: [history](2026-08-22-backend-cleanup-history.md#board-row-narratives-moved-2026-08-29). next: see the session log. |
+| [Open security findings](#open-security-findings) | **3 open (S-16, S-22, S-23), 0 HIGH -- all three actionable, none blocked on the user.** S-22 and S-23 are in flight ([#247](https://github.com/themancalledzac/edens.zac.backend/pull/247), [#248](https://github.com/themancalledzac/edens.zac.backend/pull/248)); S-16 was unblocked 2026-08-30 by the user's answer (suspend, not revoke) and is now ordinary work. **21 closed** -- S-14 and S-24 both answered and closed 2026-08-30 without code beyond two docblocks. Bodies and outcomes in [history](2026-08-22-backend-cleanup-history.md#security-findings--closed-moved-2026-08-29). The 2026-08-29 adversarial re-review attacked the merged set as a group and returned **0 HIGH, 0 MEDIUM**. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **3** -- run it and update this row and the estimate cell together. next: S-16.
 | [Cross-repo findings owed to the frontend](2026-08-22-backend-cleanup-history.md#cross-repo-findings-owed-to-the-frontend) | **0 open — closed 2026-08-24** (#157, #209, #213, #214); outcomes in [history](2026-08-22-backend-cleanup-history.md#cross-repo-findings-owed-to-the-frontend). Prior row narrative, next-pointer-rot history included: [history](2026-08-22-backend-cleanup-history.md#board-row-narratives-moved-2026-08-29). |
-| [Decisions needed from the user](#decisions-needed-from-the-user) | **3 open** — 1 live question (passkey revocation, new 2026-08-29). **`enforce-authz`, `parseImageDate` and bare-array responses were answered and shipped 2026-08-30 (#243) and moved to [history](2026-08-22-backend-cleanup-history.md#decisions-answered-2026-08-30-moved-from-the-tracker)**; the DB-password default and `cover_image_id` are one-word calls; the rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
+| [Decisions needed from the user](#decisions-needed-from-the-user) | **2 open, 0 live questions.** **Passkey revocation was answered 2026-08-30 (admin endpoint only) and is now a work item, not a question**, alongside S-14 and S-24 in the security section. What is left is not blocking anyone: gallery passwords are **parked by decision** pending a design, and `role.kind` plus the partial-index question are research-complete-pending-disposition. The DB-password default and `cover_image_id` are still one-word calls. Read each before treating it as a blocker. |
 | [Tests that cannot fail](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker) | **0 open of 6 — CLOSED 2026-08-30.** The last three shipped in one session (#239, #240, #241), each mutation-proved against `main` first. Two of the three carried a wrong premise that was corrected while closing: the share-link credential is a `Set-Cookie`, not a response-body token; and the `AdminUserControllerTest` pointer the board suggested names a test that does not redden on that mutation. Write-ups in history. |
 | [Rule 37 debt](2026-08-22-backend-cleanup-history.md#rule-37-debt--r-1-closed-2026-08-30-moved-from-the-tracker) | **0 open — R-1 closed 2026-08-30 ([#238](https://github.com/themancalledzac/edens.zac.backend/pull/238)).** Taught working rule 39. The wider per-package sweep is not tracked here; it is the Inline-comments row in the category table below. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs (as of 2026-08-24), all superseded. `fix/s18-actuator-exclude` added 2026-08-28 — **now holds nothing unique and is safe to delete** (settled 2026-08-30, see the section). |
@@ -46,7 +46,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **21** (5 high) — 16 shipped, **5 open** (#17-#21; #18-#20 filed 2026-08-29 and #21 filed 2026-08-30, all under "Carried forward"). Checkbox check: `grep -c '^- \[ \] \*\*Bug #'` = **5** as of 2026-08-30. | — |
-| Security findings | **5 open, 0 HIGH — 2 actionable (S-22, S-23, both COLD), 3 counting S-24's quick user call; S-14 and S-16 are product calls blocked on the user.** Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **5** as of 2026-08-29 (working rule 36: run it and edit this cell and the section-table row together). | — |
+| Security findings | **3 open, 0 HIGH -- all three actionable, none blocked on the user.** S-22/S-23 in flight ([#247](https://github.com/themancalledzac/edens.zac.backend/pull/247), [#248](https://github.com/themancalledzac/edens.zac.backend/pull/248)); S-16 unblocked 2026-08-30. S-14 and S-24 answered and closed 2026-08-30. Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **3** as of 2026-08-30 (working rule 36: run it and edit this cell and the section-table row together). | -- |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments | **Re-measured 2026-08-29.** Old criterion (whole-line `//` at indent >= 4, `src/main`): **73**. Rule-37 criterion (any line whose first non-whitespace is `//`, `src/main` + `src/test`): **1,675** (290 main / 1,385 test), plus **72** trailing `code; //` lines. **Re-run 2026-08-30**, down 45 from the 2026-08-29 measure of 1,720 (313/1,407) -- entirely this session's #238/#240/#241/#243. Commands, escaping included: `grep -rn '^[[:space:]]*//' src/main/java src/test/java | wc -l` and, for the trailing form, the same paths piped through `grep -vE '^\s*[^:]+:[0-9]+:\s*//'`. The old "~~370~~ 567 measured … is a floor" was the 2026-08-23 wave-4 start under the old criterion and described nothing current — the real rule-37 debt is ~3x it. | ~300 net (also low) |
 | ^ **re-scoped 2026-08-28** | Working rule 37 turns this from a debloat nice-to-have into a standing rule: **every** inline comment in `src/main` and `src/test` is now a violation, not just the ones a rule flagged. **Do not sweep this in one MR** — take it per package, and take the files working rule 12 protected first -- **`RoleRepository` (10), `AdminBootstrap` (6), `CollectionControllerProd` (9); counts re-run 2026-08-30**. **`SecurityConfig` is off this list**: #243 swept it from ~27 to **4** as a side effect of removing the authz toggle, so it is nearly done and no longer the priority the row assumed. **One recorded exemption**: the second `coverImage` banner in `CollectionControllerProdTest` stays until its "Carried forward" decision lands. (Bug #17's `ContentService` comment is no longer exempt — its board row is the evidence now.) | — |
@@ -176,7 +176,12 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   `rawUploadExecutor` alone -- an in-flight image-processing task can be killed mid-write on
   shutdown. About 10 lines in one file, plus the test that pins the second wait. **COLD.**
 - [ ] **Bug #21 (low) -- when the dimension fallback fails it writes `0`, and `0` is the one value
-  the frontend cannot tell apart from "broken".** *(Filed 2026-08-30 from the frontend board's C9.
+  the frontend cannot tell apart from "broken".** **IN FLIGHT 2026-08-30: [#249](https://github.com/themancalledzac/edens.zac.backend/pull/249)** --
+  both defaults are now `null`. Backend sentinel only; the frontend fallbacks are untouched. One
+  thing found while writing the test and worth keeping: the extractor is a mock in
+  `ImageProcessingServiceTest`, and a bare mock returns `null` for an `Integer` on its own, so the
+  obvious version of the test passes against either sentinel and cannot fail. The stub has to
+  return the default the production code passes it. *(Filed 2026-08-30 from the frontend board's C9.
   C9 asked a product question -- should a dimensionless cover fall back to a text-only header? --
   and the user's answer reframed it: "we should NEVER HAVE AN IMAGE WITHOUT height/width... we
   should NEVER be caught in this situation." That is a statement about this repo, so the item
@@ -238,8 +243,29 @@ filings. **Nineteen closed**: one ledger line each below; bodies, outcomes and t
 Per-path limiter mapping context -- which limiter covers which route -- sits in history's
 [S-17 outcome](2026-08-22-backend-cleanup-history.md#s-17-outcome-2026-08-28----not-as-specified-and-two-failures-of-the-same-kind).
 
-- [ ] **S-14 (MEDIUM, agent trace). S-6 turned `addCollection` from a read decision into a durable
-  third-party grant.** `UserShareControllerProd.addCollection` gates on `canView`, then writes a
+- [x] **S-14 (MEDIUM, agent trace). S-6 turned `addCollection` from a read decision into a durable
+  third-party grant.** **ANSWERED 2026-08-30 -- no second gate. Closed as accepted behavior, with
+  one thing it does not settle recorded below.** The user's answer, verbatim: *"any 'ADMIN'
+  specific api request should go through the SAME 'admin' gate. this should be as SIMPLE AS
+  POSSIBLE. we don't want multiple gates, but we want all 'admin' level endpoints to use the same
+  gate."*
+
+  **What that settles.** The default-safe option this item proposed -- an ownership/grant test
+  distinct from `canView`, so the admin sentinel cannot durably grant a third party access -- is
+  **rejected**. It is a second gate on top of the one that already answers for admins, which is
+  exactly the shape the answer refuses. Do not open an MR adding one.
+
+  **What it does not settle, and someone should notice this rather than re-deriving it.**
+  `addCollection` is **not** an admin endpoint. It lives on `UserShareControllerProd`, mapped at
+  `/api/read/user/share`, and is reached by any authenticated user for their own share scope; the
+  admin sentinel in `canView` is what makes it answer yes for everything. So the one-gate principle
+  applies cleanly to `/api/admin/**` and does not by itself decide what a *user* endpoint should do
+  when an admin calls it. The behavior is accepted as it stands. If the intent is that this
+  endpoint be admin-gated like the rest, that is a routing decision (move it, or gate it), not the
+  ownership test this item proposed -- file it as its own item.
+
+  Original finding follows.
+ `UserShareControllerProd.addCollection` gates on `canView`, then writes a
   `share_link_collection` row -- which is the authorization set for an unauthenticated bearer-token
   holder. Before S-6, an admin holding no role grant got 403 there. The ADMIN sentinel now makes the
   gate always say yes, so one PUT can put any collection on the site, including another client's
@@ -249,7 +275,18 @@ Per-path limiter mapping context -- which limiter covers which route -- sits in 
   broad rather than too narrow.
 
 - [ ] **S-16 (MEDIUM, agent trace). The revoke-on-status sweep covers sessions and invites and misses
-  share links.** `ShareLinkService.resolveByRawToken` reads no owner status, and the scope query
+  share links.** **UNBLOCKED 2026-08-30: the answer is SUSPEND, not revoke.** Disabling an account
+  stops its share links from resolving; re-enabling restores them. Revoking is destructive and not
+  undone by re-enabling, so it is refused. **Fix shape, now decided rather than open:** a
+  `users.status` predicate on the share-resolve path (`ShareLinkService.resolveByRawToken`) and on
+  the scope query's `share_link` -> `collection_people` join, so both read owner status. No rows are
+  deleted on a status change. Note for whoever takes this: the status test wants a named predicate
+  shared by both sites rather than two literals -- that is the drift S-20 closed for sessions and
+  S-22 for role membership, and this would be the third site to hand-roll it. **This item is now
+  actionable work, not a product call.**
+
+  Original finding follows.
+ `ShareLinkService.resolveByRawToken` reads no owner status, and the scope query
   joins `share_link` to `collection_people` with no `users.status` predicate. Disable a user for
   cause: S-1 refuses their login, S-8 kills their sessions, S-9 kills their invites, and their share
   link keeps serving every collection they are tagged in to anyone holding the URL. #213 sharpens
@@ -270,6 +307,15 @@ Per-path limiter mapping context -- which limiter covers which route -- sits in 
   "Verified sound" still holds, and this item does not tighten the membership rule, it pins it.
   Fix: add the enum pin (rule-33 shape) and route both SQL sites through a named
   `mayHoldRoleMembership` predicate so the rule keeps one definition (rule 14). **COLD.**
+  **IN FLIGHT 2026-08-30: [#247](https://github.com/themancalledzac/edens.zac.backend/pull/247).** Shipped as one `ROLE_MEMBERSHIP_STATUSES` list bound by
+  both SQL sites, **not** as a named boolean predicate. The predicate was written first and removed
+  on review: `mayHoldSession` earns its shape from four Java call sites that ask it about one user
+  per request, and this rule has none -- it is only ever asked in SQL, over the whole set, so the
+  boolean was a zero-caller wrapper around one `!=`. The list is the single definition. The item's
+  wording ("route both SQL sites through a named `mayHoldRoleMembership` predicate") should be read
+  as naming the outcome, not the mechanism. The narrowing report the item did not ask for but the
+  fix needs is in the PR: narrowing to ACTIVE breaks staged onboarding, turns a merge into a
+  non-ACTIVE target into data loss, and revokes nothing.
 
 - [ ] **S-23 (LOW, filed 2026-08-29). The rule-34 follow-up, now actually filed: a boot check on
   the *resolved* actuator include.** Rule 34 recorded this follow-up as "filed not built" and it
@@ -287,9 +333,23 @@ Per-path limiter mapping context -- which limiter covers which route -- sits in 
   every future Boot endpoint at once without hand-enumerating names, and it is the only thing that
   would make the exclude list and `MUST_BE_EXCLUDED` deletable. *(Premise reasoned from
   deps+config; the 2026-08-29 review could not boot the app.)* **COLD.**
+  **IN FLIGHT 2026-08-30: [#248](https://github.com/themancalledzac/edens.zac.backend/pull/248).** `ProdActuatorExposureGuard`, prod-profile-gated like
+  `ProdSecretGuard`, reading `WebEndpointProperties` rather than the raw property text so the check
+  cannot drift from what actuator actually exposes. The premise held when the app was finally
+  booted: the guard's own tests boot a real context. **The exclude list was left exactly as it is**
+  -- no names added, and deleting it is still a separate call.
 
-- [ ] **S-24 (LOW, quick user call, filed 2026-08-29). Two admin mail-send paths are covered by
-  neither limiter, and the gallery one amplifies.** `POST /api/admin/collections/{id}/gallery-access`
+- [x] **S-24 (LOW, quick user call, filed 2026-08-29). Two admin mail-send paths are covered by
+  neither limiter, and the gallery one amplifies.** **ANSWERED and CLOSED 2026-08-30: accept as
+  admin-trusted, documented.** No limiter is added. The answer's whole content was "document that",
+  so the documentation shipped with the answer rather than being left as a follow-up: a docblock on
+  `CollectionAdminController.updateGalleryAccess` recording that the N-address send loop is
+  deliberately uncapped, and one on `AdminUserController.sendInviteEmailAfterCommit` recording the
+  same for its three callers. Both say the trust boundary out loud -- `hasRole("ADMIN")` -- and both
+  name the condition that would reopen this: the path becoming reachable below admin.
+
+  Original finding follows.
+ `POST /api/admin/collections/{id}/gallery-access`
   (`CollectionAdminController.java:56`) loops `sendGalleryPasswordEmail` over a caller-supplied
   `request.emails()` list with no cap (`CollectionService.java:1675-1683` -- N SES sends per
   request), and the three admin invite endpoints (`AdminUserController.createUser` /
@@ -331,15 +391,18 @@ rows of the 2026-08-25 classification table moved to the history file 2026-08-29
 
 | Item | State | The question, and who answers it |
 |---|---|---|
-| S-14 | **BLOCKED on the user.** | May an admin put an *arbitrary* collection -- including another client's password-protected gallery -- into their own share scope? `addCollection` gates on `canView`, which an admin passes for everything (working rule 20). Default-safe answer: add an ownership/grant test distinct from `canView`, so the admin sentinel cannot durably grant a third party access; if the behavior is intended, this is documentation, not a bug. |
-| S-16 | **BLOCKED on the user.** | Should disabling an account kill its share links, or only suspend them? Default-safe answer: suspend (a `users.status` join on share resolve) so re-enabling restores access; revoking is destructive and not reversible by re-enabling. |
-| S-22 | **COLD.** | -- verified 2026-08-29; no open question. |
-| S-23 | **COLD.** | -- filed 2026-08-29; premise reasoned from deps+config (the review could not boot the app), stated in the item. |
-| S-24 | **Quick user call.** | Cap admin mail sends (a global daily bucket, `ContactMessageLimiter` shape) or document them as admin-trusted? One sentence settles it. |
+| S-14 | **ANSWERED 2026-08-30, closed.** | No second gate -- the ownership/grant test is rejected, behavior accepted. Does not settle whether `addCollection` (a `/api/read/user/share` endpoint, not an admin one) should be admin-gated; that is a routing question and needs its own item. |
+| S-16 | **ANSWERED 2026-08-30, unblocked.** | Suspend, not revoke: a `users.status` predicate on share resolve and the scope join, no rows deleted. Now ordinary work and the next security item. |
+| S-22 | **IN FLIGHT.** | [#247](https://github.com/themancalledzac/edens.zac.backend/pull/247) -- shipped as one bound list, not a named boolean; the predicate had no runtime caller. |
+| S-23 | **IN FLIGHT.** | [#248](https://github.com/themancalledzac/edens.zac.backend/pull/248) -- `ProdActuatorExposureGuard`, reading `WebEndpointProperties`. Exclude list untouched. |
+| S-24 | **ANSWERED 2026-08-30, closed.** | Accept as admin-trusted; the two docblocks that were the answer's whole content shipped with it. |
 
-S-19 closed as not-live, above. **Two of the original eleven are blocked, and both blockers are
-product calls rather than research** -- neither can be settled by reading code, which is why they are
-named here in the form the user can answer.
+S-19 closed as not-live, above. **Both blockers were answered on 2026-08-30 and nothing in this
+section is blocked on the user any more.** Naming them in the form the user could answer is what
+got them answered -- S-14 and S-24 closed outright, S-16 turned into ordinary work. Worth keeping:
+S-14's answer did not fit either option offered, and forcing it into one would have recorded a
+decision the user did not make. What it settles and what it leaves open are both written into the
+item.
 
 *(Closed 2026-08-30 -- all six. Full write-ups, mutation results and the two premise corrections:
 [history](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker).)*
@@ -899,7 +962,18 @@ shipped 2026-08-30 in [#243](https://github.com/themancalledzac/edens.zac.backen
 Answers and reasoning:
 [history](2026-08-22-backend-cleanup-history.md#decisions-answered-2026-08-30-moved-from-the-tracker).)*
 
-- [ ] **Passkey revocation: there is no delete path at all.** *(New row 2026-08-29, from the
+- [ ] **Passkey revocation: there is no delete path at all.** **ANSWERED 2026-08-30: build an
+  admin endpoint. Not built here -- this row is now a work item, not a question.** Admin
+  deregistration only; no user-facing list-and-remove. That is the smallest thing that closes the
+  compromised-authenticator gap, and it keeps the capability on the same `/api/admin/**` gate as
+  every other admin action rather than adding a self-service surface. **What the work is:** a
+  delete on `WebAuthnCredentialRepository` (it has insert, find and updateSignCount today), an
+  admin endpoint to reach it, and a test that the deregistered credential can no longer complete
+  `finishLogin`. Whoever takes it should check whether removing an account's *last* credential
+  leaves it able to authenticate at all, and decide deliberately rather than by accident.
+
+  Original finding follows.
+ *(New row 2026-08-29, from the
   adversarial security re-review.)* `WebAuthnCredentialRepository` exposes insert, find and
   updateSignCount — no delete — so a compromised authenticator on a still-ACTIVE account cannot be
   individually deregistered; the only remedy is disabling the whole account. Not a
@@ -1100,6 +1174,37 @@ is in the [history file](2026-08-22-backend-cleanup-history.md#session-log).
   work sitting in the archive (invisible to the board) or stale markup inside closed items.
   Next: **S-22 and S-23** (both COLD), then Bug #21. S-14, S-16, S-24 and passkey revocation need one
   batched user call.
+- 2026-08-30 (second session) — **three MRs and the four-answer batch.** Shipped S-22
+  ([#247](https://github.com/themancalledzac/edens.zac.backend/pull/247)), S-23 ([#248](https://github.com/themancalledzac/edens.zac.backend/pull/248)) and Bug #21 ([#249](https://github.com/themancalledzac/edens.zac.backend/pull/249)), each mutation-proved before
+  the PR, then recorded the four product answers the previous entry asked for.
+  **The user's four answers:** S-14 *no second gate* (closed), S-16 *suspend, not revoke*
+  (unblocked, now the next security item), S-24 *accept as admin-trusted* (closed, with the two
+  docblocks that were the answer's whole content), passkey revocation *admin endpoint only* (filed
+  as work, not built). **Nothing in the security section is blocked on the user any more.**
+  **S-14's answer did not fit either option offered**, and this is the log line for it: the answer
+  was a principle -- every admin endpoint through the same admin gate, as simple as possible -- and
+  `addCollection` is not an admin endpoint. It sits on `UserShareControllerProd` at
+  `/api/read/user/share`; the admin sentinel in `canView` is what makes it answer yes for
+  everything. The principle rejects the ownership test the item proposed, so the item closes, but
+  it does not decide what a user endpoint should do when an admin calls it. Recorded as closed with
+  that gap named rather than forced into "allow, documented".
+  **S-22 shipped in a different shape than the item specified, and the review caught it.** The item
+  said "route both SQL sites through a named `mayHoldRoleMembership` predicate". That predicate was
+  written, and removed on user review: `mayHoldSession` earns its shape from four Java call sites
+  that ask it about one user per request, and this rule has **zero** -- it is only ever asked in
+  SQL, over the whole set, so the boolean was a zero-caller wrapper around one `!=` added to match
+  a convention rather than because anything called it. **The lesson generalizes past this item:** a
+  predicate is worth naming when code calls it, not when a board says "named predicate". The list
+  bound by both SQL sites is the same single definition with one less name in the API.
+  **A verification failure worth recording, because it nearly shipped a false result.** The first
+  mutation run on S-23's guard read "10/10 green" from
+  `target/surefire-reports` after a build that had actually **failed to compile** -- removing
+  `@PostConstruct` left an unused import, checkstyle failed the build, and the stale report from
+  the previous run was still on disk. A stale surefire report reads exactly like a passing run.
+  Deleting the report file before the mutation run is what turned it into the real answer (5
+  failures). Any mutation proof that greps surefire output should delete the report first.
+  Next: **S-16** (suspend on share resolve, now unblocked), then the passkey admin endpoint. Both
+  are ordinary work with no open questions.
 - 2026-08-30 — **cross-repo filing from the frontend's close-out session. No backend code.**
   Filed **Bug #21** (the dimension fallback fails soft and writes `0`), promoted out of the frontend
   board's C9 after the user's answer reframed it from a rendering question into a data-integrity one
