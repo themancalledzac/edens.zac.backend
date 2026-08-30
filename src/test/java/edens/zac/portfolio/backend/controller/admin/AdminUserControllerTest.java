@@ -1052,11 +1052,25 @@ class AdminUserControllerTest {
       verify(sessionService).revokeAllForStatus(8L, UserStatus.DISABLED);
     }
 
+    /**
+     * The two sweeps run off different allowlists, and INVITED is the status that separates them:
+     * an INVITED account may hold a live invite, but may not hold a working session.
+     *
+     * <p>What this pins is that the handler delegates both sweeps with the resulting status, and
+     * nothing beyond that. It cannot police the predicates behind them: {@code sessionService} is a
+     * mock here and {@code mayHoldSession} is static, so the sweep's own guard never runs. An
+     * inline comment in this method used to claim it caught the mutation that keys the session
+     * sweep off {@code mayAcceptInvite}. It does not -- under that mutation this class stays green
+     * at 54 cases.
+     *
+     * <p>The tests that do catch those mutations both live in {@code
+     * SessionServiceIntegrationTest}: keying the sweep off {@code mayAcceptInvite} reddens {@code
+     * revokeAllForStatusRevokesOnDemotionToInvited}, and widening {@code mayHoldSession} itself
+     * reddens {@code mayHoldSessionAdmitsActiveAndNothingElse}, the literal pin over the whole
+     * {@code UserStatus} enum.
+     */
     @Test
     void demotingUserToInvitedRevokesSessionsButKeepsInvites() throws Exception {
-      // The two sweeps run off different allowlists, and INVITED is the status that separates
-      // them: an INVITED account may hold a live invite, but may not hold a working session.
-      // Mutation this catches: key the session sweep off mayAcceptInvite and this goes red.
       AppUserEntity before =
           AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
       AppUserEntity after =
