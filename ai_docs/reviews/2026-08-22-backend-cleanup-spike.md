@@ -175,6 +175,41 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   `shutdown()` on `imageProcessingExecutor` and `rawUploadExecutor`, then `awaitTermination` on
   `rawUploadExecutor` alone -- an in-flight image-processing task can be killed mid-write on
   shutdown. About 10 lines in one file, plus the test that pins the second wait. **COLD.**
+- [ ] **Bug #21 (low) -- when the dimension fallback fails it writes `0`, and `0` is the one value
+  the frontend cannot tell apart from "broken".** *(Filed 2026-08-30 from the frontend board's C9.
+  C9 asked a product question -- should a dimensionless cover fall back to a text-only header? --
+  and the user's answer reframed it: "we should NEVER HAVE AN IMAGE WITHOUT height/width... we
+  should NEVER be caught in this situation." That is a statement about this repo, so the item
+  belongs here.)*
+  **Premise correction made while filing, and it cuts the severity from medium to low.** The obvious
+  reading -- "EXIF has no dimensions, so `0` gets written" -- is WRONG, and anyone re-deriving this
+  item will reach for it. `ImageMetadataExtractor:97-100` and `:119-122` already check for the
+  missing keys and call `ensureDimensions`/`ensureDimensionsFromPath`, which read width and height
+  straight off the image header via `putDimensionsFromHeader:399-420`. **The "just read the real
+  dimensions" fix already exists.** Do not propose it again.
+  **What is actually wrong: that fallback fails soft, three ways, and each one lands on `0`.**
+  `putDimensionsFromHeader` returns without setting the keys when `createImageInputStream` yields
+  null (`:402-404`) or when no `ImageReader` handles the format (`:406-408`), and `ensureDimensions`
+  swallows an `IOException` (`:369-371`). Each logs a warning and continues. Then
+  `ImageProcessingService.applyMetadataToEntity:465-468` writes
+  `parseIntegerOrDefault(metadata.get("imageWidth"), 0)` -- **default `0`, not null**. The realistic
+  trigger is the no-reader branch: a format Java ImageIO has no reader for, which for a photography
+  archive means RAW or HEIC without a plugin. Note the inconsistency in the same method -- `iso` on
+  the very next line defaults to `null`; only the dimensions default to `0`.
+  **Why `0` is worse than `null`.** Both frontend consumers handle the two differently and both get
+  it wrong. `contentLayout.ts:650` guards `if (!coverBlock.imageWidth || !coverBlock.imageHeight)
+  return null` -- `0` is falsy in JS, so a `0 x 0` cover renders **no collection header at all**.
+  The sibling path at `parallaxCard.ts:135-136` falls back to a 1000px square via
+  `raw.imageWidth ?? SQUARE_FALLBACK_SIDE` -- but `??` catches only null/undefined, so `0` passes
+  straight through the fallback built for exactly this case. One sentinel, two consumers, two
+  different wrong answers.
+  **Fix shape:** default to `null` rather than `0` at `:465-468`, so the frontend's existing
+  null handling works and `parallaxCard`'s `??` fallback fires as designed. Optionally make the
+  soft-fail loud -- a warning nobody reads is how a `0 x 0` row reaches production unnoticed.
+  The column already permits null (`ContentImageEntity:48` is a boxed `Integer`;
+  `test-base-schema.sql:83` is `image_width INTEGER` with no `NOT NULL`), so no migration is needed
+  for the null default. **Frontend C9 is parked pending this** -- it should not add a fallback for a
+  value this repo should stop producing. **COLD.**
 
 ## Open security findings
 
@@ -1175,6 +1210,25 @@ moves the rest to the history file's log archive in the same pass. A close-out M
 log without moving the older entries is the lapse signal.** The archive, pre-split log included,
 is in the [history file](2026-08-22-backend-cleanup-history.md#session-log).
 
+- 2026-08-30 — **cross-repo filing from the frontend's close-out session. No backend code.**
+  Filed **Bug #21** (the dimension fallback fails soft and writes `0`), promoted out of the frontend
+  board's C9 after the user's answer reframed it from a rendering question into a data-integrity one
+  about this repo. **The filing corrected its own premise before landing** — the obvious version of
+  the bug ("EXIF missing, so `0` is written") is false, because `ensureDimensions` already reads the
+  header; the real defect is that the header read fails soft three ways and each lands on `0`.
+  Severity dropped medium → low on that correction, and the dead fix proposal is recorded in the
+  item so it is not re-proposed.
+  **Two consequences of #243 the frontend had to absorb, noted here so the trail is two-way.**
+  Blessing bare arrays answers the frontend board's G5, which had been sitting BLOCKED-on-user for
+  the same decision — it closes there with zero code. Second, and unprompted: making the
+  `/api/admin/**` gate unconditional **invalidated a Critical Rule in the frontend's `CLAUDE.md`**,
+  which still tells every agent "the local backend serves `/api/admin/**` with no cookie. Do not
+  'fix' any of those as a security hole." Filed on the frontend board; flagged here because a
+  backend security change silently falsifying a frontend standing instruction is a class of
+  breakage neither board was watching for.
+  **One gap observed in passing, not fixed:** #243 merged without a session-log entry on this
+  board, so the log's newest entry is still 2026-08-29 while HEAD is #243. Left for the backend's
+  own close-out rather than reconstructed from here.
 - 2026-08-29 — **the recommended full-board review ran**, as a 9-agent split across both repos:
   slices 1 and 5 plus open-items, structure and cross-repo slices; the per-item re-estimate slice
   deliberately skipped, per the board's own note that it should wait for a mis-specified item.
