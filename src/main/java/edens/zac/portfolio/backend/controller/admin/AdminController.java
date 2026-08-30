@@ -59,10 +59,9 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>Unlike the legacy dev/prod controller split, these routes are NOT profile-gated — they are
  * protected at the filter-chain level: {@link edens.zac.portfolio.backend.config.SecurityConfig}
- * requires {@code hasRole("ADMIN")} on {@code /api/admin/**} (toggle: {@code
- * app.admin.enforce-authz}, default {@code true}, off only in local dev), and in prod that sits
- * behind {@link edens.zac.portfolio.backend.config.InternalSecretFilter} as well. The class stays
- * package-private. Exception handling is delegated to {@link GlobalExceptionHandler}.
+ * requires {@code hasRole("ADMIN")} on {@code /api/admin/**} in every profile, and in prod that
+ * sits behind {@link edens.zac.portfolio.backend.config.InternalSecretFilter} as well. The class
+ * stays package-private. Exception handling is delegated to {@link GlobalExceptionHandler}.
  */
 @Slf4j
 @RequiredArgsConstructor
