@@ -5315,3 +5315,264 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     The wider trap: a green `main` build proves nothing about work that never reached `main`. Both
     sweeps were verified by a full build on their own branch, and one of those branches was already
     dead.
+
+
+## Tests that cannot fail — CLOSED 2026-08-30 (moved from the tracker)
+
+All six closed. The last three went in one session: #239, #240, #241. Each was mutation-proved
+against `main` first, so the queue's premise -- that these tests could not fail -- is now
+evidenced rather than asserted.
+
+
+Working rule 15 says a regression test that cannot fail is worse than none because it reports
+coverage. The review checked the security tests against that standard and six failed it.
+
+**Status 2026-08-29: three closed, three open, and this is still the board's first queue** (S-22
+and S-23 joined the actionable set behind it on 2026-08-29). **Two of the three open items are
+missing coverage** of a security behaviour that is live in `main`; the third is the
+`AdminUserControllerTest` comment relocation. Each already carries the mutation that should redden
+it, so none of them needs re-derivation before someone starts.
+
+- [x] **Closed by [#232](https://github.com/themancalledzac/edens.zac.backend/pull/232), 2026-08-28.**
+  `ActuatorExposureEndToEndTest` iterated the denylist itself, so an omission like `caches` was
+  structurally invisible, and it supplied its own exclude via `@SpringBootTest(properties=...)` --
+  **no change to `src/main` could redden it.** The loop now iterates
+  `ActuatorExposureTest.MUST_BE_EXCLUDED`, the expectation list, which the config cannot edit.
+  Sharing that one list rather than copying it keeps the tree at two denylists (the expectation and
+  the shipped literal) instead of three. Mutation-verified: dropping `caches` from the properties
+  file **and** the literal together -- the exact mutation the old loop could not see -- reddens it
+  with `/actuator/caches is reachable with include=*, expected 404 but was 200`. This is working
+  rule 33's species and it was found before rule 33 was written.
+- [x] **CLOSED by [#241](https://github.com/themancalledzac/edens.zac.backend/pull/241), 2026-08-30.**
+  **The board's own suggested pointer was wrong and was corrected while closing.** The item said to
+  name `mayHoldSessionAdmitsActiveAndNothingElse`. That test does not redden on this mutation -- it
+  pins `mayHoldSession` itself, which the mutation leaves alone. Verified by running both:
+  keying the sweep off `mayAcceptInvite` reddens `revokeAllForStatusRevokesOnDemotionToInvited`
+  (`AdminUserControllerTest` stays green at 54); widening `mayHoldSession` to `!= DISABLED` reddens
+  the enum pin plus two others (`AdminUserControllerTest` again green at 54). The docblock names
+  both, each against the mutation it actually catches -- naming only the enum pin would have
+  replaced one false attribution with another. Original text:
+- [x] *(superseded)* `AdminUserControllerTest.demotingUserToInvitedRevokesSessionsButKeepsInvites` cannot catch what
+  its comment claims: `SessionService` is a mock and `mayHoldSession` is static. The mutation is
+  caught by `SessionServiceIntegrationTest` instead. **False attribution, not a missing test** --
+  worth fixing the comment so the next reader does not trust the wrong test.
+
+  **Re-verified 2026-08-28** (S-20 changed `mayHoldSession`'s call sites, so this is in the
+  neighborhood). Claim intact: the comment at `AdminUserControllerTest:1059` still reads "Mutation
+  this catches: key the session sweep off `mayAcceptInvite` and this goes red", and the test still
+  mocks `SessionService`. Still a one-line comment fix, still open. **The correct pointer is now
+  more specific than it was**: #230 added
+  `SessionServiceIntegrationTest.mayHoldSessionAdmitsActiveAndNothingElse`, which is the test that
+  actually reddens on that mutation, so the pointer should name it rather than gesturing at the
+  file. **Re-worded 2026-08-29 for working rule 37: the fix is delete-and-relocate, not an edited
+  inline comment** -- delete the comment block and put the corrected pointer in the test's
+  docblock.
+- [x] `WebAuthnServiceTest` covers DISABLED only. Rewriting the guard as `== DISABLED` stays green
+  while admitting INVITED and PERSON passkey logins, both reachable. `AuthControllerTest`
+  parameterizes over both and does catch it; this one should too. **DONE**
+  ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230), 2026-08-28) -- closed as a
+  side effect of S-20, since both tests had to be touched to route the guards through the predicate.
+  Both now derive their cases from `mayHoldSession` and run all three ineligible statuses.
+
+  **The item's own premise was half wrong, in the direction that made it look smaller.**
+  "`AuthControllerTest` parameterizes over both and does catch it" -- it parameterized over
+  `{DISABLED, INVITED}` via a hardcoded `@EnumSource(names = ...)` and **omitted PERSON**. So both
+  tests had the gap, not one, and the item's own comparison was pointing at a second instance of the
+  defect as if it were the fix. A `PERSON` row has no password hash, so the login path was covered
+  by an adjacent clause rather than by the status test -- which is exactly why nobody noticed. The
+  passkey path had no such backstop.
+
+  Carried forward as **working rule 33**: the replacement derives its cases from the predicate,
+  which fixes the omission permanently but introduces a blind spot of its own, so the allowlist is
+  now pinned separately.
+- [x] **Closed by [#235](https://github.com/themancalledzac/edens.zac.backend/pull/235), 2026-08-28.**
+  Outcome: [history](2026-08-22-backend-cleanup-history.md#s-3-test-outcome-2026-08-28----the-surviving-side-was-tested-with-one-status).
+  `PersonRepositoryIntegrationTest` (S-3's whole deliverable) seeded both accounts ACTIVE, so
+  mutating `status = 'PERSON'` to `status <> 'ACTIVE'` passes while making every INVITED and DISABLED
+  account deletable through the people-delete endpoint. The mutation S-3 stated does redden it; this
+  one does not.
+- [x] **CLOSED by [#239](https://github.com/themancalledzac/edens.zac.backend/pull/239), 2026-08-30.**
+  Premise held exactly. **Mutation-proved both ways**: with `@Component` deleted, `main`'s version
+  reported `Tests run: 13, Failures: 0, BUILD SUCCESS` -- the gap was real, not theoretical -- while
+  the replacement reddens 4 of 5. Moving the class out of `edens.zac.portfolio.backend` also reddens
+  4. `@PostConstruct` still reddens the refusal cases, unchanged. **Trap recorded:** the move
+  mutation cannot be run as stated -- the constructor is package-private, so relocating breaks the
+  eight predicate cases at compile time and checkstyle fires first; the run dies with no `Tests run:`
+  line and reads as a reddening while proving nothing (the S-3 species). Widen the constructor and
+  skip checkstyle to get a real result. Original text:
+  `ProdSecretGuardTest.java:117` still reads
+  `new ApplicationContextRunner().withUserConfiguration(ProdSecretGuard.class)` -- the class is
+  named directly, so no case depends on component scanning finding it.
+  `ProdSecretGuardTest.Wiring` registers the guard class by hand, so moving it out of the
+  component-scanned package keeps every case green while prod boots unguarded. The two mutations S-4
+  stated do redden it. **Count corrected 2026-08-25: five wiring cases, not four** -- #222 added
+  `prodRefusesToStartOnTheDefaultDevAccessTokenSecret`. The item is unchanged in substance and
+  slightly worse in scale: the new clause is guarded by the same hand-registration, so
+  `withUserConfiguration` still stands between this test and the thing it claims to prove.
+- [x] **CLOSED by [#240](https://github.com/themancalledzac/edens.zac.backend/pull/240), 2026-08-30.**
+  Both `/api/read/share` GETs added to the default-deny cases; `PUBLIC_ROUTES` untouched at nine
+  (re-verified 2026-08-30). Mutation: allow-listing `/api/read/share/{token}` leaves `main`'s test
+  **27 green** and reddens the new one once.
+  **Premise corrected while closing:** the item said #213 put "a bearer token in that response body".
+  It did not -- `ShareModels.ShareView` is `(ownerName, page)` and `buildView` fills both from the
+  link. The credential is the **`Set-Cookie`**, built by `FlybyCookies.build(rawToken, ..)` on both
+  routes, so a shared cache would replay another visitor's raw share token. Sharper, not smaller.
+  **Noted, not fixed:** `/api/read/user/share` (GET) is also unlisted and unpinned. Original text:
+- [x] *(superseded)* **Checked 2026-08-28: the behaviour is correct, only the pin is missing -- re-sized from a
+  possible bug to a guard against a future edit.** `CacheControlInterceptor` stamps `no-store` on
+  everything that is *not* allow-listed, and the share routes are not on that list, so the header
+  is right today by default rather than by intent. `CacheControlInterceptorTest` has an
+  allow-listed case and a password-protected case and **no share case**, so the regression this
+  needs to catch is someone adding the share route to the allow-list -- which would be a quiet
+  one-line change with a token in the response body. Smallest of the three open items.
+  **Nothing pins that the share-link GET is `no-store`.** #213 put a bearer token in that
+  response body; the cache-control default-deny list (`CacheControlInterceptor.PUBLIC_ROUTES`) enumerates **nine**
+  sibling routes (re-measured 2026-08-29; the recorded six was stale) and not this one.
+  Adding it to `PUBLIC_ROUTES` reddens nothing, and the read cache policy sets `s-maxage` for
+  CloudFront -- so the failure mode is a shared cache serving one owner's share token to another
+  visitor. Default-deny protects it today; nothing guards the edit.
+
+
+
+## Rule 37 debt — R-1 CLOSED 2026-08-30 (moved from the tracker)
+
+Closed by #238. The per-package rule-37 sweep it was carved out of is still open and is tracked
+in the tracker's Progress category table, not here.
+
+
+Moved out from under "Open security findings" 2026-08-29 -- comment debt is not a security
+finding, and the Progress table already rows it separately.
+
+### R-1: the #232 comment cleanup that never merged
+
+- [x] **CLOSED by [#238](https://github.com/themancalledzac/edens.zac.backend/pull/238), 2026-08-30.** Cherry-picked `d42d24d` and `665bd7d`; `44a9d81` deliberately not picked. Nine lines, build green at 1,414. Both trimmed facts were re-checked as surviving elsewhere before the trim landed. **R-1 (2026-08-28). `main` violates working rule 37 in the two files #232 touched, and the fix
+  is sitting on a merged branch.** After the rule-37 instruction landed, both open branches were
+  swept. #233's sweep merged with it. **#232's did not: it had already merged, at 21:12Z, and the two
+  cleanup commits were pushed to its branch afterwards.** They are still there --
+  `origin/fix/s18-actuator-exclude` carries `d42d24d` (remove the inline comments) and `665bd7d`
+  (cut the prose from the actuator property comments) -- and neither is reachable from `main`.
+  **Corrected 2026-08-29:** `git log origin/main..origin/fix/s18-actuator-exclude --oneline`
+  returns **three** commits, not two -- `44a9d81` (the S-18 fix itself) is also unreachable by SHA,
+  because #232 squash-merged as `d6ff6a8`, so no branch commit is ever an ancestor of `main`. Its
+  *content* is on `main`; only `d42d24d`/`665bd7d` are content-stranded. Record the command with
+  the count (working rule 31).
+
+  Verified on `main` 2026-08-28, not inferred: `ActuatorExposureTest.java:76-78` still carries the
+  three-line `//` block inside `exposureExclude_namesEverySensitiveEndpoint`, and
+  `application.properties` still carries the six-line prose block above
+  `management.endpoints.web.exposure.include`. #233's equivalent trims **are** on `main`
+  (`app.share.email-per-sender-per-hour` has its bare label), which is what makes the asymmetry a
+  merge-ordering accident rather than a decision.
+
+  **Fix: re-apply both -- about nine lines across the two files; do not merge the dead branch.**
+  *(The old justification here -- "cherry-picking it would drag its stale copy of the tracker
+  along" -- was false and is withdrawn 2026-08-29: no commit on that branch touches `ai_docs/`, and
+  `git apply --check` passes clean for both diffs today, so cherry-picking `d42d24d` and `665bd7d`
+  works too and touches only the two code files.)* Delete the three comment lines and trim the
+  property block to
+  `# Actuator Configuration (restrict exposed endpoints)`. Both facts are already in the class
+  javadoc of `ActuatorExposureTest` and `ActuatorExposureEndToEndTest`, so nothing here is the only
+  copy -- that was checked before the original trim and is why the trim was safe.
+
+  **Guardrail: do not start the wider rule-37 sweep in this MR.** The 567-count row says per package,
+  and this item is two files. Nine or ten lines, tests unchanged. **COLD.**
+
+
+
+## MR 20 — the bare-array decision, CLOSED 2026-08-30 (moved from the tracker)
+
+Answered by the user: bare arrays are blessed, `.claude/CLAUDE.md` amended in #243, no endpoint
+changed. The inventory below is the record of what the rule now permits.
+
+
+- [x] **CLOSED 2026-08-30 by decision: bare arrays are blessed, no endpoint changes.** `.claude/
+  CLAUDE.md` was amended instead of wrapping the 17. The endpoint inventory below is kept as the
+  record of what the rule now permits, not as outstanding work. Original text:
+- [x] Decide first. **17 endpoints** (the prose said 15; the item's own list has always had 17, and 17 is what a re-derivation finds) return top-level JSON arrays against the stated "objects only" rule: `AdminController:84`; `AdminUserController:152, 366, 421, 434` (**re-derived 2026-08-29**: `listUsers`, `userRoles`, `userSavedImages`, `userFollows` -- the old 328/383/396 had drifted, and 383/396 are now the role-membership pair); `CollectionAdminController:43`; `ContentControllerProd:85, 96, 107, 118, 130` (correct as of 2026-08-29). **Six drifted, re-derived 2026-08-25 and named by symbol**: `AdminRoleController.listRoles` (`48`), `UserFollowsControllerProd.list` (`52`), `UserSavesControllerProd.list` (`50`) and `.listImages` (`56`), `UserSelectsControllerProd.list` (`55`), `UserRatingOverrideControllerProd.list` (`48`). **`UserSelectsControllerProd.list` is carried twice on this board**, here and under MR 22, and only MR 22's copy was corrected on 2026-08-24 -- deduplicate it rather than correcting it in two places. `CollectionAdminController:37` even documents the violation as policy. Either wrap them in one breaking-change MR, or amend `.claude/CLAUDE.md` to bless bare arrays. Today the codebase carries two contradictory conventions.
+
+  **Frontend answer, 2026-08-24, re-measured 2026-08-29: it consumes bare arrays directly** at
+  ~14 call sites in 6 files (`app/lib/api/{adminHome,roles,users,personal,selects,content}.ts`,
+  typed as `T[]`; the old "20 call sites" predates the FE's `clientFetch` rewrite, #333/#334). So
+  wrapping is breaking for 13 of the 17. Backend cost is 17 source sites against **92 array-shape
+  assertions in 25 test methods across 8 files**, plus ~15 frontend test files. **Cross-repo
+  visibility (2026-08-29): the FE board carried no counterpart row** -- this decision was invisible
+  from the repo the breaking change lands on; the 2026-08-29 review filed the FE-side row, blocked
+  on the same user decision.
+
+  **The de-risking split the item does not offer:** four of the 17 have **no frontend consumer at
+  all** -- `/api/read/content/people`, `/cameras`, `/lenses` and `/api/read/user/ratings`
+  (**corrected 2026-08-29**: that is the route `UserRatingOverrideControllerProd` actually maps;
+  the old text said `rating-overrides`. It also has no backend controller test). Those four can be wrapped today with zero
+  coordination, which settles the convention question in code before negotiating the breaking 13.
+
+
+**Refs re-derived 2026-08-30 during close-out.** Five drifted by -1 -- `AdminController` 85->84 and
+`AdminUserController` 153->152, 367->366, 422->421, 435->434 -- because #243 edited docblocks near
+the top of both files. A docblock-only diff moves line numbers exactly like a code change.
+`CollectionAdminController:43` and `:37`, in the same inventory but in an untouched file, did not
+drift. Command: `grep -nE 'ResponseEntity<List<' <file>` plus `grep -n listUsers`.
+
+
+## Decisions answered 2026-08-30 (moved from the tracker)
+
+All three answered by the user in one batch and shipped in
+[#243](https://github.com/themancalledzac/edens.zac.backend/pull/243).
+
+- [x] **Should `app.admin.enforce-authz=true` become unconditional? ANSWERED 2026-08-30: yes, and
+  the toggle is gone.** The property was deleted rather than pinned to `true` -- a flag that can
+  only hold one value is dead config. `SecurityConfig` now gates `/api/admin/**` on `hasRole(
+  "ADMIN")` and `/api/edit/**` on `hasRole("USER")` in every profile, `EditAccessWebConfig` always
+  registers its interceptor, and `ProdSecretGuard`'s third check went with it -- there is no longer
+  an env var for it to guard against. **Local dev is no longer login-free on the write surface**;
+  that was the accepted cost. Deleted with it: `AdminAuthorizationDisabledWebMvcTest` and
+  `EditAuthorizationDisabledWebMvcTest`, which existed only to pin the disabled path, plus two
+  `ProdSecretGuardTest` cases. The four admin `currentUserId` null sites (`AdminRoleController`
+  68/123/151, `AdminUserController` 261/384) are closed by construction and needed no edit of their
+  own. The two public-read null sites were not touched, per the original split. Original text:
+  *(New row 2026-08-24. MR 15 #6
+  costed the `currentUserId` null contract and found it is two problems, not one: the four
+  `/api/admin/**` null sites exist only because the gate falls through to `permitAll` in dev. Making
+  the flag unconditional closes all four properly. That is a dev-ergonomics decision, not a
+  consolidation, which is why it is here and not in Wave 5.)* Trade-off is local admin convenience
+  against an always-on admin gate. The two public-read null sites are correct as they stand and
+  should not be touched either way.
+- [x] **Should `parseImageDate` stay permissive? ANSWERED 2026-08-30: no -- strict and normalized,
+  but falling through rather than throwing.** The month-13 framing was real but oversold: no
+  Lightroom-exported JPEG produces it, and the genuine failure was that the parser took the first
+  two numeric runs with no range check at all, so any string whose leading numbers were not a year
+  and a month was accepted. It now range-checks (month 1-12, year 1826..next year) and treats an
+  implausible value exactly like an unparseable one, so it falls through `createDate` ->
+  `modifyDate` -> today. Nothing that parses correctly today changes and no upload starts failing.
+  Seven cases added, five of which redden against the old implementation. Original text: *(New row
+  2026-08-24. Noted in the history file
+  during MR 13 and never given a row; it also replaces the struck EXIF/ISO half of consolidation
+  #17.)* It returns **month 13** for a nonsense EXIF date and builds an S3 path out of it. Either
+  reject the malformed date or clamp it -- both are behavior changes, so this needs a decision and
+  its own small MR with a month-13 test.
+- [x] **Bare-array responses: ANSWERED 2026-08-30 -- CLAUDE.md amended, the 17 endpoints stay as
+  they are.** Wrapping was the breaking option and the frontend consumes bare arrays directly, so
+  the rule moved to the code rather than the other way round. `.claude/CLAUDE.md` now says a list
+  endpoint may return a top-level array, and prefers an object only when the response carries
+  something besides the list. Closes MR 20 without a code change.
+
+- 2026-08-29 — **the recommended full-board review ran**, as a 9-agent split across both repos:
+  slices 1 and 5 plus open-items, structure and cross-repo slices; the per-item re-estimate slice
+  deliberately skipped, per the board's own note that it should wait for a mis-specified item.
+  Suite re-measured **1,414 exact** via `./mvnw clean install` (one-line fact for next time: it
+  needs `JAVA_HOME=/opt/homebrew/opt/openjdk`). **8 wrong recorded numbers found and corrected,
+  against ~45 that re-measured exact** — worst: the inline-comment debt is **~1,720** whole-line
+  comments plus ~72 trailing under the rule-37 criterion, not "567 floor". **The security set held
+  as a set: 0 HIGH, 0 MEDIUM** — four LOW findings filed as **S-22** (RoleRepository status
+  denylists, unpinned), **S-23** (the rule-34 follow-up, finally a row), **S-24** (admin mail
+  sends outside both limiters) and a **passkey-revocation** row under "Decisions needed". **Bugs
+  #18/#19 filed from the FE board's archives** (E16's `updateLocation` slug conflict — a generic
+  409 today, not the 500 the archive recorded; E13's location-tagged-GIF gap), and the MR 24
+  executor-shutdown bug promoted as **#20**. **The 32d2168 misfiling reversed**: "Decisions
+  needed", "Stale side branches" and Appendices C/D are back in this file and the Progress links
+  resolve again; both file headers now say what each file holds. Restructure applied per the
+  review's move-map: working rules distilled (narratives to history), closed security bodies to
+  history, #218's write-up to history, the full-board-review reports to history — this review
+  executes them; this file went 2,310 -> 1,172 lines (above the move-map's ~930 projection by the
+  new S-items, bugs, decision rows and ledger this close-out added). Next: **R-1**, then the
+  Tests-that-cannot-fail queue, with S-22/S-23 behind them; ask the user S-14, S-16, S-24 and the
+  passkey call in one batch.
