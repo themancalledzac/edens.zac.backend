@@ -55,10 +55,9 @@ import org.springframework.web.bind.annotation.RestController;
  * same-origin admin calls — this proves the request came through the BFF, not who the caller is.
  * Inside that perimeter, {@link edens.zac.portfolio.backend.config.SecurityConfig} enforces the
  * app-layer gate: these routes require {@code hasRole("ADMIN")}, granted only to a session
- * principal whose user row carries {@code users.is_admin = true}. That inner gate is controlled by
- * the {@code app.admin.enforce-authz} toggle (default {@code true} — enforced everywhere except
- * where {@code application-dev.properties} flips it off, so local dev stays login-free without a
- * prod-only transport perimeter to otherwise protect it).
+ * principal whose user row carries {@code users.is_admin = true}. That inner gate applies in every
+ * profile; the {@code app.admin.enforce-authz} toggle that once disabled it in local dev was
+ * removed on 2026-08-30.
  */
 @Slf4j
 @RestController

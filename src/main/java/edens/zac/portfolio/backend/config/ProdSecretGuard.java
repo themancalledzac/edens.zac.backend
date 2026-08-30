@@ -7,13 +7,12 @@ import org.springframework.stereotype.Component;
 
 /**
  * Fail-closed guard for prod startup. Refuses to start when {@code internal.api.secret} or {@code
- * app.access-token.secret} is unset or still set to the default development value, or when {@code
- * app.admin.enforce-authz} is false.
+ * app.access-token.secret} is unset or still set to the default development value.
  *
- * <p>The authz toggle exists so local dev stays login-free. In prod it is the only thing standing
- * between an anonymous visitor and the whole write surface: {@link SecurityConfig} falls through to
- * {@code permitAll} and {@link EditAccessWebConfig} skips its interceptor when it is off. One wrong
- * env var would open {@code /api/admin/**} and {@code /api/edit/**}, so prod refuses to boot.
+ * <p>A third check once refused a prod boot with {@code app.admin.enforce-authz=false}. That toggle
+ * was removed on 2026-08-30 and the authorization gate is now unconditional, so there is no longer
+ * an env var that can open {@code /api/admin/**} and {@code /api/edit/**} to open the check
+ * against.
  *
  * <p>{@code app.access-token.secret} is here because {@code docker-compose.yml} defaults it to a
  * value printed in this public repo. It is the AES-256 key {@link
@@ -28,15 +27,12 @@ public class ProdSecretGuard {
 
   private final String secret;
   private final String accessTokenSecret;
-  private final boolean enforceAuthz;
 
   ProdSecretGuard(
       @Value("${internal.api.secret:}") String secret,
-      @Value("${app.access-token.secret:}") String accessTokenSecret,
-      @Value("${app.admin.enforce-authz:true}") boolean enforceAuthz) {
+      @Value("${app.access-token.secret:}") String accessTokenSecret) {
     this.secret = secret;
     this.accessTokenSecret = accessTokenSecret;
-    this.enforceAuthz = enforceAuthz;
   }
 
   @PostConstruct
@@ -52,11 +48,6 @@ public class ProdSecretGuard {
           "app.access-token.secret must be set to a non-default value when prod profile is active:"
               + " it is the encryption key for share_link.token_cipher and the signing key for"
               + " client gallery access tokens");
-    }
-    if (!enforceAuthz) {
-      throw new IllegalStateException(
-          "app.admin.enforce-authz must not be false when prod profile is active: it removes the"
-              + " authorization gate on /api/admin/** and /api/edit/**");
     }
   }
 }

@@ -35,7 +35,7 @@ class ProdSecretGuardTest {
 
   @Test
   void blankSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard("", REAL_ACCESS_SECRET, true);
+    ProdSecretGuard guard = new ProdSecretGuard("", REAL_ACCESS_SECRET);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -44,7 +44,7 @@ class ProdSecretGuardTest {
 
   @Test
   void nullSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard(null, REAL_ACCESS_SECRET, true);
+    ProdSecretGuard guard = new ProdSecretGuard(null, REAL_ACCESS_SECRET);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -53,7 +53,7 @@ class ProdSecretGuardTest {
 
   @Test
   void defaultDevSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard("dev-internal-secret", REAL_ACCESS_SECRET, true);
+    ProdSecretGuard guard = new ProdSecretGuard("dev-internal-secret", REAL_ACCESS_SECRET);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -62,14 +62,14 @@ class ProdSecretGuardTest {
 
   @Test
   void realSecretSucceeds() {
-    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, REAL_ACCESS_SECRET, true);
+    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, REAL_ACCESS_SECRET);
 
     assertThatCode(() -> invokeVerify(guard)).doesNotThrowAnyException();
   }
 
   @Test
   void blankAccessTokenSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, "", true);
+    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, "");
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -78,7 +78,7 @@ class ProdSecretGuardTest {
 
   @Test
   void nullAccessTokenSecretThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, null, true);
+    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, null);
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
@@ -89,20 +89,11 @@ class ProdSecretGuardTest {
   void defaultDevAccessTokenSecretThrows() {
     // S-11: this is the exact string docker-compose.yml falls back to, and it is printed in a
     // public repo. Mutation this catches: drop the access-token clause from verify().
-    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, "dev-access-token-secret", true);
+    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, "dev-access-token-secret");
 
     assertThatThrownBy(() -> invokeVerify(guard))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("app.access-token.secret");
-  }
-
-  @Test
-  void enforceAuthzDisabledThrows() {
-    ProdSecretGuard guard = new ProdSecretGuard(REAL_SECRET, REAL_ACCESS_SECRET, false);
-
-    assertThatThrownBy(() -> invokeVerify(guard))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("app.admin.enforce-authz");
   }
 
   /**
@@ -116,10 +107,10 @@ class ProdSecretGuardTest {
    * discovery half of the wiring untested: dropping {@code @Component}, or moving the class out of
    * the scanned tree, kept all five cases green while prod booted unguarded.
    *
-   * <p>Mutations this catches: delete {@code @PostConstruct} and the three refusal cases redden;
+   * <p>Mutations this catches: delete {@code @PostConstruct} and the two refusal cases redden;
    * delete {@code @Profile("prod")} and {@link #guardIsNotRegisteredOutsideProd} reddens; delete
    * {@code @Component}, or move the class out of {@code edens.zac.portfolio.backend}, and {@link
-   * #prodStartsOnARealSecret} reddens on the missing bean, along with the three refusal cases.
+   * #prodStartsOnARealSecret} reddens on the missing bean, along with the two refusal cases.
    */
   @Nested
   class Wiring {
@@ -153,11 +144,10 @@ class ProdSecretGuardTest {
           .withPropertyValues(properties);
     }
 
-    /** A prod context whose only defect is the one the calling test is about. */
-    private ApplicationContextRunner prodWithGoodSecrets(String... properties) {
+    /** A prod context with no defect at all, for the control case. */
+    private ApplicationContextRunner prodWithGoodSecrets() {
       return prodWith(
-              "internal.api.secret=" + REAL_SECRET, "app.access-token.secret=" + REAL_ACCESS_SECRET)
-          .withPropertyValues(properties);
+          "internal.api.secret=" + REAL_SECRET, "app.access-token.secret=" + REAL_ACCESS_SECRET);
     }
 
     @Test
@@ -172,19 +162,6 @@ class ProdSecretGuardTest {
                     .rootCause()
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("internal.api.secret");
-              });
-    }
-
-    @Test
-    void prodRefusesToStartWithTheAuthzGateOff() {
-      prodWithGoodSecrets("app.admin.enforce-authz=false")
-          .run(
-              context -> {
-                assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure())
-                    .rootCause()
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("app.admin.enforce-authz");
               });
     }
 

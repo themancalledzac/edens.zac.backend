@@ -21,9 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Runs in dev and prod (no {@code @Profile} gating). Authorization is enforced by {@link
  * edens.zac.portfolio.backend.config.SecurityConfig}, which gates {@code /api/admin/**} behind
- * {@code hasRole("ADMIN")} (the {@code app.admin.enforce-authz} toggle, on by default). In prod
- * this also sits inside the {@link edens.zac.portfolio.backend.config.InternalSecretFilter}
- * perimeter. The returned rows carry only aggregate counts — no PII.
+ * {@code hasRole("ADMIN")} in every profile. In prod this also sits inside the {@link
+ * edens.zac.portfolio.backend.config.InternalSecretFilter} perimeter. The returned rows carry only
+ * aggregate counts — no PII.
  */
 @Slf4j
 @RequiredArgsConstructor

@@ -18,7 +18,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,7 +37,6 @@ import org.springframework.web.bind.annotation.RestController;
   FlybySessionFilter.class,
   AdminAuthorizationEnforcedWebMvcTest.StubAdminControllers.class
 })
-@TestPropertySource(properties = "app.admin.enforce-authz=true")
 class AdminAuthorizationEnforcedWebMvcTest {
 
   @Autowired private MockMvc mockMvc;

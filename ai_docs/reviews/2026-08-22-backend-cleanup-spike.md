@@ -36,7 +36,7 @@ is the same failure the paragraph above was written to fix:
 |---|---|
 | [Open security findings](#open-security-findings) | **5 open (S-14, S-16, S-22, S-23, S-24), 0 HIGH — 2 actionable (S-22, S-23, both COLD), 3 counting S-24's quick user call; S-14 and S-16 are product calls blocked on the user.** 19 closed, one ledger line each below; bodies and outcomes in [history](2026-08-22-backend-cleanup-history.md#security-findings--closed-moved-2026-08-29). The 2026-08-29 adversarial re-review attacked the merged set as a group and returned **0 HIGH, 0 MEDIUM**. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **5** — run it and update this row and the estimate cell together. Prior row narrative: [history](2026-08-22-backend-cleanup-history.md#board-row-narratives-moved-2026-08-29). next: see the session log. |
 | [Cross-repo findings owed to the frontend](2026-08-22-backend-cleanup-history.md#cross-repo-findings-owed-to-the-frontend) | **0 open — closed 2026-08-24** (#157, #209, #213, #214); outcomes in [history](2026-08-22-backend-cleanup-history.md#cross-repo-findings-owed-to-the-frontend). Prior row narrative, next-pointer-rot history included: [history](2026-08-22-backend-cleanup-history.md#board-row-narratives-moved-2026-08-29). |
-| [Decisions needed from the user](#decisions-needed-from-the-user) | **9 open** — 4 live questions (`enforce-authz`, `parseImageDate`, bare-array responses, passkey revocation — the last new 2026-08-29); the DB-password default (consolidated here 2026-08-29) and `cover_image_id` are one-word calls; the rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
+| [Decisions needed from the user](#decisions-needed-from-the-user) | **6 open** — 1 live question (passkey revocation, new 2026-08-29). **`enforce-authz`, `parseImageDate` and bare-array responses were all answered and shipped 2026-08-30**; the DB-password default and `cover_image_id` are one-word calls; the rest are parked, premise-corrected or research-complete-pending-disposition. Read each before treating it as a blocker. |
 | [Tests that cannot fail](#tests-that-cannot-fail-2026-08-25) | **3 open of 6, all COLD (premises re-verified 2026-08-28) — the board's first queue.** Closed: `ActuatorExposureEndToEndTest` ([#232](https://github.com/themancalledzac/edens.zac.backend/pull/232)), `WebAuthnServiceTest` ([#230](https://github.com/themancalledzac/edens.zac.backend/pull/230)), `PersonRepositoryIntegrationTest` ([#235](https://github.com/themancalledzac/edens.zac.backend/pull/235)). **next: R-1, then `ProdSecretGuardTest.Wiring`, then the `AdminUserControllerTest` comment relocation, then the share-link `no-store` pin.** |
 | [Rule 37 debt](#r-1-the-232-comment-cleanup-that-never-merged) | **New 2026-08-28. 1 open (R-1).** `main` violates working rule 37 in the two files #232 touched, because #232 merged before its cleanup commits were pushed. Taught working rule 39. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs (as of 2026-08-24), all superseded. `fix/s18-actuator-exclude` added 2026-08-28 — **three commits ahead, one content-on-main via squash**; see R-1. |
@@ -734,6 +734,9 @@ and each needs its claim verified before acting (working rule 8).
 
 ## MR 20 — The bare-array decision (breaking; coordinate with the frontend)
 
+- [x] **CLOSED 2026-08-30 by decision: bare arrays are blessed, no endpoint changes.** `.claude/
+  CLAUDE.md` was amended instead of wrapping the 17. The endpoint inventory below is kept as the
+  record of what the rule now permits, not as outstanding work. Original text:
 - [ ] Decide first. **17 endpoints** (the prose said 15; the item's own list has always had 17, and 17 is what a re-derivation finds) return top-level JSON arrays against the stated "objects only" rule: `AdminController:85`; `AdminUserController:153, 367, 422, 435` (**re-derived 2026-08-29**: `listUsers`, `userRoles`, `userSavedImages`, `userFollows` -- the old 328/383/396 had drifted, and 383/396 are now the role-membership pair); `CollectionAdminController:43`; `ContentControllerProd:85, 96, 107, 118, 130` (correct as of 2026-08-29). **Six drifted, re-derived 2026-08-25 and named by symbol**: `AdminRoleController.listRoles` (`48`), `UserFollowsControllerProd.list` (`52`), `UserSavesControllerProd.list` (`50`) and `.listImages` (`56`), `UserSelectsControllerProd.list` (`55`), `UserRatingOverrideControllerProd.list` (`48`). **`UserSelectsControllerProd.list` is carried twice on this board**, here and under MR 22, and only MR 22's copy was corrected on 2026-08-24 -- deduplicate it rather than correcting it in two places. `CollectionAdminController:37` even documents the violation as policy. Either wrap them in one breaking-change MR, or amend `.claude/CLAUDE.md` to bless bare arrays. Today the codebase carries two contradictory conventions.
 
   **Frontend answer, 2026-08-24, re-measured 2026-08-29: it consumes bare arrays directly** at
@@ -976,19 +979,42 @@ Verified good, for the record: `AdminUserControllerTest` is real behavior testin
 Returned to the tracker 2026-08-29: the #236 re-split (`32d2168`) had moved this section into the
 history file, breaking the Progress links and the history file's "nothing here is open" rule.
 
-- [ ] **Should `app.admin.enforce-authz=true` become unconditional?** *(New row 2026-08-24. MR 15 #6
+- [x] **Should `app.admin.enforce-authz=true` become unconditional? ANSWERED 2026-08-30: yes, and
+  the toggle is gone.** The property was deleted rather than pinned to `true` -- a flag that can
+  only hold one value is dead config. `SecurityConfig` now gates `/api/admin/**` on `hasRole(
+  "ADMIN")` and `/api/edit/**` on `hasRole("USER")` in every profile, `EditAccessWebConfig` always
+  registers its interceptor, and `ProdSecretGuard`'s third check went with it -- there is no longer
+  an env var for it to guard against. **Local dev is no longer login-free on the write surface**;
+  that was the accepted cost. Deleted with it: `AdminAuthorizationDisabledWebMvcTest` and
+  `EditAuthorizationDisabledWebMvcTest`, which existed only to pin the disabled path, plus two
+  `ProdSecretGuardTest` cases. The four admin `currentUserId` null sites (`AdminRoleController`
+  68/123/151, `AdminUserController` 261/384) are closed by construction and needed no edit of their
+  own. The two public-read null sites were not touched, per the original split. Original text:
+  *(New row 2026-08-24. MR 15 #6
   costed the `currentUserId` null contract and found it is two problems, not one: the four
   `/api/admin/**` null sites exist only because the gate falls through to `permitAll` in dev. Making
   the flag unconditional closes all four properly. That is a dev-ergonomics decision, not a
   consolidation, which is why it is here and not in Wave 5.)* Trade-off is local admin convenience
   against an always-on admin gate. The two public-read null sites are correct as they stand and
   should not be touched either way.
-- [ ] **Should `parseImageDate` stay permissive?** *(New row 2026-08-24. Noted in the history file
+- [x] **Should `parseImageDate` stay permissive? ANSWERED 2026-08-30: no -- strict and normalized,
+  but falling through rather than throwing.** The month-13 framing was real but oversold: no
+  Lightroom-exported JPEG produces it, and the genuine failure was that the parser took the first
+  two numeric runs with no range check at all, so any string whose leading numbers were not a year
+  and a month was accepted. It now range-checks (month 1-12, year 1826..next year) and treats an
+  implausible value exactly like an unparseable one, so it falls through `createDate` ->
+  `modifyDate` -> today. Nothing that parses correctly today changes and no upload starts failing.
+  Seven cases added, five of which redden against the old implementation. Original text: *(New row
+  2026-08-24. Noted in the history file
   during MR 13 and never given a row; it also replaces the struck EXIF/ISO half of consolidation
   #17.)* It returns **month 13** for a nonsense EXIF date and builds an S3 path out of it. Either
   reject the malformed date or clamp it -- both are behavior changes, so this needs a decision and
   its own small MR with a month-13 test.
-- [ ] Bare-array responses: wrap them (breaking) or amend CLAUDE.md (MR 20).
+- [x] **Bare-array responses: ANSWERED 2026-08-30 -- CLAUDE.md amended, the 17 endpoints stay as
+  they are.** Wrapping was the breaking option and the frontend consumes bare arrays directly, so
+  the rule moved to the code rather than the other way round. `.claude/CLAUDE.md` now says a list
+  endpoint may return a top-level array, and prefers an object only when the response carries
+  something besides the list. Closes MR 20 without a code change.
 - [ ] **Passkey revocation: there is no delete path at all.** *(New row 2026-08-29, from the
   adversarial security re-review.)* `WebAuthnCredentialRepository` exposes insert, find and
   updateSignCount — no delete — so a compromised authenticator on a still-ACTIVE account cannot be

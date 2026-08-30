@@ -62,7 +62,11 @@ because it looks useful.
 - NEVER expose entities directly -- always use DTOs/Models
 - Use `ResponseEntity<T>` with typed returns (never `ResponseEntity<?>`)
 - URL structure: `/api/read/...` (prod), `/api/edit/...` (collaborator+), `/api/admin/...` (admin)
-- JSON responses must be objects (not arrays) at top level, camelCase properties
+- JSON responses use camelCase properties
+- A list endpoint MAY return a top-level JSON array. Wrapping it in an object is not
+  required (decided 2026-08-30: the frontend consumes bare arrays directly, and 17
+  endpoints already ship this way). Prefer an object when the response carries anything
+  besides the list itself, such as paging or a total.
 - No try-catch in controllers -- GlobalExceptionHandler handles all exceptions
 - Always use `@Valid` on `@RequestBody` parameters
 

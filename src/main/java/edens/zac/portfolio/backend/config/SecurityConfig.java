@@ -1,6 +1,5 @@
 package edens.zac.portfolio.backend.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,12 +18,34 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+  /**
+   * The chain's authorization tiers.
+   *
+   * <p>{@code hasRole("USER")} rather than {@code authenticated()} on every signed-in route: a
+   * share-link (flyby) principal IS an {@code Authentication}, so {@code authenticated()} would
+   * admit it. Every real authentication path grants {@code ROLE_USER} ({@link
+   * SessionAuthenticationFilter} and {@code WebAuthnService.toAuthentication}) while {@link
+   * FlybySessionFilter} grants no authorities at all, so this is behaviour-preserving for sessions
+   * and fail-closed for link holders, enforced at the chain rather than in each controller.
+   *
+   * <p>{@code /api/admin/**} is the inner, app-layer gate: a session principal whose user row
+   * carries {@code is_admin=true}. In prod it sits INSIDE the {@link InternalSecretFilter}
+   * perimeter, so a request must both carry the BFF secret and resolve to an admin.
+   *
+   * <p>{@code /api/edit/**} is the collaborator tier. A real session is required here (401 for
+   * anonymous, via the entry point); per-collection COLLABORATOR-or-above is enforced by {@link
+   * CollaboratorAccessInterceptor} (403). {@code hasRole("USER")} for the same reason as above --
+   * it keeps a flyby out of the edit surface ahead of the interceptor that would also deny it,
+   * since a flyby caps at GENERAL and never reaches COLLABORATOR.
+   *
+   * <p>Both write tiers sat behind {@code app.admin.enforce-authz} until 2026-08-30, which let
+   * local dev fall through to {@code permitAll}. That toggle is gone and the gate is unconditional
+   * in every profile, which is what closes the null {@code CurrentUser.userId()} contract behind an
+   * admin route.
+   */
   @Bean
   public SecurityFilterChain filterChain(
-      HttpSecurity http,
-      SessionAuthenticationFilter saf,
-      FlybySessionFilter flyby,
-      @Value("${app.admin.enforce-authz:true}") boolean enforceAdminAuthz)
+      HttpSecurity http, SessionAuthenticationFilter saf, FlybySessionFilter flyby)
       throws Exception {
     http
         // CSRF defense for the API is provided by SameSite=Strict cookies + the BFF write-method
@@ -45,40 +66,18 @@ public class SecurityConfig {
                   .permitAll()
                   .requestMatchers(HttpMethod.POST, "/api/auth/invite/*/accept")
                   .permitAll()
-                  // hasRole("USER") rather than authenticated(): a share-link (flyby) principal
-                  // IS an Authentication, so authenticated() would admit it here. Every real
-                  // authentication path grants ROLE_USER (SessionAuthenticationFilter and
-                  // WebAuthnService.toAuthentication), and FlybySessionFilter grants no
-                  // authorities at all -- so this is behaviour-preserving for sessions and
-                  // fail-closed for link holders, at the chain instead of in each controller.
                   .requestMatchers("/api/auth/me", "/api/auth/logout")
                   .hasRole("USER")
                   .requestMatchers("/api/auth/webauthn/register/**")
                   .hasRole("USER")
-                  // Outside the enforce-authz block below on purpose, unlike /api/edit/**: the
-                  // per-method guards this replaced ran in every profile, so moving it inside
-                  // would drop the 401 in dev and pass a null principal to the userId() behind it.
                   .requestMatchers("/api/read/user/**")
-                  .hasRole("USER");
-              // /api/admin/** is the inner, app-layer gate. When enforce-authz is on (prod, and
-              // the default everywhere else), these routes require a session principal whose user
-              // row carries is_admin=true — ROLE_ADMIN, granted by SessionAuthenticationFilter.
-              // In prod this sits INSIDE the InternalSecretFilter perimeter: a request must both
-              // carry the BFF secret AND resolve to an admin. The toggle is flipped off only in
-              // application-dev.properties, where /api/admin/** then falls through to permitAll
-              // below so local dev stays login-free (mirrors InternalSecretFilter being prod-only).
-              if (enforceAdminAuthz) {
-                auth.requestMatchers("/api/admin/**").hasRole("ADMIN");
-                // /api/edit/** is the collaborator tier. A real session is required here (401
-                // for anonymous via the entry point); per-collection COLLABORATOR-or-above is
-                // enforced by CollaboratorAccessInterceptor (403). Shares the admin toggle so
-                // local dev stays login-free across the whole write surface. hasRole("USER")
-                // for the same reason as the /api/auth rules above -- it keeps a flyby out of
-                // the edit surface at the chain, ahead of the interceptor that would also deny
-                // it (a flyby caps at GENERAL, never COLLABORATOR).
-                auth.requestMatchers("/api/edit/**").hasRole("USER");
-              }
-              auth.anyRequest().permitAll();
+                  .hasRole("USER")
+                  .requestMatchers("/api/admin/**")
+                  .hasRole("ADMIN")
+                  .requestMatchers("/api/edit/**")
+                  .hasRole("USER")
+                  .anyRequest()
+                  .permitAll();
             })
         .addFilterBefore(saf, AuthorizationFilter.class)
         // After the session filter, and a no-op whenever it already resolved a principal: a real

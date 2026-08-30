@@ -41,6 +41,12 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 public class ImageMetadataExtractor {
 
+  /**
+   * Earliest year a photograph could plausibly carry. Nicephore Niepce's first surviving photograph
+   * dates to 1826, so nothing below this is a capture date.
+   */
+  private static final int EARLIEST_PLAUSIBLE_YEAR = 1826;
+
   // Lightroom hierarchical subject XMP namespace
   private static final String NS_LIGHTROOM = "http://ns.adobe.com/lightroom/1.0/";
 
@@ -418,30 +424,62 @@ public class ImageMetadataExtractor {
    * the first two numeric runs of either EXIF "2024:05:15 14:30:00" or ISO-8601
    * "2024-05-15T14:30:00", so the two formats need not be told apart.
    *
+   * <p>The result becomes an S3 path segment, so it is range-checked rather than trusted. Taking
+   * the first two numeric runs is only correct when the string really is a date in one of those two
+   * shapes; anything else whose first two runs happen to parse as integers -- a time-first string,
+   * a day-first locale format -- would otherwise be accepted and produce a path like {@code
+   * 2024/13} or {@code 14/30}. A value outside the plausible range is treated exactly like an
+   * unparseable one, so it falls through to {@code modifyDate} and then to today rather than
+   * failing the upload. Nothing that parses correctly today changes.
+   *
    * @param createDate The capture date string from EXIF/XMP metadata
    * @param modifyDate The modify date string (Lightroom export date), used as fallback
    * @return int[] {year, month} or current date as last resort
    */
   public int[] parseImageDate(String createDate, String modifyDate) {
+    int[] fromCreate = plausibleYearAndMonth(createDate);
+    if (fromCreate != null) {
+      return fromCreate;
+    }
     if (createDate != null && !createDate.isEmpty()) {
-      try {
-        String[] parts = createDate.split("[: T-]");
-        return new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
-      } catch (Exception e) {
-        log.warn("Failed to parse capture date '{}', trying modify date", createDate);
-      }
+      log.warn("Failed to parse capture date '{}', trying modify date", createDate);
+    }
+    int[] fromModify = plausibleYearAndMonth(modifyDate);
+    if (fromModify != null) {
+      return fromModify;
     }
     if (modifyDate != null && !modifyDate.isEmpty()) {
-      try {
-        String[] parts = modifyDate.split("[: T-]");
-        return new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
-      } catch (Exception e) {
-        log.warn("Failed to parse modify date '{}', using current date", modifyDate);
-      }
+      log.warn("Failed to parse modify date '{}', using current date", modifyDate);
     }
     log.warn("No valid date for S3 path, using current date");
     LocalDate now = LocalDate.now();
     return new int[] {now.getYear(), now.getMonthValue()};
+  }
+
+  /**
+   * The year and month a date string opens with, or null when it does not open with a plausible
+   * one. Null is the single "unusable" answer for every reason a string can fail -- absent, too few
+   * components, non-numeric, or out of range -- so the caller needs one branch per source rather
+   * than one per failure mode.
+   */
+  private static int[] plausibleYearAndMonth(String date) {
+    if (date == null || date.isEmpty()) {
+      return null;
+    }
+    String[] parts = date.split("[: T-]");
+    if (parts.length < 2) {
+      return null;
+    }
+    try {
+      int year = Integer.parseInt(parts[0]);
+      int month = Integer.parseInt(parts[1]);
+      if (month < 1 || month > 12 || year < EARLIEST_PLAUSIBLE_YEAR) {
+        return null;
+      }
+      return year > LocalDate.now().getYear() + 1 ? null : new int[] {year, month};
+    } catch (NumberFormatException e) {
+      return null;
+    }
   }
 
   /**
