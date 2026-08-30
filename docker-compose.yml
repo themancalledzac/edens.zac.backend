@@ -39,8 +39,6 @@ services:
       # by default -- set both in the prod .env to seed/promote the operator's admin account.
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
-      # Inner app-layer gate for /api/admin/**: requires ROLE_ADMIN when true (default).
-      ADMIN_ENFORCE_AUTHZ: ${ADMIN_ENFORCE_AUTHZ:-true}
 
       # WebAuthn (passkeys) relying party. The localhost defaults are correct for local dev
       # only -- on EC2 prod set all three in .env (rp-id = registrable site domain;
