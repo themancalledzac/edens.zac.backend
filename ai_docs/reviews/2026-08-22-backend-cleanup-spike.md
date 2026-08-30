@@ -276,7 +276,9 @@ Per-path limiter mapping context -- which limiter covers which route -- sits in 
   existed nowhere as a row until now. The gap it closes: `/actuator/metrics` (and `info`) meet
   S-18's own criterion under an injected `include=*` -- metrics dumps process/JVM/HTTP state and is
   enabled by default in Boot 3.x -- yet neither is in the shipped exclude
-  (`application.properties:71`, twelve names) nor in `MUST_BE_EXCLUDED`, and **both S-18 tests are
+  (`application.properties:65`, twelve names -- **re-derived 2026-08-30**, was `:71`; #238 removed the
+  six-line prose block above it, so `include` is now 64 and `exclude` 65. Stable under #245, which
+  edits the same file lower down.) nor in `MUST_BE_EXCLUDED`, and **both S-18 tests are
   structurally blind to the omission**, because both derive from the same hand enumeration that
   omitted it (working rule 33 one level up). Reachable only under the injected-wildcard accident
   (rule 34), and in prod only to an internal-secret bearer -- `InternalSecretFilter` allows just
