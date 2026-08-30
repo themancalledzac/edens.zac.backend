@@ -2,6 +2,8 @@ package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
+import edens.zac.portfolio.backend.types.UserStatus;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -118,11 +120,50 @@ public class RoleRepository extends BaseDao {
   // ---- Membership ----
 
   /**
+   * Whether an account in this status may hold a {@code role_member} row. The single definition of
+   * the membership status rule: {@link #addMember} and {@link #repointMemberships} both derive
+   * their SQL from it via {@link #ROLE_MEMBERSHIP_STATUSES} rather than comparing to a literal, so
+   * the rule cannot drift between the two sites.
+   *
+   * <p>Deliberately admits everything except {@code PERSON}, and this is <em>not</em> the {@code ==
+   * ACTIVE} shape of {@link edens.zac.portfolio.backend.services.SessionService#mayHoldSession}. A
+   * DISABLED or INVITED account holding a membership grants nothing until it can authenticate, and
+   * neither auth chokepoint admits those statuses -- so the grant is dormant, not live. Narrowing
+   * this to {@code ACTIVE} would silently drop memberships out from under an account on every
+   * disable and not restore them on re-enable, which is a destructive answer to a problem that is
+   * not live.
+   *
+   * <p>Widening is the risk this predicate exists to make visible: a fifth {@code UserStatus} is
+   * admitted here by construction, exactly as it was under the old {@code <> 'PERSON'} SQL. What
+   * changed is that {@code RoleRepositoryIntegrationTest.mayHoldRoleMembershipAdmitsEveryNonPerson}
+   * enumerates {@code UserStatus.values()} and reddens when one is added, so admitting it becomes a
+   * decision someone makes rather than a default they inherit.
+   *
+   * @param status the account's current status
+   * @return whether this account may hold a role membership
+   */
+  public static boolean mayHoldRoleMembership(UserStatus status) {
+    return status != UserStatus.PERSON;
+  }
+
+  /**
+   * The statuses {@link #mayHoldRoleMembership} admits, as the string values the {@code
+   * users.status} column stores. Bound as an {@code IN} list so both membership SQL sites read the
+   * predicate instead of restating it.
+   */
+  private static final List<String> ROLE_MEMBERSHIP_STATUSES =
+      Arrays.stream(UserStatus.values())
+          .filter(RoleRepository::mayHoldRoleMembership)
+          .map(Enum::name)
+          .toList();
+
+  /**
    * Add a user to a role. Idempotent.
    *
-   * <p>Rejects a tag-only {@code PERSON} row. Since V35 a person tagged in photos and an account
-   * share one {@code users} table, so a person id and an account id are indistinguishable at the
-   * two admin endpoints that reach here -- both pass a path variable straight through. A PERSON row
+   * <p>Rejects any status {@link #mayHoldRoleMembership} refuses, which today is the tag-only
+   * {@code PERSON} row and nothing else. Since V35 a person tagged in photos and an account share
+   * one {@code users} table, so a person id and an account id are indistinguishable at the two
+   * admin endpoints that reach here -- both pass a path variable straight through. A PERSON row
    * cannot log in today, so admitting one grants nobody anything now; the risk is the grant lying
    * dormant until that person is upgraded to an account, which then inherits it silently.
    *
@@ -132,8 +173,10 @@ public class RoleRepository extends BaseDao {
   public void addMember(Long roleId, Long userId, Long addedBy) {
     Boolean isAccount =
         namedParameterJdbcTemplate.queryForObject(
-            "SELECT COUNT(*) > 0 FROM users WHERE id = :userId AND status <> 'PERSON'",
-            createParameterSource().addValue("userId", userId),
+            "SELECT COUNT(*) > 0 FROM users WHERE id = :userId AND status IN (:memberStatuses)",
+            createParameterSource()
+                .addValue("userId", userId)
+                .addValue("memberStatuses", ROLE_MEMBERSHIP_STATUSES),
             Boolean.class);
     if (!Boolean.TRUE.equals(isAccount)) {
       throw new IllegalArgumentException("Role membership requires an account user: " + userId);
@@ -512,14 +555,19 @@ public class RoleRepository extends BaseDao {
    */
   @Transactional
   public int repointMemberships(Long sourceId, Long targetId) {
-    var p = createParameterSource().addValue("src", sourceId).addValue("tgt", targetId);
+    var p =
+        createParameterSource()
+            .addValue("src", sourceId)
+            .addValue("tgt", targetId)
+            .addValue("memberStatuses", ROLE_MEMBERSHIP_STATUSES);
     update(
         "DELETE FROM role_member WHERE user_id = :src "
             + "AND role_id IN (SELECT role_id FROM role_member WHERE user_id = :tgt)",
         p);
     update(
         "UPDATE role_member SET user_id = :tgt WHERE user_id = :src "
-            + "AND EXISTS (SELECT 1 FROM users WHERE id = :tgt AND status <> 'PERSON')",
+            + "AND EXISTS (SELECT 1 FROM users WHERE id = :tgt"
+            + " AND status IN (:memberStatuses))",
         p);
     return update("DELETE FROM role_member WHERE user_id = :src", p);
   }
