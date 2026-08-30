@@ -78,42 +78,60 @@ class CacheControlInterceptorTest {
   @DisplayName("default-deny")
   class DefaultDeny {
 
+    /**
+     * Routes that must stay uncacheable, and why each is here.
+     *
+     * <ul>
+     *   <li>The {@code /api/read/user/**} surfaces resolve against the caller's session, so the
+     *       body differs per viewer.
+     *   <li>The two download routes redirect to per-request signed URLs.
+     *   <li>Both {@code /api/read/share} routes emit a {@code Set-Cookie} carrying the recipient's
+     *       raw share token. A shared cache that stored either response would replay that cookie to
+     *       the next visitor and hand them the recipient's session.
+     * </ul>
+     *
+     * <p>Every case here reddens if its route is added to {@link
+     * CacheControlInterceptor#PUBLIC_ROUTES}, which is the edit this guards against. Default-deny
+     * already makes these headers right, but by absence rather than by intent, so nothing else
+     * would notice a one-line allow-list addition.
+     */
     @ParameterizedTest
     @ValueSource(
         strings = {
-          // Per-user surfaces: the body depends on the caller's session.
           "/api/read/user/me/page",
           "/api/read/user/follows",
           "/api/read/user/saves",
           "/api/read/user/saves/images",
           "/api/read/user/selects",
           "/api/read/user/ratings",
-          // Redirects to per-request signed URLs.
           "/api/read/content/images/{id}/download",
-          "/api/read/collections/{slug}/download"
+          "/api/read/collections/{slug}/download",
+          "/api/read/share/{token}",
+          "/api/read/share/view"
         })
     @DisplayName("GET on a non-allow-listed route is no-store")
     void getOnUnlistedRouteIsNoStore(String route) {
       assertThat(headerFor("GET", route)).isEqualTo("no-store");
     }
 
+    /**
+     * Regression guard. Resolving a collection by slug is viewer-dependent three ways: a
+     * password-protected gallery's body varies on the {@code gallery_access_<slug>} cookie; {@code
+     * enforceVisibility} hides HIDDEN collections from anonymous callers, so the same URL is a 404
+     * for the public and a 200 with full content for an admin or grantee; and the synthetic {@code
+     * all-collections} slug is permission-scoped by verified identity, built with {@code
+     * isPasswordProtected} unset, so a body-level password check reads null and cannot detect the
+     * scoping at all.
+     *
+     * <p>An earlier version allow-listed {@code .../{slug}/meta} and had the controller mark {@code
+     * {slug}} public whenever it was not password-protected. That let a shared cache store a
+     * privileged viewer's response and serve it to the public. Do not re-add these without a
+     * resolved-entity check that proves viewer-independence.
+     */
     @ParameterizedTest
     @ValueSource(strings = {"/api/read/collections/{slug}", "/api/read/collections/{slug}/meta"})
     @DisplayName("slug-resolving collection routes are never publicly cacheable")
     void slugResolvingCollectionRoutesAreNotAllowListed(String route) {
-      // REGRESSION GUARD. Resolving a collection by slug is viewer-dependent three ways:
-      //
-      //   1. a password-protected gallery's body varies on the gallery_access_<slug> cookie;
-      //   2. enforceVisibility hides HIDDEN collections from anonymous callers, so the same URL
-      //      is a 404 for the public and a 200 with full content for an admin or grantee;
-      //   3. the synthetic all-collections slug is permission-scoped by verified identity, and
-      //      is built with isPasswordProtected unset -- so a body-level password check reads
-      //      null and cannot detect the scoping at all.
-      //
-      // An earlier version allow-listed .../{slug}/meta and had the controller mark {slug}
-      // public whenever it was not password-protected. That let a shared cache store a
-      // privileged viewer's response and serve it to the public. Do not re-add these without a
-      // resolved-entity check that proves viewer-independence.
       assertThat(CacheControlInterceptor.PUBLIC_ROUTES).doesNotContain(route);
       assertThat(headerFor("GET", route)).isEqualTo("no-store");
     }
@@ -131,10 +149,10 @@ class CacheControlInterceptorTest {
       assertThat(headerFor("GET", null)).isEqualTo("no-store");
     }
 
+    /** Matching is on the exact pattern, so no sibling route inherits a parent's TTL by prefix. */
     @Test
     @DisplayName("a route that merely starts with an allow-listed prefix is not cacheable")
     void prefixCollisionIsNotCacheable() {
-      // Exact pattern matching, so no sibling route inherits a parent's TTL by prefix.
       assertThat(headerFor("GET", "/api/read/collections/{slug}/download")).isEqualTo("no-store");
       assertThat(headerFor("GET", "/api/read/content/tags/{id}")).isEqualTo("no-store");
     }
