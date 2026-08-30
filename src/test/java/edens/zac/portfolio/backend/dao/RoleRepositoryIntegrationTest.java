@@ -11,7 +11,6 @@ import edens.zac.portfolio.backend.dao.RoleRepository.RoleMember;
 import edens.zac.portfolio.backend.entity.RoleEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.UserStatus;
-import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -63,34 +62,29 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
   /**
    * The enum pin for the membership status rule (S-22). {@link RoleRepository#addMember} and {@link
-   * RoleRepository#repointMemberships} both bind their {@code IN} list from this predicate, so
-   * neither can drift from it -- but a fifth {@code UserStatus} would be admitted by construction,
-   * which is what this test exists to catch. It is stated as a literal for that reason: adding a
-   * status reddens here and nowhere else, making membership eligibility a decision rather than an
-   * inherited default. Same shape as {@code
-   * SessionServiceIntegrationTest.mayHoldSessionAdmitsActiveAndNothingElse}, which S-20 wrote for
-   * the session predicate.
+   * RoleRepository#repointMemberships} both bind {@code ROLE_MEMBERSHIP_STATUSES}, so neither can
+   * drift from it -- but the list excludes {@code PERSON} from {@code UserStatus.values()} rather
+   * than naming the three it admits, so a fifth status joins it by construction. That is deliberate
+   * (it is what the old {@code <> 'PERSON'} SQL did) and it is what this test exists to catch. The
+   * admitted names are stated as literals here for that reason: adding a status reddens here and
+   * nowhere else, making membership eligibility a decision rather than an inherited default.
    */
   @Test
-  void mayHoldRoleMembershipAdmitsEveryNonPerson() {
-    assertThat(Arrays.stream(UserStatus.values()).filter(RoleRepository::mayHoldRoleMembership))
-        .containsExactlyInAnyOrder(UserStatus.INVITED, UserStatus.ACTIVE, UserStatus.DISABLED);
-    assertThat(
-            Arrays.stream(UserStatus.values())
-                .filter(s -> !RoleRepository.mayHoldRoleMembership(s)))
-        .containsExactly(UserStatus.PERSON);
+  void roleMembershipStatusesAdmitEveryNonPerson() {
+    assertThat(RoleRepository.ROLE_MEMBERSHIP_STATUSES)
+        .containsExactlyInAnyOrder("INVITED", "ACTIVE", "DISABLED");
   }
 
   /**
-   * The SQL half of the same pin: every status the predicate admits is admitted by {@code
-   * addMember} itself. Narrowing the rule to {@code ACTIVE} -- the tightening the board's "verified
-   * sound, do not re-open" section refuses -- reddens this test on the INVITED and DISABLED cases.
+   * The SQL half of the same pin: every status the list admits is admitted by {@code addMember}
+   * itself. Narrowing the rule to {@code ACTIVE} -- the tightening the board's "verified sound, do
+   * not re-open" section refuses -- reddens this test on the INVITED and DISABLED cases.
    */
   @ParameterizedTest
   @EnumSource(
       value = UserStatus.class,
       names = {"INVITED", "ACTIVE", "DISABLED"})
-  void addMemberAdmitsEveryStatusThePredicateAdmits(UserStatus status) {
+  void addMemberAdmitsEveryStatusTheListAdmits(UserStatus status) {
     long user = seedUserWithStatus("member-" + status, status);
     long coll = seedCollection("role-admits-" + status);
     long roleId = repo.createRole("admits " + status, null);

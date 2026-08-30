@@ -120,47 +120,35 @@ public class RoleRepository extends BaseDao {
   // ---- Membership ----
 
   /**
-   * Whether an account in this status may hold a {@code role_member} row. The single definition of
-   * the membership status rule: {@link #addMember} and {@link #repointMemberships} both derive
-   * their SQL from it via {@link #ROLE_MEMBERSHIP_STATUSES} rather than comparing to a literal, so
-   * the rule cannot drift between the two sites.
+   * The {@code users.status} values that may hold a {@code role_member} row. The single definition
+   * of the membership status rule: {@link #addMember} and {@link #repointMemberships} both bind
+   * this as an {@code IN} list rather than each restating {@code <> 'PERSON'}, so the rule cannot
+   * drift between the two sites.
    *
-   * <p>Deliberately admits everything except {@code PERSON}, and this is <em>not</em> the {@code ==
-   * ACTIVE} shape of {@link edens.zac.portfolio.backend.services.SessionService#mayHoldSession}. A
-   * DISABLED or INVITED account holding a membership grants nothing until it can authenticate, and
-   * neither auth chokepoint admits those statuses -- so the grant is dormant, not live. Narrowing
-   * this to {@code ACTIVE} would silently drop memberships out from under an account on every
-   * disable and not restore them on re-enable, which is a destructive answer to a problem that is
-   * not live.
+   * <p>Derived by excluding {@code PERSON} from {@code UserStatus.values()} rather than by listing
+   * the three admitted names, which keeps the admitted set exactly what the old SQL admitted: a
+   * fifth {@code UserStatus} is included by construction, and listing names instead would silently
+   * exclude it. {@code RoleRepositoryIntegrationTest.roleMembershipStatusesAdmitEveryNonPerson}
+   * reddens when one is added, so widening becomes a decision someone makes rather than a default
+   * they inherit.
    *
-   * <p>Widening is the risk this predicate exists to make visible: a fifth {@code UserStatus} is
-   * admitted here by construction, exactly as it was under the old {@code <> 'PERSON'} SQL. What
-   * changed is that {@code RoleRepositoryIntegrationTest.mayHoldRoleMembershipAdmitsEveryNonPerson}
-   * enumerates {@code UserStatus.values()} and reddens when one is added, so admitting it becomes a
-   * decision someone makes rather than a default they inherit.
-   *
-   * @param status the account's current status
-   * @return whether this account may hold a role membership
+   * <p>Deliberately not narrowed to {@code ACTIVE}, and this is not the shape of {@link
+   * edens.zac.portfolio.backend.services.SessionService#mayHoldSession}. A DISABLED or INVITED
+   * account holding a membership grants nothing until it can authenticate, and neither auth
+   * chokepoint admits those statuses -- so the grant is dormant, not live. Narrowing would drop
+   * memberships out from under an account on every disable without restoring them on re-enable, and
+   * would turn a merge into a target that is not ACTIVE into data loss.
    */
-  public static boolean mayHoldRoleMembership(UserStatus status) {
-    return status != UserStatus.PERSON;
-  }
-
-  /**
-   * The statuses {@link #mayHoldRoleMembership} admits, as the string values the {@code
-   * users.status} column stores. Bound as an {@code IN} list so both membership SQL sites read the
-   * predicate instead of restating it.
-   */
-  private static final List<String> ROLE_MEMBERSHIP_STATUSES =
+  static final List<String> ROLE_MEMBERSHIP_STATUSES =
       Arrays.stream(UserStatus.values())
-          .filter(RoleRepository::mayHoldRoleMembership)
+          .filter(status -> status != UserStatus.PERSON)
           .map(Enum::name)
           .toList();
 
   /**
    * Add a user to a role. Idempotent.
    *
-   * <p>Rejects any status {@link #mayHoldRoleMembership} refuses, which today is the tag-only
+   * <p>Rejects any status outside {@link #ROLE_MEMBERSHIP_STATUSES}, which today is the tag-only
    * {@code PERSON} row and nothing else. Since V35 a person tagged in photos and an account share
    * one {@code users} table, so a person id and an account id are indistinguishable at the two
    * admin endpoints that reach here -- both pass a path variable straight through. A PERSON row
