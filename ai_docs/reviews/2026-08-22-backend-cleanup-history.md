@@ -542,6 +542,87 @@ and deliberately left that question open -- see the decision item below.
 
 ---
 
+## 2026-08-31 second close-out — bugs #17, #19, #20 and passkey deregistration
+
+Four MRs, all merged the same day: [#255](https://github.com/themancalledzac/edens.zac.backend/pull/255) (bug #20),
+[#256](https://github.com/themancalledzac/edens.zac.backend/pull/256) (bug #17),
+[#257](https://github.com/themancalledzac/edens.zac.backend/pull/257) (passkey deregistration),
+[#258](https://github.com/themancalledzac/edens.zac.backend/pull/258) (bug #19).
+
+### Estimate versus actual
+
+| Item | Board estimate | Actual | Read |
+|---|---|---|---|
+| Bug #20 | "~10 lines in one file, plus the test" | +61/-16, 2 files | Right, once the test is counted. The board named the test; the estimate did not price it. |
+| Bug #17 | not sized | +6/-14, 1 file | Net negative. The fix was a log string. |
+| Passkey | "largest COLD piece of real feature work" | +260/-11, 5 files | Right, and the only item this run whose size matched its adjective. |
+| Bug #19 | "widen the orphan queries" | +249/-55, 5 files | **Under-scoped by the board.** "Widen the queries" hid a response-type change and a cross-repo break. |
+
+**The failure mode to carry forward: an item that describes a fix at the query layer has not
+priced the DTO the query feeds.** Bug #19's text stopped at the SQL. The SQL was the smallest part
+-- the orphan query returns `ContentImageEntity`, `LocationPageResponse.images` was typed
+`List<ContentModels.Image>`, and the frontend narrows to `ContentImageModel[]`. Any remaining item
+that says "widen"/"generalize" a query should be re-read for the same gap. **MR 19 #19**
+(`ImageSearchResponse` -> `PagedResponse`) is the closest sibling and already names its wire
+consequence, so it is priced correctly; nothing else on the board currently has this shape.
+
+### Where the board's premises held, and where they did not
+
+- **Bug #20's premise held exactly.** `shutdown()` awaited `rawUploadExecutor` alone; verified by read and by the mutation below.
+- **Bug #17's premise held**, and the item was right to leave the fix open. The decision needed evidence the item did not carry: the loop's *other* per-image writes.
+- **Bug #19's premise held on the SQL and missed the response type entirely** (above).
+- **The passkey item's "check whether removing the last credential leaves it able to authenticate" was the right question** and had a non-obvious answer -- see the decision below.
+
+### Decisions, with reasoning
+
+**Bug #17 -- correct the log line, do not build a `batchUpdate`.** Not because it was smaller.
+`updateImages` already issues per-image statements inside its loop via
+`contentMutationUtil.updateImageTagsOptimized` -> `tagRepository.saveContentTags(image.getId(), ...)`
+and `updateImagePeopleOptimized` -> `contentRepository.saveContentPeople(image.getId(), ...)`, plus
+`collectionRepository.removeContentFromCollection` in a nested loop. Batching only the `saveImage`
+calls removes one O(N) term from a method with several and pays for it with a second persistence
+path for images beside `saveImage`. If image writes are ever worth batching, the case has to cover
+the tag and people writes too -- that is a different item with a different size.
+
+**Passkey -- removing an account's last credential is ALLOWED.** Refusing it would block the one
+case the endpoint exists for: a single registered authenticator, and that authenticator
+compromised. A guard there leaves "disable the whole account" as the only remedy, which is the gap
+being closed. The consequence is reported rather than left to be discovered: the DELETE returns
+`{remainingPasskeys, passwordLoginAvailable}`, and `remaining == 0 && !passwordLoginAvailable` also
+logs at WARN. Recovery is `POST /api/admin/users/{id}/invite`.
+
+**Bug #20 -- do not unify the two executors** (the guardrail's requested cost report).
+`imageProcessingExecutor` serves one submit site inside a request (`createImagesParallel`, via
+`CompletableFuture.supplyAsync`); `rawUploadExecutor` serves three that outlive the HTTP response
+(`processFilesFromDisk`, `ingestFilesGroupedByDay`, the RAW upload). Unifying costs: (1) one
+shutdown wait covering both, its budget set by the slower background work, so request-path work
+queues behind it; (2) the loss of being able to `shutdownNow()` one class of work while the other
+drains -- which is exactly what the fix relies on. It buys nothing in return:
+`newVirtualThreadPerTaskExecutor` is unbounded, so there is no pool contention to reclaim. The
+misnaming (`rawUploadExecutor` runs whole disk and ingest jobs) is a **rename, independent of
+unification**, and is the cheap half if anyone wants it.
+
+### Scope deliberately left out
+
+- **`JdbcUserCredentialRepository.delete(Bytes)` is still a no-op** and its docblock still says so deliberately. Spring Security's built-in WebAuthn management filter is **not** registered -- `SecurityConfig` matches only this app's `/api/auth/webauthn/**` controller -- so nothing calls it and there is no hidden user-facing passkey delete. Making it real would add a second delete path with no caller, and the user chose against a self-service surface. **Do not re-investigate.**
+- **No user-facing passkey list-and-remove**, per the 2026-08-30 decision. The admin `GET .../passkeys` exists only because the DELETE takes a credential id an admin has no other way to learn.
+- **`ContentRepository.saveImage`'s INSERT/UPDATE branch untouched**, per bug #17's guardrail. Recorded for whoever revisits it: every entity in `imagesToSave` comes from `findImagesByIds`, so its id is non-null and only the UPDATE branch is reachable from there. A future batch would not need the INSERT half.
+- **`ImageUploadPipelineServiceTest`'s 105 inline comments left in place.** Sweeping them would have put a 105-line comment diff on top of a 10-line bug fix; the board's own guidance is to take rule-37 debt per package. It is the largest single-file rule-37 concentration found so far and is a candidate for the first test-side sweep.
+
+### Traps
+
+- **A unit test cannot prove a deregistered passkey stops working.** `WebAuthnServiceTest` mocks `WebAuthnRelyingPartyOperations`, so `finishLogin` never reaches a credential lookup and any assertion there passes against a live credential. The real chokepoint is `finishLogin` -> `operations.authenticate` -> `JdbcUserCredentialRepository.findByCredentialId(Bytes)` -> the row. That is what the integration test drives.
+- **Every fix here was mutation-proved before shipping, and each failed at its own guard** (working rules 15, 32, 41; surefire reports deleted first). Bug #20's test reddened at `Expecting AtomicBoolean(false) to have value: true`. The passkey test reddened at `expected: null but was: ImmutableCredentialRecord` with the delete predicate neutered to `AND 1 = 0`. Bug #19 reddened 3 of 4 with the predicate put back to `content_type = 'IMAGE'`.
+- **Bug #17 shipped with NO test, deliberately.** It changes a log string; a test asserting "saveImage is called once per image" passes against `main` unchanged and could not fail (working rule 15). Recorded here so nobody reads the absence as an oversight and no one credits it with coverage it does not have.
+- **Working rule 39 fired again, and the check caught it.** #255 and #256 had squash-merged within minutes of being opened, before the third item started. Checking `gh pr list --state merged` before branching item 4 is what kept it off a stale `main`.
+
+### What held -- do not re-investigate
+
+- `JdbcUserCredentialRepository.delete()` being a no-op is deliberate and unreachable (above).
+- The rule-12 protected files (`RoleRepository` 10, `AdminBootstrap` 6, `CollectionControllerProd` 9) re-run twice on 2026-08-31 and unchanged both times.
+- The trailing-`//` count is 74 by the recorded portable command, re-run and confirmed.
+- `MR 19 #17`'s `CollectionService.getCollectionWithPagination` pagination refs (`143-145`) re-verified by anchor text on 2026-08-31 after #258 edited that file -- still correct, not drifted.
+
 ## Session log
 
 - 2026-08-22 — shipped MR 5-8 and bug #6 (#165, #166, #168, #169, #170). Wave 1 already complete.
@@ -5953,3 +6034,77 @@ Oldest first. Moved off the tracker by the 2026-08-31 close-out; the tracker kee
   failures). Any mutation proof that greps surefire output should delete the report first.
   Next: **S-16** (suspend on share resolve, now unblocked), then the passkey admin endpoint. Both
   are ordinary work with no open questions.
+
+- 2026-08-30 — **the tests-that-cannot-fail queue closed, and the decisions batch settled.** Six PRs:
+  R-1 ([#238](https://github.com/themancalledzac/edens.zac.backend/pull/238)),
+  `ProdSecretGuardTest.Wiring` ([#239](https://github.com/themancalledzac/edens.zac.backend/pull/239)),
+  the share-link `no-store` pin ([#240](https://github.com/themancalledzac/edens.zac.backend/pull/240)),
+  the `AdminUserControllerTest` attribution fix ([#241](https://github.com/themancalledzac/edens.zac.backend/pull/241)),
+  the decisions batch ([#243](https://github.com/themancalledzac/edens.zac.backend/pull/243)), and
+  the config-rot follow-up ([#245](https://github.com/themancalledzac/edens.zac.backend/pull/245)).
+  Also rescued [#237](https://github.com/themancalledzac/edens.zac.backend/pull/237): the 2026-08-29
+  full-board review had itself been stranded by **working rule 39**, pushed to `docs/close-out-235`
+  after #236 merged. The rule fired on the PR that filed it.
+  **Every close was mutation-proved against `main` first**, and in two cases `main`'s version shipped
+  green under the mutation — `@Component` deleted left `ProdSecretGuardTest` at 13/13, allow-listing
+  the share route left `CacheControlInterceptorTest` at 27/27. **Two board premises were wrong and
+  were corrected while closing:** the share-link credential is a `Set-Cookie`, not a response-body
+  token; and the pointer the board told #241 to write names a test that does not redden on that
+  mutation. Naming it would have replaced one false attribution with another.
+  **#243 left config rot behind and this close-out found it** — four sites still describing a deleted
+  property, filed as C-1 and fixed in #245. **Estimate-versus-actual:** every item matched its stated
+  size except #243, which the board scoped as one decision and which touched 11 files; the
+  three-decisions-in-one-PR shape was the user's call, and the size warning belongs on any future
+  item that removes a config toggle rather than a code path.
+  **Board-integrity finding, recorded not fixed:** the history file's header says "**Nothing here
+  is open**", and `grep -c '^- \[ \] ' <history>` returns **7** (lines 85, 92, 99, 100, 104, 268,
+  783). Three more were carried in by this close-out's own archive move and were neutralised to
+  `[x]` before commit; the other seven predate it and belong to other sessions' write-ups, so they
+  are reported rather than silently ticked. Someone should decide whether they are genuinely open
+  work sitting in the archive (invisible to the board) or stale markup inside closed items.
+  Next: **S-22 and S-23** (both COLD), then Bug #21. S-14, S-16, S-24 and passkey revocation need one
+  batched user call.
+
+- 2026-08-31 — **six MRs, and the security board went to zero.** Shipped S-22 ([#247](https://github.com/themancalledzac/edens.zac.backend/pull/247)),
+  S-23 ([#248](https://github.com/themancalledzac/edens.zac.backend/pull/248)), bug #21 ([#249](https://github.com/themancalledzac/edens.zac.backend/pull/249)), the four-answer batch ([#250](https://github.com/themancalledzac/edens.zac.backend/pull/250)), a
+  docblock-trim follow-up ([#251](https://github.com/themancalledzac/edens.zac.backend/pull/251)) and S-16 ([#253](https://github.com/themancalledzac/edens.zac.backend/pull/253)). **"Open security findings"
+  is empty for the first time since it was created 2026-08-24**, and none of the five closed on a
+  deferral.
+  **The four product calls were asked in the opening message and all four came back**, which is what
+  made them into MRs instead of the next session's problem: S-14 *no second gate*, S-16 *suspend not
+  revoke*, S-24 *accept as admin-trusted*, passkey revocation *admin endpoint only*. **S-14's answer
+  did not fit either option offered** -- it was a principle about `/api/admin/**` and
+  `addCollection` is a `/api/read/user/share` endpoint -- so it was recorded closed with the gap
+  named rather than forced into a disposition the user did not choose.
+  **Two items shipped smaller than their board text specified, and in both cases the board was
+  wrong rather than the implementation lazy.** S-22's prescribed `mayHoldRoleMembership` predicate
+  was written and then removed on user review for having zero runtime callers (**working rule 40**).
+  S-16's prescribed second gate on the scope query was not built, because `resolveByRawToken` is the
+  only door and the item had **also missed a third site** (`isCollectionInScope`) that the two-gate
+  reading would have needed -- so the chokepoint was both simpler and more complete than what was
+  written down.
+  **Working rule 39 was broken by a session that had it in context.** Docblock trims were pushed to
+  two branches whose PRs had squash-merged minutes earlier; the fix was a fresh branch and
+  [#251](https://github.com/themancalledzac/edens.zac.backend/pull/251). Rule 39 now carries the two reasons it is easy to miss -- a squash-merged branch
+  still reads as "ahead" of `main`, and a handed-over run is being merged as it lands.
+  **Working rule 41 is new and cost the session twice**: a stale surefire report reads exactly like
+  a passing mutation run, including its old `Time elapsed`.
+  **Reconciliation found one number wrong and one command broken.** The rule-37 leading-`//` counts
+  re-ran **unchanged** at 1,675 (290/1,385) -- six MRs, no new inline comments. The trailing figure
+  did not: its recorded command returns **231**, not the recorded 72, because BSD `grep -E` ignores
+  `\s` and nothing excluded `https://`. Corrected to **74** with a portable command now recorded
+  beside it. `AdminUserControllerTest`'s 1,294 was **already stale when written** -- last changed in
+  #241, before the 2026-08-30 close-out that recorded it, and outside the neighbourhood of anything
+  that has merged since, which is the drift a scoped sweep cannot catch.
+  **The previous close-out's board-integrity finding is resolved rather than carried a third time.**
+  It reported 7 open checkboxes sitting in the history file, where "nothing here is open" is the
+  stated invariant, and left them for someone to adjudicate. All 7 are now dispositioned: five were
+  archived duplicates of items live on the tracker (the four MR-25 members and `cover_image_id`) and
+  now say so; `PersonRepository.findAccountUserIdsByIds` closed with MR 15 #6 / #191; the Wave 3
+  chunked-body residual closed as S-5 / #206. **This close-out's own archive move added four more**
+  -- the same failure the previous one reported in itself -- caught by re-running its grep and
+  neutralised before commit. `grep -c '^- \[ \] ' <history>` now returns **0**. Anyone doing an
+  archive move should run that grep after, every time; copying a tracker body copies its checkbox.
+  Next: **bug #20, then bug #17, then the passkey admin endpoint** -- see "Next run" below. Bug #19
+  needs a one-word direction and the question is written into its item. **A full-board review is now
+  due; it is recommended below and deliberately not run.**
