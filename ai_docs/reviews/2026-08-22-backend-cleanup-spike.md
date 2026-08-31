@@ -209,6 +209,34 @@ section was re-opened by #258.
   `docs/spikes/2026-summer-refactor.md`**, and until it does this finding is invisible in the repo
   it affects, which is the exact failure this section exists to prevent.
 
+- [ ] **#22 (feature dependency, not a bug) — `PATCH /api/edit/collections/{id}` does not exist,
+  and the frontend's largest open item is blocked on it.** *(Filed 2026-08-31 from the frontend
+  board's MA1 (`docs/spikes/2026-features.md` in `edens.zac`), whose row said "Task 1 (backend
+  `PATCH /collections/{id}`) was assigned to a sibling agent — verify it exists before starting".
+  It was verified and it does not.)*
+
+  Verified against `origin/main` rather than a checkout — this repo's `.claude/worktrees/` copies
+  make an unscoped `grep -rn` return convincing false positives for exactly this query:
+
+  ```bash
+  git grep -n "PatchMapping(" origin/main -- 'src/main/java/**/controller/**'
+  ```
+
+  Five `@PatchMapping`s exist and none is a whole-collection field patch: `/content/images`
+  (`AdminController:233`), `/content/gifs/{id}` (`AdminController:341`), `/{id}`
+  (`AdminUserController:313`), `/collections/{collectionId}/rating` (`EditController:52`) and
+  `/collections/{collectionId}/images` (`EditController:94`). The last two are sub-resource
+  patches.
+
+  **What the frontend needs.** MA1 replaces the collection edit sheet's batch-save model with
+  per-field optimistic commits, so it needs a partial update accepting an arbitrary subset of
+  collection fields — the shape its `buildFieldPatch` derives from the existing
+  `buildUpdatePayload`. `PUT`-style whole-object update will not do, because the point is that two
+  fields edited in parallel must not clobber each other.
+
+  **Sequencing.** This is MR 1 of MA1; all eleven of its frontend tasks wait on it. Nothing else on
+  either board depends on it, so it can land whenever. **COLD.**
+
 ## Open security findings
 
 Consolidated 2026-08-24 by the full-board review; re-attacked as a merged set 2026-08-25 and again
