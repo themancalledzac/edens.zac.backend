@@ -6844,3 +6844,71 @@ and a half-finished file can ride across branch switches and look exactly like a
 **Cross-agent routing of a finding worked and is worth repeating.** #279's surviving mutation was
 handed to #284 while it was still running and unpushed; it closed the gap inside the same run instead
 of becoming an item nobody picked up.
+
+## 2026-08-31 seventh close-out — the deferred count, settled
+
+No code shipped. This close-out exists to pay a debt the sixth one deliberately took on and to
+re-derive the refs in the neighbourhood of ten merged PRs.
+
+### The inline-comment count, and why deferring it was right
+
+The sixth close-out declined to re-run this number, because seven of its nine PRs were open and five
+of them deleted comments. Working rule 42's second half — *a count measured on a feature branch is not
+a count of `main`* — says such a number cannot be written down. It wrote down the reason instead.
+
+All ten PRs have since merged, so the figure settles at **1,477 (215 main / 1,262 test)**, measured on
+`main` with `grep -rn '^[[:space:]]*//' --include='*.java' src/main | wc -l` and the same for `src/test`.
+
+**The remaining delta reconciles to a single file**, measured commit by commit rather than inferred:
+
+| Commit | PR | main | test |
+|---|---|---|---|
+| `94fcbc75` | #283 | 225 | 1,262 |
+| `337d6eee` | #281 | 225 | 1,262 |
+| `b0c6967e` | #284 | 225 | 1,262 |
+| `b57e9a23` | #285 | **215** | 1,262 |
+| `5528660a` | #286 | 215 | 1,262 |
+
+#281 and #284 moved it not at all. #285 took `src/main` 225 → 215, and `RoleRepository` went **10 → 0**
+across that one commit.
+
+**Rule 46 fired again, and this is a clean specimen of it.** #285's PR body reports removing *11 lines*
+from `RoleRepository`; this checksum moved *10*. The trailing `code; //` count in that diff is **0**, so
+the gap is not a trailing comment — it is a non-comment line caught in the same deletion. Both numbers
+are correct about different metrics, which is exactly what rule 46 says to state rather than reconcile
+away.
+
+Sixth-run arc, both endpoints measured on `main`: **260 / 1,273 → 215 / 1,262**, so −45 main and −11
+test. Not wholly attributable to the run: [#277](https://github.com/themancalledzac/edens.zac.backend/pull/277) and [#281](https://github.com/themancalledzac/edens.zac.backend/pull/281) landed
+inside that window from outside it.
+
+### Ref drift, scoped to what landed
+
+Four ref sets re-derived; three had moved. `RoleGrantPropagationService`'s four walks were all exact,
+which is unusual and worth recording so the next pass does not re-check them without cause.
+`CollectionService` moved everything by +2. `ImageProcessingService`'s two S3 helpers moved −5 each,
+shifted by [#279](https://github.com/themancalledzac/edens.zac.backend/pull/279)'s shared upload loop. Details in the tracker's seventh-run log entry.
+
+### Two corrections worth more than the drift
+
+**MR 17 #7 was blocked on MR 19 #19, and #19 shipped as [#283](https://github.com/themancalledzac/edens.zac.backend/pull/283).** Half of #7 came with
+it: the 286-291 re-wrap block is gone and `AdminController.getAllImages` now ends in one line, with both
+endpoints returning the identical `ResponseEntity<PagedResponse<ContentModels.Image>>`. What remains is a
+COLD shared-`@ModelAttribute` refactor plus a product decision that has never been asked — unifying the
+size handling turns admin `size=500` from a silent 200-row clamp into a 400 and moves two frontend pages
+from 30 images to 50. The tracker now splits them and quarantines the decision.
+
+**The comment-sweep item filed by the sixth close-out was wrong about its own scope.** It named two files
+and quoted `~107` lines; 107 was [#280](https://github.com/themancalledzac/edens.zac.backend/pull/280)'s count across **four**. Re-measured:
+`CollectionServiceTest` **70**, `CollectionRepositoryTest` **21**, `CollectionRepository` **12**,
+`CollectionService` **0** — already done by #280. The named pair holds 33. Re-scoped to
+`CollectionServiceTest` alone, which at 70 is the largest single-file concentration left on the board and
+has [#272](https://github.com/themancalledzac/edens.zac.backend/pull/272) as its worked precedent.
+
+### The pattern behind all three
+
+Three consecutive close-outs have each caught a bad number, and in every case the bad number was **the
+close-out's own**, not old board text: the fifth's `1,276` (three high), the sixth's `74` checkboxes
+(stale within the hour), and this one's `~107`. Board text gets re-derived because sessions distrust it.
+A number written down an hour ago reads as measured and nobody re-runs it. **The freshest number on the
+board is the least verified one.**
