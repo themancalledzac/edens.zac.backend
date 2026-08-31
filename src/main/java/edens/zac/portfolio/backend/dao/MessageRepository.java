@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.dao;
 
 import edens.zac.portfolio.backend.entity.MessageEntity;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -69,6 +70,31 @@ public class MessageRepository extends BaseDao {
   public int deleteById(long id) {
     String sql = "DELETE FROM messages WHERE id = :id";
     var params = createParameterSource().addValue("id", id);
+    return update(sql, params);
+  }
+
+  /**
+   * How many messages are older than {@code cutoff}. Exists so the retention job can report what a
+   * purge would remove without removing it -- see {@code MessageRetentionService}, which runs in
+   * that reporting mode by default.
+   */
+  @Transactional(readOnly = true)
+  public long countCreatedBefore(LocalDateTime cutoff) {
+    String sql = "SELECT COUNT(*) FROM messages WHERE created_at < :cutoff";
+    var params = createParameterSource().addValue("cutoff", cutoff);
+    Long count = namedParameterJdbcTemplate.queryForObject(sql, params, Long.class);
+    return count != null ? count : 0L;
+  }
+
+  /**
+   * Delete every message older than {@code cutoff}, returning the row count. Irreversible: the
+   * contact form is the only writer and nothing archives what this removes. Covered by {@code
+   * idx_messages_created_at}.
+   */
+  @Transactional
+  public int deleteCreatedBefore(LocalDateTime cutoff) {
+    String sql = "DELETE FROM messages WHERE created_at < :cutoff";
+    var params = createParameterSource().addValue("cutoff", cutoff);
     return update(sql, params);
   }
 }
