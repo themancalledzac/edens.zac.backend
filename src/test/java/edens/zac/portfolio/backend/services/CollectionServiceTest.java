@@ -126,6 +126,10 @@ class CollectionServiceTest {
         .thenReturn(Optional.of(new CollectionRepository.GalleryAccessRow(null, List.of())));
   }
 
+  /**
+   * Routes the metadata proxy call back to the service under test. The stub is lenient because not
+   * every test exercises the {@code getGeneralMetadata} path.
+   */
   @BeforeEach
   void setUp() {
     testCollection =
@@ -136,8 +140,6 @@ class CollectionServiceTest {
             .visibility(CollectionVisibility.LISTED)
             .build();
 
-    // Route the metadata proxy call back to the service under test. Lenient because not every
-    // test exercises the getGeneralMetadata path.
     lenient().when(selfProvider.getObject()).thenReturn(service);
   }
 
@@ -244,6 +246,7 @@ class CollectionServiceTest {
       verify(collectionRepository, never()).deleteById(any());
     }
 
+    /** Back-references, own content, and tags must all be cleared before the collection row. */
     @Test
     void deleteCollection_removesBackReferencesAndTagsBeforeDeletingCollection() {
       Long collectionId = 1L;
@@ -251,7 +254,6 @@ class CollectionServiceTest {
 
       service.deleteCollection(collectionId);
 
-      // Back-references, own content, and tags must all be cleared before the collection row.
       var inOrder =
           org.mockito.Mockito.inOrder(collectionRepository, contentRepository, tagRepository);
       inOrder.verify(contentRepository).deleteContentCollectionsReferencing(collectionId);
@@ -260,6 +262,7 @@ class CollectionServiceTest {
       inOrder.verify(collectionRepository).deleteById(collectionId);
     }
 
+    /** Back-references removed, then each parent's stored count recomputed and persisted. */
     @Test
     void deleteCollection_withParentReferences_recountsEachParentTotalContent() {
       Long collectionId = 1L;
@@ -273,7 +276,6 @@ class CollectionServiceTest {
 
       service.deleteCollection(collectionId);
 
-      // Back-references removed, then each parent's stored count recomputed and persisted.
       verify(contentRepository).deleteContentCollectionsReferencing(collectionId);
       assertThat(parentA.getTotalContent()).isEqualTo(3);
       assertThat(parentB.getTotalContent()).isEqualTo(5);
@@ -414,11 +416,14 @@ class CollectionServiceTest {
       verify(collectionProcessingUtil).applyBasicUpdates(testCollection, updateDTO);
     }
 
+    /**
+     * A description-only update passes null title and null slug, so identity does not change and
+     * the shared {@code generalMetadata} cache must be left intact. This is the hot-path
+     * optimization.
+     */
     @Test
     void updateContentWithMetadata_identityUnchanged_doesNotEvictMetadataCache() {
       Long collectionId = 1L;
-      // Description-only update: title and slug are null, so identity does not change and the
-      // shared generalMetadata cache must be left intact (this is the hot-path optimization).
       CollectionRequests.Update updateDTO =
           new CollectionRequests.Update(
               collectionId,
@@ -464,6 +469,12 @@ class CollectionServiceTest {
       verify(cacheManager, never()).getCache(anyString());
     }
 
+    /**
+     * A rename is what the cached collection list renders, so the CDN copy must be dropped along
+     * with the {@code generalMetadata} cache. This path carries no {@code @CacheEvict}, so an
+     * annotation-driven scheme would miss it. {@code applyBasicUpdates} is mocked here, so the stub
+     * mutates identity itself to simulate the rename.
+     */
     @Test
     void updateContentWithMetadata_titleOrSlugChanged_evictsMetadataCache() {
       Long collectionId = 1L;
@@ -496,7 +507,6 @@ class CollectionServiceTest {
               .build();
       Cache metadataCache = mock(Cache.class);
 
-      // applyBasicUpdates is mocked, so make it actually mutate identity to simulate a rename.
       doAnswer(
               invocation -> {
                 testCollection.setTitle("New Title");
@@ -521,8 +531,6 @@ class CollectionServiceTest {
       service.updateContentWithMetadata(collectionId, updateDTO);
 
       verify(metadataCache).clear();
-      // A rename is what the cached collection list renders, so the CDN copy must be dropped too.
-      // This path carries no @CacheEvict, so it is the one a annotation-driven scheme would miss.
       verify(readCacheInvalidator).markChanged();
     }
   }
@@ -562,10 +570,13 @@ class CollectionServiceTest {
           .hasMessageContaining("Collection not found with slug: nonexistent");
     }
 
+    /**
+     * A slug that is both a real collection and a plausible tag must resolve to the real
+     * collection. {@code findBySlug} is checked before the tag-view fallback, which is never
+     * consulted.
+     */
     @Test
     void getCollectionWithPagination_realCollectionWinsOnSlugCollision() {
-      // A slug that is BOTH a real collection and a plausible tag must resolve to the real
-      // collection — findBySlug is checked before the tag-view fallback, which is never consulted.
       String slug = "chamonix";
       CollectionModel model = CollectionModel.builder().id(1L).title("Chamonix").slug(slug).build();
 
@@ -623,7 +634,6 @@ class CollectionServiceTest {
       CollectionModel result = service.getCollectionWithPagination(slug, -5, 10);
 
       assertThat(result).isNotNull();
-      // Negative page normalized to 0, so offset = 0
       verify(collectionRepository).findContentByCollectionId(1L, 10, 0);
     }
 
@@ -784,9 +794,13 @@ class CollectionServiceTest {
   @Nested
   class GetLocationPage {
 
+    /**
+     * With {@code totalCollections} (1) at or below {@code collectionSize} (35), the excluded IDs
+     * come straight out of the paginated result, so {@code findListedIdsByLocationName} is never
+     * called.
+     */
     @Test
     void getLocationPage_shouldReturnCollectionsAndOrphanImages() {
-      // Arrange
       String locationName = "Seattle";
 
       LocationEntity seattleLocation =
@@ -821,8 +835,6 @@ class CollectionServiceTest {
       when(collectionRepository.countListedByLocationName(locationName)).thenReturn(1L);
       when(collectionRepository.findListedByLocationName(locationName, 35, 0))
           .thenReturn(List.of(collectionEntity));
-      // totalCollections (1) <= collectionSize (35), so IDs are extracted from paginated result
-      // — no findListedIdsByLocationName call needed
       when(collectionProcessingUtil.batchConvertToBasicModels(List.of(collectionEntity)))
           .thenReturn(List.of(collectionModel));
       when(contentRepository.findOrphanContentByLocationName(
@@ -844,9 +856,12 @@ class CollectionServiceTest {
       assertThat(result.totalImages()).isEqualTo(1L);
     }
 
+    /**
+     * With {@code totalCollections} at 0 the excluded IDs are extracted from the empty paginated
+     * result, so the location page still renders its orphan images.
+     */
     @Test
     void getLocationPage_noCollections_shouldReturnEmptyCollectionsWithOrphans() {
-      // Arrange
       String locationName = "Portland";
 
       when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
@@ -862,7 +877,6 @@ class CollectionServiceTest {
       when(collectionRepository.countListedByLocationName(locationName)).thenReturn(0L);
       when(collectionRepository.findListedByLocationName(locationName, 35, 0))
           .thenReturn(Collections.emptyList());
-      // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
       when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
           .thenReturn(Collections.emptyList());
       when(contentRepository.findOrphanContentByLocationName(
@@ -887,9 +901,12 @@ class CollectionServiceTest {
       assertThat(result.totalImages()).isEqualTo(1L);
     }
 
+    /**
+     * An unknown location name yields a response naming the location with a null id, no
+     * collections, and no images.
+     */
     @Test
     void getLocationPage_noResults_shouldReturnEmptyResponse() {
-      // Arrange
       String locationName = "Nowhere";
 
       when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
@@ -897,7 +914,6 @@ class CollectionServiceTest {
       when(collectionRepository.countListedByLocationName(locationName)).thenReturn(0L);
       when(collectionRepository.findListedByLocationName(locationName, 35, 0))
           .thenReturn(Collections.emptyList());
-      // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
       when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
           .thenReturn(Collections.emptyList());
       when(contentRepository.findOrphanContentByLocationName(
@@ -907,10 +923,8 @@ class CollectionServiceTest {
               eq(locationName), eq(Collections.emptyList())))
           .thenReturn(0L);
 
-      // Act
       LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
 
-      // Assert
       assertThat(result).isNotNull();
       assertThat(result.location()).isNotNull();
       assertThat(result.location().name()).isEqualTo("Nowhere");
@@ -926,7 +940,9 @@ class CollectionServiceTest {
      * shortcut has nothing to hand over. It used to fire anyway -- it only checked {@code
      * totalCollections <= collectionSize} -- leaving an empty exclusion list, and both orphan
      * queries drop their NOT EXISTS clause on an empty list. The response then advertised every
-     * image at the location as an orphan.
+     * image at the location as an orphan. The orphan stubs match loosely on the exclusion list so
+     * the pre-fix path reaches the assertions and reports the wrong list, rather than dying on an
+     * unmatched stub.
      */
     @Test
     @DisplayName("past page 0 the exclusion list is queried, not taken from the empty page")
@@ -935,7 +951,6 @@ class CollectionServiceTest {
 
       when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
       when(collectionRepository.countListedByLocationName(locationName)).thenReturn(1L);
-      // Page 1 of a single-collection location: offset 35 is past the end, so this is empty.
       when(collectionRepository.findListedByLocationName(locationName, 35, 35))
           .thenReturn(Collections.emptyList());
       when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
@@ -943,8 +958,6 @@ class CollectionServiceTest {
       lenient()
           .when(collectionRepository.findListedIdsByLocationName(locationName))
           .thenReturn(List.of(10L));
-      // Stubbed loosely on the exclusion list so the pre-fix path reaches the assertions below
-      // and reports the wrong list, rather than dying on an unmatched stub.
       when(contentRepository.findOrphanContentByLocationName(
               eq(locationName), any(), eq(50), eq(0)))
           .thenReturn(Collections.emptyList());
@@ -1052,7 +1065,6 @@ class CollectionServiceTest {
 
     @Test
     void findMetaBySlug_existingSlug_shouldReturnBasicModel() {
-      // Arrange
       String slug = "test-collection";
       CollectionModel basicModel =
           CollectionModel.builder().id(1L).title("Test Collection").slug(slug).build();
@@ -1060,10 +1072,8 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
       when(collectionProcessingUtil.convertToBasicModel(testCollection)).thenReturn(basicModel);
 
-      // Act
       CollectionModel result = service.findMetaBySlug(slug);
 
-      // Assert
       assertThat(result).isNotNull();
       assertThat(result.getTitle()).isEqualTo("Test Collection");
       assertThat(result.getSlug()).isEqualTo(slug);
@@ -1073,11 +1083,9 @@ class CollectionServiceTest {
 
     @Test
     void findMetaBySlug_nonExistentSlug_shouldThrowResourceNotFoundException() {
-      // Arrange
       String slug = "non-existent";
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.empty());
 
-      // Act & Assert
       assertThatThrownBy(() -> service.findMetaBySlug(slug))
           .isInstanceOf(ResourceNotFoundException.class)
           .hasMessageContaining("Collection not found with slug: non-existent");
@@ -1268,11 +1276,13 @@ class CollectionServiceTest {
           .containsExactly(LocalDate.of(2026, 1, 1));
     }
 
+    /**
+     * A parent holding client-gallery children. The viewer is already inside the password-gated
+     * parent context, so UNLISTED galleries, the typical visibility for client work, must remain
+     * visible. HIDDEN is still excluded.
+     */
     @Test
     void parentOfClientGalleries_keepsUnlistedChildren_dropsHidden() {
-      // PARENT containing CLIENT_GALLERY children: viewer is already inside the password-gated
-      // parent context, so UNLISTED galleries (the typical visibility for client work) must
-      // remain visible. HIDDEN is still excluded.
       String slug = "smith-wedding";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1311,13 +1321,15 @@ class CollectionServiceTest {
 
       assertThat(result.getContent())
           .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
-          .containsExactly(101L, 103L); // UNLISTED kept, HIDDEN dropped
+          .containsExactly(101L, 103L);
     }
 
+    /**
+     * A parent holding children that are not client galleries, such as a portfolio rollup. Public
+     * listing semantics apply: only LISTED children appear, UNLISTED is excluded.
+     */
     @Test
     void parentOfPortfolios_keepsListedOnly_dropsUnlistedAndHidden() {
-      // PARENT containing non-CLIENT_GALLERY children (e.g. portfolio rollup): public listing
-      // semantics apply — only LISTED children appear, UNLISTED is excluded.
       String slug = "photography";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1353,15 +1365,18 @@ class CollectionServiceTest {
 
       assertThat(result.getContent())
           .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
-          .containsExactly(201L); // LISTED kept, UNLISTED dropped (current behavior preserved)
+          .containsExactly(201L);
     }
 
+    /**
+     * An inverted pin, formerly {@code appliesClientGalleryContextToAllChildren}. One
+     * client-gallery child used to flip the whole response into "keep UNLISTED children" mode, so
+     * linking a single gallery under a wrapper un-hid every unrelated work-in-progress sibling. The
+     * relaxation is now per child: an UNLISTED child survives only if it is itself a client
+     * gallery.
+     */
     @Test
     void parentOfMixedClientGalleryAndPortfolio_dropsUnlistedNonClientSibling() {
-      // INVERTED PIN (was appliesClientGalleryContextToAllChildren). One client-gallery child used
-      // to flip the whole response into "keep UNLISTED children" mode, so linking a single gallery
-      // under a wrapper un-hid every unrelated work-in-progress sibling. The relaxation is now per
-      // child: an UNLISTED child survives only if it is itself a client gallery.
       String slug = "smith-wedding";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1404,16 +1419,18 @@ class CollectionServiceTest {
 
       assertThat(result.getContent())
           .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
-          .containsExactly(301L, 303L); // client gallery + LISTED sibling; UNLISTED and HIDDEN gone
+          .containsExactly(301L, 303L);
     }
 
+    /**
+     * A regression pin. {@code findClientGalleriesAndQualifyingParents} admits any collection with
+     * a visible client child and applies no discriminator to the parent side, so the render path
+     * must key the client-gallery context on the child flags too. A parent-side gate stripped every
+     * UNLISTED child out of an ordinary wrapper carrying neither flag, such as the auto-linked
+     * "staging" collection, and rendered an empty tile.
+     */
     @Test
     void nonParentWrapperOfClientGalleries_keepsUnlistedChildren() {
-      // Regression pin: findClientGalleriesAndQualifyingParents admits ANY collection with a
-      // visible client child, applying no discriminator to the parent side, so the render path
-      // must key the client-gallery context on the child flags too. A parent-side gate stripped
-      // every UNLISTED child out of an ordinary wrapper carrying neither flag (e.g. the
-      // auto-linked 'staging' collection) and rendered an empty tile.
       String slug = "staging";
       CollectionEntity wrapper =
           CollectionEntity.builder()
@@ -1447,14 +1464,16 @@ class CollectionServiceTest {
 
       assertThat(result.getContent())
           .extracting(c -> ((ContentModels.Collection) c).referencedCollectionId())
-          .containsExactly(401L); // UNLISTED kept even though the wrapper is not a PARENT
+          .containsExactly(401L);
     }
 
+    /**
+     * S3: {@code ContentModels.Collection} carries title, description, coverImage and dates but no
+     * {@code isPasswordProtected}, so the frontend cannot render a locked tile. An unprotected,
+     * crawlable, hour-cached parent page would publish the gallery's cover and client name.
+     */
     @Test
     void unprotectedParent_dropsPasswordProtectedChild() {
-      // S3: ContentModels.Collection carries title, description, coverImage and dates but no
-      // isPasswordProtected, so the frontend cannot render a locked tile. An unprotected,
-      // crawlable, hour-cached parent page would publish the gallery's cover and client name.
       String slug = "public-wrapper";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1491,9 +1510,9 @@ class CollectionServiceTest {
           .containsExactly(502L);
     }
 
+    /** The viewer is already behind the parent's own gate, so its protected children stay. */
     @Test
     void protectedParent_keepsPasswordProtectedChild() {
-      // The viewer is already behind the parent's own gate, so its protected children stay.
       String slug = "locked-wrapper";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1530,10 +1549,12 @@ class CollectionServiceTest {
           .containsExactly(511L, 512L);
     }
 
+    /**
+     * S4 from the other direction. The parent is itself a client gallery, which used to be enough
+     * to keep every UNLISTED child. Only the client-gallery child survives now.
+     */
     @Test
     void clientGalleryWrapper_dropsUnlistedNonClientChild() {
-      // S4 from the other direction: the parent is itself a client gallery, which used to be
-      // enough to keep every UNLISTED child. Only the client-gallery child survives now.
       String slug = "gallery-wrapper";
       CollectionEntity parent =
           CollectionEntity.builder()
@@ -1599,9 +1620,9 @@ class CollectionServiceTest {
       return childEntity(id, isClient, visibility, null);
     }
 
+    /** {@code is_client} is the storage truth for client-gallery status. */
     private CollectionEntity childEntity(
         Long id, boolean isClient, CollectionVisibility visibility, String galleryPassword) {
-      // is_client is the storage truth for client-gallery status.
       return CollectionEntity.builder()
           .id(id)
           .isClient(isClient)
@@ -1784,10 +1805,12 @@ class CollectionServiceTest {
   @Nested
   class SaveGalleryAccessParentPropagation {
 
+    /**
+     * The R1/S2 scenario, where the wrapper is not itself a client gallery. Eligibility comes from
+     * {@code hasClientGalleryChildren}, and propagation is gated on the request flag alone.
+     */
     @Test
     void wrapperWithClientGalleryChildren_propagateTrue_updatesPasswordOnEachClientChild() {
-      // The R1/S2 scenario: the wrapper is NOT itself a client gallery. Eligibility comes from
-      // hasClientGalleryChildren; propagation is gated on the request flag alone.
       CollectionEntity parent =
           CollectionEntity.builder()
               .id(100L)
@@ -1857,9 +1880,12 @@ class CollectionServiceTest {
       verify(collectionRepository, never()).updateGalleryPassword(anyLong(), anyString());
     }
 
+    /**
+     * {@code isClient} short-circuits the OR, so the EXISTS query is never issued for a plain
+     * gallery.
+     */
     @Test
     void standaloneClientGallery_isEligibleWithoutQueryingChildren() {
-      // isClient short-circuits the OR, so the EXISTS query is never issued for a plain gallery.
       CollectionEntity gallery =
           CollectionEntity.builder()
               .id(100L)
@@ -1878,10 +1904,12 @@ class CollectionServiceTest {
       verify(collectionRepository, never()).hasClientGalleryChildren(anyLong());
     }
 
+    /**
+     * The parent-side type gate is gone, so propagation now runs for any eligible target. A
+     * childless gallery simply finds nothing to write.
+     */
     @Test
     void standaloneClientGallery_propagateTrue_writesNoChildPasswordsWhenItHasNoChildren() {
-      // The parent-side type gate is gone, so propagation now runs for any eligible target. A
-      // childless gallery simply finds nothing to write.
       CollectionEntity gallery =
           CollectionEntity.builder()
               .id(100L)
@@ -1987,13 +2015,15 @@ class CollectionServiceTest {
   @Nested
   class GalleryAccessClearPath {
 
+    /**
+     * D8: {@code CollectionRepository.save} omits {@code gallery_password} on UPDATE, so this
+     * endpoint is the only writer that can clear one. If eligibility gated the clear path, a
+     * collection holding an enforced password but neither a client gallery nor a parent of one
+     * would be permanently locked behind a password nothing could remove. The clear path returns
+     * before the gate, so the EXISTS query is never issued.
+     */
     @Test
     void ineligibleCollectionWithAStrandedPassword_canStillBeCleared() {
-      // D8. CollectionRepository.save omits gallery_password on UPDATE, so this endpoint is the
-      // only writer that can clear one. If eligibility gated the clear path, a collection that
-      // holds an enforced password but is neither a client gallery nor a parent of one -- the
-      // gallery_password IS NOT NULL AND is_client = false population -- would be permanently
-      // locked behind a password nothing could remove.
       CollectionEntity stranded =
           CollectionEntity.builder()
               .id(100L)
@@ -2011,13 +2041,14 @@ class CollectionServiceTest {
       assertThat(response.saved()).isTrue();
       assertThat(response.reason()).isNull();
       verify(collectionRepository).saveGalleryAccess(100L, null, List.of());
-      // The clear path returns before the gate, so the EXISTS query is never issued.
       verify(collectionRepository, never()).hasClientGalleryChildren(anyLong());
     }
 
+    /**
+     * A regression pin: moving the clear branch above the gate must not change the eligible case.
+     */
     @Test
     void clearingAnEligibleClientGalleryStillWorks() {
-      // Regression pin: moving the clear branch above the gate must not change the eligible case.
       CollectionEntity gallery =
           CollectionEntity.builder()
               .id(101L)
@@ -2037,9 +2068,9 @@ class CollectionServiceTest {
       verify(collectionRepository).saveGalleryAccess(101L, null, List.of());
     }
 
+    /** A clear is not a set. {@code propagateToChildren} must not waterfall a null. */
     @Test
     void clearingNeverPropagatesToChildrenEvenWhenPropagateIsTrue() {
-      // A clear is not a set. propagateToChildren must not waterfall a null.
       CollectionEntity wrapper =
           CollectionEntity.builder()
               .id(102L)
@@ -2061,13 +2092,15 @@ class CollectionServiceTest {
   @Nested
   class IsGalleryAccessAuthorized {
 
+    /**
+     * A null password short-circuits in {@code hasValidAccess} before any cookie is read, so {@code
+     * request.getCookies()} needs no stub.
+     */
     @Test
     void unprotectedCollection_returnsTrue() {
       CollectionEntity entity =
           CollectionEntity.builder().id(1L).slug("public-gallery").galleryPassword(null).build();
       when(collectionRepository.findBySlug("public-gallery")).thenReturn(Optional.of(entity));
-      // Null password short-circuits in hasValidAccess before any cookie is read,
-      // so we don't need to stub request.getCookies().
       jakarta.servlet.http.HttpServletRequest request =
           org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
 
@@ -2158,10 +2191,11 @@ class CollectionServiceTest {
   @Nested
   class HandleSiblingUpdates {
 
+    /**
+     * Builds the 17-argument back-compat overload: id first, siblings last, everything else null.
+     */
     private CollectionRequests.Update updateWithSiblings(
         Long id, CollectionRequests.CollectionUpdate siblings) {
-      // 17 positional args (the back-compat overload): id first, siblings last, everything else
-      // null
       return new CollectionRequests.Update(
           id, null, null, null, null, null, null, null, null, null, null, null, null, null,
           null, /* collections */ null, /* siblings */ siblings);
@@ -2255,9 +2289,9 @@ class CollectionServiceTest {
       targetParent = CollectionEntity.builder().id(42L).title("Target Parent").build();
     }
 
+    /** Builds the canonical 22-argument constructor: id, then 20 nulls, then parents last. */
     private CollectionRequests.Update updateWithParents(
         CollectionRequests.CollectionUpdate parents) {
-      // Canonical 22-arg constructor: id + 20 nulls + parents (last).
       return new CollectionRequests.Update(
           current.getId(),
           null,
@@ -2321,6 +2355,10 @@ class CollectionServiceTest {
               });
     }
 
+    /**
+     * One lookup, scoped to the parent. The matching itself is SQL now, covered by {@code
+     * ContentRepositoryUnlinkLookupIntegrationTest}.
+     */
     @Test
     void removesCurrentFromEachRemoveIdParentChildren() {
       CollectionEntity existingParent =
@@ -2329,8 +2367,6 @@ class CollectionServiceTest {
           ContentCollectionEntity.builder().id(900L).referencedCollection(current).build();
       when(collectionRepository.findById(current.getId())).thenReturn(Optional.of(current));
       when(collectionRepository.findById(55L)).thenReturn(Optional.of(existingParent));
-      // One lookup, scoped to the parent. The matching itself is SQL now, covered by
-      // ContentRepositoryUnlinkLookupIntegrationTest.
       when(contentRepository.findCollectionContentInCollectionMatching(55L, List.of(7L)))
           .thenReturn(List.of(currentAsContent));
       when(collectionRepository.countContentByCollectionId(55L)).thenReturn(2L);
