@@ -25,7 +25,7 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.model.DownloadResolution;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
-import edens.zac.portfolio.backend.model.ImageSearchResponse;
+import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
@@ -390,7 +390,7 @@ public class ContentService {
    * on large pages.
    */
   @Transactional(readOnly = true)
-  public ImageSearchResponse searchImages(ImageSearchRequest request) {
+  public PagedResponse<ContentModels.Image> searchImages(ImageSearchRequest request) {
     int limit = request.size();
     int offset = request.page() * request.size();
 
@@ -401,7 +401,8 @@ public class ContentService {
     List<ContentModels.Image> images =
         contentModelConverter.batchConvertImageEntitiesToModels(entities);
 
-    return new ImageSearchResponse(images, totalElements, totalPages);
+    return new PagedResponse<>(
+        images, totalElements, totalPages, request.page(), request.page() + 1 >= totalPages);
   }
 
   /**

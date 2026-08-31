@@ -10,7 +10,6 @@ import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
-import edens.zac.portfolio.backend.model.ImageSearchResponse;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.Records;
@@ -30,8 +29,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -229,10 +226,11 @@ class AdminController {
     return ResponseEntity.status(HttpStatus.CREATED).body(textContent);
   }
 
-  /** Patch one or more images. */
+  /**
+   * Patch one or more images. Unchecked because Spring binds a generic {@code List<T>} request body
+   * and the service returns the updated images inside a {@code Map<String, Object>}.
+   */
   @PatchMapping("/content/images")
-  // Unchecked: Spring's @RequestBody binding of a generic List<T>, plus the
-  // Map<String,Object> -> List<ContentModels.Image> cast below. Both are inherently unchecked.
   @SuppressWarnings("unchecked")
   public ResponseEntity<Map<String, Object>> updateImages(
       @RequestBody List<@Valid ContentImageUpdateRequest> updates) {
@@ -285,11 +283,7 @@ class AdminController {
             captureEndDate,
             page,
             safeSize);
-    ImageSearchResponse response = contentService.searchImages(request);
-    Pageable pageable = PageRequest.of(page, safeSize);
-    Page<ContentModels.Image> wrapped =
-        new PageImpl<>(response.content(), pageable, response.totalElements());
-    return ResponseEntity.ok(PagedResponse.from(wrapped));
+    return ResponseEntity.ok(contentService.searchImages(request));
   }
 
   /** Delete one or more images. */

@@ -1,8 +1,9 @@
 package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
+import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
-import edens.zac.portfolio.backend.model.ImageSearchResponse;
+import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.MetadataService;
@@ -43,7 +44,7 @@ public class ContentControllerProd {
    * @return ResponseEntity with paginated search results
    */
   @GetMapping("/images/search")
-  public ResponseEntity<ImageSearchResponse> searchImages(
+  public ResponseEntity<PagedResponse<ContentModels.Image>> searchImages(
       @RequestParam(required = false) List<Long> personIds,
       @RequestParam(required = false) List<Long> tagIds,
       @RequestParam(required = false) Long cameraId,
@@ -72,7 +73,7 @@ public class ContentControllerProd {
             captureEndDate,
             page,
             size);
-    ImageSearchResponse response = contentService.searchImages(request);
+    PagedResponse<ContentModels.Image> response = contentService.searchImages(request);
     return ResponseEntity.ok(response);
   }
 

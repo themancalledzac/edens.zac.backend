@@ -24,7 +24,7 @@ import edens.zac.portfolio.backend.model.ContentImageUpdateRequest;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
-import edens.zac.portfolio.backend.model.ImageSearchResponse;
+import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.services.validator.ContentImageUpdateValidator;
 import edens.zac.portfolio.backend.services.validator.ContentValidator;
 import edens.zac.portfolio.backend.types.ContentType;
@@ -98,14 +98,12 @@ class ContentServiceTest {
     when(contentModelConverter.batchConvertImageEntitiesToModels(entities))
         .thenReturn(List.of(stubImageModel(1L), stubImageModel(2L)));
 
-    ImageSearchResponse response = service.searchImages(request);
+    PagedResponse<ContentModels.Image> response = service.searchImages(request);
 
     assertThat(response.content()).hasSize(2);
     assertThat(response.totalElements()).isEqualTo(2L);
     assertThat(response.totalPages()).isEqualTo(1);
 
-    // Batch conversion (3 queries total) must be used; the per-image path (3 queries/image) must
-    // never be hit, otherwise a page of N images costs 3N queries against the remote database.
     verify(contentModelConverter).batchConvertImageEntitiesToModels(entities);
     verify(contentModelConverter, never()).convertImageEntityToModel(any());
   }
