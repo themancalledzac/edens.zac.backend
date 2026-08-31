@@ -53,6 +53,13 @@ public class CollectionAdminController {
         .toList();
   }
 
+  /**
+   * Set or clear a collection's gallery password, mailing it to every address in the request.
+   *
+   * <p>The send loop is deliberately uncapped: one request mails as many addresses as the caller
+   * supplies. That is accepted because the endpoint is admin-only and mailing a client list is the
+   * feature. Revisit if it ever becomes reachable below admin.
+   */
   @PostMapping("/{id}/gallery-access")
   public ResponseEntity<GalleryAccessResponse> updateGalleryAccess(
       @PathVariable Long id, @Valid @RequestBody GalleryAccessRequest request) {

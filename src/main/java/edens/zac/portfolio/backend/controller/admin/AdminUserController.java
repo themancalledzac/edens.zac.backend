@@ -502,6 +502,10 @@ public class AdminUserController {
    *
    * <p>With no active transaction (standalone MockMvc tests) there is nothing to wait for, so the
    * send happens immediately.
+   *
+   * <p>No rate limiter covers this send. That is accepted rather than overlooked: all three callers
+   * are admin-only and each sends one email per request. Revisit if any becomes reachable below
+   * admin.
    */
   private void sendInviteEmailAfterCommit(String email, String displayName, String inviteUrl) {
     if (!TransactionSynchronizationManager.isSynchronizationActive()) {
