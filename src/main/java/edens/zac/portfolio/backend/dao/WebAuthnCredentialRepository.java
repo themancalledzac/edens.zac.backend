@@ -97,6 +97,21 @@ public class WebAuthnCredentialRepository extends BaseDao {
   }
 
   /**
+   * Delete one credential, scoped to its owner so a mismatched path cannot delete another account's
+   * passkey.
+   *
+   * @param id credential primary key
+   * @param userId app_user primary key the credential must belong to
+   * @return rows deleted: 1 on success, 0 if no credential with that id belongs to that user
+   */
+  @Transactional
+  public int deleteByIdAndUserId(Long id, Long userId) {
+    String sql = "DELETE FROM webauthn_credential WHERE id = :id AND user_id = :userId";
+    var params = createParameterSource().addValue("id", id).addValue("userId", userId);
+    return update(sql, params);
+  }
+
+  /**
    * Update the sign count and last-used timestamp after a successful assertion.
    *
    * @param id credential primary key

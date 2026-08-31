@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDateTime;
 
 /** Request and response records for the admin user-management endpoints. */
 public final class UserRequests {
@@ -114,4 +115,32 @@ public final class UserRequests {
    *     de-duped
    */
   public record MergeResult(int movedImageTags, int movedCollections, int duplicatesCollapsed) {}
+
+  /**
+   * Row in the admin passkey list ({@code GET /api/admin/users/{id}/passkeys}). Carries only what
+   * identifies an authenticator to a human choosing which one to deregister; the public key and the
+   * raw credential-id bytes are deliberately absent.
+   *
+   * @param id the {@code webauthn_credential.id}, the handle the delete endpoint takes
+   * @param label the authenticator label captured at registration, may be {@code null}
+   * @param transports the transports string reported at registration, may be {@code null}
+   * @param createdAt when the credential was registered
+   * @param lastUsedAt when it last completed an assertion, {@code null} if never used
+   */
+  public record PasskeyRow(
+      Long id,
+      String label,
+      String transports,
+      LocalDateTime createdAt,
+      LocalDateTime lastUsedAt) {}
+
+  /**
+   * Result of deregistering a passkey. Reports what the account has left, because removing the last
+   * credential is allowed and the admin needs to see when they have done it.
+   *
+   * @param remainingPasskeys credentials still registered to the account
+   * @param passwordLoginAvailable whether the account has a password hash, and so can still reach
+   *     {@code POST /api/auth/login} with no passkeys left
+   */
+  public record PasskeyDeregisterResult(int remainingPasskeys, boolean passwordLoginAvailable) {}
 }

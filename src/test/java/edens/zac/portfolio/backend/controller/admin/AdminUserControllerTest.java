@@ -20,8 +20,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository;
+import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.RoleEntity;
+import edens.zac.portfolio.backend.entity.WebAuthnCredentialEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.EmailService;
@@ -34,6 +36,7 @@ import edens.zac.portfolio.backend.services.UserSavesService;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.UserStatus;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,8 +64,9 @@ class AdminUserControllerTest {
   @Mock private UserMergeService userMergeService;
   @Mock private EmailService emailService;
   @Mock private SessionService sessionService;
+  @Mock private WebAuthnCredentialRepository credentialRepository;
 
-  // Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join.
+  /** Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join. */
   private static final String FRONTEND_BASE_URL = "https://app.example.com/";
 
   @BeforeEach
@@ -78,6 +82,7 @@ class AdminUserControllerTest {
             userMergeService,
             emailService,
             sessionService,
+            credentialRepository,
             FRONTEND_BASE_URL);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
@@ -1303,6 +1308,78 @@ class AdminUserControllerTest {
           List.of(),
           List.of(),
           List.of());
+    }
+  }
+
+  @Nested
+  class Passkeys {
+
+    private WebAuthnCredentialEntity credential(Long id, String label) {
+      return WebAuthnCredentialEntity.builder()
+          .id(id)
+          .userId(7L)
+          .credentialId(new byte[] {1, 2, 3})
+          .publicKey(new byte[] {4, 5, 6})
+          .signCount(0L)
+          .transports("internal")
+          .label(label)
+          .createdAt(LocalDateTime.of(2026, 1, 1, 0, 0))
+          .build();
+    }
+
+    @Test
+    void listPasskeysReturnsMetadataWithoutKeyMaterial() throws Exception {
+      when(credentialRepository.findByUserId(7L))
+          .thenReturn(List.of(credential(11L, "YubiKey"), credential(12L, "iPhone")));
+
+      mockMvc
+          .perform(get("/api/admin/users/7/passkeys"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(2))
+          .andExpect(jsonPath("$[0].id").value(11))
+          .andExpect(jsonPath("$[0].label").value("YubiKey"))
+          .andExpect(jsonPath("$[0].publicKey").doesNotExist())
+          .andExpect(jsonPath("$[0].credentialId").doesNotExist());
+    }
+
+    @Test
+    void deregisterPasskeyReportsWhatIsLeft() throws Exception {
+      when(credentialRepository.deleteByIdAndUserId(11L, 7L)).thenReturn(1);
+      when(credentialRepository.findByUserId(7L)).thenReturn(List.of(credential(12L, "iPhone")));
+      when(appUserRepository.findById(7L))
+          .thenReturn(
+              Optional.of(AppUserEntity.builder().id(7L).passwordHash("{bcrypt}x").build()));
+
+      mockMvc
+          .perform(delete("/api/admin/users/7/passkeys/11"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.remainingPasskeys").value(1))
+          .andExpect(jsonPath("$.passwordLoginAvailable").value(true));
+    }
+
+    @Test
+    void deregisterLastPasskeyIsAllowedAndReportsTheAccountCannotLogIn() throws Exception {
+      when(credentialRepository.deleteByIdAndUserId(11L, 7L)).thenReturn(1);
+      when(credentialRepository.findByUserId(7L)).thenReturn(List.of());
+      when(appUserRepository.findById(7L))
+          .thenReturn(Optional.of(AppUserEntity.builder().id(7L).passwordHash(null).build()));
+
+      mockMvc
+          .perform(delete("/api/admin/users/7/passkeys/11"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.remainingPasskeys").value(0))
+          .andExpect(jsonPath("$.passwordLoginAvailable").value(false));
+
+      verify(credentialRepository).deleteByIdAndUserId(11L, 7L);
+    }
+
+    @Test
+    void deregisterPasskeyBelongingToAnotherUserIs404() throws Exception {
+      when(credentialRepository.deleteByIdAndUserId(11L, 7L)).thenReturn(0);
+
+      mockMvc.perform(delete("/api/admin/users/7/passkeys/11")).andExpect(status().isNotFound());
+
+      verify(appUserRepository, never()).findById(7L);
     }
   }
 }

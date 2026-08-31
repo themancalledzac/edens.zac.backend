@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
+import edens.zac.portfolio.backend.config.JdbcUserCredentialRepository;
 import edens.zac.portfolio.backend.entity.WebAuthnCredentialEntity;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,15 +13,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.web.webauthn.api.Bytes;
 
 /** Round-trips WebAuthnCredentialRepository against a real Postgres container. */
 class WebAuthnCredentialRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
 
   @Autowired private WebAuthnCredentialRepository repository;
   @Autowired private JdbcTemplate jdbcTemplate;
-
-  // Auth tables are truncated after each test by
-  // AbstractPostgresIntegrationTest.truncateAuthTables.
+  @Autowired private JdbcUserCredentialRepository springSecurityCredentials;
 
   private Long seedUser(String email) {
     return jdbcTemplate.queryForObject(
@@ -120,5 +120,67 @@ class WebAuthnCredentialRepositoryIntegrationTest extends AbstractPostgresIntegr
                         .signCount(0L)
                         .build()))
         .isInstanceOf(DuplicateKeyException.class);
+  }
+
+  @Test
+  void deleteByIdAndUserIdRemovesTheCredential() {
+    Long userId = seedUser("wac-delete@example.com");
+    Long id =
+        repository.insert(
+            WebAuthnCredentialEntity.builder()
+                .userId(userId)
+                .credentialId(new byte[] {1, 2, 3})
+                .publicKey(new byte[] {4})
+                .signCount(0L)
+                .build());
+
+    assertThat(repository.deleteByIdAndUserId(id, userId)).isEqualTo(1);
+
+    assertThat(repository.findByUserId(userId)).isEmpty();
+    assertThat(repository.findByCredentialId(new byte[] {1, 2, 3})).isEmpty();
+  }
+
+  @Test
+  void deleteByIdAndUserIdWillNotDeleteAnotherAccountsCredential() {
+    Long owner = seedUser("wac-owner@example.com");
+    Long other = seedUser("wac-other@example.com");
+    Long id =
+        repository.insert(
+            WebAuthnCredentialEntity.builder()
+                .userId(owner)
+                .credentialId(new byte[] {9, 9, 9})
+                .publicKey(new byte[] {4})
+                .signCount(0L)
+                .build());
+
+    assertThat(repository.deleteByIdAndUserId(id, other)).isZero();
+
+    assertThat(repository.findByUserId(owner)).hasSize(1);
+  }
+
+  /**
+   * The lookup {@code WebAuthnService.finishLogin} reaches through {@code operations.authenticate}
+   * is {@link JdbcUserCredentialRepository#findByCredentialId(Bytes)}. Once it returns null the
+   * assertion cannot be verified, so this is the deregistration actually taking effect on login
+   * rather than a mock of the layer under test.
+   */
+  @Test
+  void aDeregisteredCredentialIsGoneFromTheLoginLookup() {
+    Long userId = seedUser("wac-login@example.com");
+    byte[] credentialId = new byte[] {5, 6, 7};
+    Long id =
+        repository.insert(
+            WebAuthnCredentialEntity.builder()
+                .userId(userId)
+                .credentialId(credentialId)
+                .publicKey(new byte[] {8})
+                .signCount(0L)
+                .build());
+
+    assertThat(springSecurityCredentials.findByCredentialId(new Bytes(credentialId))).isNotNull();
+
+    repository.deleteByIdAndUserId(id, userId);
+
+    assertThat(springSecurityCredentials.findByCredentialId(new Bytes(credentialId))).isNull();
   }
 }
