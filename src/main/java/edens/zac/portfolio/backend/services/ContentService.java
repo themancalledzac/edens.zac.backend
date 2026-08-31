@@ -108,6 +108,11 @@ public class ContentService {
    * query, then the current tags, people and locations for all of them in one query each. The
    * per-item helpers take those pre-fetched entities rather than re-querying.
    *
+   * <p>The writes are not hoisted and are one statement per image by design. The loop already
+   * writes per image through {@code saveContentTags} and {@code saveContentPeople}, so batching
+   * only the {@code saveImage} calls would leave the endpoint O(N) in statements while adding a
+   * second persistence path for images.
+   *
    * @param updates the image updates to apply; must be non-empty and each must carry an id
    * @return updated image models, per-item errors, and any metadata entities created along the way
    */
@@ -224,12 +229,11 @@ public class ContentService {
       }
     }
 
-    // Batch save all successfully updated images for efficiency
     if (!imagesToSave.isEmpty()) {
       for (ContentImageEntity image : imagesToSave) {
         contentRepository.saveImage(image);
       }
-      log.debug("Batch saved {} updated images", imagesToSave.size());
+      log.debug("Saved {} updated images", imagesToSave.size());
     }
 
     return buildUpdateResponse(
@@ -634,10 +638,6 @@ public class ContentService {
     return castContentModel(model, ContentModels.Gif.class);
   }
 
-  // ---------------------------------------------------------------------------
-  //  Read helpers for download endpoints
-  // ---------------------------------------------------------------------------
-
   /**
    * Find a single {@link ContentImageEntity} by ID. Throws {@link ResourceNotFoundException} when
    * no row matches.
@@ -741,10 +741,6 @@ public class ContentService {
         .filter(collection -> collection.getGalleryPassword() != null)
         .toList();
   }
-
-  // ---------------------------------------------------------------------------
-  //  Download resolution
-  // ---------------------------------------------------------------------------
 
   /**
    * Resolve which S3 object to serve for a single-image download. Throws {@link
@@ -917,10 +913,6 @@ public class ContentService {
     }
     return base + extension;
   }
-
-  // ---------------------------------------------------------------------------
-  //  Shared helpers (package-private for ImageUploadPipelineService)
-  // ---------------------------------------------------------------------------
 
   /**
    * Link content to a collection with the given orderIndex and visible=true.
