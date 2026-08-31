@@ -638,7 +638,26 @@ and each needs its claim verified before acting (working rule 8).
   deliberately left as `aws.s3.region` and the class docblock says why**, so the next reader does not
   "finish" the job. Test churn was zero Java lines, exactly as promised; 1450 tests, unchanged count.
   Prior text: zero test coupling -- nothing in `src/test` references `S3Config` or `SesConfig`, and there is no `@Import`, so the rename to `AwsClientConfig` is free. Premise verified intact 2026-08-24. `config/SesConfig.java` duplicates S3Config's credentials plumbing and borrows `aws.s3.region` for a non-S3 client. Merge the SesV2Client bean into S3Config (rename it `AwsClientConfig`), share one `AwsCredentialsProvider` bean across the four clients, and delete the catch-log-rethrow blocks. ~40 lines.
-- [ ] #5. One CloudFront invalidation implementation. **The item undersells itself**: `cloudFrontClient` and `cloudFrontDistributionId` are used only inside `invalidateCloudFrontPaths`, so delegating removes two constructor dependencies (arity 10 -> 9). Test cost is ~4 lines and no mock or verify is rewritten. **Trap**: route through `invalidatePaths(List<String>)` as written -- routing through `markChanged()` swaps specific keys for two wildcards and defers to after-commit, which is a behavior change. `ImageProcessingService.invalidateCloudFrontPaths` (**declaration at `869` as of 2026-08-31**, was 865-885, before that 838-863 -- +4 from #249's docblock; find by name) re-implements what `services/ReadCacheInvalidator.java:~79-106` already owns. Give `ReadCacheInvalidator` an `invalidatePaths(List<String>)` and delegate. ~25 lines.
+- [x] #5. One CloudFront invalidation implementation. **DONE 2026-08-31 (third run).**
+  `ReadCacheInvalidator` gained a public `invalidatePaths(List<String>)`, and
+  `ImageProcessingService.invalidateCloudFrontPaths` is deleted; both delete paths call the delegate.
+  `ImageProcessingService` drops `CloudFrontClient` and the `cloudfront.distribution-id` `@Value`
+  and gains `ReadCacheInvalidator`, so the constructor goes **arity 10 -> 9** as predicted.
+  **The `markChanged()` trap was confirmed by reading both methods, and it is worse than the board's
+  wording.** `markChanged()` publishes an event whose listener always invalidates the two constants
+  in `READ_SURFACE_PATHS` (`/api/read/collections*`, `/api/read/content*`). Those are API routes, so
+  they do not match media keys **at all** — routing image deletes through it would mean deleted
+  bytes keep being served from the edge until their own TTL expires. It is not just "wildcards
+  instead of specific keys plus a deferral"; two of the three differences are outright wrong.
+  `invalidatePaths` therefore runs synchronously with no event and no `@TransactionalEventListener`,
+  and `READ_SURFACE_PATHS` is untouched.
+  **The guard is a test, not a comment**: `invalidatePathsSendsSpecificKeys` captures the request
+  builder and asserts the exact prefixed media keys, so making that swap reddens the suite.
+  It was **mutation-proved before shipping** (working rules 15/32/41): dropping the `"/" + k` prefix
+  reddened exactly that one test and nothing else. Five tests added, none rewritten; 1450 -> 1455.
+  The class docblock's "two wildcards ... which is why this does not take per-slug paths" sentence
+  was scoped to `markChanged`, since the class now does take explicit paths. Prior text below.
+  **The item undersells itself**: `cloudFrontClient` and `cloudFrontDistributionId` are used only inside `invalidateCloudFrontPaths`, so delegating removes two constructor dependencies (arity 10 -> 9). Test cost is ~4 lines and no mock or verify is rewritten. **Trap**: route through `invalidatePaths(List<String>)` as written -- routing through `markChanged()` swaps specific keys for two wildcards and defers to after-commit, which is a behavior change. `ImageProcessingService.invalidateCloudFrontPaths` (**declaration at `869` as of 2026-08-31**, was 865-885, before that 838-863 -- +4 from #249's docblock; find by name) re-implements what `services/ReadCacheInvalidator.java:~79-106` already owns. Give `ReadCacheInvalidator` an `invalidatePaths(List<String>)` and delegate. ~25 lines.
 
 ## MR 17 — Controllers
 
