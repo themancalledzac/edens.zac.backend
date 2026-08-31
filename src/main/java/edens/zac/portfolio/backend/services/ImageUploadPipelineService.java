@@ -66,33 +66,52 @@ public class ImageUploadPipelineService {
 
   private static final String STAGING_COLLECTION_SLUG = "staging";
 
-  // Virtual thread executor for parallel image processing (Java 21+)
-  // Virtual threads are lightweight and don't consume OS threads while waiting on I/O
+  /** Request-path image processing; virtual threads stay cheap while blocked on S3 and disk I/O. */
   private final ExecutorService imageProcessingExecutor =
       Executors.newVirtualThreadPerTaskExecutor();
 
-  // Background executor for RAW file uploads -- runs after HTTP response is sent
+  /** RAW file uploads, which run after the HTTP response has been sent. */
   private final ExecutorService rawUploadExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
-  // Prevents concurrent uploads from competing for heap during JPEG decode. A full-resolution
-  // ImageIO.read of a 45MP JPEG costs 130-180 MB, so two upload paths decoding at once can
-  // exhaust the EC2 heap. Every path that decodes must hold this: the multipart batch in
-  // createImagesParallel, and the per-file prepare step in the disk and ingest loops, which run
-  // on an unbounded virtual-thread executor and would otherwise stack without limit.
+  /**
+   * Prevents concurrent uploads from competing for heap during JPEG decode. A full-resolution
+   * ImageIO.read of a 45MP JPEG costs 130-180 MB, so two upload paths decoding at once can exhaust
+   * the EC2 heap. Every path that decodes must hold this: the multipart batch in
+   * createImagesParallel, and the per-file prepare step in the disk and ingest loops, which run on
+   * an unbounded virtual-thread executor and would otherwise stack without limit.
+   */
   private final Semaphore uploadSemaphore = new Semaphore(1);
 
+  private static final long SHUTDOWN_WAIT_SECONDS = 60;
+
+  /**
+   * Stops both executors and waits for each to drain. Both are asked to stop before either is
+   * waited on, so the two grace periods overlap rather than running back to back. An executor that
+   * has not drained within {@value #SHUTDOWN_WAIT_SECONDS} seconds is forced down.
+   */
   @PreDestroy
   void shutdown() {
     imageProcessingExecutor.shutdown();
     rawUploadExecutor.shutdown();
+    awaitDrain(imageProcessingExecutor, "In-flight image processing");
+    awaitDrain(rawUploadExecutor, "Background RAW uploads");
+  }
+
+  /**
+   * Waits for one already-shut-down executor to drain, forcing it down on timeout or interrupt. A
+   * caller interrupted during the first wait re-sets the interrupt flag, so the next call returns
+   * immediately and forces its executor down too.
+   */
+  private void awaitDrain(ExecutorService executor, String description) {
     try {
-      if (!rawUploadExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
-        log.warn("Background RAW uploads did not complete within 60s, forcing shutdown");
-        rawUploadExecutor.shutdownNow();
+      if (!executor.awaitTermination(SHUTDOWN_WAIT_SECONDS, TimeUnit.SECONDS)) {
+        log.warn(
+            "{} did not complete within {}s, forcing shutdown", description, SHUTDOWN_WAIT_SECONDS);
+        executor.shutdownNow();
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      rawUploadExecutor.shutdownNow();
+      executor.shutdownNow();
     }
   }
 
@@ -257,10 +276,6 @@ public class ImageUploadPipelineService {
       uploadSemaphore.release();
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Private helpers
-  // ---------------------------------------------------------------------------
 
   /** Block until an upload permit is free. Restores the interrupt flag before throwing. */
   private void acquireUploadPermit() {

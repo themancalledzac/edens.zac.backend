@@ -34,6 +34,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +50,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.CacheManager;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -1208,6 +1213,31 @@ class ImageUploadPipelineServiceTest {
       // Assert -- "bob" filtered out of tags (only "street" remains); "Bob" stays a person.
       verify(contentMutationUtil)
           .associateExtractedKeywords(eq(101L), eq(List.of("street")), eq(List.of("Bob")));
+    }
+  }
+
+  @Nested
+  class Shutdown {
+
+    @Test
+    void shutdown_waitsForInFlightImageProcessingTask() throws Exception {
+      ExecutorService imageProcessingExecutor =
+          (ExecutorService) ReflectionTestUtils.getField(service, "imageProcessingExecutor");
+      CountDownLatch started = new CountDownLatch(1);
+      AtomicBoolean finished = new AtomicBoolean(false);
+      imageProcessingExecutor.submit(
+          () -> {
+            started.countDown();
+            Thread.sleep(300);
+            finished.set(true);
+            return null;
+          });
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+
+      service.shutdown();
+
+      assertThat(finished).isTrue();
+      assertThat(imageProcessingExecutor.isTerminated()).isTrue();
     }
   }
 }
