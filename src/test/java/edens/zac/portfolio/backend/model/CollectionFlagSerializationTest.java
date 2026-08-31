@@ -66,6 +66,45 @@ class CollectionFlagSerializationTest {
   }
 
   @Test
+  @DisplayName("ContentModels.Collection serializes locations as {id, name, slug}")
+  void contentModelsCollection_serializesLocationShape() throws Exception {
+    // Pins the contract the frontend's LocationModel reads. collectionRefMatchesCriteria matches on
+    // `name` and the chip links use `slug`, so a rename on either side silently empties the filter
+    // rather than failing.
+    ContentModels.Collection block =
+        new ContentModels.Collection(
+            4L,
+            edens.zac.portfolio.backend.types.ContentType.COLLECTION,
+            "Chamonix",
+            null,
+            null,
+            0,
+            true,
+            null,
+            null,
+            40L,
+            "chamonix",
+            false,
+            false,
+            false,
+            null,
+            null,
+            null,
+            List.of(),
+            List.of(new Records.Location(11L, "Chamonix, France", "chamonix-france")),
+            edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
+
+    JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(block));
+
+    assertThat(json.has("locations")).isTrue();
+    assertThat(json.get("locations").isArray()).isTrue();
+    JsonNode location = json.get("locations").get(0);
+    assertThat(location.get("id").longValue()).isEqualTo(11L);
+    assertThat(location.get("name").textValue()).isEqualTo("Chamonix, France");
+    assertThat(location.get("slug").textValue()).isEqualTo("chamonix-france");
+  }
+
+  @Test
   @DisplayName(
       "ContentModels.Collection serializes isClient/isBlog/isPasswordProtected under exactly those"
           + " names")
@@ -89,6 +128,7 @@ class CollectionFlagSerializationTest {
             null,
             null,
             null,
+            List.of(),
             List.of(),
             edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 

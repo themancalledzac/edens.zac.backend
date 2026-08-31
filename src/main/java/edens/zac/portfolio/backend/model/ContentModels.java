@@ -252,6 +252,7 @@ public final class ContentModels {
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionDate,
       @JsonFormat(pattern = "yyyy-MM-dd") LocalDate collectionEndDate,
       List<Records.Tag> tags,
+      List<Records.Location> locations,
       CollectionVisibility visibility)
       implements ContentModel {
 
@@ -260,7 +261,9 @@ public final class ContentModels {
      * not a content row). Used by synthetic PARENT views (synthetic list slugs and the {@code
      * /user} page) where each child collection becomes a {@code COLLECTION} block pointing back at
      * itself. Tags start empty; callers that need per-collection tags for filtering (e.g. synthetic
-     * list views) enrich the block via {@link #withTags}.
+     * list views) enrich the block via {@link #withTags}. Locations are copied straight off the
+     * model, which {@code CollectionProcessingUtil.batchConvertToBasicModels} has already
+     * batch-loaded — so they need no {@code withLocations} twin and cost no extra query.
      *
      * <p>{@code visibility} is serialized unconditionally, for every viewer. It is NOT an access
      * control and must never be treated as one: the access boundary is the row scoping in {@code
@@ -291,6 +294,7 @@ public final class ContentModels {
           c.getCollectionDate(),
           c.getCollectionEndDate(),
           List.of(),
+          c.getLocations() == null ? List.of() : List.copyOf(c.getLocations()),
           c.getVisibility());
     }
 
@@ -315,6 +319,7 @@ public final class ContentModels {
           collectionDate,
           collectionEndDate,
           tags,
+          locations,
           visibility);
     }
 
@@ -343,6 +348,7 @@ public final class ContentModels {
           collectionDate,
           collectionEndDate,
           tags,
+          locations,
           visibility);
     }
   }

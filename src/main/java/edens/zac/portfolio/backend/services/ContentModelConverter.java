@@ -616,6 +616,11 @@ class ContentModelConverter {
    * mapper builds: {@code isPasswordProtected} reads {@code gallery_password} off it, and a stub
    * reports a protected gallery as unprotected. Both callers hydrate first -- the singular path by
    * refetching on a null title, the batch path from {@code referencedCollectionsById}.
+   *
+   * <p>Tags and locations are both empty here, deliberately. This runs once per content row and has
+   * no batched map for either, so filling them would be an N+1. The synthetic list views that need
+   * them build their blocks through {@code ContentModels.Collection.fromCollectionModel} instead,
+   * off a model whose tags and locations were loaded in one query for the whole page.
    */
   private ContentModels.Collection buildCollectionRecord(
       ContentCollectionEntity contentEntity,
@@ -640,6 +645,7 @@ class ContentModelConverter {
         coverImage,
         referencedCollection.getCollectionDate(),
         referencedCollection.getCollectionEndDate(),
+        List.of(),
         List.of(),
         referencedCollection.getVisibility());
   }
