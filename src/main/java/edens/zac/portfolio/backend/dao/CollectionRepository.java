@@ -154,6 +154,34 @@ public class CollectionRepository extends BaseDao {
     return queryForObject(sql, COLLECTION_ROW_MAPPER, params);
   }
 
+  /**
+   * The two admin-only gallery access fields of one collection. {@code recipientEmails} is never
+   * null; a SQL NULL array maps to an empty list, matching {@link #COLLECTION_ROW_MAPPER}.
+   */
+  public record GalleryAccessRow(String galleryPassword, List<String> recipientEmails) {}
+
+  private static final RowMapper<GalleryAccessRow> GALLERY_ACCESS_ROW_MAPPER =
+      (rs, rowNum) -> {
+        Array emailsArray = rs.getArray("recipient_emails");
+        return new GalleryAccessRow(
+            rs.getString("gallery_password"),
+            emailsArray != null
+                ? new ArrayList<>(Arrays.asList((String[]) emailsArray.getArray()))
+                : new ArrayList<>());
+      };
+
+  /**
+   * Gallery password and recipient emails for one collection, without loading the rest of the row.
+   * Used by the manage page, which already holds the full collection as a model and needs only the
+   * two fields the model converter deliberately leaves unpopulated.
+   */
+  @Transactional(readOnly = true)
+  public Optional<GalleryAccessRow> findGalleryAccessBySlug(String slug) {
+    String sql = "SELECT gallery_password, recipient_emails FROM collection WHERE slug = :slug";
+    MapSqlParameterSource params = createParameterSource().addValue("slug", slug);
+    return queryForObject(sql, GALLERY_ACCESS_ROW_MAPPER, params);
+  }
+
   /** Find LISTED blog collections ({@code is_blog = true}), rating-first then newest. */
   @Transactional(readOnly = true)
   public List<CollectionEntity> findListedBlogsOrdered() {
