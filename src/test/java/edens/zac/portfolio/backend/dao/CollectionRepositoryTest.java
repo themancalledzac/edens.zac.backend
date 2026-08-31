@@ -3,15 +3,19 @@ package edens.zac.portfolio.backend.dao;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import java.sql.Array;
+import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -301,6 +305,78 @@ class CollectionRepositoryTest {
           .thenReturn(List.of());
 
       assertThat(collectionRepository.findAllParentCollectionsByChildId(42L)).isEmpty();
+    }
+  }
+
+  @Nested
+  class FindGalleryAccessBySlug {
+
+    @SuppressWarnings("unchecked")
+    private RowMapper<CollectionRepository.GalleryAccessRow> captureRowMapper() {
+      ArgumentCaptor<RowMapper<CollectionRepository.GalleryAccessRow>> mapperCaptor =
+          ArgumentCaptor.forClass(RowMapper.class);
+      verify(namedParameterJdbcTemplate)
+          .queryForObject(
+              sqlCaptor.capture(), paramsCaptor.capture(), (RowMapper<?>) mapperCaptor.capture());
+      return mapperCaptor.getValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void selectsOnlyTheTwoAccessColumns() {
+      when(namedParameterJdbcTemplate.queryForObject(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(new CollectionRepository.GalleryAccessRow("pw", List.of("a@b.com")));
+
+      Optional<CollectionRepository.GalleryAccessRow> row =
+          collectionRepository.findGalleryAccessBySlug("smith-wedding");
+
+      captureRowMapper();
+      assertThat(sqlCaptor.getValue())
+          .isEqualTo(
+              "SELECT gallery_password, recipient_emails FROM collection WHERE slug = :slug");
+      assertThat(paramsCaptor.getValue().getValue("slug")).isEqualTo("smith-wedding");
+      assertThat(row).contains(new CollectionRepository.GalleryAccessRow("pw", List.of("a@b.com")));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void rowMapper_readsPasswordAndEmailArray() throws Exception {
+      when(namedParameterJdbcTemplate.queryForObject(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(null);
+      collectionRepository.findGalleryAccessBySlug("smith-wedding");
+      RowMapper<CollectionRepository.GalleryAccessRow> mapper = captureRowMapper();
+
+      ResultSet rs = mock(ResultSet.class);
+      Array emails = mock(Array.class);
+      when(rs.getString("gallery_password")).thenReturn("hunter2");
+      when(rs.getArray("recipient_emails")).thenReturn(emails);
+      when(emails.getArray()).thenReturn(new String[] {"bride@example.com"});
+
+      CollectionRepository.GalleryAccessRow mapped = mapper.mapRow(rs, 0);
+
+      assertThat(mapped.galleryPassword()).isEqualTo("hunter2");
+      assertThat(mapped.recipientEmails()).containsExactly("bride@example.com");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void rowMapper_nullEmailArray_mapsToEmptyList() throws Exception {
+      when(namedParameterJdbcTemplate.queryForObject(
+              anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+          .thenReturn(null);
+      collectionRepository.findGalleryAccessBySlug("smith-wedding");
+      RowMapper<CollectionRepository.GalleryAccessRow> mapper = captureRowMapper();
+
+      ResultSet rs = mock(ResultSet.class);
+      when(rs.getString("gallery_password")).thenReturn(null);
+      when(rs.getArray("recipient_emails")).thenReturn(null);
+
+      CollectionRepository.GalleryAccessRow mapped = mapper.mapRow(rs, 0);
+
+      assertThat(mapped.galleryPassword()).isNull();
+      assertThat(mapped.recipientEmails()).isEmpty();
     }
   }
 }

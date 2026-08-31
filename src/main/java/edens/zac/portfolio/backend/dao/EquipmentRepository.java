@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.entity.ContentCameraEntity;
 import edens.zac.portfolio.backend.entity.ContentFilmTypeEntity;
 import edens.zac.portfolio.backend.entity.ContentLensEntity;
 import edens.zac.portfolio.backend.types.FilmFormat;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -25,9 +26,11 @@ public class EquipmentRepository extends BaseDao {
     super(jdbcTemplate);
   }
 
-  // ============================================================
-  // Camera RowMappers
-  // ============================================================
+  private static final String SELECT_CAMERA =
+      """
+      SELECT id, camera_name, is_film, default_film_format, created_at
+      FROM content_cameras
+      """;
 
   private static final RowMapper<ContentCameraEntity> CAMERA_ROW_MAPPER =
       (rs, rowNum) ->
@@ -56,9 +59,11 @@ public class EquipmentRepository extends BaseDao {
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
-  // ============================================================
-  // Lens RowMappers
-  // ============================================================
+  private static final String SELECT_LENS =
+      """
+      SELECT id, lens_name, created_at
+      FROM content_lenses
+      """;
 
   private static final RowMapper<ContentLensEntity> LENS_ROW_MAPPER =
       (rs, rowNum) ->
@@ -77,9 +82,11 @@ public class EquipmentRepository extends BaseDao {
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
 
-  // ============================================================
-  // Film Type RowMapper
-  // ============================================================
+  private static final String SELECT_FILM_TYPE =
+      """
+      SELECT id, film_type_name, display_name, default_iso, created_at
+      FROM content_film_types
+      """;
 
   private static final RowMapper<ContentFilmTypeEntity> FILM_TYPE_ROW_MAPPER =
       (rs, rowNum) ->
@@ -90,10 +97,6 @@ public class EquipmentRepository extends BaseDao {
               .defaultIso(rs.getInt("default_iso"))
               .createdAt(getLocalDateTime(rs, "created_at"))
               .build();
-
-  // ============================================================
-  // Camera Operations
-  // ============================================================
 
   @Transactional(readOnly = true)
   public Optional<ContentCameraEntity> findCameraByBodySerialNumber(String bodySerialNumber) {
@@ -109,16 +112,14 @@ public class EquipmentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentCameraEntity> findCameraByNameIgnoreCase(String cameraName) {
-    String sql =
-        "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras WHERE LOWER(camera_name) = LOWER(:cameraName)";
+    String sql = SELECT_CAMERA + " WHERE LOWER(camera_name) = LOWER(:cameraName)";
     MapSqlParameterSource params = createParameterSource().addValue("cameraName", cameraName);
     return queryForObject(sql, CAMERA_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
   public List<ContentCameraEntity> findAllCamerasOrderByName() {
-    String sql =
-        "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras ORDER BY camera_name ASC";
+    String sql = SELECT_CAMERA + " ORDER BY camera_name ASC";
     return query(sql, CAMERA_ROW_MAPPER);
   }
 
@@ -128,7 +129,7 @@ public class EquipmentRepository extends BaseDao {
       String sql =
           "INSERT INTO content_cameras (camera_name, body_serial_number, is_film, default_film_format, created_at) VALUES (:cameraName, :bodySerialNumber, :isFilm, :defaultFilmFormat, :createdAt)";
       if (entity.getCreatedAt() == null) {
-        entity.setCreatedAt(java.time.LocalDateTime.now());
+        entity.setCreatedAt(LocalDateTime.now());
       }
       MapSqlParameterSource params =
           createParameterSource()
@@ -179,15 +180,10 @@ public class EquipmentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentCameraEntity> findCameraById(Long id) {
-    String sql =
-        "SELECT id, camera_name, is_film, default_film_format, created_at FROM content_cameras WHERE id = :id";
+    String sql = SELECT_CAMERA + " WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, CAMERA_ROW_MAPPER, params);
   }
-
-  // ============================================================
-  // Lens Operations
-  // ============================================================
 
   @Transactional(readOnly = true)
   public Optional<ContentLensEntity> findLensBySerialNumber(String lensSerialNumber) {
@@ -203,15 +199,14 @@ public class EquipmentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentLensEntity> findLensByNameIgnoreCase(String lensName) {
-    String sql =
-        "SELECT id, lens_name, created_at FROM content_lenses WHERE LOWER(lens_name) = LOWER(:lensName)";
+    String sql = SELECT_LENS + " WHERE LOWER(lens_name) = LOWER(:lensName)";
     MapSqlParameterSource params = createParameterSource().addValue("lensName", lensName);
     return queryForObject(sql, LENS_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
   public List<ContentLensEntity> findAllLensesOrderByName() {
-    String sql = "SELECT id, lens_name, created_at FROM content_lenses ORDER BY lens_name ASC";
+    String sql = SELECT_LENS + " ORDER BY lens_name ASC";
     return query(sql, LENS_ROW_MAPPER);
   }
 
@@ -230,7 +225,7 @@ public class EquipmentRepository extends BaseDao {
       String sql =
           "INSERT INTO content_lenses (lens_name, lens_serial_number, created_at) VALUES (:lensName, :lensSerialNumber, :createdAt)";
       if (entity.getCreatedAt() == null) {
-        entity.setCreatedAt(java.time.LocalDateTime.now());
+        entity.setCreatedAt(LocalDateTime.now());
       }
       MapSqlParameterSource params =
           createParameterSource()
@@ -255,27 +250,21 @@ public class EquipmentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentLensEntity> findLensById(Long id) {
-    String sql = "SELECT id, lens_name, created_at FROM content_lenses WHERE id = :id";
+    String sql = SELECT_LENS + " WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, LENS_ROW_MAPPER, params);
   }
 
-  // ============================================================
-  // Film Type Operations
-  // ============================================================
-
   @Transactional(readOnly = true)
   public Optional<ContentFilmTypeEntity> findFilmTypeByNameIgnoreCase(String filmTypeName) {
-    String sql =
-        "SELECT id, film_type_name, display_name, default_iso, created_at FROM content_film_types WHERE LOWER(film_type_name) = LOWER(:filmTypeName)";
+    String sql = SELECT_FILM_TYPE + " WHERE LOWER(film_type_name) = LOWER(:filmTypeName)";
     MapSqlParameterSource params = createParameterSource().addValue("filmTypeName", filmTypeName);
     return queryForObject(sql, FILM_TYPE_ROW_MAPPER, params);
   }
 
   @Transactional(readOnly = true)
   public List<ContentFilmTypeEntity> findAllFilmTypesOrderByDisplayName() {
-    String sql =
-        "SELECT id, film_type_name, display_name, default_iso, created_at FROM content_film_types ORDER BY display_name ASC";
+    String sql = SELECT_FILM_TYPE + " ORDER BY display_name ASC";
     return query(sql, FILM_TYPE_ROW_MAPPER);
   }
 
@@ -294,7 +283,7 @@ public class EquipmentRepository extends BaseDao {
       String sql =
           "INSERT INTO content_film_types (film_type_name, display_name, default_iso, created_at) VALUES (:filmTypeName, :displayName, :defaultIso, :createdAt)";
       if (entity.getCreatedAt() == null) {
-        entity.setCreatedAt(java.time.LocalDateTime.now());
+        entity.setCreatedAt(LocalDateTime.now());
       }
       MapSqlParameterSource params =
           createParameterSource()
@@ -321,8 +310,7 @@ public class EquipmentRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public Optional<ContentFilmTypeEntity> findFilmTypeById(Long id) {
-    String sql =
-        "SELECT id, film_type_name, display_name, default_iso, created_at FROM content_film_types WHERE id = :id";
+    String sql = SELECT_FILM_TYPE + " WHERE id = :id";
     MapSqlParameterSource params = createParameterSource().addValue("id", id);
     return queryForObject(sql, FILM_TYPE_ROW_MAPPER, params);
   }

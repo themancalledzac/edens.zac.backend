@@ -237,9 +237,43 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   **Sequencing.** This is MR 1 of MA1; all eleven of its frontend tasks wait on it. Nothing else on
   either board depends on it, so it can land whenever. **COLD.**
 
+- [x] **#24 (feature dependency, not a bug) — `COLLECTION` content blocks carried no `locations`,
+  so the frontend's shipped `/collections` location filter matched nothing.** — **DONE**
+  ([#277](https://github.com/themancalledzac/edens.zac.backend/pull/277), 2026-08-31). *(Filed
+  2026-08-31 from the frontend board's SD2 (`docs/spikes/2026-features.md` in `edens.zac`), in the
+  same pass that shipped it, per that board's rule that a cross-repo item filed on one board only is
+  invisible where it lands.)*
+
+  **The frontend board's spec was wrong about the size, and in the cheap direction.** It asked for a
+  locations batch-load mirroring the tags one at `SyntheticCollectionResolver:109`. That query
+  already runs — `CollectionProcessingUtil.batchConvertToBasicModels:92-93` calls
+  `locationRepository.findLocationsByCollectionIds` once for the whole page and
+  `buildBasicModel:156-161` sets `CollectionModel.locations`. The resolver simply never read it. So
+  the fix was one record component on `ContentModels.Collection` plus a copy in
+  `fromCollectionModel`: no new repository method, no new query, no migration, no added N+1.
+
+  Hence no `withLocations` twin to `withTags`. Tags are fetched after conversion and need the
+  post-hoc setter; locations arrive on the model, so a `withLocations` nobody calls would be dead
+  code. `ContentModelConverter.buildCollectionRecord` deliberately keeps `List.of()` — it runs once
+  per content row with no batched map, so filling it there would be the N+1 this avoided.
+
+  Additive public API change: the synthetic list views, the tag view (`TagViewResolver:91`) and the
+  `/user` page (`UserPageAssembler:161`) all gain a `locations` array of `{id, name, slug}` on each
+  `COLLECTION` block.
+
+- [ ] **#25 (same gap, not shipped) — `people` on `COLLECTION` content blocks is inert for exactly
+  the reason `locations` was.** *(Found while shipping #24; filed rather than bundled, because the
+  frontend board's rule is one MR per item and `people` is not part of SD2.)*
+  `batchConvertToBasicModels:95-96` already batch-loads `peopleByCollectionId` via
+  `collectionPeopleRepository.findPeopleForCollections` and sets it on the model, and the frontend
+  reads `ref.people` in both `collectionRefMatchesCriteria` and `extractFilterOptions` — but
+  `ContentModels.Collection` has no `people` component. It is the same edit in the same three files
+  with the same zero added queries, and #277 is the worked example. Cost of having split it: the
+  20-component positional constructor and its four test call sites get edited twice. **COLD.**
+
 - [x] **#26 (feature dependency, not a bug) — contact messages had no retention TTL, so PII
   accumulated forever.** — **DONE**
-  ([#278](https://github.com/themancalledzac/edens.zac.backend/pull/278), 2026-08-31). *(Filed
+  ([#281](https://github.com/themancalledzac/edens.zac.backend/pull/281), 2026-08-31). *(Filed
   2026-08-31 from the frontend board's MA4 (`docs/spikes/2026-features.md` in `edens.zac`), in the
   same pass that shipped it.)*
 

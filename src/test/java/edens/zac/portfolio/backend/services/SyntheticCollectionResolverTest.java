@@ -16,6 +16,7 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import java.util.List;
@@ -247,6 +248,47 @@ class SyntheticCollectionResolverTest {
 
     ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
     assertThat(block.tags()).isEmpty();
+  }
+
+  @Test
+  void resolveAllCollectionsAttachesCollectionLocationsToContentBlocks() {
+    // Locations must ride onto the COLLECTION block the same way tags do, or the shipped
+    // /collections location filter matches against nothing. Unlike tags they need no second query:
+    // batchConvertToBasicModels has already put them on the model.
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder()
+                    .id(7L)
+                    .slug("trip")
+                    .locations(
+                        List.of(
+                            new Records.Location(2L, "Chamonix, France", "chamonix-france"),
+                            new Records.Location(3L, "Seattle", "seattle")))
+                    .build()));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.locations()).extracting("name").containsExactly("Chamonix, France", "Seattle");
+    assertThat(block.locations()).extracting("slug").containsExactly("chamonix-france", "seattle");
+  }
+
+  @Test
+  void resolveAllCollectionsWithNoLocationsYieldsEmptyBlockLocations() {
+    // Empty, never null. The frontend's collectionRefMatchesCriteria reads ref.locations directly,
+    // and a null would be a different shape in the JSON than the tags field beside it.
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(List.of(CollectionModel.builder().id(9L).slug("bare").build()));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.locations()).isEmpty();
   }
 
   @Test

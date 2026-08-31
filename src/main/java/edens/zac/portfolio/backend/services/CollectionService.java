@@ -97,10 +97,12 @@ public class CollectionService {
   private final CacheManager cacheManager;
   private final ReadCacheInvalidator readCacheInvalidator;
 
-  // Self-reference through the Spring proxy. Required so internal calls to the @Cacheable
-  // getGeneralMetadata() are intercepted by the caching aspect; a direct this.getGeneralMetadata()
-  // is self-invoked and silently bypasses the cache. ObjectProvider is resolved lazily, so this
-  // does not create a circular-dependency failure at startup.
+  /**
+   * Self-reference through the Spring proxy, so internal calls to the {@code Cacheable} {@link
+   * #getGeneralMetadata} are intercepted by the caching aspect. A direct {@code
+   * this.getGeneralMetadata()} is self-invoked and silently bypasses the cache. Resolved lazily, so
+   * it does not create a circular-dependency failure at startup.
+   */
   private final ObjectProvider<CollectionService> selfProvider;
 
   private static final int DEFAULT_PAGE_SIZE = default_content_per_page;
@@ -904,35 +906,32 @@ public class CollectionService {
         (contentEnd - contentStart) / 1_000_000,
         (metadataEnd - contentEnd) / 1_000_000);
 
-    List<ContentModels.Image> childCollectionImages = null;
-    CollectionEntity entity =
+    CollectionRepository.GalleryAccessRow galleryAccess =
         collectionRepository
-            .findBySlug(slug)
+            .findGalleryAccessBySlug(slug)
             .orElseThrow(
                 () -> new ResourceNotFoundException("Collection not found with slug: " + slug));
 
-    if (collection.getContent() != null) {
-      List<Long> childCollectionIds =
-          collection.getContent().stream()
-              .filter(c -> c instanceof ContentModels.Collection)
-              .map(c -> ((ContentModels.Collection) c).referencedCollectionId())
-              .filter(Objects::nonNull)
-              .toList();
+    List<Long> childCollectionIds =
+        collection.getContent().stream()
+            .filter(c -> c instanceof ContentModels.Collection)
+            .map(c -> ((ContentModels.Collection) c).referencedCollectionId())
+            .filter(Objects::nonNull)
+            .toList();
 
-      childCollectionImages =
-          collectionProcessingUtil.loadImagesFromChildCollections(childCollectionIds);
-      log.debug(
-          "Aggregated {} images from {} child collections for parent collection '{}'",
-          childCollectionImages.size(),
-          childCollectionIds.size(),
-          slug);
-    }
+    List<ContentModels.Image> childCollectionImages =
+        collectionProcessingUtil.loadImagesFromChildCollections(childCollectionIds);
+    log.debug(
+        "Aggregated {} images from {} child collections for parent collection '{}'",
+        childCollectionImages.size(),
+        childCollectionIds.size(),
+        slug);
 
-    collection.setGalleryPassword(entity.getGalleryPassword());
-    collection.setRecipientEmails(entity.getRecipientEmails());
+    collection.setGalleryPassword(galleryAccess.galleryPassword());
+    collection.setRecipientEmails(galleryAccess.recipientEmails());
 
     collection.setParents(
-        collectionRepository.findAllParentCollectionsByChildId(entity.getId()).stream()
+        collectionRepository.findAllParentCollectionsByChildId(collection.getId()).stream()
             .map(
                 p ->
                     new Records.CollectionList(
@@ -946,7 +945,7 @@ public class CollectionService {
             .toList());
 
     List<Long> allChildCollectionIds =
-        collectionRepository.findAllReferencedCollectionIdsByParentId(entity.getId());
+        collectionRepository.findAllReferencedCollectionIdsByParentId(collection.getId());
 
     return new CollectionRequests.UpdateResponse(
         collection,
@@ -970,10 +969,8 @@ public class CollectionService {
 
     List<Records.CollectionList> collections = collectionRepository.findCollectionListEntries();
 
-    List<Records.FilmFormat> filmFormats =
-        Arrays.stream(FilmFormat.values())
-            .map(ff -> new Records.FilmFormat(ff.name(), ff.getDisplayName()))
-            .collect(Collectors.toList());
+    List<Records.FilmFormatOption> filmFormats =
+        Arrays.stream(FilmFormat.values()).map(Records.FilmFormatOption::of).toList();
 
     return new GeneralMetadataDTO(
         tags, people, locations, collections, cameras, lenses, filmTypes, filmFormats);

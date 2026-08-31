@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDate;
 
 /**
@@ -11,39 +12,34 @@ import java.time.LocalDate;
  * simple data transfer between layers.
  */
 public final class Records {
-  private Records() {} // Prevent instantiation
-
-  // Equipment records
+  private Records() {}
 
   /** Model representing a camera for API responses. Contains the camera's ID and name. */
-  public record Camera(
-      Long id,
-      String name,
-      Boolean isFilm,
-      edens.zac.portfolio.backend.types.FilmFormat defaultFilmFormat) {}
+  public record Camera(Long id, String name, Boolean isFilm, FilmFormat defaultFilmFormat) {}
 
   /** Model representing a lens for API responses. Contains the lens's ID and name. */
   public record Lens(Long id, String name) {}
 
   /**
-   * DTO representing film format information for API responses. Contains the enum name and display
-   * name.
+   * DTO representing a {@link FilmFormat} for API responses. Named {@code FilmFormatOption} so it
+   * does not shadow the enum it is built from.
    */
-  public record FilmFormat(
+  public record FilmFormatOption(
       /** The enum constant name (e.g., "MM_35") */
       String name,
       /** Human-readable display name (e.g., "35mm") */
-      String displayName) {}
+      String displayName) {
 
-  // People and Tags
+    public static FilmFormatOption of(FilmFormat format) {
+      return new FilmFormatOption(format.name(), format.getDisplayName());
+    }
+  }
 
   /** Model representing a content tag for API responses. Contains the tag's ID and name. */
   public record Tag(Long id, String name, String slug) {}
 
   /** Model representing a person for API responses. Contains the person's ID and name. */
   public record Person(Long id, String name) {}
-
-  // Location
 
   /** Model representing a location for API responses. Contains the location's ID and name. */
   public record Location(Long id, String name, String slug) {}
@@ -54,8 +50,6 @@ public final class Records {
    */
   public record LocationWithCounts(
       Long id, String name, String slug, int collectionCount, int imageCount) {}
-
-  // Collection references
 
   /**
    * Model representing a collection for list views. {@code collectionDate} and {@code

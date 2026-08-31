@@ -436,6 +436,12 @@ public class AdminUserController {
    * The result reports what is left so the admin can see when an account has been left with no
    * passkey and no password, which needs a fresh invite to recover.
    *
+   * <p>That recovery is unreachable when the account is the last admin and this was its own last
+   * passkey, because {@code POST /api/admin/users/{id}/invite} is itself admin-gated. The way back
+   * is then a redeploy with {@code ADMIN_BOOTSTRAP_EMAIL} set to a <em>fresh</em> address plus
+   * {@code ADMIN_BOOTSTRAP_PASSWORD}; {@code AdminBootstrap} returns early for an email that
+   * already has a row, so pointing it at the locked-out admin's own address does nothing.
+   *
    * <p>The account's live sessions are revoked on a successful delete (S-26). Deleting the
    * credential row only stops it starting a <em>new</em> authentication: {@link
    * SessionService#resolve} tests revoked, expired and {@code mayHoldSession}, never {@code
@@ -466,7 +472,8 @@ public class AdminUserController {
     if (remaining == 0 && !passwordLoginAvailable) {
       log.warn(
           "Deregistered last passkey for userId={} which has no password; account cannot log in "
-              + "until re-invited",
+              + "until re-invited, or if this was the last admin, until a redeploy with a fresh "
+              + "ADMIN_BOOTSTRAP_EMAIL",
           id);
     } else {
       log.info("Deregistered passkey {} for userId={}, {} remaining", credentialId, id, remaining);

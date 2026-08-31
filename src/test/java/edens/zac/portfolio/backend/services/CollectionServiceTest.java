@@ -116,6 +116,16 @@ class CollectionServiceTest {
     when(collectionRepository.findCollectionListEntries()).thenReturn(List.of());
   }
 
+  /**
+   * Stubs the manage-page gallery-access projection as an unprotected collection, for the tests
+   * that reach {@link CollectionService#getUpdateCollectionData} without asserting on the
+   * admin-only fields.
+   */
+  private void stubNoGalleryAccess() {
+    when(collectionRepository.findGalleryAccessBySlug(anyString()))
+        .thenReturn(Optional.of(new CollectionRepository.GalleryAccessRow(null, List.of())));
+  }
+
   @BeforeEach
   void setUp() {
     testCollection =
@@ -147,13 +157,19 @@ class CollectionServiceTest {
               .build();
 
       CollectionModel model =
-          CollectionModel.builder().id(10L).title("New Collection").slug("new-collection").build();
+          CollectionModel.builder()
+              .id(10L)
+              .title("New Collection")
+              .slug("new-collection")
+              .content(List.of())
+              .build();
 
       when(collectionProcessingUtil.toEntity(eq(request), anyInt())).thenReturn(savedEntity);
       when(collectionRepository.save(savedEntity)).thenReturn(savedEntity);
       when(collectionRepository.findBySlug("new-collection")).thenReturn(Optional.of(savedEntity));
       when(collectionProcessingUtil.convertToFullModel(savedEntity)).thenReturn(model);
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       CollectionRequests.UpdateResponse result = service.createCollection(request);
 
@@ -176,13 +192,19 @@ class CollectionServiceTest {
               .build();
 
       CollectionModel model =
-          CollectionModel.builder().id(5L).title("My Blog").slug("my-blog").build();
+          CollectionModel.builder()
+              .id(5L)
+              .title("My Blog")
+              .slug("my-blog")
+              .content(List.of())
+              .build();
 
       when(collectionProcessingUtil.toEntity(eq(request), anyInt())).thenReturn(entity);
       when(collectionRepository.save(entity)).thenReturn(entity);
       when(collectionRepository.findBySlug("my-blog")).thenReturn(Optional.of(entity));
       when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       service.createCollection(request);
 
@@ -287,7 +309,12 @@ class CollectionServiceTest {
               null);
 
       CollectionModel updatedModel =
-          CollectionModel.builder().id(1L).title("Updated Title").slug("test-collection").build();
+          CollectionModel.builder()
+              .id(1L)
+              .title("Updated Title")
+              .slug("test-collection")
+              .content(List.of())
+              .build();
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(collectionRepository.countContentByCollectionId(collectionId)).thenReturn(0L);
@@ -299,6 +326,7 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("test-collection"))
           .thenReturn(Optional.of(testCollection));
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       CollectionRequests.UpdateResponse result =
           service.updateContentWithMetadata(collectionId, updateDTO);
@@ -362,7 +390,12 @@ class CollectionServiceTest {
               null);
 
       CollectionModel updatedModel =
-          CollectionModel.builder().id(1L).title("New Title").slug("new-slug").build();
+          CollectionModel.builder()
+              .id(1L)
+              .title("New Title")
+              .slug("new-slug")
+              .content(List.of())
+              .build();
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(collectionRepository.countContentByCollectionId(collectionId)).thenReturn(0L);
@@ -374,6 +407,7 @@ class CollectionServiceTest {
 
       when(collectionRepository.findBySlug("new-slug")).thenReturn(Optional.of(testCollection));
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       service.updateContentWithMetadata(collectionId, updateDTO);
 
@@ -406,7 +440,12 @@ class CollectionServiceTest {
               null);
 
       CollectionModel model =
-          CollectionModel.builder().id(1L).title("Test Collection").slug("test-collection").build();
+          CollectionModel.builder()
+              .id(1L)
+              .title("Test Collection")
+              .slug("test-collection")
+              .content(List.of())
+              .build();
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(collectionRepository.countContentByCollectionId(collectionId)).thenReturn(0L);
@@ -418,6 +457,7 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("test-collection"))
           .thenReturn(Optional.of(testCollection));
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       service.updateContentWithMetadata(collectionId, updateDTO);
 
@@ -448,7 +488,12 @@ class CollectionServiceTest {
               null);
 
       CollectionModel model =
-          CollectionModel.builder().id(1L).title("New Title").slug("new-slug").build();
+          CollectionModel.builder()
+              .id(1L)
+              .title("New Title")
+              .slug("new-slug")
+              .content(List.of())
+              .build();
       Cache metadataCache = mock(Cache.class);
 
       // applyBasicUpdates is mocked, so make it actually mutate identity to simulate a rename.
@@ -471,6 +516,7 @@ class CollectionServiceTest {
           .thenReturn(model);
       when(collectionRepository.findBySlug("new-slug")).thenReturn(Optional.of(testCollection));
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       service.updateContentWithMetadata(collectionId, updateDTO);
 
@@ -1072,6 +1118,7 @@ class CollectionServiceTest {
               null,
               null,
               List.of(),
+              List.of(),
               edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
       CollectionModel model =
@@ -1085,6 +1132,7 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(parentEntity));
       when(collectionProcessingUtil.convertToFullModel(parentEntity)).thenReturn(model);
       stubEmptyMetadata();
+      stubNoGalleryAccess();
       when(collectionProcessingUtil.loadImagesFromChildCollections(List.of(20L)))
           .thenReturn(List.of());
 
@@ -1096,21 +1144,92 @@ class CollectionServiceTest {
     }
 
     @Test
-    void getUpdateCollectionData_nonParentType_doesNotAggregateChildImages() {
+    void getUpdateCollectionData_nonParentType_aggregatesNothing() {
       String slug = "test-collection";
 
       CollectionModel model =
-          CollectionModel.builder().id(1L).title("Test Collection").slug(slug).build();
+          CollectionModel.builder()
+              .id(1L)
+              .title("Test Collection")
+              .slug(slug)
+              .content(List.of())
+              .build();
 
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
       when(collectionProcessingUtil.convertToFullModel(testCollection)).thenReturn(model);
+      when(collectionProcessingUtil.loadImagesFromChildCollections(List.of()))
+          .thenReturn(List.of());
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       CollectionRequests.UpdateResponse result = service.getUpdateCollectionData(slug);
 
       assertThat(result).isNotNull();
-      assertThat(result.childCollectionImages()).isNull();
-      verify(collectionProcessingUtil, never()).loadImagesFromChildCollections(any());
+      assertThat(result.childCollectionImages()).isEmpty();
+      verify(collectionProcessingUtil).loadImagesFromChildCollections(List.of());
+    }
+
+    /**
+     * The model converter deliberately leaves {@code galleryPassword} and {@code recipientEmails}
+     * unpopulated, so the manage payload reads them from a two-column projection rather than a
+     * second full-entity fetch.
+     */
+    @Test
+    void getUpdateCollectionData_graftsGalleryAccessOntoModel() {
+      String slug = "smith-wedding";
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(77L)
+              .slug(slug)
+              .title("Smith Wedding")
+              .visibility(CollectionVisibility.UNLISTED)
+              .build();
+      CollectionModel model =
+          CollectionModel.builder()
+              .id(77L)
+              .slug(slug)
+              .title("Smith Wedding")
+              .content(List.of())
+              .build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(entity));
+      when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
+      when(collectionRepository.findGalleryAccessBySlug(slug))
+          .thenReturn(
+              Optional.of(
+                  new CollectionRepository.GalleryAccessRow(
+                      "hunter2", List.of("bride@example.com", "groom@example.com"))));
+      stubEmptyMetadata();
+
+      CollectionRequests.UpdateResponse response = service.getUpdateCollectionData(slug);
+
+      assertThat(response.collection().getGalleryPassword()).isEqualTo("hunter2");
+      assertThat(response.collection().getRecipientEmails())
+          .containsExactly("bride@example.com", "groom@example.com");
+      verify(collectionRepository).findGalleryAccessBySlug(slug);
+      verify(collectionRepository, times(1)).findBySlug(slug);
+    }
+
+    @Test
+    void getUpdateCollectionData_missingGalleryAccessRow_throwsResourceNotFound() {
+      String slug = "vanished";
+      CollectionEntity entity =
+          CollectionEntity.builder()
+              .id(78L)
+              .slug(slug)
+              .visibility(CollectionVisibility.LISTED)
+              .build();
+      CollectionModel model =
+          CollectionModel.builder().id(78L).slug(slug).content(List.of()).build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(entity));
+      when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
+      when(collectionRepository.findGalleryAccessBySlug(slug)).thenReturn(Optional.empty());
+      stubEmptyMetadata();
+
+      assertThatThrownBy(() -> service.getUpdateCollectionData(slug))
+          .isInstanceOf(ResourceNotFoundException.class)
+          .hasMessage("Collection not found with slug: vanished");
     }
 
     @Test
@@ -1123,7 +1242,8 @@ class CollectionServiceTest {
               .title("Child")
               .visibility(CollectionVisibility.LISTED)
               .build();
-      CollectionModel model = CollectionModel.builder().id(7L).slug(slug).title("Child").build();
+      CollectionModel model =
+          CollectionModel.builder().id(7L).slug(slug).title("Child").content(List.of()).build();
       CollectionEntity parent =
           CollectionEntity.builder()
               .id(42L)
@@ -1136,6 +1256,7 @@ class CollectionServiceTest {
       when(collectionProcessingUtil.convertToFullModel(child)).thenReturn(model);
       when(collectionRepository.findAllParentCollectionsByChildId(7L)).thenReturn(List.of(parent));
       stubEmptyMetadata();
+      stubNoGalleryAccess();
 
       CollectionRequests.UpdateResponse response = service.getUpdateCollectionData(slug);
 
@@ -1468,6 +1589,7 @@ class CollectionServiceTest {
           null,
           null,
           null,
+          List.of(),
           List.of(),
           edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
     }
@@ -2308,11 +2430,17 @@ class CollectionServiceTest {
               .visibility(CollectionVisibility.LISTED)
               .build();
       CollectionModel model =
-          CollectionModel.builder().id(7L).slug("wrapper").title("Wrapper").build();
+          CollectionModel.builder()
+              .id(7L)
+              .slug("wrapper")
+              .title("Wrapper")
+              .content(List.of())
+              .build();
 
       when(collectionRepository.findBySlug("wrapper")).thenReturn(Optional.of(entity));
       when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
       stubEmptyMetadata();
+      stubNoGalleryAccess();
       when(collectionRepository.findAllReferencedCollectionIdsByParentId(7L))
           .thenReturn(List.of(11L, 12L));
 
@@ -2332,11 +2460,13 @@ class CollectionServiceTest {
               .title("Leaf")
               .visibility(CollectionVisibility.LISTED)
               .build();
-      CollectionModel model = CollectionModel.builder().id(8L).slug("leaf").title("Leaf").build();
+      CollectionModel model =
+          CollectionModel.builder().id(8L).slug("leaf").title("Leaf").content(List.of()).build();
 
       when(collectionRepository.findBySlug("leaf")).thenReturn(Optional.of(entity));
       when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
       stubEmptyMetadata();
+      stubNoGalleryAccess();
       when(collectionRepository.findAllReferencedCollectionIdsByParentId(8L)).thenReturn(List.of());
 
       CollectionRequests.UpdateResponse response = service.getUpdateCollectionData("leaf");
@@ -2376,6 +2506,7 @@ class CollectionServiceTest {
               null,
               null,
               List.of(),
+              List.of(),
               edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
       CollectionModel model =
@@ -2389,6 +2520,7 @@ class CollectionServiceTest {
       when(collectionRepository.findBySlug("mixed")).thenReturn(Optional.of(entity));
       when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
       stubEmptyMetadata();
+      stubNoGalleryAccess();
       when(collectionRepository.findAllReferencedCollectionIdsByParentId(13L))
           .thenReturn(List.of(51L));
       when(collectionProcessingUtil.loadImagesFromChildCollections(List.of(51L)))
