@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.dao;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -149,6 +150,33 @@ class CollectionRepositoryTest {
       assertThat(result).isZero();
       verify(namedParameterJdbcTemplate, never())
           .update(anyString(), any(MapSqlParameterSource.class));
+    }
+  }
+
+  /**
+   * Pins the append arithmetic shared by ContentService, ContentMutationUtil, CollectionService and
+   * TagService. Those four mock this repository, so this is the only place the max-plus-one rule is
+   * actually executed.
+   */
+  @Nested
+  class GetNextOrderIndexForCollection {
+
+    @Test
+    void withExistingContent_returnsMaxPlusOne() {
+      when(namedParameterJdbcTemplate.queryForObject(
+              anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+          .thenReturn(4);
+
+      assertThat(collectionRepository.getNextOrderIndexForCollection(1L)).isEqualTo(5);
+    }
+
+    @Test
+    void withEmptyCollection_returnsZero() {
+      when(namedParameterJdbcTemplate.queryForObject(
+              anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+          .thenReturn(null);
+
+      assertThat(collectionRepository.getNextOrderIndexForCollection(1L)).isZero();
     }
   }
 

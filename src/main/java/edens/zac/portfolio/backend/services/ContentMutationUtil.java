@@ -145,7 +145,7 @@ public class ContentMutationUtil {
       int orderIndex =
           childCollection.orderIndex() != null
               ? childCollection.orderIndex()
-              : nextOrderIndex(childCollection.collectionId());
+              : collectionRepository.getNextOrderIndexForCollection(childCollection.collectionId());
 
       boolean visible = childCollection.visible() != null ? childCollection.visible() : true;
 
@@ -164,12 +164,6 @@ public class ContentMutationUtil {
           orderIndex,
           visible);
     }
-  }
-
-  /** Returns the next available orderIndex for a collection (max + 1, or 0 if empty). */
-  private int nextOrderIndex(Long collectionId) {
-    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
-    return maxOrder != null ? maxOrder + 1 : 0;
   }
 
   // =============================================================================

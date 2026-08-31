@@ -121,8 +121,7 @@ public class TagService {
     }
 
     List<Long> imageContentIds = tagRepository.findImageContentByTagId(tagId, scope);
-    Integer maxOrderIndex = collectionRepository.getMaxOrderIndexForCollection(collectionId);
-    int orderIndex = maxOrderIndex != null ? maxOrderIndex + 1 : 0;
+    int orderIndex = collectionRepository.getNextOrderIndexForCollection(collectionId);
     for (Long imageContentId : imageContentIds) {
       collectionRepository.saveContent(
           CollectionContentEntity.builder()

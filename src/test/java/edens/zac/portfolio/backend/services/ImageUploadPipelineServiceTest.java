@@ -370,6 +370,37 @@ class ImageUploadPipelineServiceTest {
       verify(contentMutationUtil).associateLocationsByName(eq(101L), eq(List.of("Amsterdam")));
     }
 
+    /**
+     * Pins that a multi-file upload advances the order index per file instead of reusing the seed.
+     * Nothing else in the suite fails if the increment is dropped, so both images would land on the
+     * same index and silently collide.
+     */
+    @Test
+    void processFilesFromDisk_multipleFiles_getConsecutiveOrderIndexes() throws Exception {
+      Long collectionId = 1L;
+      var request =
+          new DiskUploadRequest(
+              List.of(
+                  new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null, null, null, null),
+                  new DiskUploadRequest.FileEntry("/tmp/b.jpg", null, null, null, null, null)),
+              null);
+      var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 2);
+      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
+      when(jobTrackingService.createJob(2)).thenReturn(job);
+      when(personRepository.findAllByOrderByPersonNameAsc()).thenReturn(List.of());
+      when(contentService.nextOrderIndex(collectionId)).thenReturn(5);
+      when(imageProcessingService.prepareImageFromDisk(any(), any()))
+          .thenReturn(prepared("a.jpg", List.of(), List.of()));
+      when(imageProcessingService.savePreparedImageWithDedupe(any(), any()))
+          .thenReturn(createResult(101L), createResult(102L));
+
+      service.processFilesFromDisk(collectionId, request);
+      awaitCompletion(job);
+
+      verify(contentService).linkContentToCollection(collectionId, 101L, 5);
+      verify(contentService).linkContentToCollection(collectionId, 102L, 6);
+    }
+
     private ImageProcessingService.DedupeResult skipResult(Long imageId) {
       return new ImageProcessingService.DedupeResult(
           ContentImageEntity.builder().id(imageId).build(),

@@ -383,6 +383,33 @@ class ContentServiceTest {
     assertThat(captor.getValue().getFormatType()).isEqualTo("plain");
   }
 
+  /**
+   * Pins that nextOrderIndex reads the append index from the repository rather than computing it
+   * locally, so the max-plus-one rule stays in one place.
+   */
+  @Test
+  void createTextContent_appendsAtTheRepositoryNextOrderIndex() {
+    var request = new ContentRequests.CreateTextContent(5L, "Title", null, "body", null);
+    when(collectionRepository.findById(5L))
+        .thenReturn(Optional.of(CollectionEntity.builder().id(5L).build()));
+    when(collectionRepository.getNextOrderIndexForCollection(5L)).thenReturn(7);
+    when(contentRepository.saveText(any()))
+        .thenAnswer(
+            invocation -> {
+              ContentTextEntity saved = invocation.getArgument(0);
+              saved.setId(99L);
+              return saved;
+            });
+    when(contentModelConverter.convertEntityToModel(any())).thenReturn(textModel());
+
+    service.createTextContent(request);
+
+    ArgumentCaptor<CollectionContentEntity> captor =
+        ArgumentCaptor.forClass(CollectionContentEntity.class);
+    verify(collectionRepository).saveContent(captor.capture());
+    assertThat(captor.getValue().getOrderIndex()).isEqualTo(7);
+  }
+
   private static ContentModels.Text textModel() {
     return new ContentModels.Text(
         99L, ContentType.TEXT, "Title", null, null, 0, true, null, null, "some body", "markdown");
