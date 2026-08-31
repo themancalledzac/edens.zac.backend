@@ -36,7 +36,7 @@ is the same failure the paragraph above was written to fix:
 |---|---|
 | [Open security findings](#open-security-findings) | **0 open — the section is EMPTY as of 2026-08-31**, for the first time since it was created 2026-08-24. The last five closed in one session and none closed on a deferral: S-22 ([#247](https://github.com/themancalledzac/edens.zac.backend/pull/247)) and S-23 ([#248](https://github.com/themancalledzac/edens.zac.backend/pull/248)) shipped, S-16 was answered then built ([#253](https://github.com/themancalledzac/edens.zac.backend/pull/253)), S-14 and S-24 were answered and closed with two docblocks ([#250](https://github.com/themancalledzac/edens.zac.backend/pull/250)). **25 closed**, one ledger line each below; the six newest have outcomes in [history](2026-08-22-backend-cleanup-history.md#2026-08-31-close-out--s-14-s-16-s-22-s-23-s-24-and-bug-21). The 2026-08-29 adversarial re-review returned **0 HIGH, 0 MEDIUM** against the merged set — and five more security changes have merged since, which is one of the triggers for the next full-board review. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **0** — run it and update this row and the estimate cell together. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend--one-open-2026-08-31) | **1 open — RE-OPENED 2026-08-31 by [#258](https://github.com/themancalledzac/edens.zac.backend/pull/258)**, after being closed since 2026-08-24 (#157, #209, #213, #214; outcomes in [history](2026-08-22-backend-cleanup-history.md#cross-repo-findings-owed-to-the-frontend)). The open one is the location page's `images` array now carrying GIFs against a `ContentImageModel[]` prop. **It is deliberately NOT filed on the frontend board** — that repo had another session's dirty branch checked out — so it is invisible in `edens.zac` until someone files it. Read the section. |
-| [Decisions needed from the user](#decisions-needed-from-the-user) | **5 open (`grep -c '^- \[ \] ' `, lines 870-952), 3 of them one-word calls, and nothing here blocks a session.** Passkey revocation **closed 2026-08-31** ([#257](https://github.com/themancalledzac/edens.zac.backend/pull/257)) — it was this section's only scoped work item, so what remains is all decision and no build. Gallery passwords are **parked by decision** pending a design. `cover_image_id`, the DB-password default and `role.kind` are research-complete and each needs one word; the partial-index item (C7) is the fifth and is an explicit "not until scale demands it", so it is open but not waiting on anyone. **Batch all three into the next session's opening message** (working rule 41's neighbour: a question asked at the end of a session is next session's problem). |
+| [Decisions needed from the user](#decisions-needed-from-the-user) | **2 open, and NEITHER is waiting on anyone — for the first time since this section was created.** The three one-word calls were asked in the opening message of the 2026-08-31 third run and all three came back: `cover_image_id` **drop** (V59), the DB-password default **drop the default** (`${POSTGRES_PASSWORD}`), `role.kind` **keep, documented as provenance** (V60). All three shipped together in one MR. What remains is gallery passwords (**parked by decision** pending a design) and the partial-index item C7 (an explicit "not until scale demands it"). **Batching the three into the opening message is what turned them into a same-session MR** — asked at the end, they would have been the next session's problem (working rule 41's neighbour). Edit gate (rule 36): the count is over the section's own `- [ ] ` lines; re-run it and update this row together. |
 | [Tests that cannot fail](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker) | **0 open of 6 — CLOSED 2026-08-30.** The last three shipped in one session (#239, #240, #241), each mutation-proved against `main` first. Two of the three carried a wrong premise that was corrected while closing: the share-link credential is a `Set-Cookie`, not a response-body token; and the `AdminUserControllerTest` pointer the board suggested names a test that does not redden on that mutation. Write-ups in history. |
 | [Rule 37 debt](2026-08-22-backend-cleanup-history.md#rule-37-debt--r-1-closed-2026-08-30-moved-from-the-tracker) | **0 open — R-1 closed 2026-08-30 ([#238](https://github.com/themancalledzac/edens.zac.backend/pull/238)).** Taught working rule 39. The wider per-package sweep is not tracked here; it is the Inline-comments row in the category table below. |
 | [Stale side branches](#stale-side-branches) | **New 2026-08-24.** 6 worktrees, 0 open PRs (as of 2026-08-24), all superseded. `fix/s18-actuator-exclude` added 2026-08-28 — **now holds nothing unique and is safe to delete** (settled 2026-08-30, see the section). |
@@ -912,8 +912,26 @@ Answers and reasoning:
     Parking the storage question does not block it.
 - [x] SpotBugs: decided — delete all four artifacts. Done in MR 2. If static analysis is wanted
   later, introduce it fresh at a current version with a filter written from scratch.
-- [ ] `admin_home_tile.cover_image_id`: drop in a migration or document as reserved (MR 1, deferred). **Not blocked on research** -- zero Java references, V19 seeds all ten rows explicitly NULL, and nothing since writes it. One query (`SELECT count(*) FROM admin_home_tile WHERE cover_image_id IS NOT NULL`) confirms it never received a value. This needs a decision.
-- [ ] **Whether to ship a default DB password at all.** *(Consolidated here 2026-08-29 — this
+- [x] `admin_home_tile.cover_image_id` — **ANSWERED 2026-08-31 (third run): drop it.** Shipped as
+  `V59__drop_admin_home_tile_cover_image_id.sql`. The premise was re-verified before the migration
+  was written and holds exactly: V19 creates the column and seeds all ten tile rows with an explicit
+  NULL, and `AdminHomeTileRepository:17` is the only Java that touches `admin_home_tile` at all. The
+  other sixteen `cover_image_id` hits in `src/` are the unrelated column on the `collection` table
+  and are untouched. No confirmation query was run against prod: the column cannot have received a
+  value through the application, so the query only guards a manual DB edit, and the migration's
+  header carries the one-line restore recipe if one turns up.
+- [x] **Whether to ship a default DB password at all — ANSWERED 2026-08-31 (third run): drop the
+  default.** `spring.datasource.password` is now `${POSTGRES_PASSWORD}` with no fallback, which
+  fails the context at startup when the variable is unset. Option (b), chosen for consistency with
+  `ACCESS_TOKEN_SECRET` and the AWS keys in the same file. Three things were checked before
+  changing it, because "prod is unaffected" was the claim the decision rested on: `docker-compose.yml:19`
+  sets `SPRING_DATASOURCE_PASSWORD` from the env, which shadows the property outright; the test
+  classpath's own `src/test/resources/application.properties` shadows the main file entirely, so no
+  test context ever resolves this placeholder; and CI's `POSTGRES_PASSWORD` (`.github/workflows/ci-cd.yml:55`)
+  is a service-container variable that is never exported to the Maven step, so it was never load-bearing
+  either. `.env.example` now marks the variable required. *(Original wording below, kept for the
+  options it enumerates.)*
+  *(Consolidated here 2026-08-29 — this
   decision previously had three homes: a "Carried forward" bullet, an open checkbox inside the
   history file's closed MR 9 section, and this section's promise of a row that did not exist. This
   row is now the only one.)* MR 9a fixed the separator and preserved the existing default, so
@@ -926,7 +944,16 @@ Answers and reasoning:
   the variable is missing. *(The 2026-08-22 log line "Decided: keep the default DB password" was
   bug #9's scope call — keep the existing default while fixing the separator — not a disposition
   of this question; the history log entry is annotated to match.)*
-- [ ] `role.kind`. **Premise FALSE, corrected 2026-08-24.** The item says it is "written as constant
+- [x] `role.kind` — **ANSWERED 2026-08-31 (third run): keep it, documented as provenance.** Shipped as
+  `V60__comment_role_kind.sql`, a `COMMENT ON COLUMN` recording that PERSONAL marks a role the V45
+  backfill created and SHARED marks every role made since. The 2026-08-24 correction was re-verified
+  against `V45__create_roles.sql` before writing it: line 37 inserts `'PERSONAL'` and lines 44 and 50
+  join on `r.kind = 'PERSONAL'`, so both values are real in any database that ran V45 against a
+  non-empty `user_collection`. No prod query was needed — the disposition is *keep*, and the grouping
+  query only mattered for the drop case. The DB comment is the durable answer to "why is this column
+  here", which is the question that made it look droppable twice.
+  *(Original row below, kept for the corrected premise it records.)*
+- [x] `role.kind`. **Premise FALSE, corrected 2026-08-24.** The item says it is "written as constant
   'SHARED' and read by nothing". `RoleRepository` does write `'SHARED'`, but `V45__create_roles.sql`
   writes `'PERSONAL'` in its backfill and joins on `r.kind = 'PERSONAL'` twice more. So the column
   carries **two** values in any database that ran V45 against a non-empty `user_collection`, and it
@@ -1079,10 +1106,11 @@ coordinated, but the coordination question was answered 2026-08-24); MR 18 #9, #
 MR 19 #15, #17, #18, #19; MR 25's four members **except** that two of their counts are now marked
 UNCHECKED and must be re-derived by arity first.
 
-**BLOCKED (user)** — three one-word calls, all in item 2 above: `cover_image_id`, the DB-password
-default, `role.kind`. Plus the `coverImage` stripping row, which needs a judgement rather than a
-word: is the test a stale record of a reverted fix, or a specification with no implementation? Its
-section has what implementing it would break; do not resolve it by reading the comment.
+**BLOCKED (user)** — **the three one-word calls are ANSWERED and shipped** (2026-08-31 third run;
+`cover_image_id` drop, DB-password default dropped, `role.kind` kept and documented). What is left
+here is the `coverImage` stripping row, which needs a judgement rather than a word: is the test a
+stale record of a reverted fix, or a specification with no implementation? Its section has what
+implementing it would break; do not resolve it by reading the comment.
 
 **BLOCKED (other repo)** — the cross-repo GIF row. It waits on `edens.zac` having a clean tree so
 it can be filed there, not on any backend work.
