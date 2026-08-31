@@ -449,6 +449,10 @@ public class ImageProcessingService {
    * <p>Rating is only written when the re-export carries one, so a curated rating survives an
    * export that omits the tag -- the same rule the location follows. A present rating overwrites.
    *
+   * <p>Dimensions default to {@code null}, never {@code 0}: a consumer cannot tell {@code 0} apart
+   * from a real measurement. They are absent only when the header read in {@code
+   * ImageMetadataExtractor} failed.
+   *
    * <p>Camera resolution runs through {@code resolveFilmCameraDefaults} first: some film scanners
    * and medium-format backs report a generic capture-software name in the EXIF Model tag instead of
    * the physical body, so it is remapped to the real camera and given film defaults before the
@@ -463,9 +467,9 @@ public class ImageProcessingService {
     entity.setLastExportDate(prepared.lastExportDate());
     entity.setOriginalFilename(prepared.originalFilename());
     entity.setImageWidth(
-        imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), 0));
+        imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageWidth"), null));
     entity.setImageHeight(
-        imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), 0));
+        imageMetadataExtractor.parseIntegerOrDefault(metadata.get("imageHeight"), null));
     entity.setIso(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("iso"), null));
     if (metadata.get("rating") != null) {
       entity.setRating(imageMetadataExtractor.parseIntegerOrDefault(metadata.get("rating"), null));

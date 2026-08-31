@@ -243,6 +243,50 @@ class ImageProcessingServiceTest {
     assertEquals(ImageProcessingService.DedupeAction.CREATE, result.action());
   }
 
+  /**
+   * Absent dimension keys must persist as null, never 0. The extractor is stubbed to return the
+   * default the production code passes it -- a bare mock returns null on its own, which would make
+   * this test pass against either sentinel.
+   */
+  @Test
+  void savePreparedImageWithDedupe_create_leavesDimensionsNull_whenTheHeaderReadFailed() {
+    LocalDateTime captureDate = LocalDateTime.of(2026, 1, 15, 14, 23, 5);
+    Map<String, String> withoutDimensions =
+        Map.of("author", "Test Author", "fStop", "f/2.8", "shutterSpeed", "1/125");
+    ImageProcessingService.PreparedImageData prepared =
+        new ImageProcessingService.PreparedImageData(
+            "scan.dng",
+            "https://cdn/full/image.jpg",
+            "https://cdn/web/image.webp",
+            null,
+            null,
+            withoutDimensions,
+            List.of(),
+            List.of(),
+            2026,
+            1,
+            captureDate,
+            LocalDateTime.of(2026, 1, 15, 10, 0));
+
+    when(contentRepository.findByOriginalFilenameAndCaptureDate("scan.dng", captureDate))
+        .thenReturn(Optional.empty());
+    when(imageMetadataExtractor.parseIntegerOrDefault(isNull(), any()))
+        .thenAnswer(invocation -> invocation.getArgument(1));
+    when(contentRepository.saveImage(any(ContentImageEntity.class)))
+        .thenReturn(createContentImageEntity());
+
+    imageProcessingService.savePreparedImageWithDedupe(prepared, "Scan");
+
+    ArgumentCaptor<ContentImageEntity> captor = ArgumentCaptor.forClass(ContentImageEntity.class);
+    verify(contentRepository).saveImage(captor.capture());
+    assertNull(
+        captor.getValue().getImageWidth(),
+        "absent imageWidth must persist as null, not 0 -- 0 reads as a real 0-pixel measurement");
+    assertNull(
+        captor.getValue().getImageHeight(),
+        "absent imageHeight must persist as null, not 0 -- 0 reads as a real 0-pixel measurement");
+  }
+
   @Test
   void savePreparedImageWithDedupe_update_preservesExistingRating_whenExportOmitsRatingTag() {
     // A re-export that omits the rating tag must not clobber the curated rating (existing = 5; the
