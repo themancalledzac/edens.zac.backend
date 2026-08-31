@@ -61,13 +61,8 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
   }
 
   /**
-   * The enum pin for the membership status rule (S-22). {@link RoleRepository#addMember} and {@link
-   * RoleRepository#repointMemberships} both bind {@code ROLE_MEMBERSHIP_STATUSES}, so neither can
-   * drift from it -- but the list excludes {@code PERSON} from {@code UserStatus.values()} rather
-   * than naming the three it admits, so a fifth status joins it by construction. That is deliberate
-   * (it is what the old {@code <> 'PERSON'} SQL did) and it is what this test exists to catch. The
-   * admitted names are stated as literals here for that reason: adding a status reddens here and
-   * nowhere else, making membership eligibility a decision rather than an inherited default.
+   * Pins the admitted statuses as literals. The list itself is derived, so a new {@code UserStatus}
+   * joins it silently -- this is the only place that reddens when one is added.
    */
   @Test
   void roleMembershipStatusesAdmitEveryNonPerson() {
@@ -75,11 +70,7 @@ class RoleRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
         .containsExactlyInAnyOrder("INVITED", "ACTIVE", "DISABLED");
   }
 
-  /**
-   * The SQL half of the same pin: every status the list admits is admitted by {@code addMember}
-   * itself. Narrowing the rule to {@code ACTIVE} -- the tightening the board's "verified sound, do
-   * not re-open" section refuses -- reddens this test on the INVITED and DISABLED cases.
-   */
+  /** The SQL half of the same pin: the query cannot drift from the list it binds. */
   @ParameterizedTest
   @EnumSource(
       value = UserStatus.class,

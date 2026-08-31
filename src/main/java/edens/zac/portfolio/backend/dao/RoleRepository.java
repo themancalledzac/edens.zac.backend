@@ -120,24 +120,14 @@ public class RoleRepository extends BaseDao {
   // ---- Membership ----
 
   /**
-   * The {@code users.status} values that may hold a {@code role_member} row. The single definition
-   * of the membership status rule: {@link #addMember} and {@link #repointMemberships} both bind
-   * this as an {@code IN} list rather than each restating {@code <> 'PERSON'}, so the rule cannot
-   * drift between the two sites.
+   * The {@code users.status} values that may hold a {@code role_member} row. Bound as an {@code IN}
+   * list by {@link #addMember} and {@link #repointMemberships}, which is what keeps the rule in one
+   * place instead of one SQL literal per site.
    *
-   * <p>Derived by excluding {@code PERSON} from {@code UserStatus.values()} rather than by listing
-   * the three admitted names, which keeps the admitted set exactly what the old SQL admitted: a
-   * fifth {@code UserStatus} is included by construction, and listing names instead would silently
-   * exclude it. {@code RoleRepositoryIntegrationTest.roleMembershipStatusesAdmitEveryNonPerson}
-   * reddens when one is added, so widening becomes a decision someone makes rather than a default
-   * they inherit.
-   *
-   * <p>Deliberately not narrowed to {@code ACTIVE}, and this is not the shape of {@link
-   * edens.zac.portfolio.backend.services.SessionService#mayHoldSession}. A DISABLED or INVITED
-   * account holding a membership grants nothing until it can authenticate, and neither auth
-   * chokepoint admits those statuses -- so the grant is dormant, not live. Narrowing would drop
-   * memberships out from under an account on every disable without restoring them on re-enable, and
-   * would turn a merge into a target that is not ACTIVE into data loss.
+   * <p>Derived by excluding {@code PERSON} rather than by naming the three admitted statuses, so a
+   * new {@code UserStatus} is admitted rather than silently refused. Do not narrow it to {@code
+   * ACTIVE}: a non-ACTIVE account cannot authenticate, so its membership is dormant, and narrowing
+   * would drop memberships on every disable without restoring them on re-enable.
    */
   static final List<String> ROLE_MEMBERSHIP_STATUSES =
       Arrays.stream(UserStatus.values())
