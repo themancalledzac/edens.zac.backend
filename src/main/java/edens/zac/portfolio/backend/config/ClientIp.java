@@ -10,10 +10,11 @@ import jakarta.servlet.http.HttpServletRequest;
  *
  * <p>{@code X-Forwarded-For} is intentionally ignored: it is trivially spoofable when the backend
  * is reachable directly (bypassing the BFF), which would allow an attacker to rotate their
- * rate-limit identity per request. Only requests that flow through the known BFF proxy will carry
- * {@code X-Real-IP}, so its presence is the trust signal. If {@code X-Real-IP} is absent, the
- * request did not come through the proxy and {@code getRemoteAddr()} is the only reliable source of
- * truth.
+ * rate-limit identity per request. {@code X-Real-IP} is no less spoofable on its own, so its
+ * presence is not a trust signal. What makes the value trustworthy is that the BFF strips any
+ * client-supplied copy before re-injecting its own, and that {@link InternalSecretFilter} rejects
+ * direct hits under the {@code prod} profile. If {@code X-Real-IP} is absent, {@code
+ * getRemoteAddr()} is the only source left.
  */
 public final class ClientIp {
 
