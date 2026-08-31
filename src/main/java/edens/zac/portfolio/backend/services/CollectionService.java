@@ -443,8 +443,7 @@ public class CollectionService {
       return;
     }
 
-    Integer orderIndex = collectionRepository.getMaxOrderIndexForCollection(parentId);
-    orderIndex = (orderIndex != null) ? orderIndex + 1 : 0;
+    int orderIndex = collectionRepository.getNextOrderIndexForCollection(parentId);
 
     CollectionContentEntity joinEntry =
         CollectionContentEntity.builder()
@@ -1134,12 +1133,10 @@ public class CollectionService {
         ContentCollectionEntity existingContentCollection =
             findOrCreateContentCollectionEntity(childCollectionEntity);
 
-        Integer maxIndex =
-            collectionRepository.getMaxOrderIndexForCollection(parentCollection.getId());
-        Integer orderIndex =
+        int orderIndex =
             childCollection.orderIndex() != null
                 ? childCollection.orderIndex()
-                : (maxIndex != null ? maxIndex + 1 : 0);
+                : collectionRepository.getNextOrderIndexForCollection(parentCollection.getId());
 
         CollectionContentEntity existingJoinEntry =
             collectionRepository

@@ -889,8 +889,7 @@ public class CollectionRepository extends BaseDao {
     return query(sql, COLLECTION_CONTENT_ROW_MAPPER, params);
   }
 
-  @Transactional(readOnly = true)
-  public Integer getMaxOrderIndexForCollection(Long collectionId) {
+  private Integer getMaxOrderIndexForCollection(Long collectionId) {
     String sql =
         "SELECT MAX(order_index) FROM collection_content WHERE collection_id = :collectionId";
     MapSqlParameterSource params = createParameterSource().addValue("collectionId", collectionId);
