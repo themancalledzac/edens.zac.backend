@@ -34,7 +34,7 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **3 open — REFILLED 2026-08-31 (third run) by the full-board review's security slice**, after being empty for one session. **S-26 is HIGH**: deregistering a passkey leaves the sessions that credential minted alive, and the holder can register a replacement from inside the surviving session. S-27 and S-28 are LOW. All three come out of the merged set (#247, #248, #250, #253, #257) attacked as a set; that pass also confirmed **S-16's reachability claim holds**, which is recorded under "Verified sound" so nobody re-derives it. **25 closed**, one ledger line each below; the six newest have outcomes in [history](2026-08-22-backend-cleanup-history.md#2026-08-31-close-out--s-14-s-16-s-22-s-23-s-24-and-bug-21). Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **3** — run it and update this row and the estimate cell together. **This gate counts numbered findings only**; the unsettled questions have their own section and their own row, because four of them used to live inside this section where no gate could see them. |
+| [Open security findings](#open-security-findings) | **1 open.** The section refilled 2026-08-31 (third run) with three, and [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) closed two of them the same day: **S-26, the HIGH** (a deregistered passkey's sessions kept resolving, and their holder could register a replacement from inside one) and **S-27** (a docblock #257 falsified), which rode with it as filed. **S-28 (LOW) is what is left** -- one docblock line naming the redeploy recovery for an admin who deregisters their own last passkey. All three came out of the merged set (#247, #248, #250, #253, #257) attacked as a set; that pass also confirmed **S-16's reachability claim holds**, which is recorded under "Verified sound" so nobody re-derives it. **27 closed**, one ledger line each below; the newest outcomes are in [history](2026-08-22-backend-cleanup-history.md#s-26-outcome-2026-08-31--the-fix-was-one-call-and-three-mutations-were-needed-to-prove-it). Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **1** — run it and update this row and the estimate cell together. **This gate counts numbered findings only**; the unsettled questions have their own section and their own row, because four of them used to live inside this section where no gate could see them. |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend--five-open-2026-08-31) | **5 open — re-derived 2026-08-31 (third run) by a full pair scan of both repos.** The GIF row's premise was **wrong and is corrected in place**: the frontend's `/location/[slug]` page never reads `LocationPageResponse.images`, so a location-tagged GIF cannot reach it today at any prop type. Four more were found, all dormant or dev-only. **All five are now filed in `edens.zac`** ([#371](https://github.com/themancalledzac/edens.zac/pull/371), **merged 2026-08-31**, docs-only), which closes the gap the second run declared and could not close: four became new rows (C14, C15, C16, H7) and the fifth was already shipped there as G6 (#351), so it went under that board's "do not re-investigate" list rather than becoming a duplicate. #371 has merged, so these are filed on both boards; the rows stay open here until the frontend acts on them. The same scan found two backend items: an N+1 regression (now **MR 19 #21**) and a serialization question (now a Decisions row). Read the section. |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **3 open, and only ONE is waiting on you.** The three one-word calls were asked in the opening message of the 2026-08-31 third run and all three came back: `cover_image_id` **drop** (V59), the DB-password default **drop the default** (`${POSTGRES_PASSWORD}`), `role.kind` **keep, documented as provenance** (V60). All three shipped together in one MR. What remains: gallery passwords (**parked by decision** pending a design) and the partial-index item C7 (an explicit "not until scale demands it"), neither of which waits on anyone -- plus **one new row added by this run's cross-repo scan**, whether the location endpoint should keep serving an `images` array at all, given the frontend discards it. That one is a real open question. **Batching the three into the opening message is what turned them into a same-session MR** — asked at the end, they would have been the next session's problem (working rule 41's neighbour). Edit gate (rule 36): the count is over the section's own `- [ ] ` lines; re-run it and update this row together. |
 | [Tests that cannot fail](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker) | **0 open of 6 — CLOSED 2026-08-30.** The last three shipped in one session (#239, #240, #241), each mutation-proved against `main` first. Two of the three carried a wrong premise that was corrected while closing: the share-link credential is a `Set-Cookie`, not a response-body token; and the `AdminUserControllerTest` pointer the board suggested names a test that does not redden on that mutation. Write-ups in history. |
@@ -47,7 +47,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **21** (5 high) — 20 shipped, **1 open** (#18). Bugs #17, #19 and #20 all shipped 2026-08-31 ([#256](https://github.com/themancalledzac/edens.zac.backend/pull/256), [#258](https://github.com/themancalledzac/edens.zac.backend/pull/258), [#255](https://github.com/themancalledzac/edens.zac.backend/pull/255)); #21 earlier the same day ([#249](https://github.com/themancalledzac/edens.zac.backend/pull/249)). Checkbox check: `grep -c '^- \[ \] \*\*Bug #'` = **1**, re-run 2026-08-31 (third close-out, unchanged). **Bug #18 is the only open bug on the board.** Item **#22** was filed 2026-08-31 in the same number series but is a feature dependency, not a bug, so it opens with `**#22` and does not move this gate. | — |
-| Security findings | **3 open** (S-26 HIGH, S-27 LOW, S-28 LOW), filed 2026-08-31 (third close-out) by the full-board review. 25 closed; the five newest 2026-08-31. Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **3**, re-run 2026-08-31 (working rule 36: run it and edit this cell and the section-table row together). Numbered findings only — the eight unsettled questions have their own gate. | — |
+| Security findings | **1 open** (S-28 LOW). The three filed 2026-08-31 by the full-board review are down to one: S-26 (HIGH) and S-27 (LOW) shipped together as [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) the same day. 27 closed; the seven newest 2026-08-31. Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **1**, re-run 2026-08-31 after #265 (working rule 36: run it and edit this cell and the section-table row together). Numbered findings only — the eight unsettled questions have their own gate. | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments | **Re-measured 2026-08-29.** Old criterion (whole-line `//` at indent >= 4, `src/main`): **73**. Rule-37 criterion (any line whose first non-whitespace is `//`, `src/main` + `src/test`): **1,675** (290 main / 1,385 test), plus **72** trailing `code; //` lines. **Re-run 2026-08-31 (third run, post-merge): 1,637 (262 main / 1,375 test)** -- down 7 from 1,644 (262/1,382), and the delta reconciles line-for-line against a single file (**working rule 42**): `ReadCacheInvalidatorTest` went **7 -> 0** in [#262](https://github.com/themancalledzac/edens.zac.backend/pull/262), which removed its inline comments and moved the three carrying real reasoning into docblocks. `src/main` did not move at all -- `SesConfig.java` was deleted by [#261](https://github.com/themancalledzac/edens.zac.backend/pull/261) and held zero inline comments. **This is the second consecutive run where a session removed some and none were added.** Prior figure: **1,644 (262 main / 1,382 test)** -- down 31 from 1,675 (290/1,385). The earlier re-run that day was UNCHANGED, which was the first confirmation that a session added none; this one is the first that a session *removed* some. **The delta reconciles exactly against the four MRs' own deletions** (-28 main: 11 in `ImageUploadPipelineService`, 10 in `ContentService`, 7 in `AdminUserController`; -3 test: 1 in `AdminUserControllerTest`, 2 in `WebAuthnCredentialRepositoryIntegrationTest`), which is **working rule 42**. **The trailing figure was wrong and its recorded command did not reproduce it.** As recorded, `grep -vE '^\s*[^:]+:[0-9]+:\s*//'` returns **231**, not 72: BSD `grep -E` does not honour `\s`, so the exclusion under-matches, and nothing excluded URLs -- every `https://` in a javadoc counts as a `//`. **Corrected count: 74**, by this command, which is portable and URL-safe -- **re-run 2026-08-31 (second close-out) and still 74**:
 ```
@@ -355,53 +355,6 @@ rule-36 gate greps `^- \[ \] \*\*S-` and none of them opened that way.
 
 ### Open
 
-- [ ] **S-26 (HIGH) deregistering a passkey leaves the sessions that credential minted alive, and
-  the holder can register a replacement from inside the surviving session.** *(Filed 2026-08-31,
-  third run, by the merged-set review.)* `AdminUserController.deregisterPasskey`
-  (`AdminUserController.java:443-465`) deletes the credential row and returns. It never calls
-  `SessionService.revokeAllForUser` (`SessionService.java:245`), which exists for exactly this shape
-  of caller — its own docblock says it is "for callers whose reason to evict is an event rather than
-  a status". `SessionService.resolve` (`SessionService.java:146-180`) re-checks three things per
-  request — not revoked, not expired, `mayHoldSession` — and **does not consult
-  `webauthn_credential`**. The account is still ACTIVE, which is the whole point of the endpoint, so
-  the session keeps resolving.
-
-  **Exploit path.** (1) An attacker controlling the authenticator completes
-  `/api/auth/webauthn/login/start` + `/finish`; `WebAuthnService.finishLogin:223` mints a session with
-  `mfaSatisfied=true`, cookie TTL 60 days sliding / 90 absolute (`SessionService.java:56-58`).
-  (2) The admin calls `DELETE /api/admin/users/{id}/passkeys/{credentialId}`. The response says
-  `{remainingPasskeys: 0, passwordLoginAvailable: false}`, which reads as "this account can no longer
-  authenticate" — it cannot *start* a new authentication; the existing session is untouched. (3) The
-  cookie keeps working for up to 60 more days. (4) **`/api/auth/webauthn/register/**` is gated only at
-  `hasRole("USER")`** (`SecurityConfig.java:71-72`) and `WebAuthnController.registerFinish:110-118`
-  requires only `AuthPrincipal.isRealUser` — no re-auth, no `mfaSatisfied`, no recent-auth window. The
-  attacker registers their own authenticator and holds a passkey the admin did not revoke. **The
-  deregistration is undone from inside the session it failed to kill.**
-
-  **Why HIGH and not the MEDIUM its precedent carried.** The board already accepted this exact shape
-  as **S-15** (#224) — completing a password reset did not revoke the account's other sessions — and
-  closed it with a `revokeAllForUser` call in `UserInviteService.accept`. S-15's stated reason for
-  MEDIUM was that the remaining way to evict a stolen session was "an admin round-trip to DISABLED and
-  back". **#257 exists specifically to avoid that round-trip**, so it removes the compensating control
-  S-15 was measured against while reproducing S-15's gap. Step 4 then turns a bounded 60-day window
-  into indefinite persistence. That is what pushes it past MEDIUM.
-
-  **Fix shape**: call `sessionService.revokeAllForUser(id)` after a successful delete. It evicts *all*
-  the account's sessions, not only ones minted by the deleted credential — `user_session` records no
-  credential id. That is the same trade S-15 accepted. **Hardening `register/**` to require re-auth is
-  a separate, older question** that predates all five changes in the set; whoever scopes S-26 decides
-  whether it rides along, and must first trace whether the password-login break-glass path depends on
-  registering without MFA.
-- [ ] **S-27 (LOW) `resolveByRawToken`'s docblock states something #257 made false.**
-  *(Filed 2026-08-31, third run.)* `ShareLinkService.java:100-102` says a link "serves exactly while
-  its owner's account does". True when #253 merged. #257 created a state it did not anticipate: an
-  ACTIVE account whose last passkey has been deregistered and which has no password hash. It cannot
-  sign in; its status is still ACTIVE, so `mayHoldSession` passes and the share link keeps serving.
-  **No exploit** — the link served the same content a moment earlier, and suspending a share because
-  the owner lost an authenticator is not obviously wanted. This is a docblock making a biconditional
-  claim the code no longer supports. Narrow it to "while its owner's account status permits a
-  session", which is what the code actually tests. Project rule: fix the doc in the change that makes
-  it wrong, so this rides with S-26.
 - [ ] **S-28 (LOW) an admin deregistering their own last passkey can lock the admin surface out of
   itself.** *(Filed 2026-08-31, third run.)* `AdminUserController.java:443-465`. Removing the last
   credential is allowed **by decision** (2026-08-30) and this does not re-litigate that; it records
@@ -445,13 +398,15 @@ Bodies and outcomes in the [history file](2026-08-22-backend-cleanup-history.md#
 - [x] **S-22** (LOW) the two role-membership status guards were separate SQL denylists — #247, 2026-08-31. Shipped as one bound list, **not** the named predicate the item prescribed; taught working rule 40.
 - [x] **S-23** (LOW) nothing refused a prod boot with a wider actuator include — #248, 2026-08-31. Exclude list untouched and now redundant; **whether to delete it is an open disposition, tracked as U-7**.
 - [x] **S-24** (LOW) two admin mail-send paths were covered by no limiter — **accepted as admin-trusted and documented** ([#250](https://github.com/themancalledzac/edens.zac.backend/pull/250), 2026-08-31).
+- [x] **S-26** (HIGH) deregistering a passkey left the sessions that credential minted alive, and the holder could register a replacement from inside the surviving session — [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), 2026-08-31. One call, as specified; the work was the test. **Hardening `register/**` was left out of scope** and stays an open question. Mutation table in [history](2026-08-22-backend-cleanup-history.md#s-26-outcome-2026-08-31--the-fix-was-one-call-and-three-mutations-were-needed-to-prove-it).
+- [x] **S-27** (LOW) `resolveByRawToken`'s docblock claimed a biconditional #257 made false — [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), 2026-08-31, rode with S-26 as the item said it should.
 
 ### Classification of the still-open items
 
-**Three open as of 2026-08-31 (third run), and none is blocked on the user.** S-26 (HIGH), S-27 and
-S-28 (LOW) are all COLD — the fix shape is written and the evidence is in each item. S-27 rides with
-S-26 because the docblock it corrects is in the same change's blast path; S-28 is one docblock line
-and can go with either.
+**One open as of 2026-08-31 (after #265), and it is not blocked on the user.** S-28 (LOW) is COLD --
+one docblock line naming the redeploy recovery. S-26 and S-27 shipped together in
+[#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), which is the pairing this
+paragraph predicted.
 
 *(The claim "the section is EMPTY" stood here and in the Progress row for one session while the
 section held four open checkboxes. They were the "Unsettled" questions, which do not open with
@@ -1428,15 +1383,15 @@ Worth a targeted check; not asserted as findings.
 ## Next run (set 2026-08-31, third close-out)
 
 **The security section refilled and its top item is HIGH.** That is the first thing on this list and
-the first time in three sessions the queue has not opened with a decision or a review.
+the first time in three sessions the queue has not opened with a decision or a review. *(Item 1 shipped
+2026-08-31 as [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265); items 2-4 stand.)*
 
-1. **S-26 — revoke the sessions a deregistered passkey minted.** HIGH. `revokeAllForUser(id)` after a
-   successful delete in `AdminUserController.deregisterPasskey`, plus S-27's one-sentence docblock
-   correction in `ShareLinkService`, which is in the same blast path. *Guardrail:* **the fix is one
-   call; the test is the work.** Mutation-prove it the way S-15 (#224) was proved — a test that stays
-   green when `revokeAllForUser` is deleted is not coverage. Do **not** widen scope to hardening
-   `/api/auth/webauthn/register/**`; that question predates all five changes in the set and needs the
-   password-login break-glass path traced first.
+1. ~~**S-26 — revoke the sessions a deregistered passkey minted.**~~ **DONE**
+   ([#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), 2026-08-31), with S-27's
+   docblock riding along as the item said it would. The guardrail held on both halves: the fix was
+   the one `revokeAllForUser(id)` call, the work was six tests and three mutations, and
+   `/api/auth/webauthn/register/**` was left alone. **The register hardening is still open** and is
+   still owed the password-login break-glass trace before anyone specifies it.
 2. **MR 19 #21 — the location-endpoint N+1.** Up to 150 queries where 6 will do, introduced by #258
    and confirmed by reading the row mappers. *Guardrail:* **partition by content type and call the two
    batch converters that already exist** — `batchConvertImageEntitiesToModels` and
@@ -1460,8 +1415,8 @@ merged, so item #22 is no longer PR-only. **Nothing on this board is now owed to
 
 ### Classification of the actionable near-term board (stamped 2026-08-31, third close-out)
 
-*(Retitled 2026-08-31. It classifies about 25 items; the file holds **89** open checkboxes
-(`grep -c '^- \[ \] '`, re-run 2026-08-31 after the third run's five PRs merged). **The figure first
+*(Retitled 2026-08-31. It classifies about 25 items; the file holds **87** open checkboxes
+(`grep -c '^- \[ \] '`, re-run 2026-08-31 after [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) ticked S-26 and S-27; it read 89 after the third run's five PRs merged). **The figure first
 written here was 94 and it was wrong** -- measured on the close-out's own pre-rebase branch, where the
 three decision rows [#260](https://github.com/themancalledzac/edens.zac.backend/pull/260) had already
 ticked were still open and item #22 was double-counted. At its own merge commit the file actually held

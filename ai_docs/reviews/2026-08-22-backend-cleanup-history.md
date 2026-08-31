@@ -5670,6 +5670,64 @@ board: **zero open security findings, and none blocked on the user.** In-body cr
 ("above", "below") describe positions on the tracker as of the move. Tracker bodies first, then the
 outcomes.
 
+## S-26 outcome (2026-08-31) -- the fix was one call, and three mutations were needed to prove it
+
+Shipped as [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265). One line in
+`AdminUserController.deregisterPasskey` -- `sessionService.revokeAllForUser(id)` below the delete
+guard -- plus S-27's docblock narrowing in `ShareLinkService`, six tests and two docblocks. Suite
+1,455 -> 1,461.
+
+**The item's fix shape was right, first time in a while.** It said one call after a successful
+delete; that is what shipped, at the position it named, with the account-wide blast radius it flagged
+and for the reason it gave (`user_session` records no credential id). Nothing about the premise
+needed correcting either -- `SessionService.resolve` really does test revoked, expired and
+`mayHoldSession` and never reads `webauthn_credential`, so the account stayed ACTIVE and the session
+kept resolving.
+
+### What the guardrail was actually protecting against
+
+"The fix is one call; the test is the work" turned out to be a claim about **how many ways this one
+line can be written wrong**, not about effort. Three, and each needs its own test:
+
+| Mutation | Killed by | Why it is a real mistake to make |
+|---|---|---|
+| delete the `revokeAllForUser` call | `deregisterPasskeyRevokesTheAccountsLiveSessions` (mock `verify`), `deregisteringAPasskeyStopsItsSessionResolving:87`, `deregisteringOnePasskeyEvictsSessionsMintedByTheOtherToo:107` | the finding itself |
+| hoist the call above the delete guard | `deregisterPasskeyThatIs404RevokesNothing` (mock `never()`), `aFailedDeregistrationLeavesTheAccountsSessionResolving:143` | reads as harmless tidying; makes a guessed credential id a logout |
+| drop `user_id = :userId` from the revoke SQL | `deregisteringAPasskeyLeavesAnotherAccountsSessionAlone:127` | one deregistration signs out the whole site |
+
+Sources restored with `touch` after each, per working rule 15.
+
+**The mock tests and the DB tests are not redundant, and working rule 15 says why.** A mock of
+`SessionService` can only ever show that the controller *made the call*. What S-26 is about is
+whether the call *evicts the session* -- and that lives in `resolve`, one layer below the mock. So
+`PasskeyDeregistrationIntegrationTest` autowires the real controller against the Postgres container,
+mints a session through `SessionService.create`, deregisters, and asserts `resolve` comes back empty
+**while the account is still ACTIVE**. That last clause is the one that makes the assertion mean what
+it says: ACTIVE passes `mayHoldSession` and the session was minted seconds earlier, so revocation is
+the only remaining reason `resolve` can reject it. Same reasoning as S-15 (#224), which also shipped
+a mock test and a DB test rather than one of each kind.
+
+**The third mutation is the one a mock could never have caught**, and it is the reason the bystander
+test exists at the endpoint level even though `UserSessionRepositoryIntegrationTest` already pins the
+same SQL: the endpoint is where an admin's single deregistration would turn into a site-wide logout,
+and that is where the regression should be read.
+
+### Scope held
+
+`/api/auth/webauthn/register/**` was not touched. It is still gated at `hasRole("USER")` with no
+re-auth, which is step 4 of the item's exploit path -- but with the sessions revoked there is no
+surviving session to register from, so the HIGH is closed on its own terms. The hardening remains a
+separate, older question and still needs the password-login break-glass path traced before anyone
+specifies it.
+
+### S-27, riding along
+
+`ShareLinkService.ownerAccountIsActive`'s docblock said a link "serves exactly while its owner's
+account does" -- a biconditional #257 falsified by creating an ACTIVE account that cannot sign in
+(last passkey deregistered, no password hash). Narrowed to what the code tests: the owner's account
+*status* permits a session. The state it used to mis-describe is now named in the docblock rather
+than left for the next reader to rediscover.
+
 ## S-22 outcome (2026-08-31) — shipped as a list, not the predicate the item specified
 
 Shipped as [#247](https://github.com/themancalledzac/edens.zac.backend/pull/247). Both `RoleRepository` SQL sites now bind one `ROLE_MEMBERSHIP_STATUSES`
