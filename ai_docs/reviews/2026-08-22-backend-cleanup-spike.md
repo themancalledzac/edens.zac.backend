@@ -237,6 +237,40 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   **Sequencing.** This is MR 1 of MA1; all eleven of its frontend tasks wait on it. Nothing else on
   either board depends on it, so it can land whenever. **COLD.**
 
+- [x] **#26 (feature dependency, not a bug) — contact messages had no retention TTL, so PII
+  accumulated forever.** — **DONE**
+  ([#278](https://github.com/themancalledzac/edens.zac.backend/pull/278), 2026-08-31). *(Filed
+  2026-08-31 from the frontend board's MA4 (`docs/spikes/2026-features.md` in `edens.zac`), in the
+  same pass that shipped it.)*
+
+  `messages` rows are a stranger's email address beside whatever they wrote, `V17` gives them a
+  `created_at` with a descending index, and nothing ever removed them. `MessageService` had
+  `create` and `delete(id)` and no bulk path.
+
+  **Shipped off, and the first opt-in only reports.** The deletion is irreversible — the contact
+  form is the only writer and nothing archives what a purge removes — and a local backend can point
+  at the production database, so "try it on localhost" is not a way to find out what it does. Hence
+  two properties rather than one:
+
+  - `app.messages.retention.days` (default `0`) — the nightly job returns before touching the
+    database.
+  - `app.messages.retention.dry-run` (default `true`) — logs the count it would delete, deletes
+    nothing.
+
+  Set `days`, read the count out of the logs, and only then set `dry-run=false`. Both defaults sit
+  at the safe end, so a deploy of this MR changes no behaviour at all.
+
+  `purgeOlderThan(LocalDateTime cutoff)` is package-private and takes its cutoff, the arrangement
+  `JobTrackingService.removeFinishedJobsStartedBefore` already uses, so the modes are testable
+  without aging a row or waiting for the cron. **Both guards are mutation-proved**: relaxing
+  `retentionDays <= 0` to `< 0` reddens the defaults test, and removing the dry-run branch reddens
+  the dry-run test. That check is here because of this board's own "Tests that cannot fail" section.
+
+  **No frontend half exists or is needed.** MA4's row reads BE+FE, but a retention TTL has no admin
+  surface — it is configuration, not a control. The frontend-side MA4 slices are mark-as-read
+  (blocked: no read column on `messages`, `V17` is still the whole schema), delete (already
+  shipped), and search (shipped as [#384](https://github.com/themancalledzac/edens.zac/pull/384)).
+
 ## Cross-repo findings owed to the frontend — five open (2026-08-31)
 
 The 2026-08-24 batch closed and lives in
