@@ -15,6 +15,8 @@ import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentEntity;
+import edens.zac.portfolio.backend.entity.ContentGifEntity;
+import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
@@ -254,11 +256,7 @@ public class CollectionService {
     long totalImages =
         contentRepository.countOrphanContentByLocationName(locationName, allCollectionIds);
 
-    List<ContentModel> images =
-        orphanEntities.stream()
-            .map(contentModelConverter::convertRegularContentEntityToModel)
-            .filter(Objects::nonNull)
-            .toList();
+    List<ContentModel> images = batchConvertOrphans(orphanEntities);
 
     LocationEntity locationEntity =
         locationRepository.findByLocationName(locationName).orElse(null);
@@ -269,6 +267,48 @@ public class CollectionService {
             : new Records.Location(null, locationName, SlugUtil.generateSlug(locationName));
 
     return new LocationPageResponse(location, collections, images, totalCollections, totalImages);
+  }
+
+  /**
+   * Convert the location's orphan content through the BATCH converters, in the order {@link
+   * ContentRepository#findOrphanContentByLocationName} returned.
+   *
+   * <p>The per-entity {@code convertRegularContentEntityToModel} resolves each block's tags, people
+   * and locations with three queries apiece. Its tag and people lookups are guarded by {@code
+   * getTags()}/{@code getPeople()} being non-empty and that guard never holds here -- these
+   * entities come from {@code findAllByIds}, whose row mappers do not populate either set -- but
+   * the location lookup is unguarded, so the default page of 50 cost up to 150 queries. The two
+   * batch converters issue their three queries once per kind, making the block count irrelevant.
+   *
+   * <p>The partition is total because the query pins {@code content_type IN ('IMAGE', 'GIF')};
+   * widening that SQL means adding a branch here, or the new type silently vanishes from the page.
+   * Re-merging by id against {@code orphanEntities} rather than concatenating the two batches is
+   * what preserves the SQL's {@code sort_date DESC} ordering, which images-then-gifs would not.
+   */
+  private List<ContentModel> batchConvertOrphans(List<ContentEntity> orphanEntities) {
+    List<ContentImageEntity> orphanImages =
+        orphanEntities.stream()
+            .filter(ContentImageEntity.class::isInstance)
+            .map(ContentImageEntity.class::cast)
+            .toList();
+    List<ContentGifEntity> orphanGifs =
+        orphanEntities.stream()
+            .filter(ContentGifEntity.class::isInstance)
+            .map(ContentGifEntity.class::cast)
+            .toList();
+
+    Map<Long, ContentModel> byId = new HashMap<>();
+    contentModelConverter
+        .batchConvertImageEntitiesToModels(orphanImages)
+        .forEach(model -> byId.put(model.id(), model));
+    contentModelConverter
+        .batchConvertGifEntitiesToModels(orphanGifs)
+        .forEach(model -> byId.put(model.id(), model));
+
+    return orphanEntities.stream()
+        .map(entity -> byId.get(entity.getId()))
+        .filter(Objects::nonNull)
+        .toList();
   }
 
   @Transactional(readOnly = true)
