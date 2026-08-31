@@ -158,6 +158,10 @@ public class UserShareControllerProd {
    * <p>The check reads the whole principal, so a global admin passes it for any collection. That
    * follows from working rule 20 rather than widening anything on its own: an admin can already
    * view everything, and this gate only asks whether the owner can view what they are sharing.
+   *
+   * <p>The routing follows from that: this is a per-user route and belongs here, not behind the
+   * {@code /api/admin/**} gate. The subject is always the caller's own share link, so an admin
+   * passing the check above only ever widens the admin's own share scope.
    */
   @PutMapping("/collections/{collectionId}")
   public ResponseEntity<Void> addCollection(
