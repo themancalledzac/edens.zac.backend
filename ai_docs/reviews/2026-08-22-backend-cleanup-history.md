@@ -82,26 +82,26 @@ One item was found dead that the review missed: `CollectionRepository.findAllByO
 - [x] `services/CollectionService.java:492-505` — `findById(Long)`. Test-only.
 - [x] `services/validator/ContentImageUpdateValidator.java:48-56` — `validateFilmFormatRequired`. Zero callers.
 - [x] `services/MetadataService.java:420-430` — `findOrCreateLocation`, `findLocationById`. Zero callers.
-- [ ] `services/ContentService.java:825-829` — `resolveCollectionDownloadEntries` 2-arg overload. MOVED TO MR 25 (5 test call sites).
+- [x] `services/ContentService.java:825-829` — `resolveCollectionDownloadEntries` 2-arg overload. MOVED TO MR 25 (5 test call sites). *(Tracked live on the tracker under "Carried forward" / MR 25; this archived copy is not a second open item.)*
 - [x] `services/ContentService.java:165-168, 171-173, 241-243` — three unreachable guard branches in `updateImages`. MOVED TO MR 1b: proving unreachability is a control-flow judgment, not a mechanical deletion.
 - [x] `services/ContentService.java:587, 604, 625` — `updateGif`'s `setTags`/`setPeople`/`setLocations` dead writes. MOVED TO MR 1b.
 - [x] `services/ContentService.java:98-104` — `createTag`/`createPerson` pass-throughs. Have `AdminController` call `MetadataService` directly.
 - [x] `services/ContentMutationUtil.java:112-119, 177-183` — back-compat entity-typed overloads. MOVED TO MR 1b (requires changing two call sites, not just deleting).
 - [x] `types/CollectionVisibility.java:37-39` — `requiresLocalEnv()`. Only its own test calls it.
 - [x] `services/ImageProcessingService.java:143-149` — `prepareImageForUpload` single-arg overload. Zero callers.
-- [ ] `model/DownloadResolution.java:13-14` — `extension` component written, never read; docblock also stale. MOVED TO MR 25 (10 test sites).
+- [x] `model/DownloadResolution.java:13-14` — `extension` component written, never read; docblock also stale. MOVED TO MR 25 (10 test sites). *(Tracked live on the tracker under "Carried forward" / MR 25.)*
 - [x] `services/VideoVariantPlanner.java:27-46` — `VideoVariantPlan`'s target-side fields are always the constants. MOVED TO MR 1b (a record reshape, not a deletion).
 
 ### Dead constructors and config (~120 lines)
 
 - [x] `model/CollectionRequests.java:303-305` — the 2-arg `GalleryAccessRequest` constructor. Zero callers anywhere; every site passes the propagation flag.
 - [x] `model/AuthPrincipal.java` — removed the stale "30 existing call sites" claim from the 4-arg constructor's javadoc. The constructor itself stays (see corrections above).
-- [ ] `model/CollectionRequests.java:119-160` — the 17-arg `Update` constructor. MOVED TO MR 25.
-- [ ] `model/DiskUploadRequest.java:44-46` — the 3-arg `FileEntry` constructor. MOVED TO MR 25.
+- [x] `model/CollectionRequests.java:119-160` — the 17-arg `Update` constructor. MOVED TO MR 25. *(Tracked live on the tracker under "Carried forward" / MR 25.)*
+- [x] `model/DiskUploadRequest.java:44-46` — the 3-arg `FileEntry` constructor. MOVED TO MR 25. *(Tracked live on the tracker under "Carried forward" / MR 25.)*
 - [x] `config/WebConfigProd.java` — `addCorsMappings` registers nothing. The class's only runtime effect is a log line. Delete the file.
 - [x] `config/ProdSecretGuard.java:15-19` — `@RequiredArgsConstructor` with no final fields generates nothing. Delete the annotation and move the `@Value` to a constructor parameter.
 - [x] `config/ImageIoConfig.java:15-42` — `registerPlugins` registers nothing, it only logs SPI discovery. Rename to say what it does; keep the diagnostics.
-- [ ] V19's `admin_home_tile.cover_image_id` column: written by nothing, read by nothing (`AdminHomeService` resolves covers by strategy). DEFERRED — a schema change does not belong in a pure-deletion MR. Drop it in a migration or document it as reserved.
+- [x] V19's `admin_home_tile.cover_image_id` column: written by nothing, read by nothing (`AdminHomeService` resolves covers by strategy). DEFERRED — a schema change does not belong in a pure-deletion MR. Drop it in a migration or document it as reserved. *(Tracked live on the tracker under "Decisions needed from the user".)*
 
 ## MR 1b — Dead code, behavior-adjacent (~60 lines) — DONE
 
@@ -265,7 +265,7 @@ test was replaced 1:1, and five tests were added).
   - Done. The guard is already `@Profile("prod")`, so the new check costs nothing outside prod. Two
     tests added, one of which asserts the failure message names the toggle rather than the secret --
     the two checks must stay independent.
-- [ ] Delete `PersonRepository.findAccountUserIdsByIds` once the only-accounts-get-grants rule is confirmed enforced elsewhere (carried from MR 1). NOT DONE -- the precondition is false.
+- [x] Delete `PersonRepository.findAccountUserIdsByIds` once the only-accounts-get-grants rule is confirmed enforced elsewhere (carried from MR 1). NOT DONE -- the precondition is false. *(CLOSED: MR 15 #6 / [#191](https://github.com/themancalledzac/edens.zac.backend/pull/191) deleted the method and put the guard on `RoleRepository.addMember`; its bypass became S-2, closed by #193.)*
   - The rule is not enforced anywhere. Both `RoleRepository.addMember` call sites
     (`AdminRoleController:152`, `AdminUserController:335`) pass a path-variable user id straight
     through, and `addMember` inserts into `role_member` with no status filter. `findAccountUserIdsByIds`
@@ -780,7 +780,7 @@ still reach Jackson, bounded only by the container's own post limit. Rejecting c
 would be the complete fix but risks breaking a legitimate proxy, and the tracker asked for the
 Content-Length filter specifically. Filed as the one open Wave 3 residual:
 
-- [ ] **Wave 3 residual — chunked bodies bypass the public body cap.** `RateLimitFilter` reads
+- [x] **Wave 3 residual — chunked bodies bypass the public body cap.** `RateLimitFilter` reads *(CLOSED: promoted to S-5 and shipped as #206, 2026-08-24. See the S-5 ledger line on the tracker.)*
   `getContentLengthLong()`, which is -1 for `Transfer-Encoding: chunked`, so a chunked request
   reaches Jackson uncapped. Options: reject chunked on `/api/public/**` outright (complete, small
   risk of breaking a proxy that chunks), or wrap the input stream in a counting guard (complete, no
@@ -5576,3 +5576,380 @@ All three answered by the user in one batch and shipped in
   new S-items, bugs, decision rows and ledger this close-out added). Next: **R-1**, then the
   Tests-that-cannot-fail queue, with S-22/S-23 behind them; ask the user S-14, S-16, S-24 and the
   passkey call in one batch.
+
+# 2026-08-31 close-out — S-14, S-16, S-22, S-23, S-24 and bug #21
+
+Moved from the tracker 2026-08-31. Six items closed in one session, which emptied the security
+board: **zero open security findings, and none blocked on the user.** In-body cross-references
+("above", "below") describe positions on the tracker as of the move. Tracker bodies first, then the
+outcomes.
+
+## S-22 outcome (2026-08-31) — shipped as a list, not the predicate the item specified
+
+Shipped as [#247](https://github.com/themancalledzac/edens.zac.backend/pull/247). Both `RoleRepository` SQL sites now bind one `ROLE_MEMBERSHIP_STATUSES`
+list; the admitted set is unchanged (everything except PERSON).
+
+**The item's prescribed fix was not what shipped, and the correction generalizes.** It said "route
+both SQL sites through a named `mayHoldRoleMembership` predicate". That predicate was written, and
+removed on user review with the objection recorded verbatim: *"why would we need a boolean for
+this? the user has a status, we shouldn't need this... this seems pointless and likely adding bloat
+for no reason"*, plus a second objection to the name -- *"it's saying this user 'MAY' hold the role?
+wtf, why MIGHT they? they do or they don't."*
+
+Both were right. `SessionService.mayHoldSession` earns its shape because **four Java call sites** ask
+it about one user during a request. This rule has **zero** -- it is only ever asked in SQL, over the
+whole set -- so the boolean was a zero-caller wrapper around one `!=`. This became **working rule
+40**.
+
+**Mutation evidence:** narrowing the filter to `== UserStatus.ACTIVE` gives 1 failure and 2 errors
+in `RoleRepositoryIntegrationTest` (25 cases). Run both before and after the predicate was removed.
+
+**The narrowing report the item asked for**, verified against call sites rather than reasoned:
+narrowing to ACTIVE would (1) break staged onboarding, since `createUser` creates accounts INVITED
+and both `addMember` call sites pass a path variable straight through; (2) turn `UserMergeService`'s
+merge into data loss, because `repointMemberships` moves rows only where the guard passes and then
+unconditionally deletes what is left on the source; (3) revoke nothing, since nothing re-runs
+`addMember` on a status change. Two costs, no benefit.
+
+## S-23 outcome (2026-08-31) — the boot check, and the premise finally booted
+
+Shipped as [#248](https://github.com/themancalledzac/edens.zac.backend/pull/248). `ProdActuatorExposureGuard` refuses a prod boot whose resolved
+`management.endpoints.web.exposure.include` is anything but `health`. Reads
+`WebEndpointProperties` rather than the raw property text, because that object is what actuator
+consults -- so the check cannot drift from the exposure it guards. Prod-only, matching
+`ProdSecretGuard`.
+
+**The item's premise was reasoned from deps+config because the 2026-08-29 review could not boot the
+app. It held**: the guard's ten tests all boot a real context through a component scan of
+`Application`'s package.
+
+**The exclude list was left exactly as it is** -- no names added, per the item's own fix shape. It
+is now redundant rather than load-bearing; deleting it is still a separate call and still open as a
+disposition nobody has made.
+
+**Mutation evidence:** dropping `@PostConstruct` takes the class from 10/10 to **5 failures**,
+exactly the refusal cases.
+
+## S-16 outcome (2026-08-31) — one gate, and the item undercounted its own scope
+
+Shipped as [#253](https://github.com/themancalledzac/edens.zac.backend/pull/253). `ShareLinkService.resolveByRawToken` now drops a link whose owner fails
+`SessionService.mayHoldSession`. Suspend, not revoke: no row is deleted, so re-enabling restores
+the same URL for everyone holding it. The test asserts the surviving row count, which is what makes
+it a test of suspend rather than of revoke.
+
+**Shipped smaller than written, deliberately.** The item specified a `users.status` predicate on
+share resolve **and** on the scope query's join. Only the first was built. `resolveByRawToken` is
+the only path from token to link -- callers are `FlybySessionFilter` and `ShareControllerProd` --
+and the flyby cookie carries the **raw token**, not a shareId, so every request re-resolves and
+re-reads status. Nothing reaches `findScopeCollectionIds` or `isCollectionInScope` without a
+shareId resolve produced. This applies the user's own S-14 answer (one gate, as simple as possible)
+consistently.
+
+**The item undercounted its own scope, which is the stronger argument for the chokepoint.** It named
+the scope query but not `ShareLinkRepository.isCollectionInScope`, the per-collection EXISTS check
+on the authorization path, which would have needed the same join under the two-gate reading. Three
+sites to keep in step, or one door.
+
+**No new predicate**, per working rule 40 -- it reuses `mayHoldSession`, already pinned by
+`mayHoldSessionAdmitsActiveAndNothingElse`, so a link serves exactly while its owner can sign in.
+
+**Mutation evidence:** replacing the predicate with a vacuously-true one gives **4 failures of 16**.
+Two earlier attempts at this mutation died on checkstyle before any test ran -- see working rule 41.
+
+## S-14 and S-24 outcomes (2026-08-31) — answered, closed, no code beyond two docblocks
+
+Both closed by [#250](https://github.com/themancalledzac/edens.zac.backend/pull/250).
+
+**S-14 -- no second gate.** The user's answer, verbatim: *"any 'ADMIN' specific api request should
+go through the SAME 'admin' gate. this should be as SIMPLE AS POSSIBLE. we don't want multiple
+gates, but we want all 'admin' level endpoints to use the same gate."* That rejects the item's
+proposed ownership/grant test, so the item closes as accepted behavior.
+
+**What the answer does not settle, recorded rather than papered over.** `addCollection` is **not**
+an admin endpoint -- it is on `UserShareControllerProd` at `/api/read/user/share`, reached by any
+authenticated user for their own scope, and the admin sentinel inside `canView` is what makes it
+answer yes for everything. The one-gate principle applies cleanly to `/api/admin/**`; it does not
+decide what a user endpoint should do when an admin calls it. **If that is wanted, it is a routing
+change (move it, or gate it), not the ownership test this item proposed, and it needs its own
+item.** Forcing the answer into "allow, documented" would have recorded a decision the user did not
+make.
+
+**S-24 -- accept as admin-trusted.** No limiter. The answer's whole content was "document that", so
+the documentation shipped with the answer rather than becoming a follow-up nobody files: docblocks
+on `CollectionAdminController.updateGalleryAccess` and
+`AdminUserController.sendInviteEmailAfterCommit`, each naming the `hasRole("ADMIN")` boundary and
+the condition that reopens it (the path becoming reachable below admin).
+
+## Bug #21 outcome (2026-08-31) — the sentinel, and a test that could not have failed
+
+Shipped as [#249](https://github.com/themancalledzac/edens.zac.backend/pull/249). Both dimension defaults in `ImageProcessingService.applyMetadataToEntity`
+are now `null` instead of `0`. Backend sentinel only; the frontend fallbacks were left alone.
+
+**The item's premise correction held and saved the wrong fix from being proposed again** -- the
+header read already exists, and the defect is that it fails soft three ways.
+
+**A trap worth more than the fix.** The first version of the regression test passed against **either**
+sentinel. `imageMetadataExtractor` is a mock in `ImageProcessingServiceTest`, and a bare mock
+returns `null` for an `Integer` on its own, so the captured entity had a null width no matter what
+default the production code passed. The stub has to be made to return the default it is handed --
+`thenAnswer(inv -> inv.getArgument(1))` -- before the test can fail. This is working rule 15's shape
+hiding inside a mock's default return, and it would have shipped as coverage that was not there.
+**Mutation evidence:** restoring the `0` default fails it with `expected: <null> but was: <0>`.
+
+## Tracker bodies as they stood at the move
+
+### Bug #21 (tracker body)
+
+- [x] **Bug #21 (low) -- when the dimension fallback fails it writes `0`, and `0` is the one value
+  the frontend cannot tell apart from "broken".** **IN FLIGHT 2026-08-30: [#249](https://github.com/themancalledzac/edens.zac.backend/pull/249)** --
+  both defaults are now `null`. Backend sentinel only; the frontend fallbacks are untouched. One
+  thing found while writing the test and worth keeping: the extractor is a mock in
+  `ImageProcessingServiceTest`, and a bare mock returns `null` for an `Integer` on its own, so the
+  obvious version of the test passes against either sentinel and cannot fail. The stub has to
+  return the default the production code passes it. *(Filed 2026-08-30 from the frontend board's C9.
+  C9 asked a product question -- should a dimensionless cover fall back to a text-only header? --
+  and the user's answer reframed it: "we should NEVER HAVE AN IMAGE WITHOUT height/width... we
+  should NEVER be caught in this situation." That is a statement about this repo, so the item
+  belongs here.)*
+  **Premise correction made while filing, and it cuts the severity from medium to low.** The obvious
+  reading -- "EXIF has no dimensions, so `0` gets written" -- is WRONG, and anyone re-deriving this
+  item will reach for it. `ImageMetadataExtractor:97-100` and `:119-122` already check for the
+  missing keys and call `ensureDimensions`/`ensureDimensionsFromPath`, which read width and height
+  straight off the image header via `putDimensionsFromHeader:399-420`. **The "just read the real
+  dimensions" fix already exists.** Do not propose it again.
+  **What is actually wrong: that fallback fails soft, three ways, and each one lands on `0`.**
+  `putDimensionsFromHeader` returns without setting the keys when `createImageInputStream` yields
+  null (`:402-404`) or when no `ImageReader` handles the format (`:406-408`), and `ensureDimensions`
+  swallows an `IOException` (`:369-371`). Each logs a warning and continues. Then
+  `ImageProcessingService.applyMetadataToEntity:465-468` writes
+  `parseIntegerOrDefault(metadata.get("imageWidth"), 0)` -- **default `0`, not null**. The realistic
+  trigger is the no-reader branch: a format Java ImageIO has no reader for, which for a photography
+  archive means RAW or HEIC without a plugin. Note the inconsistency in the same method -- `iso` on
+  the very next line defaults to `null`; only the dimensions default to `0`.
+  **Why `0` is worse than `null`.** Both frontend consumers handle the two differently and both get
+  it wrong. `contentLayout.ts:650` guards `if (!coverBlock.imageWidth || !coverBlock.imageHeight)
+  return null` -- `0` is falsy in JS, so a `0 x 0` cover renders **no collection header at all**.
+  The sibling path at `parallaxCard.ts:135-136` falls back to a 1000px square via
+  `raw.imageWidth ?? SQUARE_FALLBACK_SIDE` -- but `??` catches only null/undefined, so `0` passes
+  straight through the fallback built for exactly this case. One sentinel, two consumers, two
+  different wrong answers.
+  **Fix shape:** default to `null` rather than `0` at `:465-468`, so the frontend's existing
+  null handling works and `parallaxCard`'s `??` fallback fires as designed. Optionally make the
+  soft-fail loud -- a warning nobody reads is how a `0 x 0` row reaches production unnoticed.
+  The column already permits null (`ContentImageEntity:48` is a boxed `Integer`;
+  `test-base-schema.sql:83` is `image_width INTEGER` with no `NOT NULL`), so no migration is needed
+  for the null default. **Frontend C9 is parked pending this** -- it should not add a fallback for a
+  value this repo should stop producing. **COLD.**
+
+- [x] **Config rot C-1 (2026-08-30) -- CLOSED same session by
+  [#245](https://github.com/themancalledzac/edens.zac.backend/pull/245).** #243 deleted
+  `app.admin.enforce-authz` but only its assignment lines. Four sites went on describing it:
+  `application.properties` (3 lines plus an empty banner with two adjacent `#---#` separators),
+  `application-dev.properties` (2 lines), `docker-compose.yml` (a comment and a dead
+  `ADMIN_ENFORCE_AUTHZ` env), and `.env.example` (3 lines plus the key). All false as of the same
+  commit that made them false, and `.env.example` actively invited setting the toggle to `false`
+  for a login-free admin surface, which now does nothing silently.
+  **The lesson, and it generalises past this item: when deleting a config key, grep the
+  surrounding prose, not the key.** Grepping the key after deleting it finds nothing and reads as
+  a clean sweep; the prose survives precisely because it contains no assignment. It surfaced only
+  from an unrelated angle -- diffing `application.properties` against the stale
+  `fix/s18-actuator-exclude` branch, where the orphans appeared as unchanged context around a
+  single `+` line. The four Java docblocks naming the toggle are kept deliberately: they say it
+  *was removed and when*, which is true.
+
+### S-14 (tracker body)
+
+- [x] **S-14 (MEDIUM, agent trace). S-6 turned `addCollection` from a read decision into a durable
+  third-party grant.** **ANSWERED 2026-08-30 -- no second gate. Closed as accepted behavior, with
+  one thing it does not settle recorded below.** The user's answer, verbatim: *"any 'ADMIN'
+  specific api request should go through the SAME 'admin' gate. this should be as SIMPLE AS
+  POSSIBLE. we don't want multiple gates, but we want all 'admin' level endpoints to use the same
+  gate."*
+
+  **What that settles.** The default-safe option this item proposed -- an ownership/grant test
+  distinct from `canView`, so the admin sentinel cannot durably grant a third party access -- is
+  **rejected**. It is a second gate on top of the one that already answers for admins, which is
+  exactly the shape the answer refuses. Do not open an MR adding one.
+
+  **What it does not settle, and someone should notice this rather than re-deriving it.**
+  `addCollection` is **not** an admin endpoint. It lives on `UserShareControllerProd`, mapped at
+  `/api/read/user/share`, and is reached by any authenticated user for their own share scope; the
+  admin sentinel in `canView` is what makes it answer yes for everything. So the one-gate principle
+  applies cleanly to `/api/admin/**` and does not by itself decide what a *user* endpoint should do
+  when an admin calls it. The behavior is accepted as it stands. If the intent is that this
+  endpoint be admin-gated like the rest, that is a routing decision (move it, or gate it), not the
+  ownership test this item proposed -- file it as its own item.
+
+  Original finding follows.
+ `UserShareControllerProd.addCollection` gates on `canView`, then writes a
+  `share_link_collection` row -- which is the authorization set for an unauthenticated bearer-token
+  holder. Before S-6, an admin holding no role grant got 403 there. The ADMIN sentinel now makes the
+  gate always say yes, so one PUT can put any collection on the site, including another client's
+  password-protected gallery, behind a URL that can be forwarded to anyone. **#207's reasoning ("an
+  admin can already view everything") is correct for the read gates and does not transfer to a gate
+  that grants access to someone else.** This is the first item to argue a previous fix was too
+  broad rather than too narrow.
+
+### S-16 (tracker body)
+
+- [x] **S-16 (MEDIUM, agent trace). The revoke-on-status sweep covers sessions and invites and misses
+  share links.** **IN FLIGHT 2026-08-31: [#253](https://github.com/themancalledzac/edens.zac.backend/pull/253).** Shipped as **one gate, not two.** The
+  item specified a `users.status` predicate on share resolve *and* on the scope query's join; the
+  scope-query half was not built, deliberately. `resolveByRawToken` is the only way a token becomes
+  a link -- its two callers are `FlybySessionFilter:65` and `ShareControllerProd:59` -- and the
+  flyby cookie carries the raw token, so every request comes back through it. Nothing reaches
+  `findScopeCollectionIds` or `isCollectionInScope` without a shareId that resolve produced, so a
+  status join there would be a second gate enforcing what the first already did. **That is the
+  user's S-14 answer applied consistently** (one gate, as simple as possible), and it is why this
+  item shipped smaller than written. **A third site the item did not name:**
+  `ShareLinkRepository.isCollectionInScope` is the per-collection EXISTS check and would have needed
+  the same join under the two-gate reading -- so the item undercounted its own scope, which is
+  further reason the chokepoint was the right place. No new predicate was written: the check reuses
+  `SessionService.mayHoldSession`, the rule the session path already enforces, so a link serves
+  exactly while its owner's account can sign in. **UNBLOCKED 2026-08-30: the answer is SUSPEND, not
+  revoke.** Disabling an account
+  stops its share links from resolving; re-enabling restores them. Revoking is destructive and not
+  undone by re-enabling, so it is refused. **Fix shape, now decided rather than open:** a
+  `users.status` predicate on the share-resolve path (`ShareLinkService.resolveByRawToken`) and on
+  the scope query's `share_link` -> `collection_people` join, so both read owner status. No rows are
+  deleted on a status change. Note for whoever takes this: the status test wants a named predicate
+  shared by both sites rather than two literals -- that is the drift S-20 closed for sessions and
+  S-22 for role membership, and this would be the third site to hand-roll it. **This item is now
+  actionable work, not a product call.**
+
+  Original finding follows.
+ `ShareLinkService.resolveByRawToken` reads no owner status, and the scope query
+  joins `share_link` to `collection_people` with no `users.status` predicate. Disable a user for
+  cause: S-1 refuses their login, S-8 kills their sessions, S-9 kills their invites, and their share
+  link keeps serving every collection they are tagged in to anyone holding the URL. #213 sharpens
+  this by making that link durable and re-readable rather than a one-shot value.
+
+### S-22 (tracker body)
+
+- [x] **S-22 (LOW, verified 2026-08-29). `RoleRepository`'s status guards are SQL denylists that
+  fail open for a future `UserStatus`.** S-20's outcome set the convention: never compare a
+  `UserStatus` to a literal outside the two named predicates (`mayHoldSession`, `mayAcceptInvite`).
+  `RoleRepository.addMember` (`RoleRepository.java:135`, `status <> 'PERSON'`) and
+  `repointMemberships` (`:522`, same test) break it -- and they are **denylists** where the two
+  predicates are allowlists, so a fifth `UserStatus` is admitted to role membership by
+  construction: the exact drift S-20 closed for sessions, one file over. Unpinned today:
+  `RoleRepositoryIntegrationTest.addMemberRejectsTagOnlyPersonRow` (`:53`) tests only
+  PERSON-rejected/ACTIVE-admitted, with no `UserStatus.values()` enum pin like
+  `SessionServiceIntegrationTest.mayHoldSessionAdmitsActiveAndNothingElse`. **Not
+  live-exploitable**: a DISABLED account in a role cannot authenticate at either chokepoint, so
+  `canView`'s status-blind join is unreachable by that user -- the dormancy reasoning under
+  "Verified sound" still holds, and this item does not tighten the membership rule, it pins it.
+  Fix: add the enum pin (rule-33 shape) and route both SQL sites through a named
+  `mayHoldRoleMembership` predicate so the rule keeps one definition (rule 14). **COLD.**
+  **IN FLIGHT 2026-08-30: [#247](https://github.com/themancalledzac/edens.zac.backend/pull/247).** Shipped as one `ROLE_MEMBERSHIP_STATUSES` list bound by
+  both SQL sites, **not** as a named boolean predicate. The predicate was written first and removed
+  on review: `mayHoldSession` earns its shape from four Java call sites that ask it about one user
+  per request, and this rule has none -- it is only ever asked in SQL, over the whole set, so the
+  boolean was a zero-caller wrapper around one `!=`. The list is the single definition. The item's
+  wording ("route both SQL sites through a named `mayHoldRoleMembership` predicate") should be read
+  as naming the outcome, not the mechanism. The narrowing report the item did not ask for but the
+  fix needs is in the PR: narrowing to ACTIVE breaks staged onboarding, turns a merge into a
+  non-ACTIVE target into data loss, and revokes nothing.
+
+### S-23 (tracker body)
+
+- [x] **S-23 (LOW, filed 2026-08-29). The rule-34 follow-up, now actually filed: a boot check on
+  the *resolved* actuator include.** Rule 34 recorded this follow-up as "filed not built" and it
+  existed nowhere as a row until now. The gap it closes: `/actuator/metrics` (and `info`) meet
+  S-18's own criterion under an injected `include=*` -- metrics dumps process/JVM/HTTP state and is
+  enabled by default in Boot 3.x -- yet neither is in the shipped exclude
+  (`application.properties:65`, twelve names -- **re-derived 2026-08-30**, was `:71`; #238 removed the
+  six-line prose block above it, so `include` is now 64 and `exclude` 65. Stable under #245, which
+  edits the same file lower down.) nor in `MUST_BE_EXCLUDED`, and **both S-18 tests are
+  structurally blind to the omission**, because both derive from the same hand enumeration that
+  omitted it (working rule 33 one level up). Reachable only under the injected-wildcard accident
+  (rule 34), and in prod only to an internal-secret bearer -- `InternalSecretFilter` allows just
+  the three health URIs otherwise. Fix shape: a `ProdSecretGuard`-shaped boot check asserting the
+  resolved `management.endpoints.web.exposure.include` is `health` -- it closes metrics, info and
+  every future Boot endpoint at once without hand-enumerating names, and it is the only thing that
+  would make the exclude list and `MUST_BE_EXCLUDED` deletable. *(Premise reasoned from
+  deps+config; the 2026-08-29 review could not boot the app.)* **COLD.**
+  **IN FLIGHT 2026-08-30: [#248](https://github.com/themancalledzac/edens.zac.backend/pull/248).** `ProdActuatorExposureGuard`, prod-profile-gated like
+  `ProdSecretGuard`, reading `WebEndpointProperties` rather than the raw property text so the check
+  cannot drift from what actuator actually exposes. The premise held when the app was finally
+  booted: the guard's own tests boot a real context. **The exclude list was left exactly as it is**
+  -- no names added, and deleting it is still a separate call.
+
+### S-24 (tracker body)
+
+- [x] **S-24 (LOW, quick user call, filed 2026-08-29). Two admin mail-send paths are covered by
+  neither limiter, and the gallery one amplifies.** **ANSWERED and CLOSED 2026-08-30: accept as
+  admin-trusted, documented.** No limiter is added. The answer's whole content was "document that",
+  so the documentation shipped with the answer rather than being left as a follow-up: a docblock on
+  `CollectionAdminController.updateGalleryAccess` recording that the N-address send loop is
+  deliberately uncapped, and one on `AdminUserController.sendInviteEmailAfterCommit` recording the
+  same for its three callers. Both say the trust boundary out loud -- `hasRole("ADMIN")` -- and both
+  name the condition that would reopen this: the path becoming reachable below admin.
+
+  Original finding follows.
+ `POST /api/admin/collections/{id}/gallery-access`
+  (`CollectionAdminController.java:56`) loops `sendGalleryPasswordEmail` over a caller-supplied
+  `request.emails()` list with no cap (`CollectionService.java:1675-1683` -- N SES sends per
+  request), and the three admin invite endpoints (`AdminUserController.createUser` /
+  `regenerateInvite` / `upgradeUser`, via `sendInviteEmailAfterCommit`) have no limiter at all.
+  All are behind `hasRole("ADMIN")` -- highest trust, hence LOW -- but each is an authenticated SES
+  send covered by neither `RateLimitFilter` (which covers `/api/public/` only) nor
+  `ShareEmailLimiter` (keyed to the one share endpoint). The call: either a global daily cap on
+  gallery-password sends (`ContactMessageLimiter` shape), or accept as admin-trusted and document
+  that. One sentence from the user settles it.
+
+# Session log archive — entries moved 2026-08-31
+
+Oldest first. Moved off the tracker by the 2026-08-31 close-out; the tracker keeps the two newest.
+
+- 2026-08-30 — **cross-repo filing from the frontend's close-out session. No backend code.**
+  Filed **Bug #21** (the dimension fallback fails soft and writes `0`), promoted out of the frontend
+  board's C9 after the user's answer reframed it from a rendering question into a data-integrity one
+  about this repo. **The filing corrected its own premise before landing** — the obvious version of
+  the bug ("EXIF missing, so `0` is written") is false, because `ensureDimensions` already reads the
+  header; the real defect is that the header read fails soft three ways and each lands on `0`.
+  Severity dropped medium → low on that correction, and the dead fix proposal is recorded in the
+  item so it is not re-proposed.
+  **Two consequences of #243 the frontend had to absorb, noted here so the trail is two-way.**
+  Blessing bare arrays answers the frontend board's G5, which had been sitting BLOCKED-on-user for
+  the same decision — it closes there with zero code. Second, and unprompted: making the
+  `/api/admin/**` gate unconditional **invalidated a Critical Rule in the frontend's `CLAUDE.md`**,
+  which still tells every agent "the local backend serves `/api/admin/**` with no cookie. Do not
+  'fix' any of those as a security hole." Filed on the frontend board; flagged here because a
+  backend security change silently falsifying a frontend standing instruction is a class of
+  breakage neither board was watching for.
+  **One gap observed in passing, not fixed:** #243 merged without a session-log entry on this
+  board, so the log's newest entry is still 2026-08-29 while HEAD is #243. Left for the backend's
+  own close-out rather than reconstructed from here.
+
+- 2026-08-30 (second session) — **three MRs and the four-answer batch.** Shipped S-22
+  ([#247](https://github.com/themancalledzac/edens.zac.backend/pull/247)), S-23 ([#248](https://github.com/themancalledzac/edens.zac.backend/pull/248)) and Bug #21 ([#249](https://github.com/themancalledzac/edens.zac.backend/pull/249)), each mutation-proved before
+  the PR, then recorded the four product answers the previous entry asked for.
+  **The user's four answers:** S-14 *no second gate* (closed), S-16 *suspend, not revoke*
+  (unblocked, now the next security item), S-24 *accept as admin-trusted* (closed, with the two
+  docblocks that were the answer's whole content), passkey revocation *admin endpoint only* (filed
+  as work, not built). **Nothing in the security section is blocked on the user any more.**
+  **S-14's answer did not fit either option offered**, and this is the log line for it: the answer
+  was a principle -- every admin endpoint through the same admin gate, as simple as possible -- and
+  `addCollection` is not an admin endpoint. It sits on `UserShareControllerProd` at
+  `/api/read/user/share`; the admin sentinel in `canView` is what makes it answer yes for
+  everything. The principle rejects the ownership test the item proposed, so the item closes, but
+  it does not decide what a user endpoint should do when an admin calls it. Recorded as closed with
+  that gap named rather than forced into "allow, documented".
+  **S-22 shipped in a different shape than the item specified, and the review caught it.** The item
+  said "route both SQL sites through a named `mayHoldRoleMembership` predicate". That predicate was
+  written, and removed on user review: `mayHoldSession` earns its shape from four Java call sites
+  that ask it about one user per request, and this rule has **zero** -- it is only ever asked in
+  SQL, over the whole set, so the boolean was a zero-caller wrapper around one `!=` added to match
+  a convention rather than because anything called it. **The lesson generalizes past this item:** a
+  predicate is worth naming when code calls it, not when a board says "named predicate". The list
+  bound by both SQL sites is the same single definition with one less name in the API.
+  **A verification failure worth recording, because it nearly shipped a false result.** The first
+  mutation run on S-23's guard read "10/10 green" from
+  `target/surefire-reports` after a build that had actually **failed to compile** -- removing
+  `@PostConstruct` left an unused import, checkstyle failed the build, and the stale report from
+  the previous run was still on disk. A stale surefire report reads exactly like a passing run.
+  Deleting the report file before the mutation run is what turned it into the real answer (5
+  failures). Any mutation proof that greps surefire output should delete the report first.
+  Next: **S-16** (suspend on share resolve, now unblocked), then the passkey admin endpoint. Both
+  are ordinary work with no open questions.
