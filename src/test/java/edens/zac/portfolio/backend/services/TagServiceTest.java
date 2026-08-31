@@ -64,7 +64,7 @@ class TagServiceTest {
     when(tagRepository.findCollectionsByTagId(eq(5L), anyList()))
         .thenReturn(List.of(memberCollection));
     when(tagRepository.findImageContentByTagId(eq(5L), anyList())).thenReturn(List.of(300L, 301L));
-    when(collectionRepository.getMaxOrderIndexForCollection(99L)).thenReturn(0);
+    when(collectionRepository.getNextOrderIndexForCollection(99L)).thenReturn(1);
 
     when(collectionService.getUpdateCollectionData("landscape"))
         .thenReturn(responseWithId(99L, "landscape"));

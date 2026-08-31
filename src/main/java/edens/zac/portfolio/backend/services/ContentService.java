@@ -466,8 +466,7 @@ public class ContentService {
 
   /** Returns the next available orderIndex for a collection (max + 1, or 0 if empty). */
   int nextOrderIndex(Long collectionId) {
-    Integer maxOrder = collectionRepository.getMaxOrderIndexForCollection(collectionId);
-    return maxOrder != null ? maxOrder + 1 : 0;
+    return collectionRepository.getNextOrderIndexForCollection(collectionId);
   }
 
   /**

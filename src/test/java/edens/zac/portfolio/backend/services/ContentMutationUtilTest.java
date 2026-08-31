@@ -279,7 +279,7 @@ class ContentMutationUtilTest {
     when(collectionRepository.findById(5L)).thenReturn(Optional.of(collection));
     when(collectionRepository.findContentByCollectionIdAndContentId(5L, 1L))
         .thenReturn(Optional.empty());
-    when(collectionRepository.getMaxOrderIndexForCollection(5L)).thenReturn(null);
+    when(collectionRepository.getNextOrderIndexForCollection(5L)).thenReturn(0);
 
     Records.ChildCollection childCollection =
         new Records.ChildCollection(5L, null, null, null, true, null);
@@ -505,7 +505,7 @@ class ContentMutationUtilTest {
     when(collectionRepository.findById(9L)).thenReturn(Optional.of(target));
     when(collectionRepository.findContentByCollectionIdAndContentId(9L, 77L))
         .thenReturn(Optional.empty());
-    when(collectionRepository.getMaxOrderIndexForCollection(9L)).thenReturn(2);
+    when(collectionRepository.getNextOrderIndexForCollection(9L)).thenReturn(3);
 
     contentMutationUtil.handleAddToCollections(
         77L, List.of(new Records.ChildCollection(9L, null, null, null, true, null)));

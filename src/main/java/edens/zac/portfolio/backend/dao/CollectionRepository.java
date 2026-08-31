@@ -897,6 +897,16 @@ public class CollectionRepository extends BaseDao {
     return namedParameterJdbcTemplate.queryForObject(sql, params, Integer.class);
   }
 
+  /**
+   * Next available orderIndex for appending content to a collection: the current max plus one, or 0
+   * when the collection holds no content.
+   */
+  @Transactional(readOnly = true)
+  public int getNextOrderIndexForCollection(Long collectionId) {
+    Integer maxOrder = getMaxOrderIndexForCollection(collectionId);
+    return maxOrder != null ? maxOrder + 1 : 0;
+  }
+
   @Transactional
   public void updateContentOrderIndex(Long id, Integer orderIndex) {
     String sql = "UPDATE collection_content SET order_index = :orderIndex WHERE id = :id";
