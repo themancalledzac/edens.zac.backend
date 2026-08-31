@@ -45,8 +45,6 @@ public class MetadataService {
   private final MetadataValidator metadataValidator;
   private final ReadCacheInvalidator readCacheInvalidator;
 
-  // ========== Tag Operations ==========
-
   @Transactional(readOnly = true)
   public List<Records.Tag> getAllTags() {
     return tagRepository.findAllByOrderByTagNameAsc().stream()
@@ -109,8 +107,6 @@ public class MetadataService {
     tagRepository.deleteById(id);
     log.info("Deleted tag with ID: {}", id);
   }
-
-  // ========== Person Operations ==========
 
   @Transactional(readOnly = true)
   public List<Records.Person> getAllPeople() {
@@ -184,8 +180,6 @@ public class MetadataService {
     log.info("Deleted person with ID: {}", id);
   }
 
-  // ========== Camera Operations ==========
-
   @Transactional(readOnly = true)
   public List<Records.Camera> getAllCameras() {
     return equipmentRepository.findAllCamerasOrderByName().stream()
@@ -257,8 +251,6 @@ public class MetadataService {
         .orElseThrow(() -> new IllegalArgumentException("Camera not found: " + id));
   }
 
-  // ========== Lens Operations ==========
-
   @Transactional(readOnly = true)
   public List<Records.Lens> getAllLenses() {
     return equipmentRepository.findAllLensesOrderByName().stream()
@@ -307,8 +299,6 @@ public class MetadataService {
         .findLensById(id)
         .orElseThrow(() -> new IllegalArgumentException("Lens not found: " + id));
   }
-
-  // ========== Film Type Operations ==========
 
   @Transactional(readOnly = true)
   public List<ContentFilmTypeModel> getAllFilmTypes() {
@@ -374,8 +364,6 @@ public class MetadataService {
         .orElseThrow(() -> new IllegalArgumentException("Film type not found: " + id));
   }
 
-  // ========== Location Operations ==========
-
   @Transactional(readOnly = true)
   public List<Records.Location> getAllLocations() {
     return locationRepository.findAllByOrderByLocationNameAsc().stream()
@@ -388,6 +376,14 @@ public class MetadataService {
     return locationRepository.findLocationsWithVisibleContent();
   }
 
+  /**
+   * Rename a location, rejecting a name that collides with another row by name or by slug.
+   *
+   * <p>The slug check mirrors {@link LocationRepository#findOrCreate}, which consults {@code
+   * findBySlug} before inserting. Two distinct names can slugify identically ("St. Moritz" and "St
+   * Moritz" both give {@code st-moritz}), so the name check alone let the collision reach {@code
+   * idx_location_slug} and surface as a driver-level violation.
+   */
   @Transactional
   @CacheEvict(value = "generalMetadata", allEntries = true)
   public Records.Location updateLocation(Long id, String locationName) {
@@ -406,8 +402,14 @@ public class MetadataService {
       throw new DataIntegrityViolationException("Location already exists: " + locationName);
     }
 
+    String slug = SlugUtil.generateSlug(locationName);
+    Optional<LocationEntity> slugOwner = locationRepository.findBySlug(slug);
+    if (slugOwner.isPresent() && !slugOwner.get().getId().equals(id)) {
+      throw new DataIntegrityViolationException("Location slug already in use: " + slug);
+    }
+
     location.setLocationName(locationName);
-    location.setSlug(SlugUtil.generateSlug(locationName));
+    location.setSlug(slug);
     LocationEntity saved = locationRepository.save(location);
     log.info("Updated location with ID: {} to name: {}", id, locationName);
     return toLocationModel(saved);
@@ -424,8 +426,6 @@ public class MetadataService {
     locationRepository.deleteById(id);
     log.info("Deleted location with ID: {}", id);
   }
-
-  // ========== Private Converters ==========
 
   private Records.Tag toTagModel(TagEntity entity) {
     return new Records.Tag(entity.getId(), entity.getTagName(), entity.getSlug());
