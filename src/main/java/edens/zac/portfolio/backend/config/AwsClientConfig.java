@@ -6,15 +6,25 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudfront.CloudFrontClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.sesv2.SesV2Client;
 
+/**
+ * Every AWS client the application uses, sharing one static credentials provider.
+ *
+ * <p>All four clients take the same credentials. Three take {@code aws.s3.region}; CloudFront is a
+ * global service and must keep {@link Region#AWS_GLOBAL}. The property key is {@code aws.s3.region}
+ * rather than a neutral {@code aws.region} because 51 test classes supply it by that name to start
+ * their context.
+ */
 @Slf4j
 @Configuration
-public class S3Config {
+public class AwsClientConfig {
 
   @Value("${aws.access.key.id}")
   private String accessKeyId;
@@ -27,26 +37,25 @@ public class S3Config {
 
   @PostConstruct
   public void logConfig() {
-    log.info("S3Config initialized");
+    log.info("AwsClientConfig initialized");
     log.info("Region: {}", region);
     log.info("Access key length: {}", accessKeyId != null ? accessKeyId.length() : "null");
     log.info("Secret key length: {}", secretAccessKey != null ? secretAccessKey.length() : "null");
   }
 
-  @Bean(destroyMethod = "close")
-  public S3Client s3Client() {
-    log.info("Creating S3Client");
-    try {
-      AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
+  @Bean
+  public AwsCredentialsProvider awsCredentialsProvider() {
+    return StaticCredentialsProvider.create(
+        AwsBasicCredentials.create(accessKeyId, secretAccessKey));
+  }
 
-      return S3Client.builder()
-          .credentialsProvider(StaticCredentialsProvider.create(credentials))
-          .region(Region.of(region))
-          .build();
-    } catch (Exception e) {
-      log.error("Failed to create S3Client", e);
-      throw e;
-    }
+  @Bean(destroyMethod = "close")
+  public S3Client s3Client(AwsCredentialsProvider credentialsProvider) {
+    log.info("Creating S3Client");
+    return S3Client.builder()
+        .credentialsProvider(credentialsProvider)
+        .region(Region.of(region))
+        .build();
   }
 
   /**
@@ -55,22 +64,30 @@ public class S3Config {
    * 5.72 MB response cap that kills anything proxied through the Next.js BFF.
    */
   @Bean(destroyMethod = "close")
-  public S3Presigner s3Presigner() {
+  public S3Presigner s3Presigner(AwsCredentialsProvider credentialsProvider) {
     log.info("Creating S3Presigner");
-    AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
     return S3Presigner.builder()
-        .credentialsProvider(StaticCredentialsProvider.create(credentials))
+        .credentialsProvider(credentialsProvider)
         .region(Region.of(region))
         .build();
   }
 
   @Bean(destroyMethod = "close")
-  public CloudFrontClient cloudFrontClient() {
+  public CloudFrontClient cloudFrontClient(AwsCredentialsProvider credentialsProvider) {
     log.info("Creating CloudFrontClient");
-    AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
     return CloudFrontClient.builder()
-        .credentialsProvider(StaticCredentialsProvider.create(credentials))
+        .credentialsProvider(credentialsProvider)
         .region(Region.AWS_GLOBAL)
+        .build();
+  }
+
+  /** Used by {@link edens.zac.portfolio.backend.services.EmailService} for transactional email. */
+  @Bean(destroyMethod = "close")
+  public SesV2Client sesV2Client(AwsCredentialsProvider credentialsProvider) {
+    log.info("Creating SesV2Client (region={})", region);
+    return SesV2Client.builder()
+        .region(Region.of(region))
+        .credentialsProvider(credentialsProvider)
         .build();
   }
 }
