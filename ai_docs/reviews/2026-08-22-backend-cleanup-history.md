@@ -625,6 +625,11 @@ unification**, and is the cheap half if anyone wants it.
 
 ## Session log
 
+**This is the older half of the archive** (entries from 2026-08-22). The newer half is
+[Session log archive — entries moved 2026-08-31](#session-log-archive--entries-moved-2026-08-31),
+5,300 lines below. Both are linked from the tracker; note added 2026-08-31 (third run), when the
+tracker's single "the archive" link was found to resolve only to this half.
+
 - 2026-08-22 — shipped MR 5-8 and bug #6 (#165, #166, #168, #169, #170). Wave 1 already complete.
 - 2026-08-22 — recorded MR 9's real scope and split it in two (#171).
 - 2026-08-22 — shipped MR 9a, bugs #8 and #9 (#172). Decided: keep the default DB password
@@ -5979,9 +5984,108 @@ hiding inside a mock's default return, and it would have shipped as coverage tha
   gallery-password sends (`ContactMessageLimiter` shape), or accept as admin-trusted and document
   that. One sentence from the user settles it.
 
+# Full-board review — run 2026-08-31 (third run)
+
+Five read-only agents, one apply agent, one docs MR, zero code changes. The tracker carries the
+summary and the filed items; this is the detail that does not belong in a tracker (working rule 11).
+
+## Shape
+
+Slices, one agent each: the two unchecked MR 25 arity counts; premise re-verification across
+MR 16-19; the merged security set (#247, #248, #250, #253, #257) attacked as a set; the
+frontend/backend pair; and board hygiene, counts and internal consistency. The apply agent worked
+from the five written report files, not from a retelling — which is what the second close-out's
+guardrail asked for, and it mattered: two of the five reports corrected a premise the parent session
+would have paraphrased away.
+
+**Zero code changes is the result to record.** Three reports recommended code fixes. All three were
+filed as board items with their evidence and none was implemented. The single docs MR was the whole
+output.
+
+## The count audit — clean, and that is new
+
+| What | Recorded | Actual |
+|---|---|---|
+| Open bugs (`grep -c '^- \[ \] \*\*Bug #'`) | 1 | 1 |
+| Open security (`grep -c '^- \[ \] \*\*S-'`, before filing) | 0 | 0 |
+| History open checkboxes | 0 | 0 |
+| Rule-37 leading `//`, total | 1,644 | 1,644 |
+| — main / test | 262 / 1,382 | 262 / 1,382 |
+| Trailing inline comments | 74 | 74 |
+| `RoleRepository` / `AdminBootstrap` / `CollectionControllerProd` | 10 / 6 / 9 | 10 / 6 / 9 |
+| Worktrees | 6 | 6 |
+
+Also checked and clean: **every PR the board cites is merged** — all 63 numbers from #159 to #258
+return `MERGED`; and **every internal anchor link between the two files resolves** — both files
+parsed, every heading slug extracted, every `](...#anchor)` matched, zero broken.
+
+Two of these numbers were corrected in the previous close-out and both held, which is the first time
+a correction has survived a full audit.
+
+## Security slice — checked and clean, do not redo
+
+Filed: S-26 (HIGH), S-27 (LOW), S-28 (LOW). S-16's reachability claim held and is recorded under
+"Verified sound" in the tracker. Everything below was attacked and found clean; do not spend a
+session re-deriving any of it.
+
+- **`/api/admin/**` authorization covers both new routes.** `SecurityConfig:75-76` is a path-pattern
+  matcher over `/api/admin/**`, unconditional in every profile since #243. `AdminUserController` is
+  `@RequestMapping("/api/admin/users")`, so both passkey routes are inside it by construction — no
+  per-route enumeration to fall out of sync.
+- **IDOR on `{credentialId}`.** `WebAuthnCredentialRepository.deleteByIdAndUserId:99-110` scopes the
+  DELETE with `WHERE id = :id AND user_id = :userId`; another account's credential returns 0 rows and
+  404s. Pinned by `WebAuthnCredentialRepositoryIntegrationTest.deleteByIdAndUserIdWillNotDeleteAnotherAccountsCredential`.
+- **IDOR on `{id}`** — any admin can list and delete any account's passkeys. That is the S-24 answer
+  (admins are trusted), not a finding.
+- **Error-message leakage.** `AdminUserController:447` echoes only the caller's own path input.
+- **`PasskeyDeregisterResult` and `PasskeyRow` leakage.** Both scoped to the `{id}` in the path;
+  `PasskeyRow` carries id, label, transports, createdAt, lastUsedAt — no public key, no raw
+  credential-id bytes. Pinned by `AdminUserControllerTest.listPasskeysReturnsMetadataWithoutKeyMaterial`.
+- **Caching.** `CacheControlInterceptor` is default-deny; the passkey list is stamped `no-store`.
+- **Deregistration actually stops a login.** `JdbcUserCredentialRepository.findByCredentialId` returns
+  null after the delete, covered against real Postgres by
+  `WebAuthnCredentialRepositoryIntegrationTest.aDeregisteredCredentialIsGoneFromTheLoginLookup`.
+- **S-16 and S-22 do not touch.** `findScopeCollectionIds` and `isCollectionInScope`
+  (`ShareLinkRepository:145-194`) resolve scope through `collection_people`, not `role_member`, so
+  S-22's `ROLE_MEMBERSHIP_STATUSES` cannot widen a share's scope.
+- **S-23** has no interaction with the passkey, session or share paths.
+- **Deregistration vs S-1.** `WebAuthnService.finishLogin:218-221` still gates on `mayHoldSession`
+  after a verified assertion, so a deleted credential and a non-ACTIVE status are independently fatal.
+
+**Quarantined, not counted as findings.** `deregisterPasskey` is not `@Transactional`, so a concurrent
+`register/finish` between the delete and the two response reads can make `remainingPasskeys` report a
+credential the admin did not intend to count — report accuracy, probably not security, and the race
+was not constructed. There is no audit trail for the deregistration beyond one SLF4J line; whether
+this repo wants an audit table for admin credential changes is a product question with no recorded
+answer.
+
+## Cross-repo slice — the reverse-direction scan
+
+Every endpoint path literal in `edens.zac`'s `app/lib/api/*.ts` was compared against every
+`@RequestMapping` / `@*Mapping` pair under the backend's `controller/`. **No frontend call site
+targets a backend route that no longer exists.** `/users/{id}/collections` appears in the frontend but
+only inside a docblock at `app/lib/api/roles.ts:4` recording that the route was removed and replaced
+by role-based grants; it is not a live call. The bare-array decision in #243 changed no endpoint, and
+`parseImageDate` strictness in the same PR is upload-side only.
+
+The backend routes with no frontend consumer are listed in the tracker's cross-repo section.
+
+**Not re-investigated, per scope:** the `coverImage` stripping question and gallery password storage.
+Nothing factually new was found about the frontend side of either.
+
+## Working-tree note
+
+The hygiene agent's audit ran while three branches were being cut in the same clone, and it saw a
+commit appear and rewind. That commit was #260, which is real and open. Its report's item 15 —
+contradictions that "come back if `dbb5271` re-lands" — describes rows #260 itself edits, and was
+skipped for that reason.
+
 # Session log archive — entries moved 2026-08-31
 
-Oldest first. Moved off the tracker by the 2026-08-31 close-out; the tracker keeps the two newest.
+Oldest first. **The tracker keeps the current session's entries and moves the rest here on every
+close-out** -- corrected 2026-08-31 (third run); the preamble had said "the two newest", which
+matched neither the retention rule at the tracker's own session log nor what the moves actually did.
+Extended by the 2026-08-31 third-run close-out.
 
 - 2026-08-30 — **cross-repo filing from the frontend's close-out session. No backend code.**
   Filed **Bug #21** (the dimension fallback fails soft and writes `0`), promoted out of the frontend
@@ -6108,3 +6212,39 @@ Oldest first. Moved off the tracker by the 2026-08-31 close-out; the tracker kee
   Next: **bug #20, then bug #17, then the passkey admin endpoint** -- see "Next run" below. Bug #19
   needs a one-word direction and the question is written into its item. **A full-board review is now
   due; it is recommended below and deliberately not run.**
+
+- 2026-08-31 (second run) — **four MRs, three bugs closed, and the board's oldest carried bug went
+  with them.** Shipped bug #20 ([#255](https://github.com/themancalledzac/edens.zac.backend/pull/255)),
+  bug #17 ([#256](https://github.com/themancalledzac/edens.zac.backend/pull/256)), passkey admin
+  deregistration ([#257](https://github.com/themancalledzac/edens.zac.backend/pull/257)) and bug #19
+  ([#258](https://github.com/themancalledzac/edens.zac.backend/pull/258)), plus this close-out.
+  **Bug #17 had been carried since 2026-08-24 with no checkbox anywhere; the bug category goes
+  4 open -> 1**, and #18 is now the only open bug on the board.
+  **The one question was asked in the opening message and came back**: bug #19 *surface, not
+  refuse*, which is what made it a fourth MR instead of the next session's problem. Both items that
+  left their fix open were decided with evidence rather than by size — #17 by finding the loop's
+  *other* per-image writes, the passkey last-credential case by asking what refusing it would
+  block.
+  **Two items shipped larger than their board text implied, and in both cases the board stopped one
+  layer too early.** Bug #19's "widen the orphan queries" hid a response-type change and a
+  cross-repo break (**working rule 43**). Bug #20's "~10 lines" was right about the fix and had not
+  priced the test it named.
+  **Reconciliation moved a count for the first time.** The rule-37 leading-`//` figure went
+  1,675 -> **1,644** (290/1,385 -> 262/1,382), and the delta reconciles line-for-line against this
+  session's own deletions — **working rule 42**. Trailing held at 74, the rule-12 files held at
+  10/6/9, and `grep -c '^- \[ \] ' <history>` is still **0**.
+  **Five refs drifted and all five were inside the neighbourhood of what merged**, which is the
+  cheap check working as designed: MR 17 #8 (382/395 -> **388/401**), MR 18 #9 (loop declarations
+  -> **331**/**459**), MR 18 #10 (`updateGif` -> **550**), MR 19 #13 (-> **986**), MR 19 #15
+  (-> **848**). MR 19 #17's `143-145` was re-verified by anchor text and had *not* moved.
+  **Two MR 25 counts are now marked UNCHECKED rather than carried as verified** — the raw greps
+  available do not discriminate constructor arity, and claiming them would have repeated the
+  S-20 dispute (working rule 31).
+  **Working rule 39 fired again and was caught**: #255 and #256 squash-merged within minutes, before
+  item 3 started; checking PR state before branching item 4 kept it off a stale `main`.
+  **One finding is deliberately unfiled**: #258's cross-repo break is not on the frontend board,
+  because `edens.zac` had another session's dirty branch checked out. It is declared in the
+  cross-repo section rather than silently dropped.
+  Next: **the full-board review, which is now on its second restatement and is item 1** — three of
+  its six triggers hold, including a new admin endpoint in the unreviewed security set. *(It ran the
+  next session; outcome under "Full-board review — run 2026-08-31 (third run)" above.)*
