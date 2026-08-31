@@ -14,7 +14,7 @@ import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
-import edens.zac.portfolio.backend.entity.ContentImageEntity;
+import edens.zac.portfolio.backend.entity.ContentEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
 import edens.zac.portfolio.backend.entity.TagEntity;
@@ -248,14 +248,17 @@ public class CollectionService {
     }
 
     int imageOffset = imagePage * imageSize;
-    List<ContentImageEntity> orphanImageEntities =
-        contentRepository.findOrphanImagesByLocationName(
+    List<ContentEntity> orphanEntities =
+        contentRepository.findOrphanContentByLocationName(
             locationName, allCollectionIds, imageSize, imageOffset);
     long totalImages =
-        contentRepository.countOrphanImagesByLocationName(locationName, allCollectionIds);
+        contentRepository.countOrphanContentByLocationName(locationName, allCollectionIds);
 
-    List<ContentModels.Image> images =
-        contentModelConverter.batchConvertImageEntitiesToModels(orphanImageEntities);
+    List<ContentModel> images =
+        orphanEntities.stream()
+            .map(contentModelConverter::convertRegularContentEntityToModel)
+            .filter(Objects::nonNull)
+            .toList();
 
     LocationEntity locationEntity =
         locationRepository.findByLocationName(locationName).orElse(null);

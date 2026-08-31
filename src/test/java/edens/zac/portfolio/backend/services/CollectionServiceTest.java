@@ -777,13 +777,13 @@ class CollectionServiceTest {
       // — no findListedIdsByLocationName call needed
       when(collectionProcessingUtil.batchConvertToBasicModels(List.of(collectionEntity)))
           .thenReturn(List.of(collectionModel));
-      when(contentRepository.findOrphanImagesByLocationName(
+      when(contentRepository.findOrphanContentByLocationName(
               eq(locationName), eq(List.of(10L)), eq(50), eq(0)))
           .thenReturn(List.of(orphanImage));
-      when(contentRepository.countOrphanImagesByLocationName(eq(locationName), eq(List.of(10L))))
+      when(contentRepository.countOrphanContentByLocationName(eq(locationName), eq(List.of(10L))))
           .thenReturn(1L);
-      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(orphanImage)))
-          .thenReturn(List.of(imageModel));
+      when(contentModelConverter.convertRegularContentEntityToModel(orphanImage))
+          .thenReturn(imageModel);
 
       // Act
       LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
@@ -819,14 +819,14 @@ class CollectionServiceTest {
       // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
       when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
           .thenReturn(Collections.emptyList());
-      when(contentRepository.findOrphanImagesByLocationName(
+      when(contentRepository.findOrphanContentByLocationName(
               eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))
           .thenReturn(List.of(orphanImage));
-      when(contentRepository.countOrphanImagesByLocationName(
+      when(contentRepository.countOrphanContentByLocationName(
               eq(locationName), eq(Collections.emptyList())))
           .thenReturn(1L);
-      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(orphanImage)))
-          .thenReturn(List.of(imageModel));
+      when(contentModelConverter.convertRegularContentEntityToModel(orphanImage))
+          .thenReturn(imageModel);
 
       // Act
       LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
@@ -856,10 +856,10 @@ class CollectionServiceTest {
       // totalCollections (0) <= collectionSize (35), so IDs extracted from empty paginated result
       when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
           .thenReturn(Collections.emptyList());
-      when(contentRepository.findOrphanImagesByLocationName(
+      when(contentRepository.findOrphanContentByLocationName(
               eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))
           .thenReturn(Collections.emptyList());
-      when(contentRepository.countOrphanImagesByLocationName(
+      when(contentRepository.countOrphanContentByLocationName(
               eq(locationName), eq(Collections.emptyList())))
           .thenReturn(0L);
 
@@ -901,16 +901,18 @@ class CollectionServiceTest {
           .thenReturn(List.of(10L));
       // Stubbed loosely on the exclusion list so the pre-fix path reaches the assertions below
       // and reports the wrong list, rather than dying on an unmatched stub.
-      when(contentRepository.findOrphanImagesByLocationName(eq(locationName), any(), eq(50), eq(0)))
+      when(contentRepository.findOrphanContentByLocationName(
+              eq(locationName), any(), eq(50), eq(0)))
           .thenReturn(Collections.emptyList());
-      when(contentRepository.countOrphanImagesByLocationName(eq(locationName), any()))
+      when(contentRepository.countOrphanContentByLocationName(eq(locationName), any()))
           .thenReturn(0L);
 
       LocationPageResponse result = service.getLocationPage(locationName, 1, 35, 0, 50);
 
       verify(contentRepository)
-          .findOrphanImagesByLocationName(eq(locationName), eq(List.of(10L)), eq(50), eq(0));
-      verify(contentRepository).countOrphanImagesByLocationName(eq(locationName), eq(List.of(10L)));
+          .findOrphanContentByLocationName(eq(locationName), eq(List.of(10L)), eq(50), eq(0));
+      verify(contentRepository)
+          .countOrphanContentByLocationName(eq(locationName), eq(List.of(10L)));
       assertThat(result.collections()).isEmpty();
       assertThat(result.totalCollections()).isEqualTo(1L);
     }
