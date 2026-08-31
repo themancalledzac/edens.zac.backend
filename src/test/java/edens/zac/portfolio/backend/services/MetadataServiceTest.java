@@ -15,6 +15,8 @@ import edens.zac.portfolio.backend.dao.PersonRepository;
 import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.ContentCameraEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
+import edens.zac.portfolio.backend.entity.LocationEntity;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.validator.MetadataValidator;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
@@ -29,8 +31,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
 /**
- * Unit coverage for {@link MetadataService#createCamera} and {@link MetadataService#deletePerson}.
- * Pure Mockito (no Spring / DB) matching the other service unit tests in this package.
+ * Unit coverage for {@link MetadataService#createCamera}, {@link MetadataService#deletePerson} and
+ * {@link MetadataService#updateLocation}. Pure Mockito (no Spring / DB) matching the other service
+ * unit tests in this package.
  */
 @ExtendWith(MockitoExtension.class)
 class MetadataServiceTest {
@@ -56,6 +59,7 @@ class MetadataServiceTest {
         .build();
   }
 
+  /** Applies the requested film metadata to the existing camera rather than inserting a new one. */
   @Test
   void createCamera_updatesExisting_whenNameAlreadyPresent() {
     ContentCameraEntity existing = camera(42L, "Leica M6", false, null, null);
@@ -65,7 +69,6 @@ class MetadataServiceTest {
     Map<String, Object> result =
         metadataService.createCamera("Leica M6", null, true, FilmFormat.MM_35);
 
-    // Applies the requested film metadata to the existing camera rather than inserting a new one.
     verify(equipmentRepository).updateCameraFilmMetadata(42L, true, FilmFormat.MM_35);
     verify(equipmentRepository, never()).saveCamera(any());
     assertThat(result.get("id")).isEqualTo(42L);
@@ -125,12 +128,14 @@ class MetadataServiceTest {
     verify(personRepository).deletePersonById(5L);
   }
 
+  /**
+   * Bug #1 regression. Since V35 merged people into users, {@code findById} matches account rows
+   * too, so it cannot tell a person tag from an account. The guarded delete is what stops an admin
+   * delete-person call from destroying a real account: it matches 0 rows for an account id, and
+   * {@code deletePerson} must turn that into a 404 rather than reporting success.
+   */
   @Test
   void deletePerson_refusesAnAccountId() {
-    // Bug #1 regression. Since V35 merged people into users, findById matches account rows too, so
-    // it cannot tell a person tag from an account. The guarded delete is what stops an admin
-    // delete-person call from destroying a real account: it matches 0 rows for an account id, and
-    // deletePerson must turn that into a 404 rather than reporting success.
     when(personRepository.findById(5L)).thenReturn(Optional.of(person(5L, "Real Account")));
     when(personRepository.deletePersonById(5L)).thenReturn(0);
 
@@ -148,5 +153,64 @@ class MetadataServiceTest {
 
     verify(personRepository, never()).deleteAllAssociationsByPersonId(any());
     verify(personRepository, never()).deletePersonById(any());
+  }
+
+  private LocationEntity location(Long id, String locationName, String slug) {
+    return LocationEntity.builder().id(id).locationName(locationName).slug(slug).build();
+  }
+
+  /**
+   * Bug #18 regression. "St. Moritz" and "St Moritz" are distinct names that slugify identically,
+   * so the name check passes and only the slug check can stop the collision reaching {@code
+   * idx_location_slug}.
+   */
+  @Test
+  void updateLocation_rejectsANameThatSlugifiesOntoAnotherLocation() {
+    when(locationRepository.findById(1L))
+        .thenReturn(Optional.of(location(1L, "Zermatt", "zermatt")));
+    when(locationRepository.findByLocationNameIgnoreCase("St Moritz")).thenReturn(Optional.empty());
+    when(locationRepository.findBySlug("st-moritz"))
+        .thenReturn(Optional.of(location(2L, "St. Moritz", "st-moritz")));
+
+    assertThatThrownBy(() -> metadataService.updateLocation(1L, "St Moritz"))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("st-moritz");
+
+    verify(locationRepository, never()).save(any());
+  }
+
+  /**
+   * The slug check must exclude the row being updated. Renaming "St. Moritz" to "St Moritz" keeps
+   * the same slug on the same id, which is a rename and not a collision.
+   */
+  @Test
+  void updateLocation_allowsARenameThatKeepsItsOwnSlug() {
+    LocationEntity existing = location(1L, "St. Moritz", "st-moritz");
+    when(locationRepository.findById(1L)).thenReturn(Optional.of(existing));
+    when(locationRepository.findByLocationNameIgnoreCase("St Moritz")).thenReturn(Optional.empty());
+    when(locationRepository.findBySlug("st-moritz")).thenReturn(Optional.of(existing));
+    when(locationRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+    Records.Location result = metadataService.updateLocation(1L, "St Moritz");
+
+    assertThat(result.name()).isEqualTo("St Moritz");
+    assertThat(result.slug()).isEqualTo("st-moritz");
+    verify(locationRepository).save(any());
+  }
+
+  /** The name check still short-circuits, so a duplicate name never reaches the slug lookup. */
+  @Test
+  void updateLocation_rejectsADuplicateNameWithoutConsultingTheSlug() {
+    when(locationRepository.findById(1L))
+        .thenReturn(Optional.of(location(1L, "Zermatt", "zermatt")));
+    when(locationRepository.findByLocationNameIgnoreCase("Chamonix"))
+        .thenReturn(Optional.of(location(2L, "Chamonix", "chamonix")));
+
+    assertThatThrownBy(() -> metadataService.updateLocation(1L, "Chamonix"))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("Chamonix");
+
+    verify(locationRepository, never()).findBySlug(any());
+    verify(locationRepository, never()).save(any());
   }
 }
