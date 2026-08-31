@@ -1,6 +1,7 @@
 package edens.zac.portfolio.backend.controller.admin;
 
 import edens.zac.portfolio.backend.config.CurrentUser;
+import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.UserRoleRow;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.AdminUserSummary;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRequest;
@@ -8,10 +9,13 @@ import edens.zac.portfolio.backend.controller.admin.UserRequests.CreateUserRespo
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergePreview;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.MergeResult;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.PasskeyDeregisterResult;
+import edens.zac.portfolio.backend.controller.admin.UserRequests.PasskeyRow;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.UpdateUserRequest;
 import edens.zac.portfolio.backend.controller.admin.UserRequests.UpgradeUserRequest;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository;
+import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
@@ -73,6 +77,7 @@ public class AdminUserController {
   private final UserMergeService userMergeService;
   private final EmailService emailService;
   private final SessionService sessionService;
+  private final WebAuthnCredentialRepository credentialRepository;
   private final String frontendBaseUrl;
 
   public AdminUserController(
@@ -85,6 +90,7 @@ public class AdminUserController {
       UserMergeService userMergeService,
       EmailService emailService,
       SessionService sessionService,
+      WebAuthnCredentialRepository credentialRepository,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.appUserRepository = appUserRepository;
     this.userInviteService = userInviteService;
@@ -95,6 +101,7 @@ public class AdminUserController {
     this.userMergeService = userMergeService;
     this.emailService = emailService;
     this.sessionService = sessionService;
+    this.credentialRepository = credentialRepository;
     this.frontendBaseUrl = frontendBaseUrl;
   }
 
@@ -304,6 +311,12 @@ public class AdminUserController {
    * sessions the account already holds -- the two sweeps key off different allowlists because an
    * {@code INVITED} account may hold a live invite but may not hold a working session.
    *
+   * <p>Changing an {@code INVITED} user's email to a different address also kills their outstanding
+   * invite, because the old link was bound to the prior address and whoever holds it could
+   * otherwise redeem it onto the corrected account. An {@code ACTIVE} user's reset link is not
+   * swept: {@code UserInviteService.accept} already refuses any invite whose issued address is no
+   * longer the account's.
+   *
    * @param id the {@code app_user.id}
    * @param request the new email (nullable = unchanged), display name (nullable), status
    *     (required), and description (nullable)
@@ -328,13 +341,6 @@ public class AdminUserController {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
       }
       appUserRepository.updateEmail(id, email);
-      // When an INVITED user's login email actually changes, kill their outstanding invite: the
-      // old link was bound to the prior address, so whoever still holds it (e.g. the prior inbox)
-      // could otherwise redeem it onto the now-corrected account. The admin must issue a fresh
-      // invite to the new address. A no-op change (same address, any casing) leaves the invite
-      // live. An ACTIVE user's admin-issued reset link is deliberately not swept here: S-7 made
-      // ACTIVE redeemable, so the protection is UserInviteService.accept refusing any invite whose
-      // issued address is no longer the account's, which covers this without a status-keyed sweep.
       if (existing.getStatus() == UserStatus.INVITED && !email.equals(existing.getEmail())) {
         userInviteService.invalidateInvites(id);
       }
@@ -395,6 +401,66 @@ public class AdminUserController {
   public ResponseEntity<Void> removeUserFromRole(@PathVariable Long id, @PathVariable Long roleId) {
     roleRepository.removeMember(roleId, id);
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * List the passkeys registered to this account, so an admin can pick one to deregister. Returns
+   * metadata only -- no public key, no raw credential-id bytes.
+   *
+   * @param id the {@code app_user.id}
+   * @return the account's credentials, oldest first; empty if it has none
+   */
+  @GetMapping("/{id}/passkeys")
+  public ResponseEntity<List<PasskeyRow>> userPasskeys(@PathVariable Long id) {
+    List<PasskeyRow> rows =
+        credentialRepository.findByUserId(id).stream()
+            .map(
+                c ->
+                    new PasskeyRow(
+                        c.getId(),
+                        c.getLabel(),
+                        c.getTransports(),
+                        c.getCreatedAt(),
+                        c.getLastUsedAt()))
+            .toList();
+    return ResponseEntity.ok(rows);
+  }
+
+  /**
+   * Deregister one passkey, so a compromised authenticator can be revoked without disabling the
+   * whole account. The delete is scoped to {@code id}, so a credential belonging to another account
+   * is a {@code 404} rather than a cross-account delete.
+   *
+   * <p>Removing the account's last passkey is allowed. Refusing it would block the one case this
+   * endpoint exists for -- a single registered authenticator, and that authenticator compromised.
+   * The result reports what is left so the admin can see when an account has been left with no
+   * passkey and no password, which needs a fresh invite to recover.
+   *
+   * @param id the {@code app_user.id}
+   * @param credentialId the {@code webauthn_credential.id} to remove
+   * @return {@code 200 OK} with what the account has left to authenticate with
+   */
+  @DeleteMapping("/{id}/passkeys/{credentialId}")
+  public ResponseEntity<PasskeyDeregisterResult> deregisterPasskey(
+      @PathVariable Long id, @PathVariable Long credentialId) {
+    if (credentialRepository.deleteByIdAndUserId(credentialId, id) == 0) {
+      throw new ResourceNotFoundException("Passkey not found: " + credentialId + " for user " + id);
+    }
+
+    int remaining = credentialRepository.findByUserId(id).size();
+    boolean passwordLoginAvailable =
+        appUserRepository.findById(id).map(u -> u.getPasswordHash() != null).orElse(false);
+
+    if (remaining == 0 && !passwordLoginAvailable) {
+      log.warn(
+          "Deregistered last passkey for userId={} which has no password; account cannot log in "
+              + "until re-invited",
+          id);
+    } else {
+      log.info("Deregistered passkey {} for userId={}, {} remaining", credentialId, id, remaining);
+    }
+
+    return ResponseEntity.ok(new PasskeyDeregisterResult(remaining, passwordLoginAvailable));
   }
 
   /**
