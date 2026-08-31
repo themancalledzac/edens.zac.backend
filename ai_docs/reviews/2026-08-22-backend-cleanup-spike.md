@@ -275,7 +275,21 @@ Per-path limiter mapping context -- which limiter covers which route -- sits in 
   broad rather than too narrow.
 
 - [ ] **S-16 (MEDIUM, agent trace). The revoke-on-status sweep covers sessions and invites and misses
-  share links.** **UNBLOCKED 2026-08-30: the answer is SUSPEND, not revoke.** Disabling an account
+  share links.** **IN FLIGHT 2026-08-31: [#253](https://github.com/themancalledzac/edens.zac.backend/pull/253).** Shipped as **one gate, not two.** The
+  item specified a `users.status` predicate on share resolve *and* on the scope query's join; the
+  scope-query half was not built, deliberately. `resolveByRawToken` is the only way a token becomes
+  a link -- its two callers are `FlybySessionFilter:65` and `ShareControllerProd:59` -- and the
+  flyby cookie carries the raw token, so every request comes back through it. Nothing reaches
+  `findScopeCollectionIds` or `isCollectionInScope` without a shareId that resolve produced, so a
+  status join there would be a second gate enforcing what the first already did. **That is the
+  user's S-14 answer applied consistently** (one gate, as simple as possible), and it is why this
+  item shipped smaller than written. **A third site the item did not name:**
+  `ShareLinkRepository.isCollectionInScope` is the per-collection EXISTS check and would have needed
+  the same join under the two-gate reading -- so the item undercounted its own scope, which is
+  further reason the chokepoint was the right place. No new predicate was written: the check reuses
+  `SessionService.mayHoldSession`, the rule the session path already enforces, so a link serves
+  exactly while its owner's account can sign in. **UNBLOCKED 2026-08-30: the answer is SUSPEND, not
+  revoke.** Disabling an account
   stops its share links from resolving; re-enabling restores them. Revoking is destructive and not
   undone by re-enabling, so it is refused. **Fix shape, now decided rather than open:** a
   `users.status` predicate on the share-resolve path (`ShareLinkService.resolveByRawToken`) and on
@@ -392,7 +406,7 @@ rows of the 2026-08-25 classification table moved to the history file 2026-08-29
 | Item | State | The question, and who answers it |
 |---|---|---|
 | S-14 | **ANSWERED 2026-08-30, closed.** | No second gate -- the ownership/grant test is rejected, behavior accepted. Does not settle whether `addCollection` (a `/api/read/user/share` endpoint, not an admin one) should be admin-gated; that is a routing question and needs its own item. |
-| S-16 | **ANSWERED 2026-08-30, unblocked.** | Suspend, not revoke: a `users.status` predicate on share resolve and the scope join, no rows deleted. Now ordinary work and the next security item. |
+| S-16 | **IN FLIGHT.** | [#253](https://github.com/themancalledzac/edens.zac.backend/pull/253) -- suspend, not revoke, gated once at `resolveByRawToken` rather than at resolve *and* the scope join. One gate, per the S-14 answer. |
 | S-22 | **IN FLIGHT.** | [#247](https://github.com/themancalledzac/edens.zac.backend/pull/247) -- shipped as one bound list, not a named boolean; the predicate had no runtime caller. |
 | S-23 | **IN FLIGHT.** | [#248](https://github.com/themancalledzac/edens.zac.backend/pull/248) -- `ProdActuatorExposureGuard`, reading `WebEndpointProperties`. Exclude list untouched. |
 | S-24 | **ANSWERED 2026-08-30, closed.** | Accept as admin-trusted; the two docblocks that were the answer's whole content shipped with it. |

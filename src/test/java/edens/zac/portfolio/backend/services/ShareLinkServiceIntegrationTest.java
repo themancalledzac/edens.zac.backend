@@ -6,8 +6,11 @@ import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.entity.ShareLinkEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
+import edens.zac.portfolio.backend.types.UserStatus;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -50,6 +53,53 @@ class ShareLinkServiceIntegrationTest extends AbstractPostgresIntegrationTest {
         "INSERT INTO collection_people (collection_id, person_id) VALUES (?, ?)",
         collectionId,
         personId);
+  }
+
+  private void setStatus(Long userId, UserStatus status) {
+    jdbc.update("UPDATE users SET status = ? WHERE id = ?", status.name(), userId);
+  }
+
+  private int shareLinkRowCount(Long userId) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM share_link WHERE user_id = ?", Integer.class, userId);
+  }
+
+  /**
+   * S-16: disabling an account suspends its link. The row survives and the same URL works again on
+   * re-enable, which is what separates this from revoking.
+   */
+  @Test
+  void disablingTheOwnerSuspendsTheLinkAndReEnablingRestoresIt() {
+    Long userId = seedUser();
+    String raw = shareLinkService.mintOrRotate(userId);
+    Long linkId = shareLinkService.resolveByRawToken(raw).orElseThrow().getId();
+
+    setStatus(userId, UserStatus.DISABLED);
+
+    assertThat(shareLinkService.resolveByRawToken(raw)).isEmpty();
+    assertThat(shareLinkRowCount(userId)).isEqualTo(1);
+
+    setStatus(userId, UserStatus.ACTIVE);
+
+    assertThat(shareLinkService.resolveByRawToken(raw))
+        .get()
+        .extracting(ShareLinkEntity::getId)
+        .isEqualTo(linkId);
+  }
+
+  /** Every status the owner's account can hold that is not ACTIVE stops the link resolving. */
+  @ParameterizedTest
+  @EnumSource(
+      value = UserStatus.class,
+      names = {"INVITED", "DISABLED", "PERSON"})
+  void aNonActiveOwnerStopsTheLinkResolving(UserStatus status) {
+    Long userId = seedUser();
+    String raw = shareLinkService.mintOrRotate(userId);
+    assertThat(shareLinkService.resolveByRawToken(raw)).isPresent();
+
+    setStatus(userId, status);
+
+    assertThat(shareLinkService.resolveByRawToken(raw)).isEmpty();
   }
 
   private void grant(Long userId, Long collectionId, AccessLevel level) {

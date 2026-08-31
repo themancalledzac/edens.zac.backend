@@ -1,6 +1,8 @@
 package edens.zac.portfolio.backend.services;
 
+import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.dao.ShareLinkRepository;
+import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.entity.ShareLinkEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import java.util.List;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ShareLinkService {
 
   private final ShareLinkRepository shareLinkRepository;
+  private final AppUserRepository appUserRepository;
   private final TokenCipher tokenCipher;
 
   /**
@@ -73,15 +76,37 @@ public class ShareLinkService {
   }
 
   /**
-   * Resolve a raw token from a URL or cookie to its link. Returns empty for an unknown token and
-   * for a rotated one alike -- a reset leaves no trace of the old secret to distinguish.
+   * Resolve a raw token from a URL or cookie to its link. Returns empty for an unknown token, for a
+   * rotated one -- a reset leaves no trace of the old secret to distinguish -- and for a link whose
+   * owner's account is no longer active.
+   *
+   * <p>Disabling an account suspends its link rather than revoking it: no row is deleted, so
+   * re-enabling makes the same URL work again for everyone already holding it. The status is read
+   * fresh on each call, which is enough because this is the only way a token becomes a link. The
+   * flyby cookie carries the raw token, so every request comes back through here, and nothing
+   * downstream re-tests status.
    */
   @Transactional(readOnly = true)
   public Optional<ShareLinkEntity> resolveByRawToken(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
       return Optional.empty();
     }
-    return shareLinkRepository.findByTokenHash(TokenUtil.sha256Hex(rawToken));
+    return shareLinkRepository
+        .findByTokenHash(TokenUtil.sha256Hex(rawToken))
+        .filter(link -> ownerAccountIsActive(link.getUserId()));
+  }
+
+  /**
+   * Whether the link's owner can still sign in, via the same {@link SessionService#mayHoldSession}
+   * rule the session path uses -- a link serves exactly while its owner's account does. Missing
+   * user or missing status reads as false.
+   */
+  private boolean ownerAccountIsActive(Long userId) {
+    return appUserRepository
+        .findById(userId)
+        .map(AppUserEntity::getStatus)
+        .filter(SessionService::mayHoldSession)
+        .isPresent();
   }
 
   /**
