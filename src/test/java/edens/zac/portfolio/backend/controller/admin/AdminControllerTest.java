@@ -747,11 +747,10 @@ class AdminControllerTest {
   @Test
   @DisplayName("GET /content/images should return all images")
   void getAllImages_shouldReturnAllImages() throws Exception {
-    // Arrange — admin endpoint now routes through searchImages (filterable)
-    ImageSearchResponse response = new ImageSearchResponse(testImages, testImages.size(), 1);
+    PagedResponse<ContentModels.Image> response =
+        new PagedResponse<>(testImages, testImages.size(), 1, 0, true);
     when(contentService.searchImages(any(ImageSearchRequest.class))).thenReturn(response);
 
-    // Act & Assert
     mockMvc
         .perform(get("/api/admin/content/images"))
         .andExpect(status().isOk())

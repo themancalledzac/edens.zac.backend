@@ -11,7 +11,7 @@ import edens.zac.portfolio.backend.config.GlobalExceptionHandler;
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ImageSearchRequest;
-import edens.zac.portfolio.backend.model.ImageSearchResponse;
+import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.MetadataService;
@@ -253,14 +253,12 @@ class ContentControllerProdTest {
     @Test
     @DisplayName("Should return all images when no filters are provided")
     void searchImages_noFilters_shouldReturnAllImages() throws Exception {
-      // Arrange
       List<ContentModels.Image> images =
           List.of(createTestImage(1L, "Image One"), createTestImage(2L, "Image Two"));
-      ImageSearchResponse response = new ImageSearchResponse(images, 2, 1);
+      PagedResponse<ContentModels.Image> response = new PagedResponse<>(images, 2, 1, 0, true);
 
       when(contentService.searchImages(any(ImageSearchRequest.class))).thenReturn(response);
 
-      // Act & Assert
       mockMvc
           .perform(get("/api/read/content/images/search").contentType(MediaType.APPLICATION_JSON))
           .andExpect(status().isOk())
@@ -275,13 +273,11 @@ class ContentControllerProdTest {
     @MethodSource("searchFilterProvider")
     void searchImages_withFilter_shouldReturnResults(
         String name, String paramName, String... paramValues) throws Exception {
-      // Arrange
       List<ContentModels.Image> images = List.of(createTestImage(1L, "Filtered Image"));
-      ImageSearchResponse response = new ImageSearchResponse(images, 1, 1);
+      PagedResponse<ContentModels.Image> response = new PagedResponse<>(images, 1, 1, 0, true);
 
       when(contentService.searchImages(any(ImageSearchRequest.class))).thenReturn(response);
 
-      // Act & Assert
       mockMvc
           .perform(
               get("/api/read/content/images/search")
@@ -307,13 +303,11 @@ class ContentControllerProdTest {
     @Test
     @DisplayName("Should return filtered images when date range is provided")
     void searchImages_withDateRange_shouldReturnFilteredImages() throws Exception {
-      // Arrange
       List<ContentModels.Image> images = List.of(createTestImage(1L, "Dated Image"));
-      ImageSearchResponse response = new ImageSearchResponse(images, 1, 1);
+      PagedResponse<ContentModels.Image> response = new PagedResponse<>(images, 1, 1, 0, true);
 
       when(contentService.searchImages(any(ImageSearchRequest.class))).thenReturn(response);
 
-      // Act & Assert
       mockMvc
           .perform(
               get("/api/read/content/images/search")
@@ -329,13 +323,11 @@ class ContentControllerProdTest {
     @Test
     @DisplayName("Should return filtered images when multiple filters are provided")
     void searchImages_withMultipleFilters_shouldReturnFilteredImages() throws Exception {
-      // Arrange
       List<ContentModels.Image> images = List.of(createTestImage(1L, "Multi-filter Image"));
-      ImageSearchResponse response = new ImageSearchResponse(images, 1, 1);
+      PagedResponse<ContentModels.Image> response = new PagedResponse<>(images, 1, 1, 0, true);
 
       when(contentService.searchImages(any(ImageSearchRequest.class))).thenReturn(response);
 
-      // Act & Assert
       mockMvc
           .perform(
               get("/api/read/content/images/search")
@@ -352,12 +344,10 @@ class ContentControllerProdTest {
     @Test
     @DisplayName("Should return empty response when no images match filters")
     void searchImages_emptyResults_shouldReturnEmptyResponse() throws Exception {
-      // Arrange
-      ImageSearchResponse response = new ImageSearchResponse(List.of(), 0, 0);
+      PagedResponse<ContentModels.Image> response = new PagedResponse<>(List.of(), 0, 0, 0, true);
 
       when(contentService.searchImages(any(ImageSearchRequest.class))).thenReturn(response);
 
-      // Act & Assert
       mockMvc
           .perform(get("/api/read/content/images/search").contentType(MediaType.APPLICATION_JSON))
           .andExpect(status().isOk())
