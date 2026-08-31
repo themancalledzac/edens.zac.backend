@@ -118,7 +118,7 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   `DownloadResolution.extension` (**0 main / 6 test, CONFIRMED 2026-08-31** -- but see the priority
   flag under MR 25: this is the most expensive of the four, not the cheapest),
   `CollectionRequests.Update`'s 17-arg constructor (**21 test sites, CONFIRMED 2026-08-31**),
-  `DiskUploadRequest.FileEntry`'s 3-arg constructor (**13 test sites, CONFIRMED 2026-08-31**).
+  `DiskUploadRequest.FileEntry`'s 3-arg constructor (**DONE** -- [#267](https://github.com/themancalledzac/edens.zac.backend/pull/267), 2026-08-31; 13 sites, re-derived on the day and reproduced exactly). **Three of the four remain.**
   **All four counts now reproduce. The two UNCHECKED markers are cleared.** The raw greps that could
   not settle them are fully accounted for: `new CollectionRequests.Update(` returns **24** in test =
   21 compat-arity + 3 canonical 22-arg calls (`CollectionProcessingUtilTest:290`, `:491`,
@@ -1092,7 +1092,7 @@ twice. It does **not** hold for `FileEntry`, `resolveCollectionDownloadEntries` 
 fixture target. Bundling them makes the MR bigger for no reason.
 
 - [ ] `model/CollectionRequests.java` -- 17-arg `Update` constructor, **21** test call sites, **CONFIRMED by arity 2026-08-31 (third run)**. Seven files; `CollectionServiceTest` carries 8 of the 21. Zero `src/main` callers -- the one main construction, `CollaboratorRequests.java:43`, is the canonical 22-arg. **This is the one that must ride with the `TestFixtures` pass.**
-- [ ] `model/DiskUploadRequest.java` -- 3-arg `FileEntry` constructor, **13** test call sites, **CONFIRMED by arity 2026-08-31 (third run)** (28 `FileEntry` constructions across all arities = 13 + 15 canonical). **Cheapest of the four and a reasonable one to land first**: 10 of the 13 sites are in `ImageUploadPipelineServiceTest`, which also holds 13 of the 15 canonical-arity calls, so the fixture is effectively a single-file change. Zero `src/main` construction at any arity -- the type only arrives via Jackson, which binds the canonical 6-arg constructor for records, so this is test-only with no API-contract effect.
+- [x] `model/DiskUploadRequest.java` -- 3-arg `FileEntry` constructor. **DONE** ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267), 2026-08-31). **Every number re-derived on the day and every one reproduced**: 13 three-arg (10 `ImageUploadPipelineServiceTest`, 3 `AdminControllerTest`) and 15 canonical (13 + 2 in the same two files), 28 total, zero in `src/main` at any arity. The arity-scanner method the board wrote down works and is worth keeping for the remaining three. **One thing the item asserted was untested rather than false**: "no API-contract effect" rests on Jackson binding a record through its canonical constructor, and **no test anywhere deserialized a `FileEntry`**, so the delete rested on an assumption. `DiskUploadRequestWireTest` now pins it from both directions. Write-up in [history](2026-08-22-backend-cleanup-history.md#mr-25-fileentry-outcome-2026-08-31--the-counts-held-and-an-untested-premise-turned-up).
 - [x] `model/AuthPrincipal.java` -- 4-arg constructor. **DECIDED 2026-08-24: leave it.** It is not main-dead (`SessionService` calls it), so it never belonged under the old heading. All **36** call sites are one-liners (re-measured 2026-08-29: 35 test plus `SessionService.java:179`); deleting a 3-line convenience constructor to append `, null` at 35 clean sites is not an improvement. Closing this rather than carrying the hedge a third time.
 - [ ] `services/ContentService.java` — `resolveCollectionDownloadEntries` 2-arg overload, **5 test call sites, CONFIRMED by arity 2026-08-31**, all in `ContentServiceDownloadTest` at 207, 222, 237, 251, 258. Declarations: 2-arg at `793-797`, 3-arg at `815-816`. **The only `src/main` call of either overload is `ContentDownloadControllerProd.java:140`, which uses the 3-arg form** -- main-dead confirmed. **Go by arity, not by file**: the same test file holds 4 three-arg calls (273, 287, 299, 312), and the other 17 three-arg calls are in `ContentDownloadAuthTest` (7) and `ContentDownloadControllerProdTest` (10).
 - [ ] `model/DownloadResolution.java` -- the `extension` component. **PRIORITY FLAG, added 2026-08-31 (third run): this is the most expensive of the four, not the cheapest, and its "0 main / 6 test" headline reads like a free delete.** Deleting the accessor means deleting the record component, which takes the canonical constructor from 4 args to 3, so every construction site changes too. **13 edits across 5 files, 2 of them in `src/main`** -- 6 accessor sites (`ContentServiceDownloadTest` 96, 110, 210, 225, 240, 242) plus 7 construction sites (`ContentService:781` and `:851`; `ContentDownloadAuthTest:94`; `ContentDownloadControllerProdTest:71` and `:75`; `DownloadUrlServiceTest:100` and `:101`). **It is the only one of the four that touches `src/main` at all. If MR 25 needs splitting, split this off.** The component does genuinely carry no main-side behavior: `DownloadUrlService` consumes `List<DownloadResolution>` at 83, 105, 108 and never reads `extension`, and there are zero `.extension()` calls anywhere in `src/main`. Prior text: **5** construction sites in test (not 4), **7 in total** as re-derived 2026-08-25 -- the two in `src/main` are both in `ContentService`
@@ -1383,9 +1383,10 @@ Worth a targeted check; not asserted as findings.
 ## Next run (set 2026-08-31, third close-out)
 
 **The security section refilled and its top item is HIGH.** That is the first thing on this list and
-the first time in three sessions the queue has not opened with a decision or a review. *(Items 1 and 2 shipped
-2026-08-31 as [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) and
-[#266](https://github.com/themancalledzac/edens.zac.backend/pull/266); items 3-4 stand.)*
+the first time in three sessions the queue has not opened with a decision or a review. *(Items 1, 2 and 3 all shipped
+2026-08-31 as [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265),
+[#266](https://github.com/themancalledzac/edens.zac.backend/pull/266) and
+[#267](https://github.com/themancalledzac/edens.zac.backend/pull/267). Only item 4 stands.)*
 
 1. ~~**S-26 — revoke the sessions a deregistered passkey minted.**~~ **DONE**
    ([#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), 2026-08-31), with S-27's
@@ -1398,11 +1399,13 @@ the first time in three sessions the queue has not opened with a decision or a r
    the guardrail earned their place: the two batch converters existed and were used, and the re-merge
    warning was right -- concatenating the batches reorders every mixed page and passes a test that
    only checks which converters were called, so it needed its own test. BE-2 was left alone.
-3. **MR 25's `FileEntry` member.** The arity counts are CONFIRMED, so this is now unblocked, and it is
-   the cheapest of the four: 10 of its 13 sites are in `ImageUploadPipelineServiceTest`, which also
-   holds 13 of the 15 canonical-arity calls. *Guardrail:* **do not bundle `DownloadResolution.extension`
-   with it.** That one is 13 edits across 5 files and touches `src/main` twice; it is the most
-   expensive of the four, not the cheapest its headline implies.
+3. ~~**MR 25's `FileEntry` member.**~~ **DONE**
+   ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267), 2026-08-31), and
+   `DownloadResolution.extension` was not bundled with it. Every re-derived number matched, which is
+   the first time a re-derivation on this board has reported zero corrections **and** been trustworthy
+   -- because the method that produced it is written down and was re-run, not because the numbers were
+   assumed to have held (working rule 23). **The remaining three of the four are unchanged**, and
+   `DownloadResolution.extension` is still the one to split off.
 4. **S-28 and U-5 through U-8.** One docblock line and four questions that have never been asked out
    loud. *Guardrail:* U-7 and U-8 are the same question from two directions — answer whether S-23's
    boot check makes the name-based exclude list moot, then close both or neither.

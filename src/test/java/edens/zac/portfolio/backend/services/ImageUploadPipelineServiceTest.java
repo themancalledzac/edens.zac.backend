@@ -220,7 +220,9 @@ class ImageUploadPipelineServiceTest {
     void processFilesFromDisk_happyPath_returnsJobStatus() {
       // Arrange
       Long collectionId = 1L;
-      var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", "/tmp/photo.cr3", null);
+      var fileEntry =
+          new DiskUploadRequest.FileEntry(
+              "/tmp/photo.jpg", "/tmp/photo.cr3", null, null, null, null);
       var request = new DiskUploadRequest(List.of(fileEntry), null);
       var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
 
@@ -243,7 +245,8 @@ class ImageUploadPipelineServiceTest {
     void processFilesFromDisk_collectionNotFound_throwsResourceNotFoundException() {
       // Arrange
       Long collectionId = 999L;
-      var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null);
+      var fileEntry =
+          new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null, null, null, null);
       var request = new DiskUploadRequest(List.of(fileEntry), null);
 
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.empty());
@@ -260,7 +263,8 @@ class ImageUploadPipelineServiceTest {
     void processFilesFromDisk_withLocationId_setsCollectionLocation() {
       // Arrange
       Long collectionId = 1L;
-      var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null);
+      var fileEntry =
+          new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null, null, null, null);
       var request = new DiskUploadRequest(List.of(fileEntry), List.of(42L));
       var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
 
@@ -278,7 +282,8 @@ class ImageUploadPipelineServiceTest {
     void processFilesFromDisk_withoutLocationId_doesNotSetLocation() {
       // Arrange
       Long collectionId = 1L;
-      var fileEntry = new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null);
+      var fileEntry =
+          new DiskUploadRequest.FileEntry("/tmp/photo.jpg", null, null, null, null, null);
       var request = new DiskUploadRequest(List.of(fileEntry), null);
       var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
 
@@ -379,7 +384,8 @@ class ImageUploadPipelineServiceTest {
       Long collectionId = 1L;
       var request =
           new DiskUploadRequest(
-              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
+              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null, null, null, null)),
+              null);
       var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
@@ -408,7 +414,8 @@ class ImageUploadPipelineServiceTest {
       Long collectionId = 1L;
       var request =
           new DiskUploadRequest(
-              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
+              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null, null, null, null)),
+              null);
       var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
@@ -459,8 +466,8 @@ class ImageUploadPipelineServiceTest {
       var request =
           new DiskUploadRequest(
               List.of(
-                  new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null),
-                  new DiskUploadRequest.FileEntry("/tmp/b.jpg", null, null)),
+                  new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null, null, null, null),
+                  new DiskUploadRequest.FileEntry("/tmp/b.jpg", null, null, null, null, null)),
               null);
 
       service.processFilesFromDisk(collectionId, request);
@@ -490,7 +497,8 @@ class ImageUploadPipelineServiceTest {
       Long collectionId = 1L;
       var request =
           new DiskUploadRequest(
-              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
+              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null, null, null, null)),
+              null);
       var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);
@@ -525,7 +533,8 @@ class ImageUploadPipelineServiceTest {
       Long collectionId = 1L;
       var request =
           new DiskUploadRequest(
-              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null)), null);
+              List.of(new DiskUploadRequest.FileEntry("/tmp/a.jpg", null, null, null, null, null)),
+              null);
       var job = new JobTrackingService.JobStatus(UUID.randomUUID(), 1);
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
       when(jobTrackingService.createJob(1)).thenReturn(job);

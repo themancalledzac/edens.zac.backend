@@ -5779,6 +5779,52 @@ type vanishes from the page.
 The BE-2 decision was not resolved on the way past, as the item said it should not be. The frontend
 still discards the entire `images` array (FE-1), so every one of those queries was spent on data no
 client reads -- but the fix is correct whichever way BE-2 goes, so it did not wait.
+## MR 25 FileEntry outcome (2026-08-31) -- the counts held, and an untested premise turned up
+
+Shipped as [#267](https://github.com/themancalledzac/edens.zac.backend/pull/267). The 3-arg
+`DiskUploadRequest.FileEntry` constructor is gone and its 13 call sites now pass the canonical six
+arguments. Suite 1,455 -> 1,457 (both new tests are the wire pin below, not the refactor).
+
+### Every number reproduced, and this time that is evidence
+
+Working rule 23 says a sweep reporting zero corrections likelier asked the wrong question than found
+the board accurate. This one reports zero corrections and is trustworthy anyway, for one reason:
+**the method was written down and re-run**, not recalled. The paren-balanced scanner the third run
+specified was rebuilt from that description, saved as `arity2.py`, run, and deleted.
+
+| Claim | Re-derived |
+|---|---|
+| 13 three-arg sites | 13 -- `ImageUploadPipelineServiceTest` 10, `AdminControllerTest` 3 |
+| 15 canonical six-arg sites | 15 -- same two files, 13 and 2 |
+| 28 raw across all arities | 28 |
+| zero `src/main` constructions at any arity | zero; the only `src/main` mention is a parameter type at `ImageUploadPipelineService:578` |
+
+The refs were re-derived **after** MR 19 #21 was written but before it merged. That is safe here and
+the reason is checkable rather than assumed: `git diff --name-only` on that branch lists
+`CollectionService`, `CollectionServiceTest` and the two review docs, and none of the four files
+holding `FileEntry` is among them.
+
+### The item's one soft spot was a premise nothing tested
+
+"Zero `src/main` construction at any arity -- the type only arrives via Jackson, which binds the
+canonical 6-arg constructor for records, so this is test-only with no API-contract effect." The
+premise is true. **But no test in the suite deserialized a `FileEntry` at all** -- `grep jpegPath`
+outside constructor calls returns nothing -- so the whole safety argument for the delete rested on
+knowing how Jackson treats records, with nothing to catch it if that were wrong or if someone later
+added a `@JsonCreator`.
+
+`DiskUploadRequestWireTest` now pins it from both directions: a pre-ingest body carrying only
+`jpegPath`/`rawPath`/`people` binds with the three newer components null, and a full ingest body
+populates all six. It passes on both sides of the delete, which is correct -- it is a pin on the
+invariant that makes the delete safe, not a guard on the delete. This is working rule 33's "pair
+every derivation with one literal pin", applied to a wire contract rather than a predicate.
+
+### Scope
+
+`DownloadResolution.extension` was not bundled, as the item's guardrail said. Three of the four
+main-dead members remain, and `extension` is still the one to split off: 13 edits across 5 files, 2
+of them in `src/main`, and 4 of its 6 accessor assertions are the only coverage of the collection-ZIP
+original-to-web format fallback.
 
 ## S-22 outcome (2026-08-31) — shipped as a list, not the predicate the item specified
 
