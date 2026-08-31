@@ -5730,7 +5730,9 @@ than left for the next reader to rediscover.
 ## MR 19 #21 outcome (2026-08-31) -- the N+1, and the reordering that would have ridden along
 
 Shipped as [#266](https://github.com/themancalledzac/edens.zac.backend/pull/266). One private method
-in `CollectionService`, two tests, two updated tests. Suite 1,455 -> 1,457.
+in `CollectionService`, two tests, two updated tests. Suite 1,461 -> 1,463 (measured after
+[#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) merged and this branch was
+rebased onto it; against the pre-#265 baseline it was 1,455 -> 1,457).
 
 **The item's fix shape needed no adjustment** -- the second consecutive one after MR 19 #14, which
 broke the streak the full-board review's case rested on. Partition `orphanEntities` by type, call

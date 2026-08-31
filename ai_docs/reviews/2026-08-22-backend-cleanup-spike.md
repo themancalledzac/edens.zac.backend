@@ -1415,8 +1415,8 @@ merged, so item #22 is no longer PR-only. **Nothing on this board is now owed to
 
 ### Classification of the actionable near-term board (stamped 2026-08-31, third close-out)
 
-*(Retitled 2026-08-31. It classifies about 25 items; the file holds **87** open checkboxes
-(`grep -c '^- \[ \] '`, re-run 2026-08-31 after [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) ticked S-26 and S-27; it read 89 after the third run's five PRs merged). **The figure first
+*(Retitled 2026-08-31. It classifies about 25 items; the file holds **86** open checkboxes
+(`grep -c '^- \[ \] '`, re-run 2026-08-31 after [#266](https://github.com/themancalledzac/edens.zac.backend/pull/266) ticked MR 19 #21; it read 87 after [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) and 89 after the third run's five PRs merged). **The figure first
 written here was 94 and it was wrong** -- measured on the close-out's own pre-rebase branch, where the
 three decision rows [#260](https://github.com/themancalledzac/edens.zac.backend/pull/260) had already
 ticked were still open and item #22 was double-counted. At its own merge commit the file actually held
