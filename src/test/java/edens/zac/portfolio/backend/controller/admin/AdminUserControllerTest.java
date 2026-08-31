@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,6 +28,7 @@ import edens.zac.portfolio.backend.entity.WebAuthnCredentialEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.services.EmailService;
+import edens.zac.portfolio.backend.services.RoleGrantPropagationService;
 import edens.zac.portfolio.backend.services.SessionService;
 import edens.zac.portfolio.backend.services.UserFollowsService;
 import edens.zac.portfolio.backend.services.UserInviteService;
@@ -65,12 +67,19 @@ class AdminUserControllerTest {
   @Mock private EmailService emailService;
   @Mock private SessionService sessionService;
   @Mock private WebAuthnCredentialRepository credentialRepository;
+  @Mock private RoleGrantPropagationService roleGrantPropagationService;
 
   /** Trailing slash on purpose: exercises the trailing-slash-safe invite-URL join. */
   private static final String FRONTEND_BASE_URL = "https://app.example.com/";
 
+  /**
+   * The role-membership routes delegate to a real {@link AdminRoleController} over the same mocked
+   * {@link RoleRepository}, so the delegation itself is under test rather than stubbed away.
+   */
   @BeforeEach
   void setUp() {
+    AdminRoleController adminRoleController =
+        new AdminRoleController(roleRepository, roleGrantPropagationService);
     AdminUserController controller =
         new AdminUserController(
             appUserRepository,
@@ -83,6 +92,7 @@ class AdminUserControllerTest {
             emailService,
             sessionService,
             credentialRepository,
+            adminRoleController,
             FRONTEND_BASE_URL);
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
@@ -1233,6 +1243,19 @@ class AdminUserControllerTest {
       mockMvc.perform(delete("/api/admin/users/5/roles/2")).andExpect(status().isNoContent());
 
       verify(roleRepository).removeMember(2L, 5L);
+    }
+
+    /**
+     * The repository's PERSON rejection must still reach the caller as a {@code 400} on the
+     * user-centric route, which reaches it only by delegating to {@code AdminRoleController}.
+     */
+    @Test
+    void addUserToRoleReturns400WhenTargetIsNotAnAccount() throws Exception {
+      doThrow(new IllegalArgumentException("Role membership requires an account user: 5"))
+          .when(roleRepository)
+          .addMember(2L, 5L, null);
+
+      mockMvc.perform(put("/api/admin/users/5/roles/2")).andExpect(status().isBadRequest());
     }
 
     @Test

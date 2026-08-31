@@ -77,12 +77,14 @@ public class RoleRepository extends BaseDao {
    * {@link AccessLevel#rank()}. Takes the column name because insertInheritedGrant compares two
    * columns in one statement. ADMIN is deliberately absent: it is a computed sentinel, never
    * stored, so it can never appear in a level column. A future storable level is one edit here.
+   *
+   * <p>Every call site concatenates this onto a text block ending in {@code \s}. That escape is
+   * required: text blocks strip trailing whitespace from every line (JEP 378), so a plain space
+   * before the closing delimiter is dropped and the join becomes invalid SQL ({@code ANDCASE}).
    */
   private static String rank(String levelColumn) {
     return "CASE " + levelColumn + " WHEN 'COLLABORATOR' THEN 2 WHEN 'CLIENT' THEN 1 ELSE 0 END";
   }
-
-  // ---- Role CRUD ----
 
   /**
    * Create a role. Every role created through this method is SHARED, so the {@code kind} column is
@@ -117,8 +119,6 @@ public class RoleRepository extends BaseDao {
         "DELETE FROM role WHERE id = :id", createParameterSource().addValue("id", roleId));
   }
 
-  // ---- Membership ----
-
   /**
    * The {@code users.status} values that may hold a {@code role_member} row. Bound as an {@code IN}
    * list by {@link #addMember} and {@link #repointMemberships}, which is what keeps the rule in one
@@ -140,10 +140,11 @@ public class RoleRepository extends BaseDao {
    *
    * <p>Rejects any status outside {@link #ROLE_MEMBERSHIP_STATUSES}, which today is the tag-only
    * {@code PERSON} row and nothing else. Since V35 a person tagged in photos and an account share
-   * one {@code users} table, so a person id and an account id are indistinguishable at the two
-   * admin endpoints that reach here -- both pass a path variable straight through. A PERSON row
-   * cannot log in today, so admitting one grants nobody anything now; the risk is the grant lying
-   * dormant until that person is upgraded to an account, which then inherits it silently.
+   * one {@code users} table, so a person id and an account id are indistinguishable at {@code
+   * AdminRoleController.addMember}, the single admin caller that reaches here -- it passes a path
+   * variable straight through, and the user-centric route delegates to it. A PERSON row cannot log
+   * in today, so admitting one grants nobody anything now; the risk is the grant lying dormant
+   * until that person is upgraded to an account, which then inherits it silently.
    *
    * @throws IllegalArgumentException (400) when the id is not an account
    */
@@ -249,8 +250,6 @@ public class RoleRepository extends BaseDao {
         createParameterSource().addValue("roleId", roleId));
   }
 
-  // ---- Collection grants on a role ----
-
   /**
    * Upsert a DIRECT grant. Clearing {@code inherited_from_collection_id} on conflict converts an
    * inherited copy into a direct grant, so an explicit admin grant is never mistaken for (or later
@@ -331,8 +330,6 @@ public class RoleRepository extends BaseDao {
         createParameterSource().addValue("collectionId", collectionId));
   }
 
-  // ---- Waterfall provenance (inherited copies of direct grants) ----
-
   /**
    * Upsert an INHERITED copy of a direct grant held on {@code originCollectionId}. Never clobbers a
    * direct row, and never downgrades: an existing inherited row is only rewritten when the incoming
@@ -351,9 +348,6 @@ public class RoleRepository extends BaseDao {
                inherited_from_collection_id = EXCLUDED.inherited_from_collection_id
          WHERE role_collection.inherited_from_collection_id IS NOT NULL
            AND\s"""
-            // The \s above is load-bearing: text blocks strip trailing whitespace from every
-            // line (JEP 378), so a plain space before the closing """ is silently dropped and
-            // this concatenation becomes invalid SQL ("ANDCASE ..."). Do not replace it with " ".
             + rank("role_collection.level")
             + " < "
             + rank("EXCLUDED.level"),
@@ -421,8 +415,6 @@ public class RoleRepository extends BaseDao {
         createParameterSource().addValue("collectionId", collectionId));
   }
 
-  // ---- Resolution (the seam) ----
-
   @Transactional(readOnly = true)
   public boolean canView(Long userId, Long collectionId) {
     Integer count =
@@ -452,7 +444,6 @@ public class RoleRepository extends BaseDao {
                   JOIN role_collection rc ON rc.role_id = rm.role_id
                  WHERE rm.user_id = :userId AND rc.collection_id = :collectionId
                    AND\s"""
-                    // \s is load-bearing here too -- see the comment in insertInheritedGrant.
                     + rank("rc.level")
                     + " >= "
                     + AccessLevel.CLIENT.rank(),
@@ -473,7 +464,6 @@ public class RoleRepository extends BaseDao {
           JOIN role_collection rc ON rc.role_id = rm.role_id
          WHERE rm.user_id = :userId AND rc.collection_id = :collectionId
          ORDER BY\s"""
-            // \s is load-bearing here too -- see the comment in insertInheritedGrant.
             + rank("rc.level")
             + " DESC LIMIT 1",
         (rs, n) -> AccessLevel.valueOf(rs.getString("level")),

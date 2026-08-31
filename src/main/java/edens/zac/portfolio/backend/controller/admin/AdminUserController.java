@@ -78,6 +78,7 @@ public class AdminUserController {
   private final EmailService emailService;
   private final SessionService sessionService;
   private final WebAuthnCredentialRepository credentialRepository;
+  private final AdminRoleController adminRoleController;
   private final String frontendBaseUrl;
 
   public AdminUserController(
@@ -91,6 +92,7 @@ public class AdminUserController {
       EmailService emailService,
       SessionService sessionService,
       WebAuthnCredentialRepository credentialRepository,
+      AdminRoleController adminRoleController,
       @Value("${email.frontend-base-url}") String frontendBaseUrl) {
     this.appUserRepository = appUserRepository;
     this.userInviteService = userInviteService;
@@ -102,6 +104,7 @@ public class AdminUserController {
     this.emailService = emailService;
     this.sessionService = sessionService;
     this.credentialRepository = credentialRepository;
+    this.adminRoleController = adminRoleController;
     this.frontendBaseUrl = frontendBaseUrl;
   }
 
@@ -380,18 +383,22 @@ public class AdminUserController {
   /**
    * Add this user to a role (membership). Idempotent.
    *
+   * <p>The user-centric mirror of {@link AdminRoleController#addMember}, which it delegates to so
+   * the two routes cannot drift. Both stay live because the admin frontend drives two screens from
+   * them.
+   *
    * @param id the {@code app_user.id}
    * @param roleId the role to join
    * @return {@code 204 No Content}
    */
   @PutMapping("/{id}/roles/{roleId}")
   public ResponseEntity<Void> addUserToRole(@PathVariable Long id, @PathVariable Long roleId) {
-    roleRepository.addMember(roleId, id, CurrentUser.userId());
-    return ResponseEntity.noContent().build();
+    return adminRoleController.addMember(roleId, id);
   }
 
   /**
-   * Remove this user from a role.
+   * Remove this user from a role. The user-centric mirror of {@link
+   * AdminRoleController#removeMember}, which it delegates to.
    *
    * @param id the {@code app_user.id}
    * @param roleId the role to leave
@@ -399,8 +406,7 @@ public class AdminUserController {
    */
   @DeleteMapping("/{id}/roles/{roleId}")
   public ResponseEntity<Void> removeUserFromRole(@PathVariable Long id, @PathVariable Long roleId) {
-    roleRepository.removeMember(roleId, id);
-    return ResponseEntity.noContent().build();
+    return adminRoleController.removeMember(roleId, id);
   }
 
   /**

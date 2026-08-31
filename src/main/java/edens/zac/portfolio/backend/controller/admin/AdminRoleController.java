@@ -140,7 +140,8 @@ public class AdminRoleController {
   }
 
   /**
-   * Add a user to a role (membership). Idempotent.
+   * Add a user to a role (membership). Idempotent. The only implementation: {@link
+   * AdminUserController#addUserToRole} serves the user-centric route by delegating here.
    *
    * @param roleId the role id
    * @param userId the {@code app_user.id} to add
@@ -153,7 +154,8 @@ public class AdminRoleController {
   }
 
   /**
-   * Remove a user from a role.
+   * Remove a user from a role. The only implementation: {@link
+   * AdminUserController#removeUserFromRole} serves the user-centric route by delegating here.
    *
    * @param roleId the role id
    * @param userId the {@code app_user.id} to remove
