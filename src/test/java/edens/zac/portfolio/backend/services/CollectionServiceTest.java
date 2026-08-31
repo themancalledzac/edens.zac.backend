@@ -1072,6 +1072,7 @@ class CollectionServiceTest {
               null,
               null,
               List.of(),
+              List.of(),
               edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
       CollectionModel model =
@@ -1468,6 +1469,7 @@ class CollectionServiceTest {
           null,
           null,
           null,
+          List.of(),
           List.of(),
           edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
     }
@@ -2375,6 +2377,7 @@ class CollectionServiceTest {
               null,
               null,
               null,
+              List.of(),
               List.of(),
               edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
