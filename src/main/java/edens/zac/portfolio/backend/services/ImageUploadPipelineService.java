@@ -314,7 +314,18 @@ public class ImageUploadPipelineService {
   }
 
   /**
-   * The from-disk ingest loop: prepare, dedupe-save and wire up each file in turn.
+   * Picks the collection one prepared file belongs in. Returning null drops the file from the job;
+   * a resolver that returns null must record the reason on the job itself.
+   */
+  @FunctionalInterface
+  private interface CollectionResolver {
+    Long resolve(
+        DiskUploadRequest.FileEntry fileEntry, ImageProcessingService.PreparedImageData prepared);
+  }
+
+  /**
+   * Prepare, dedupe-save and wire up each file of a background upload job, sending each one to the
+   * collection {@code collectionResolver} picks for it.
    *
    * <p>Known people are loaded once and used for two things: checking which plugin-provided people
    * need creating, and filtering people back out of the tag list. That filter is necessary because
@@ -322,21 +333,14 @@ public class ImageUploadPipelineService {
    * would also become a Tag. Newly created people join the filter set.
    *
    * <p>Per file, plugin-provided people and tags win over the XMP-extracted ones. A SKIP still
-   * links the image into the target collection: a skipped image is unchanged, but re-sending an
-   * already-known photo to a new collection must add it there rather than silently drop it.
-   *
-   * <p>Finally the {@code generalMetadata} cache is evicted, since new tags and people may have
-   * been created during the upload.
+   * links the image into its target collection: a skipped image is unchanged, but re-sending an
+   * already-known photo to a new collection must add it there rather than silently drop it. The
+   * caller marks the job processing and completed around this call.
    */
-  private void processFilesFromDiskLoop(
-      Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
-    job.markProcessing();
-    log.info(
-        "Starting disk upload job {} for {} files in collection {}",
-        job.jobId(),
-        job.totalFiles(),
-        collectionId);
-
+  private void runUploadLoop(
+      DiskUploadRequest request,
+      JobTrackingService.JobStatus job,
+      CollectionResolver collectionResolver) {
     List<ContentPersonEntity> existingPeople = personRepository.findAllByOrderByPersonNameAsc();
     Set<String> existingNames =
         existingPeople.stream()
@@ -354,151 +358,17 @@ public class ImageUploadPipelineService {
         .flatMap(f -> f.people().stream())
         .forEach(name -> allKnownPeople.add(name.toLowerCase()));
 
-    int orderIndex = contentService.nextOrderIndex(collectionId);
-
-    for (var fileEntry : request.files()) {
-      try {
-        var prepared = prepareFromDiskGuarded(fileEntry.jpegPath(), fileEntry.rawPath());
-
-        List<String> people =
-            (fileEntry.people() != null && !fileEntry.people().isEmpty())
-                ? fileEntry.people()
-                : prepared.extractedPeople();
-
-        List<String> rawTags =
-            (fileEntry.tags() != null && !fileEntry.tags().isEmpty())
-                ? fileEntry.tags()
-                : prepared.extractedTags();
-        List<String> tags =
-            rawTags.stream().filter(tag -> !allKnownPeople.contains(tag.toLowerCase())).toList();
-
-        ImageProcessingService.DedupeResult dedupeResult =
-            imageProcessingService.savePreparedImageWithDedupe(prepared, null);
-
-        job.processed().incrementAndGet();
-        switch (dedupeResult.action()) {
-          case CREATE -> {
-            job.created().incrementAndGet();
-            job.errors()
-                .addAll(
-                    wireImageAfterDedupe(
-                        dedupeResult,
-                        tags,
-                        people,
-                        prepared.rawFilePath(),
-                        prepared.imageYear(),
-                        prepared.imageMonth(),
-                        collectionId,
-                        orderIndex++));
-            contentMutationUtil.associateLocationsByName(
-                dedupeResult.entity().getId(), fileEntry.locations());
-          }
-          case UPDATE -> {
-            job.updated().incrementAndGet();
-            job.errors()
-                .addAll(
-                    wireImageAfterDedupe(
-                        dedupeResult,
-                        tags,
-                        people,
-                        prepared.rawFilePath(),
-                        prepared.imageYear(),
-                        prepared.imageMonth(),
-                        collectionId,
-                        orderIndex++));
-            contentMutationUtil.associateLocationsByName(
-                dedupeResult.entity().getId(), fileEntry.locations());
-          }
-          case SKIP -> {
-            job.skipped().incrementAndGet();
-            linkIfNotLinked(collectionId, dedupeResult.entity().getId(), orderIndex++);
-          }
-          default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
-        }
-      } catch (Exception e) {
-        log.error("Failed to process file {}: {}", fileEntry.jpegPath(), e.getMessage(), e);
-        job.errors().add(fileEntry.jpegPath() + ": " + e.getMessage());
-        job.processed().incrementAndGet();
-      }
-    }
-
-    evictGeneralMetadataCache();
-
-    job.markCompleted();
-    log.info(
-        "Disk upload job {} complete: {} created, {} updated, {} skipped, {} errors",
-        job.jobId(),
-        job.created().get(),
-        job.updated().get(),
-        job.skipped().get(),
-        job.errors().size());
-  }
-
-  private void ingestFilesGroupedByDayBackground(
-      DiskUploadRequest request, JobTrackingService.JobStatus job) {
-    try {
-      ingestFilesGroupedByDayLoop(request, job);
-    } catch (Exception e) {
-      log.error("Ingest job {} failed unexpectedly: {}", job.jobId(), e.getMessage(), e);
-      job.errors().add("Job failed: " + e.getMessage());
-      job.markCompleted();
-    }
-  }
-
-  /**
-   * The tag-first ingest loop. Same shape as {@link #processFilesFromDiskLoop} -- people loading,
-   * the people-out-of-tags filter, plugin-over-XMP precedence and the link-on-SKIP rule are all
-   * identical -- with one difference: there is no target collection, so each file lands in the BLOG
-   * collection for its capture day.
-   *
-   * <p>Each image is prepared first, because that uploads to S3 and extracts EXIF including the
-   * capture date, which is the fallback when the request omits {@code captureDate}. The per-day
-   * collection is memoized within the job, and orderIndex is tracked per collection so multiple
-   * files on the same day append in sequence.
-   */
-  private void ingestFilesGroupedByDayLoop(
-      DiskUploadRequest request, JobTrackingService.JobStatus job) {
-    job.markProcessing();
-    log.info("Starting tag-first ingest job {} for {} files", job.jobId(), job.totalFiles());
-
-    List<ContentPersonEntity> existingPeople = personRepository.findAllByOrderByPersonNameAsc();
-    Set<String> existingNames =
-        existingPeople.stream()
-            .map(p -> p.getPersonName().toLowerCase())
-            .collect(Collectors.toCollection(HashSet::new));
-
-    ensurePluginPeopleExist(request, existingNames);
-
-    Set<String> allKnownPeople =
-        existingPeople.stream()
-            .map(p -> p.getPersonName().toLowerCase())
-            .collect(Collectors.toCollection(HashSet::new));
-    request.files().stream()
-        .filter(f -> f.people() != null)
-        .flatMap(f -> f.people().stream())
-        .forEach(name -> allKnownPeople.add(name.toLowerCase()));
-
-    Map<LocalDate, Long> blogByDay = new HashMap<>();
     Map<Long, Integer> nextOrderByCollection = new HashMap<>();
 
     for (var fileEntry : request.files()) {
       try {
         var prepared = prepareFromDiskGuarded(fileEntry.jpegPath(), fileEntry.rawPath());
 
-        LocalDate captureDay = resolveCaptureDay(fileEntry, prepared);
-        if (captureDay == null) {
-          log.warn(
-              "No resolvable capture date for {} -- recording as failure", fileEntry.jpegPath());
-          job.errors()
-              .add(
-                  fileEntry.jpegPath()
-                      + ": no resolvable capture date (request captureDate absent and no EXIF date"
-                      + " on file)");
+        Long collectionId = collectionResolver.resolve(fileEntry, prepared);
+        if (collectionId == null) {
           job.processed().incrementAndGet();
           continue;
         }
-
-        Long collectionId = blogByDay.computeIfAbsent(captureDay, this::getOrCreateBlogForDay);
 
         List<String> people =
             (fileEntry.people() != null && !fileEntry.people().isEmpty())
@@ -523,9 +393,6 @@ public class ImageUploadPipelineService {
             } else {
               job.updated().incrementAndGet();
             }
-            int orderIndex =
-                nextOrderByCollection.computeIfAbsent(collectionId, contentService::nextOrderIndex);
-            nextOrderByCollection.put(collectionId, orderIndex + 1);
             job.errors()
                 .addAll(
                     wireImageAfterDedupe(
@@ -536,27 +403,86 @@ public class ImageUploadPipelineService {
                         prepared.imageYear(),
                         prepared.imageMonth(),
                         collectionId,
-                        orderIndex));
+                        takeOrderIndex(nextOrderByCollection, collectionId)));
             contentMutationUtil.associateLocationsByName(
                 dedupeResult.entity().getId(), fileEntry.locations());
           }
           case SKIP -> {
             job.skipped().incrementAndGet();
-            int orderIndex =
-                nextOrderByCollection.computeIfAbsent(collectionId, contentService::nextOrderIndex);
-            nextOrderByCollection.put(collectionId, orderIndex + 1);
-            linkIfNotLinked(collectionId, dedupeResult.entity().getId(), orderIndex);
+            linkIfNotLinked(
+                collectionId,
+                dedupeResult.entity().getId(),
+                takeOrderIndex(nextOrderByCollection, collectionId));
           }
           default -> log.warn("Unexpected dedupe action: {}", dedupeResult.action());
         }
       } catch (Exception e) {
-        log.error("Failed to ingest file {}: {}", fileEntry.jpegPath(), e.getMessage(), e);
+        log.error("Failed to process file {}: {}", fileEntry.jpegPath(), e.getMessage(), e);
         job.errors().add(fileEntry.jpegPath() + ": " + e.getMessage());
         job.processed().incrementAndGet();
       }
     }
 
     evictGeneralMetadataCache();
+  }
+
+  /**
+   * Take the next orderIndex for one collection within a job, seeding from the database the first
+   * time that collection is used. Tracking it per collection lets several files landing in the same
+   * collection append in sequence.
+   */
+  private int takeOrderIndex(Map<Long, Integer> nextOrderByCollection, Long collectionId) {
+    int orderIndex =
+        nextOrderByCollection.computeIfAbsent(collectionId, contentService::nextOrderIndex);
+    nextOrderByCollection.put(collectionId, orderIndex + 1);
+    return orderIndex;
+  }
+
+  /** The from-disk upload loop: every file lands in the one collection the caller named. */
+  private void processFilesFromDiskLoop(
+      Long collectionId, DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    job.markProcessing();
+    log.info(
+        "Starting disk upload job {} for {} files in collection {}",
+        job.jobId(),
+        job.totalFiles(),
+        collectionId);
+
+    runUploadLoop(request, job, (fileEntry, prepared) -> collectionId);
+
+    job.markCompleted();
+    log.info(
+        "Disk upload job {} complete: {} created, {} updated, {} skipped, {} errors",
+        job.jobId(),
+        job.created().get(),
+        job.updated().get(),
+        job.skipped().get(),
+        job.errors().size());
+  }
+
+  private void ingestFilesGroupedByDayBackground(
+      DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    try {
+      ingestFilesGroupedByDayLoop(request, job);
+    } catch (Exception e) {
+      log.error("Ingest job {} failed unexpectedly: {}", job.jobId(), e.getMessage(), e);
+      job.errors().add("Job failed: " + e.getMessage());
+      job.markCompleted();
+    }
+  }
+
+  /**
+   * The tag-first ingest loop: there is no target collection, so each file lands in the BLOG
+   * collection for its capture day.
+   */
+  private void ingestFilesGroupedByDayLoop(
+      DiskUploadRequest request, JobTrackingService.JobStatus job) {
+    job.markProcessing();
+    log.info("Starting tag-first ingest job {} for {} files", job.jobId(), job.totalFiles());
+
+    Map<LocalDate, Long> blogByDay = new HashMap<>();
+    runUploadLoop(
+        request, job, (fileEntry, prepared) -> resolveDayBlog(fileEntry, prepared, blogByDay, job));
 
     job.markCompleted();
     log.info(
@@ -567,6 +493,29 @@ public class ImageUploadPipelineService {
         job.skipped().get(),
         job.errors().size(),
         blogByDay.size());
+  }
+
+  /**
+   * Resolve the day blog one ingested file belongs in, memoized per capture day within the job. The
+   * day comes from the request or, failing that, from the EXIF date read while preparing the image;
+   * a file with neither is recorded as a job failure and returns null.
+   */
+  private Long resolveDayBlog(
+      DiskUploadRequest.FileEntry fileEntry,
+      ImageProcessingService.PreparedImageData prepared,
+      Map<LocalDate, Long> blogByDay,
+      JobTrackingService.JobStatus job) {
+    LocalDate captureDay = resolveCaptureDay(fileEntry, prepared);
+    if (captureDay == null) {
+      log.warn("No resolvable capture date for {} -- recording as failure", fileEntry.jpegPath());
+      job.errors()
+          .add(
+              fileEntry.jpegPath()
+                  + ": no resolvable capture date (request captureDate absent and no EXIF date"
+                  + " on file)");
+      return null;
+    }
+    return blogByDay.computeIfAbsent(captureDay, this::getOrCreateBlogForDay);
   }
 
   /**
