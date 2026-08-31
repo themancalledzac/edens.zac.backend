@@ -1641,7 +1641,7 @@ neighbourhood of what merged; and estimates have not blown out. Re-evaluate afte
 
 ### Classification of the actionable near-term board (stamped 2026-08-31, fifth close-out)
 
-*(Retitled 2026-08-31. It classifies about 25 items; the file holds **74** open checkboxes
+*(Retitled 2026-08-31. It classifies about 25 items; the file holds **75** open checkboxes
 (`grep -c '^- \[ \] '`, re-run 2026-08-31 at the **fifth** run's close-out: **87 -> 83**, exactly the four this run ticked, and this close-out filed nothing new -- the first close-out in three that did not. The figure stepped 89 after the third run's five PRs, 87 after [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), 86 after [#266](https://github.com/themancalledzac/edens.zac.backend/pull/266), 85 after [#267](https://github.com/themancalledzac/edens.zac.backend/pull/267), back to 87 when the fourth close-out filed #23 and the `AdminUserControllerTest` sweep, and to **83** when the fifth run shipped both of those plus U-4 and MR 25's overload.) **The figure first
 written here was 94 and it was wrong** -- measured on the close-out's own pre-rebase branch, where the
 three decision rows [#260](https://github.com/themancalledzac/edens.zac.backend/pull/260) had already
@@ -1755,8 +1755,13 @@ MR 17 #8 ([#285](https://github.com/themancalledzac/edens.zac.backend/pull/285))
 
 **Both remaining ledger gates hit zero.** Bug #18 was the last open bug; S-28 was the last open
 security finding. `grep -c '^- \[ \] \*\*Bug #'` and `grep -c '^- \[ \] \*\*S-'` both return **0**.
-Open checkboxes **83 -> 74**: eleven ticked, two filed (#12b and the `CollectionRepository` comment
-concentration). Reconciles exactly.
+Open checkboxes **83 -> 75**, and the arithmetic needs both halves stated because **this run's own
+close-out tripped working rule 42 while citing it.** This run moved it **83 -> 74**: eleven ticked,
+two filed (#12b and the `CollectionRepository` comment concentration). **[#277](https://github.com/themancalledzac/edens.zac.backend/pull/277) then merged
+from outside the run and filed item #25**, taking `main` to **75**. The 74 was measured on this
+close-out's branch before #277 landed, written down, and was wrong within the hour -- which is
+exactly *"a count measured on a feature branch is not a count of `main`"*. Corrected here on the
+rebase. **[#281](https://github.com/themancalledzac/edens.zac.backend/pull/281) does not move it**: its item #26 is filed already-ticked.
 
 **The run was reshaped by the user, twice, mid-flight.** It started as four sequential items done
 inline. After two, the user said the pace was the problem -- *"I need each `/next` session to have
