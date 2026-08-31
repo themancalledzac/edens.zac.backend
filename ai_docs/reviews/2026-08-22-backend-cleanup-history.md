@@ -5783,7 +5783,10 @@ client reads -- but the fix is correct whichever way BE-2 goes, so it did not wa
 
 Shipped as [#267](https://github.com/themancalledzac/edens.zac.backend/pull/267). The 3-arg
 `DiskUploadRequest.FileEntry` constructor is gone and its 13 call sites now pass the canonical six
-arguments. Suite 1,455 -> 1,457 (both new tests are the wire pin below, not the refactor).
+arguments. Suite 1,463 -> 1,465 (both new tests are the wire pin below,
+not the refactor; measured after [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265)
+and [#266](https://github.com/themancalledzac/edens.zac.backend/pull/266) merged and this branch was
+rebased onto both).
 
 ### Every number reproduced, and this time that is evidence
 
