@@ -6266,12 +6266,144 @@ commit appear and rewind. That commit was #260, which is real and open. Its repo
 contradictions that "come back if `dbb5271` re-lands" — describes rows #260 itself edits, and was
 skipped for that reason.
 
+## 2026-08-31 fifth-run close-out — #23, U-4, MR 25's overload and the AdminUserControllerTest sweep
+
+Four MRs, four board items, all merged: [#269](https://github.com/themancalledzac/edens.zac.backend/pull/269),
+[#270](https://github.com/themancalledzac/edens.zac.backend/pull/270),
+[#271](https://github.com/themancalledzac/edens.zac.backend/pull/271),
+[#272](https://github.com/themancalledzac/edens.zac.backend/pull/272).
+
+### #23 — the stale `.env` template in `ai_ec2.md` ([#269](https://github.com/themancalledzac/edens.zac.backend/pull/269))
+
+`+6 / -36`, docs only, exactly as specified. Both env blocks deleted and replaced with a pointer at
+`.env.example`; `ai_deployment_strategy.md` untouched per the guardrail. The PR body says explicitly
+that this does not settle U-1, so the item's guardrail survives into the record rather than only the
+board.
+
+### U-4 — the slide moved below the status check ([#270](https://github.com/themancalledzac/edens.zac.backend/pull/270))
+
+The premise held exactly as the fourth run recorded it, and the one-block move was the whole source
+change. **What the item did not price was that no existing test could catch the bug.**
+`resolveRejectsSessionWhoseAccountWasDisabled` already asserted `expiresAt` is in the future, which
+is true under the bug as well as after the fix, so the suite was green either way.
+
+Rule 45 applied cleanly. Enumerating the ways the move can be written wrong gave four, and only one
+of them had coverage before this MR:
+
+| Wrong form | Caught by |
+|---|---|
+| slide left above `findById` or above `mayHoldSession` | **new** — `resolveDoesNotSlideTheWindowOfADisabledAccountsSession` |
+| slide deleted outright | `resolveSlidesLastSeenWhenStale` (existing) |
+| slide moved below the `return`, unreachable | `resolveSlidesLastSeenWhenStale` (existing) |
+| cap dropped during the move | `resolveCapsSlideAtAbsoluteLifetimeCeiling` (existing) |
+
+Mutation-proved rather than assumed (rules 15 and 32): with the slide put back above `findById` the
+class runs 15 with **1 failure**, the new test, failing at the `last_seen_at` assertion — at the
+guard, not on a fixture gap. Restored: 15/15.
+
+`mayHoldSession` and the absolute-ceiling cap were not touched.
+
+### MR 25's `resolveCollectionDownloadEntries` 2-arg overload ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271))
+
+Every recorded count reproduced before the edit: 5 two-arg sites all in `ContentServiceDownloadTest`,
+4 three-arg sites in that same file left alone, 1 `src/main` call at
+`ContentDownloadControllerProd:140` using the 3-arg form. Selection was by arity, which is what the
+guardrail asked for and what the same-file mix makes necessary.
+
+One thing the item did not name: the 3-arg docblock said the null case is "identical to the 2-arg
+overload". Deleting the overload turns that into a dangling reference, so it went too. **A
+docblock that cross-references the thing being deleted is part of the deletion's cost** — cheap
+here, but it is the kind of line a mechanical arity sweep walks straight past.
+
+The other two MR 25 members were not bundled, per the guardrail.
+
+### `AdminUserControllerTest`'s 73 inline comments ([#272](https://github.com/themancalledzac/edens.zac.backend/pull/272))
+
+73 to 0, one file, `+118 / -73`. Delete-and-relocate, not a delete: the substantive ones went into
+each test's docblock in the shape #265's own tests already used. What survived the move was the
+S-13 `lenient()` explanation (the detail that makes the mutation land at the annotation rather than
+404 on an unstubbed lookup), both halves of S-21, S-8 and S-9 with their "mutation this catches"
+lines, the two scope guards with their S-7/S-10 reasoning, and the account-takeover guard.
+
+One comment turned out to be a formatting artifact rather than prose: `// Constraining` alone on a
+line, wrapping mid-sentence into `// the request enum must not close it.` It reads as a sentence now.
+
+**The rule-42 checksum needed a distinction the rule had not drawn.** #271's PR body says "17 inline
+comments deleted" and that is true as a count of comments; the rule-37 metric moved by **16**,
+because one of the 17 was a trailing `code; //` and the metric counts only lines whose first
+non-whitespace is `//`. Both numbers are right about different things. The reconciliation only
+closes if you say which metric you are moving — see working rule 46.
+
+### Two numbers corrected, and neither was caused by this run
+
+**The board's recorded test-side inline-comment figure was 3 low.** It said 1,371 post-merge; the
+board's own command at `a9d9e661` returns **1,374**, and it has returned 1,374 since `41d928b4`.
+The recorded *delta* for #266 was right (-4); only the absolutes drifted, and they have carried the
+offset for at least two runs. This is the failure mode where a number nobody re-runs reads as
+authoritative because a past session wrote it down as measured.
+
+**Working rule 36's own parenthetical was stale.** It said `grep -c '^- \[ \] \*\*S-'` "Returns 5 as
+of 2026-08-29". It returns **1**, and has since #265. Both cells the rule governs were already
+correct at 1 — it was the rule's stamp that rotted, which is the one place nothing was checking.
+
+### MR 19 #15's gating question, settled by reading
+
+The fourth run left MR 19 #15 out of its run because the item carried a question: does `findBySlug`'s
+converter strip the gallery password? **It does — and the answer inverts the item.**
+
+`CollectionProcessingUtil.convertToFullModel` -> `convertToModel` -> the shared base never sets
+`galleryPassword` or `recipientEmails` on `CollectionModel`. It sets only `isPasswordProtected`, a
+boolean derived from `galleryPassword != null`. The second entity fetch exists because
+`CollectionService.getUpdateCollectionData` copies those two fields off the entity onto the model
+itself, at `931-932`.
+
+So the item's framing — "fetches the collection row twice", filed as a de-duplication — is wrong.
+The two fetches return different data on purpose. Deleting the second one returns a null password
+and empty recipients; "fixing" that by widening the converter leaks the gallery password onto every
+read path sharing it, which is the risk the item flagged and could not price. **The real fix shape
+is a two-column projection for this one caller**, and it is a different, smaller change than the
+deletion the item describes.
+
+Working rule 21 again: correct premise, prescribed fix that would have shipped a bug.
+
+The item's second sub-claim is also settled. The "always-true null check" was recorded UNVERIFIED;
+it is **VERIFIED true**. Both branches of `convertToFullModel` set content — line 352 in the empty
+case, line 328 via `convertToModel` — so `collection.getContent()` at `CollectionService:914` is
+never null on that path.
+
+### U-1 was asked, and the answer was that it cannot be checked
+
+The fourth run's close-out made U-1 the first thing the fifth run asks, because it gates U-7 and
+U-8. It was asked before any code. **The user's answer was that they cannot check right now**, so
+U-1 stays BLOCKED, U-7 and U-8 stay blocked behind it, and the twelve-name actuator exclude list at
+`application.properties:67` was not touched. That is the correct outcome of the ask, not a failure
+of it: the question is now on the record as put and unanswered rather than unasked.
+
+
 # Session log archive — entries moved 2026-08-31
 
 Oldest first. **The tracker keeps the current session's entries and moves the rest here on every
 close-out** -- corrected 2026-08-31 (third run); the preamble had said "the two newest", which
 matched neither the retention rule at the tracker's own session log nor what the moves actually did.
 Extended by the 2026-08-31 third-run close-out.
+Extended again by the 2026-08-31 fifth-run close-out.
+
+- 2026-08-31 (fourth run, close-out) — **three MRs, and the two questions this close-out answered
+  by looking were worth more than the ticks.** Shipped S-26 + S-27
+  ([#265](https://github.com/themancalledzac/edens.zac.backend/pull/265)), MR 19 #21
+  ([#266](https://github.com/themancalledzac/edens.zac.backend/pull/266)), MR 25's `FileEntry`
+  ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267)), plus the close-out
+  ([#268](https://github.com/themancalledzac/edens.zac.backend/pull/268)). All three items'
+  prescribed fixes needed no adjustment — three in a row. What needed work each time was the test,
+  and in two of three the premise was true but *untested*: S-26's "the fix is one call" hid three
+  wrong forms of that line (rule 45), and MR 25's "no API-contract effect" rested on Jackson record
+  binding nothing exercised. Every recorded MR 25 count reproduced; the close-out then nearly
+  shipped a working rule built on a fabricated transcription error, caught before landing, and
+  **rule 44** now says the opposite of what it first said. Step 3 answered U-7 and U-8 by reading
+  `ProdActuatorExposureGuard` — both moot, but only under `prod`, which made **U-1 a hard dependency
+  of both** and re-framed U-1 itself into item **#23**. The scoped drift sweep found 27 of 33 refs
+  drifted, 0 gone, nine still resolving to plausible code. Rule-37 checksum 1,637 -> 1,633. Next:
+  **#23 and U-4**, with **U-1 asked first**.
 
 - 2026-08-30 — **cross-repo filing from the frontend's close-out session. No backend code.**
   Filed **Bug #21** (the dimension fallback fails soft and writes `0`), promoted out of the frontend
