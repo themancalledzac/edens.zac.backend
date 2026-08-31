@@ -56,10 +56,6 @@ class ContentServiceDownloadTest {
     ReflectionTestUtils.setField(service, "cloudfrontDomain", CLOUDFRONT_DOMAIN);
   }
 
-  // ---------------------------------------------------------------------------
-  //  Helpers
-  // ---------------------------------------------------------------------------
-
   private static ContentImageEntity image(Long id, String filename, String webSuffix) {
     return ContentImageEntity.builder()
         .id(id)
@@ -77,10 +73,6 @@ class ContentServiceDownloadTest {
         .originalFilename(filename)
         .build();
   }
-
-  // ---------------------------------------------------------------------------
-  //  resolveImageDownload
-  // ---------------------------------------------------------------------------
 
   @Nested
   class ResolveImageDownload {
@@ -140,10 +132,12 @@ class ContentServiceDownloadTest {
           .hasMessageContaining("Unsupported download format");
     }
 
+    /**
+     * The entity's {@code @NotNull} on {@code imageUrlWeb} fires only on write, so a legacy row can
+     * still hold a null. The service must surface that as a 404 rather than NPE.
+     */
     @Test
     void web_nullImageUrlWeb_throwsNotFound() {
-      // Defensive: the entity's @NotNull on imageUrlWeb fires only on write, so a legacy
-      // row could have a null value. The service must not NPE; it should surface this as 404.
       ContentImageEntity img =
           ContentImageEntity.builder().id(10L).originalFilename("x.jpg").build();
       when(contentRepository.findImageById(10L)).thenReturn(Optional.of(img));
@@ -153,11 +147,12 @@ class ContentServiceDownloadTest {
           .hasMessageContaining("no resolvable S3 key");
     }
 
+    /**
+     * The image exists but its {@code imageUrlWeb} points at a different CloudFront domain, so the
+     * extractor returns null. That must surface as a 404, not as a stream of a bogus S3 key.
+     */
     @Test
     void webUrlMatchesNonConfiguredDomain_throwsNotFound() {
-      // Image exists but its imageUrlWeb points at a different CloudFront domain — the
-      // extractor returns null and the service surfaces this as 404 rather than streaming
-      // a bogus S3 key.
       ContentImageEntity img =
           ContentImageEntity.builder()
               .id(10L)
@@ -171,10 +166,6 @@ class ContentServiceDownloadTest {
           .hasMessageContaining("no resolvable S3 key");
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  resolveCollectionDownloadEntries
-  // ---------------------------------------------------------------------------
 
   @Nested
   class ResolveCollectionDownloadEntries {
@@ -204,7 +195,7 @@ class ContentServiceDownloadTest {
           1L,
           List.of(image(10L, "first.jpg", "first.webp"), image(11L, "second.jpg", "second.webp")));
 
-      List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "web");
+      List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "web", null);
 
       assertThat(entries).hasSize(2);
       assertThat(entries).allMatch(e -> e.extension().equals(".webp"));
@@ -219,22 +210,28 @@ class ContentServiceDownloadTest {
               imageWithOriginal(10L, "first.jpg", "first.webp", "first.jpg"),
               imageWithOriginal(11L, "second.jpg", "second.webp", "second.jpg")));
 
-      List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "original");
+      List<DownloadResolution> entries =
+          service.resolveCollectionDownloadEntries(1L, "original", null);
 
       assertThat(entries).hasSize(2);
       assertThat(entries).allMatch(e -> e.extension().equals(".jpg"));
       assertThat(entries).allMatch(e -> e.contentType().equals("image/jpeg"));
     }
 
+    /**
+     * The second image has no {@code imageUrlOriginal}, so it falls back to the web copy while the
+     * first still resolves to its original. The fallback is per image, not per request.
+     */
     @Test
     void original_someMissingOriginal_fallsBackToWebPerImage() {
       stubCollectionImages(
           1L,
           List.of(
               imageWithOriginal(10L, "first.jpg", "first.webp", "first.jpg"),
-              image(11L, "second.jpg", "second.webp"))); // no imageUrlOriginal
+              image(11L, "second.jpg", "second.webp")));
 
-      List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "original");
+      List<DownloadResolution> entries =
+          service.resolveCollectionDownloadEntries(1L, "original", null);
 
       assertThat(entries).hasSize(2);
       assertThat(entries.get(0).extension()).isEqualTo(".jpg");
@@ -248,18 +245,22 @@ class ContentServiceDownloadTest {
       when(collectionRepository.findContentByCollectionIdOrderByOrderIndex(1L))
           .thenReturn(List.of());
 
-      List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "web");
+      List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "web", null);
 
       assertThat(entries).isEmpty();
     }
 
     @Test
     void unsupportedFormat_throwsIllegalArgument() {
-      assertThatThrownBy(() -> service.resolveCollectionDownloadEntries(1L, "raw"))
+      assertThatThrownBy(() -> service.resolveCollectionDownloadEntries(1L, "raw", null))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Unsupported download format");
     }
 
+    /**
+     * The result is exactly ids 1 and 3 in collection {@code order_index} order, not in the order
+     * they were requested.
+     */
     @Test
     void imageIdsSubset_returnsOnlyRequestedInCollectionOrder() {
       stubCollectionImages(
@@ -272,7 +273,6 @@ class ContentServiceDownloadTest {
       List<DownloadResolution> entries =
           service.resolveCollectionDownloadEntries(1L, "web", List.of(1L, 3L));
 
-      // Exactly ids 1 and 3, in collection (order_index) order — not request order.
       assertThat(entries).hasSize(2);
       assertThat(entries.get(0).s3Key()).contains("first.webp");
       assertThat(entries.get(1).s3Key()).contains("third.webp");
@@ -301,13 +301,16 @@ class ContentServiceDownloadTest {
       assertThat(entries).hasSize(2);
     }
 
+    /**
+     * Id 99 does not belong to this collection, so it is silently dropped rather than thrown on or
+     * leaked. This is the auth boundary: filtering only ever narrows the collection's own images.
+     */
     @Test
     void imageIdsNotInCollection_areDroppedNotLeaked() {
       stubCollectionImages(
           1L,
           List.of(image(1L, "first.jpg", "first.webp"), image(2L, "second.jpg", "second.webp")));
 
-      // id 99 does not belong to this collection: silently dropped, no throw, never leaked.
       List<DownloadResolution> entries =
           service.resolveCollectionDownloadEntries(1L, "web", List.of(1L, 99L));
 
