@@ -5727,6 +5727,58 @@ account does" -- a biconditional #257 falsified by creating an ACTIVE account th
 (last passkey deregistered, no password hash). Narrowed to what the code tests: the owner's account
 *status* permits a session. The state it used to mis-describe is now named in the docblock rather
 than left for the next reader to rediscover.
+## MR 19 #21 outcome (2026-08-31) -- the N+1, and the reordering that would have ridden along
+
+Shipped as [#266](https://github.com/themancalledzac/edens.zac.backend/pull/266). One private method
+in `CollectionService`, two tests, two updated tests. Suite 1,461 -> 1,463 (measured after
+[#265](https://github.com/themancalledzac/edens.zac.backend/pull/265) merged and this branch was
+rebased onto it; against the pre-#265 baseline it was 1,455 -> 1,457).
+
+**The item's fix shape needed no adjustment** -- the second consecutive one after MR 19 #14, which
+broke the streak the full-board review's case rested on. Partition `orphanEntities` by type, call
+`batchConvertImageEntitiesToModels` and `batchConvertGifEntitiesToModels`, re-merge into the
+repository's ordering. Six queries where the default page of 50 cost up to 150.
+
+### The re-merge warning was the load-bearing half of the guardrail
+
+The obvious implementation is `imageModels` then `gifModels` concatenated, and it is wrong.
+`findOrphanContentByLocationName` orders by `sort_date DESC` **across both kinds** -- the SQL
+`COALESCE(ci.capture_date, cg.capture_date)` exists to do exactly that -- so concatenating groups all
+images ahead of all gifs and silently reorders every mixed page.
+
+**What makes it dangerous is that it passes the natural test.** A test asserting "both batch
+converters were called and the per-entity one was not" is green under the concatenating version; it
+is testing the N+1 fix, not the ordering. So the ordering needs its own test with a mixed page whose
+SQL order interleaves the kinds -- gif, image, gif -- and `containsExactly` on the ids. Under the
+concatenating mutation that one test reddens and nothing else does, which is the whole point of
+having written it.
+
+Implementation is a `Map<Long, ContentModel>` keyed by id, filled from both batches, then read back
+in `orphanEntities` order. Ordering is preserved by the read, not by anything the batches promise.
+
+### Mutation evidence
+
+| Mutation | Killed by |
+|---|---|
+| concatenate the two batches instead of re-merging | `getLocationPage_mixedOrphans_keepTheRepositoryOrdering:987` **only** |
+| drop the gif batch entirely | that test plus `getLocationPage_orphans_useTheBatchConverters:950` |
+
+Sources restored with `touch`, per working rule 15.
+
+### The partition is total, and that is a coupling worth naming
+
+`findOrphanContentByLocationName` pins `content_type IN ('IMAGE', 'GIF')`, so images and gifs cover
+the result set and no fallback branch is needed. That also makes the old code's
+`.filter(Objects::nonNull)` dead -- only COLLECTION yields null from
+`convertRegularContentEntityToModel`, and COLLECTION cannot appear. The method's docblock states the
+dependency rather than leaving it implicit: widening that SQL means adding a branch here, or the new
+type vanishes from the page.
+
+### Scope
+
+The BE-2 decision was not resolved on the way past, as the item said it should not be. The frontend
+still discards the entire `images` array (FE-1), so every one of those queries was spent on data no
+client reads -- but the fix is correct whichever way BE-2 goes, so it did not wait.
 
 ## S-22 outcome (2026-08-31) — shipped as a list, not the predicate the item specified
 

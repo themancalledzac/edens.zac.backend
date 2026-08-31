@@ -26,6 +26,7 @@ import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionContentEntity;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.entity.ContentCollectionEntity;
+import edens.zac.portfolio.backend.entity.ContentGifEntity;
 import edens.zac.portfolio.backend.entity.ContentImageEntity;
 import edens.zac.portfolio.backend.entity.ContentPersonEntity;
 import edens.zac.portfolio.backend.entity.LocationEntity;
@@ -34,6 +35,7 @@ import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.CollaboratorRequests;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.CollectionRequests;
+import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
@@ -782,13 +784,11 @@ class CollectionServiceTest {
           .thenReturn(List.of(orphanImage));
       when(contentRepository.countOrphanContentByLocationName(eq(locationName), eq(List.of(10L))))
           .thenReturn(1L);
-      when(contentModelConverter.convertRegularContentEntityToModel(orphanImage))
-          .thenReturn(imageModel);
+      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(orphanImage)))
+          .thenReturn(List.of(imageModel));
 
-      // Act
       LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
 
-      // Assert
       assertThat(result).isNotNull();
       assertThat(result.location()).isNotNull();
       assertThat(result.collections()).hasSize(1);
@@ -825,13 +825,11 @@ class CollectionServiceTest {
       when(contentRepository.countOrphanContentByLocationName(
               eq(locationName), eq(Collections.emptyList())))
           .thenReturn(1L);
-      when(contentModelConverter.convertRegularContentEntityToModel(orphanImage))
-          .thenReturn(imageModel);
+      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(orphanImage)))
+          .thenReturn(List.of(imageModel));
 
-      // Act
       LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
 
-      // Assert
       assertThat(result).isNotNull();
       assertThat(result.location()).isNotNull();
       assertThat(result.location().name()).isEqualTo("Portland");
@@ -915,6 +913,91 @@ class CollectionServiceTest {
           .countOrphanContentByLocationName(eq(locationName), eq(List.of(10L)));
       assertThat(result.collections()).isEmpty();
       assertThat(result.totalCollections()).isEqualTo(1L);
+    }
+
+    /**
+     * MR 19 #21. The orphan list is converted through the two BATCH converters, one per kind, so
+     * the page costs six queries rather than three per image. Mutations this catches: route the
+     * list back through {@code convertRegularContentEntityToModel}, or batch only the images and
+     * drop the gifs.
+     */
+    @Test
+    @DisplayName("orphans go through the batch converters, never the per-entity one")
+    void getLocationPage_orphans_useTheBatchConverters() {
+      String locationName = "Seattle";
+      ContentImageEntity orphanImage = ContentImageEntity.builder().id(20L).title("Sunset").build();
+      ContentGifEntity orphanGif = ContentGifEntity.builder().id(21L).title("Loop").build();
+
+      when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
+      when(collectionRepository.countListedByLocationName(locationName)).thenReturn(0L);
+      when(collectionRepository.findListedByLocationName(locationName, 35, 0))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
+          .thenReturn(Collections.emptyList());
+      when(contentRepository.findOrphanContentByLocationName(
+              eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))
+          .thenReturn(List.of(orphanImage, orphanGif));
+      when(contentRepository.countOrphanContentByLocationName(
+              eq(locationName), eq(Collections.emptyList())))
+          .thenReturn(2L);
+      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(orphanImage)))
+          .thenReturn(List.of(imageModel(20L, "Sunset")));
+      when(contentModelConverter.batchConvertGifEntitiesToModels(List.of(orphanGif)))
+          .thenReturn(List.of(gifModel(21L, "Loop")));
+
+      LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
+
+      assertThat(result.images()).extracting(ContentModel::id).containsExactly(20L, 21L);
+      verify(contentModelConverter, never()).convertRegularContentEntityToModel(any());
+    }
+
+    /**
+     * The SQL orders by {@code sort_date DESC} across both kinds, so the two batch results have to
+     * be re-merged into that order rather than concatenated. Mutation this catches: return the
+     * image batch followed by the gif batch, which passes the test above and silently reorders
+     * every mixed page.
+     */
+    @Test
+    @DisplayName("the repository's ordering survives the partition into two batches")
+    void getLocationPage_mixedOrphans_keepTheRepositoryOrdering() {
+      String locationName = "Seattle";
+      ContentGifEntity newerGif = ContentGifEntity.builder().id(31L).title("Newer").build();
+      ContentImageEntity middleImage = ContentImageEntity.builder().id(32L).title("Middle").build();
+      ContentGifEntity olderGif = ContentGifEntity.builder().id(33L).title("Older").build();
+
+      when(locationRepository.findByLocationName(locationName)).thenReturn(Optional.empty());
+      when(collectionRepository.countListedByLocationName(locationName)).thenReturn(0L);
+      when(collectionRepository.findListedByLocationName(locationName, 35, 0))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.batchConvertToBasicModels(Collections.emptyList()))
+          .thenReturn(Collections.emptyList());
+      when(contentRepository.findOrphanContentByLocationName(
+              eq(locationName), eq(Collections.emptyList()), eq(50), eq(0)))
+          .thenReturn(List.of(newerGif, middleImage, olderGif));
+      when(contentRepository.countOrphanContentByLocationName(
+              eq(locationName), eq(Collections.emptyList())))
+          .thenReturn(3L);
+      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of(middleImage)))
+          .thenReturn(List.of(imageModel(32L, "Middle")));
+      when(contentModelConverter.batchConvertGifEntitiesToModels(List.of(newerGif, olderGif)))
+          .thenReturn(List.of(gifModel(31L, "Newer"), gifModel(33L, "Older")));
+
+      LocationPageResponse result = service.getLocationPage(locationName, 0, 35, 0, 50);
+
+      assertThat(result.images()).extracting(ContentModel::id).containsExactly(31L, 32L, 33L);
+    }
+
+    private ContentModels.Image imageModel(Long id, String title) {
+      return new ContentModels.Image(
+          id, null, title, null, null, null, null, null, null, null, null, null, null, null, null,
+          null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+          null);
+    }
+
+    private ContentModels.Gif gifModel(Long id, String title) {
+      return new ContentModels.Gif(
+          id, null, title, null, null, null, null, null, null, null, null, null, null, null, null,
+          null, null, null, null, null, null, null);
     }
   }
 
