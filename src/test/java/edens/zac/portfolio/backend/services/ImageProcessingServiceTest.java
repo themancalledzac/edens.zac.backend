@@ -244,14 +244,9 @@ class ImageProcessingServiceTest {
   }
 
   /**
-   * Bug #21. When the dimension fallback fails -- no ImageReader for the format is the realistic
-   * trigger -- the metadata map reaches this method with no imageWidth/imageHeight keys. It used to
-   * write 0, which a consumer cannot tell apart from a real measurement of a 0x0 image. Null says
-   * "not known".
-   *
-   * <p>The extractor is a mock, so it is stubbed to return whatever default the production code
-   * hands it. Without that the mock would return null on its own and this test would pass against
-   * either sentinel -- a test that cannot fail.
+   * Absent dimension keys must persist as null, never 0. The extractor is stubbed to return the
+   * default the production code passes it -- a bare mock returns null on its own, which would make
+   * this test pass against either sentinel.
    */
   @Test
   void savePreparedImageWithDedupe_create_leavesDimensionsNull_whenTheHeaderReadFailed() {

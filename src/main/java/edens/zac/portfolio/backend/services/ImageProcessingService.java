@@ -449,16 +449,9 @@ public class ImageProcessingService {
    * <p>Rating is only written when the re-export carries one, so a curated rating survives an
    * export that omits the tag -- the same rule the location follows. A present rating overwrites.
    *
-   * <p>Dimensions default to {@code null}, not {@code 0} (bug #21). Every upload path should have
-   * real dimensions here: {@code recordRenditionDimensions} writes the served rendition's own width
-   * and height, and {@code ImageMetadataExtractor.ensureDimensions} reads them off the image header
-   * when EXIF omits them. But that header read fails soft three ways -- no image input stream, no
-   * {@code ImageReader} for the format (RAW or HEIC without a plugin), or an {@code IOException} --
-   * and each one leaves the keys absent. {@code 0} is the one value a consumer cannot tell apart
-   * from a real measurement, so it read as a 0x0 image rather than as missing data; {@code null}
-   * says "not known" and lets a caller decide. {@code iso} on the next line already defaulted this
-   * way. The column is nullable and {@code isSquareAspectRatio} already guards for null, so nothing
-   * downstream changes shape.
+   * <p>Dimensions default to {@code null}, never {@code 0}: a consumer cannot tell {@code 0} apart
+   * from a real measurement. They are absent only when the header read in {@code
+   * ImageMetadataExtractor} failed.
    *
    * <p>Camera resolution runs through {@code resolveFilmCameraDefaults} first: some film scanners
    * and medium-format backs report a generic capture-software name in the EXIF Model tag instead of
