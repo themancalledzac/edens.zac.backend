@@ -970,10 +970,8 @@ public class CollectionService {
 
     List<Records.CollectionList> collections = collectionRepository.findCollectionListEntries();
 
-    List<Records.FilmFormat> filmFormats =
-        Arrays.stream(FilmFormat.values())
-            .map(ff -> new Records.FilmFormat(ff.name(), ff.getDisplayName()))
-            .collect(Collectors.toList());
+    List<Records.FilmFormatOption> filmFormats =
+        Arrays.stream(FilmFormat.values()).map(Records.FilmFormatOption::of).toList();
 
     return new GeneralMetadataDTO(
         tags, people, locations, collections, cameras, lenses, filmTypes, filmFormats);

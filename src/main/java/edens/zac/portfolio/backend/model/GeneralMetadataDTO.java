@@ -23,7 +23,7 @@ public record GeneralMetadataDTO(
     /** All available film types with their metadata (display name, default ISO) */
     List<ContentFilmTypeModel> filmTypes,
     /** All available film formats (35mm, 120, etc.) */
-    List<Records.FilmFormat> filmFormats) {
+    List<Records.FilmFormatOption> filmFormats) {
 
   public GeneralMetadataDTO {
     tags = Objects.requireNonNullElse(tags, List.of());

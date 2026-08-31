@@ -144,10 +144,8 @@ public class ContentControllerProd {
   public ResponseEntity<Map<String, Object>> getFilmMetadata() {
     List<ContentFilmTypeModel> filmTypes = metadataService.getAllFilmTypes();
 
-    List<Records.FilmFormat> filmFormats =
-        Arrays.stream(FilmFormat.values())
-            .map(format -> new Records.FilmFormat(format.name(), format.getDisplayName()))
-            .toList();
+    List<Records.FilmFormatOption> filmFormats =
+        Arrays.stream(FilmFormat.values()).map(Records.FilmFormatOption::of).toList();
 
     return ResponseEntity.ok(Map.of("filmTypes", filmTypes, "filmFormats", filmFormats));
   }
