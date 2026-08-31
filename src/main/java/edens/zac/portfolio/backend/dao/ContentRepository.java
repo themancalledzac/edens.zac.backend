@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -179,6 +180,17 @@ public class ContentRepository extends BaseDao {
              ct.text_content, ct.format_type
       FROM content c
       JOIN content_text ct ON c.id = ct.id
+      """;
+
+  /** Excludes content that is visibly held by one of the location page's listed collections. */
+  private static final String ORPHAN_COLLECTION_EXCLUSION =
+      """
+       AND NOT EXISTS (
+         SELECT 1 FROM collection_content cc
+         WHERE cc.content_id = c.id
+           AND cc.collection_id IN (:excludeCollectionIds)
+           AND cc.visible = true
+       )
       """;
 
   private static final String SELECT_CONTENT_GIF =
@@ -383,19 +395,35 @@ public class ContentRepository extends BaseDao {
   }
 
   /**
-   * Find images at a location that are NOT in any of the specified collections. These are "orphan"
-   * images that appear on the location page below collections.
+   * Content at a location that is not in any of the given collections -- the "orphan" strip below
+   * the collections on a location page. Covers IMAGE and GIF: {@code content_image_locations} is
+   * keyed on {@code content_id} (V27), so any content row can be location-tagged, and a GIF that
+   * carries a tag belongs on the page the tag points at.
+   *
+   * <p>Ordering and paging are done over the combined set in SQL, then the rows are hydrated by
+   * {@link #findAllByIds} and put back into that order -- the two content types live in different
+   * tables, so one SELECT cannot return both hydrated.
+   *
+   * @param locationName the location to page
+   * @param excludeCollectionIds collections whose visible content is not "orphan"; may be empty
+   * @param limit page size
+   * @param offset page offset
+   * @return the page's content, newest capture date first, nulls last
    */
   @Transactional(readOnly = true)
-  public List<ContentImageEntity> findOrphanImagesByLocationName(
+  public List<ContentEntity> findOrphanContentByLocationName(
       String locationName, List<Long> excludeCollectionIds, int limit, int offset) {
     String sql =
-        SELECT_CONTENT_IMAGE
-            + """
-             JOIN content_image_locations cil ON ci.id = cil.content_id
-             JOIN location l ON cil.location_id = l.id
-             WHERE l.location_name = :locationName
-            """;
+        """
+        SELECT DISTINCT c.id, COALESCE(ci.capture_date, cg.capture_date) AS sort_date
+        FROM content c
+        JOIN content_image_locations cil ON c.id = cil.content_id
+        JOIN location l ON cil.location_id = l.id
+        LEFT JOIN content_image ci ON c.id = ci.id
+        LEFT JOIN content_gif cg ON c.id = cg.id
+        WHERE l.location_name = :locationName
+          AND c.content_type IN ('IMAGE', 'GIF')
+        """;
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("locationName", locationName)
@@ -403,46 +431,48 @@ public class ContentRepository extends BaseDao {
             .addValue("offset", offset);
 
     if (excludeCollectionIds != null && !excludeCollectionIds.isEmpty()) {
-      sql +=
-          """
-           AND NOT EXISTS (
-             SELECT 1 FROM collection_content cc
-             WHERE cc.content_id = c.id
-               AND cc.collection_id IN (:excludeCollectionIds)
-               AND cc.visible = true
-           )
-          """;
+      sql += ORPHAN_COLLECTION_EXCLUSION;
       params.addValue("excludeCollectionIds", excludeCollectionIds);
     }
 
-    sql += " ORDER BY ci.capture_date DESC NULLS LAST LIMIT :limit OFFSET :offset";
-    return query(sql, CONTENT_IMAGE_ROW_MAPPER, params);
+    sql += " ORDER BY sort_date DESC NULLS LAST LIMIT :limit OFFSET :offset";
+
+    List<Long> orderedIds =
+        query(sql, (rs, rowNum) -> rs.getLong("id"), params).stream().distinct().toList();
+    if (orderedIds.isEmpty()) {
+      return List.of();
+    }
+
+    Map<Long, ContentEntity> byId = new HashMap<>();
+    for (ContentEntity entity : findAllByIds(orderedIds)) {
+      byId.put(entity.getId(), entity);
+    }
+    return orderedIds.stream().map(byId::get).filter(Objects::nonNull).toList();
   }
 
+  /**
+   * Count what {@link #findOrphanContentByLocationName} pages over, using the same predicate.
+   *
+   * @param locationName the location to count
+   * @param excludeCollectionIds collections whose visible content is not "orphan"; may be empty
+   * @return total orphan content at the location
+   */
   @Transactional(readOnly = true)
-  public long countOrphanImagesByLocationName(
+  public long countOrphanContentByLocationName(
       String locationName, List<Long> excludeCollectionIds) {
     StringBuilder sql =
         new StringBuilder(
             """
             SELECT COUNT(DISTINCT c.id) FROM content c
-            JOIN content_image ci ON c.id = ci.id
-            JOIN content_image_locations cil ON ci.id = cil.content_id
+            JOIN content_image_locations cil ON c.id = cil.content_id
             JOIN location l ON cil.location_id = l.id
             WHERE l.location_name = :locationName
+              AND c.content_type IN ('IMAGE', 'GIF')
             """);
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
 
     if (excludeCollectionIds != null && !excludeCollectionIds.isEmpty()) {
-      sql.append(
-          """
-           AND NOT EXISTS (
-             SELECT 1 FROM collection_content cc
-             WHERE cc.content_id = c.id
-               AND cc.collection_id IN (:excludeCollectionIds)
-               AND cc.visible = true
-           )
-          """);
+      sql.append(ORPHAN_COLLECTION_EXCLUSION);
       params.addValue("excludeCollectionIds", excludeCollectionIds);
     }
 
