@@ -97,9 +97,15 @@ public class ShareLinkService {
   }
 
   /**
-   * Whether the link's owner can still sign in, via the same {@link SessionService#mayHoldSession}
-   * rule the session path uses -- a link serves exactly while its owner's account does. Missing
-   * user or missing status reads as false.
+   * Whether the link's owner's account status still permits a session, via the same {@link
+   * SessionService#mayHoldSession} rule the session path uses. Missing user or missing status reads
+   * as false.
+   *
+   * <p>This is a weaker claim than "the owner can still sign in", which is what it used to say
+   * (S-27). An ACTIVE account whose last passkey was deregistered and which has no password hash
+   * cannot sign in, but passes {@code mayHoldSession}, so its links keep serving. That is not a
+   * hole -- the link served the same content a moment earlier -- but the predicate tests status,
+   * not the ability to authenticate.
    */
   private boolean ownerAccountIsActive(Long userId) {
     return appUserRepository

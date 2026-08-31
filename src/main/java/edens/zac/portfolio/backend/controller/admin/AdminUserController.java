@@ -436,6 +436,16 @@ public class AdminUserController {
    * The result reports what is left so the admin can see when an account has been left with no
    * passkey and no password, which needs a fresh invite to recover.
    *
+   * <p>The account's live sessions are revoked on a successful delete (S-26). Deleting the
+   * credential row only stops it starting a <em>new</em> authentication: {@link
+   * SessionService#resolve} tests revoked, expired and {@code mayHoldSession}, never {@code
+   * webauthn_credential}, so a session the deleted authenticator minted keeps resolving for up to
+   * its 60-day sliding TTL -- and {@code /api/auth/webauthn/register/**} needs only {@code
+   * hasRole("USER")}, so its holder can register a replacement passkey and undo the deregistration.
+   * This evicts <em>every</em> session the account holds, not only the deleted credential's,
+   * because {@code user_session} records no credential id; that is the same trade S-15 accepted.
+   * The revoke runs after the delete, so a {@code 404} leaves sessions alone.
+   *
    * @param id the {@code app_user.id}
    * @param credentialId the {@code webauthn_credential.id} to remove
    * @return {@code 200 OK} with what the account has left to authenticate with
@@ -446,6 +456,8 @@ public class AdminUserController {
     if (credentialRepository.deleteByIdAndUserId(credentialId, id) == 0) {
       throw new ResourceNotFoundException("Passkey not found: " + credentialId + " for user " + id);
     }
+
+    sessionService.revokeAllForUser(id);
 
     int remaining = credentialRepository.findByUserId(id).size();
     boolean passwordLoginAvailable =

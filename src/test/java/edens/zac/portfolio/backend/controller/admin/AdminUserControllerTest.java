@@ -1381,5 +1381,37 @@ class AdminUserControllerTest {
 
       verify(appUserRepository, never()).findById(7L);
     }
+
+    /**
+     * S-26: a successful deregistration revokes the account's live sessions, or the deleted
+     * authenticator's session keeps resolving and can register a replacement passkey. Mutation this
+     * catches: drop the {@code revokeAllForUser} call from {@code deregisterPasskey}.
+     */
+    @Test
+    void deregisterPasskeyRevokesTheAccountsLiveSessions() throws Exception {
+      when(credentialRepository.deleteByIdAndUserId(11L, 7L)).thenReturn(1);
+      when(credentialRepository.findByUserId(7L)).thenReturn(List.of());
+      when(appUserRepository.findById(7L))
+          .thenReturn(Optional.of(AppUserEntity.builder().id(7L).passwordHash(null).build()));
+
+      mockMvc.perform(delete("/api/admin/users/7/passkeys/11")).andExpect(status().isOk());
+
+      verify(sessionService).revokeAllForUser(7L);
+    }
+
+    /**
+     * The scope guard on the other side: the revoke sits below the delete guard, so a credential
+     * the account does not own is a 404 that touches nothing. Mutation this catches: hoist the
+     * {@code revokeAllForUser} call above the {@code deleteByIdAndUserId} check and any admin
+     * guessing a credential id logs the account out.
+     */
+    @Test
+    void deregisterPasskeyThatIs404RevokesNothing() throws Exception {
+      when(credentialRepository.deleteByIdAndUserId(11L, 7L)).thenReturn(0);
+
+      mockMvc.perform(delete("/api/admin/users/7/passkeys/11")).andExpect(status().isNotFound());
+
+      verify(sessionService, never()).revokeAllForUser(anyLong());
+    }
   }
 }
