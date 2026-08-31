@@ -14,17 +14,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
 /**
- * S-23. Every case boots a real context, because the whole point of this guard is that it reads the
- * <em>resolved</em> exposure rather than a list someone typed. A test that constructed the guard by
- * hand and passed it a set would be asserting on its own enumeration, which is the failure S-18's
- * two tests already had.
- *
- * <p>The context finds the guard the way the application does, by scanning {@link Application}'s
- * package, so discovery is tested rather than assumed. Mutations this catches: delete
- * {@code @PostConstruct} and every refusal case goes green-but-dead -- caught, because the refusal
- * cases assert the context failed; delete {@code @Profile("prod")} and {@link
- * #guardIsNotRegisteredOutsideProd} reddens; delete {@code @Component}, or move the class out of
- * the scanned tree, and {@link #prodStartsOnTheShippedInclude} reddens on the missing bean.
+ * Every case boots a real context, found by scanning {@link Application}'s package the way the
+ * application does -- a hand-built guard handed a set would only assert on the test's own
+ * enumeration, and would not notice the bean failing to register.
  */
 class ProdActuatorExposureGuardTest {
 
@@ -51,11 +43,7 @@ class ProdActuatorExposureGuardTest {
         "spring.profiles.active=prod", "management.endpoints.web.exposure.include=" + include);
   }
 
-  /**
-   * The wildcard is the accident rule 34 named, and the two-name cases are S-23's own evidence:
-   * {@code metrics} and {@code info} are in neither the shipped exclude list nor S-18's {@code
-   * MUST_BE_EXCLUDED}, so nothing before this guard refused them.
-   */
+  /** {@code metrics} and {@code info} are the two nothing before this guard refused. */
   @ParameterizedTest
   @ValueSource(strings = {"*", "health,metrics", "health,info", "metrics", "health,env"})
   void prodRefusesToStartOnAnyWiderInclude(String include) {
@@ -70,10 +58,7 @@ class ProdActuatorExposureGuardTest {
             });
   }
 
-  /**
-   * The control. Without it, a context failing for an unrelated reason -- or one where the bean was
-   * never registered at all -- would read as a working guard.
-   */
+  /** The control: without it, an unrelated startup failure would read as a working guard. */
   @Test
   void prodStartsOnTheShippedInclude() {
     prodWithInclude("health")
