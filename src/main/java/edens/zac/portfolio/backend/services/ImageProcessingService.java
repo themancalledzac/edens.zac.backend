@@ -44,8 +44,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.cloudfront.CloudFrontClient;
-import software.amazon.awssdk.services.cloudfront.model.CreateInvalidationResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -58,7 +56,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public class ImageProcessingService {
 
   private final S3Client s3Client;
-  private final CloudFrontClient cloudFrontClient;
+  private final ReadCacheInvalidator readCacheInvalidator;
   private final ContentRepository contentRepository;
   private final EquipmentRepository equipmentRepository;
   private final LocationRepository locationRepository;
@@ -66,21 +64,19 @@ public class ImageProcessingService {
   private final ContentValidator contentValidator;
   private final String bucketName;
   private final String cloudfrontDomain;
-  private final String cloudFrontDistributionId;
 
   ImageProcessingService(
       S3Client s3Client,
-      CloudFrontClient cloudFrontClient,
+      ReadCacheInvalidator readCacheInvalidator,
       ContentRepository contentRepository,
       EquipmentRepository equipmentRepository,
       LocationRepository locationRepository,
       ImageMetadataExtractor imageMetadataExtractor,
       ContentValidator contentValidator,
       @Value("${aws.portfolio.s3.bucket}") String bucketName,
-      @Value("${cloudfront.domain}") String cloudfrontDomain,
-      @Value("${cloudfront.distribution-id:}") String cloudFrontDistributionId) {
+      @Value("${cloudfront.domain}") String cloudfrontDomain) {
     this.s3Client = s3Client;
-    this.cloudFrontClient = cloudFrontClient;
+    this.readCacheInvalidator = readCacheInvalidator;
     this.contentRepository = contentRepository;
     this.equipmentRepository = equipmentRepository;
     this.locationRepository = locationRepository;
@@ -88,7 +84,6 @@ public class ImageProcessingService {
     this.contentValidator = contentValidator;
     this.bucketName = bucketName;
     this.cloudfrontDomain = cloudfrontDomain;
-    this.cloudFrontDistributionId = cloudFrontDistributionId;
   }
 
   // S3 path constants for content type hierarchy:
@@ -794,12 +789,12 @@ public class ImageProcessingService {
   }
 
   /**
-   * Delete an image and its variants from S3, then invalidate the CloudFront cache for the same
-   * paths, so a re-upload landing on an S3 key that was just deleted is served fresh rather than
-   * from CDN cache. The original and RAW keys are deterministic from filename/year/month, so they
-   * do collide on re-upload. The web key does not: it is content-hashed via {@code
-   * hashedWebFilename}, so a changed image gets a new key and only a byte-identical re-export
-   * reuses the old one.
+   * Delete an image and its variants from S3, then hand the same keys to {@link
+   * ReadCacheInvalidator#invalidatePaths} so a re-upload landing on an S3 key that was just deleted
+   * is served fresh rather than from CDN cache. The original and RAW keys are deterministic from
+   * filename/year/month, so they do collide on re-upload. The web key does not: it is
+   * content-hashed via {@code hashedWebFilename}, so a changed image gets a new key and only a
+   * byte-identical re-export reuses the old one.
    *
    * @param image The ContentImageEntity containing S3 URLs to delete
    */
@@ -811,13 +806,13 @@ public class ImageProcessingService {
     if (originalKey != null) deletedKeys.add(originalKey);
     String rawKey = deleteS3ObjectByUrl(image.getImageUrlRaw());
     if (rawKey != null) deletedKeys.add(rawKey);
-    invalidateCloudFrontPaths(deletedKeys);
+    readCacheInvalidator.invalidatePaths(deletedKeys);
   }
 
   /**
    * Delete S3 objects backing a GIF/MP4 entity: the full-resolution media plus the WebP first-frame
-   * thumbnail. Mirrors {@link #deleteImageFromS3} — failures are logged, not thrown, and we still
-   * issue a single CloudFront invalidation for the keys we attempted.
+   * thumbnail. Mirrors {@link #deleteImageFromS3} — failures are logged, not thrown, and the keys
+   * we attempted still go out as a single CloudFront invalidation.
    *
    * <p>The web variant may be null, or may equal {@code gifUrl} because small files reuse the full
    * path, so the duplicate is guarded to avoid a redundant delete and invalidation on one key.
@@ -835,7 +830,7 @@ public class ImageProcessingService {
     }
     String thumbKey = deleteS3ObjectByUrl(gif.getThumbnailUrl());
     if (thumbKey != null) deletedKeys.add(thumbKey);
-    invalidateCloudFrontPaths(deletedKeys);
+    readCacheInvalidator.invalidatePaths(deletedKeys);
   }
 
   /**
@@ -859,38 +854,6 @@ public class ImageProcessingService {
       log.error("Failed to delete S3 object {}: {}", url, e.getMessage());
     }
     return s3Key;
-  }
-
-  /**
-   * Issue a single CloudFront invalidation covering the given S3 keys. Skipped silently when no
-   * keys are provided or when {@code cloudfront.distribution-id} is unset (deletes still work, the
-   * CDN just keeps serving stale-cached bytes until its own TTL expires).
-   */
-  private void invalidateCloudFrontPaths(List<String> s3Keys) {
-    if (s3Keys.isEmpty()) {
-      return;
-    }
-    if (cloudFrontDistributionId == null || cloudFrontDistributionId.isBlank()) {
-      log.debug("Skipping CloudFront invalidation: cloudfront.distribution-id is not configured");
-      return;
-    }
-    try {
-      List<String> paths = s3Keys.stream().map(k -> "/" + k).toList();
-      CreateInvalidationResponse res =
-          cloudFrontClient.createInvalidation(
-              req ->
-                  req.distributionId(cloudFrontDistributionId)
-                      .invalidationBatch(
-                          b ->
-                              b.paths(p -> p.quantity(paths.size()).items(paths))
-                                  .callerReference(UUID.randomUUID().toString())));
-      log.info(
-          "Created CloudFront invalidation {} for {} path(s)",
-          res.invalidation().id(),
-          paths.size());
-    } catch (Exception e) {
-      log.error("Failed to invalidate CloudFront paths {}: {}", s3Keys, e.getMessage());
-    }
   }
 
   /**
