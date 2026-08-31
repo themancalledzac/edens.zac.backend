@@ -34,15 +34,5 @@ public record DiskUploadRequest(
       List<String> people,
       List<String> tags,
       List<String> locations,
-      String captureDate) {
-
-    /**
-     * Backwards-compatible constructor for callers predating the tag-first ingest fields (existing
-     * {@code /from-disk} callers and tests). Delegates with {@code tags}, {@code locations}, and
-     * {@code captureDate} set to null.
-     */
-    public FileEntry(String jpegPath, String rawPath, List<String> people) {
-      this(jpegPath, rawPath, people, null, null, null);
-    }
-  }
+      String captureDate) {}
 }

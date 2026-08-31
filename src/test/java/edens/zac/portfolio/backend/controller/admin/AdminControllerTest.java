@@ -489,9 +489,10 @@ class AdminControllerTest {
     DiskUploadRequest request =
         new DiskUploadRequest(
             List.of(
-                new DiskUploadRequest.FileEntry("/tmp/photo1.jpg", null, null),
-                new DiskUploadRequest.FileEntry("/tmp/photo2.jpg", null, null),
-                new DiskUploadRequest.FileEntry("/tmp/photo3.jpg", "/tmp/photo3.nef", null)),
+                new DiskUploadRequest.FileEntry("/tmp/photo1.jpg", null, null, null, null, null),
+                new DiskUploadRequest.FileEntry("/tmp/photo2.jpg", null, null, null, null, null),
+                new DiskUploadRequest.FileEntry(
+                    "/tmp/photo3.jpg", "/tmp/photo3.nef", null, null, null, null)),
             null);
 
     // Act & Assert
