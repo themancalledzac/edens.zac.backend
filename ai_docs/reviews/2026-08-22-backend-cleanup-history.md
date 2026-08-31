@@ -5774,6 +5774,33 @@ the result set and no fallback branch is needed. That also makes the old code's
 dependency rather than leaving it implicit: widening that SQL means adding a branch here, or the new
 type vanishes from the page.
 
+### The item as filed, moved here from the tracker 2026-08-31
+
+Kept because it is the diagnosis, and the diagnosis is the part a future reader needs. Filed by the
+third run's cross-repo pair scan -- the one item that scan said was worth acting on.
+
+`CollectionService.java:255-261` (as of #258) replaced a batch conversion with a per-entity one:
+
+```java
+List<ContentModel> images =
+    orphanEntities.stream()
+        .map(contentModelConverter::convertRegularContentEntityToModel)
+        .filter(Objects::nonNull)
+        .toList();
+```
+
+The old call was `batchConvertImageEntitiesToModels(orphanImageEntities)`, which batch-loads tags,
+people and locations in three queries total. `convertRegularContentEntityToModel` routes an IMAGE to
+`convertImageToModel`, which runs `tagRepository.findContentTags`,
+`personRepository.findContentPeople` and `locationRepository.findLocationsByContentIds` per entity.
+The first two are guarded by `entity.getTags()`/`getPeople()` being non-empty, **and that guard never
+holds here** -- the entities come from `ContentRepository.findAllByIds`, which hydrates through JDBC
+row mappers and never populates those sets. The location call is unguarded. Default `imageSize` is 50
+(`CollectionControllerProd:133`), so the endpoint went from 3 queries to up to 150 per request.
+
+Per FE-1 in the cross-repo section, the frontend discards the entire `images` array, so every one of
+those queries was spent on data no client reads. Same shape as MR 19 #16, which went 201 queries to 1.
+
 ### Scope
 
 The BE-2 decision was not resolved on the way past, as the item said it should not be. The frontend
@@ -6407,3 +6434,71 @@ Extended by the 2026-08-31 third-run close-out.
   Next: **the full-board review, which is now on its second restatement and is item 1** — three of
   its six triggers hold, including a new admin endpoint in the unreviewed security set. *(It ran the
   next session; outcome under "Full-board review — run 2026-08-31 (third run)" above.)*
+- 2026-08-31 (third run) — **four MRs, the full-board review, and the first fully clean count audit
+  the board has had.** Shipped the three answered decisions in one MR
+  ([#260](https://github.com/themancalledzac/edens.zac.backend/pull/260)), MR 16 #4
+  ([#261](https://github.com/themancalledzac/edens.zac.backend/pull/261)), MR 16 #5
+  ([#262](https://github.com/themancalledzac/edens.zac.backend/pull/262)), plus this docs close-out.
+  **The three one-word decisions were asked in the opening message and all three came back**, which
+  is the only reason they became a same-session MR rather than the next session's problem — the same
+  move that turned bug #19 into a fourth MR the run before. `cover_image_id` drop (V59), the
+  DB-password default dropped (`${POSTGRES_PASSWORD}`), `role.kind` kept and documented (V60).
+  **The full-board review ran as five read-only agents and one apply agent, and produced exactly one
+  docs MR with zero code changes** — the guardrail the second close-out wrote for it, honoured. See
+  the section above for what each slice returned.
+  **Every one of the eleven recorded counts reproduced exactly and nothing moved.** Open bugs 1, open
+  security 0 before filing, history open boxes 0, rule-37 leading `//` 1,644 (262 main / 1,382 test) at the time of the audit and **1,637 (262/1,375) after this run's own MRs merged**,
+  trailing 74, `RoleRepository` 10, `AdminBootstrap` 6, `CollectionControllerProd` 9, worktrees 6.
+  **This is the first close-out where the count audit found nothing at all** — including the two
+  figures that were corrected in the previous close-out, which held.
+  **The security section refilled after one session empty**: S-26 (HIGH), S-27 and S-28 (LOW). S-26
+  is only HIGH because #257 removed the compensating control S-15 was measured against, which is a
+  finding no single-item review could have produced. S-16's reachability claim held a third time and
+  is now recorded under "Verified sound" so nobody re-derives it.
+  **Both UNCHECKED MR 25 arity counts are CONFIRMED** — 21 and 13, by a paren-balanced scanner whose
+  method is now written into the item. The raw greps that could not settle them (24 and 28) are fully
+  accounted for by higher-arity calls. **The priority flag inverted**: `DownloadResolution.extension`
+  reads as the cheapest of the four and is the most expensive (13 edits, 5 files, 2 in `src/main`),
+  while `FileEntry` is effectively a single-file change.
+  **The cross-repo GIF row's premise was wrong.** The frontend's location page discards the entire
+  `images` array and gets its images from a second endpoint, so a location-tagged GIF cannot reach it
+  at any prop type. Correcting that turned up a live backend N+1 that #258 introduced and nobody
+  filed — up to 150 queries where 6 will do — which is now **MR 19 #21** and item 2 of the next run.
+  **The board was misdescribing itself in five places.** The security section claimed to be empty in
+  two places while holding four open checkboxes the rule-36 gate could not see; "0 open PRs" was
+  wrong and #252 held the only copy of item #22; four live debts sat inside closed `[x]` lines with
+  no checkbox; "9 open" config-rot findings existed nowhere in either file; and the open-board
+  classification covered about a quarter of the open board. **Every one of them was a summary claim
+  its own cited gate could not measure** — that is the pattern, and the fix in each case was the gate,
+  not the wording. Two new gates came out of it (`\*\*U-` for the eight unsettled questions) and one
+  was deleted for having no backing (the config-rot open/closed split).
+  **Six MR 16-19 items were re-priced or corrected**: MR 16 #3 (four limiter copies, not three, after
+  `ShareEmailLimiter` landed with S-17), MR 18 #12 (three computing sites and four delegating call
+  sites, not "five places" — working rule 14), MR 18 #13 (9 construction sites, 4 Tag and 5 Location,
+  not 10+4 and inverted), MR 19 #18 (re-priced down to ~-6 net; two of eleven SELECT lists carry an
+  extra column and cannot share a constant), MR 19 #19 (re-priced up to ~25 lines; 7 test
+  constructions across 3 files the board never priced), MR 19 #20 (`CollectionService` drifted +3,
+  plus an unnamed third source site in `GeneralMetadataDTO`). MR 17 #7's prod ref drifted +1;
+  everything else in MR 16-19 re-verified exact.
+  Next: **S-26, the HIGH** — see the Next run section. It is the first time in three sessions the
+  queue has not opened with a decision or a review.
+- 2026-08-31 (third run, post-merge reconciliation) — **no new items, one MR, and three of this
+  board's own freshly-written numbers were wrong.** All five of the run's PRs merged
+  ([#260](https://github.com/themancalledzac/edens.zac.backend/pull/260),
+  [#261](https://github.com/themancalledzac/edens.zac.backend/pull/261),
+  [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252),
+  [#262](https://github.com/themancalledzac/edens.zac.backend/pull/262),
+  [#263](https://github.com/themancalledzac/edens.zac.backend/pull/263)), plus
+  [#371](https://github.com/themancalledzac/edens.zac/pull/371) on the frontend. This entry is the
+  reconciliation pass that followed, and everything it found was created by the close-out itself.
+  **Item #22 was duplicated into two sections** — #263 folded it in while #252 still held its own
+  copy, and both merged; the shorter copy is removed and a pointer left in its place.
+  **The open-checkbox count was 94 and was actually 90**, because it was measured on the close-out's
+  own pre-rebase branch; 89 after the dedupe, with the full +/- reconciliation now written into the
+  classification block. **The rule-37 count moved 1,644 -> 1,637** and reconciles line-for-line
+  against one file: `ReadCacheInvalidatorTest` 7 -> 0 in #262. `src/main` did not move; `SesConfig`
+  held zero inline comments. **Three "still open" claims were stale within the hour** — #252 and
+  #371 had both merged, and MR 16 #4/#5 were still listed COLD after shipping. **`0359-fe-ma1-collection-patch`
+  reports 1 ahead but is safe to delete**: #252 was squash-merged, so the 0-ahead test does not
+  apply to it. Working rule 42 now has a second half: *a count measured on a feature branch is not a
+  count of `main`.* Next: **S-26 (HIGH)**.
