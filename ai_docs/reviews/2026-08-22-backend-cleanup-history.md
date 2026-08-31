@@ -6634,3 +6634,213 @@ Extended again by the 2026-08-31 fifth-run close-out.
   reports 1 ahead but is safe to delete**: #252 was squash-merged, so the 0-ahead test does not
   apply to it. Working rule 42 now has a second half: *a count measured on a feature branch is not a
   count of `main`.* Next: **S-26 (HIGH)**.
+
+## 2026-08-31 sixth-run close-out — eleven items, and three that corrected their own board entry
+
+Eleven items across eight MRs. Tracker rows carry the one-line outcomes; the detail is here.
+
+### U-5 — the trust-signal sentence ([#274](https://github.com/themancalledzac/edens.zac.backend/pull/274))
+
+`ClientIp`'s docblock said "Only requests that flow through the known BFF proxy will carry
+`X-Real-IP`, so its presence is the trust signal." That is the same reasoning the sentence above it
+uses to *reject* `X-Forwarded-For`. S-19 settled this on 2026-08-25 by reading the live frontend:
+`forwardHeaders` in `app/api/proxy/[...path]/route.ts` strips `x-real-ip` and re-derives it.
+
+Replaced with the two things that actually do the work: the BFF strips any client-supplied copy
+before re-injecting its own, and `InternalSecretFilter` (`@Order(-200)`, `@Profile("prod")`) rejects
+direct hits under the prod profile. Docblock only, +5/-4. The guardrail said stop and report if the
+method body needed editing; it did not. The `@link` to `InternalSecretFilter` needs no import, same package.
+
+**The debt had sat untracked since 2026-08-25** inside S-19's closed `[x]` ledger line, where no gate
+could see it. That is why U-5 through U-8 were promoted to their own checkboxes at the fifth close-out.
+
+### Bug #18 — the slug check, and an item that did not price its own payoff ([#276](https://github.com/themancalledzac/edens.zac.backend/pull/276))
+
+The create path checks the slug: `LocationRepository.findOrCreate` generates it, consults
+`findBySlug`, and returns the existing row. `MetadataService.updateLocation` checked only
+`findByLocationNameIgnoreCase`, then wrote `SlugUtil.generateSlug(locationName)`. `SlugUtil`
+lowercases, strips outside the allowed class, collapses whitespace to hyphens — so "St. Moritz" and
+"St Moritz" both give `st-moritz`, pass the name check, and hit `idx_location_slug`.
+
+**The correction the item needed, and why "price it before writing" was the right instruction: the
+caller-visible response does not change.** `GlobalExceptionHandler.handleDataIntegrity` discards the
+exception message and returns a fixed body, so the DB violation and an explicit check produce the
+identical opaque 409. What the fix buys is a deterministic pre-write check instead of reliance on a
+constraint that exists only in the schema, a usable operator log, and agreement with the create path
+about what makes a location unique. **A caller-visible message naming the slug needs a distinct
+exception type with its own handler, and no amount of work in `GlobalExceptionHandler` gets there** —
+which is the guardrail's point from the other direction.
+
+`updateLocation` had **zero** tests. Three added, one per way the check can be written wrong
+(rule 45). Mutation evidence, checking *why* each reddened (rule 32):
+
+| Mutation | Result |
+|---|---|
+| `if (false && slugOwner.isPresent() && ...)` — kept the `findBySlug` call so the failure could not come from an unused-stub gap | 1 failure, `..._rejectsANameThatSlugifiesOntoAnotherLocation` at the `assertThatThrownBy`, "Expecting actual throwable to be an instance of" |
+| `if (slugOwner.isPresent())` — self-exclusion dropped | 1 error, `..._allowsARenameThatKeepsItsOwnSlug`, throwing `Location slug already in use: st-moritz` on a legitimate rename |
+
+Restored with `touch`, 10/10 green, full build 1,469 tests. **The first mutation was chosen
+specifically to avoid a Mockito strict-stubs `UnnecessaryStubbingException`** — deleting the check
+outright would have reddened the test on a fixture gap rather than the assertion, which rule 32 says
+is not evidence.
+
+### U-6 — a routing question whose first answer rested on a false premise ([#278](https://github.com/themancalledzac/edens.zac.backend/pull/278))
+
+S-14 closed on the principle that every admin endpoint goes through the same admin gate, then found
+`addCollection` did not fit, and never filed the follow-up. U-6 was that follow-up.
+
+**Asked first, as the fifth close-out instructed. The user's first answer was "if it is an ADMIN
+SPECIFIC ENDPOINT, which it is... it should be behind the admin gate."** The premise is false:
+
+- `SecurityConfig` maps `/api/read/user/**` to `hasRole("USER")`, not ADMIN.
+- The class docblock already says "the owner side of a share link: session-required, self-only. No
+  route accepts a user id -- the principal is the only subject."
+- `addCollection` writes to `shareLinkService.findForUser(principal.userId())` — the caller's own link.
+- `candidateCollections` is built from `memberCollectionIdsForUser`, the role-grant list. The audience
+  is non-admin clients.
+
+Re-asked with that evidence rather than implementing the first answer. The user then chose keep-and-
+document. **Admin-gating it would have 403'd every non-admin owner on their own share settings page.**
+The admin sentinel only ever widens the admin's *own* share scope, which is why S-14 found no live
+hole. **[#275](https://github.com/themancalledzac/edens.zac.backend/pull/275) is a dead reference** — opened by a subagent mid-dispatch, closed when its
+branch was deleted; #278 carries the identical commit.
+
+### S-28 — the recovery line, re-aimed ([#278](https://github.com/themancalledzac/edens.zac.backend/pull/278), grouped with U-6)
+
+Verified before writing, rather than trusting the item: `AdminBootstrap.init` looks up
+`findByEmail(bootstrapEmail)` and, for an existing row, either promotes a non-admin or warns that
+`ADMIN_BOOTSTRAP_PASSWORD` is still set — then returns. **It never resets the password.** So pointing
+`ADMIN_BOOTSTRAP_EMAIL` at the locked-out admin does nothing; recovery needs a *fresh* address plus
+the password, and a redeploy. The invite route is on `@RequestMapping("/api/admin/users")`, i.e.
+behind the surface that is lost.
+
+**The re-aiming the item predicted was real.** #265 rewrote exactly the docblock S-28 proposed to
+amend. The current docblock was read first and the added paragraph is what was actually missing.
+The WARN said only "until re-invited" — the one route that is unreachable in this case — and now
+names the redeploy. No test asserts that string; checked before changing it.
+
+### MR 18 #9 — the shared upload loop, at half the advertised saving ([#279](https://github.com/themancalledzac/edens.zac.backend/pull/279))
+
+`runUploadLoop(request, job, CollectionResolver)`; disk passes a constant, ingest passes
+`resolveDayBlog`. The disk loop's separate CREATE and UPDATE arms collapsed into the merged arm ingest
+already had.
+
+**-51 net (88 added, 139 removed), against an advertised ~110.** The gap is structural: the estimate
+assumed the two callers collapse to nothing. They cannot. The completion logs differ (ingest appends a
+day count), and ingest's no-capture-date path logs WARN with its own job error rather than falling
+through the generic catch — routing it through the catch would have changed the log level and added a
+stack trace. Both differences kept explicit rather than flattened.
+
+Two deliberate changes named in the PR: the per-file failure log is now identical on both paths, and
+`nextOrderIndex` is lazy on the disk path instead of eager before the loop.
+
+**Its most valuable output was a mutation that survived.** Making `takeOrderIndex` stop advancing left
+all 32 upload-pipeline tests green — nothing anywhere verified consecutive `orderIndex` values.
+Reported rather than hidden, and closed the same day by #284.
+
+### MR 19 #15 — the projection, and the fixture churn nobody predicted ([#280](https://github.com/themancalledzac/edens.zac.backend/pull/280))
+
+Shipped as the re-shaped item specified. `CollectionRepository.findGalleryAccessBySlug` returns a
+nested `GalleryAccessRow`, matching the pattern in `AdminHomeTileRepository` and `RoleRepository`.
+The converter was **not** widened — populating those fields on `CollectionModel` would leak the
+gallery password onto every read path sharing `convertToFullModel`. The dead
+`if (collection.getContent() != null)` guard is gone.
+
+**The unpriced cost was in the fixtures.** Ten stub `CollectionModel`s in `CollectionServiceTest` were
+built with null content — a state the real converter cannot produce — and NPE'd once the dead guard
+was removed. Each needed `.content(List.of())`. Twelve tests needed the new projection stubbed via a
+`stubNoGalleryAccess()` helper. **The lesson generalises: deleting a defensive check that is dead in
+production can still be load-bearing for fixtures that were never realistic.**
+
+Six new tests, each mutation-proved individually.
+
+### MR 19 #18 and #20 — grouped, and #20 miscounted again ([#282](https://github.com/themancalledzac/edens.zac.backend/pull/282))
+
+Grouped at the user's instruction, two commits.
+
+**#18**: three constants, nine call sites, the two serial-number variants left inline as the blocker
+required (folding them in changes what `CAMERA_ROW_MAPPER_WITH_SERIAL` / `LENS_ROW_MAPPER_WITH_SERIAL`
+receive). **-12 net, but the item's -6 was nearer the truth than that suggests**: the consolidation is
+roughly a wash (-7 at call sites, +6 for constants) and most of the delta is six banner comments.
+**The value is consistency with the siblings, which is what the item said.**
+
+**#20**: **five source sites, not three.** The board named two; this run's dispatch added
+`GeneralMetadataDTO:26`; the implementer found `Records.java` carries **two independent sites** — the
+fully-qualified `FilmFormat` at `:23` and the record declaration at `:31`. Zero test sites, as
+predicted, because `ContentControllerProdTest` asserts on component names that a type rename does not
+change.
+
+### MR 19 #19 — PagedResponse, and a premise that is still soft ([#283](https://github.com/themancalledzac/edens.zac.backend/pull/283))
+
++23/-47 across 7 files; `ImageSearchResponse` deleted. `AdminController.getAllImages` no longer builds
+a `PageImpl` to feed `PagedResponse.from`.
+
+**"Seven test constructions" is six constructions plus one variable declaration** (`ContentServiceTest:101`).
+All six took `number = 0, last = true`, each derived independently — including the empty-page case,
+where `totalPages` is 0 so there is no next page, matching what `PageImpl` produced before. No
+assertion was rewritten, as the item predicted.
+
+**The soft premise stays soft and the PR says so.** This widens `GET /api/read/content/images/search`
+by the keys `number` and `last`. The frontend-safety claim — it reads only `result.content` and
+ignores unknown keys — rests on a 2026-08-24 reading of `edens.zac` that was not re-verified and
+cannot be verified from this repo. **Unblocks MR 17 #7.**
+
+### MR 18 #12 — the item was wrong twice, in opposite directions ([#284](https://github.com/themancalledzac/edens.zac.backend/pull/284))
+
+The board said "five places". The 2026-08-31 correction said "three copies plus four delegating call
+sites" and invoked working rule 14 on the original for mixing units. **There are five real copies**:
+the re-derivation missed `CollectionService.linkCollectionToParent` (~444) and the child-collection
+add path (~1141). So "five" was accidentally right about the number and wrong about which things it
+counted — **rule 14 landing on the correction as well as the original.**
+
+**Both prescribed directions are impossible, and the second was only discovered by trying:**
+- `ContentMutationUtil` -> `ContentService` is a hard constructor cycle; `ContentService` injects
+  `ContentMutationUtil` at field line 60.
+- The reverse would force a `ContentMutationUtil` injection into `TagService`, which injects only
+  `TagRepository`, `CollectionRepository` and `CollectionService` — an injection existing solely to
+  serve a 4-line helper, which the repo's own guidance rejects.
+
+**Shipped direction was in neither option**: `CollectionRepository.getNextOrderIndexForCollection`,
+beside the sole `MAX(order_index)` SQL. All three callers already inject `CollectionRepository`, so
+**zero new injections**. Net +2 in `src/main` — eleven duplicated lines become one method carrying a
+docblock and `@Transactional` the inline copies lacked.
+
+Also closed #279's sequencing gap. The two `CollectionService` copies were cut deliberately — neither
+path has a test pinning its order index — and filed as **#12b**. Consequence:
+`getMaxOrderIndexForCollection` stays public.
+
+### MR 17 #8 — delegation, with a shape worth a second look ([#285](https://github.com/themancalledzac/edens.zac.backend/pull/285))
+
+`AdminUserController.addUserToRole` / `removeUserFromRole` now delegate to
+`AdminRoleController.addMember` / `removeMember`. All four routes stay live, so neither frontend screen
+changes — `RoleDetailView.tsx` drives the roles-side route, `UserRolesSection.tsx` the users-side.
+Behaviour enumerated before and confirmed after: both pairs return 204, both map
+`IllegalArgumentException` to 400.
+
+`RoleRepository.addMember`'s docblock claimed "the two admin endpoints that reach here" and now names
+`AdminRoleController.addMember` as the single caller. **Found by reading, not grep** — the phrase wraps
+between "two" and "admin", which is rule 31 inside a docblock.
+
+Mutation evidence is unusually direct: swapping the argument order in the roles-side methods reddened
+both users-side tests, with the stack naming `AdminRoleController.addMember` as the call site — proof
+the users-side request runs through the roles-side method rather than a stub. One new test locks the
+400 PERSON-rejection to the users-side route; neither pair had a status test for it.
+
+**The shape a reviewer should weigh**: `AdminUserController` now injects `AdminRoleController`, a
+controller depending on a controller, which sits awkwardly beside working rule 19 ("controllers map
+results to status codes; everything else is a service"). The item prescribed exactly this and it is
+behaviour-preserving. Extracting a small shared service is the alternative if the shape is disliked.
+
+### Process — what changed about how this board gets worked
+
+**The user reshaped the run twice mid-flight**, and both instructions are now standing: ~10+ MRs per
+`/next` session via parallel subagents, and grouping small MRs that share a review shape.
+
+**The first parallel dispatch corrupted the working tree.** Five agents without worktree isolation all
+ran `git checkout main` in the same clone. Full account in the tracker's sixth-run log entry. The
+one-line version: **`isolation: "worktree"` is mandatory for parallel agents that open their own PRs**,
+and a half-finished file can ride across branch switches and look exactly like a broken `main`.
+
+**Cross-agent routing of a finding worked and is worth repeating.** #279's surviving mutation was
+handed to #284 while it was still running and unpushed; it closed the gap inside the same run instead
+of becoming an item nobody picked up.
