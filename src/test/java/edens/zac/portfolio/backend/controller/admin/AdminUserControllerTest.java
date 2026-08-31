@@ -93,6 +93,10 @@ class AdminUserControllerTest {
   @Nested
   class CreateUser {
 
+    /**
+     * A trailing slash on the base URL must not produce a double slash before {@code invite}, and
+     * the invitee is emailed the same link that is returned to the admin for copy-linking.
+     */
     @Test
     void createUserReturns201WithUserIdAndInviteUrl() throws Exception {
       when(appUserRepository.findByEmail("alice@example.com")).thenReturn(Optional.empty());
@@ -106,10 +110,8 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"alice@example.com\",\"displayName\":\"Alice\"}"))
           .andExpect(status().isCreated())
           .andExpect(jsonPath("$.userId").value(42))
-          // Trailing slash on the base URL must not produce a double slash before "invite".
           .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/raw-token-abc"));
 
-      // The invitee is emailed the same link that is returned for copy-linking.
       verify(emailService)
           .sendInviteEmail(
               "alice@example.com", "Alice", "https://app.example.com/invite/raw-token-abc");
@@ -144,7 +146,6 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"ALICE@EXAMPLE.COM\"}"))
           .andExpect(status().isCreated());
 
-      // verify findByEmail was called with lowercase email
       verify(appUserRepository).findByEmail("alice@example.com");
     }
 
@@ -188,6 +189,7 @@ class AdminUserControllerTest {
   @Nested
   class ListUsers {
 
+    /** Sensitive fields must never be serialized into the admin list. */
     @Test
     void listUsersReturnsSummariesWithoutSensitiveFields() throws Exception {
       AppUserEntity alice =
@@ -216,16 +218,18 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$[0].displayName").value("Alice"))
           .andExpect(jsonPath("$[0].description").value("A keen landscape photographer."))
           .andExpect(jsonPath("$[0].status").value("ACTIVE"))
-          // Sensitive fields must never be serialized into the admin list.
           .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
           .andExpect(jsonPath("$[0].webauthnUserHandle").doesNotExist())
           .andExpect(jsonPath("$[1].status").value("INVITED"));
     }
 
+    /**
+     * V35 merged {@code content_people} into {@code users} as {@code status=PERSON} rows: tag-only
+     * identities with no account. The admin account list must skip them, and must not 400 on the
+     * new enum value.
+     */
     @Test
     void listUsersExcludesPersonTagRows() throws Exception {
-      // V35 merged content_people into users as status=PERSON rows (tag-only identities, no
-      // account). The admin account list must skip them -- and must not 400 on the new enum value.
       AppUserEntity account =
           AppUserEntity.builder()
               .id(1L)
@@ -249,6 +253,10 @@ class AdminUserControllerTest {
   @Nested
   class RegenerateInvite {
 
+    /**
+     * A re-issued invite is emailed too, so a resend reaches the invitee without the admin having
+     * to copy the link by hand.
+     */
     @Test
     void regenerateReturns200WithFreshInviteUrl() throws Exception {
       AppUserEntity bob =
@@ -267,7 +275,6 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$.userId").value(5))
           .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/fresh-token"));
 
-      // A re-issued invite is emailed too, so a resend reaches the invitee without a manual copy.
       verify(emailService)
           .sendInviteEmail("bob@example.com", "Bob", "https://app.example.com/invite/fresh-token");
     }
@@ -282,10 +289,13 @@ class AdminUserControllerTest {
       verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
     }
 
+    /**
+     * The admin-issued password reset. ACTIVE is on the {@code mayAcceptInvite} allowlist and the
+     * gate must not close it -- this is the second of the two statuses this endpoint exists to
+     * serve.
+     */
     @Test
     void regenerateForActiveUserReturns200() throws Exception {
-      // The admin-issued password reset. ACTIVE is on the mayAcceptInvite allowlist and the gate
-      // must not close it -- this is the second of the two statuses this endpoint exists to serve.
       AppUserEntity carol =
           AppUserEntity.builder()
               .id(6L)
@@ -302,11 +312,13 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$.inviteUrl").value("https://app.example.com/invite/reset-token"));
     }
 
+    /**
+     * S-21: {@code accept()} refuses DISABLED, so without this gate the admin got a 200 and a URL,
+     * the invitee got the email, clicked it, and received 410 Gone, with nothing anywhere saying
+     * the account was ineligible.
+     */
     @Test
     void regenerateForDisabledUserReturns409AndMintsNothing() throws Exception {
-      // S-21. accept() refuses DISABLED, so without this gate the admin got a 200 and a URL, the
-      // invitee got the email, clicked it, and received 410 Gone -- with nothing anywhere saying
-      // the account was ineligible.
       AppUserEntity dana =
           AppUserEntity.builder()
               .id(7L)
@@ -322,12 +334,15 @@ class AdminUserControllerTest {
       verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
     }
 
+    /**
+     * S-21, the louder half. A PERSON row's {@code users.email} is NULL while {@code
+     * user_invite.email} is NOT NULL (V32), so the insert raised {@code
+     * DataIntegrityViolationException} and {@code GlobalExceptionHandler} reported "duplicate or
+     * invalid data" -- a schema constraint doing a status check's job and naming the wrong reason.
+     * The gate now answers first and the insert is never attempted.
+     */
     @Test
     void regenerateForPersonReturns409BeforeTheSchemaRejectsIt() throws Exception {
-      // S-21, the louder half. A PERSON row's users.email is NULL and user_invite.email is NOT NULL
-      // (V32), so the insert raised DataIntegrityViolationException and GlobalExceptionHandler
-      // reported "duplicate or invalid data" -- a schema constraint doing a status check's job and
-      // naming the wrong reason. The gate now answers first, and the insert is never attempted.
       AppUserEntity person =
           AppUserEntity.builder().id(8L).email(null).name("Evan").status(UserStatus.PERSON).build();
       when(appUserRepository.findById(8L)).thenReturn(Optional.of(person));
@@ -365,10 +380,12 @@ class AdminUserControllerTest {
       verify(appUserRepository).updateStatus(5L, UserStatus.INVITED);
     }
 
+    /**
+     * Upgrade is an invite-minting endpoint like create-user and regenerate-invite, so it must
+     * deliver the link too. The person's existing tag name is the greeting name.
+     */
     @Test
     void upgradeEmailsTheInviteToTheUpgradedPerson() throws Exception {
-      // Upgrade is an invite-minting endpoint like create-user and regenerate-invite, so it must
-      // deliver the link too -- the person's existing tag name is the greeting name.
       when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
       when(appUserRepository.findByEmail("person@example.com")).thenReturn(Optional.empty());
       when(userInviteService.regenerateInvite(5L, "person@example.com")).thenReturn("raw-token");
@@ -385,6 +402,7 @@ class AdminUserControllerTest {
               "person@example.com", "Abby Bennett", "https://app.example.com/invite/raw-token");
     }
 
+    /** Both the duplicate check and the write must see the lowercased email. */
     @Test
     void upgradeNormalizesEmailToLowercase() throws Exception {
       when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
@@ -398,7 +416,6 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"PERSON@EXAMPLE.COM\"}"))
           .andExpect(status().isOk());
 
-      // Both the duplicate check and the write must see the lowercased email.
       verify(appUserRepository).findByEmail("person@example.com");
       verify(appUserRepository).updateEmail(5L, "person@example.com");
     }
@@ -420,10 +437,12 @@ class AdminUserControllerTest {
       verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
     }
 
+    /**
+     * Only a tag-only PERSON can be upgraded. An ACTIVE, INVITED or DISABLED row is already an
+     * account, so upgrading it -- clobbering its email and resetting its status -- is a conflict.
+     */
     @Test
     void upgradeNonPersonUserReturns409() throws Exception {
-      // Only a tag-only PERSON can be upgraded: an ACTIVE/INVITED/DISABLED row is already an
-      // account, so upgrading it (clobbering its email, resetting its status) is a conflict.
       for (UserStatus status :
           new UserStatus[] {UserStatus.ACTIVE, UserStatus.INVITED, UserStatus.DISABLED}) {
         AppUserEntity account =
@@ -445,6 +464,10 @@ class AdminUserControllerTest {
       verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
     }
 
+    /**
+     * 409 is a normal return, so {@code @Transactional} commits this path: no field may have been
+     * written by the time the conflict is detected, or a partial upgrade would persist.
+     */
     @Test
     void upgradeEmailOwnedByAnotherUserReturns409() throws Exception {
       when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
@@ -458,8 +481,6 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"person@example.com\"}"))
           .andExpect(status().isConflict());
 
-      // 409 is a normal return, so @Transactional commits this path: NO field may have been
-      // written by the time the conflict is detected, or a partial upgrade would persist.
       verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
       verify(appUserRepository, never()).updateStatus(anyLong(), any());
       verify(userInviteService, never()).regenerateInvite(anyLong(), anyString());
@@ -491,6 +512,7 @@ class AdminUserControllerTest {
       verify(appUserRepository, never()).findById(anyLong());
     }
 
+    /** The person's tagged name is preserved as the account display name, never overwritten. */
     @Test
     void upgradeFlipsStatusToInvitedAndLeavesNameUntouched() throws Exception {
       when(appUserRepository.findById(5L)).thenReturn(Optional.of(person(5L)));
@@ -504,7 +526,6 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"person@example.com\"}"))
           .andExpect(status().isOk());
 
-      // The person's tagged name is preserved as the account display name — never overwritten.
       verify(appUserRepository).updateStatus(5L, UserStatus.INVITED);
       verify(appUserRepository, never()).updateName(anyLong(), anyString());
     }
@@ -566,7 +587,6 @@ class AdminUserControllerTest {
               .name("Kenneth")
               .status(UserStatus.ACTIVE)
               .build();
-      // First findById gates the 404 check; second reads the refreshed row back.
       when(appUserRepository.findById(8L))
           .thenReturn(Optional.of(before))
           .thenReturn(Optional.of(after));
@@ -699,14 +719,13 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"alice@example.com\",\"status\":\"INVITED\"}"))
           .andExpect(status().isConflict());
 
-      // 409 is a normal return, so @Transactional commits this path: NO field may have been
-      // written by the time the conflict is detected, or a partial update would persist.
       verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
       verify(appUserRepository, never()).updateName(anyLong(), any());
       verify(appUserRepository, never()).updateStatus(anyLong(), any());
       verify(appUserRepository, never()).updateDescription(anyLong(), any());
     }
 
+    /** Both the duplicate check and the write must see the lowercased email. */
     @Test
     void updateEmailIsNormalizedToLowercase() throws Exception {
       AppUserEntity before =
@@ -733,15 +752,16 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"KENNETH@EXAMPLE.COM\",\"status\":\"INVITED\"}"))
           .andExpect(status().isOk());
 
-      // Both the duplicate check and the write must see the lowercased email.
       verify(appUserRepository).findByEmail("kenneth@example.com");
       verify(appUserRepository).updateEmail(8L, "kenneth@example.com");
     }
 
+    /**
+     * The frontend always sends the email field, so an unchanged email -- possibly re-cased -- is
+     * the common path. The duplicate check must not trip on the user's own row.
+     */
     @Test
     void resubmittingOwnEmailWithDifferentCaseReturns200NotConflict() throws Exception {
-      // The frontend always sends the email field, so "unchanged email" (possibly re-cased) is
-      // the common path — the duplicate check must not trip on the user's own row.
       AppUserEntity ken =
           AppUserEntity.builder()
               .id(8L)
@@ -794,10 +814,13 @@ class AdminUserControllerTest {
       verify(appUserRepository, never()).findByEmail(anyString());
     }
 
+    /**
+     * Pins the {@code @Email} constraint on {@code UpdateUserRequest}: bean validation rejects the
+     * body before the controller body runs, so no {@code findById} stub is needed and nothing is
+     * written.
+     */
     @Test
     void updateWithMalformedEmailReturns400() throws Exception {
-      // Pins the @Email constraint on UpdateUserRequest: bean validation rejects the body
-      // before the controller body runs, so no findById stub is needed and nothing is written.
       mockMvc
           .perform(
               patch("/api/admin/users/8")
@@ -808,15 +831,19 @@ class AdminUserControllerTest {
       verify(appUserRepository, never()).updateEmail(anyLong(), anyString());
     }
 
+    /**
+     * S-13: PERSON is a tag-only identity, not an account lifecycle state. Writing it here would
+     * make {@code PersonRepository.deletePersonById} -- which hard-deletes on {@code AND status =
+     * 'PERSON'} -- match a real account, and would leave that account's {@code role_member} rows on
+     * a person. Rejection is at the input, so nothing in the controller body runs: no sweep, no
+     * write.
+     *
+     * <p>The row is stubbed {@code lenient()} on purpose. It is never read, and stubbing it is what
+     * makes the mutation land where it matters: drop {@code @AccountStatus} and this PATCH succeeds
+     * with 200 and writes PERSON, rather than 404-ing on an unstubbed lookup.
+     */
     @Test
     void updateWithPersonStatusReturns400AndWritesNothing() throws Exception {
-      // S-13. PERSON is a tag-only identity, not an account lifecycle state. Writing it here would
-      // make PersonRepository.deletePersonById -- which hard-deletes on AND status = 'PERSON' --
-      // match a real account, and would leave that account's role_member rows on a person.
-      // Rejection is at the input, so nothing in the controller body runs: no sweep, no write.
-      // The row is stubbed lenient() on purpose -- it is never read, and stubbing it is what makes
-      // the mutation land where it matters: drop @AccountStatus and this PATCH succeeds with 200
-      // and writes PERSON, rather than 404-ing on an unstubbed lookup.
       AppUserEntity existing =
           AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
       lenient().when(appUserRepository.findById(8L)).thenReturn(Optional.of(existing));
@@ -834,12 +861,13 @@ class AdminUserControllerTest {
       verify(roleRepository, never()).dropMembershipsIfPerson(anyLong());
     }
 
+    /**
+     * The other direction stays open: PATCHing a PERSON to an account status is how a person
+     * becomes an account outside {@code upgradeUser}, and S-12's sweep depends on it running.
+     * Constraining the request enum must not close it.
+     */
     @Test
     void updatePersonToActiveStillSucceeds() throws Exception {
-      // The other direction stays open: PATCHing a PERSON to an account status is how a person
-      // becomes an account outside upgradeUser, and S-12's sweep depends on it running.
-      // Constraining
-      // the request enum must not close it.
       AppUserEntity before =
           AppUserEntity.builder().id(8L).name("Dana").status(UserStatus.PERSON).build();
       AppUserEntity after =
@@ -860,11 +888,13 @@ class AdminUserControllerTest {
       verify(appUserRepository).updateStatus(8L, UserStatus.ACTIVE);
     }
 
+    /**
+     * Account-takeover guard: an INVITED user has an outstanding invite bound to their old address.
+     * When the admin corrects the email, the old link must die so whoever holds it -- the prior
+     * address's inbox, say -- can no longer redeem it onto the corrected account.
+     */
     @Test
     void changingInvitedUserEmailInvalidatesOutstandingInvite() throws Exception {
-      // Account-takeover guard: an INVITED user has an outstanding invite bound to their OLD
-      // address. When the admin corrects the email, the old link must die so whoever holds it
-      // (e.g. the prior address's inbox) can no longer redeem it onto the corrected account.
       AppUserEntity before =
           AppUserEntity.builder()
               .id(8L)
@@ -893,12 +923,14 @@ class AdminUserControllerTest {
       verify(userInviteService).invalidateInvites(8L);
     }
 
+    /**
+     * Scope guard: an email change on an ACTIVE user must not reach into invite rows. That account
+     * can hold a redeemable admin-issued reset link (S-7), so this is not "there is nothing to
+     * hijack" -- the takeover it would enable is refused at redemption instead, by {@code
+     * UserInviteService.accept} comparing the invite's issued address to the account's (S-10).
+     */
     @Test
     void changingActiveUserEmailDoesNotTouchInvites() throws Exception {
-      // Scope guard: an email change on an ACTIVE user must NOT reach into invite rows. That
-      // account can hold a redeemable admin-issued reset link (S-7), so this is not "there is
-      // nothing to hijack" -- the takeover it would enable is refused at redemption instead, by
-      // UserInviteService.accept comparing the invite's issued address to the account's (S-10).
       AppUserEntity before =
           AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
       AppUserEntity after =
@@ -923,11 +955,14 @@ class AdminUserControllerTest {
       verify(userInviteService, never()).invalidateInvites(anyLong());
     }
 
+    /**
+     * A no-op email change -- same address, re-cased -- must not kill the outstanding invite: the
+     * link is still bound to the same address, so it stays live. The frontend always sends the
+     * email field, so this re-cased-but-unchanged path is common. The email write still fires as an
+     * idempotent same-value write; only the invite is left alone.
+     */
     @Test
     void resubmittingInvitedUserSameEmailDoesNotInvalidateInvite() throws Exception {
-      // No-op email change (same address, re-cased) must NOT kill the outstanding invite: the
-      // link is still bound to the same address, so it stays live. The frontend always sends the
-      // email field, so this re-cased-but-unchanged path is common.
       AppUserEntity ken =
           AppUserEntity.builder()
               .id(8L)
@@ -944,15 +979,16 @@ class AdminUserControllerTest {
                   .content("{\"email\":\"KEN@EXAMPLE.COM\",\"status\":\"INVITED\"}"))
           .andExpect(status().isOk());
 
-      // The email write still fires (idempotent same-value write), but the invite is left alone.
       verify(userInviteService, never()).invalidateInvites(anyLong());
     }
 
+    /**
+     * S-9: an invite outlives the account being disabled by up to its 7-day TTL, so the token must
+     * die with the transition. Mutation this catches: drop the invalidate call and a disabled user
+     * keeps a redeemable link.
+     */
     @Test
     void disablingUserInvalidatesOutstandingInvites() throws Exception {
-      // S-9: an invite outlives the account being disabled by up to its 7-day TTL, so the token
-      // must die with the transition. Mutation this catches: drop the invalidate call and a
-      // disabled user keeps a redeemable link.
       AppUserEntity before =
           AppUserEntity.builder()
               .id(8L)
@@ -980,11 +1016,13 @@ class AdminUserControllerTest {
       verify(userInviteService).invalidateInvitesForStatus(8L, UserStatus.DISABLED);
     }
 
+    /**
+     * The sweep keys off the resulting status, not off a transition, so an invite issued while the
+     * account was already DISABLED is still killed. Mutation this catches: rewrite the condition as
+     * a transition test ({@code before != DISABLED && after == DISABLED}) and this goes red.
+     */
     @Test
     void reDisablingAlreadyDisabledUserStillSweepsInvites() throws Exception {
-      // The sweep keys off the resulting status, not off a transition, so an invite issued while
-      // the account was already DISABLED is still killed. Mutation this catches: rewrite the
-      // condition as a transition test (before != DISABLED && after == DISABLED) and this goes red.
       AppUserEntity dan =
           AppUserEntity.builder()
               .id(9L)
@@ -1003,11 +1041,13 @@ class AdminUserControllerTest {
       verify(userInviteService).invalidateInvitesForStatus(9L, UserStatus.DISABLED);
     }
 
+    /**
+     * The scope guard on the other side: restoring an account must leave its admin-issued
+     * password-reset link alone. Mutation this catches: invalidate on every status write, and an
+     * admin who re-enables a user silently breaks the reset link they just sent.
+     */
     @Test
     void reEnablingUserToActiveDoesNotInvalidateInvites() throws Exception {
-      // The scope guard on the other side: restoring an account must leave its admin-issued
-      // password-reset link alone. Mutation this catches: invalidate on every status write and
-      // an admin who re-enables a user silently breaks the reset link they just sent.
       AppUserEntity before =
           AppUserEntity.builder()
               .id(8L)
@@ -1030,11 +1070,13 @@ class AdminUserControllerTest {
       verify(userInviteService).invalidateInvitesForStatus(8L, UserStatus.ACTIVE);
     }
 
+    /**
+     * S-8: the sessions a disabled account already holds keep resolving until each one's next
+     * request reads the new status. Mutation this catches: drop the revoke call and the handler
+     * leaves live {@code user_session} rows behind.
+     */
     @Test
     void disablingUserRevokesLiveSessions() throws Exception {
-      // S-8: the sessions a disabled account already holds keep resolving until each one's next
-      // request reads the new status. Mutation this catches: drop the revoke call and the handler
-      // leaves live user_session rows behind.
       AppUserEntity before =
           AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
       AppUserEntity after =
@@ -1099,12 +1141,14 @@ class AdminUserControllerTest {
       verify(userInviteService).invalidateInvitesForStatus(8L, UserStatus.INVITED);
     }
 
+    /**
+     * The scope guard: the handler always delegates, and the ACTIVE no-op is decided inside {@code
+     * SessionService} (proved in {@code SessionServiceIntegrationTest}). What this pins is that the
+     * controller passes the resulting status through rather than branching on it -- working rule
+     * 19. Mutation this catches: wrap the call in an {@code if (status == DISABLED)}.
+     */
     @Test
     void reEnablingUserToActiveDoesNotRevokeSessions() throws Exception {
-      // The scope guard: the handler always delegates, and the ACTIVE no-op is decided inside
-      // SessionService (proved in SessionServiceIntegrationTest). What this pins is that the
-      // controller passes the resulting status through rather than branching on it -- working
-      // rule 19. Mutation this catches: wrap the call in an `if (status == DISABLED)`.
       AppUserEntity before =
           AppUserEntity.builder()
               .id(8L)
@@ -1127,10 +1171,12 @@ class AdminUserControllerTest {
       verify(sessionService).revokeAllForStatus(8L, UserStatus.ACTIVE);
     }
 
+    /**
+     * An email-less PATCH -- status and name only -- never touches the email, so an INVITED user's
+     * outstanding invite must survive: nothing about the login identity changed.
+     */
     @Test
     void emaillessPatchOnInvitedUserDoesNotInvalidateInvite() throws Exception {
-      // An email-less PATCH (status/name only) never touches the email, so an INVITED user's
-      // outstanding invite must survive — nothing about the login identity changed.
       AppUserEntity before =
           AppUserEntity.builder()
               .id(8L)
@@ -1237,7 +1283,6 @@ class AdminUserControllerTest {
           .andExpect(jsonPath("$[0].imageUrl", is("https://cdn.example.com/newer.jpg")))
           .andExpect(jsonPath("$[1].id").value(43));
 
-      // The path id is what reaches the service — not the acting admin's id.
       verify(userSavesService).listSavedImages(10L);
     }
 
