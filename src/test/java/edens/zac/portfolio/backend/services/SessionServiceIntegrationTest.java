@@ -39,7 +39,7 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     return userRepository.findById(id).orElseThrow();
   }
 
-  // Extract the raw ezac_session value from the Set-Cookie header.
+  /** Extract the raw {@code ezac_session} value from the Set-Cookie header. */
   private String rawTokenFrom(MockHttpServletResponse response) {
     String setCookie = response.getHeader("Set-Cookie");
     assertThat(setCookie).isNotNull().contains("ezac_session=");
@@ -49,6 +49,10 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     return semi >= 0 ? afterName.substring(0, semi) : afterName;
   }
 
+  /**
+   * The raw token is not stored: looking the session up by the raw value as if it were the hash
+   * must miss, while resolving with that same raw value succeeds.
+   */
   @Test
   void createIssuesCookieAndPersistsHashedToken() {
     AppUserEntity admin = seedAdmin("create@example.com");
@@ -65,9 +69,7 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(setCookie).contains("Path=/");
 
     String raw = rawTokenFrom(response);
-    // Raw token is NOT stored: looking it up by its own value as the hash must miss.
     assertThat(sessionRepository.findByTokenHash(raw)).isEmpty();
-    // Resolving with the raw token, however, succeeds.
     Optional<AuthPrincipal> principal = sessionService.resolve(raw);
     assertThat(principal).isPresent();
     assertThat(principal.get().email()).isEqualTo("create@example.com");
@@ -87,7 +89,6 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     sessionService.create(admin, false, request, response);
     String raw = rawTokenFrom(response);
 
-    // Force expiry into the past.
     UserSessionEntity session =
         sessionRepository.findByTokenHash(sessionService.sha256HexForTest(raw)).orElseThrow();
     sessionRepository.touch(
@@ -214,6 +215,11 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(sessionService.resolve(raw)).isEmpty();
   }
 
+  /**
+   * Backdates {@code last_seen_at} past the 24h refresh threshold so the slide fires. Mutation this
+   * catches: delete the slide block, or move it below the {@code return}, and {@code last_seen_at}
+   * stays where the test put it.
+   */
   @Test
   void resolveSlidesLastSeenWhenStale() {
     AppUserEntity admin = seedAdmin("slide@example.com");
@@ -224,7 +230,6 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     UserSessionEntity session =
         sessionRepository.findByTokenHash(sessionService.sha256HexForTest(raw)).orElseThrow();
-    // Make last_seen_at stale (older than the 24h refresh threshold).
     sessionRepository.touch(
         session.getId(), LocalDateTime.now().minusDays(2), session.getExpiresAt());
 
@@ -244,6 +249,38 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(after).isAfter(before);
   }
 
+  /**
+   * U-4: the slide runs below the status test, so a request rejected for a non-ACTIVE account does
+   * not extend the session it was rejected on. The session is given a stale {@code last_seen_at} so
+   * the slide would fire if it were still reachable. Mutation this catches: move the slide block
+   * back above the {@code findById} lookup or the {@code mayHoldSession} test, and both timestamps
+   * move.
+   */
+  @Test
+  void resolveDoesNotSlideTheWindowOfADisabledAccountsSession() {
+    AppUserEntity admin = seedAdmin("no-slide-on-reject@example.com");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    sessionService.create(admin, false, request, response);
+    String raw = rawTokenFrom(response);
+    String tokenHash = sessionService.sha256HexForTest(raw);
+
+    UserSessionEntity session = sessionRepository.findByTokenHash(tokenHash).orElseThrow();
+    LocalDateTime staleLastSeen = LocalDateTime.now().minusDays(2);
+    sessionRepository.touch(session.getId(), staleLastSeen, session.getExpiresAt());
+    UserSessionEntity before = sessionRepository.findByTokenHash(tokenHash).orElseThrow();
+
+    userRepository.updateStatus(admin.getId(), UserStatus.DISABLED);
+
+    assertThat(sessionService.resolve(raw)).isEmpty();
+
+    UserSessionEntity after = sessionRepository.findByTokenHash(tokenHash).orElseThrow();
+    assertThat(after.getLastSeenAt())
+        .isCloseTo(before.getLastSeenAt(), within(1, java.time.temporal.ChronoUnit.SECONDS));
+    assertThat(after.getExpiresAt())
+        .isCloseTo(before.getExpiresAt(), within(1, java.time.temporal.ChronoUnit.SECONDS));
+  }
+
   @Test
   void revokeClearsCookie() {
     AppUserEntity admin = seedAdmin("clear@example.com");
@@ -259,6 +296,13 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(cleared).contains("Max-Age=0");
   }
 
+  /**
+   * Creation is backdated to ~89 days ago with a stale {@code last_seen_at} so the slide fires,
+   * while {@code expires_at} stays in the future so the session is still valid at resolve time. The
+   * slide must land on {@code createdAt + 90d}, roughly a day from now, not on {@code now + 60d};
+   * the second assertion is the sanity check that the uncapped slide would have blown past the
+   * ceiling.
+   */
   @Test
   void resolveCapsSlideAtAbsoluteLifetimeCeiling() {
     AppUserEntity admin = seedAdmin("absolute@example.com");
@@ -270,8 +314,6 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     String tokenHash = sessionService.sha256HexForTest(raw);
     Long sessionId = sessionRepository.findByTokenHash(tokenHash).orElseThrow().getId();
 
-    // Backdate creation to ~89 days ago and make last_seen_at stale so resolve() slides.
-    // expires_at stays in the future so the session is still valid at resolve time.
     LocalDateTime createdAt = LocalDateTime.now().minusDays(89);
     jdbcTemplate.update(
         "UPDATE user_session SET created_at = ?, last_seen_at = ?, expires_at = ? WHERE id = ?",
@@ -284,10 +326,8 @@ class SessionServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     LocalDateTime slidExpiry =
         sessionRepository.findByTokenHash(tokenHash).orElseThrow().getExpiresAt();
-    // The slide must be capped at createdAt + 90d (~1 day from now), NOT now + 60d.
     LocalDateTime absoluteMax = createdAt.plusDays(90);
     assertThat(slidExpiry).isCloseTo(absoluteMax, within(5, java.time.temporal.ChronoUnit.SECONDS));
-    // Sanity: the uncapped slide (now + 60d) is far past the absolute ceiling — confirm we capped.
     assertThat(slidExpiry).isBefore(LocalDateTime.now().plusDays(2));
   }
 
