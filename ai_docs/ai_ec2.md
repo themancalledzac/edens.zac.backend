@@ -125,25 +125,9 @@ docker compose restart
 **Port**: `8080` (exposed to host)
 **No local PostgreSQL**: Database service commented out, uses EC2 PostgreSQL
 
-**Environment variables** (from `~/portfolio-backend/.env`):
-```bash
-# Database connection (EC2 PostgreSQL)
-POSTGRES_HOST=<ec2-private-ip-or-localhost>
-POSTGRES_PORT=5432
-POSTGRES_DB=edens_zac
-POSTGRES_USER=zedens
-POSTGRES_PASSWORD=<same-as-db-password>
-
-# AWS credentials
-AWS_ACCESS_KEY_ID=<key>
-AWS_SECRET_ACCESS_KEY=<secret>
-AWS_REGION=us-west-2
-AWS_PORTFOLIO_S3_BUCKET=<bucket-name>
-AWS_CLOUDFRONT_DOMAIN=<domain>
-
-# Spring profile
-SPRING_PROFILES_ACTIVE=default
-```
+**Environment variables**: the host's `~/portfolio-backend/.env` is built from
+[`.env.example`](../.env.example) in the repo root. That file is the template `docker-compose.yml`
+reads, and it is the only place the variable list and its defaults are maintained.
 
 ### Deployment Process
 
@@ -210,23 +194,9 @@ docker compose exec backend /bin/sh
 
 **Connecting local Spring app to EC2 PostgreSQL**:
 
-Create `.env` file in local repo root:
-```bash
-POSTGRES_HOST=<ec2-public-ip>
-POSTGRES_PORT=5432
-POSTGRES_DB=edens_zac
-POSTGRES_USER=zedens
-POSTGRES_PASSWORD=<same-as-ec2-db-password>
-
-# AWS credentials (same as EC2)
-AWS_ACCESS_KEY_ID=<key>
-AWS_SECRET_ACCESS_KEY=<secret>
-AWS_REGION=us-west-2
-AWS_PORTFOLIO_S3_BUCKET=<bucket-name>
-AWS_CLOUDFRONT_DOMAIN=<domain>
-
-SPRING_PROFILES_ACTIVE=default
-```
+Copy [`.env.example`](../.env.example) to `.env` in the local repo root and fill in the values.
+Point `POSTGRES_HOST` at the EC2 public IP, and set `SPRING_PROFILES_ACTIVE` as that file's comment
+describes.
 
 **Security**: Use SSH tunnel for database access (do NOT open port 5432 in security group):
 ```bash
