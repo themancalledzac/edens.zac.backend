@@ -140,6 +140,9 @@ public class SessionService {
    * absolute ceiling, the session stops renewing and lapses, so an actively-used session cannot
    * live forever.
    *
+   * <p>The slide runs only on the accept path, below the status test, so a rejected request never
+   * extends the session it was rejected on.
+   *
    * @param rawToken the raw value read from the {@code ezac_session} cookie
    * @return the principal, or empty when the session is not currently valid
    */
@@ -158,15 +161,6 @@ public class SessionService {
       return Optional.empty();
     }
 
-    if (session.getLastSeenAt().isBefore(now.minusHours(refreshThresholdHours))) {
-      // Slide the idle window to now + ttlDays, but never past the absolute ceiling. The capped
-      // expires_at then enforces the absolute timeout via the expires_at < now rejection above.
-      LocalDateTime absoluteMax = session.getCreatedAt().plusDays(maxLifetimeDays);
-      LocalDateTime slideTo = now.plusDays(ttlDays);
-      LocalDateTime newExpiry = slideTo.isBefore(absoluteMax) ? slideTo : absoluteMax;
-      sessionRepository.touch(session.getId(), now, newExpiry);
-    }
-
     Optional<AppUserEntity> maybeUser = appUserRepository.findById(session.getUserId());
     if (maybeUser.isEmpty()) {
       return Optional.empty();
@@ -175,6 +169,14 @@ public class SessionService {
     if (!mayHoldSession(user.getStatus())) {
       return Optional.empty();
     }
+
+    if (session.getLastSeenAt().isBefore(now.minusHours(refreshThresholdHours))) {
+      LocalDateTime absoluteMax = session.getCreatedAt().plusDays(maxLifetimeDays);
+      LocalDateTime slideTo = now.plusDays(ttlDays);
+      LocalDateTime newExpiry = slideTo.isBefore(absoluteMax) ? slideTo : absoluteMax;
+      sessionRepository.touch(session.getId(), now, newExpiry);
+    }
+
     return Optional.of(
         new AuthPrincipal(user.getId(), user.getEmail(), user.isAdmin(), session.isMfaSatisfied()));
   }
