@@ -35,11 +35,11 @@ is the same failure the paragraph above was written to fix:
 | Section | Status |
 |---|---|
 | [Open security findings](#open-security-findings) | **3 open — REFILLED 2026-08-31 (third run) by the full-board review's security slice**, after being empty for one session. **S-26 is HIGH**: deregistering a passkey leaves the sessions that credential minted alive, and the holder can register a replacement from inside the surviving session. S-27 and S-28 are LOW. All three come out of the merged set (#247, #248, #250, #253, #257) attacked as a set; that pass also confirmed **S-16's reachability claim holds**, which is recorded under "Verified sound" so nobody re-derives it. **25 closed**, one ledger line each below; the six newest have outcomes in [history](2026-08-22-backend-cleanup-history.md#2026-08-31-close-out--s-14-s-16-s-22-s-23-s-24-and-bug-21). Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **3** — run it and update this row and the estimate cell together. **This gate counts numbered findings only**; the unsettled questions have their own section and their own row, because four of them used to live inside this section where no gate could see them. |
-| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend--five-open-2026-08-31) | **5 open — re-derived 2026-08-31 (third run) by a full pair scan of both repos.** The GIF row's premise was **wrong and is corrected in place**: the frontend's `/location/[slug]` page never reads `LocationPageResponse.images`, so a location-tagged GIF cannot reach it today at any prop type. Four more were found, all dormant or dev-only. **All five are now filed in `edens.zac`** ([#371](https://github.com/themancalledzac/edens.zac/pull/371), open, docs-only), which closes the gap the second run declared and could not close: four became new rows (C14, C15, C16, H7) and the fifth was already shipped there as G6 (#351), so it went under that board's "do not re-investigate" list rather than becoming a duplicate. This row stays open until #371 merges. The same scan found two backend items: an N+1 regression (now **MR 19 #21**) and a serialization question (now a Decisions row). Read the section. |
+| [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend--five-open-2026-08-31) | **5 open — re-derived 2026-08-31 (third run) by a full pair scan of both repos.** The GIF row's premise was **wrong and is corrected in place**: the frontend's `/location/[slug]` page never reads `LocationPageResponse.images`, so a location-tagged GIF cannot reach it today at any prop type. Four more were found, all dormant or dev-only. **All five are now filed in `edens.zac`** ([#371](https://github.com/themancalledzac/edens.zac/pull/371), **merged 2026-08-31**, docs-only), which closes the gap the second run declared and could not close: four became new rows (C14, C15, C16, H7) and the fifth was already shipped there as G6 (#351), so it went under that board's "do not re-investigate" list rather than becoming a duplicate. #371 has merged, so these are filed on both boards; the rows stay open here until the frontend acts on them. The same scan found two backend items: an N+1 regression (now **MR 19 #21**) and a serialization question (now a Decisions row). Read the section. |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **3 open, and only ONE is waiting on you.** The three one-word calls were asked in the opening message of the 2026-08-31 third run and all three came back: `cover_image_id` **drop** (V59), the DB-password default **drop the default** (`${POSTGRES_PASSWORD}`), `role.kind` **keep, documented as provenance** (V60). All three shipped together in one MR. What remains: gallery passwords (**parked by decision** pending a design) and the partial-index item C7 (an explicit "not until scale demands it"), neither of which waits on anyone -- plus **one new row added by this run's cross-repo scan**, whether the location endpoint should keep serving an `images` array at all, given the frontend discards it. That one is a real open question. **Batching the three into the opening message is what turned them into a same-session MR** — asked at the end, they would have been the next session's problem (working rule 41's neighbour). Edit gate (rule 36): the count is over the section's own `- [ ] ` lines; re-run it and update this row together. |
 | [Tests that cannot fail](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker) | **0 open of 6 — CLOSED 2026-08-30.** The last three shipped in one session (#239, #240, #241), each mutation-proved against `main` first. Two of the three carried a wrong premise that was corrected while closing: the share-link credential is a `Set-Cookie`, not a response-body token; and the `AdminUserControllerTest` pointer the board suggested names a test that does not redden on that mutation. Write-ups in history. |
 | [Rule 37 debt](2026-08-22-backend-cleanup-history.md#rule-37-debt--r-1-closed-2026-08-30-moved-from-the-tracker) | **0 open — R-1 closed 2026-08-30 ([#238](https://github.com/themancalledzac/edens.zac.backend/pull/238)).** Taught working rule 39. The wider per-package sweep is not tracked here; it is the Inline-comments row in the category table below. |
-| [Stale side branches](#stale-side-branches) | **New 2026-08-24; branch list re-run 2026-08-31 (third run).** 6 worktrees, unchanged. **"0 open PRs" was wrong and is corrected**: `0359-fe-ma1-collection-patch` carries [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252), open since 2026-08-31, and it held the only copy of item #22. That item is now folded into the tracker directly. Three branches are 0 ahead and safe to delete; two hold unique work. `fix/s18-actuator-exclude` holds nothing unique (settled 2026-08-30, see the section). |
+| [Stale side branches](#stale-side-branches) | **New 2026-08-24; branch list re-run 2026-08-31 (third run).** 6 worktrees, unchanged. **"0 open PRs" was wrong and is corrected**: `0359-fe-ma1-collection-patch` carried [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252), which **merged 2026-08-31** after this was written; it had held the only copy of item #22, now folded into the tracker directly. **That branch is therefore safe to delete, making four deletable, not three** -- though it still reports 1 ahead, because #252 was squash-merged (see the section). Three others are genuinely 0 ahead and safe to delete; two hold unique work. `fix/s18-actuator-exclude` holds nothing unique (settled 2026-08-30, see the section). |
 | [Unsettled security questions](#unsettled-security-questions) | **8 open. New row 2026-08-31 (third run).** Four of these lived inside "Open security findings" as plain checkboxes, so `grep -c '^- \[ \] \*\*S-'` reported the section empty while it held them; four more existed only as prose inside closed `[x]` ledger lines, with no checkbox at all. They are now one numbered list with its own gate. Edit gate (rule 36): `grep -c '^- \[ \] \*\*U-'` = **8** — run it and update this row together. |
 
 Original estimate: roughly 4,500-5,000 lines removed against a few hundred added. The test tree (32.6k lines) is larger than main (27.2k); about 8% of it tests the Java compiler and Lombok.
@@ -49,7 +49,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Bugs (fix, not delete) | **21** (5 high) — 20 shipped, **1 open** (#18). Bugs #17, #19 and #20 all shipped 2026-08-31 ([#256](https://github.com/themancalledzac/edens.zac.backend/pull/256), [#258](https://github.com/themancalledzac/edens.zac.backend/pull/258), [#255](https://github.com/themancalledzac/edens.zac.backend/pull/255)); #21 earlier the same day ([#249](https://github.com/themancalledzac/edens.zac.backend/pull/249)). Checkbox check: `grep -c '^- \[ \] \*\*Bug #'` = **1**, re-run 2026-08-31 (third close-out, unchanged). **Bug #18 is the only open bug on the board.** Item **#22** was filed 2026-08-31 in the same number series but is a feature dependency, not a bug, so it opens with `**#22` and does not move this gate. | — |
 | Security findings | **3 open** (S-26 HIGH, S-27 LOW, S-28 LOW), filed 2026-08-31 (third close-out) by the full-board review. 25 closed; the five newest 2026-08-31. Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **3**, re-run 2026-08-31 (working rule 36: run it and edit this cell and the section-table row together). Numbered findings only — the eight unsettled questions have their own gate. | — |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
-| Inline comments | **Re-measured 2026-08-29.** Old criterion (whole-line `//` at indent >= 4, `src/main`): **73**. Rule-37 criterion (any line whose first non-whitespace is `//`, `src/main` + `src/test`): **1,675** (290 main / 1,385 test), plus **72** trailing `code; //` lines. **Re-run 2026-08-31 (second close-out): 1,644 (262 main / 1,382 test)** -- down 31 from 1,675 (290/1,385). The earlier re-run that day was UNCHANGED, which was the first confirmation that a session added none; this one is the first that a session *removed* some. **The delta reconciles exactly against the four MRs' own deletions** (-28 main: 11 in `ImageUploadPipelineService`, 10 in `ContentService`, 7 in `AdminUserController`; -3 test: 1 in `AdminUserControllerTest`, 2 in `WebAuthnCredentialRepositoryIntegrationTest`), which is **working rule 42**. **The trailing figure was wrong and its recorded command did not reproduce it.** As recorded, `grep -vE '^\s*[^:]+:[0-9]+:\s*//'` returns **231**, not 72: BSD `grep -E` does not honour `\s`, so the exclusion under-matches, and nothing excluded URLs -- every `https://` in a javadoc counts as a `//`. **Corrected count: 74**, by this command, which is portable and URL-safe -- **re-run 2026-08-31 (second close-out) and still 74**:
+| Inline comments | **Re-measured 2026-08-29.** Old criterion (whole-line `//` at indent >= 4, `src/main`): **73**. Rule-37 criterion (any line whose first non-whitespace is `//`, `src/main` + `src/test`): **1,675** (290 main / 1,385 test), plus **72** trailing `code; //` lines. **Re-run 2026-08-31 (third run, post-merge): 1,637 (262 main / 1,375 test)** -- down 7 from 1,644 (262/1,382), and the delta reconciles line-for-line against a single file (**working rule 42**): `ReadCacheInvalidatorTest` went **7 -> 0** in [#262](https://github.com/themancalledzac/edens.zac.backend/pull/262), which removed its inline comments and moved the three carrying real reasoning into docblocks. `src/main` did not move at all -- `SesConfig.java` was deleted by [#261](https://github.com/themancalledzac/edens.zac.backend/pull/261) and held zero inline comments. **This is the second consecutive run where a session removed some and none were added.** Prior figure: **1,644 (262 main / 1,382 test)** -- down 31 from 1,675 (290/1,385). The earlier re-run that day was UNCHANGED, which was the first confirmation that a session added none; this one is the first that a session *removed* some. **The delta reconciles exactly against the four MRs' own deletions** (-28 main: 11 in `ImageUploadPipelineService`, 10 in `ContentService`, 7 in `AdminUserController`; -3 test: 1 in `AdminUserControllerTest`, 2 in `WebAuthnCredentialRepositoryIntegrationTest`), which is **working rule 42**. **The trailing figure was wrong and its recorded command did not reproduce it.** As recorded, `grep -vE '^\s*[^:]+:[0-9]+:\s*//'` returns **231**, not 72: BSD `grep -E` does not honour `\s`, so the exclusion under-matches, and nothing excluded URLs -- every `https://` in a javadoc counts as a `//`. **Corrected count: 74**, by this command, which is portable and URL-safe -- **re-run 2026-08-31 (second close-out) and still 74**:
 ```
 grep -rn '//' src/main/java src/test/java | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' | grep -v 'https\?://' | wc -l
 ```
@@ -243,13 +243,14 @@ route that no longer exists**, so nothing here is a live 404. The five below are
 dev-workflow change.
 
 **All five are filed in `edens.zac` as of 2026-08-31 (third run):**
-[#371](https://github.com/themancalledzac/edens.zac/pull/371), docs-only, open. Four are new rows on
+[#371](https://github.com/themancalledzac/edens.zac/pull/371), docs-only, **merged 2026-08-31**. Four are new rows on
 that board (C14, C15, C16, H7); the fifth had already shipped there as G6 (#351), so it was recorded
 under that board's "do not re-investigate" list instead of being filed twice. **This closes the gap
 the second run declared and could not close** -- the row then read "deliberately NOT filed ... so it
 is invisible in `edens.zac` until someone files it", because that repo had another session's dirty
 branch checked out. It was dirty again this run; the filing was done in a temporary worktree off
-`origin/main` without touching that session's tree. Keep these rows open until #371 merges.
+`origin/main` without touching that session's tree. **#371 has since merged**, so these rows are
+filed on both boards and the gap is closed; they stay open here until the frontend acts on them.
 
 - [ ] **FE-1: the location page's `images` array can now carry GIFs, and the component types it
   `ContentImageModel[]`.** *(Filed 2026-08-31 from [#258](https://github.com/themancalledzac/edens.zac.backend/pull/258); working rule 43's evidence.)*
@@ -326,33 +327,12 @@ sessions of declining, which is the point at which a decline stops being a decli
 The `jobs/` and `from-disk` pair is the Appendix C lead about the job-status endpoint being dead;
 this scan is independent confirmation of the frontend half of it.
 
-- [ ] **#22 (feature dependency, not a bug) — `PATCH /api/edit/collections/{id}` does not exist,
-  and the frontend's largest open item is blocked on it.** *(Filed 2026-08-31 from the frontend
-  board's MA1 (`docs/spikes/2026-features.md` in `edens.zac`), whose row said "Task 1 (backend
-  `PATCH /collections/{id}`) was assigned to a sibling agent — verify it exists before starting".
-  It was verified and it does not.)*
-
-  Verified against `origin/main` rather than a checkout — this repo's `.claude/worktrees/` copies
-  make an unscoped `grep -rn` return convincing false positives for exactly this query:
-
-  ```bash
-  git grep -n "PatchMapping(" origin/main -- 'src/main/java/**/controller/**'
-  ```
-
-  Five `@PatchMapping`s exist and none is a whole-collection field patch: `/content/images`
-  (`AdminController:233`), `/content/gifs/{id}` (`AdminController:341`), `/{id}`
-  (`AdminUserController:313`), `/collections/{collectionId}/rating` (`EditController:52`) and
-  `/collections/{collectionId}/images` (`EditController:94`). The last two are sub-resource
-  patches.
-
-  **What the frontend needs.** MA1 replaces the collection edit sheet's batch-save model with
-  per-field optimistic commits, so it needs a partial update accepting an arbitrary subset of
-  collection fields — the shape its `buildFieldPatch` derives from the existing
-  `buildUpdatePayload`. `PUT`-style whole-object update will not do, because the point is that two
-  fields edited in parallel must not clobber each other.
-
-  **Sequencing.** This is MR 1 of MA1; all eleven of its frontend tasks wait on it. Nothing else on
-  either board depends on it, so it can land whenever. **COLD.**
+**Item #22 is not listed here.** `PATCH /api/edit/collections/{id}` is backend work the frontend
+is blocked on, which is the opposite direction from this section -- these are findings the frontend
+must act on. It lives under [Bugs filed after the waves closed](#bugs-filed-after-the-waves-closed-2026-08-29).
+**It was duplicated into both sections on 2026-08-31 (third run)** when [#263](https://github.com/themancalledzac/edens.zac.backend/pull/263) folded it in
+while [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252) still held its own copy, and both then merged. The copy here was the shorter of the two and
+was removed; nothing was lost.
 
 ## Open security findings
 
@@ -1364,8 +1344,12 @@ delete this branch until one of those happens.**
 - [ ] **`0359-fe-ma1-collection-patch` -- NOT safe to delete, and it was not on this list until
   2026-08-31 (third run).** One commit, `72d59c0`, ahead of `main`, carrying
   [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252) and the only copy of item
-  #22. The item's text is now folded into the tracker, so the action is: **merge #252 or close it,
-  then delete the branch.** Closing loses nothing.
+  #22. **Resolved 2026-08-31 (third run): #252 merged, so this branch is safe to delete.** Note it
+  still reports **1 ahead** of `main` -- `git log origin/main..origin/0359-fe-ma1-collection-patch`
+  returns `72d59c0` -- because #252 was **squash**-merged, so the original commit is not an ancestor
+  of `main` and `db5d11e` carries its content instead. Do not read "1 ahead" here as unique work; the
+  0-ahead test does not apply to any squash-merged branch on this board. The item's text also lives
+  in the tracker directly, so nothing depends on the branch.
 - [x] **`0257-backend-security-bugs` is fully superseded -- verified, safe to delete.** Its single
   commit (2026-08-22, "close the admin delete-person and rate-limit holes (cleanup tracker MR 5)")
   is a parallel implementation of MR 5, which shipped as
@@ -1468,19 +1452,36 @@ the first time in three sessions the queue has not opened with a decision or a r
    loud. *Guardrail:* U-7 and U-8 are the same question from two directions — answer whether S-23's
    boot check makes the name-based exclude list moot, then close both or neither.
 
-**Two things that are owed and are not backend work.** The five cross-repo findings have now been
-declined for filing on `edens.zac` twice running, which is where a decline stops being a decline; the
-next session touching that repo files all five. And [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252)
-should be merged or closed — its content is folded in, so closing it loses nothing.
+**Both things this list called owed are now done, in the same session it was written.** The five
+cross-repo findings were filed on `edens.zac` as
+[#371](https://github.com/themancalledzac/edens.zac/pull/371) (merged) rather than declined a third
+time — four new rows, the fifth already shipped there as G6. And [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252)
+merged, so item #22 is no longer PR-only. **Nothing on this board is now owed to another repo.**
 
 ### Classification of the actionable near-term board (stamped 2026-08-31, third close-out)
 
-*(Retitled 2026-08-31. It classifies about 25 items; the file holds **94** open checkboxes (`grep -c '^- \[ \] '`, re-run 2026-08-31 third close-out — it was 80 before this close-out filed 14 more). Everything in
+*(Retitled 2026-08-31. It classifies about 25 items; the file holds **89** open checkboxes
+(`grep -c '^- \[ \] '`, re-run 2026-08-31 after the third run's five PRs merged). **The figure first
+written here was 94 and it was wrong** -- measured on the close-out's own pre-rebase branch, where the
+three decision rows [#260](https://github.com/themancalledzac/edens.zac.backend/pull/260) had already
+ticked were still open and item #22 was double-counted. At its own merge commit the file actually held
+**90**; deduplicating #22 took it to 89. Reconciliation, oldest first: 80 at
+[#259](https://github.com/themancalledzac/edens.zac.backend/pull/259), **-3** when #260 ticked the
+three decisions, **-1** when [#261](https://github.com/themancalledzac/edens.zac.backend/pull/261)
+ticked MR 16 #4, **+1** when [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252)
+filed #22, **-1** when [#262](https://github.com/themancalledzac/edens.zac.backend/pull/262) ticked
+MR 16 #5, **+14** filed by [#263](https://github.com/themancalledzac/edens.zac.backend/pull/263), then
+**-1** for the #22 duplicate. **The lesson is working rule 42 applied to a board's own metrics: a
+count measured on a feature branch is not a count of `main`** -- re-run it after the merge, or do not
+write it down. Everything in
 MR 21-24 and MR 26, Waves 6 and 7, the eight unsettled security questions, the stale-docblock pair,
 the branch worklist and all of Appendices C and D is deliberately outside it. A reader taking the old
 heading literally would conclude the board is a quarter its actual size.)*
 
-**COLD** — pick up with no unanswered question: bug #18; MR 16 #4, #5; MR 17 #8 (cross-repo
+**COLD** — pick up with no unanswered question: bug #18; **MR 16 #4 and #5 are DONE, not COLD**
+([#261](https://github.com/themancalledzac/edens.zac.backend/pull/261),
+[#262](https://github.com/themancalledzac/edens.zac.backend/pull/262), both merged 2026-08-31 after
+this list was drafted); MR 17 #8 (cross-repo
 coordinated, but the coordination question was answered 2026-08-24); MR 18 #9, #10, #11, #12;
 MR 19 #15, #17, #18, #19, and the new **#21** (the location-endpoint N+1); **MR 25's four members, now
 fully unblocked** -- both UNCHECKED counts were re-derived by arity 2026-08-31 and both reproduced.
@@ -1555,6 +1556,26 @@ from 2026-08-22) and the [newer archive](2026-08-22-backend-cleanup-history.md#s
 (2026-08-30 onward). **Link both** -- the tracker pointed only at the older half for a session, and
 the newest entries sat 5,300 lines further down under a heading nothing linked to.
 
+- 2026-08-31 (third run, post-merge reconciliation) — **no new items, one MR, and three of this
+  board's own freshly-written numbers were wrong.** All five of the run's PRs merged
+  ([#260](https://github.com/themancalledzac/edens.zac.backend/pull/260),
+  [#261](https://github.com/themancalledzac/edens.zac.backend/pull/261),
+  [#252](https://github.com/themancalledzac/edens.zac.backend/pull/252),
+  [#262](https://github.com/themancalledzac/edens.zac.backend/pull/262),
+  [#263](https://github.com/themancalledzac/edens.zac.backend/pull/263)), plus
+  [#371](https://github.com/themancalledzac/edens.zac/pull/371) on the frontend. This entry is the
+  reconciliation pass that followed, and everything it found was created by the close-out itself.
+  **Item #22 was duplicated into two sections** — #263 folded it in while #252 still held its own
+  copy, and both merged; the shorter copy is removed and a pointer left in its place.
+  **The open-checkbox count was 94 and was actually 90**, because it was measured on the close-out's
+  own pre-rebase branch; 89 after the dedupe, with the full +/- reconciliation now written into the
+  classification block. **The rule-37 count moved 1,644 -> 1,637** and reconciles line-for-line
+  against one file: `ReadCacheInvalidatorTest` 7 -> 0 in #262. `src/main` did not move; `SesConfig`
+  held zero inline comments. **Three "still open" claims were stale within the hour** — #252 and
+  #371 had both merged, and MR 16 #4/#5 were still listed COLD after shipping. **`0359-fe-ma1-collection-patch`
+  reports 1 ahead but is safe to delete**: #252 was squash-merged, so the 0-ahead test does not
+  apply to it. Working rule 42 now has a second half: *a count measured on a feature branch is not a
+  count of `main`.* Next: **S-26 (HIGH)**.
 - 2026-08-31 (third run) — **four MRs, the full-board review, and the first fully clean count audit
   the board has had.** Shipped the three answered decisions in one MR
   ([#260](https://github.com/themancalledzac/edens.zac.backend/pull/260)), MR 16 #4
@@ -1568,7 +1589,7 @@ the newest entries sat 5,300 lines further down under a heading nothing linked t
   docs MR with zero code changes** — the guardrail the second close-out wrote for it, honoured. See
   the section above for what each slice returned.
   **Every one of the eleven recorded counts reproduced exactly and nothing moved.** Open bugs 1, open
-  security 0 before filing, history open boxes 0, rule-37 leading `//` 1,644 (262 main / 1,382 test),
+  security 0 before filing, history open boxes 0, rule-37 leading `//` 1,644 (262 main / 1,382 test) at the time of the audit and **1,637 (262/1,375) after this run's own MRs merged**,
   trailing 74, `RoleRepository` 10, `AdminBootstrap` 6, `CollectionControllerProd` 9, worktrees 6.
   **This is the first close-out where the count audit found nothing at all** — including the two
   figures that were corrected in the previous close-out, which held.
