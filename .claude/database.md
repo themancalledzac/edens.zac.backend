@@ -1,6 +1,6 @@
 # Database Schema
 
-Schema evolution is managed by Flyway (`src/main/resources/db/migration`, currently V2..V52).
+Schema evolution is managed by Flyway (`src/main/resources/db/migration`, currently V2..V60).
 Tables that pre-date Flyway are reconstructed for tests by `src/test/resources/db/test-base-schema.sql`,
 which Flyway then migrates on top of.
 
