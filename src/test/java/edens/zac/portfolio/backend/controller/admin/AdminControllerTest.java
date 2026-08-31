@@ -20,6 +20,7 @@ import edens.zac.portfolio.backend.services.ImageUploadPipelineService;
 import edens.zac.portfolio.backend.services.JobTrackingService;
 import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.types.ContentType;
+import java.time.LocalDate;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -759,6 +760,88 @@ class AdminControllerTest {
         .andExpect(jsonPath("$.content[0].title", is("Test Image")));
 
     verify(contentService).searchImages(any(ImageSearchRequest.class));
+  }
+
+  @Test
+  @DisplayName("GET /content/images should page 50 at a time when size is omitted")
+  void getAllImages_noSize_shouldDefaultToFifty() throws Exception {
+    when(contentService.searchImages(any(ImageSearchRequest.class)))
+        .thenReturn(new PagedResponse<>(testImages, testImages.size(), 1, 0, true));
+
+    mockMvc.perform(get("/api/admin/content/images")).andExpect(status().isOk());
+
+    ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
+    verify(contentService).searchImages(captor.capture());
+    assertThat(captor.getValue().size()).isEqualTo(50);
+    assertThat(captor.getValue().page()).isZero();
+  }
+
+  @Test
+  @DisplayName("GET /content/images should clamp a size above 200 down to 200, not reject it")
+  void getAllImages_sizeAboveMax_shouldClampToTwoHundred() throws Exception {
+    when(contentService.searchImages(any(ImageSearchRequest.class)))
+        .thenReturn(new PagedResponse<>(testImages, testImages.size(), 1, 0, true));
+
+    mockMvc
+        .perform(get("/api/admin/content/images").param("size", "500"))
+        .andExpect(status().isOk());
+
+    ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
+    verify(contentService).searchImages(captor.capture());
+    assertThat(captor.getValue().size()).isEqualTo(200);
+  }
+
+  @Test
+  @DisplayName("GET /content/images should clamp a size below 1 up to 1, not reject it")
+  void getAllImages_sizeBelowMin_shouldClampToOne() throws Exception {
+    when(contentService.searchImages(any(ImageSearchRequest.class)))
+        .thenReturn(new PagedResponse<>(testImages, testImages.size(), 1, 0, true));
+
+    mockMvc.perform(get("/api/admin/content/images").param("size", "0")).andExpect(status().isOk());
+
+    ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
+    verify(contentService).searchImages(captor.capture());
+    assertThat(captor.getValue().size()).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("GET /content/images should bind every filter parameter onto the search request")
+  void getAllImages_shouldBindEveryFilterParameter() throws Exception {
+    when(contentService.searchImages(any(ImageSearchRequest.class)))
+        .thenReturn(new PagedResponse<>(testImages, testImages.size(), 1, 0, true));
+
+    mockMvc
+        .perform(
+            get("/api/admin/content/images")
+                .param("personIds", "1", "2")
+                .param("tagIds", "3", "4")
+                .param("cameraId", "5")
+                .param("locationId", "6")
+                .param("lensId", "7")
+                .param("minRating", "4")
+                .param("isFilm", "true")
+                .param("blackAndWhite", "false")
+                .param("captureStartDate", "2025-01-01")
+                .param("captureEndDate", "2025-12-31")
+                .param("page", "2")
+                .param("size", "15"))
+        .andExpect(status().isOk());
+
+    ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
+    verify(contentService).searchImages(captor.capture());
+    ImageSearchRequest request = captor.getValue();
+    assertThat(request.personIds()).containsExactly(1L, 2L);
+    assertThat(request.tagIds()).containsExactly(3L, 4L);
+    assertThat(request.cameraId()).isEqualTo(5L);
+    assertThat(request.locationId()).isEqualTo(6L);
+    assertThat(request.lensId()).isEqualTo(7L);
+    assertThat(request.minRating()).isEqualTo(4);
+    assertThat(request.isFilm()).isTrue();
+    assertThat(request.blackAndWhite()).isFalse();
+    assertThat(request.captureStartDate()).isEqualTo(LocalDate.of(2025, 1, 1));
+    assertThat(request.captureEndDate()).isEqualTo(LocalDate.of(2025, 12, 31));
+    assertThat(request.page()).isEqualTo(2);
+    assertThat(request.size()).isEqualTo(15);
   }
 
   @Test

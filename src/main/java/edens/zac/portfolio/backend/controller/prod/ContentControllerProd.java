@@ -2,7 +2,7 @@ package edens.zac.portfolio.backend.controller.prod;
 
 import edens.zac.portfolio.backend.model.ContentFilmTypeModel;
 import edens.zac.portfolio.backend.model.ContentModels;
-import edens.zac.portfolio.backend.model.ImageSearchRequest;
+import edens.zac.portfolio.backend.model.ImageSearchFilter;
 import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ContentService;
@@ -10,16 +10,15 @@ import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,35 +44,11 @@ public class ContentControllerProd {
    */
   @GetMapping("/images/search")
   public ResponseEntity<PagedResponse<ContentModels.Image>> searchImages(
-      @RequestParam(required = false) List<Long> personIds,
-      @RequestParam(required = false) List<Long> tagIds,
-      @RequestParam(required = false) Long cameraId,
-      @RequestParam(required = false) Long locationId,
-      @RequestParam(required = false) Long lensId,
-      @RequestParam(required = false) Integer minRating,
-      @RequestParam(required = false) Boolean isFilm,
-      @RequestParam(required = false) Boolean blackAndWhite,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-          LocalDate captureStartDate,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-          LocalDate captureEndDate,
+      @ModelAttribute ImageSearchFilter filter,
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "30") @Min(1) @Max(200) int size) {
-    ImageSearchRequest request =
-        new ImageSearchRequest(
-            personIds,
-            tagIds,
-            cameraId,
-            locationId,
-            lensId,
-            minRating,
-            isFilm,
-            blackAndWhite,
-            captureStartDate,
-            captureEndDate,
-            page,
-            size);
-    PagedResponse<ContentModels.Image> response = contentService.searchImages(request);
+    PagedResponse<ContentModels.Image> response =
+        contentService.searchImages(filter.toRequest(page, size));
     return ResponseEntity.ok(response);
   }
 
