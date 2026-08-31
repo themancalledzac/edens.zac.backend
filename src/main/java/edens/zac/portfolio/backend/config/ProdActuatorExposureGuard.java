@@ -10,25 +10,12 @@ import org.springframework.stereotype.Component;
 
 /**
  * Fail-closed guard for prod startup. Refuses to start when the resolved actuator web exposure is
- * anything other than {@code health}.
+ * anything other than {@code health}, which covers every endpoint Boot has now or adds later
+ * without naming any of them.
  *
- * <p>S-18 answered the same risk by naming endpoints on {@code
- * management.endpoints.web.exposure.exclude}, and S-23 is the finding that a name list cannot
- * close: {@code metrics} and {@code info} meet S-18's own criterion under an injected {@code
- * include=*}, sit in neither the exclude list nor the test's {@code MUST_BE_EXCLUDED}, and both
- * S-18 tests derive from the same hand enumeration that omitted them -- so neither test can see the
- * omission. Adding two more names would leave the next Boot release's endpoints in the same
- * position.
- *
- * <p>This checks the <em>resolved</em> include instead, which is one assertion covering every
- * endpoint that exists now or ships later. It reads {@link WebEndpointProperties} rather than the
- * raw property text because that object is what actuator itself consults when deciding what to
- * expose, so the check cannot drift from the exposure it is guarding.
- *
- * <p>Prod only, matching {@link ProdSecretGuard}. A wider include is a legitimate thing to want
- * locally, and the reachable exposure this closes is the prod one: {@code InternalSecretFilter}
- * admits only the three health URIs otherwise, so anything else reaching an endpoint is doing it
- * with an internal-secret bearer token.
+ * <p>Reads {@link WebEndpointProperties} rather than the raw property, because that is the object
+ * actuator consults when deciding what to expose. Prod only, matching {@link ProdSecretGuard}: a
+ * wider include is a reasonable thing to want locally.
  */
 @Component
 @Profile("prod")
