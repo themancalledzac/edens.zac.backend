@@ -261,15 +261,30 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   `/user` page (`UserPageAssembler:161`) all gain a `locations` array of `{id, name, slug}` on each
   `COLLECTION` block.
 
-- [ ] **#25 (same gap, not shipped) — `people` on `COLLECTION` content blocks is inert for exactly
-  the reason `locations` was.** *(Found while shipping #24; filed rather than bundled, because the
-  frontend board's rule is one MR per item and `people` is not part of SD2.)*
-  `batchConvertToBasicModels:95-96` already batch-loads `peopleByCollectionId` via
-  `collectionPeopleRepository.findPeopleForCollections` and sets it on the model, and the frontend
-  reads `ref.people` in both `collectionRefMatchesCriteria` and `extractFilterOptions` — but
-  `ContentModels.Collection` has no `people` component. It is the same edit in the same three files
-  with the same zero added queries, and #277 is the worked example. Cost of having split it: the
-  20-component positional constructor and its four test call sites get edited twice. **COLD.**
+- [x] **#25 (same gap as #24) — `people` on `COLLECTION` content blocks was inert for exactly the
+  reason `locations` was.** — **DONE**
+  ([#293](https://github.com/themancalledzac/edens.zac.backend/pull/293), 2026-08-31). *(Found
+  while shipping #24; filed rather than bundled, because the frontend board's rule is one MR per
+  item and `people` is not part of SD2.)*
+
+  `batchConvertToBasicModels` already batch-loaded `peopleByCollectionId` via
+  `collectionPeopleRepository.findPeopleForCollections` and set it on the model, and the frontend
+  already read `ref.people` — `contentFilter.ts:946` matches on `name`. The only missing link was
+  the `people` component on `ContentModels.Collection`, so the loaded value had nowhere to ride out
+  on and the filter matched against nothing.
+
+  Followed #277 exactly: one record component, one copy in `fromCollectionModel`, no repository
+  method, no query, no migration, no N+1. No `withPeople` twin for the reason there is no
+  `withLocations` twin — people arrive on the model, so one nobody calls would be dead code.
+  `buildCollectionRecord` keeps `List.of()`, and its docblock now states that for all three of
+  tags, locations and people.
+
+  Additive: every `COLLECTION` block on the synthetic list views, the tag view and the `/user` page
+  gains a `people` array of `{id, name}`. `Records.Person` has no slug, so unlike locations there
+  is no second field to keep in step.
+
+  **The predicted cost of splitting it was exactly right** — the 20-component positional
+  constructor and its four test call sites were edited a second time, and nothing else.
 
 - [x] **#26 (feature dependency, not a bug) — contact messages had no retention TTL, so PII
   accumulated forever.** — **DONE**
