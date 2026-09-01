@@ -24,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Repository for CollectionEntity and CollectionContentEntity. Consolidates CollectionDao and
  * CollectionContentDao.
+ *
+ * <p>Laid out in four parts, in this order: the collection row mapper and its SQL, the
+ * collection-content row mapper and its SQL, collection CRUD, then collection-content operations.
  */
 @Component
 @Slf4j
@@ -32,10 +35,6 @@ public class CollectionRepository extends BaseDao {
   public CollectionRepository(JdbcTemplate jdbcTemplate) {
     super(jdbcTemplate);
   }
-
-  // ============================================================
-  // Collection RowMapper & SQL
-  // ============================================================
 
   /**
    * The single canonical column list for a full {@code collection} row. Every query that feeds
@@ -121,10 +120,6 @@ public class CollectionRepository extends BaseDao {
         return entity;
       };
 
-  // ============================================================
-  // CollectionContent RowMapper & SQL
-  // ============================================================
-
   private static final String SELECT_COLLECTION_CONTENT =
       """
       SELECT id, collection_id, content_id, order_index, visible, created_at, updated_at
@@ -142,10 +137,6 @@ public class CollectionRepository extends BaseDao {
               .createdAt(getLocalDateTime(rs, "created_at"))
               .updatedAt(getLocalDateTime(rs, "updated_at"))
               .build();
-
-  // ============================================================
-  // Collection CRUD Operations
-  // ============================================================
 
   @Transactional(readOnly = true)
   public Optional<CollectionEntity> findBySlug(String slug) {
@@ -831,10 +822,6 @@ public class CollectionRepository extends BaseDao {
     MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
     return namedParameterJdbcTemplate.queryForList(sql, params, Long.class);
   }
-
-  // ============================================================
-  // CollectionContent Operations
-  // ============================================================
 
   @Transactional(readOnly = true)
   public List<CollectionContentEntity> findContentByCollectionIdOrderByOrderIndex(
