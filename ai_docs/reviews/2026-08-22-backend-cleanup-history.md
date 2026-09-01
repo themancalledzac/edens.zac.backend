@@ -6380,6 +6380,140 @@ U-1 stays BLOCKED, U-7 and U-8 stay blocked behind it, and the twelve-name actua
 of it: the question is now on the record as put and unanswered rather than unasked.
 
 
+# Ninth-run outcomes (2026-09-01)
+
+Four MRs. Written up here; the tracker keeps one ticked line each with a pointer to these headings.
+
+## #28 outcome 2026-09-01 — unified on 50 (#294)
+
+**Answered in one word at the top of the session and merged the same day.** `+53/-60` across five
+files. `page` and `size` moved out of the two controller signatures and into `ImageSearchFilter`,
+the record both endpoints already bound as a `@ModelAttribute`, with `@Min(0)` on page,
+`@Min(1) @Max(200)` on size and a compact constructor supplying `0` / `50` when the caller omits
+them. That ordering matters: the constructor resolves the default before Hibernate Validator reads
+the field, so the constraints see a real value whether or not the parameter was sent.
+
+**Observable changes.** Admin's default stays 50; its `size=500` goes from 200-with-200-rows to a
+400 and its `size=0` from 200-with-1-row to a 400, because `Math.min(Math.max(size, 1), 200)` is
+gone. **Prod's `GET /api/read/content/images/search` moved its default page size 30 -> 50**, which
+is a widening of the public read contract.
+
+**The unverified premise, restated because it travels with the change.** MR 19 #19's frontend-safety
+finding rests on a 2026-08-24 reading of `edens.zac` that cannot be checked from this repo; there is
+still no frontend clone on this machine; and that reading covered *adding keys to a response*, not
+*changing how many items a page returns*. The PR body says so plainly, the way #283 did.
+
+**Two deviations from the prescribed fix — working rule 21 in its usual shape.** The item specified
+adding `@Validated` to `AdminController` and keeping #290's `MethodValidationPostProcessor` wiring.
+Neither survived: `@Valid` on a `@ModelAttribute` is enforced by the `WebDataBinder`, not by the
+`@Validated` AOP proxy, so no proxy is needed on either controller for these constraints, and the
+three prod constraint tests now run on the plain `standaloneSetup` MockMvc. The premise (unify on 50)
+was evidence; two-thirds of the prescribed mechanism was hypothesis and was wrong.
+
+**Verification.** `mvn clean install` green at 1503. Stripping `@Min`/`@Max` from the record fails
+all six constraint tests across both controllers at the guard, 200-instead-of-400; setting
+`DEFAULT_SIZE` to 30 fails both default tests. Both mutants die for the right reason (rule 32).
+
+**Cross-repo.** This owes `edens.zac` a row and is the second entry in that debt, alongside MR 19
+#19's widened response. **Not filed there from here, and declared rather than noted.**
+
+## CollectionRepository comment concentration (#295)
+
+`+23/-37`, two files, no logic changed, suite 1502 at both ends. `CollectionRepositoryTest` 21 -> 0
+and `CollectionRepository` 12 -> 0, both counts exactly as the board recorded them.
+
+**The repository's twelve** were four three-line `====` section banners. They recorded the file's
+four-part layout, which is worth keeping for a 900-line file, so it went into the class docblock as
+one sentence -- stated once where a reader arrives, rather than four times in the body (rule 10).
+
+**The test's twenty-one** split twelve bare Arrange/Act/Assert markers, which were straight deletes,
+and nine carrying content, which went into docblocks on the thing each described: the reflection
+swap onto `setNamedParameterJdbcTemplate`, the EXISTS-gate pin and the `hasValue`-not-`getValue`
+note onto `sqlGatesOnExistsCollectionContentRowsAndPassesVisibilities`, the "not a bare `is_blog`"
+note onto `sqlOmitsBlogPredicateWhenBlogsOnlyIsFalse`, and the UPDATE-path note onto
+`updateSqlWritesCollectionEndDateColumnAndBindsParam`.
+
+**Rule 46 did not bite, for the first time in five close-outs.** Both files held zero trailing
+`code; //`, so the whole-line count and the comments-deleted count were the same number.
+
+**What the reconciliation found instead — this is where rule 50 came from.** The rule-42 checksum
+refused to balance: the test side moved -24 against 21 deleted. The three-line gap was not a missed
+file but the *command*. `grep -rc` / `grep -rn` silently skip
+`ImageMetadataExtractorKeywordFlagTest.java`, whose `XMP_HEADER` literal ends in a NUL byte that the
+XMP packet format requires; BSD grep classifies the file as binary and emits nothing for its three
+comments. Under `git grep` both deltas are exact: main 215 -> 203 (-12), test 1,192 -> 1,169 (-23,
+being 21 here plus 2 from #297's rule-47 sweep). **The file is correct and the board's command was
+not**, and it had been wrong since that test was written.
+
+## CollectionServiceTest assert/verify twins (#296)
+
+`-46`, one file, no main file touched, 1502 -> 1500 tests.
+
+**All four refs landed exact** (`150`, `185`, `222`, `251`) -- the first ref set on this board in
+several runs to need no correction, and the eighth close-out's decision to re-derive them *by name*
+after #289 rewrote the file is why.
+
+**What was deleted, and why each survivor covers it.**
+`createCollection_verifiesEntityCreatedViaUtil` re-ran the happy-path test's stubbing with different
+literals and added one assertion the first did not make literally,
+`verify(collectionProcessingUtil).toEntity(request, anyInt())`. The happy-path test covers it
+transitively: it stubs `toEntity` to return `savedEntity` and then verifies `save(savedEntity)`, so
+a `createCollection` bypassing `toEntity` saves something else. Proven by mutation -- replacing the
+call with `new CollectionEntity()` fails the survivor at its `save` stub.
+`deleteCollection_happyPath_disassociatesAllRelationshipsThenDeletes` made the same four plain
+verifies the inOrder test makes, on identical stubbing.
+
+**The subset claim needed testing, and that is now working rule 51.** Plain `verify` fails on a
+second matching call; an `inOrder` chain consuming one invocation per position has no obvious reason
+to, so "strict subset" was not free and a deletion resting on the word alone would have dropped
+cardinality coverage unchecked. Duplicating `collectionRepository.deleteById(id)` **does** fail the
+surviving inOrder test. The claim held -- as a fact about Mockito, established by mutation, not as a
+consequence of the word.
+
+**Board numbers corrected on the way through.** The file is **2,850** lines (`wc -l`), not the 2,893
+recorded at the eighth close-out: #293 added 3 after that measurement, then this MR removed 46. It
+has grown 438 since the 2,412 baseline, not 481. And `new ContentModels.Image(` is **14** test call
+sites, not 13, in the same 11 test files. **The PR's third claim was itself wrong** -- see the
+tracker's `CollectionRequests.Update` row: it reported 26 sites against a test-only figure of 25 by
+counting `src/main` too, and re-running the board's own arity scanner shows the row holds exactly.
+
+## #27 outcome 2026-09-01 — the audit emptied the item (#297)
+
+**The guardrail said "audit before wiring" and the audit changed the item before a line was
+written.** #27 was filed as a repo-wide gap: `standaloneSetup` builds no `@Validated` proxy, so
+`@Min`/`@Max`/`@Size` on `@RequestParam`s never fire, and "every other constraint-annotated
+controller parameter in the repo has the same untested gap".
+
+**There is no other one.** Across every file in `controller/`, exactly one method parameter carries
+a constraint annotation: `ContentControllerProd.searchImages`'s `page` and `size` -- the one #290
+fixed and #294 has since moved into `ImageSearchFilter`. `ContentControllerProd` is also the only
+class in the repo carrying `@Validated`. The "wire the proxy" half was zero controllers.
+
+**The conflation, now working rule 52.** The missing proxy affects constraints on *method
+parameters* only. Constraints on a record component of a `@Valid @RequestBody` DTO --
+`RoleRequests`, `UserRequests`, `InviteRequests`, `EditController.RatingPatch` -- are enforced by the
+`WebDataBinder`, which `standaloneSetup` does build, and have been enforced in these tests all
+along. The five `@RequestBody` parameters lacking `@Valid` all bind an untyped `Map`, `List` or
+`String` with no constraints on them, so nothing is unreachable that way either.
+
+**Coverage was the real remainder, and most of it existed.** `CreateUserRequest` and
+`UpgradeUserRequest` email, `UpdateUserRequest` email and status, `InviteRequests` password and
+displayName, and `RatingPatch` rating each already had a 400 test. Four did not, and each got one
+test plus one mutation: `CreateRoleRequest.name` `@NotBlank` (mutant returns 201), the same field's
+`@Size(max = 128)` (201), `SetRoleGrantRequest.level` `@NotNull` (204 -- distinct from the existing
+unparseable-enum test, which 400s out of Jackson before validation runs), and
+`UpdateUserRequest.description` `@Size(max = 500)` (200, writing 501 characters).
+
+**Rule 32 fired on the fourth and it is worth recording.** On the first pass that mutant died 404 on
+an unstubbed `findById` rather than at the guard, which proves a fixture gap and not the constraint.
+It now stubs the row `lenient()` -- the same technique and the same reasoning as
+`updateWithPersonStatusReturns400AndWritesNothing` three tests below it, whose docblock already
+explained why -- and the mutant lands as a 200 that writes.
+
+**No constraint annotation was changed and none turned out wrong**, which was the instruction.
+**One finding handed forward as #29**: once #294 landed, `ContentControllerProd`'s `@Validated` has
+nothing left to enforce.
+
 # Session log archive — entries moved 2026-08-31
 
 Oldest first. **The tracker keeps the current session's entries and moves the rest here on every
@@ -7405,3 +7539,82 @@ it. S-26's fix revokes that session, so **the lockout is now immediate** and the
 hatch S-28's LOW was priced against is gone. The recovery path is still the redeploy, and it is
 still narrow. **The fix shape also needs re-aiming**: #265 rewrote exactly the docblock this item
 proposed to add a line to, and did not add the recovery line.
+
+Extended again by the 2026-09-01 ninth-run close-out.
+
+### 2026-09-01 -- eighth run. Four MRs, a fourth bad number, and the two-tier split repaired
+
+**Four items, four MRs, all merged**: MR 17 #7 ([#290](https://github.com/themancalledzac/edens.zac.backend/pull/290)),
+MR 18 #11 ([#288](https://github.com/themancalledzac/edens.zac.backend/pull/288)), #12b
+([#291](https://github.com/themancalledzac/edens.zac.backend/pull/291)) and the `CollectionServiceTest`
+comment sweep ([#289](https://github.com/themancalledzac/edens.zac.backend/pull/289)), plus this
+close-out. Exactly the four the seventh close-out specified, and every one of them landed.
+
+**Both comment counts re-run, and the trailing one was wrong.** Leading form **1,477 -> 1,407**
+(215 main / 1,192 test), trailing form **72 -> 68**. Both deltas reconcile line-for-line to one file
+(**rule 42**): `CollectionServiceTest` 70 -> 0 whole-line and 4 -> 0 trailing. `src/main` did not move
+at all. **The board's recorded trailing figure was `74`, stamped "re-run at the second close-out and
+still 74"; at the pre-run commit it measures `72`.** It was 2 high and had rotted unnoticed for six
+runs. That is **the fourth consecutive close-out to catch a bad number** -- 1,276, then a stale 74
+checkbox total, then ~107, now this. The difference this time is that the number sat nowhere near
+anything that merged, which is why nobody re-ran it.
+
+**A fifth bad number, found while running the gates rather than reading the board.**
+`grep -c '^- \[ \] \*\*U-'` returns **5**, not the **7** the Progress row and the section's own
+rule-36 stamp both claimed. U-5 and U-6 shipped in the sixth run and were ticked in the section;
+neither the row nor the stamp was edited with them. Rule 36's failure mode, in a section that is not
+the one rule 36 was written about. Both fixed.
+
+**Three ref sets drifted, and one of them got dangerous.** The `CollectionServiceTest` assert/verify
+twins all moved (138/167/198/226 -> 150/185/222/251) because #289 rewrote the file, and the item's
+reassurance that the stale numbers "land on blank lines, so this set fails visibly rather than
+plausibly" is now **false and deleted**: all four land on real code, and `226` lands on a
+`service.deleteCollection(collectionId);` call inside a delete test. Following it would look like
+confirming the item while reading the wrong test. `CollectionRequests.Update` went 21 sites to
+**22**, the new one added by #291's own new test file -- the second time that item's count has moved
+because a test was written elsewhere. MR 18 #13's `CollectionService` Location pair is `265` and
+**`267`**, the second drifted -2; **its other seven refs were not re-checked and the item now says
+so**, because those files sit outside the neighbourhood of what merged.
+
+**Two working rules hoisted out of the closed items, one lesson left where it was.** **Rule 48**:
+a line estimate on an "extract a shared helper" item counts the deletions and forgets the file the
+extracted code lands in -- MR 18 #11 was estimated at ~95 and shipped net zero, MR 18 #9 at ~110 and
+shipped -51. **Rule 49**: check whether an integration test already drives the path before pricing an
+item as expensive to cover -- #12b was parked on a coverage price that `CollectionLinkSecurityIntegrationTest`
+had already paid, and this board has now mis-priced coverage that way twice. Not hoisted: MR 18 #11's
+finding that a visitor-shaped BFS helper absorbs both early-exit and per-node-work variants without
+extra machinery. It is true and useful, but it is a fact about writing that helper, not about working
+this board; it stays in the write-up.
+
+**The two-tier split had lapsed and this close-out repaired it.** Eleven closed items were still
+carrying full write-ups on the tracker -- the sixth run's whole set, plus MR 16 #4 and #5, items #24
+and #26, S-28 and bug #18. All eleven now have one-line outcomes with an archive link. Two of them
+were worse than long: **MR 17 #8's outcome paragraph sat under the `## MR 18 — Services` heading**,
+attached to no item, and **S-28's ticked body sat under `### Open` with its outcome orphaned under
+`### Closed` beside no bullet.** Both are fixed. **Nothing still open was moved** -- every relocated
+section was checked for a merged PR first.
+
+**Two items filed, each with a row and a section in this edit.** **#27** (coverage gap): controller
+parameter constraints are untested repo-wide, because `standaloneSetup` builds MockMvc without the
+`@Validated` proxy, so `@Min`/`@Max` never fire. Found by #290 and confirmed pre-existing -- the first
+constraint tests failed identically against unmodified `main`. **#28** (user decision): unify the
+image-search page size on prod's 30 or admin's 50? MR 17 #7's own text says unifying moves two
+frontend pages "from 30 to 50" and that is backwards.
+
+**One dead lead dropped**, under working rule 5: the `CollectionServiceTest` "profiled in parts" lead
+and its ranges 937-1385 / 1555-2017, against a file that is now 2,893 lines and was rewritten
+wholesale by #289. It had been carried three times with an instruction to drop it.
+
+Open checkboxes **75 -> 73**: three ticked (MR 17 #7, MR 18 #11, #12b), one removed with the dropped
+lead, two filed (#27, #28). The comment item was **re-scoped rather than ticked** -- `CollectionServiceTest`
+is done, `CollectionRepositoryTest` (21) and `CollectionRepository` (12) remain.
+
+**Next:** **#28** (answered below, so it leads the run), **#27**, the `CollectionRepositoryTest` /
+`CollectionRepository` comment concentration, and the assert/verify twins. MR 18 #13's
+sort-inconsistency split and MR 19 #17 stay queued behind them.
+
+**#28 was answered before this close-out was pushed**, which is the first time a blocked-on-user item
+on this board has been asked and settled inside the same session that filed it. **The answer is
+admin's 50.** It goes first in the next run and it is no longer BLOCKED. **#27 must re-derive its
+refs after #28 lands** -- #28 adds `@Validated` to `AdminController` and edits both controller tests,
+which is exactly the neighbourhood #27 audits.
