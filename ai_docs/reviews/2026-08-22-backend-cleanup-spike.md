@@ -289,6 +289,30 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   Both guards mutation-proved. **No frontend half exists or is needed** -- a retention TTL is
   configuration, not a control. [Write-up](2026-08-22-backend-cleanup-history.md#26--a-retention-ttl-shipped-off-281).
 
+- [ ] **#30 (feature dependency, not a bug) — `messages` had no read marker, so read state lived
+  in whichever browser set it.** — **MR open**
+  ([#300](https://github.com/themancalledzac/edens.zac.backend/pull/300), 2026-09-01). `V61` adds
+  `read_at TIMESTAMP NULL` plus a partial index; `PATCH /api/admin/messages/{id}/read` sets or
+  clears it, 204/404, matching the delete that already ships. `readAt` joins `AdminMessageView`
+  additively, so the frontend keeps working until it opts in.
+
+  **`?unread=` and `?q=` shipped in the same MR because they are the same WHERE clause.** Filing
+  them apart would have written that clause twice. `?q=` is what
+  [edens.zac#384](https://github.com/themancalledzac/edens.zac/pull/384)'s client-side filter
+  needs to stop searching only the rows already loaded; that frontend swap is a separate item and
+  is **owed to the frontend board** — it is the FE half of this row.
+
+  **A timestamp rather than a boolean**, so one column answers "is it read" and "when was it first
+  read", and mark-unread is the same UPDATE writing NULL. The write is `COALESCE(read_at, NOW())`:
+  re-marking keeps the first read time, which is what lets a 0 row count mean "no such id" rather
+  than "nothing changed", and so lets the 404 stay honest.
+
+  **The list and its count share one WHERE fragment.** The admin list prints "N of M"; counting
+  unfiltered while paging filtered makes M a number about a different row set. LIKE wildcards in
+  operator input are escaped, or a search for `50%` returns every row.
+
+  Still open under MA4 after this: the notify channel. The retention TTL closed as #26.
+
 ## Cross-repo findings owed to the frontend — five open (2026-08-31)
 
 The 2026-08-24 batch closed and lives in
