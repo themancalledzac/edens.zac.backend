@@ -5,10 +5,6 @@ import edens.zac.portfolio.backend.dao.RoleRepository;
 import edens.zac.portfolio.backend.dao.RoleRepository.CollectionGrant;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.types.AccessLevel;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -126,20 +122,14 @@ public class RoleGrantPropagationService {
    */
   private void propagateToVisibleSubtree(
       Long roleId, AccessLevel level, Long originCollectionId, Long rootId) {
-    Set<Long> visited = new HashSet<>();
-    visited.add(rootId);
-    Deque<Long> pending =
-        new ArrayDeque<>(collectionRepository.findVisibleReferencedCollectionIdsByParentId(rootId));
-    while (!pending.isEmpty()) {
-      Long current = pending.poll();
-      if (!visited.add(current)) {
-        continue;
-      }
-      if (!current.equals(originCollectionId)) {
-        roleRepository.insertInheritedGrant(roleId, current, level, originCollectionId);
-      }
-      pending.addAll(collectionRepository.findVisibleReferencedCollectionIdsByParentId(current));
-    }
+    CollectionGraphUtil.walk(
+        rootId,
+        collectionRepository::findVisibleReferencedCollectionIdsByParentId,
+        current -> {
+          if (!current.equals(originCollectionId)) {
+            roleRepository.insertInheritedGrant(roleId, current, level, originCollectionId);
+          }
+        });
   }
 
   /**
@@ -166,18 +156,8 @@ public class RoleGrantPropagationService {
 
   /** Every ancestor of the collection through the content graph (any depth), cycle-guarded. */
   private Set<Long> ancestorsOf(Long collectionId) {
-    Set<Long> visited = new HashSet<>();
-    visited.add(collectionId);
-    Set<Long> ancestors = new LinkedHashSet<>();
-    Deque<Long> pending = new ArrayDeque<>(parentIdsOf(collectionId));
-    while (!pending.isEmpty()) {
-      Long current = pending.poll();
-      if (!visited.add(current)) {
-        continue;
-      }
-      ancestors.add(current);
-      pending.addAll(parentIdsOf(current));
-    }
+    Set<Long> ancestors = CollectionGraphUtil.walk(collectionId, this::parentIdsOf);
+    ancestors.remove(collectionId);
     return ancestors;
   }
 
@@ -186,17 +166,7 @@ public class RoleGrantPropagationService {
    * copies under links that were later hidden), cycle-guarded.
    */
   private Set<Long> subtreeOf(Long rootId) {
-    Set<Long> visited = new LinkedHashSet<>();
-    visited.add(rootId);
-    Deque<Long> pending = new ArrayDeque<>(childIdsOf(rootId));
-    while (!pending.isEmpty()) {
-      Long current = pending.poll();
-      if (!visited.add(current)) {
-        continue;
-      }
-      pending.addAll(childIdsOf(current));
-    }
-    return visited;
+    return CollectionGraphUtil.walk(rootId, this::childIdsOf);
   }
 
   /**
@@ -205,20 +175,10 @@ public class RoleGrantPropagationService {
    * inheritance is a declared non-goal).
    */
   private Set<Long> visiblyLinkedAncestorsOf(Long collectionId) {
-    Set<Long> visited = new HashSet<>();
-    visited.add(collectionId);
-    Set<Long> ancestors = new LinkedHashSet<>();
-    Deque<Long> pending =
-        new ArrayDeque<>(
-            collectionRepository.findVisibleParentCollectionIdsByChildId(collectionId));
-    while (!pending.isEmpty()) {
-      Long current = pending.poll();
-      if (!visited.add(current)) {
-        continue;
-      }
-      ancestors.add(current);
-      pending.addAll(collectionRepository.findVisibleParentCollectionIdsByChildId(current));
-    }
+    Set<Long> ancestors =
+        CollectionGraphUtil.walk(
+            collectionId, collectionRepository::findVisibleParentCollectionIdsByChildId);
+    ancestors.remove(collectionId);
     return ancestors;
   }
 

@@ -38,10 +38,8 @@ import edens.zac.portfolio.backend.types.CollectionVisibility;
 import edens.zac.portfolio.backend.types.ContentType;
 import edens.zac.portfolio.backend.types.FilmFormat;
 import java.time.LocalDateTime;
-import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -501,35 +499,30 @@ public class CollectionService {
    * builds the join row inline).
    *
    * <p>The pre-existing {@code validateNoParentCycles} runs only on the inverse {@code parents}
-   * path and catches only self- and 2-cycles by its own admission. This is a full ancestor walk,
-   * cycle-guarded with a visited set exactly like {@code RoleGrantPropagationService#subtreeOf}, so
-   * an existing cycle in the data cannot make the guard itself loop. A cycle matters because every
-   * member becomes simultaneously an ancestor and a descendant of every other, so role grants merge
-   * across it -- a client gallery's grants would waterfall onto a public collection.
+   * path and catches only self- and 2-cycles by its own admission. This is a full ancestor walk via
+   * {@link CollectionGraphUtil#walk}, so an existing cycle in the data cannot make the guard itself
+   * loop. A cycle matters because every member becomes simultaneously an ancestor and a descendant
+   * of every other, so role grants merge across it -- a client gallery's grants would waterfall
+   * onto a public collection.
    */
   private void validateNoLinkCycle(Long parentId, Long childCollectionId) {
     if (parentId.equals(childCollectionId)) {
       throw new IllegalArgumentException(
           "A collection cannot be its own parent (id=" + parentId + ")");
     }
-    Set<Long> visited = new HashSet<>();
-    visited.add(parentId);
-    Deque<Long> pending = new ArrayDeque<>(parentIdsOf(parentId));
-    while (!pending.isEmpty()) {
-      Long current = pending.poll();
-      if (!visited.add(current)) {
-        continue;
-      }
-      if (current.equals(childCollectionId)) {
-        throw new IllegalArgumentException(
-            "Cycle detected: collection "
-                + childCollectionId
-                + " is already an ancestor of "
-                + parentId
-                + " and cannot also be its child");
-      }
-      pending.addAll(parentIdsOf(current));
-    }
+    CollectionGraphUtil.walk(
+        parentId,
+        this::parentIdsOf,
+        current -> {
+          if (current.equals(childCollectionId)) {
+            throw new IllegalArgumentException(
+                "Cycle detected: collection "
+                    + childCollectionId
+                    + " is already an ancestor of "
+                    + parentId
+                    + " and cannot also be its child");
+          }
+        });
   }
 
   /** Ids of every collection referencing this one as a child, regardless of link visibility. */
