@@ -1594,6 +1594,37 @@ Answers and reasoning:
   plus moving the two admin clamp tests into a validating-proxy nested class like prod's.
 
   **Ask this at the top of the next session** so the answer can be one of that run's MRs.
+
+  **ANSWERED 2026-09-01 by the user, asked at the top of the ninth session as this item specified:
+  unify on admin's 50.** The item is now COLD and fully specified; what follows supersedes the cost
+  paragraph above, which priced the other direction.
+
+  **The answer also settles which half of MR 17 #7's sentence was wrong.** That item says unifying
+  moves two frontend pages "from 30 images to 50" and also says "reuse prod's constraints". Those two
+  instructions point opposite ways, which is what made the sentence read as inverted. With the answer
+  in hand the "30 to 50" half was right about the destination and **"reuse prod's constraints" is the
+  half that was wrong** -- prod's `@Min`/`@Max` come across, prod's `defaultValue = "30"` does not.
+  Correct the sentence rather than deleting it.
+
+  **What to build.** Move `page` and `size` into `ImageSearchFilter` with `@Min(1) @Max(200)` and
+  `defaultValue = "50"`, add `@Valid` at both call sites, add `@Validated` to `AdminController` (which
+  lacks it), delete admin's `Math.min(Math.max(size, 1), 200)` clamp.
+
+  **Observable changes, and note the blast lands on the PUBLIC endpoint this time, not admin.**
+  Admin's default does not move -- it stays 50 -- but `size=500` goes from 200-with-200-rows to a 400
+  and `size=0` goes from 200-with-1-row to a 400. **Prod's `GET /api/read/content/images/search`
+  changes its default page size 30 -> 50**, which is a widening of the public read contract; its
+  constraints already exist and do not move.
+
+  **The unverified premise moves with the change and must be restated in the PR.** MR 19 #19's
+  frontend-safety finding rests on a 2026-08-24 reading of `edens.zac` that cannot be checked from
+  this repo, and there is still no frontend clone on this machine. That reading covered adding keys to
+  a response, not changing how many items a page returns. **Whoever ships this states plainly that the
+  prod default change is unverified against the frontend**, the same way [#283](https://github.com/themancalledzac/edens.zac.backend/pull/283) did.
+
+  **Cross-repo: this owes `edens.zac` a row** and it is the second entry in that debt, alongside
+  MR 19 #19's widened response. Not filed there from here -- **declaring that plainly rather than
+  leaving a "belongs on the other board" note**, per the cross-repo rule.
 - [ ] **Whether the location endpoint should keep serving an `images` array at all.**
   *(Filed 2026-08-31, third run, by the cross-repo pair scan, as BE-2. Needs a coordinated decision,
   not a unilateral fix.)* `GET /api/read/collections/location/{slug}` hydrates and serializes up to 50
@@ -1979,6 +2010,12 @@ Open checkboxes **75 -> 73**: three ticked (MR 17 #7, MR 18 #11, #12b), one remo
 lead, two filed (#27, #28). The comment item was **re-scoped rather than ticked** -- `CollectionServiceTest`
 is done, `CollectionRepositoryTest` (21) and `CollectionRepository` (12) remain.
 
-**Next:** MR 18 #13's sort-inconsistency split, MR 19 #17, the `CollectionRepositoryTest` /
-`CollectionRepository` comment concentration, the assert/verify twins, and **#27**. Ask **#28** first
--- it is one word and it can be that run's own MR.
+**Next:** **#28** (answered below, so it leads the run), **#27**, the `CollectionRepositoryTest` /
+`CollectionRepository` comment concentration, and the assert/verify twins. MR 18 #13's
+sort-inconsistency split and MR 19 #17 stay queued behind them.
+
+**#28 was answered before this close-out was pushed**, which is the first time a blocked-on-user item
+on this board has been asked and settled inside the same session that filed it. **The answer is
+admin's 50.** It goes first in the next run and it is no longer BLOCKED. **#27 must re-derive its
+refs after #28 lands** -- #28 adds `@Validated` to `AdminController` and edits both controller tests,
+which is exactly the neighbourhood #27 audits.
