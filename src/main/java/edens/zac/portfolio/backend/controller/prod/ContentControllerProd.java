@@ -8,8 +8,7 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.types.FilmFormat;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +19,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -44,11 +42,8 @@ public class ContentControllerProd {
    */
   @GetMapping("/images/search")
   public ResponseEntity<PagedResponse<ContentModels.Image>> searchImages(
-      @ModelAttribute ImageSearchFilter filter,
-      @RequestParam(defaultValue = "0") @Min(0) int page,
-      @RequestParam(defaultValue = "30") @Min(1) @Max(200) int size) {
-    PagedResponse<ContentModels.Image> response =
-        contentService.searchImages(filter.toRequest(page, size));
+      @Valid @ModelAttribute ImageSearchFilter filter) {
+    PagedResponse<ContentModels.Image> response = contentService.searchImages(filter.toRequest());
     return ResponseEntity.ok(response);
   }
 
