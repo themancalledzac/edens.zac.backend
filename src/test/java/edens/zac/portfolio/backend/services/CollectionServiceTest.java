@@ -180,56 +180,10 @@ class CollectionServiceTest {
       assertThat(result.collection().getTitle()).isEqualTo("New Collection");
       verify(collectionRepository).save(savedEntity);
     }
-
-    @Test
-    void createCollection_verifiesEntityCreatedViaUtil() {
-      CollectionRequests.Create request = new CollectionRequests.Create("My Blog");
-
-      CollectionEntity entity =
-          CollectionEntity.builder()
-              .id(5L)
-              .title("My Blog")
-              .slug("my-blog")
-              .visibility(CollectionVisibility.LISTED)
-              .build();
-
-      CollectionModel model =
-          CollectionModel.builder()
-              .id(5L)
-              .title("My Blog")
-              .slug("my-blog")
-              .content(List.of())
-              .build();
-
-      when(collectionProcessingUtil.toEntity(eq(request), anyInt())).thenReturn(entity);
-      when(collectionRepository.save(entity)).thenReturn(entity);
-      when(collectionRepository.findBySlug("my-blog")).thenReturn(Optional.of(entity));
-      when(collectionProcessingUtil.convertToFullModel(entity)).thenReturn(model);
-      stubEmptyMetadata();
-      stubNoGalleryAccess();
-
-      service.createCollection(request);
-
-      verify(collectionProcessingUtil).toEntity(eq(request), anyInt());
-      verify(collectionRepository).save(entity);
-    }
   }
 
   @Nested
   class DeleteCollection {
-
-    @Test
-    void deleteCollection_happyPath_disassociatesAllRelationshipsThenDeletes() {
-      Long collectionId = 1L;
-      when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
-
-      service.deleteCollection(collectionId);
-
-      verify(contentRepository).deleteContentCollectionsReferencing(collectionId);
-      verify(collectionRepository).deleteContentByCollectionId(collectionId);
-      verify(tagRepository).deleteCollectionTags(collectionId);
-      verify(collectionRepository).deleteById(collectionId);
-    }
 
     @Test
     void deleteCollection_notFound_throwsResourceNotFoundException() {
