@@ -37,7 +37,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
 
 @ExtendWith(MockitoExtension.class)
 class ContentControllerProdTest {
@@ -363,8 +362,8 @@ class ContentControllerProdTest {
     }
 
     @Test
-    @DisplayName("Should page 30 at a time when size is omitted")
-    void searchImages_noSize_shouldDefaultToThirty() throws Exception {
+    @DisplayName("Should page 50 at a time when size is omitted")
+    void searchImages_noSize_shouldDefaultToFifty() throws Exception {
       when(contentService.searchImages(any(ImageSearchRequest.class)))
           .thenReturn(new PagedResponse<>(List.of(), 0, 0, 0, true));
 
@@ -372,7 +371,7 @@ class ContentControllerProdTest {
 
       ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
       verify(contentService).searchImages(captor.capture());
-      assertThat(captor.getValue().size()).isEqualTo(30);
+      assertThat(captor.getValue().size()).isEqualTo(50);
       assertThat(captor.getValue().page()).isZero();
     }
 
@@ -418,32 +417,18 @@ class ContentControllerProdTest {
   }
 
   /**
-   * Paging constraints on {@code searchImages} are enforced by the {@code @Validated} proxy Spring
-   * Boot puts around the controller, which plain {@code standaloneSetup} does not build. These
-   * tests wire that proxy explicitly so the 400 responses are exercised rather than assumed.
+   * Paging constraints live on {@code ImageSearchFilter} and are enforced by the {@code @Valid} on
+   * the {@code @ModelAttribute}, so plain {@code standaloneSetup} exercises them. The admin
+   * endpoint binds the same record and rejects the same values.
    */
   @Nested
   @DisplayName("GET /content/images/search paging constraints")
   class SearchImagesPagingConstraints {
 
-    private MockMvc validatedMockMvc;
-
-    @BeforeEach
-    void setUpValidatedController() {
-      MethodValidationPostProcessor processor = new MethodValidationPostProcessor();
-      processor.afterPropertiesSet();
-      Object validated =
-          processor.postProcessAfterInitialization(contentControllerProd, "contentControllerProd");
-      validatedMockMvc =
-          MockMvcBuilders.standaloneSetup(validated)
-              .setControllerAdvice(new GlobalExceptionHandler())
-              .build();
-    }
-
     @Test
     @DisplayName("Should reject a size above 200 with 400 rather than clamping it")
     void searchImages_sizeAboveMax_shouldReturnBadRequest() throws Exception {
-      validatedMockMvc
+      mockMvc
           .perform(get("/api/read/content/images/search").param("size", "500"))
           .andExpect(status().isBadRequest());
 
@@ -453,7 +438,7 @@ class ContentControllerProdTest {
     @Test
     @DisplayName("Should reject a size below 1 with 400 rather than clamping it")
     void searchImages_sizeBelowMin_shouldReturnBadRequest() throws Exception {
-      validatedMockMvc
+      mockMvc
           .perform(get("/api/read/content/images/search").param("size", "0"))
           .andExpect(status().isBadRequest());
 
@@ -463,7 +448,7 @@ class ContentControllerProdTest {
     @Test
     @DisplayName("Should reject a negative page with 400")
     void searchImages_negativePage_shouldReturnBadRequest() throws Exception {
-      validatedMockMvc
+      mockMvc
           .perform(get("/api/read/content/images/search").param("page", "-1"))
           .andExpect(status().isBadRequest());
 

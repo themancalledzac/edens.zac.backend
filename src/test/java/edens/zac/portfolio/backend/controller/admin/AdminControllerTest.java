@@ -777,31 +777,34 @@ class AdminControllerTest {
   }
 
   @Test
-  @DisplayName("GET /content/images should clamp a size above 200 down to 200, not reject it")
-  void getAllImages_sizeAboveMax_shouldClampToTwoHundred() throws Exception {
-    when(contentService.searchImages(any(ImageSearchRequest.class)))
-        .thenReturn(new PagedResponse<>(testImages, testImages.size(), 1, 0, true));
-
+  @DisplayName(
+      "GET /content/images should reject a size above 200 with 400 rather than clamping it")
+  void getAllImages_sizeAboveMax_shouldReturnBadRequest() throws Exception {
     mockMvc
         .perform(get("/api/admin/content/images").param("size", "500"))
-        .andExpect(status().isOk());
+        .andExpect(status().isBadRequest());
 
-    ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
-    verify(contentService).searchImages(captor.capture());
-    assertThat(captor.getValue().size()).isEqualTo(200);
+    verify(contentService, never()).searchImages(any(ImageSearchRequest.class));
   }
 
   @Test
-  @DisplayName("GET /content/images should clamp a size below 1 up to 1, not reject it")
-  void getAllImages_sizeBelowMin_shouldClampToOne() throws Exception {
-    when(contentService.searchImages(any(ImageSearchRequest.class)))
-        .thenReturn(new PagedResponse<>(testImages, testImages.size(), 1, 0, true));
+  @DisplayName("GET /content/images should reject a size below 1 with 400 rather than clamping it")
+  void getAllImages_sizeBelowMin_shouldReturnBadRequest() throws Exception {
+    mockMvc
+        .perform(get("/api/admin/content/images").param("size", "0"))
+        .andExpect(status().isBadRequest());
 
-    mockMvc.perform(get("/api/admin/content/images").param("size", "0")).andExpect(status().isOk());
+    verify(contentService, never()).searchImages(any(ImageSearchRequest.class));
+  }
 
-    ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
-    verify(contentService).searchImages(captor.capture());
-    assertThat(captor.getValue().size()).isEqualTo(1);
+  @Test
+  @DisplayName("GET /content/images should reject a negative page with 400")
+  void getAllImages_negativePage_shouldReturnBadRequest() throws Exception {
+    mockMvc
+        .perform(get("/api/admin/content/images").param("page", "-1"))
+        .andExpect(status().isBadRequest());
+
+    verify(contentService, never()).searchImages(any(ImageSearchRequest.class));
   }
 
   @Test
