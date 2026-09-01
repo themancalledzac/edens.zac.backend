@@ -842,6 +842,31 @@ class AdminUserControllerTest {
     }
 
     /**
+     * Pins {@code @Size(max = 500)} on {@code UpdateUserRequest.description}. The description is
+     * admin-authored free text with no other length check between it and the column.
+     *
+     * <p>The row is stubbed {@code lenient()} for the reason {@link
+     * #updateWithPersonStatusReturns400AndWritesNothing} gives: it is never read, and stubbing it
+     * is what makes dropping the constraint land as a 200 that writes 501 characters rather than a
+     * 404 on an unstubbed lookup.
+     */
+    @Test
+    void updateWithOverlongDescriptionReturns400() throws Exception {
+      AppUserEntity existing =
+          AppUserEntity.builder().id(8L).email("ken@example.com").status(UserStatus.ACTIVE).build();
+      lenient().when(appUserRepository.findById(8L)).thenReturn(Optional.of(existing));
+
+      mockMvc
+          .perform(
+              patch("/api/admin/users/8")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"status\":\"ACTIVE\",\"description\":\"" + "d".repeat(501) + "\"}"))
+          .andExpect(status().isBadRequest());
+
+      verify(appUserRepository, never()).updateDescription(anyLong(), anyString());
+    }
+
+    /**
      * S-13: PERSON is a tag-only identity, not an account lifecycle state. Writing it here would
      * make {@code PersonRepository.deletePersonById} -- which hard-deletes on {@code AND status =
      * 'PERSON'} -- match a real account, and would leave that account's {@code role_member} rows on

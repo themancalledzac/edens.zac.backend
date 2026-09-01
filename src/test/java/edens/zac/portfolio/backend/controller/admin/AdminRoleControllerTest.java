@@ -86,6 +86,27 @@ class AdminRoleControllerTest {
         .andExpect(status().isBadRequest());
   }
 
+  /** Pins {@code @NotBlank} on {@code CreateRoleRequest.name}: whitespace is not a role name. */
+  @Test
+  void createRole_blankNameReturns400() throws Exception {
+    mvc.perform(
+            post("/api/admin/roles").contentType("application/json").content("{\"name\":\"   \"}"))
+        .andExpect(status().isBadRequest());
+    verify(roleRepository, never()).createRole(any(), any());
+  }
+
+  /** Pins {@code @Size(max = 128)} on {@code CreateRoleRequest.name} against the column width. */
+  @Test
+  void createRole_nameAboveMaxLengthReturns400() throws Exception {
+    mvc.perform(
+            post("/api/admin/roles")
+                .contentType("application/json")
+                .content(
+                    json.writeValueAsString(new RoleRequests.CreateRoleRequest("n".repeat(129)))))
+        .andExpect(status().isBadRequest());
+    verify(roleRepository, never()).createRole(any(), any());
+  }
+
   @Test
   void getRoleReturnsDetailWithMembersAndCollections() throws Exception {
     when(roleRepository.findById(7L))
@@ -122,15 +143,30 @@ class AdminRoleControllerTest {
     verify(roleGrantPropagationService).setGrant(7L, 9L, AccessLevel.CLIENT, null);
   }
 
+  /**
+   * An unknown enum value fails in Jackson before bean validation runs, so this 400 comes from
+   * HttpMessageNotReadableException rather than from {@code @NotNull}. The null-level test below
+   * covers the constraint itself.
+   */
   @Test
   void setGrantReturns400OnUnparseableLevelEnum() throws Exception {
-    // Unknown enum value -> Jackson cannot deserialize the body, so this is an
-    // HttpMessageNotReadableException (a malformed body) handled by GlobalExceptionHandler as 400.
     mvc.perform(
             put("/api/admin/roles/7/collections/9")
                 .contentType("application/json")
                 .content("{\"level\":\"INVALID_LEVEL\"}"))
         .andExpect(status().isBadRequest());
+  }
+
+  /**
+   * Pins {@code @NotNull} on {@code SetRoleGrantRequest.level}. An omitted level parses cleanly, so
+   * only the constraint stands between it and a null grant reaching the propagation service.
+   */
+  @Test
+  void setGrant_missingLevelReturns400() throws Exception {
+    mvc.perform(
+            put("/api/admin/roles/7/collections/9").contentType("application/json").content("{}"))
+        .andExpect(status().isBadRequest());
+    verify(roleGrantPropagationService, never()).setGrant(any(), any(), any(), any());
   }
 
   @Test
