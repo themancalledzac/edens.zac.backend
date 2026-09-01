@@ -9,7 +9,7 @@ import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.model.ContentRequests;
 import edens.zac.portfolio.backend.model.DiskUploadRequest;
 import edens.zac.portfolio.backend.model.GeneralMetadataDTO;
-import edens.zac.portfolio.backend.model.ImageSearchRequest;
+import edens.zac.portfolio.backend.model.ImageSearchFilter;
 import edens.zac.portfolio.backend.model.ImageUploadResult;
 import edens.zac.portfolio.backend.model.PagedResponse;
 import edens.zac.portfolio.backend.model.Records;
@@ -36,6 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -254,36 +255,11 @@ class AdminController {
    */
   @GetMapping("/content/images")
   public ResponseEntity<PagedResponse<ContentModels.Image>> getAllImages(
-      @RequestParam(required = false) List<Long> personIds,
-      @RequestParam(required = false) List<Long> tagIds,
-      @RequestParam(required = false) Long cameraId,
-      @RequestParam(required = false) Long locationId,
-      @RequestParam(required = false) Long lensId,
-      @RequestParam(required = false) Integer minRating,
-      @RequestParam(required = false) Boolean isFilm,
-      @RequestParam(required = false) Boolean blackAndWhite,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-          LocalDate captureStartDate,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-          LocalDate captureEndDate,
+      @ModelAttribute ImageSearchFilter filter,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "50") int size) {
     int safeSize = Math.min(Math.max(size, 1), 200);
-    ImageSearchRequest request =
-        new ImageSearchRequest(
-            personIds,
-            tagIds,
-            cameraId,
-            locationId,
-            lensId,
-            minRating,
-            isFilm,
-            blackAndWhite,
-            captureStartDate,
-            captureEndDate,
-            page,
-            safeSize);
-    return ResponseEntity.ok(contentService.searchImages(request));
+    return ResponseEntity.ok(contentService.searchImages(filter.toRequest(page, safeSize)));
   }
 
   /** Delete one or more images. */

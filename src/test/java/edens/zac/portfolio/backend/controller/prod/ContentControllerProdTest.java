@@ -1,7 +1,10 @@
 package edens.zac.portfolio.backend.controller.prod;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,6 +19,7 @@ import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.services.ContentService;
 import edens.zac.portfolio.backend.services.MetadataService;
 import edens.zac.portfolio.backend.types.FilmFormat;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,12 +30,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
 
 @ExtendWith(MockitoExtension.class)
 class ContentControllerProdTest {
@@ -354,6 +360,114 @@ class ContentControllerProdTest {
           .andExpect(jsonPath("$.content", hasSize(0)))
           .andExpect(jsonPath("$.totalElements", is(0)))
           .andExpect(jsonPath("$.totalPages", is(0)));
+    }
+
+    @Test
+    @DisplayName("Should page 30 at a time when size is omitted")
+    void searchImages_noSize_shouldDefaultToThirty() throws Exception {
+      when(contentService.searchImages(any(ImageSearchRequest.class)))
+          .thenReturn(new PagedResponse<>(List.of(), 0, 0, 0, true));
+
+      mockMvc.perform(get("/api/read/content/images/search")).andExpect(status().isOk());
+
+      ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
+      verify(contentService).searchImages(captor.capture());
+      assertThat(captor.getValue().size()).isEqualTo(30);
+      assertThat(captor.getValue().page()).isZero();
+    }
+
+    @Test
+    @DisplayName("Should bind every filter parameter onto the search request")
+    void searchImages_shouldBindEveryFilterParameter() throws Exception {
+      when(contentService.searchImages(any(ImageSearchRequest.class)))
+          .thenReturn(new PagedResponse<>(List.of(), 0, 0, 0, true));
+
+      mockMvc
+          .perform(
+              get("/api/read/content/images/search")
+                  .param("personIds", "1", "2")
+                  .param("tagIds", "3", "4")
+                  .param("cameraId", "5")
+                  .param("locationId", "6")
+                  .param("lensId", "7")
+                  .param("minRating", "4")
+                  .param("isFilm", "true")
+                  .param("blackAndWhite", "false")
+                  .param("captureStartDate", "2025-01-01")
+                  .param("captureEndDate", "2025-12-31")
+                  .param("page", "2")
+                  .param("size", "15"))
+          .andExpect(status().isOk());
+
+      ArgumentCaptor<ImageSearchRequest> captor = ArgumentCaptor.forClass(ImageSearchRequest.class);
+      verify(contentService).searchImages(captor.capture());
+      ImageSearchRequest request = captor.getValue();
+      assertThat(request.personIds()).containsExactly(1L, 2L);
+      assertThat(request.tagIds()).containsExactly(3L, 4L);
+      assertThat(request.cameraId()).isEqualTo(5L);
+      assertThat(request.locationId()).isEqualTo(6L);
+      assertThat(request.lensId()).isEqualTo(7L);
+      assertThat(request.minRating()).isEqualTo(4);
+      assertThat(request.isFilm()).isTrue();
+      assertThat(request.blackAndWhite()).isFalse();
+      assertThat(request.captureStartDate()).isEqualTo(LocalDate.of(2025, 1, 1));
+      assertThat(request.captureEndDate()).isEqualTo(LocalDate.of(2025, 12, 31));
+      assertThat(request.page()).isEqualTo(2);
+      assertThat(request.size()).isEqualTo(15);
+    }
+  }
+
+  /**
+   * Paging constraints on {@code searchImages} are enforced by the {@code @Validated} proxy Spring
+   * Boot puts around the controller, which plain {@code standaloneSetup} does not build. These
+   * tests wire that proxy explicitly so the 400 responses are exercised rather than assumed.
+   */
+  @Nested
+  @DisplayName("GET /content/images/search paging constraints")
+  class SearchImagesPagingConstraints {
+
+    private MockMvc validatedMockMvc;
+
+    @BeforeEach
+    void setUpValidatedController() {
+      MethodValidationPostProcessor processor = new MethodValidationPostProcessor();
+      processor.afterPropertiesSet();
+      Object validated =
+          processor.postProcessAfterInitialization(contentControllerProd, "contentControllerProd");
+      validatedMockMvc =
+          MockMvcBuilders.standaloneSetup(validated)
+              .setControllerAdvice(new GlobalExceptionHandler())
+              .build();
+    }
+
+    @Test
+    @DisplayName("Should reject a size above 200 with 400 rather than clamping it")
+    void searchImages_sizeAboveMax_shouldReturnBadRequest() throws Exception {
+      validatedMockMvc
+          .perform(get("/api/read/content/images/search").param("size", "500"))
+          .andExpect(status().isBadRequest());
+
+      verifyNoInteractions(contentService);
+    }
+
+    @Test
+    @DisplayName("Should reject a size below 1 with 400 rather than clamping it")
+    void searchImages_sizeBelowMin_shouldReturnBadRequest() throws Exception {
+      validatedMockMvc
+          .perform(get("/api/read/content/images/search").param("size", "0"))
+          .andExpect(status().isBadRequest());
+
+      verifyNoInteractions(contentService);
+    }
+
+    @Test
+    @DisplayName("Should reject a negative page with 400")
+    void searchImages_negativePage_shouldReturnBadRequest() throws Exception {
+      validatedMockMvc
+          .perform(get("/api/read/content/images/search").param("page", "-1"))
+          .andExpect(status().isBadRequest());
+
+      verifyNoInteractions(contentService);
     }
   }
 
