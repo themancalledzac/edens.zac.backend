@@ -46,10 +46,14 @@ class CollectionRepositoryTest {
   @BeforeEach
   void setUp() {
     collectionRepository = new CollectionRepository(jdbcTemplate);
-    // Replace the internal namedParameterJdbcTemplate with our mock
     setNamedParameterJdbcTemplate(collectionRepository, namedParameterJdbcTemplate);
   }
 
+  /**
+   * Swaps BaseDao's own {@code namedParameterJdbcTemplate} for the mock. BaseDao builds it from the
+   * JdbcTemplate in its constructor rather than taking it as an argument, so reflection is the only
+   * way to observe the SQL these tests capture.
+   */
   private void setNamedParameterJdbcTemplate(
       CollectionRepository repository, NamedParameterJdbcTemplate template) {
     try {
@@ -66,7 +70,6 @@ class CollectionRepositoryTest {
 
     @Test
     void batchUpdateContentOrderIndexes_withMultipleItems_buildsCaseStatement() {
-      // Arrange
       Long collectionId = 1L;
       Map<Long, Integer> contentIdToOrderIndex = new HashMap<>();
       contentIdToOrderIndex.put(100L, 2);
@@ -76,11 +79,9 @@ class CollectionRepositoryTest {
       when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
           .thenReturn(3);
 
-      // Act
       int result =
           collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
-      // Assert
       assertThat(result).isEqualTo(3);
 
       verify(namedParameterJdbcTemplate).update(sqlCaptor.capture(), paramsCaptor.capture());
@@ -99,18 +100,15 @@ class CollectionRepositoryTest {
 
     @Test
     void batchUpdateContentOrderIndexes_withSingleItem_buildsCaseStatement() {
-      // Arrange
       Long collectionId = 1L;
       Map<Long, Integer> contentIdToOrderIndex = Map.of(100L, 5);
 
       when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
           .thenReturn(1);
 
-      // Act
       int result =
           collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
-      // Assert
       assertThat(result).isEqualTo(1);
 
       verify(namedParameterJdbcTemplate).update(sqlCaptor.capture(), paramsCaptor.capture());
@@ -124,15 +122,12 @@ class CollectionRepositoryTest {
 
     @Test
     void batchUpdateContentOrderIndexes_withEmptyMap_returnsZero() {
-      // Arrange
       Long collectionId = 1L;
       Map<Long, Integer> contentIdToOrderIndex = Map.of();
 
-      // Act
       int result =
           collectionRepository.batchUpdateContentOrderIndexes(collectionId, contentIdToOrderIndex);
 
-      // Assert
       assertThat(result).isZero();
       verify(namedParameterJdbcTemplate, never())
           .update(anyString(), any(MapSqlParameterSource.class));
@@ -140,13 +135,10 @@ class CollectionRepositoryTest {
 
     @Test
     void batchUpdateContentOrderIndexes_withNullMap_returnsZero() {
-      // Arrange
       Long collectionId = 1L;
 
-      // Act
       int result = collectionRepository.batchUpdateContentOrderIndexes(collectionId, null);
 
-      // Assert
       assertThat(result).isZero();
       verify(namedParameterJdbcTemplate, never())
           .update(anyString(), any(MapSqlParameterSource.class));
@@ -183,13 +175,16 @@ class CollectionRepositoryTest {
   @Nested
   class FindNonEmptyOrderedByVisibilityIn {
 
+    /**
+     * Pins the EXISTS gate that drops empty collections from the synthetic listings
+     * (/all-collections, /all-blogs and the rest). A soft-removed membership ({@code cc.visible =
+     * false}) must not count as content, which is the same gate {@code
+     * findReferencedCollectionsByParentId} uses. The final assertion goes through {@code hasValue}
+     * because {@code MapSqlParameterSource.getValue} throws on an unregistered key.
+     */
     @SuppressWarnings("unchecked")
     @Test
     void sqlGatesOnExistsCollectionContentRowsAndPassesVisibilities() {
-      // Pin the SQL: caller relies on the EXISTS gate to drop empty collections from
-      // synthetic listings (/all-collections, /all-blogs, etc.). Soft-removed memberships
-      // (cc.visible=false) must NOT count as content -- must mirror the gate used by
-      // findReferencedCollectionsByParentId.
       when(namedParameterJdbcTemplate.query(
               anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
           .thenReturn(List.of());
@@ -210,10 +205,13 @@ class CollectionRepositoryTest {
       MapSqlParameterSource params = paramsCaptor.getValue();
       assertThat((List<String>) params.getValue("visibilities"))
           .containsExactly("LISTED", "UNLISTED");
-      // hasValue, not getValue: MapSqlParameterSource.getValue throws on an unregistered key.
       assertThat(params.hasValue("type")).isFalse();
     }
 
+    /**
+     * Asserts on {@code "AND is_blog = true"} rather than a bare {@code is_blog}, because the
+     * canonical column list projects that column in every SELECT.
+     */
     @Test
     void sqlOmitsBlogPredicateWhenBlogsOnlyIsFalse() {
       when(namedParameterJdbcTemplate.query(
@@ -227,7 +225,6 @@ class CollectionRepositoryTest {
           .query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
       String sql = sqlCaptor.getValue();
       assertThat(sql).containsIgnoringCase("EXISTS");
-      // Not a bare "is_blog": the canonical column list projects it in the SELECT.
       assertThat(sql).doesNotContainIgnoringCase("AND is_blog = true");
       assertThat(sql).doesNotContainIgnoringCase("type = :type");
     }
@@ -257,10 +254,12 @@ class CollectionRepositoryTest {
   @Nested
   class SaveCollectionEndDate {
 
+    /**
+     * The entity carries an id, which sends save down the UPDATE path. That path is the one routing
+     * through the two-argument {@code update(sql, params)} overload these tests can capture.
+     */
     @Test
     void updateSqlWritesCollectionEndDateColumnAndBindsParam() {
-      // Existing-id entity => UPDATE path, which routes through the 2-arg
-      // namedParameterJdbcTemplate.update(sql, params) overload we can capture.
       when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
           .thenReturn(1);
 
