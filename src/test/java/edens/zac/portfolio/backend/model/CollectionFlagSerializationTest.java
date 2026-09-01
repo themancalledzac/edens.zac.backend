@@ -65,12 +65,14 @@ class CollectionFlagSerializationTest {
     assertThat(json.has("blog")).isFalse();
   }
 
+  /**
+   * Pins the contract the frontend's LocationModel reads. {@code collectionRefMatchesCriteria}
+   * matches on {@code name} and the chip links use {@code slug}, so a rename on either side
+   * silently empties the filter rather than failing.
+   */
   @Test
   @DisplayName("ContentModels.Collection serializes locations as {id, name, slug}")
   void contentModelsCollection_serializesLocationShape() throws Exception {
-    // Pins the contract the frontend's LocationModel reads. collectionRefMatchesCriteria matches on
-    // `name` and the chip links use `slug`, so a rename on either side silently empties the filter
-    // rather than failing.
     ContentModels.Collection block =
         new ContentModels.Collection(
             4L,
@@ -92,6 +94,7 @@ class CollectionFlagSerializationTest {
             null,
             List.of(),
             List.of(new Records.Location(11L, "Chamonix, France", "chamonix-france")),
+            List.of(),
             edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
 
     JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(block));
@@ -102,6 +105,48 @@ class CollectionFlagSerializationTest {
     assertThat(location.get("id").longValue()).isEqualTo(11L);
     assertThat(location.get("name").textValue()).isEqualTo("Chamonix, France");
     assertThat(location.get("slug").textValue()).isEqualTo("chamonix-france");
+  }
+
+  /**
+   * Pins the contract {@code collectionRefMatchesCriteria} reads at {@code contentFilter.ts:946},
+   * which matches on {@code name} alone. {@code Records.Person} has no slug, so unlike locations
+   * there is no second field to keep in step — but a rename of {@code name} would empty the people
+   * filter silently rather than failing.
+   */
+  @Test
+  @DisplayName("ContentModels.Collection serializes people as {id, name}")
+  void contentModelsCollection_serializesPeopleShape() throws Exception {
+    ContentModels.Collection block =
+        new ContentModels.Collection(
+            5L,
+            edens.zac.portfolio.backend.types.ContentType.COLLECTION,
+            "Wedding",
+            null,
+            null,
+            0,
+            true,
+            null,
+            null,
+            50L,
+            "wedding",
+            false,
+            false,
+            false,
+            null,
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(new Records.Person(12L, "Ada Lovelace")),
+            edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);
+
+    JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(block));
+
+    assertThat(json.has("people")).isTrue();
+    assertThat(json.get("people").isArray()).isTrue();
+    JsonNode person = json.get("people").get(0);
+    assertThat(person.get("id").longValue()).isEqualTo(12L);
+    assertThat(person.get("name").textValue()).isEqualTo("Ada Lovelace");
   }
 
   @Test
@@ -128,6 +173,7 @@ class CollectionFlagSerializationTest {
             null,
             null,
             null,
+            List.of(),
             List.of(),
             List.of(),
             edens.zac.portfolio.backend.types.CollectionVisibility.LISTED);

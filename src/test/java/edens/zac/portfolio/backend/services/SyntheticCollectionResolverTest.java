@@ -291,6 +291,51 @@ class SyntheticCollectionResolverTest {
     assertThat(block.locations()).isEmpty();
   }
 
+  /**
+   * People must ride onto the COLLECTION block the same way locations do, or the people filter on
+   * the synthetic list views matches against nothing. Like locations and unlike tags they need no
+   * second query — {@code batchConvertToBasicModels} has already put them on the model.
+   */
+  @Test
+  void resolveAllCollectionsAttachesCollectionPeopleToContentBlocks() {
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(
+            List.of(
+                CollectionModel.builder()
+                    .id(11L)
+                    .slug("wedding")
+                    .people(
+                        List.of(
+                            new Records.Person(4L, "Ada Lovelace"),
+                            new Records.Person(5L, "Grace Hopper")))
+                    .build()));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.people()).extracting("name").containsExactly("Ada Lovelace", "Grace Hopper");
+    assertThat(block.people()).extracting("id").containsExactly(4L, 5L);
+  }
+
+  /**
+   * Empty, never null. The frontend reads {@code ref.people} directly, and a null would be a
+   * different JSON shape from the tags and locations fields beside it.
+   */
+  @Test
+  void resolveAllCollectionsWithNoPeopleYieldsEmptyBlockPeople() {
+    when(collectionRepository.findNonEmptyListedOrOwnedOrderByDate(any(), any()))
+        .thenReturn(List.of(new CollectionEntity()));
+    when(collectionProcessingUtil.batchConvertToBasicModels(any()))
+        .thenReturn(List.of(CollectionModel.builder().id(12L).slug("bare").build()));
+
+    CollectionModel out = resolver.resolve("all-collections", true);
+
+    ContentModels.Collection block = (ContentModels.Collection) out.getContent().get(0);
+    assertThat(block.people()).isEmpty();
+  }
+
   @Test
   void resolveAllCollectionsAttachesVisibilityToContentBlocks() {
     // Each child's visibility must ride onto its COLLECTION block so an admin client can preview

@@ -77,9 +77,9 @@ public class SyntheticCollectionResolver {
    *
    * <p>Each child's tags are batch-loaded in a single query and attached to the COLLECTION
    * content-ref blocks, letting the frontend filter the synthetic list client-side by tag without a
-   * per-collection fetch. Collections with no tags get an empty list. Locations ride along the same
-   * way but need no call here: {@code batchConvertToBasicModels} has already batch-loaded them onto
-   * the model, so {@code fromCollectionModel} copies them across.
+   * per-collection fetch. Collections with no tags get an empty list. Locations and people ride
+   * along the same way but need no call here: {@code batchConvertToBasicModels} has already
+   * batch-loaded both onto the model, so {@code fromCollectionModel} copies them across.
    */
   @Transactional(readOnly = true)
   public CollectionModel resolve(String slug, boolean isLocalEnvironment) {
