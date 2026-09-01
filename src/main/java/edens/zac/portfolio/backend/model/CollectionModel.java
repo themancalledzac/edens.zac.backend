@@ -102,8 +102,9 @@ public class CollectionModel {
   private List<Long> oneWaySiblingIds;
 
   /**
-   * Parent collections on the admin manage payload. Includes HIDDEN parents - admin sees every
-   * relationship. Null/empty when none. Not populated on public read paths.
+   * Parent collections. Admin sees every relationship, including HIDDEN ones; public reads get
+   * LISTED parents only. Null/empty when none. Cover image is always null -- parents render as text
+   * links.
    */
   private List<Records.CollectionList> parents;
 

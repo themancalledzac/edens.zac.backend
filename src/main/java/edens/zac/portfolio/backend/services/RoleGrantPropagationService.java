@@ -183,7 +183,7 @@ public class RoleGrantPropagationService {
   }
 
   private List<Long> parentIdsOf(Long collectionId) {
-    return collectionRepository.findAllParentCollectionsByChildId(collectionId).stream()
+    return collectionRepository.findAllParentCollectionsByChildId(collectionId, false).stream()
         .map(CollectionEntity::getId)
         .toList();
   }

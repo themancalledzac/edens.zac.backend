@@ -623,4 +623,52 @@ class CollectionProcessingUtilTest {
         null,
         null);
   }
+
+  @Test
+  @DisplayName("populateParents maps the inverse join onto CollectionList, cover image left null")
+  void populateParentsMapsRows() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    CollectionEntity parent =
+        CollectionEntity.builder()
+            .id(42L)
+            .title("Parent")
+            .slug("parent")
+            .collectionDate(LocalDate.of(2026, 1, 1))
+            .build();
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, false))
+        .thenReturn(List.of(parent));
+
+    util.populateParents(model, false);
+
+    assertThat(model.getParents()).extracting(Records.CollectionList::id).containsExactly(42L);
+    assertThat(model.getParents())
+        .extracting(Records.CollectionList::collectionDate)
+        .containsExactly(LocalDate.of(2026, 1, 1));
+    assertThat(model.getParents())
+        .extracting(Records.CollectionList::coverImageUrl)
+        .containsOnlyNulls();
+  }
+
+  @Test
+  @DisplayName("populateParents passes listedOnly through, so the public read path is gated")
+  void populateParentsPassesListedOnlyThrough() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, true)).thenReturn(List.of());
+
+    util.populateParents(model, true);
+
+    verify(collectionRepository).findAllParentCollectionsByChildId(7L, true);
+    assertThat(model.getParents()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("populateParents is a no-op without an id, rather than querying for null")
+  void populateParentsSkipsModelWithoutId() {
+    CollectionModel model = CollectionModel.builder().slug("child").build();
+
+    util.populateParents(model, true);
+
+    verifyNoInteractions(collectionRepository);
+    assertThat(model.getParents()).isNull();
+  }
 }

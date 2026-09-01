@@ -121,7 +121,7 @@ class CollectionLinkSecurityIntegrationTest extends AbstractPostgresIntegrationT
 
     collectionService.linkCollectionToParent(right, shared);
 
-    assertThat(collectionRepository.findAllParentCollectionsByChildId(shared))
+    assertThat(collectionRepository.findAllParentCollectionsByChildId(shared, false))
         .extracting(CollectionEntity::getId)
         .containsExactlyInAnyOrder(left, right);
   }
@@ -217,7 +217,7 @@ class CollectionLinkSecurityIntegrationTest extends AbstractPostgresIntegrationT
 
     linkViaStructureTab(right, shared);
 
-    assertThat(collectionRepository.findAllParentCollectionsByChildId(shared))
+    assertThat(collectionRepository.findAllParentCollectionsByChildId(shared, false))
         .extracting(CollectionEntity::getId)
         .containsExactlyInAnyOrder(left, right);
   }

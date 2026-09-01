@@ -118,8 +118,8 @@ public class CollectionService {
    * <p>Every collection paginates identically -- there is no children-only read shape any more
    * (spec D1). Rows written before V51 have {@code content_per_page} backfilled by that migration.
    *
-   * <p>Siblings are populated LISTED-only: this is the public read path, and unlisted siblings
-   * would leak as dead links.
+   * <p>Siblings and parents are populated LISTED-only: this is the public read path, and unlisted
+   * relations would leak as dead links.
    */
   @Transactional(readOnly = true)
   public CollectionModel getCollectionWithPagination(String slug, int page, int size) {
@@ -160,6 +160,8 @@ public class CollectionService {
     collectionProcessingUtil.populateCollectionsOnContent(model);
 
     collectionProcessingUtil.populateSiblings(model, true);
+
+    collectionProcessingUtil.populateParents(model, true);
 
     filterNonListedChildCollections(model);
 
@@ -526,7 +528,7 @@ public class CollectionService {
 
   /** Ids of every collection referencing this one as a child, regardless of link visibility. */
   private List<Long> parentIdsOf(Long collectionId) {
-    return collectionRepository.findAllParentCollectionsByChildId(collectionId).stream()
+    return collectionRepository.findAllParentCollectionsByChildId(collectionId, false).stream()
         .map(CollectionEntity::getId)
         .toList();
   }
@@ -821,7 +823,8 @@ public class CollectionService {
       throw new ResourceNotFoundException("Collection not found with ID: " + id);
     }
 
-    List<CollectionEntity> parents = collectionRepository.findAllParentCollectionsByChildId(id);
+    List<CollectionEntity> parents =
+        collectionRepository.findAllParentCollectionsByChildId(id, false);
     contentRepository.deleteContentCollectionsReferencing(id);
     for (CollectionEntity parent : parents) {
       recountParentTotalContent(parent);
@@ -922,19 +925,7 @@ public class CollectionService {
     collection.setGalleryPassword(galleryAccess.galleryPassword());
     collection.setRecipientEmails(galleryAccess.recipientEmails());
 
-    collection.setParents(
-        collectionRepository.findAllParentCollectionsByChildId(collection.getId()).stream()
-            .map(
-                p ->
-                    new Records.CollectionList(
-                        p.getId(),
-                        p.getTitle(),
-                        p.getSlug(),
-                        p.getCollectionDate(),
-                        null,
-                        p.isClient(),
-                        p.isBlog()))
-            .toList());
+    collectionProcessingUtil.populateParents(collection, false);
 
     List<Long> allChildCollectionIds =
         collectionRepository.findAllReferencedCollectionIdsByParentId(collection.getId());
