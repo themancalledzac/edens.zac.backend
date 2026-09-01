@@ -16,7 +16,15 @@ public final class MessageRequests {
 
   public record CreatedResponse(Long id, LocalDateTime createdAt) {}
 
-  public record AdminMessageView(Long id, String email, String message, LocalDateTime createdAt) {}
+  public record AdminMessageView(
+      Long id, String email, String message, LocalDateTime createdAt, LocalDateTime readAt) {}
+
+  /**
+   * Body of {@code PATCH /api/admin/messages/{id}/read}. Absent body, or a null {@code read}, means
+   * mark read -- so the common case needs no body and {@code {"read": false}} is the explicit
+   * mark-unread.
+   */
+  public record MarkRead(Boolean read) {}
 
   public record AdminMessageList(
       List<AdminMessageView> messages, long total, int limit, int offset) {}

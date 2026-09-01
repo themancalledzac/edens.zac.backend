@@ -45,4 +45,22 @@ class MessageServiceTest {
       assertThat(result.getId()).isEqualTo(1L);
     }
   }
+
+  @Nested
+  class MarkRead {
+
+    @Test
+    void passesTheReadFlagThroughAndReturnsRowsAffected() {
+      when(messageRepository.markRead(7L, true)).thenReturn(1);
+
+      assertThat(messageService.markRead(7L, true)).isEqualTo(1);
+    }
+
+    @Test
+    void reportsZeroRowsForAnIdThatDoesNotExist() {
+      when(messageRepository.markRead(404L, false)).thenReturn(0);
+
+      assertThat(messageService.markRead(404L, false)).isZero();
+    }
+  }
 }
