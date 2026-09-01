@@ -16,4 +16,7 @@ public class MessageEntity {
   private String email;
   private String message;
   private LocalDateTime createdAt;
+
+  /** When an admin first marked this message read; {@code null} means unread. */
+  private LocalDateTime readAt;
 }

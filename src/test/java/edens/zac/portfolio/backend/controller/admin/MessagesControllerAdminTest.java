@@ -1,10 +1,12 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -59,12 +61,12 @@ class MessagesControllerAdminTest {
 
     @Test
     void returns200WithPaginatedShape() throws Exception {
-      when(messageRepository.findAll(50, 0))
+      when(messageRepository.findAll(50, 0, null, null))
           .thenReturn(
               List.of(
                   sampleMessage(2L, "two@example.com", "two"),
                   sampleMessage(1L, "one@example.com", "one")));
-      when(messageRepository.count()).thenReturn(2L);
+      when(messageRepository.count(null, null)).thenReturn(2L);
 
       mockMvc
           .perform(get("/api/admin/messages").accept(MediaType.APPLICATION_JSON))
@@ -81,8 +83,8 @@ class MessagesControllerAdminTest {
 
     @Test
     void defaultsToLimit50AndOffset0WhenAbsent() throws Exception {
-      when(messageRepository.findAll(50, 0)).thenReturn(List.of());
-      when(messageRepository.count()).thenReturn(0L);
+      when(messageRepository.findAll(50, 0, null, null)).thenReturn(List.of());
+      when(messageRepository.count(null, null)).thenReturn(0L);
 
       mockMvc
           .perform(get("/api/admin/messages"))
@@ -90,13 +92,13 @@ class MessagesControllerAdminTest {
           .andExpect(jsonPath("$.limit").value(50))
           .andExpect(jsonPath("$.offset").value(0));
 
-      verify(messageRepository).findAll(50, 0);
+      verify(messageRepository).findAll(50, 0, null, null);
     }
 
     @Test
     void clampsExcessiveLimitTo200() throws Exception {
-      when(messageRepository.findAll(200, 0)).thenReturn(List.of());
-      when(messageRepository.count()).thenReturn(0L);
+      when(messageRepository.findAll(200, 0, null, null)).thenReturn(List.of());
+      when(messageRepository.count(null, null)).thenReturn(0L);
 
       mockMvc
           .perform(get("/api/admin/messages").param("limit", "999999"))
@@ -104,27 +106,27 @@ class MessagesControllerAdminTest {
           .andExpect(jsonPath("$.limit").value(200));
 
       ArgumentCaptor<Integer> limitCaptor = ArgumentCaptor.forClass(Integer.class);
-      verify(messageRepository).findAll(limitCaptor.capture(), anyInt());
+      verify(messageRepository).findAll(limitCaptor.capture(), anyInt(), any(), any());
       org.assertj.core.api.Assertions.assertThat(limitCaptor.getValue()).isEqualTo(200);
     }
 
     @Test
     void clampsNegativeOffsetToZero() throws Exception {
-      when(messageRepository.findAll(50, 0)).thenReturn(List.of());
-      when(messageRepository.count()).thenReturn(0L);
+      when(messageRepository.findAll(50, 0, null, null)).thenReturn(List.of());
+      when(messageRepository.count(null, null)).thenReturn(0L);
 
       mockMvc
           .perform(get("/api/admin/messages").param("offset", "-5"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.offset").value(0));
 
-      verify(messageRepository).findAll(50, 0);
+      verify(messageRepository).findAll(50, 0, null, null);
     }
 
     @Test
     void emptyRepoReturnsEmptyShape() throws Exception {
-      when(messageRepository.findAll(50, 0)).thenReturn(List.of());
-      when(messageRepository.count()).thenReturn(0L);
+      when(messageRepository.findAll(50, 0, null, null)).thenReturn(List.of());
+      when(messageRepository.count(null, null)).thenReturn(0L);
 
       mockMvc
           .perform(get("/api/admin/messages"))
@@ -157,6 +159,89 @@ class MessagesControllerAdminTest {
       mockMvc.perform(delete("/api/admin/messages/404")).andExpect(status().isNotFound());
 
       verify(messageService).delete(404L);
+    }
+  }
+
+  @Nested
+  class Filters {
+
+    @Test
+    void passesUnreadAndQueryStraightThrough() throws Exception {
+      when(messageRepository.findAll(50, 0, true, "wedding")).thenReturn(List.of());
+      when(messageRepository.count(true, "wedding")).thenReturn(0L);
+
+      mockMvc
+          .perform(get("/api/admin/messages").param("unread", "true").param("q", "wedding"))
+          .andExpect(status().isOk());
+
+      verify(messageRepository).findAll(50, 0, true, "wedding");
+    }
+
+    @Test
+    void countsTheSameFilteredSetAsThePage() throws Exception {
+      // The admin list prints "N of M". Counting unfiltered while paging filtered would make M a
+      // number about a different row set, which reads as a bug in the filter rather than in the
+      // count.
+      when(messageRepository.findAll(50, 0, true, null))
+          .thenReturn(List.of(sampleMessage(1L, "one@example.com", "one")));
+      when(messageRepository.count(true, null)).thenReturn(1L);
+
+      mockMvc
+          .perform(get("/api/admin/messages").param("unread", "true"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.total").value(1));
+
+      verify(messageRepository).count(true, null);
+    }
+
+    @Test
+    void readAtIsNullOnAnUnreadMessage() throws Exception {
+      when(messageRepository.findAll(50, 0, null, null))
+          .thenReturn(List.of(sampleMessage(1L, "one@example.com", "one")));
+      when(messageRepository.count(null, null)).thenReturn(1L);
+
+      mockMvc
+          .perform(get("/api/admin/messages"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.messages[0].readAt").doesNotExist());
+    }
+  }
+
+  @Nested
+  class MarkRead {
+
+    @Test
+    void noBodyMeansMarkRead() throws Exception {
+      when(messageService.markRead(7L, true)).thenReturn(1);
+
+      mockMvc.perform(patch("/api/admin/messages/7/read")).andExpect(status().isNoContent());
+
+      verify(messageService).markRead(7L, true);
+    }
+
+    @Test
+    void readFalseMarksUnread() throws Exception {
+      when(messageService.markRead(7L, false)).thenReturn(1);
+
+      mockMvc
+          .perform(
+              patch("/api/admin/messages/7/read")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"read\":false}"))
+          .andExpect(status().isNoContent());
+
+      verify(messageService).markRead(7L, false);
+    }
+
+    @Test
+    void missingIdReturns404() throws Exception {
+      // Same rule as delete: zero rows affected means the id never existed, and a 204 would tell
+      // the caller a message it cannot see was just marked read.
+      when(messageService.markRead(404L, true)).thenReturn(0);
+
+      mockMvc.perform(patch("/api/admin/messages/404/read")).andExpect(status().isNotFound());
+
+      verify(messageService).markRead(404L, true);
     }
   }
 }

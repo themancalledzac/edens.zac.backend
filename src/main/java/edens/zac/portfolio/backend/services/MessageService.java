@@ -21,4 +21,9 @@ public class MessageService {
   public int delete(long id) {
     return messageRepository.deleteById(id);
   }
+
+  /** Set or clear a message's read marker. Returns rows affected: 0 means no such message. */
+  public int markRead(long id, boolean read) {
+    return messageRepository.markRead(id, read);
+  }
 }
