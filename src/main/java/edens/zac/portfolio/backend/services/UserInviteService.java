@@ -156,22 +156,24 @@ public class UserInviteService {
    */
   @Transactional(readOnly = true)
   public Optional<UserInviteEntity> validate(String rawToken) {
+    return findLiveInvite(rawToken).filter(invite -> invite.getUsedAt() == null);
+  }
+
+  /**
+   * Resolve a raw token to an invite that is known and unexpired. Says nothing about whether it has
+   * been redeemed -- {@link #validate} reads {@code usedAt} and {@link #redeem} settles it with a
+   * conditional update instead.
+   *
+   * @param rawToken the raw token from the invite URL
+   * @return the invite if the token is non-blank, known and unexpired, or empty
+   */
+  private Optional<UserInviteEntity> findLiveInvite(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
       return Optional.empty();
     }
-    Optional<UserInviteEntity> maybeInvite =
-        inviteRepository.findByTokenHash(TokenUtil.sha256Hex(rawToken));
-    if (maybeInvite.isEmpty()) {
-      return Optional.empty();
-    }
-    UserInviteEntity invite = maybeInvite.get();
-    if (invite.getExpiresAt().isBefore(LocalDateTime.now())) {
-      return Optional.empty();
-    }
-    if (invite.getUsedAt() != null) {
-      return Optional.empty();
-    }
-    return Optional.of(invite);
+    return inviteRepository
+        .findByTokenHash(TokenUtil.sha256Hex(rawToken))
+        .filter(invite -> !invite.getExpiresAt().isBefore(LocalDateTime.now()));
   }
 
   /**
@@ -255,18 +257,11 @@ public class UserInviteService {
    */
   @Transactional
   public Optional<UserInviteEntity> redeem(String rawToken) {
-    if (rawToken == null || rawToken.isBlank()) {
-      return Optional.empty();
-    }
-    Optional<UserInviteEntity> maybeInvite =
-        inviteRepository.findByTokenHash(TokenUtil.sha256Hex(rawToken));
+    Optional<UserInviteEntity> maybeInvite = findLiveInvite(rawToken);
     if (maybeInvite.isEmpty()) {
       return Optional.empty();
     }
     UserInviteEntity invite = maybeInvite.get();
-    if (invite.getExpiresAt().isBefore(LocalDateTime.now())) {
-      return Optional.empty();
-    }
     if (inviteRepository.markUsedIfUnused(invite.getId(), LocalDateTime.now()) == 0) {
       return Optional.empty();
     }
