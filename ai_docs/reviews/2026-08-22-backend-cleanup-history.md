@@ -8543,6 +8543,44 @@ the newest entries sat thousands of lines further down under a heading nothing l
 *(This paragraph is the section's standing note. It sat at the end of the sixth-run entry, between
 two log entries, until 2026-09-01; it is now under the heading it governs.)*
 
+## Session log, tenth-run close-out: full text moved 2026-09-02
+
+### 2026-09-02 -- tenth-run close-out. Post-merge restamp, and a gate that went blind in a day
+
+**Close-out only, no code.** [#299](https://github.com/themancalledzac/edens.zac.backend/pull/299)
+merged as `19dacf24` after rebasing onto
+[#300](https://github.com/themancalledzac/edens.zac.backend/pull/300).
+
+**Rule 42 discharged on every branch-measured figure, and all of them held**: open checkboxes
+**69**, open `S-` **3**, `U-` **5**, `Bug #` **0**, tracker **1,880**, history **9,736**, all re-run
+on `main` at `19dacf24`. The review MR's real delta is **-208 tracker / +2,116 history** against its
+rebase parent `71464517`, not the -197 / +2,088 it recorded against `43c6f2c6`.
+
+**The `#NN` gate the tenth review wrote lasted less than a day.** It read
+`grep -c '^- \[ \] \*\*#2'`, hardcoding the first digit, so #30 -- filed by #300 the same
+afternoon -- was invisible from the moment it merged. Widened to `\*\*#[0-9]`, which returns
+**3**. This is rule 36's failure inside the gate written to fix rule 36's failure, and it gives the
+general form: **a gate must match the series it counts, not the members that existed when it was
+written.**
+
+**Two recorded facts went stale within a day of being measured.** "Zero open PRs" is now #301,
+open and CONFLICTING -- and it conflicts *because* #299 rewrote the tracker under it. The refile
+invalidated an in-flight branch, which is a cost of the two-tier split nobody had written down.
+#301 also edits six `Collection*` files, so the next run's three items were chosen to avoid them.
+
+**MR 18 #13 is chained to U-1, not independently blocked.** Checked rather than assumed: no
+`COLLATE` in any migration, no `LC_COLLATE` or `POSTGRES_INITDB_ARGS` anywhere, so the ordering
+takes the database default and the question needs host access.
+
+**One claim of the review's own corrected, and one of mine.** Slice H's "members (a) and (d) have
+zero `src/test` references" is right about (d) and loose about (a), whose `validate`/`redeem` carry
+16. I first read `findLiveInvite` as a vanished symbol; it is the name to create, and the row says
+so. Recorded because a close-out that only corrects the previous session is doing half the job.
+
+**Next:** **#29** plus the two MR 14 stale docblocks as one docs MR; **MR 25's
+`DownloadResolution.extension`**; **MR 19 #17 members (a) and (d)**. Three questions go in the
+opening message: the production collation, S-29's severity, and the #294 page-size call.
+
 ## Session log, tenth-run entry: full text moved 2026-09-01
 
 **2026-09-01 -- tenth run. The full-board review, three security findings, and two gate commands that never worked** *(tracker text, superseded)*
