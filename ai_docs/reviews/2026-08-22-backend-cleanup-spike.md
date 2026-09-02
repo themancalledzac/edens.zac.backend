@@ -26,7 +26,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 5 — Consolidations | MR 15-19 | **Open: MR 18 #10, MR 18 #13's sort split, MR 19 #17.** MR 15, MR 16 and MR 17 are complete. **MR 16 #3 was ticked closed as decided 2026-09-01 (tenth-run review)** -- every number in it has reproduced across three re-derivations and the answer has been "not worth doing" every time. **MR 18 #13's sort split is re-scoped and, as of 2026-09-02, UNBLOCKED**: two of the three producers it named as unsorted are ordered in SQL, and the collation question that blocked the rest is answered -- production sorts as `C`, so the Java and SQL orderings do disagree and the split is ~10 source lines plus ~5 tests. It is the cheapest scheduled item for the next run. Shipped-MR narrative: [history](2026-08-22-backend-cleanup-history.md#progress-row-narratives-wave-5-chain-moved-2026-09-01). |
 | 6 — Conventions | MR 20-22 | **MR 20 closed 2026-08-30 by user decision** -- bare arrays are blessed and no endpoint changed ([history](2026-08-22-backend-cleanup-history.md#mr-20--the-bare-array-decision-closed-2026-08-30-moved-from-the-tracker)). MR 21 and MR 22 not started. |
 | 7 — Structure | MR 23-24 | not started |
-| 8 — Tests | MR 25-26 | **MR 25 is half done; MR 26 is 2 of 10.** #27 shipped 2026-09-01 ([#297](https://github.com/themancalledzac/edens.zac.backend/pull/297)) and the two guard tests closed 2026-08-24 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195), [#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)); the Progress row said "not started" through both. Two of MR 25's four positional/arity members shipped 2026-08-31: `FileEntry` ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267)) and `resolveCollectionDownloadEntries` ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271)). The two left are the two the guardrails have been parking: `DownloadResolution.extension` (13 edits, 5 files, touches `src/main`) and `CollectionRequests.Update` (**22 sites as of 2026-09-01**, was 21; must ride with the `TestFixtures` pass). |
+| 8 — Tests | MR 25-26 | **MR 25 is half done; MR 26 is 2 of 10.** #27 shipped 2026-09-01 ([#297](https://github.com/themancalledzac/edens.zac.backend/pull/297)) and the two guard tests closed 2026-08-24 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195), [#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)); the Progress row said "not started" through both. Two of MR 25's four positional/arity members shipped 2026-08-31: `FileEntry` ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267)) and `resolveCollectionDownloadEntries` ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271)). `DownloadResolution.extension` shipped 2026-09-02 ([#304](https://github.com/themancalledzac/edens.zac.backend/pull/304)) with all 13 refs exact, leaving **one** open member: `CollectionRequests.Update` (**22 sites as of 2026-09-01**, was 21; must ride with the `TestFixtures` pass). |
 
 Four sections below are not waves and had no row here until 2026-08-24, which made them invisible
 to anyone navigating by this table. **"Decisions needed from the user" was the fourth and was still
@@ -49,10 +49,10 @@ is the same failure the paragraph above was written to fix:
 wc -l ai_docs/reviews/2026-08-22-backend-cleanup-spike.md ai_docs/reviews/2026-08-22-backend-cleanup-history.md
 ```
 
-**Measured on branch `docs/29-validated-and-mr14-docblocks`: tracker 1,864, history 9,854.**
-`main` at `8f635d35` (post-[#302](https://github.com/themancalledzac/edens.zac.backend/pull/302))
-held tracker **1,873** and history **9,774**, so this MR is **-9 on the tracker and +80 on
-history**. **Re-run both on `main` after the merge (rule 42) and restamp.**
+**Measured on branch `refactor/download-resolution-extension`: tracker 1,864, history 9,891.**
+Stacked on [#303](https://github.com/themancalledzac/edens.zac.backend/pull/303), which held tracker **1,864** and history **9,854**, so this MR is
+**net zero on the tracker and +37 on history**. `main` at `8f635d35` held **1,873** / **9,774**.
+**Re-run both on `main` after the merge (rule 42) and restamp.**
 [#299](https://github.com/themancalledzac/edens.zac.backend/pull/299) rebased onto
 [#300](https://github.com/themancalledzac/edens.zac.backend/pull/300) before merging, so measure its
 delta against its real parent `71464517`, which held tracker **2,088** and history **7,620**: the
@@ -1370,12 +1370,9 @@ that toll again until it lands.
 
 These have many test callers, so deleting them rewrites working call sites to pass explicit nulls.
 
-**The "do them in the SAME pass as the `TestFixtures` builders" claim is true for exactly one of
-them** (verified 2026-08-24), not for the set. It holds for `CollectionRequests.Update`, whose 17-arg
-sites are precisely the sites a builder collapses -- doing them separately rewrites the same 22 sites
-twice. It does **not** hold for `FileEntry`, `resolveCollectionDownloadEntries` or
-`DownloadResolution.extension`: none has a builder proposed, and none shares a call site with either
-fixture target. Bundling them makes the MR bigger for no reason.
+**Only `CollectionRequests.Update` is left, and it is the one that must ride with the `TestFixtures`
+builders** -- its own row says why. The three that did not have to shipped standalone and are
+ticked below.
 
 - [ ] `model/CollectionRequests.java` -- 17-arg `Update` constructor, **22** test call sites, re-derived 2026-09-01 on `main` at `43c6f2c6` with a paren-balanced arity scanner over `-- 'src/test'`: 25 raw = 22 at arity 17 plus 3 at arity 22. `CollectionServiceTest` carries **8 of the 22**. **This row records no per-site line numbers, deliberately** -- the nine it used to carry all moved within one run, which is the tenth review's second lesson. Re-derive by running the scanner, not by trusting a number. **The row's own figure has held across four re-derivations**; [#296](https://github.com/themancalledzac/edens.zac.backend/pull/296)'s body filed it as drifted only because it counted `src/main` and `src/test` against a test-only figure (**rule 31**). Prior text: [history](2026-08-22-backend-cleanup-history.md#collectionrequestsupdate-row-prior-text-moved-2026-09-01).
 
@@ -1410,7 +1407,10 @@ fixture target. Bundling them makes the MR bigger for no reason.
 - [x] `services/ContentService.java` — `resolveCollectionDownloadEntries` 2-arg overload. **DONE**
   ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271), 2026-08-31). Body:
   [history](2026-08-22-backend-cleanup-history.md#resolvecollectiondownloadentries-overload-tracker-body-moved-2026-09-01).
-- [ ] `model/DownloadResolution.java` -- the `extension` component. **PRIORITY FLAG: this is the most expensive of the four, not the cheapest, and its "0 main / 6 test" headline reads like a free delete.** Deleting the accessor means deleting the record component, which takes the canonical constructor from 4 args to 3, so every construction site changes: **13 edits across 5 files, 2 of them in `src/main`** (both in `ContentService`, one file) -- 6 accessor sites and 7 construction sites. **All 13 reproduced exactly 2026-09-01, the only near-term item on the board with zero ref drift**, so it can be picked up with no re-derivation pass. **UNPARKED 2026-09-01**: the coverage guardrail did not survive reading the tests -- every accessor assertion it named has a `.contentType()` assertion on the adjacent line. The component carries no main-side behavior: `DownloadUrlService` consumes `List<DownloadResolution>` and never reads `extension`, and there are zero `.extension()` calls in `src/main`. **If MR 25 needs splitting, split this off.** Prior text: [history](2026-08-22-backend-cleanup-history.md#downloadresolutionextension-row-prior-text-moved-2026-09-01).
+- [x] `model/DownloadResolution.java` -- the `extension` component. **DONE 2026-09-02**
+  ([#304](https://github.com/themancalledzac/edens.zac.backend/pull/304)). All 13 refs exact, record 4 components to 3, and the ZIP-fallback coverage was
+  kept and mutation-proved rather than assumed:
+  [history](2026-08-22-backend-cleanup-history.md#mr-25s-downloadresolutionextension-2026-09-02).
   and 6 assertions in test. **"Written, never read" is misleading and the phrasing invites a
   mistake.** The record *component* is never read in main, true -- but the local `extension`
   variable in `ContentService` is load-bearing: it feeds `sanitizeFilename` and decides the download
