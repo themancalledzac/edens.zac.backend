@@ -139,7 +139,11 @@ public class GlobalExceptionHandler {
         .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Malformed or unreadable request body"));
   }
 
-  /** Handle constraint violations from @Validated on path/query parameters. */
+  /**
+   * Handle bean-validation failures raised outside the argument resolvers, which today means
+   * Hibernate validating an entity on flush. No controller carries {@code @Validated} any more, so
+   * constraint-annotated method parameters are no longer a source.
+   */
   @ExceptionHandler(ConstraintViolationException.class)
   public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException e) {
     String message =

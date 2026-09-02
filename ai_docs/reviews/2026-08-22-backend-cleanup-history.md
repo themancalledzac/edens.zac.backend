@@ -9772,3 +9772,83 @@ Answers and reasoning:
   the body, not the message.** The regression to catch is anyone re-typing these as
   `IllegalArgumentException` or `IllegalStateException`, both of which map to 4xx with the message on
   the wire (rule 3).
+
+---
+
+## #29 and the ConstraintViolation handler (2026-09-02)
+
+`#29` closed as scoped: `@Validated` deleted from `ContentControllerProd` along with its import, and
+`GlobalExceptionHandler:142`'s docblock rewritten because it named the annotation as the handler's
+source. All three refs reproduced exactly.
+
+**The `ConstraintViolationException` handler was deliberately kept, and it is not dead code.** The
+board's guardrail said only that `GlobalExceptionHandlerTest:74` throws the exception directly. That
+understates the cost. Two live sources remain after `@Validated` is gone:
+
+1. **Hibernate entity validation on flush.** Thirteen entity classes under `entity/` carry Jakarta
+   constraint annotations, `spring-boot-starter-validation` is on the compile classpath, and nothing
+   sets `jakarta.persistence.validation.mode=none`. Hibernate's `BeanValidationEventListener` is
+   therefore active and throws `jakarta.validation.ConstraintViolationException` on flush.
+2. **The two tests.** `GlobalExceptionHandlerTest:74` throws it directly and `:184` asserts the 400.
+
+So deleting the handler would send entity-validation failures to the catch-all `handleGeneric` and
+mis-report a client error as a **500**, and would redden two tests. The annotation was the dead
+thing; the handler was never coupled to it. The rewritten docblock now says which source is live, so
+the next reader does not have to re-derive this.
+
+## The seven `PARENT` docblock uses, classified (2026-09-02)
+
+The MR 14 row asked for the list of seven to be worked and marked rather than swept. Done:
+
+**Rewritten -- dead vocabulary, the enum is gone:**
+
+- `CollectionService:114` -- "into a PARENT-shaped model populated with children" -> "into a model
+  whose blocks are its child collections".
+- `CollectionService:563` -- "a PARENT password" -> "a parent's password".
+- `UserPageAssembler:26` -- "a self-only, PARENT-shaped aggregation" -> "a self-only aggregation".
+- `UserPageAssembler:38` -- "(PARENT model of `ContentModels.Collection` blocks" -> "(a model whose
+  blocks are `ContentModels.Collection`".
+
+**Kept -- the deliberate warning and its setup, per the row's guardrail:**
+
+- `CollectionService:1553` -- "ANY collection (not just a legacy PARENT)". Says "legacy" itself; it
+  is the sentence that sets up the warning.
+- `CollectionService:1557` and `:1558` -- "keying on `type == PARENT` here would strip every child
+  out of a non-PARENT wrapper". This is the warning the closed `filterNonListedChildCollections` row
+  decided to keep.
+
+The rule the split follows: a `PARENT` that names the shape of a model is dead vocabulary and gets
+rewritten; a `PARENT` that warns against keying on the deleted enum needs the dead name to make
+sense and stays.
+
+## The production collation, answered (2026-09-02)
+
+MR 18 #13's blocker. **Production Postgres sorts as `C`.** The Java-versus-SQL disagreement is real,
+so the sort split is live work rather than a close-as-no-op.
+
+**The diagnostic the board recommended is broken.** `SELECT datcollate FROM pg_database` returns
+`en_US.utf8` on production, which reads as "locale collation, nothing to do". It is wrong, and it is
+wrong in the direction that closes the item.
+
+Production is `postgres:16-alpine` (`scripts/ec2-postgres/docker-compose.yml`: no
+`POSTGRES_INITDB_ARGS`, no `LANG`/`LC_ALL` override, no `--locale`). The image sets
+`LANG=en_US.utf8`, so `initdb` records that string in the catalog -- but musl libc implements no
+locale collation, so `strcoll` falls through to `strcmp`. The recorded name and the actual behavior
+disagree and no catalog query exposes the gap.
+
+Measured by starting both images and sorting the same mixed-case list
+(`'apple','Banana','cherry','Almond','bravo'`, `ORDER BY n ASC`):
+
+| Image | `datcollate` | Actual ordering |
+|---|---|---|
+| `postgres:16` (Debian, glibc) | `en_US.utf8` | `Almond, apple, Banana, bravo, cherry` |
+| `postgres:16-alpine` (**production**) | `en_US.utf8` | `Almond, Banana, apple, bravo, cherry` |
+| `postgres:16-alpine`, explicit `COLLATE "C"` | -- | `Almond, Banana, apple, bravo, cherry` |
+
+Alpine's default ordering is byte-for-byte identical to explicit `COLLATE "C"`, and both put every
+uppercase name before every lowercase one. Java `compareToIgnoreCase` interleaves them, matching the
+Debian row. That is the disagreement MR 18 #13 is about.
+
+**Generalizable, and it is the same failure class as this board's unescaped-`[ ]` grep gates:** to
+learn what collation a database actually uses, sort a mixed-case list. Never read `datcollate` -- it
+returns a plausible answer for every input.

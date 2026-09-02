@@ -27,8 +27,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Handles content mutation operations: tag/people updates, keyword association, and collection
- * membership changes. Renamed from ContentProcessingUtil after model conversion was extracted to
- * ContentModelConverter.
+ * membership changes. The conversion half lives in {@link ContentModelConverter}.
  */
 @Component
 @RequiredArgsConstructor
