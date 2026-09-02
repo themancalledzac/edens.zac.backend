@@ -23,20 +23,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Builds the {@code /user} synthetic {@link CollectionModel}: a self-only, PARENT-shaped
- * aggregation of every collection a signed-in user is associated with, plus a cover drawn from
- * their tagged content (falling back to an associated collection's own cover when they are tagged
- * in nothing). The association set is the de-duplicated union of (a) collections the user's linked
- * person is tagged on via {@code collection_people} and (b) collections the user reaches through a
- * role grant (membership via a role). The page-level auth check guarantees the viewer is the owner,
- * so this leans on {@code UNLISTED} visibility rather than a gate.
+ * Builds the {@code /user} synthetic {@link CollectionModel}: a self-only aggregation of every
+ * collection a signed-in user is associated with, plus a cover drawn from their tagged content
+ * (falling back to an associated collection's own cover when they are tagged in nothing). The
+ * association set is the de-duplicated union of (a) collections the user's linked person is tagged
+ * on via {@code collection_people} and (b) collections the user reaches through a role grant
+ * (membership via a role). The page-level auth check guarantees the viewer is the owner, so this
+ * leans on {@code UNLISTED} visibility rather than a gate.
  *
  * <p>{@link #assembleForShare} builds the same page for a share-link recipient, swapping half (b)
  * for the share's opt-in allowlist. That entry point has no owner-is-viewer guarantee, which is
  * exactly why it must not fall back to the grant-based set.
  *
- * <p>Mirrors the block-building shape of {@link SyntheticCollectionResolver} (PARENT model of
- * {@link ContentModels.Collection} blocks via {@link
+ * <p>Mirrors the block-building shape of {@link SyntheticCollectionResolver} (a model whose blocks
+ * are {@link ContentModels.Collection} via {@link
  * CollectionProcessingUtil#batchConvertToBasicModels}), but sources rows from the principal's
  * unions instead of a slug catalog, and additionally appends the linked person's standalone tagged
  * image/gif content as IMAGE/GIF blocks (spec §7). The body is ordered collections-first

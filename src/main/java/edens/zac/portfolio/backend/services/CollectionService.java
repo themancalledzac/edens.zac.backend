@@ -111,7 +111,7 @@ public class CollectionService {
    *
    * <p>Resolution order is synthetic list slug -> real collection -> tag-view -> 404. Synthetic
    * slugs ({@code all-collections}, {@code all-blogs}) bypass the DB lookup entirely and resolve
-   * into a PARENT-shaped model populated with children. The real-collection lookup runs before the
+   * into a model whose blocks are its child collections. The real-collection lookup runs before the
    * tag-view fallback, so a real collection always wins a slug collision; otherwise any tag is
    * browsable at {@code /{slug}}, and a tag with zero visible members falls through to 404.
    *
@@ -560,9 +560,9 @@ public class CollectionService {
   /**
    * Decide whether an incoming request is authorized to read the gated content of a gallery.
    * Encapsulates both the per-slug cookie check and the shared password-fingerprint cookie check
-   * (the latter is what makes a PARENT password also unlock its propagated CLIENT_GALLERY children,
-   * and vice versa, without re-prompting). Returns {@code true} for unprotected or missing
-   * collections — the GET handler still returns 200 with the stripped/empty model.
+   * (the latter is what makes a parent's password also unlock its propagated CLIENT_GALLERY
+   * children, and vice versa, without re-prompting). Returns {@code true} for unprotected or
+   * missing collections — the GET handler still returns 200 with the stripped/empty model.
    *
    * <p>The grant check reads the whole principal, not just {@code CurrentUser.userId()}. Reading
    * only the id dropped {@code isAdmin} before the check ran, so an admin holding no role on a

@@ -33,8 +33,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Handles all entity-to-model conversion for content types. Centralizes the mapping logic that was
- * previously spread across ContentProcessingUtil.
+ * Handles all entity-to-model conversion for content types. Centralizes the mapping logic; the
+ * mutation half lives in {@link ContentMutationUtil}.
  */
 @Component
 @RequiredArgsConstructor
