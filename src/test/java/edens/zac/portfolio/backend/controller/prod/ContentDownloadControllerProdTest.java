@@ -68,12 +68,11 @@ class ContentDownloadControllerProdTest {
   }
 
   private static DownloadResolution webResolution(String filename) {
-    return new DownloadResolution("Image/Web/2025/01/" + filename, ".webp", "image/webp", filename);
+    return new DownloadResolution("Image/Web/2025/01/" + filename, "image/webp", filename);
   }
 
   private static DownloadResolution jpegResolution(String filename) {
-    return new DownloadResolution(
-        "Image/Original/2025/01/" + filename, ".jpg", "image/jpeg", filename);
+    return new DownloadResolution("Image/Original/2025/01/" + filename, "image/jpeg", filename);
   }
 
   private static CollectionEntity protectedGallery() {

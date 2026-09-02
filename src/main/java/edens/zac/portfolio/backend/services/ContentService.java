@@ -778,7 +778,7 @@ public class ContentService {
           "Image " + imageId + " has no resolvable S3 key (url=" + url + ")");
     }
     String filename = sanitizeFilename(image.getOriginalFilename(), imageId, extension);
-    return new DownloadResolution(s3Key, extension, contentType, filename);
+    return new DownloadResolution(s3Key, contentType, filename);
   }
 
   /**
@@ -832,7 +832,7 @@ public class ContentService {
         continue;
       }
       String filename = sanitizeFilename(image.getOriginalFilename(), image.getId(), extension);
-      resolutions.add(new DownloadResolution(s3Key, extension, contentType, filename));
+      resolutions.add(new DownloadResolution(s3Key, contentType, filename));
     }
     return resolutions;
   }

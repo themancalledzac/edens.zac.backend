@@ -97,8 +97,8 @@ class DownloadUrlServiceTest {
 
     List<DownloadResolution> entries =
         List.of(
-            new DownloadResolution("Image/Original/a.jpg", ".jpg", "image/jpeg", "a.jpg"),
-            new DownloadResolution("Image/Original/b.jpg", ".jpg", "image/jpeg", "b.jpg"));
+            new DownloadResolution("Image/Original/a.jpg", "image/jpeg", "a.jpg"),
+            new DownloadResolution("Image/Original/b.jpg", "image/jpeg", "b.jpg"));
 
     URI result = service.zipToS3AndPresign(entries, "gallery.zip");
 
