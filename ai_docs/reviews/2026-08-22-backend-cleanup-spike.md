@@ -49,9 +49,9 @@ is the same failure the paragraph above was written to fix:
 wc -l ai_docs/reviews/2026-08-22-backend-cleanup-spike.md ai_docs/reviews/2026-08-22-backend-cleanup-history.md
 ```
 
-**Measured on branch `refactor/download-resolution-extension`: tracker 1,864, history 9,891.**
-Stacked on [#303](https://github.com/themancalledzac/edens.zac.backend/pull/303), which held tracker **1,864** and history **9,854**, so this MR is
-**net zero on the tracker and +37 on history**. `main` at `8f635d35` held **1,873** / **9,774**.
+**Measured on branch `refactor/mr19-17-invite-and-s3-put`: tracker 1,862, history 9,891.**
+Stacked on [#304](https://github.com/themancalledzac/edens.zac.backend/pull/304), which held tracker **1,864** and history **9,891**, so this MR is
+**-2 on the tracker and net zero on history**. `main` at `8f635d35` held **1,873** / **9,774**.
 **Re-run both on `main` after the merge (rule 42) and restamp.**
 [#299](https://github.com/themancalledzac/edens.zac.backend/pull/299) rebased onto
 [#300](https://github.com/themancalledzac/edens.zac.backend/pull/300) before merging, so measure its
@@ -1085,22 +1085,20 @@ and each needs its claim verified before acting (working rule 8).
 
 ## MR 19 — Query efficiency and data layer
 
-- [x] #14. `convertEntityToModel` loaded the same content row twice. **DONE**
-  ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218), 2026-08-25) — two
-  queries to one, and **the first item in seven to need no adjustment at implementation time**,
-  which is what taught working rule 27. The method had no test at all; the two added tests are the
-  only mutation detectors. Write-up (deletion cost table for the two dead finders included) moved
-  2026-08-29 to the [history file](2026-08-22-backend-cleanup-history.md#mr-19-14-outcome-2026-08-25).
-- [x] #15. `getUpdateCollectionData` fetched the collection row twice -- **DONE**
-  ([#280](https://github.com/themancalledzac/edens.zac.backend/pull/280), 2026-08-31). The projection landed; the fixture churn was not predicted,
-  and it left ~107 comment lines behind, filed separately (rule 47).
-  [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-15--the-projection-and-the-fixture-churn-nobody-predicted-280).
-  Body: [history](2026-08-22-backend-cleanup-history.md#mr-19-15-tracker-body-moved-2026-09-01).
-- [x] #16. `findCurrentContentCollections` N+1. **DONE** ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)) —
-  201 queries to 1. The diagnosis was exact; **the suggested fix was not, and would have shipped a
-  silent bug** (its `IN (:ids) OR referenced_collection_id IN (:ids)` clause drops the parent
-  scope). [Full write-up](2026-08-22-backend-cleanup-history.md#mr-19-16-outcome-2026-08-25----the-suggested-clause-was-the-bug).
-- [ ] #17. Smaller items, **all four to be found by name -- this row has carried the single most-drifted ref on the board**: (a) `UserInviteService.validate`/`redeem` duplicate token resolution, into `findLiveInvite`; (b) pagination normalization re-inlined in `CollectionService.getCollectionWithPagination` -- find `int normalizedPage`, three lines, currently `145-147` on `main` at `43c6f2c6`, and **do not record a number for it**; (c) `CollectionProcessingUtil.toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other; (d) `ImageProcessingService.uploadToS3`/`streamFileToS3` duplicate key and URL construction; (e) the EmailService HTML skeleton **three times, not twice** -- `buildHtml`, `buildInviteHtml` and `buildShareLinkHtml`, the third added by [#213](https://github.com/themancalledzac/edens.zac.backend/pull/213) under an explicit guardrail not to fold it in there (optional, ~50-70 lines). **Members (a) and (d) have zero `src/test` references and are scheduled next.** #213's write-up sent this consolidation to MR 24; that was wrong, it lives here. Ref drift chain, including the `143-145` reading that was anchor-text-verified hours before #266 invalidated it: [history](2026-08-22-backend-cleanup-history.md#mr-19-17-ref-drift-chain-moved-2026-09-01).
+- [x] #14. `convertEntityToModel` loaded the same content row twice. **DONE** ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218), 2026-08-25) -- taught working rule 27. [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-14-outcome-2026-08-25).
+- [x] #15. `getUpdateCollectionData` fetched the collection row twice. **DONE** ([#280](https://github.com/themancalledzac/edens.zac.backend/pull/280), 2026-08-31). [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-15--the-projection-and-the-fixture-churn-nobody-predicted-280), [body](2026-08-22-backend-cleanup-history.md#mr-19-15-tracker-body-moved-2026-09-01).
+- [x] #16. `findCurrentContentCollections` N+1, 201 queries to 1. **DONE** ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)) -- **the suggested fix was the bug**. [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-16-outcome-2026-08-25----the-suggested-clause-was-the-bug).
+- [ ] #17. Smaller items. **(a) and (d) SHIPPED 2026-09-02** ([#305](https://github.com/themancalledzac/edens.zac.backend/pull/305)): token resolution is one `findLiveInvite`; `uploadToS3`/`streamFileToS3` share `buildS3Key` plus `putAndBuildUrl`. **Net -4 lines, not the -14 estimated** -- the estimate assumed no docblocks on the new helpers (**rule 48**: the win is one copy of the key-and-URL shape, not the delta). **The row's old "members (a) and (d) have zero `src/test` references" was wrong and [#302](https://github.com/themancalledzac/edens.zac.backend/pull/302) had already corrected it**: only (d) is zero, both its methods being private. (a)'s `validate`/`redeem` have **16 call sites in 2 files** -- `UserInviteServiceIntegrationTest` 13, `InviteControllerTest` 3 (#302's "five files" counted files mentioning `UserInviteService`, not call sites). Nothing had to change because the extraction sits behind both unchanged public signatures, which is coverage on the extraction rather than a cost. **Three left, all to be found by name:**
+  - **(b) pagination normalization re-inlined in `CollectionService.getCollectionWithPagination`** --
+    find `int normalizedPage`, three lines, and **do not record a number for it**. **TRAP, verified
+    2026-09-02: do not fold this into `PaginationUtil.normalizeCollectionPageable`.** That method
+    defaults to `default_collection_per_page` = **10**; this site uses `DEFAULT_PAGE_SIZE` =
+    `default_content_per_page` = **30**. The method whose name says "collection" is the wrong one for a
+    collection's *content* page, so the obvious fold silently cuts every collection page from 30 items
+    to 10. `normalizeContentPageable` or `normalizeSize(size, DEFAULT_PAGE_SIZE)` are the honest
+    targets, and the site also needs the raw `offset`, which no `Pageable` helper returns.
+  - **(c)** `CollectionProcessingUtil.toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other.
+  - **(e)** the EmailService HTML skeleton **three times, not twice** -- `buildHtml`, `buildInviteHtml`, `buildShareLinkHtml`; the third was added by [#213](https://github.com/themancalledzac/edens.zac.backend/pull/213) under an explicit guardrail not to fold it in there (optional, ~50-70 lines). Ref drift chain: [history](2026-08-22-backend-cleanup-history.md#mr-19-17-ref-drift-chain-moved-2026-09-01).
 
   **RE-DERIVED 2026-09-01 (tenth run) on `main` at `43c6f2c6`, and 13 of 17 refs hold.** `validate` **158**, `redeem` **257**, `redeem`'s internal caller at **211**, and there is still no `findLiveInvite`; `toEntity` **566** with `setContentPerPage(defaultPageSize)` at **586** and `return applyPaginationDefaults(entity)` at **588**, `applyPaginationDefaults` **924**; `uploadToS3` **715** and `streamFileToS3` **742**; `buildHtml` **195**, `buildInviteHtml` **246**, `buildShareLinkHtml` **301**. **Four drifted.** The pagination normalization is **`145-147`**, not `147-149`. **`uploadToS3` has 7 callers, not 6** (`ImageProcessingService` 176, 202, 283, 633, 640, 647, 671); `streamFileToS3`'s 2 is correct (270, 566). And the "mirroring" docblock lines are at **243** and **298**, not 246 and 301 -- those are the method declarations. **The `720`/`747` pair this paragraph carried was already superseded by the bullet above it and is deleted; `715`/`742` are right.**
 

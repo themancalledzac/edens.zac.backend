@@ -719,47 +719,48 @@ public class ImageProcessingService {
       String basePath,
       int year,
       int month) {
-    String s3Key = String.format("%s/%d/%02d/%s", basePath, year, month, filename);
-
+    String s3Key = buildS3Key(basePath, year, month, filename);
     log.trace("Uploading to S3: {}", s3Key);
-
-    PutObjectRequest putRequest =
-        PutObjectRequest.builder()
-            .bucket(bucketName)
-            .key(s3Key)
-            .contentType(contentType)
-            .contentLength((long) imageBytes.length)
-            .build();
-
-    s3Client.putObject(putRequest, RequestBody.fromBytes(imageBytes));
-
-    String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
-
-    return cloudfrontUrl;
+    return putAndBuildUrl(s3Key, contentType, imageBytes.length, RequestBody.fromBytes(imageBytes));
   }
 
   /** Stream a file directly from disk to S3 without loading into heap. */
   private String streamFileToS3(
       Path filePath, String filename, String contentType, String basePath, int year, int month)
       throws IOException {
-    String s3Key = String.format("%s/%d/%02d/%s", basePath, year, month, filename);
+    String s3Key = buildS3Key(basePath, year, month, filename);
     long fileSize = Files.size(filePath);
-
     log.trace("Streaming to S3: {} ({} MB)", s3Key, fileSize / (1024 * 1024));
+    return putAndBuildUrl(s3Key, contentType, fileSize, RequestBody.fromFile(filePath));
+  }
 
+  /** Object key for every upload: {@code {basePath}/{year}/{month}/{filename}}. */
+  private String buildS3Key(String basePath, int year, int month, String filename) {
+    return String.format("%s/%d/%02d/%s", basePath, year, month, filename);
+  }
+
+  /**
+   * Put one object and return the CloudFront URL that will serve it. The caller decides where the
+   * bytes come from -- {@code RequestBody.fromBytes} for an in-heap rendition, {@code fromFile} to
+   * stream from disk -- and supplies the matching content length, which S3 requires up front.
+   *
+   * @param s3Key the object key, from {@link #buildS3Key}
+   * @param contentType the content type to store on the object
+   * @param contentLength the byte count, which must match the body
+   * @param body the request body
+   * @return the CloudFront URL of the uploaded object
+   */
+  private String putAndBuildUrl(
+      String s3Key, String contentType, long contentLength, RequestBody body) {
     PutObjectRequest putRequest =
         PutObjectRequest.builder()
             .bucket(bucketName)
             .key(s3Key)
             .contentType(contentType)
-            .contentLength(fileSize)
+            .contentLength(contentLength)
             .build();
-
-    s3Client.putObject(putRequest, RequestBody.fromFile(filePath));
-
-    String cloudfrontUrl = "https://" + cloudfrontDomain + "/" + s3Key;
-
-    return cloudfrontUrl;
+    s3Client.putObject(putRequest, body);
+    return "https://" + cloudfrontDomain + "/" + s3Key;
   }
 
   /**
