@@ -85,7 +85,6 @@ class ContentServiceDownloadTest {
       DownloadResolution res = service.resolveImageDownload(10L, "web");
 
       assertThat(res.s3Key()).isEqualTo("Image/Web/2025/01/smith-001.webp");
-      assertThat(res.extension()).isEqualTo(".webp");
       assertThat(res.contentType()).isEqualTo("image/webp");
       assertThat(res.filename()).endsWith(".webp");
     }
@@ -99,7 +98,6 @@ class ContentServiceDownloadTest {
       DownloadResolution res = service.resolveImageDownload(10L, "original");
 
       assertThat(res.s3Key()).isEqualTo("Image/Original/2025/01/smith-001.jpg");
-      assertThat(res.extension()).isEqualTo(".jpg");
       assertThat(res.contentType()).isEqualTo("image/jpeg");
       assertThat(res.filename()).endsWith(".jpg");
     }
@@ -198,7 +196,7 @@ class ContentServiceDownloadTest {
       List<DownloadResolution> entries = service.resolveCollectionDownloadEntries(1L, "web", null);
 
       assertThat(entries).hasSize(2);
-      assertThat(entries).allMatch(e -> e.extension().equals(".webp"));
+      assertThat(entries).allMatch(e -> e.filename().endsWith(".webp"));
       assertThat(entries).allMatch(e -> e.contentType().equals("image/webp"));
     }
 
@@ -214,7 +212,7 @@ class ContentServiceDownloadTest {
           service.resolveCollectionDownloadEntries(1L, "original", null);
 
       assertThat(entries).hasSize(2);
-      assertThat(entries).allMatch(e -> e.extension().equals(".jpg"));
+      assertThat(entries).allMatch(e -> e.filename().endsWith(".jpg"));
       assertThat(entries).allMatch(e -> e.contentType().equals("image/jpeg"));
     }
 
@@ -234,9 +232,9 @@ class ContentServiceDownloadTest {
           service.resolveCollectionDownloadEntries(1L, "original", null);
 
       assertThat(entries).hasSize(2);
-      assertThat(entries.get(0).extension()).isEqualTo(".jpg");
+      assertThat(entries.get(0).filename()).endsWith(".jpg");
       assertThat(entries.get(0).contentType()).isEqualTo("image/jpeg");
-      assertThat(entries.get(1).extension()).isEqualTo(".webp");
+      assertThat(entries.get(1).filename()).endsWith(".webp");
       assertThat(entries.get(1).contentType()).isEqualTo("image/webp");
     }
 
