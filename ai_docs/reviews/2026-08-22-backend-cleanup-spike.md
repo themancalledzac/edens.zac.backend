@@ -228,9 +228,11 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
 
 ## Cross-repo findings owed to the frontend
 
-**Five open as of 2026-09-01 (tenth run): FE-2 through FE-5, plus the newly filed #294 page-size
-debt.** FE-1 closed as won't-do when BE-2 was decided. The count lives here rather than in the
-heading, so correcting it cannot break the Progress row's link.
+**Four open as of 2026-09-02: FE-2 through FE-5.** The #294 page-size debt closed as accepted
+2026-09-02 -- the user answered that 50 images on `/location/[slug]` and `/tag/[slug]` is wanted.
+FE-1 closed as won't-do when BE-2 was decided. The count lives here rather than in the heading, so
+correcting it cannot break the Progress row's link. **[#303](https://github.com/themancalledzac/edens.zac.backend/pull/303) left this line at "Five" while moving
+the Progress row to four** -- rule 36 again, in the line whose whole job is to be the count.
 
 The 2026-08-24 batch closed and lives in
 [history](2026-08-22-backend-cleanup-history.md#cross-repo-findings-owed-to-the-frontend). This
