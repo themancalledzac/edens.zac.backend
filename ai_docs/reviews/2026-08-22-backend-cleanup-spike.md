@@ -26,7 +26,7 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 5 — Consolidations | MR 15-19 | **Open: MR 18 #10, MR 18 #13's sort split, MR 19 #17.** MR 15, MR 16 and MR 17 are complete. **MR 16 #3 was ticked closed as decided 2026-09-01 (tenth-run review)** -- every number in it has reproduced across three re-derivations and the answer has been "not worth doing" every time. **MR 18 #13's sort split is re-scoped and, as of 2026-09-02, UNBLOCKED**: two of the three producers it named as unsorted are ordered in SQL, and the collation question that blocked the rest is answered -- production sorts as `C`, so the Java and SQL orderings do disagree and the split is ~10 source lines plus ~5 tests. It is the cheapest scheduled item for the next run. Shipped-MR narrative: [history](2026-08-22-backend-cleanup-history.md#progress-row-narratives-wave-5-chain-moved-2026-09-01). |
 | 6 — Conventions | MR 20-22 | **MR 20 closed 2026-08-30 by user decision** -- bare arrays are blessed and no endpoint changed ([history](2026-08-22-backend-cleanup-history.md#mr-20--the-bare-array-decision-closed-2026-08-30-moved-from-the-tracker)). MR 21 and MR 22 not started. |
 | 7 — Structure | MR 23-24 | not started |
-| 8 — Tests | MR 25-26 | **MR 25 is half done; MR 26 is 2 of 10.** #27 shipped 2026-09-01 ([#297](https://github.com/themancalledzac/edens.zac.backend/pull/297)) and the two guard tests closed 2026-08-24 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195), [#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)); the Progress row said "not started" through both. Two of MR 25's four positional/arity members shipped 2026-08-31: `FileEntry` ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267)) and `resolveCollectionDownloadEntries` ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271)). The two left are the two the guardrails have been parking: `DownloadResolution.extension` (13 edits, 5 files, touches `src/main`) and `CollectionRequests.Update` (**22 sites as of 2026-09-01**, was 21; must ride with the `TestFixtures` pass). |
+| 8 — Tests | MR 25-26 | **MR 25 is half done; MR 26 is 2 of 10.** #27 shipped 2026-09-01 ([#297](https://github.com/themancalledzac/edens.zac.backend/pull/297)) and the two guard tests closed 2026-08-24 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195), [#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)); the Progress row said "not started" through both. Two of MR 25's four positional/arity members shipped 2026-08-31: `FileEntry` ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267)) and `resolveCollectionDownloadEntries` ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271)). `DownloadResolution.extension` shipped 2026-09-02 ([#304](https://github.com/themancalledzac/edens.zac.backend/pull/304)) with all 13 refs exact, leaving **one** open member: `CollectionRequests.Update` (**22 sites as of 2026-09-01**, was 21; must ride with the `TestFixtures` pass). |
 
 Four sections below are not waves and had no row here until 2026-08-24, which made them invisible
 to anyone navigating by this table. **"Decisions needed from the user" was the fourth and was still
@@ -49,10 +49,10 @@ is the same failure the paragraph above was written to fix:
 wc -l ai_docs/reviews/2026-08-22-backend-cleanup-spike.md ai_docs/reviews/2026-08-22-backend-cleanup-history.md
 ```
 
-**Measured on branch `docs/29-validated-and-mr14-docblocks`: tracker 1,864, history 9,854.**
-`main` at `8f635d35` (post-[#302](https://github.com/themancalledzac/edens.zac.backend/pull/302))
-held tracker **1,873** and history **9,774**, so this MR is **-9 on the tracker and +80 on
-history**. **Re-run both on `main` after the merge (rule 42) and restamp.**
+**Measured on branch `refactor/mr19-17-invite-and-s3-put`: tracker 1,862, history 9,891.**
+Stacked on [#304](https://github.com/themancalledzac/edens.zac.backend/pull/304), which held tracker **1,864** and history **9,891**, so this MR is
+**-2 on the tracker and net zero on history**. `main` at `8f635d35` held **1,873** / **9,774**.
+**Re-run both on `main` after the merge (rule 42) and restamp.**
 [#299](https://github.com/themancalledzac/edens.zac.backend/pull/299) rebased onto
 [#300](https://github.com/themancalledzac/edens.zac.backend/pull/300) before merging, so measure its
 delta against its real parent `71464517`, which held tracker **2,088** and history **7,620**: the
@@ -228,9 +228,11 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
 
 ## Cross-repo findings owed to the frontend
 
-**Five open as of 2026-09-01 (tenth run): FE-2 through FE-5, plus the newly filed #294 page-size
-debt.** FE-1 closed as won't-do when BE-2 was decided. The count lives here rather than in the
-heading, so correcting it cannot break the Progress row's link.
+**Four open as of 2026-09-02: FE-2 through FE-5.** The #294 page-size debt closed as accepted
+2026-09-02 -- the user answered that 50 images on `/location/[slug]` and `/tag/[slug]` is wanted.
+FE-1 closed as won't-do when BE-2 was decided. The count lives here rather than in the heading, so
+correcting it cannot break the Progress row's link. **[#303](https://github.com/themancalledzac/edens.zac.backend/pull/303) left this line at "Five" while moving
+the Progress row to four** -- rule 36 again, in the line whose whole job is to be the count.
 
 The 2026-08-24 batch closed and lives in
 [history](2026-08-22-backend-cleanup-history.md#cross-repo-findings-owed-to-the-frontend). This
@@ -1085,22 +1087,20 @@ and each needs its claim verified before acting (working rule 8).
 
 ## MR 19 — Query efficiency and data layer
 
-- [x] #14. `convertEntityToModel` loaded the same content row twice. **DONE**
-  ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218), 2026-08-25) — two
-  queries to one, and **the first item in seven to need no adjustment at implementation time**,
-  which is what taught working rule 27. The method had no test at all; the two added tests are the
-  only mutation detectors. Write-up (deletion cost table for the two dead finders included) moved
-  2026-08-29 to the [history file](2026-08-22-backend-cleanup-history.md#mr-19-14-outcome-2026-08-25).
-- [x] #15. `getUpdateCollectionData` fetched the collection row twice -- **DONE**
-  ([#280](https://github.com/themancalledzac/edens.zac.backend/pull/280), 2026-08-31). The projection landed; the fixture churn was not predicted,
-  and it left ~107 comment lines behind, filed separately (rule 47).
-  [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-15--the-projection-and-the-fixture-churn-nobody-predicted-280).
-  Body: [history](2026-08-22-backend-cleanup-history.md#mr-19-15-tracker-body-moved-2026-09-01).
-- [x] #16. `findCurrentContentCollections` N+1. **DONE** ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)) —
-  201 queries to 1. The diagnosis was exact; **the suggested fix was not, and would have shipped a
-  silent bug** (its `IN (:ids) OR referenced_collection_id IN (:ids)` clause drops the parent
-  scope). [Full write-up](2026-08-22-backend-cleanup-history.md#mr-19-16-outcome-2026-08-25----the-suggested-clause-was-the-bug).
-- [ ] #17. Smaller items, **all four to be found by name -- this row has carried the single most-drifted ref on the board**: (a) `UserInviteService.validate`/`redeem` duplicate token resolution, into `findLiveInvite`; (b) pagination normalization re-inlined in `CollectionService.getCollectionWithPagination` -- find `int normalizedPage`, three lines, currently `145-147` on `main` at `43c6f2c6`, and **do not record a number for it**; (c) `CollectionProcessingUtil.toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other; (d) `ImageProcessingService.uploadToS3`/`streamFileToS3` duplicate key and URL construction; (e) the EmailService HTML skeleton **three times, not twice** -- `buildHtml`, `buildInviteHtml` and `buildShareLinkHtml`, the third added by [#213](https://github.com/themancalledzac/edens.zac.backend/pull/213) under an explicit guardrail not to fold it in there (optional, ~50-70 lines). **Members (a) and (d) have zero `src/test` references and are scheduled next.** #213's write-up sent this consolidation to MR 24; that was wrong, it lives here. Ref drift chain, including the `143-145` reading that was anchor-text-verified hours before #266 invalidated it: [history](2026-08-22-backend-cleanup-history.md#mr-19-17-ref-drift-chain-moved-2026-09-01).
+- [x] #14. `convertEntityToModel` loaded the same content row twice. **DONE** ([#218](https://github.com/themancalledzac/edens.zac.backend/pull/218), 2026-08-25) -- taught working rule 27. [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-14-outcome-2026-08-25).
+- [x] #15. `getUpdateCollectionData` fetched the collection row twice. **DONE** ([#280](https://github.com/themancalledzac/edens.zac.backend/pull/280), 2026-08-31). [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-15--the-projection-and-the-fixture-churn-nobody-predicted-280), [body](2026-08-22-backend-cleanup-history.md#mr-19-15-tracker-body-moved-2026-09-01).
+- [x] #16. `findCurrentContentCollections` N+1, 201 queries to 1. **DONE** ([#216](https://github.com/themancalledzac/edens.zac.backend/pull/216)) -- **the suggested fix was the bug**. [Write-up](2026-08-22-backend-cleanup-history.md#mr-19-16-outcome-2026-08-25----the-suggested-clause-was-the-bug).
+- [ ] #17. Smaller items. **(a) and (d) SHIPPED 2026-09-02** ([#305](https://github.com/themancalledzac/edens.zac.backend/pull/305)): token resolution is one `findLiveInvite`; `uploadToS3`/`streamFileToS3` share `buildS3Key` plus `putAndBuildUrl`. **Net -4 lines, not the -14 estimated** -- the estimate assumed no docblocks on the new helpers (**rule 48**: the win is one copy of the key-and-URL shape, not the delta). **The row's old "members (a) and (d) have zero `src/test` references" was wrong and [#302](https://github.com/themancalledzac/edens.zac.backend/pull/302) had already corrected it**: only (d) is zero, both its methods being private. (a)'s `validate`/`redeem` have **16 call sites in 2 files** -- `UserInviteServiceIntegrationTest` 13, `InviteControllerTest` 3 (#302's "five files" counted files mentioning `UserInviteService`, not call sites). Nothing had to change because the extraction sits behind both unchanged public signatures, which is coverage on the extraction rather than a cost. **Three left, all to be found by name:**
+  - **(b) pagination normalization re-inlined in `CollectionService.getCollectionWithPagination`** --
+    find `int normalizedPage`, three lines, and **do not record a number for it**. **TRAP, verified
+    2026-09-02: do not fold this into `PaginationUtil.normalizeCollectionPageable`.** That method
+    defaults to `default_collection_per_page` = **10**; this site uses `DEFAULT_PAGE_SIZE` =
+    `default_content_per_page` = **30**. The method whose name says "collection" is the wrong one for a
+    collection's *content* page, so the obvious fold silently cuts every collection page from 30 items
+    to 10. `normalizeContentPageable` or `normalizeSize(size, DEFAULT_PAGE_SIZE)` are the honest
+    targets, and the site also needs the raw `offset`, which no `Pageable` helper returns.
+  - **(c)** `CollectionProcessingUtil.toEntity`'s `defaultPageSize` parameter and `applyPaginationDefaults` are redundant with each other.
+  - **(e)** the EmailService HTML skeleton **three times, not twice** -- `buildHtml`, `buildInviteHtml`, `buildShareLinkHtml`; the third was added by [#213](https://github.com/themancalledzac/edens.zac.backend/pull/213) under an explicit guardrail not to fold it in there (optional, ~50-70 lines). Ref drift chain: [history](2026-08-22-backend-cleanup-history.md#mr-19-17-ref-drift-chain-moved-2026-09-01).
 
   **RE-DERIVED 2026-09-01 (tenth run) on `main` at `43c6f2c6`, and 13 of 17 refs hold.** `validate` **158**, `redeem` **257**, `redeem`'s internal caller at **211**, and there is still no `findLiveInvite`; `toEntity` **566** with `setContentPerPage(defaultPageSize)` at **586** and `return applyPaginationDefaults(entity)` at **588**, `applyPaginationDefaults` **924**; `uploadToS3` **715** and `streamFileToS3` **742**; `buildHtml` **195**, `buildInviteHtml` **246**, `buildShareLinkHtml` **301**. **Four drifted.** The pagination normalization is **`145-147`**, not `147-149`. **`uploadToS3` has 7 callers, not 6** (`ImageProcessingService` 176, 202, 283, 633, 640, 647, 671); `streamFileToS3`'s 2 is correct (270, 566). And the "mirroring" docblock lines are at **243** and **298**, not 246 and 301 -- those are the method declarations. **The `720`/`747` pair this paragraph carried was already superseded by the bullet above it and is deleted; `715`/`742` are right.**
 
@@ -1370,12 +1370,9 @@ that toll again until it lands.
 
 These have many test callers, so deleting them rewrites working call sites to pass explicit nulls.
 
-**The "do them in the SAME pass as the `TestFixtures` builders" claim is true for exactly one of
-them** (verified 2026-08-24), not for the set. It holds for `CollectionRequests.Update`, whose 17-arg
-sites are precisely the sites a builder collapses -- doing them separately rewrites the same 22 sites
-twice. It does **not** hold for `FileEntry`, `resolveCollectionDownloadEntries` or
-`DownloadResolution.extension`: none has a builder proposed, and none shares a call site with either
-fixture target. Bundling them makes the MR bigger for no reason.
+**Only `CollectionRequests.Update` is left, and it is the one that must ride with the `TestFixtures`
+builders** -- its own row says why. The three that did not have to shipped standalone and are
+ticked below.
 
 - [ ] `model/CollectionRequests.java` -- 17-arg `Update` constructor, **22** test call sites, re-derived 2026-09-01 on `main` at `43c6f2c6` with a paren-balanced arity scanner over `-- 'src/test'`: 25 raw = 22 at arity 17 plus 3 at arity 22. `CollectionServiceTest` carries **8 of the 22**. **This row records no per-site line numbers, deliberately** -- the nine it used to carry all moved within one run, which is the tenth review's second lesson. Re-derive by running the scanner, not by trusting a number. **The row's own figure has held across four re-derivations**; [#296](https://github.com/themancalledzac/edens.zac.backend/pull/296)'s body filed it as drifted only because it counted `src/main` and `src/test` against a test-only figure (**rule 31**). Prior text: [history](2026-08-22-backend-cleanup-history.md#collectionrequestsupdate-row-prior-text-moved-2026-09-01).
 
@@ -1410,7 +1407,10 @@ fixture target. Bundling them makes the MR bigger for no reason.
 - [x] `services/ContentService.java` — `resolveCollectionDownloadEntries` 2-arg overload. **DONE**
   ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271), 2026-08-31). Body:
   [history](2026-08-22-backend-cleanup-history.md#resolvecollectiondownloadentries-overload-tracker-body-moved-2026-09-01).
-- [ ] `model/DownloadResolution.java` -- the `extension` component. **PRIORITY FLAG: this is the most expensive of the four, not the cheapest, and its "0 main / 6 test" headline reads like a free delete.** Deleting the accessor means deleting the record component, which takes the canonical constructor from 4 args to 3, so every construction site changes: **13 edits across 5 files, 2 of them in `src/main`** (both in `ContentService`, one file) -- 6 accessor sites and 7 construction sites. **All 13 reproduced exactly 2026-09-01, the only near-term item on the board with zero ref drift**, so it can be picked up with no re-derivation pass. **UNPARKED 2026-09-01**: the coverage guardrail did not survive reading the tests -- every accessor assertion it named has a `.contentType()` assertion on the adjacent line. The component carries no main-side behavior: `DownloadUrlService` consumes `List<DownloadResolution>` and never reads `extension`, and there are zero `.extension()` calls in `src/main`. **If MR 25 needs splitting, split this off.** Prior text: [history](2026-08-22-backend-cleanup-history.md#downloadresolutionextension-row-prior-text-moved-2026-09-01).
+- [x] `model/DownloadResolution.java` -- the `extension` component. **DONE 2026-09-02**
+  ([#304](https://github.com/themancalledzac/edens.zac.backend/pull/304)). All 13 refs exact, record 4 components to 3, and the ZIP-fallback coverage was
+  kept and mutation-proved rather than assumed:
+  [history](2026-08-22-backend-cleanup-history.md#mr-25s-downloadresolutionextension-2026-09-02).
   and 6 assertions in test. **"Written, never read" is misleading and the phrasing invites a
   mistake.** The record *component* is never read in main, true -- but the local `extension`
   variable in `ContentService` is load-bearing: it feeds `sanitizeFilename` and decides the download

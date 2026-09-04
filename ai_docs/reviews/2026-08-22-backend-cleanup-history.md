@@ -9852,3 +9852,40 @@ Debian row. That is the disagreement MR 18 #13 is about.
 **Generalizable, and it is the same failure class as this board's unescaped-`[ ]` grep gates:** to
 learn what collation a database actually uses, sort a mixed-case list. Never read `datcollate` -- it
 returns a plausible answer for every input.
+## MR 25's `DownloadResolution.extension` (2026-09-02)
+
+Closed. The record went from four components to three; the 13 refs the tenth review recorded
+reproduced **exactly** -- 6 accessor assertions and 7 construction sites across 5 files, the only
+near-term board item with zero ref drift, and it stayed that way.
+
+**The local `extension` variable in `ContentService` is untouched and still load-bearing.** It feeds
+`sanitizeFilename` and decides the download filename's extension in both `resolveImageDownload` and
+`resolveCollectionDownloadEntries`. Only the record component went. The board's old "written, never
+read" phrasing invited exactly the mistake of deleting the logic with the component.
+
+**Coverage was mutation-proved rather than argued.** Two of the six accessor assertions belonged to
+tests that already asserted on `.filename()`, so those lines were simply dropped. The other four were
+swapped in place to `.filename()`, which discriminates identically because `sanitizeFilename` appends
+the extension it is given. For the per-image ZIP fallback test the swap was kept strictly in place --
+no restructuring.
+
+The proof: move `extension = ".jpg"` outside the `origUrl != null` branch in
+`resolveCollectionDownloadEntries`, which makes the format fallback per-request instead of per-image.
+`original_someMissingOriginal_fallsBackToWebPerImage` fails on the swapped `.filename()` assertion.
+Restored, the suite is green and `mvn clean install` exits 0.
+
+**Rule this closes:** the guardrail that parked this item for four close-outs -- "4 of its 6 accessor
+assertions are the only coverage of the collection-ZIP format fallback" -- was true about *which*
+assertions carried the coverage and wrong that the coverage was tied to the *component*. A filename
+that ends in the extension carries the same discrimination. Before parking a deletion on a coverage
+guardrail, check whether an adjacent field already witnesses the same behavior.
+
+### The positional-constructor preamble, collapsed 2026-09-02
+
+The "do them in the SAME pass as the `TestFixtures` builders" paragraph is retired: all three members
+it argued did **not** need to ride with the fixtures have now shipped standalone, which is the
+paragraph's own claim confirmed -- `FileEntry` (#267), `resolveCollectionDownloadEntries` (#271) and
+`DownloadResolution.extension` (2026-09-02). Only `CollectionRequests.Update` remains, and it is the
+one member the paragraph said must ride with the builders, because its 17-arg sites are precisely the
+sites a builder collapses and doing them separately rewrites the same 22 sites twice. That reasoning
+now lives in the `CollectionRequests.Update` row itself, so the preamble was one line on the board.

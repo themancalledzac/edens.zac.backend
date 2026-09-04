@@ -91,7 +91,7 @@ class ContentDownloadAuthTest {
   }
 
   private static DownloadResolution webResolution(String filename) {
-    return new DownloadResolution("Image/Web/2025/01/" + filename, ".webp", "image/webp", filename);
+    return new DownloadResolution("Image/Web/2025/01/" + filename, "image/webp", filename);
   }
 
   private static CollectionEntity protectedGallery() {
