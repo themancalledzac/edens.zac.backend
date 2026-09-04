@@ -344,13 +344,18 @@ public class CollectionRepository extends BaseDao {
   /**
    * Inverse of {@link #findAllReferencedCollectionsByParentId}: given a child collection, find
    * every parent collection that references it. Walks child -> content_collection ->
-   * collection_content -> parent. Admin-context query: filters neither {@code c.visibility} nor
-   * per-membership {@code cc.visible}, so the admin sees every parent relationship -- including
-   * ones where the child is linked but hidden. Mirrors the both-gates-dropped symmetry of {@link
-   * #findAllReferencedCollectionsByParentId}.
+   * collection_content -> parent.
+   *
+   * @param listedOnly with {@code false} (admin) both gates drop, so every parent relationship
+   *     shows -- including ones where the child is linked but hidden, mirroring the symmetry of
+   *     {@link #findAllReferencedCollectionsByParentId}. With {@code true} (public read) both
+   *     apply: {@code c.visibility}, because a HIDDEN or UNLISTED parent is a dead link and a
+   *     disclosure of a collection the visitor was not meant to know exists, and {@code
+   *     cc.visible}, because a membership the owner hid should not resurface as a parent link.
    */
   @Transactional(readOnly = true)
-  public List<CollectionEntity> findAllParentCollectionsByChildId(Long childId) {
+  public List<CollectionEntity> findAllParentCollectionsByChildId(
+      Long childId, boolean listedOnly) {
     String sql =
         "SELECT "
             + collectionColumns("c")
@@ -360,8 +365,9 @@ public class CollectionRepository extends BaseDao {
         JOIN collection_content cc ON cc.collection_id = c.id
         JOIN content_collection cct ON cct.id = cc.content_id
         WHERE cct.referenced_collection_id = :childId
-        ORDER BY c.title ASC
-        """;
+        """
+            + (listedOnly ? "AND c.visibility = 'LISTED' AND cc.visible = true\n" : "")
+            + "ORDER BY c.title ASC";
     MapSqlParameterSource params = createParameterSource().addValue("childId", childId);
     return query(sql, COLLECTION_ROW_MAPPER, params);
   }

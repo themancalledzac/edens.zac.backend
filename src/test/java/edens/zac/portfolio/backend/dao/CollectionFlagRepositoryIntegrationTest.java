@@ -367,7 +367,7 @@ class CollectionFlagRepositoryIntegrationTest extends AbstractPostgresIntegratio
 
     // Every column in the shared list survives the join projection and the shared row mapper.
     CollectionEntity viaParentLookup =
-        collectionRepository.findAllParentCollectionsByChildId(child.getId()).stream()
+        collectionRepository.findAllParentCollectionsByChildId(child.getId(), false).stream()
             .filter(c -> c.getId().equals(parent.getId()))
             .findFirst()
             .orElseThrow();

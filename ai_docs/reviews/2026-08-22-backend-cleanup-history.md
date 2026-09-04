@@ -9775,6 +9775,30 @@ Answers and reasoning:
 
 ---
 
+## #31 -- parents on public reads and the `is_film` backfill (#301)
+
+**`parents` was admin-only.** The inverse join was walked only on the manage path, so the
+  frontend's Related section could show curated siblings and nothing else.
+  `findAllParentCollectionsByChildId` now takes `listedOnly`, mirroring `findSiblings`. Public
+  reads apply **both** gates: `c.visibility = 'LISTED'`, because a HIDDEN or UNLISTED parent is a
+  dead link and a disclosure at once, and `cc.visible = true`, because a membership the owner hid
+  should not resurface as a parent link. Admin and the three internal callers -- cycle detection,
+  the delete-time parent recount, and role-grant propagation, all of which need every parent
+  regardless of visibility -- pass `false` and are unchanged.
+
+  **V62 restates two rules the ingest path already enforces**: a film stock implies film, and a
+  flagged film body implies film (`resolveFilmCameraDefaults`). It does not infer film from a
+  slug -- `-film` in a name is a naming habit, not data. `IS DISTINCT FROM TRUE` rather than
+  `= FALSE`, because the column is nullable and "unset" means NULL as often as FALSE.
+
+  **Scope limit, recorded so it is not mistaken for done.** The counts that motivated the item
+  (`chamonix-film` 0/5, `vienna-film` 0/5, `gorge-50km-film` 0/7 against `dolomites-film`'s 33/33)
+  are repaired only if those images carry a flagged body or a film stock. V23 flags exactly two
+  bodies, which is the likely reason dolomites reads 33/33 and the rest read zero. Not verifiable
+  this pass -- the local backend was down and those counts are a 2026-08-30 measurement, not a
+  current fact. **Re-measure against a live backend after this deploys**; if a third body is
+  involved, flagging it is a data call for the owner, not a migration that can guess.
+
 ## #29 and the ConstraintViolation handler (2026-09-02)
 
 `#29` closed as scoped: `@Validated` deleted from `ContentControllerProd` along with its import, and

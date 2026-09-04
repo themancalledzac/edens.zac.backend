@@ -41,7 +41,6 @@ import edens.zac.portfolio.backend.model.LocationPageResponse;
 import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.AccessLevel;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -223,7 +222,7 @@ class CollectionServiceTest {
       CollectionEntity parentA = CollectionEntity.builder().id(10L).totalContent(99).build();
       CollectionEntity parentB = CollectionEntity.builder().id(11L).totalContent(99).build();
       when(collectionRepository.findById(collectionId)).thenReturn(Optional.of(testCollection));
-      when(collectionRepository.findAllParentCollectionsByChildId(collectionId))
+      when(collectionRepository.findAllParentCollectionsByChildId(collectionId, false))
           .thenReturn(List.of(parentA, parentB));
       when(collectionRepository.countContentByCollectionId(10L)).thenReturn(3L);
       when(collectionRepository.countContentByCollectionId(11L)).thenReturn(5L);
@@ -511,6 +510,9 @@ class CollectionServiceTest {
       assertThat(result).isNotNull();
       assertThat(result.getTitle()).isEqualTo("Test Collection");
       verify(collectionProcessingUtil).populateSiblings(model, true);
+      // listedOnly must be true here. A HIDDEN or UNLISTED parent on a public read is a dead link
+      // and a disclosure of a collection the visitor was not meant to know exists.
+      verify(collectionProcessingUtil).populateParents(model, true);
     }
 
     @Test
@@ -1196,7 +1198,10 @@ class CollectionServiceTest {
     }
 
     @Test
-    void getUpdateCollectionData_populatesParentsFromInverseJoin() {
+    void getUpdateCollectionData_populatesParentsUnfiltered() {
+      // The mapping itself lives in CollectionProcessingUtil.populateParents and is covered by
+      // CollectionProcessingUtilTest. What this path decides is the gate: admin passes false, so
+      // a HIDDEN parent still shows.
       String slug = "child";
       CollectionEntity child =
           CollectionEntity.builder()
@@ -1207,28 +1212,15 @@ class CollectionServiceTest {
               .build();
       CollectionModel model =
           CollectionModel.builder().id(7L).slug(slug).title("Child").content(List.of()).build();
-      CollectionEntity parent =
-          CollectionEntity.builder()
-              .id(42L)
-              .title("Parent")
-              .slug("parent")
-              .collectionDate(LocalDate.of(2026, 1, 1))
-              .build();
 
       when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(child));
       when(collectionProcessingUtil.convertToFullModel(child)).thenReturn(model);
-      when(collectionRepository.findAllParentCollectionsByChildId(7L)).thenReturn(List.of(parent));
       stubEmptyMetadata();
       stubNoGalleryAccess();
 
-      CollectionRequests.UpdateResponse response = service.getUpdateCollectionData(slug);
+      service.getUpdateCollectionData(slug);
 
-      assertThat(response.collection().getParents())
-          .extracting(Records.CollectionList::id)
-          .containsExactly(42L);
-      assertThat(response.collection().getParents())
-          .extracting(Records.CollectionList::collectionDate)
-          .containsExactly(LocalDate.of(2026, 1, 1));
+      verify(collectionProcessingUtil).populateParents(model, false);
     }
 
     /**

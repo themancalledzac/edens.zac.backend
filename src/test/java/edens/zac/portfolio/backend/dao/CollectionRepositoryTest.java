@@ -310,7 +310,8 @@ class CollectionRepositoryTest {
               anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
           .thenReturn(List.of(stub));
 
-      List<CollectionEntity> parents = collectionRepository.findAllParentCollectionsByChildId(42L);
+      List<CollectionEntity> parents =
+          collectionRepository.findAllParentCollectionsByChildId(42L, false);
 
       verify(namedParameterJdbcTemplate)
           .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
@@ -331,7 +332,7 @@ class CollectionRepositoryTest {
               anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
           .thenReturn(List.of());
 
-      assertThat(collectionRepository.findAllParentCollectionsByChildId(42L)).isEmpty();
+      assertThat(collectionRepository.findAllParentCollectionsByChildId(42L, false)).isEmpty();
     }
   }
 

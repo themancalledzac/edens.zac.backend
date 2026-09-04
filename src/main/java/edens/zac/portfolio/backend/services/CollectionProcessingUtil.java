@@ -512,6 +512,35 @@ public class CollectionProcessingUtil {
   }
 
   /**
+   * Populate {@code parents} from the inverse of the parent/child join.
+   *
+   * <p>Cover images are deliberately not loaded: parents render as text links, and fetching covers
+   * would add a query per read for something nothing displays yet.
+   *
+   * @param listedOnly LISTED parents only. The public read path must pass {@code true} -- a HIDDEN
+   *     or UNLISTED parent there is a dead link and a disclosure at once.
+   */
+  public void populateParents(CollectionModel model, boolean listedOnly) {
+    if (model == null || model.getId() == null) {
+      return;
+    }
+
+    model.setParents(
+        collectionRepository.findAllParentCollectionsByChildId(model.getId(), listedOnly).stream()
+            .map(
+                p ->
+                    new Records.CollectionList(
+                        p.getId(),
+                        p.getTitle(),
+                        p.getSlug(),
+                        p.getCollectionDate(),
+                        null,
+                        p.isClient(),
+                        p.isBlog()))
+            .toList());
+  }
+
+  /**
    * Convert a join table entry to a ChildCollection record using pre-loaded data.
    *
    * @param joinEntry The join table entry
