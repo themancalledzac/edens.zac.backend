@@ -19,7 +19,7 @@ controller/edit/  - Collaborator write endpoints, all profiles (gated by Collabo
 controller/prod/  - Public read endpoints (/api/read/...), all profiles (no @Profile gating)
 services/         - Business logic (concrete *Service classes, no interface/Impl split)
 dao/              - Data access (JDBC via NamedParameterJdbcTemplate, not JPA repositories)
-entity/           - JPA entities (*Entity suffix)
+entity/           - Plain data classes (*Entity suffix), Lombok plus Jakarta constraints; no JPA on the classpath
 model/            - DTOs, requests, responses (*Model, *Request, *ResponseDTO)
 types/            - Enums and type definitions
 config/           - Spring configuration
@@ -77,7 +77,6 @@ because it looks useful.
 ### Entity Design
 - Lombok: `@Data`, `@Builder`, `@RequiredArgsConstructor`
 - Jakarta Validation annotations for constraints
-- `@CreationTimestamp` and `@UpdateTimestamp` for audit fields
 
 ## Build & Test
 ```bash
