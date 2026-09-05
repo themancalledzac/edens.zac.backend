@@ -34,8 +34,13 @@ public record ImageSearchFilter(
     size = size == null ? DEFAULT_SIZE : size;
   }
 
-  /** Combines these filters with the resolved paging into a service request. */
-  public ImageSearchRequest toRequest() {
+  /**
+   * Combines these filters with the resolved paging into a service request.
+   *
+   * @param publicOnly true on the anonymous read route, false on the admin route. Passed in rather
+   *     than declared as a bound parameter so no query string can set it.
+   */
+  public ImageSearchRequest toRequest(boolean publicOnly) {
     return new ImageSearchRequest(
         personIds,
         tagIds,
@@ -48,6 +53,7 @@ public record ImageSearchFilter(
         captureStartDate,
         captureEndDate,
         page,
-        size);
+        size,
+        publicOnly);
   }
 }

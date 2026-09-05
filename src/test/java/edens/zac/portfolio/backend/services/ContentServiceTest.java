@@ -85,7 +85,8 @@ class ContentServiceTest {
   @DisplayName("searchImages converts via the batch path, never the per-image N+1 path")
   void searchImages_usesBatchConverter() {
     ImageSearchRequest request =
-        new ImageSearchRequest(null, null, null, null, null, null, null, null, null, null, 0, 50);
+        new ImageSearchRequest(
+            null, null, null, null, null, null, null, null, null, null, 0, 50, false);
 
     ContentImageEntity image1 =
         ContentImageEntity.builder().id(1L).contentType(ContentType.IMAGE).build();

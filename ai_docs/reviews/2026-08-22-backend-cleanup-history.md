@@ -6483,6 +6483,136 @@ rather than a close-out and does not carry the sentence rule 38 asks for.
   so nothing is lost, but the next concentration filed will land in a fourth place. Rule 47 says file
   a left-behind concentration as its own item; it does not say where.
 
+### Session log entry, eleventh run (moved 2026-09-05)
+
+Moved from the tracker by the #309 close-out.
+
+### 2026-09-05 -- eleventh run. Full critical review
+
+**Docs only, no code.** Reviewed `main` at `afa39d6f` from the 2026-09-04 handoff; eight slices, one
+apply pass, branch `docs/eleventh-run-review`. **Gates before, on `main` at `afa39d6f`:** boxes 65,
+`S-` 3, `U-` 5, `Bug #` 0, `#[0-9]` 3, `FE-` 4, tracker 1,873 / history 9,915. **After, on this
+branch:** boxes 72, `S-` 6, `U-` 3, `Bug #` 1, `#[0-9]` 4, `FE-` 3, tracker 1,591 / history
+10,880 (`git diff --numstat main -- <board>` = +559 / -841); **all seven re-confirmed on `main` at
+`50d633e2` after the merge.** Inline comments 203 / 1,183, unchanged
+(`src/` untouched); trailing form 67 with the widened scheme filter. Full suite on the clean worktree
+at `afa39d6f`: **1,526 tests, 0 failures, 0 errors, 0 skipped.** **Eight closures:** U-1, U-8, #30,
+FE-5, C1, C3, C5, C6. **Six new security and bug rows:** S-32, S-33, S-34 (the S-29 siblings), Bug
+#32, and #33, #34 from the frontend handoffs. Also filed: four MR 26 coverage rows, six rule-37
+per-file sweeps, one decision (disk import), one MR 22 LOW row. **Taught rules 54 and 55**; rules
+40-53 moved to history in full and the board keeps an index. `scripts/board-gates.sh` added.
+Write-up: [history](2026-08-22-backend-cleanup-history.md#full-board-review----run-2026-09-05-eleventh-run). **Next:** S-29 + S-32 + S-34 as one MR.
+
+### S-29, S-32 and S-34 outcome -- 2026-09-05
+
+Closed together by [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309); the three
+rows shared one root cause, so they shared one predicate. Their bodies moved here on close (rule
+53) and the tracker keeps a ledger line each. Full text as filed at the eleventh run:
+
+- [ ] **S-29** (**HIGH**, re-graded 2026-09-02 by the user) **anonymous `GET /api/read/content/images/search`
+  returns every image, private client galleries included.** `SecurityConfig:79-80` lets
+  `/api/read/content/**` fall to `permitAll`; `ContentControllerProd.searchImages` (`:44`) ->
+  `ContentService.searchImages` (`:393`) -> `ContentRepository.searchImages` (`:767`);
+  `SELECT_CONTENT_IMAGE` (`:158`) joins no `collection`, and `appendSearchConditions` (`:812-861`) has
+  no visibility or `gallery_password` predicate. The response carries `imageUrl` and `imageUrlRaw`,
+  unsigned CloudFront URLs. Walks around `enforceVisibility` (`CollectionService:1514`), the stripping
+  at `CollectionControllerProd:99-103` and `isDownloadAuthorized` (`ContentDownloadControllerProd:196-204`).
+  **Proven 2026-09-04** by an anonymous GET against a Testcontainers boot seeded with `is_client = true`,
+  `visibility = 'UNLISTED'` and a `gallery_password`: 200 with the image id and URL. **Live in
+  production on three anonymous frontend routes** (`/search` sends `size=200` with no criteria,
+  `/location/[slug]` sends `locationId`, `/tag/[slug]` sends `tagIds`; all via `fetchPublicRead`, Next
+  data cache 3600s under tag `search-images`); the frontend cannot filter because the search path never
+  populates `collections`. On deploy the frontend owes `revalidateTag('search-images')` plus the
+  location and tag tags (frontend board D15, blocked on this row).
+
+  **Fix, counted 2026-09-04:** one `EXISTS (... cc.visible = true AND col.visibility = 'LISTED' AND
+  col.gallery_password IS NULL)` in `appendSearchConditions`, switched by a `publicOnly` flag on
+  `ImageSearchRequest` (`ContentControllerProd:44` true, `AdminController:259` false). About 15 main
+  lines across 4 files, 1 test line, plus one new `AbstractPostgresIntegrationTest` class of 70-90 lines.
+  **Key it on the route, never on `CurrentUser`**: the route is in `CacheControlInterceptor.PUBLIC_ROUTES`
+  (`:70`) and the CDN cache key excludes cookies (`terraform/cloudfront.tf:113-119`), so a
+  viewer-dependent body poisons the shared cache. `isImageVisibleToUser` cannot be reused (per-image,
+  password-blind, takes a `userId`). The same `EXISTS` closes S-32; `AND col.gallery_password IS NULL`
+  closes S-34. **Mutation:** seed UNLISTED+password and LISTED+password, assert the anonymous search
+  omits both and `GET /api/admin/content/images` still returns them, delete the predicate, watch it
+  redden. Every existing search test mocks the repository (`grep -rn searchImages src/test/java`), so a
+  Mockito test cannot count.
+- [ ] **S-32** (HIGH) **the location page's orphan strip returns private-gallery images, and the
+  route is CDN-cacheable.** *(Filed 2026-09-05.)* `GET /api/read/collections/location/{slug}`
+  (`CollectionControllerProd:124-140`, anonymous) -> `getLocationPageBySlug` (`CollectionService:240-260`),
+  whose exclusion list is the location's LISTED collection ids only, so an image whose only home is a
+  private gallery is by definition an orphan of the location. `findOrphanContentByLocationName`
+  (`ContentRepository:414`) and `countOrphanContentByLocationName` (`:461`) predicate on
+  `location_name`, `content_type` and `NOT EXISTS (... :excludeCollectionIds)`; no visibility or
+  password term. Images get location rows automatically from EXIF at upload
+  (`ImageProcessingService:405-408`, `:432-435`). The route is in `CacheControlInterceptor.PUBLIC_ROUTES`
+  (`:63`) and the CloudFront key for `/api/read/*` excludes cookies, so one visit caches the private
+  URL for `s-maxage`. **Proven 2026-09-04**: seeded the S-29 collection plus a location and a
+  `content_image_locations` row; anonymous GET returned 200 with the image id and URL in `images`.
+  **Rider:** `LocationRepository.findLocationsWithVisibleContent` (`:300-348`) counts the same orphans
+  into `orphan_image_count` and admits a location on it alone, so a location whose only content is a
+  private gallery is listed as public by `GET /api/read/content/locations`. **Fix:** the S-29
+  `EXISTS` appended to both orphan queries; price with S-29. The MR 19 orphan-`images` row deletes
+  the same query; whichever lands first, the other must not reopen this.
+- [ ] **S-34** (MED) **the tag view returns images from a LISTED password-protected gallery.**
+  *(Filed 2026-09-05.)* `TagRepository.findImageContentByTagId` (`:289-311`) predicates on
+  `cc.visible = true` and `col.visibility IN (:visibilities)` with no `gallery_password` term;
+  `TagViewResolver:69-77` scopes prod to LISTED and returns the images with URLs under
+  `GET /api/read/collections/{tagSlug}`. LISTED-plus-password is a supported state:
+  `CollectionControllerProd:99-103` strips content on `isPasswordProtected` regardless of visibility.
+  **Proven 2026-09-04**: seeded `visibility = 'LISTED'`, `is_client = true`, a password, one tagged
+  image with membership only there; anonymous GET returned 200 with the id and URL. **Fix:**
+  `AND col.gallery_password IS NULL` at `TagRepository:303`. **Rider (LOW, same row):**
+  `isImageVisibleToUser` (`ContentRepository:262-281`) and `findSavedImagesByUserId` (`:303-320`) treat
+  LISTED as visible with no password term, so any signed-in USER can save and re-read an image from a
+  LISTED password gallery. This is also why `isImageVisibleToUser` cannot be reused for S-29.
+
+**What shipped.** `publicOnly` is a component of `ImageSearchRequest` and a parameter of
+`ImageSearchFilter.toRequest`. It is deliberately *not* a field on `ImageSearchFilter`: that record
+is the `@ModelAttribute` Spring binds from the query string, so a flag living there could have been
+switched off by any caller -- the exact failure S-29 warned about for `CurrentUser`, arriving by a
+different door. `ContentControllerProd:44` passes true, `AdminController:259` false, and those two
+call sites are the only ones.
+
+One `PUBLIC_COLLECTION_MEMBERSHIP` constant serves all three findings: a condition in
+`appendSearchConditions`, so `searchImages` and `countSearchImages` cannot drift apart, and appended
+to `findOrphanContentByLocationName` and `countOrphanContentByLocationName`. S-34 is one
+unconditional `AND col.gallery_password IS NULL` in `TagRepository` -- unconditional because both
+callers (`TagService:123`, `TagViewResolver:76`) serve the anonymous tag view.
+
+**The consequence the row did not price.** The predicate is a *membership* test, so it also excludes
+content belonging to no collection at all. An uploaded image not yet placed anywhere used to appear
+on the public location page and no longer does. Same disclosure, so the direction is right, but the
+location page shrinks and the frontend should hear it alongside D15.
+
+That surfaced through the suite rather than by reading: all four cases in
+`ContentRepositoryLocationOrphanIntegrationTest` seed content with no membership, so the change
+turned them red. Had they asserted absence instead, they would have gone green on empty results
+forever. Each now publishes into a LISTED password-free collection via a `publish` helper, which
+restores what those cases were written to prove (bug #19, that GIFs surface beside images).
+
+**Evidence.** `AnonymousReadVisibilityIntegrationTest` is a new `AbstractPostgresIntegrationTest`
+class, required because every existing search test stubs `ContentRepository` and would have stayed
+green with the fix deleted. It seeds one image per membership state -- LISTED-no-password,
+UNLISTED+password, LISTED+password, and no membership at all -- each tagged and located, so one seed
+drives all three routes. Three separate mutations, each reddening only its own cases:
+
+| Mutation | Reddened |
+|---|---|
+| `conditions.add(PUBLIC_COLLECTION_MEMBERSHIP)` -> `add("true")` | `theAnonymousImageSearchOmitsPrivateGalleryImages`, `theAnonymousImageSearchCountMatchesThePage` |
+| `AND PUBLIC_COLLECTION_MEMBERSHIP` dropped from both orphan queries | `theLocationOrphanStripOmitsPrivateGalleryImages` |
+| `AND col.gallery_password IS NULL` dropped from `TagRepository` | `theTagViewOmitsAListedGalleryThatHasAPassword`, `theTagViewsWiderLocalScopeStillOmitsPasswordGalleries` |
+
+That the three sets are disjoint is the point: it shows the fixes are independently covered, not
+that one test happens to catch all of them (rule 32). The admin route is asserted in the same class
+-- `theAdminImageSearchStillReturnsEveryImage` expects all four images back with `publicOnly` false.
+
+**Not closed.** Both riders were left as their own rows rather than being absorbed silently: S-35
+(`LocationRepository.findLocationsWithVisibleContent` holds a third copy of the orphan test, inlined
+twice within itself, and admits a location on the orphan count alone) and S-36
+(`isImageVisibleToUser` and `findSavedImagesByUserId` still have no password term). Full suite 1,532
+tests, 0 failures, 0 errors, 0 skipped.
+
 ## Full-board review -- RUN 2026-09-05 (eleventh run)
 
 Reviewed `main` at `afa39d6f` (identical to `origin/main`) on 2026-09-04 and 2026-09-05, starting

@@ -256,7 +256,7 @@ class AdminController {
   @GetMapping("/content/images")
   public ResponseEntity<PagedResponse<ContentModels.Image>> getAllImages(
       @Valid @ModelAttribute ImageSearchFilter filter) {
-    return ResponseEntity.ok(contentService.searchImages(filter.toRequest()));
+    return ResponseEntity.ok(contentService.searchImages(filter.toRequest(false)));
   }
 
   /** Delete one or more images. */

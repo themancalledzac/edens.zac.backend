@@ -283,7 +283,11 @@ public class TagRepository extends BaseDao {
   /**
    * IDs of tagged IMAGE content, newest first. Content has no visibility of its own, so an image
    * qualifies only via a visible membership ({@code collection_content.visible}) in a collection
-   * within {@code allowed}. Distinct; empty when none qualify.
+   * within {@code allowed} that has no gallery password. Distinct; empty when none qualify.
+   *
+   * <p>LISTED-plus-password is a supported state, so {@code allowed} alone does not exclude a
+   * private client gallery; both callers serve the anonymous tag view, hence the unconditional
+   * password term.
    */
   @Transactional(readOnly = true)
   public List<Long> findImageContentByTagId(Long tagId, List<CollectionVisibility> allowed) {
@@ -301,6 +305,7 @@ public class TagRepository extends BaseDao {
           AND c.content_type = 'IMAGE'
           AND cc.visible = true
           AND col.visibility IN (:visibilities)
+          AND col.gallery_password IS NULL
         ORDER BY c.created_at DESC NULLS LAST, c.id DESC
         """;
     MapSqlParameterSource params =
