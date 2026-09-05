@@ -49,11 +49,11 @@ is the same failure the paragraph above was written to fix:
 wc -l ai_docs/reviews/2026-08-22-backend-cleanup-spike.md ai_docs/reviews/2026-08-22-backend-cleanup-history.md
 ```
 
-**Measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05): tracker 1,591, history 10,880.**
+**Re-run on `main` at `50d633e2` after #307 merged (rule 42): tracker 1,591, history 10,880, both unchanged from the review branch -- the merge moved nothing. The restamp PR recording that is line-neutral on the tracker and adds 9 history lines, taking history to 10,889.**
 Chain since the tenth close-out: `8f635d35` **1,873** / **9,774**; #303 (`efed4c63`) **1,864** / **9,854**;
 #304 and #305 (`bd0e15ef`) **1,864** / **9,891**; #301 (`afa39d6f`) **1,873** / **9,915**; this review
-**-282** / **+965**. **#301 grew the tracker by 9 lines (+11 / -1), which rule 53 forbids, and
-nothing recorded it.** **Re-run both on `main` after the merge (rule 42) and restamp.** The tracker's
+**-282** / **+965**; #307 (`50d633e2`) **1,591** / **10,880**. **#301 grew the tracker by 9 lines
+(+11 / -1), which rule 53 forbids, and nothing recorded it.** The tracker's
 delta must be <= 0 in every MR that touches it (**working rule 53**); `scripts/board-gates.sh` checks it.
 The #299 rebase arithmetic: [history](2026-08-22-backend-cleanup-history.md#rule-53-size-stamp-the-299-rebase-paragraph-moved-2026-09-05).
 
@@ -1513,8 +1513,7 @@ stops sliding silently.
 
 ### Classification of the open board (stamped 2026-09-05, eleventh-run review)
 
-**72 open** by `grep -c '^- \[ \] '`, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. From 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
-The parent session restamps on `main` after the merge (rule 42).
+**72 open** by `grep -c '^- \[ \] '`, re-run on `main` at `50d633e2` after #307 merged (rule 42) and unchanged from the review branch. From 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
 
 - **HIGH, scheduled first:** S-29, S-32, S-33, S-34, Bug #32.
 - **COLD:** S-30, S-31; MR 18 #10; MR 19 #17 (b), (c), (e); the orphan `images` array; `searchImages`
@@ -1581,7 +1580,8 @@ history file: the [pre-split log](2026-08-22-backend-cleanup-history.md#session-
 apply pass, branch `docs/eleventh-run-review`. **Gates before, on `main` at `afa39d6f`:** boxes 65,
 `S-` 3, `U-` 5, `Bug #` 0, `#[0-9]` 3, `FE-` 4, tracker 1,873 / history 9,915. **After, on this
 branch:** boxes 72, `S-` 6, `U-` 3, `Bug #` 1, `#[0-9]` 4, `FE-` 3, tracker 1,591 / history
-10,880 (`git diff --numstat main -- <board>` = +559 / -841). Inline comments 203 / 1,183, unchanged
+10,880 (`git diff --numstat main -- <board>` = +559 / -841); **all seven re-confirmed on `main` at
+`50d633e2` after the merge.** Inline comments 203 / 1,183, unchanged
 (`src/` untouched); trailing form 67 with the widened scheme filter. Full suite on the clean worktree
 at `afa39d6f`: **1,526 tests, 0 failures, 0 errors, 0 skipped.** **Eight closures:** U-1, U-8, #30,
 FE-5, C1, C3, C5, C6. **Six new security and bug rows:** S-32, S-33, S-34 (the S-29 siblings), Bug

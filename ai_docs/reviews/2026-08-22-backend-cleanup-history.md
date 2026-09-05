@@ -6497,6 +6497,15 @@ close-out. Slice reports are in the session scratchpad and are not committed; ev
 carries the command or the `file:line` on `afa39d6f` that supports it. The frontend session sent
 cross-repo input the same day (`edens.zac` at `10f30de0`, its PR #401); it is folded in below.
 
+### Post-merge re-run of the gates -- 2026-09-05, `main` at `50d633e2`
+
+[#307](https://github.com/themancalledzac/edens.zac.backend/pull/307) merged and every gate was
+re-run on `main` under rule 42 with `scripts/board-gates.sh origin/main`. All seven figures came
+back identical to the review branch -- boxes 72, `S-` 6, `U-` 3, `Bug #` 1, `#[0-9]` 4, `FE-` 3,
+tracker 1,591 / history 10,880, inline comments 203 main / 1,183 test. The merge moved nothing, so
+the review-branch stamps stand as measured and the tracker now cites the merged commit instead of
+the branch.
+
 ### Verdict
 
 The code shipped by the recent PRs is sound. The recovery in #306 is byte-complete against both
