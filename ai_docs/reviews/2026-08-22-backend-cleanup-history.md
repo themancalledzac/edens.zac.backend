@@ -6584,6 +6584,45 @@ Moved off the tracker by the #309 close-out under the two-tier rule.
 
 Moved from the tracker by the #309 close-out.
 
+### 2026-09-06 -- S-33 closed. The flag shape was the fix, not the filter
+
+[#312](https://github.com/themancalledzac/edens.zac.backend/pull/312) gave
+`CollectionProcessingUtil.populateCollectionsOnContent` the `listedOnly` flag its two neighbours
+already carried. Three main files, one new integration test class, suite 1,532 -> 1,535.
+
+**The row's corrected premise was right, and re-deriving it cost one command.** `git grep -n
+populateCollectionsOnContent -- src/main/java` still returned exactly three call sites:
+`CollectionService:160` (public, now `true`), `CollectionService:1498` (`reorderContent`, admin,
+`false`) and `CollectionProcessingUtil:358` inside `convertToFullModel` (`false`) -- the one the
+original row missed, which reaches `AdminController:143` and the COLLABORATOR surface at
+`EditController:82`. Adding the parameter rather than filtering inside the method is what forced all
+three to be looked at; a filter keyed on some internal notion of "public path" would have left the
+third silently wrong for a second time.
+
+The filter itself is `isPubliclyVisibleMembership`, the same three terms as
+`ContentRepository.PUBLIC_COLLECTION_MEMBERSHIP` (`cc.visible`, `visibility = LISTED`,
+`gallery_password IS NULL`) applied in Java, because the collections are already batch-loaded at
+that point and a second query would be an N+1 the method exists to avoid. The cover-image id list
+is now derived from the surviving memberships rather than from every loaded collection, so a
+private collection's cover is no longer fetched on a public read either.
+
+**The test asserts both sides of the flag from one seeded graph.** Four memberships on one image:
+the public collection, a LISTED-with-password gallery, an UNLISTED collection, and a LISTED open
+collection whose join row is `visible = false` (that last one is the only thing pinning the
+`cc.visible` term). The public read must return exactly one; the admin read through `findBySlug`
+must still return all four. A public-only assertion would have stayed green with the flag hardcoded
+`true`, which would have broken the admin manage payload instead. Flipping `:160` back to `false`
+fails the two public cases and leaves the admin case green.
+
+`filterNonListedChildCollections` was not touched, as the row required -- it strips child collection
+BLOCKS, a different mechanism from this array.
+
+**Rebased onto #311.** The code commit replayed clean; only the docs commit conflicted, in both
+tracker files, exactly as predicted when the four MRs were cut from one base. Resolved by taking
+`main`'s tracker and re-applying this row's edits from the new base rather than hand-merging hunks,
+so the counts are measured rather than arithmetic. #311 had also left "All five sit on the anonymous
+public read surface" in the section row after moving the count to 4; corrected to "All three" here.
+
 ### 2026-09-06 -- S-36 closed, and a count that was never true on main
 
 [#311](https://github.com/themancalledzac/edens.zac.backend/pull/311) closed S-36: `AND
