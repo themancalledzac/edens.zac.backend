@@ -269,12 +269,18 @@ public class ContentRepository extends BaseDao {
 
   /**
    * True iff {@code userId} may SEE {@code imageId}: the image holds at least one visible
-   * membership ({@code collection_content.visible = true}) in a collection that is either LISTED or
-   * one the user reaches through a role grant. The access EXISTS subquery resolves via {@code
-   * role_member} JOIN {@code role_collection}, matching {@code CollectionAccessService.canView}
-   * (any role the user is a member of that grants the collection). UNLISTED/HIDDEN-only images are
-   * not visible unless the caller holds such a role grant. Gates {@code UserSavesService.add} so a
-   * viewer cannot save (and thereby exfiltrate) an image from a gallery they cannot access.
+   * membership ({@code collection_content.visible = true}) in a collection that is either LISTED
+   * with no gallery password, or one the user reaches through a role grant. The access EXISTS
+   * subquery resolves via {@code role_member} JOIN {@code role_collection}, matching {@code
+   * CollectionAccessService.canView} (any role the user is a member of that grants the collection).
+   * UNLISTED/HIDDEN-only images are not visible unless the caller holds such a role grant. Gates
+   * {@code UserSavesService.add} so a viewer cannot save (and thereby exfiltrate) an image from a
+   * gallery they cannot access.
+   *
+   * <p>LISTED-plus-password is a supported state: a client gallery is discoverable as a tile while
+   * its content stays behind the password. The password term therefore sits on the LISTED arm only.
+   * The role-grant arm is deliberately left open -- an explicit grant is how a named client reaches
+   * their own gated gallery, so filtering it would revoke access from the people it was issued to.
    */
   @Transactional(readOnly = true)
   public boolean isImageVisibleToUser(Long imageId, Long userId) {
@@ -287,7 +293,7 @@ public class ContentRepository extends BaseDao {
           WHERE cc.content_id = :imageId
             AND cc.visible = true
             AND (
-              col.visibility = 'LISTED'
+              (col.visibility = 'LISTED' AND col.gallery_password IS NULL)
               OR EXISTS (
                 SELECT 1 FROM role_member rm
                 JOIN role_collection rc ON rc.role_id = rm.role_id
@@ -312,10 +318,11 @@ public class ContentRepository extends BaseDao {
 
   /**
    * A user's saved images as full entities, newest-saved first. Applies the same visibility gate as
-   * {@link #isImageVisibleToUser}: an image is returned only while it still holds a visible
-   * membership in a LISTED collection or one the user has explicit access to. Defense-in-depth — a
-   * save made while an image was visible drops out of the list if the owner later hides it, and it
-   * closes the read side even if a row was ever inserted without the write-side check.
+   * {@link #isImageVisibleToUser}, password term included: an image is returned only while it still
+   * holds a visible membership in a LISTED collection with no gallery password, or in one the user
+   * has explicit access to. Defense-in-depth — a save made while an image was visible drops out of
+   * the list if the owner later hides it or sets a password, and it closes the read side even if a
+   * row was ever inserted without the write-side check.
    */
   @Transactional(readOnly = true)
   public List<ContentImageEntity> findSavedImagesByUserId(Long userId) {
@@ -329,7 +336,7 @@ public class ContentRepository extends BaseDao {
             + "     WHERE cc.content_id = c.id"
             + "       AND cc.visible = true"
             + "       AND ("
-            + "         col.visibility = 'LISTED'"
+            + "         (col.visibility = 'LISTED' AND col.gallery_password IS NULL)"
             + "         OR EXISTS ("
             + "           SELECT 1 FROM role_member rm"
             + "           JOIN role_collection rc ON rc.role_id = rm.role_id"
