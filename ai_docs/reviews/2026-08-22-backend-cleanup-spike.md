@@ -49,7 +49,7 @@ is the same failure the paragraph above was written to fix:
 wc -l ai_docs/reviews/2026-08-22-backend-cleanup-spike.md ai_docs/reviews/2026-08-22-backend-cleanup-history.md
 ```
 
-**At `a20473fd` (rule 42): tracker 1,591, history 10,889.** [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309) takes them to **1,585** / **11,019** (`--numstat` 74 / 79): three closed security bodies and the eleventh-run log entry moved out, two new rows (S-35, S-36), three ledger lines, two working rules and the cross-repo note in.
+**At `a20473fd` (rule 42): tracker 1,591, history 10,889.** #309 took them to **1,585** / **11,019**. [#310](https://github.com/themancalledzac/edens.zac.backend/pull/310) takes them to **1,571** / **11,143** (`--numstat` 85 / 99): five fully-closed sections (MR 14 docblocks, MR 15, MR 16, MR 17, the closed-findings ledger) and the #309 log entry moved out; seven restamped refs, two corrected C8 numbers, the S-33 re-specification and one new row in.
 Chain since the tenth close-out: `8f635d35` **1,873** / **9,774**; #303 (`efed4c63`) **1,864** / **9,854**;
 #304 and #305 (`bd0e15ef`) **1,864** / **9,891**; #301 (`afa39d6f`) **1,873** / **9,915**; this review
 **-282** / **+965**; #307 (`50d633e2`) **1,591** / **10,880**. **#301 grew the tracker by 9 lines
@@ -399,7 +399,7 @@ closed findings lives in auth, session, role-membership, share or actuator code;
 `/api/read/content/**` and `/api/read/collections/**` were never attacked as an authorization
 surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309). **This is the third cell rule 36 does not name; move it with the other two.**
 
-- [x] **S-29** (**HIGH**) anonymous `GET /api/read/content/images/search` returned every image, private client galleries included -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05, with S-32 and S-34. A `publicOnly` flag on `ImageSearchRequest`, set from the route and never bindable, switches one `EXISTS` on a LISTED password-free membership. **Frontend owes `revalidateTag('search-images')` plus the location and tag tags** (D15). [Write-up](2026-08-22-backend-cleanup-history.md#s-29-s-32-and-s-34-outcome-2026-09-05).
+- [x] **S-29** (**HIGH**) anonymous `GET /api/read/content/images/search` returned every image, private client galleries included -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05, with S-32 and S-34. A `publicOnly` flag on `ImageSearchRequest`, set from the route and never bindable, switches one `EXISTS` on a LISTED password-free membership. **Frontend owes `revalidateTag('search-images')` plus the location and tag tags** (D15). [Write-up](2026-08-22-backend-cleanup-history.md#s-29-s-32-and-s-34-outcome----2026-09-05).
 - [x] **S-32** (HIGH) the location page's orphan strip returned private-gallery images on a CDN-cacheable route -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05. **The same predicate also drops content held by no collection at all, which the row did not price** -- the public location page will shrink. **Rider still open as S-35.**
 - [ ] **S-33** (MED) **every image on a public collection read lists every collection it belongs to,
   unlisted and password-protected ones included.** *(Filed 2026-09-05; found by slices A and B
@@ -413,6 +413,28 @@ surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/
   exists to prevent this disclosure one level up. **Fix:** filter to `visibility = LISTED AND
   gallery_password IS NULL AND cc.visible = true` on the public path only; the other caller,
   `reorderContent` (`CollectionService:1498`, admin), keeps every membership.
+
+  **Premise corrected 2026-09-06, during the #309 close-out. The row names two call sites; there
+  are three.** `git grep -n populateCollectionsOnContent -- src/main/java` returns
+  `CollectionService:160` (the public path), `CollectionService:1498` (`reorderContent`, admin) and
+  **`CollectionProcessingUtil:358`**, inside `convertToFullModel`, which the row never mentions.
+  That third one reaches `findBySlug` (`CollectionService:350`) -> `getUpdateCollectionData`
+  (`:885`) -> `AdminController:143`, and through `updateContentWithMetadata` (`:670`) also
+  **`EditController:82`, a COLLABORATOR surface** (`/api/edit/**`, gated at COLLABORATOR+). **The
+  security conclusion is unchanged** -- no anonymous route reaches it, so S-33 stays MED and the
+  leak is still the public path alone. What changes is the size and the shape of the fix.
+
+  **Fix, re-specified.** Not "filter on the public path" -- give the method the flag its two
+  neighbours already carry. `populateSiblings(model, boolean listedOnly)` (`:472`) and
+  `populateParents(model, boolean listedOnly)` (`:523`) are both passed `true` at
+  `CollectionService:162` and `:164` and `false` on admin. Give `populateCollectionsOnContent`
+  (`:374`) the same parameter and the compiler forces all three call sites to declare themselves,
+  which is the only thing stopping the third being forgotten twice. `true` at `:160`; `false` at
+  `:1498` and `CollectionProcessingUtil:358`.
+
+  **Trap.** `filterNonListedChildCollections` strips child *blocks* and is a different mechanism;
+  it does not touch this array and must not be extended to. **Command:**
+  `git grep -n 'populateCollectionsOnContent\|populateSiblings\|populateParents' -- src/main/java`.
 - [x] **S-34** (MED) the tag view returned images from a LISTED password-protected gallery -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05. One unconditional `AND col.gallery_password IS NULL`; both callers serve the anonymous view. **Rider still open as S-36.**
 - [ ] **S-35** (MED) **`GET /api/read/content/locations` lists a location whose only content is a
   private gallery.** *(Filed 2026-09-05, split from the S-32 rider when #309 closed the two orphan
@@ -423,7 +445,7 @@ surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/
   requirement that the image hold *any* public membership. So an image whose only home is a
   password gallery counts as an orphan of the location, and the `HAVING` admits the location on
   that count alone. Verified 2026-09-05 by reading; the two `NOT EXISTS` blocks are byte-identical.
-  **Fix:** the same `PUBLIC_COLLECTION_MEMBERSHIP` shape #309 added to `ContentRepository:193`,
+  **Fix:** the same `PUBLIC_COLLECTION_MEMBERSHIP` shape #309 added to `ContentRepository:192`,
   applied to the `CASE` (the `HAVING` then follows, or better, lift the expression once). The route
   is anonymous and shared-cacheable like the other three. **Command:**
   `sed -n '300,348p' src/main/java/edens/zac/portfolio/backend/dao/LocationRepository.java`.
@@ -431,14 +453,16 @@ surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/
   a new case must seed one.
 - [ ] **S-36** (LOW) **a signed-in USER can save and re-read an image from a LISTED
   password-protected gallery.** *(Filed 2026-09-05, split from the S-34 rider; #309 fixed the tag
-  view only.)* `isImageVisibleToUser` (`ContentRepository:271-296`) admits on
+  view only.)* `isImageVisibleToUser` (`ContentRepository:280-301`, docblock from `:270`) admits on
   `col.visibility = 'LISTED'` with no `gallery_password` term, and `findSavedImagesByUserId`
-  (`:318-335`) applies the same gate, so the read side does not close it either. LISTED-plus-password
+  (`:321-340`, docblock from `:313`) applies the same gate, so the read side does not close it either. LISTED-plus-password
   is a supported state, which is the whole reason `isImageVisibleToUser` could not be reused for
   S-29. Scope is narrower than S-29's: it needs an authenticated account, not an anonymous GET,
   which is why this is LOW. **Fix:** `AND col.gallery_password IS NULL` on the LISTED arm of both,
   leaving the role-grant arm alone -- someone with an explicit grant should still see it.
-  **Command:** `sed -n '262,335p' src/main/java/edens/zac/portfolio/backend/dao/ContentRepository.java`.
+  **Command:** `sed -n '270,340p' src/main/java/edens/zac/portfolio/backend/dao/ContentRepository.java`.
+  **All four refs in S-35 and S-36 were restamped 2026-09-06**: both rows were written mid-#309
+  against the pre-merge file, and every ref in them drifted when the constant landed.
 - [ ] **S-30** (LOW) **`GET /api/read/content/people` lists every row in `users`, not every tagged
   person.** `MetadataService.getAllPeople` (`:112`) calls
   `PersonRepository.findAllByOrderByPersonNameAsc` (`:49-52`), which is literally
@@ -481,34 +505,9 @@ ledger line.)*
 
 ### Closed, one ledger line each
 
-Bodies and outcomes in the [history file](2026-08-22-backend-cleanup-history.md#security-findings--closed-moved-2026-08-29).
-- [x] **S-28** (LOW) an admin deregistering their own last passkey can lock the admin surface out of itself — [#278](https://github.com/themancalledzac/edens.zac.backend/pull/278), 2026-08-31, grouped with U-6. One docblock paragraph naming the redeploy recovery, plus the WARN. **The re-aiming the item called for was real** -- #265 had rewritten exactly the docblock the item proposed to amend, so the current text was read before the paragraph was written. [Write-up](2026-08-22-backend-cleanup-history.md#s-28--the-recovery-line-re-aimed-278-grouped-with-u-6).
-- [x] **S-1** (HIGH) `UserStatus.DISABLED` enforced nowhere in the auth path — #192, 2026-08-24. Taught rule 16.
-- [x] **S-2** (MED) `repointMemberships` bypassed the `addMember` rule — #193, 2026-08-24. Taught rule 17.
-- [x] **S-3** (HIGH) the delete-person guard had no test that can fail — #195, 2026-08-24; the surviving-side gap closed by #235, 2026-08-28.
-- [x] **S-4** (HIGH) `ProdSecretGuard` could be unwired silently — #196, 2026-08-24.
-- [x] **S-5** (LOW) chunked bodies bypassed the public body cap — #206, 2026-08-24. **Live caveat**: the `length < 0 && Transfer-Encoding present` conjunct stops being exact if http2 is ever enabled (a DATA-frame body needs no `Transfer-Encoding`); http2 is off today.
-- [x] **S-6** (LOW) `effectiveLevel` overclaimed and an admin got bounced — #207, 2026-08-24. Rule 20's origin.
-- [x] **S-7** (MED) two more session-minting paths read no status — #199, 2026-08-24. Taught rules 18-19.
-- [x] **S-8** (LOW) `updateStatus` did not revoke live sessions — #204, 2026-08-24.
-- [x] **S-9** (LOW) disabling did not invalidate outstanding invites — #200, 2026-08-24.
-- [x] **S-10** (HIGH) an admin-issued reset invite survived an email change; redeeming it was takeover — #221, 2026-08-25.
-- [x] **S-11** (HIGH) `ACCESS_TOKEN_SECRET` had a public default and no startup guard — #222, 2026-08-25.
-- [x] **S-12** (MED-HIGH) dormant `role_member` rows on a PERSON became live grants on upgrade — #225, 2026-08-26.
-- [x] **S-13** (MED) the admin update endpoint accepted `status: PERSON` — #227, 2026-08-27.
-- [x] **S-15** (MED) completing a password reset did not revoke the account's other sessions — #224, 2026-08-26.
-- [x] **S-17** (MED) `share/email` was an authenticated open mail relay — #233, 2026-08-28, **not** as specified (dedicated `ShareEmailLimiter`); taught rule 35.
-- [x] **S-18** (MED) the actuator exclude missed four endpoints meeting its own criterion — #232, 2026-08-28; taught rule 34. **The exclude list is still criterion-incomplete** (2026-08-29): `metrics` (and `info`) meet the stated criterion under `include=*` and sit in neither the exclude nor `MUST_BE_EXCLUDED`, and both tests derive from the same enumeration, so neither can see it. **S-23 above was the chosen fix shape** — the resolved-include boot check, not another name-chase. S-23 shipped; whether this residual is now moot is **U-8**.
-- [x] **S-19** settled 2026-08-25, not live — the FE strips and re-derives `x-real-ip`. **Live debt, now tracked as U-5** (it had sat inside this closed line with no checkbox since 2026-08-25, so no gate could see it): `ClientIp`'s javadoc still calls the header's presence "the trust signal".
-- [x] **S-20** (MED) "may hold a session" was inlined in two files beside the predicate — #230, 2026-08-28; taught rules 31 and 33.
-- [x] **S-21** (LOW) `regenerateInvite` minted links for accounts that can never redeem — #228, 2026-08-27.
-- [x] **S-14** (MED) an admin could put any collection, including another client's protected gallery, into their own share scope — **answered, not patched**: no second gate ([#250](https://github.com/themancalledzac/edens.zac.backend/pull/250), 2026-08-31). Leaves open whether `addCollection` should be admin-gated at all; that is a routing question and **it now has its own item, U-6** — the board wrote "needs its own item" on 2026-08-31 and did not write one until the third run.
-- [x] **S-16** (MED) disabling an account did not stop its share link serving — #253, 2026-08-31. **Suspend, not revoke.** Shipped as one gate at `resolveByRawToken`, not the two the item specified; the item had also missed `isCollectionInScope`.
-- [x] **S-22** (LOW) the two role-membership status guards were separate SQL denylists — #247, 2026-08-31. Shipped as one bound list, **not** the named predicate the item prescribed; taught working rule 40.
-- [x] **S-23** (LOW) nothing refused a prod boot with a wider actuator include — #248, 2026-08-31. Exclude list untouched and now redundant; **whether to delete it is an open disposition, tracked as U-7**.
-- [x] **S-24** (LOW) two admin mail-send paths were covered by no limiter — **accepted as admin-trusted and documented** ([#250](https://github.com/themancalledzac/edens.zac.backend/pull/250), 2026-08-31).
-- [x] **S-26** (HIGH) deregistering a passkey left the sessions that credential minted alive, and the holder could register a replacement from inside the surviving session — [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), 2026-08-31. One call, as specified; the work was the test. **Hardening `register/**` was left out of scope** and stays an open question. Mutation table in [history](2026-08-22-backend-cleanup-history.md#s-26-outcome-2026-08-31----the-fix-was-one-call-and-three-mutations-were-needed-to-prove-it).
-- [x] **S-27** (LOW) `resolveByRawToken`'s docblock claimed a biconditional #257 made false — [#265](https://github.com/themancalledzac/edens.zac.backend/pull/265), 2026-08-31, rode with S-26 as the item said it should.
+All 27 lines moved to [history](2026-08-22-backend-cleanup-history.md#closed-one-ledger-line-each-moved-2026-09-06)
+2026-09-06 by the #309 close-out. The index survives on the tracker: the three security-count
+cells name every closed finding by number, and the count gate reads the open rows only.
 
 ### What the closed set is worth carrying forward
 
@@ -736,58 +735,25 @@ superseded by the 2026-08-29 re-measure in the Progress estimate table.
 
 ### Still open from MR 14 — stale docblocks
 
-Out of scope here by design: this MR was in-method comment lines only. These are docblock rewrites,
-and each needs its claim verified before acting (working rule 8).
-
-- [x] `filterNonListedChildCollections` (`CollectionService`) describes a context-detection mode that no longer exists. **Premise flagged as possibly stale, 2026-08-25**; **CLOSED 2026-08-29 by reading**: the docblock describes the current flag-keyed derivation, names `findClientGalleriesAndQualifyingParents`, and explicitly warns against keying on `type == PARENT`. The 2026-08-25 flag was right -- nothing to rewrite.
-- [x] The "previously spread across ContentProcessingUtil" rename-history at `ContentModelConverter` and `ContentMutationUtil`. **DONE 2026-09-02** ([#303](https://github.com/themancalledzac/edens.zac.backend/pull/303)) -- both docblocks now name each other instead of the deleted class.
-- [x] "PARENT-shaped" vocabulary. **DONE 2026-09-02** ([#303](https://github.com/themancalledzac/edens.zac.backend/pull/303)). **All seven `PARENT` docblock uses were classified rather than swept**, which is what the row asked for: four rewritten as dead vocabulary (`CollectionService:114`, `:563`; `UserPageAssembler:26`, `:38`) and three kept as the "do not key on `type == PARENT`" warning. **Re-read 2026-09-04: the three kept are stale too.** They sit in the `filterNonListedChildCollections` docblock in `CollectionService` (find by `type == PARENT`; the numbers drift with every edit to that file) and warn against `type == PARENT`, but V52 dropped `collection.type` and the enum is gone, so the warned-against code cannot compile. Rewrite the sentence to describe the live rule (context is client-gallery when the collection `isClient` or contains an `isClient` child, mirroring `findClientGalleriesAndQualifyingParents`) and drop the `PARENT` vocabulary when next in the file. #303 also left `CLIENT_GALLERY` at `CollectionService:565`; write `client-gallery children (\`isClient\`)`. Classification: [history](2026-08-22-backend-cleanup-history.md#the-seven-parent-docblock-uses-classified-2026-09-02).
-- Moved 2026-08-24: `CollectionAccessService.effectiveLevel` is now **S-6** under "Open security findings" -- it is an access-control item, not a docblock rewrite, and the re-review found it fails closed rather than leaking.
-
----
+All rows closed; moved to [history](2026-08-22-backend-cleanup-history.md#still-open-from-mr-14--stale-docblocks-all-closed-moved-2026-09-06) 2026-09-06 by the #309
+close-out. Nothing here is open.
 
 # Wave 5 — Consolidations
 
 ## MR 15 — Cross-cutting
 
-- [x] #1. One client-IP resolver. **DONE** -- shipped with bug #3 in MR 5 ([#165](https://github.com/themancalledzac/edens.zac.backend/pull/165)).
-
-- [x] #2. One SecurityConfig matcher instead of the copy-pasted `isRealUser` guards. **DONE** ([#189](https://github.com/themancalledzac/edens.zac.backend/pull/189)) — 17 guards (not 18; the re-derivation had counted a javadoc line) became one matcher, placed outside the enforce-authz toggle as the only behavior-preserving option. [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-2-outcome-2026-08-23); tracker detail moved to history 2026-08-29.
-- [x] #6. `currentUserId` is duplicated. **DONE** ([#191](https://github.com/themancalledzac/edens.zac.backend/pull/191)) — four copies became `config/CurrentUser.userId()`; "move it onto `AuthPrincipal`" was rejected with a reason; taught working rule 14. It also closed the `PersonRepository` carry, whose guard's bypass later became S-2 (#193). [Full write-up](2026-08-22-backend-cleanup-history.md#mr-15-6-outcome-2026-08-24); tracker detail moved to history 2026-08-29.
-
-### The MR 15 #6 follow-up — closed 2026-08-24
-
-- [x] Fold the last two copies of the same static read into `CurrentUser`. **DONE**
-  ([#210](https://github.com/themancalledzac/edens.zac.backend/pull/210), squash `c1f482e`) — the
-  MR 15 #6 thread is fully closed, four sessions after it opened; **the
-  `getContext().getAuthentication()` grep returning four `src/main` sites is MR 15's completion
-  condition and is satisfied**. Coverage was proven by mutation, not assumed.
-  [Full write-up](2026-08-22-backend-cleanup-history.md#currentuser-fold-outcome-2026-08-24----the-mr-15-6-thread-closes-four-sessions-later);
-  tracker detail moved to history 2026-08-29.
+All rows closed; moved to [history](2026-08-22-backend-cleanup-history.md#mr-15--cross-cutting-all-closed-moved-2026-09-06) 2026-09-06 by the #309
+close-out. Nothing here is open.
 
 ## MR 16 — Infrastructure classes
 
-- [x] #3. One keyed rate limiter -- **CLOSED AS DECIDED 2026-09-01 (tenth-run review): not worth
-  doing.** Four copies, not three; every number reproduced exactly at `43c6f2c6` for the third
-  consecutive run and the answer has been "no" every time. It was closed as a decision, not a
-  deferral, the way `AuthPrincipal`'s constructor was. **Stop re-deriving it.** The four structural
-  reasons the merge does not work:
-  [history](2026-08-22-backend-cleanup-history.md#mr-16-3-one-keyed-rate-limiter-body-moved-2026-09-01).
-- [x] #4. One AWS config class. **DONE 2026-08-31 (third run).** `S3Config` and `SesConfig` are one `AwsClientConfig` with a shared `AwsCredentialsProvider` bean; 127 source lines became 89, and all four `@Bean` method names are unchanged. **The zero-test-coupling claim held but was incomplete**: 51 test classes load the full context and start only because `application-test.properties` supplies three AWS property keys, so renaming `aws.s3.region` to a neutral `aws.region` would fail all 51 at context load. The key was left as `aws.s3.region` deliberately and the class docblock says why. [Write-up](2026-08-22-backend-cleanup-history.md#mr-16-4--one-aws-config-class-and-the-property-key-that-had-to-stay).
-- [x] #5. One CloudFront invalidation implementation. **DONE 2026-08-31 (third run).** `ReadCacheInvalidator` gained a public `invalidatePaths(List<String>)`; `ImageProcessingService.invalidateCloudFrontPaths` is deleted and that constructor went arity 10 -> 9. **The `markChanged()` trap was worse than the item's wording** -- its two `READ_SURFACE_PATHS` constants are API routes that match no media key at all, so routing image deletes through it would leave deleted bytes served from the edge until their own TTL expired. Mutation-proved before shipping. [Write-up](2026-08-22-backend-cleanup-history.md#mr-16-5--one-cloudfront-invalidation-and-a-trap-worse-than-the-items-wording).
+All rows closed; moved to [history](2026-08-22-backend-cleanup-history.md#mr-16--infrastructure-classes-all-closed-moved-2026-09-06) 2026-09-06 by the #309
+close-out. Nothing here is open.
 
 ## MR 17 — Controllers
 
-- [x] #7. Admin image list duplicates the prod image search -- **DONE** ([#290](https://github.com/themancalledzac/edens.zac.backend/pull/290),
-  2026-09-01, eighth run). One shared `ImageSearchFilter` `@ModelAttribute`; it also found four
-  request-body constraints that were never enforced, filed and closed as #27. Taught rule 52.
-  [Write-up](2026-08-22-backend-cleanup-history.md#mr-17-7--the-filter-record-and-the-constraints-that-were-never-enforced-290).
-  Body: [history](2026-08-22-backend-cleanup-history.md#mr-17-7-tracker-body-moved-2026-09-01).
-- [x] #8. Role membership is writable from two endpoint pairs backed by the same repository calls
-  -- **DONE** ([#285](https://github.com/themancalledzac/edens.zac.backend/pull/285), 2026-08-31). The users-side pair delegates to the roles-side
-  service; both pairs stay, because the frontend drives two different screens from them.
-  [Write-up](2026-08-22-backend-cleanup-history.md#mr-17-8--delegation-with-a-shape-worth-a-second-look-285).
-  Body: [history](2026-08-22-backend-cleanup-history.md#mr-17-8-tracker-body-moved-2026-09-01).
+All rows closed; moved to [history](2026-08-22-backend-cleanup-history.md#mr-17--controllers-all-closed-moved-2026-09-06)
+2026-09-06 by the #309 close-out. Nothing here is open.
 
 ## MR 18 — Services
 
@@ -959,7 +925,7 @@ no endpoint changed. Inventory and reasoning:
   `123, 236, 264, 321, 372, 381, 390, 407, 434, 473, 480, 487`. Map bodies, 4: `265` (`deleteImages`,
   no `@Valid`) and the three rename endpoints at `447, 456, 465`. Four more elsewhere:
   `WebAuthnController:145` (body), `EditController:95`, `CollectionControllerProd:174`,
-  `ContentControllerProd:113` (responses). **20 distinct lines across 19 endpoints**, `deleteImages`
+  `ContentControllerProd:119` (responses; was `:113`, +6 from #309). **20 distinct lines across 19 endpoints**, `deleteImages`
   still the one endpoint contributing two. The eight raw-`Map` service methods are
   `ContentService.updateImages` **124**, `.deleteImages` **336**,
   `CollectionService.applyCollaboratorImageEdits` **723**, and `MetadataService` **57, 120, 199, 263,
@@ -1454,12 +1420,12 @@ without a command run against it is dismissed, not restamped.
 
 - [x] C1, S3 delete before the DB write -- **DISMISSED, decided in code.** `ContentService:331-333`'s docblock records the trade: a failed S3 delete aborts the item and leaves the row rather than orphaning the object.
 - C2, the job-status endpoint may be dead -- **moved to "Decisions needed from the user"** as one question: how is disk import triggered?
-- [x] C3, duplicate image ids in one `updateImages` -- **struck.** `findImagesByIds` (`ContentRepository:290`) returns one row per distinct id, so `toMap` at `ContentService:151` cannot throw; last-write-wins is acceptable.
+- [x] C3, duplicate image ids in one `updateImages` -- **struck.** `findImagesByIds` (`ContentRepository:304`, was `:290` before #309) returns one row per distinct id, so `toMap` at `ContentService:151` cannot throw; last-write-wins is acceptable.
 - C4, per-item errors inside one transaction -- **promoted to Bug #32** under "Bugs filed after the waves closed".
 - [x] C5, `contentDisposition` quotes -- **DISMISSED.** `sanitizeFilename` (`ContentService:881`, strip at `:888`) removes `"`, `\` and control characters; all three callers (`:780`, `:834`, `:856`) route through it.
 - [x] C6, the temp-slug race -- **DISMISSED.** `convertTagToCollection` (`TagService:48`) and `createCollection` (`CollectionService:356`) are both `@Transactional` with no `REQUIRES_NEW` anywhere in `src/main`; under READ COMMITTED the uncommitted row is invisible, the slug is overwritten at `TagService:87` before commit, and nothing persists a suffix counter.
 - C7, `throws Exception` on two WebAuthn controller methods -- **moved to MR 22** as a LOW convention row.
-- [ ] C8, ID-list DAO fetches have no ORDER BY. **Sized 2026-09-04:** `git grep -n -i 'in (:[a-zA-Z]*ids)' -- src/main` = 27 lines. The two unordered by-id fetchers are `ContentRepository.findImagesByIds` (`:290`; 7 callers: `CollectionProcessingUtil` 106, 271, 419, 490; `ContentService` 149, 670; `TagViewResolver` 78) and `CollectionRepository.findByIds` (`:809`; 6 callers: `UserShareControllerProd` 228, `CollectionProcessingUtil` 260, 406, `CollectionService` 1570, `ContentService` 740, `UserPageAssembler` 154). `TagViewResolver:47` already documents the unordered result and re-keys. **What settles it:** read the other 12 callers for an order-dependent `.stream()`.
+- [ ] C8, ID-list DAO fetches have no ORDER BY. **Re-run 2026-09-06:** `git grep -n -i 'in (:[a-zA-Z]*ids)' -- src/main | wc -l` = **28**, not the 27 recorded 2026-09-04. **It was 28 at `afa39d6f` too, so this was a miscount when written, not drift** -- #309 did not move it. The two unordered by-id fetchers are `ContentRepository.findImagesByIds` (**`:304`**, was recorded `:290`, +14 from #309; 7 callers recorded 2026-09-04 as `CollectionProcessingUtil` 106, 271, 419, 490, `ContentService` 149, 670, `TagViewResolver` 78 -- **those seven line numbers are unverified**, they were not re-run) and `CollectionRepository.findByIds` (**`:805`**, was recorded `:809`; **also wrong when written** -- it is 805 at `afa39d6f` as well, and #309 never touched that file; 6 callers: `UserShareControllerProd` 228, `CollectionProcessingUtil` 260, 406, `CollectionService` 1570, `ContentService` 740, `UserPageAssembler` 154). `TagViewResolver:47` already documents the unordered result and re-keys. **What settles it:** read the other 12 callers for an order-dependent `.stream()`.
 
 *(A `CollectionServiceTest` "read it line by line" lead was DROPPED 2026-09-01 under working rule 5;
 detail: [history](2026-08-22-backend-cleanup-history.md#appendix-c-collectionservicetest-lead-drop-note-moved-2026-09-01). Appendix D was
@@ -1494,9 +1460,14 @@ half of the `TestFixtures` pass. The `coverImage` row and `V54FoldMigrationInteg
 judgements. MR 18 #10 has been COLD and unworked since the sixth close-out; it is named here so it
 stops sliding silently.
 
-### Classification of the open board (stamped 2026-09-05, eleventh-run review)
+### Classification of the open board (stamped 2026-09-06, #309 close-out)
 
 **71 open** by `grep -c '^- \[ \] '` at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309): from 72 at `a20473fd`, -3 ticked (S-29, S-32, S-34) and +2 filed (S-35, S-36, the two riders #309 did not close). Prior state, from 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
+
+**Next run, in order: S-36, S-33, S-35, then Bug #32.** The first three are the rest of the
+public-read visibility family and their context is warm from #309; none of the three touches a file
+another touches, so they do not stack. S-36 goes first because it is the cheapest fully specified
+item on the board (one `AND` on two methods) and banks an MR early.
 
 - **HIGH, scheduled first:** S-33, Bug #32. S-29, S-32 and S-34 closed 2026-09-05 ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)).
 - **COLD:** S-30, S-31; MR 18 #10; MR 19 #17 (b), (c), (e); the orphan `images` array; `searchImages`
@@ -1540,6 +1511,19 @@ Summary moved 2026-09-05: [history](2026-08-22-backend-cleanup-history.md#full-b
 Summary moved 2026-09-05: [history](2026-08-22-backend-cleanup-history.md#full-board-review-third-run-board-summary-moved-2026-09-05). Detail:
 [history](2026-08-22-backend-cleanup-history.md#full-board-review--run-2026-08-31-third-run).
 
+## Board integrity
+
+- [ ] **17 cross-file anchors on the tracker do not resolve to any heading in the history file.**
+  *(Filed 2026-09-06 during the #309 close-out, after four anchors written by #309 and this MR were
+  found broken the same way and fixed.)* The pattern is `--` in a heading: GitHub turns each space
+  into its own hyphen and drops the em dash, so `S-29, S-32 and S-34 outcome -- 2026-09-05` anchors
+  as `...outcome----2026-09-05`, four hyphens, and every hand-written link guesses one. **Command
+  (it prints the broken list):** `python3 - <<'EOF'` with the slugifier recorded in the #310 PR body
+  -- lowercase, drop everything but word characters, spaces and hyphens, then replace each space
+  with one hyphen, no collapsing. **Trap:** a slugifier that collapses runs of whitespace reports 46
+  false positives and hides the real 17. The figure was 18 before the closed-findings ledger moved;
+  that move repaired one of them by accident, which is worth knowing before anyone counts again.
+
 ## Session log
 
 One line per session -- honoured in spirit, not in width; a review pass gets a paragraph.
@@ -1557,28 +1541,31 @@ history file: the [pre-split log](2026-08-22-backend-cleanup-history.md#session-
 [newer archive](2026-08-22-backend-cleanup-history.md#session-log-archive--entries-moved-2026-08-31) (2026-08-30 onward) and the
 [2026-09-05 move](2026-08-22-backend-cleanup-history.md#session-log-archive-entries-moved-2026-09-05). **Link all three.**
 
+### 2026-09-06 -- #309 close-out. Reconciled the board against what merged
+
+Docs only ([#310](https://github.com/themancalledzac/edens.zac.backend/pull/310)). #308 and #309
+merged; `main` is `b2ec6968` and every gate on it matches its stamp.
+
+**Seven refs restamped, six inside #309's own neighbourhood** -- the third principle held exactly.
+S-35 and S-36 were worst hit: both were written mid-#309 against the pre-merge file, so every ref in
+them moved. **Two C8 numbers were wrong when written, not drifted** -- the `ids` grep is 28, not 27,
+and was 28 at `afa39d6f`; `findByIds` is `:805`, not `:809`, in a file #309 never touched.
+Re-running beat re-reading, and C8's seven caller refs are now marked unverified rather than reading
+as measured. **S-33's premise was incomplete** -- three call sites, not two, one of them a
+COLLABORATOR surface; the fix is re-specified on its row to take the `listedOnly` flag its two
+neighbours already carry. Security conclusion unchanged.
+
+**The two-tier split had lapsed:** 102 closed rows on the tracker, including a section titled "Still
+open from MR 14" with nothing open in it. Three fully-closed sections moved (MR 14 docblocks, MR 15,
+MR 16). **About 95 closed rows remain and want their own MR**, not a fold-in -- rule 57 was learned
+one day ago.
+
+**Next:** S-36, then S-33, then S-35.
+
 ### 2026-09-05 -- S-29 + S-32 + S-34 closed. First code MR since #301
 
-[#308](https://github.com/themancalledzac/edens.zac.backend/pull/308) restamped the eleventh-run
-gates on `main` at `50d633e2` (rule 42): all seven identical to the review branch, the merge moved
-nothing. Then [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309) closed the three
-public-read leaks as one MR, since they shared one root cause -- content has no visibility of its
-own, so a membership test is the only gate. `publicOnly` on `ImageSearchRequest`, set from the route
-and deliberately not bindable; one `PUBLIC_COLLECTION_MEMBERSHIP` constant used in three places; one
-password term in `TagRepository`. Six main files, +98 / -10. New
-`AnonymousReadVisibilityIntegrationTest`, because every existing search test stubs the repository
-and would have stayed green with the fix deleted. Three mutations, disjoint red sets. Suite 1,526 ->
-1,532, 0 failures.
-
-**Two things the board had wrong, both found by doing the work rather than by reading.** The S-32
-fix drops content with no collection membership at all, not only private-gallery content -- the
-public location page shrinks, and the row had not priced that (rule 56). And rule 36 says two
-security-count cells; there are three. Both riders were left open as S-35 and S-36 rather than
-absorbed into the closures. **Own mistake, recorded because it nearly cost a row:** moving the
-closed bodies to history by line range swept S-33, an open row sitting between two closed ones. The
-gate caught it (`S-` read 4 where 5 was expected) and it was recovered from `main`. Rule 57.
-
-**Next:** S-33 -- the last of the four public-read siblings, and the only one this MR did not touch.
+Moved to [history](2026-08-22-backend-cleanup-history.md#session-log-entry-309-moved-2026-09-06)
+2026-09-06 under the retention rule. Outcome: #308 and #309, both merged.
 
 ### 2026-09-05 -- eleventh run. Full critical review
 
