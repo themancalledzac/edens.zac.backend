@@ -26,6 +26,44 @@ public class LocationRepository extends BaseDao {
     super(jdbcTemplate);
   }
 
+  /**
+   * Images at a location that no LISTED collection at that location visibly holds, restricted to
+   * images an anonymous viewer may see at all. The positive {@code EXISTS} is the same
+   * publicly-visible-membership test as {@code ContentRepository.PUBLIC_COLLECTION_MEMBERSHIP} and
+   * is what closes S-35: without it, an image whose only home is a private gallery is by definition
+   * an orphan of every location it is tagged with, so the {@code HAVING} admitted the location on
+   * that count alone while the location page itself (fixed in #309) returned nothing.
+   *
+   * <p>The {@code NOT EXISTS} deliberately keeps no password term. Adding one there would make this
+   * worse, not better: an image held at the location by a LISTED password-protected gallery would
+   * stop matching the exclusion and start counting as an orphan. That gallery is shown as a tile on
+   * the location page, so the image is already represented, and the page's own orphan query
+   * excludes it through the same LISTED-at-this-location id list.
+   */
+  private static final String PUBLIC_ORPHAN_IMAGE_COUNT =
+      """
+      COUNT(DISTINCT CASE
+        WHEN cil.content_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM collection_content ccp
+            JOIN collection cp ON ccp.collection_id = cp.id
+            WHERE ccp.content_id = cil.content_id
+              AND ccp.visible = true
+              AND cp.visibility = 'LISTED'
+              AND cp.gallery_password IS NULL
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM collection_content cc2
+            JOIN collection c2 ON cc2.collection_id = c2.id
+            JOIN collection_locations cl2 ON c2.id = cl2.collection_id
+            WHERE cc2.content_id = cil.content_id
+              AND cl2.location_id = l.id
+              AND c2.visibility = 'LISTED'
+              AND cc2.visible = true
+          )
+        THEN cil.content_id
+      END)""";
+
   private static final RowMapper<LocationEntity> LOCATION_ROW_MAPPER =
       (rs, rowNum) ->
           LocationEntity.builder()
@@ -291,10 +329,18 @@ public class LocationRepository extends BaseDao {
    * with counts of collections and orphan images (images not in any listed collection at this
    * location).
    *
+   * <p>The orphan expression is a constant because it appears in both the projection and the {@code
+   * HAVING}, and the two were byte-identical copies that had to be edited together (S-35). One
+   * string makes that structural rather than remembered.
+   *
    * <p>Migrated from the V20 boolean {@code collection.visible} to the 3-state {@code
    * collection.visibility} enum: only LISTED collections are counted (UNLISTED stay direct-link
    * only and HIDDEN are dev-only). The per-membership {@code collection_content.visible} boolean is
    * unchanged by V20 and continues to gate per-collection content visibility.
+   *
+   * <p>{@code collection_count} deliberately has no {@code gallery_password} term. A LISTED gallery
+   * that carries a password is meant to be discoverable as a tile while its content stays gated, so
+   * a location whose only collection is such a gallery is correctly listed.
    */
   @Transactional(readOnly = true)
   public List<Records.LocationWithCounts> findLocationsWithVisibleContent() {
@@ -302,40 +348,23 @@ public class LocationRepository extends BaseDao {
         """
         SELECT l.id, l.location_name, l.slug,
           COUNT(DISTINCT c.id) AS collection_count,
-          COUNT(DISTINCT CASE
-            WHEN cil.content_id IS NOT NULL
-              AND NOT EXISTS (
-                SELECT 1 FROM collection_content cc2
-                JOIN collection c2 ON cc2.collection_id = c2.id
-                JOIN collection_locations cl2 ON c2.id = cl2.collection_id
-                WHERE cc2.content_id = cil.content_id
-                  AND cl2.location_id = l.id
-                  AND c2.visibility = 'LISTED'
-                  AND cc2.visible = true
-              )
-            THEN cil.content_id
-          END) AS orphan_image_count
-        FROM location l
-        LEFT JOIN collection_locations cl ON cl.location_id = l.id
-        LEFT JOIN collection c ON c.id = cl.collection_id AND c.visibility = 'LISTED'
-        LEFT JOIN content_image_locations cil ON cil.location_id = l.id
-        GROUP BY l.id, l.location_name, l.slug
-        HAVING COUNT(DISTINCT c.id) > 0
-            OR COUNT(DISTINCT CASE
-                 WHEN cil.content_id IS NOT NULL
-                   AND NOT EXISTS (
-                     SELECT 1 FROM collection_content cc2
-                     JOIN collection c2 ON cc2.collection_id = c2.id
-                     JOIN collection_locations cl2 ON c2.id = cl2.collection_id
-                     WHERE cc2.content_id = cil.content_id
-                       AND cl2.location_id = l.id
-                       AND c2.visibility = 'LISTED'
-                       AND cc2.visible = true
-                   )
-                 THEN cil.content_id
-               END) > 0
-        ORDER BY l.location_name ASC
-        """;
+        """
+            + PUBLIC_ORPHAN_IMAGE_COUNT
+            + """
+             AS orphan_image_count
+            FROM location l
+            LEFT JOIN collection_locations cl ON cl.location_id = l.id
+            LEFT JOIN collection c ON c.id = cl.collection_id AND c.visibility = 'LISTED'
+            LEFT JOIN content_image_locations cil ON cil.location_id = l.id
+            GROUP BY l.id, l.location_name, l.slug
+            HAVING COUNT(DISTINCT c.id) > 0
+                OR
+            """
+            + PUBLIC_ORPHAN_IMAGE_COUNT
+            + """
+             > 0
+            ORDER BY l.location_name ASC
+            """;
     return query(
         sql,
         (rs, rowNum) ->
