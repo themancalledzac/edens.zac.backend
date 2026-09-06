@@ -182,6 +182,24 @@ public class ContentRepository extends BaseDao {
       JOIN content_text ct ON c.id = ct.id
       """;
 
+  /**
+   * Restricts {@code content c} to what an anonymous viewer may see: at least one visible
+   * membership in a LISTED collection with no gallery password. Content carries no visibility of
+   * its own, so this membership test is the only thing standing between a private client gallery
+   * and an anonymous read. Keyed on the route by the caller, never on the viewer -- the routes that
+   * use it are shared-cacheable and the CDN cache key excludes cookies.
+   */
+  private static final String PUBLIC_COLLECTION_MEMBERSHIP =
+      """
+      EXISTS (
+        SELECT 1 FROM collection_content cc
+        JOIN collection col ON col.id = cc.collection_id
+        WHERE cc.content_id = c.id
+          AND cc.visible = true
+          AND col.visibility = 'LISTED'
+          AND col.gallery_password IS NULL
+      )""";
+
   /** Excludes content that is visibly held by one of the location page's listed collections. */
   private static final String ORPHAN_COLLECTION_EXCLUSION =
       """
@@ -404,6 +422,11 @@ public class ContentRepository extends BaseDao {
    * {@link #findAllByIds} and put back into that order -- the two content types live in different
    * tables, so one SELECT cannot return both hydrated.
    *
+   * <p>Serves the anonymous location page, so it is restricted to publicly visible content by
+   * {@code PUBLIC_COLLECTION_MEMBERSHIP}. Without that term the exclusion list makes it worse than
+   * unfiltered: the list holds the location's LISTED collections, so an image whose only home is a
+   * private gallery is by definition an orphan and would always be returned.
+   *
    * @param locationName the location to page
    * @param excludeCollectionIds collections whose visible content is not "orphan"; may be empty
    * @param limit page size
@@ -423,7 +446,9 @@ public class ContentRepository extends BaseDao {
         LEFT JOIN content_gif cg ON c.id = cg.id
         WHERE l.location_name = :locationName
           AND c.content_type IN ('IMAGE', 'GIF')
-        """;
+        """
+            + " AND "
+            + PUBLIC_COLLECTION_MEMBERSHIP;
     MapSqlParameterSource params =
         createParameterSource()
             .addValue("locationName", locationName)
@@ -453,6 +478,8 @@ public class ContentRepository extends BaseDao {
   /**
    * Count what {@link #findOrphanContentByLocationName} pages over, using the same predicate.
    *
+   * <p>Carries the same {@code PUBLIC_COLLECTION_MEMBERSHIP} term, so the count and the page agree.
+   *
    * @param locationName the location to count
    * @param excludeCollectionIds collections whose visible content is not "orphan"; may be empty
    * @return total orphan content at the location
@@ -468,7 +495,9 @@ public class ContentRepository extends BaseDao {
             JOIN location l ON cil.location_id = l.id
             WHERE l.location_name = :locationName
               AND c.content_type IN ('IMAGE', 'GIF')
-            """);
+            """
+                + " AND "
+                + PUBLIC_COLLECTION_MEMBERSHIP);
     MapSqlParameterSource params = createParameterSource().addValue("locationName", locationName);
 
     if (excludeCollectionIds != null && !excludeCollectionIds.isEmpty()) {
@@ -853,6 +882,10 @@ public class ContentRepository extends BaseDao {
     if (request.captureEndDate() != null) {
       conditions.add("ci.capture_date::date <= :captureEndDate");
       params.addValue("captureEndDate", request.captureEndDate());
+    }
+
+    if (request.publicOnly()) {
+      conditions.add(PUBLIC_COLLECTION_MEMBERSHIP);
     }
 
     if (!conditions.isEmpty()) {

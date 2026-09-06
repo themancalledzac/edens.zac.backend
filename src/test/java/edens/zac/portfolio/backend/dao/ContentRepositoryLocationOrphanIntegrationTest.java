@@ -21,6 +21,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *
  * <p>Location names are suffixed with a UUID because the shared Testcontainers Postgres does not
  * truncate {@code location} or {@code content} between test classes.
+ *
+ * <p>Every seeded row is linked into a LISTED, password-free collection by {@code publish}. The
+ * orphan queries now carry the S-32 visibility term, so content with no public membership is
+ * excluded outright; without the link these cases would pass vacuously on empty results. {@link
+ * AnonymousReadVisibilityIntegrationTest} owns that exclusion.
  */
 class ContentRepositoryLocationOrphanIntegrationTest extends AbstractPostgresIntegrationTest {
 
@@ -29,6 +34,29 @@ class ContentRepositoryLocationOrphanIntegrationTest extends AbstractPostgresInt
 
   private String locationName;
   private Long locationId;
+  private Long publicHomeId;
+
+  /**
+   * Links content into a LISTED collection with no gallery password, which is what makes it
+   * publicly visible at all. Lazily creates the collection on first use.
+   */
+  private void publish(Long contentId) {
+    if (publicHomeId == null) {
+      String slug = "orphan-home-" + UUID.randomUUID();
+      publicHomeId =
+          jdbcTemplate.queryForObject(
+              "INSERT INTO collection (title, slug, visibility) VALUES (?, ?, 'LISTED')"
+                  + " RETURNING id",
+              Long.class,
+              slug,
+              slug);
+    }
+    jdbcTemplate.update(
+        "INSERT INTO collection_content (collection_id, content_id, order_index, visible)"
+            + " VALUES (?, ?, 0, true)",
+        publicHomeId,
+        contentId);
+  }
 
   private void seedLocation() {
     locationName = "orphan-loc-" + UUID.randomUUID();
@@ -51,6 +79,7 @@ class ContentRepositoryLocationOrphanIntegrationTest extends AbstractPostgresInt
         "an image",
         "https://cdn.example.com/" + UUID.randomUUID() + ".jpg",
         captureDate);
+    publish(contentId);
     return contentId;
   }
 
@@ -65,6 +94,7 @@ class ContentRepositoryLocationOrphanIntegrationTest extends AbstractPostgresInt
         "a gif",
         "https://cdn.example.com/" + UUID.randomUUID() + ".gif",
         captureDate);
+    publish(contentId);
     return contentId;
   }
 

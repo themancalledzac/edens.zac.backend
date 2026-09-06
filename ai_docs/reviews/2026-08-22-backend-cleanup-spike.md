@@ -35,7 +35,7 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **6 open: S-29 (HIGH), S-32 (HIGH), S-33 (MED), S-34 (MED), S-30 (LOW), S-31 (LOW).** All six sit on the anonymous public read surface; S-29 and the three siblings filed 2026-09-05 were each proven by an anonymous GET against a Testcontainers boot. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **6**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. **27 closed** (S-1..S-24, S-26..S-28; S-25 was never assigned). Numbered findings only; the unsettled questions have their own row. Prior states: [history](2026-08-22-backend-cleanup-history.md#open-security-findings-row-prior-states-moved-2026-09-01). |
+| [Open security findings](#open-security-findings) | **5 open: S-33 (MED), S-35 (MED), S-30 (LOW), S-31 (LOW), S-36 (LOW).** All five sit on the anonymous public read surface. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309). **Rule 36 says two cells; there are three** -- this one, the Security-findings category row, and the gate line under the section head. **All three must move together.** **30 closed** (S-1..S-24, S-26..S-29, S-32, S-34; S-25 was never assigned). Highest issued is S-36. Numbered findings only; the unsettled questions have their own row. Prior states: [history](2026-08-22-backend-cleanup-history.md#open-security-findings-row-prior-states-moved-2026-09-01). |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **3 open: FE-2, FE-3, FE-4.** FE-5 closed 2026-09-05 (edens.zac#351 shipped the dev-workflow note); FE-1 closed as won't-do 2026-09-01; the #294 page-size debt closed as accepted 2026-09-02. Gate: `grep -c '^- \[ \] \*\*FE-'` = **3**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. All three are filed on the frontend board and stay open here until the frontend acts. The count lives in the section, not the heading. Prior states: [history](2026-08-22-backend-cleanup-history.md#cross-repo-row-prior-states-moved-2026-09-01). |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **3 open as of 2026-09-05, and ONE is waiting on you**: how is disk import triggered (promoted from Appendix C; one sentence settles it). The other two sit under [Parked by decision](#parked-by-decision--waiting-on-nobody). Edit gate (rule 36): the count is over the section's own `- [ ] ` lines; re-run it and update this row together. Prior states: [history](2026-08-22-backend-cleanup-history.md#decisions-row-prior-states-moved-2026-09-01). |
 | [Tests that cannot fail](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker) | **0 open of 6 — CLOSED 2026-08-30.** The last three shipped in one session (#239, #240, #241), each mutation-proved against `main` first. Two of the three carried a wrong premise that was corrected while closing: the share-link credential is a `Set-Cookie`, not a response-body token; and the `AdminUserControllerTest` pointer the board suggested names a test that does not redden on that mutation. Write-ups in history. |
@@ -49,7 +49,7 @@ is the same failure the paragraph above was written to fix:
 wc -l ai_docs/reviews/2026-08-22-backend-cleanup-spike.md ai_docs/reviews/2026-08-22-backend-cleanup-history.md
 ```
 
-**Re-run on `main` at `50d633e2` after #307 merged (rule 42): tracker 1,591, history 10,880, both unchanged from the review branch -- the merge moved nothing. The restamp PR recording that is line-neutral on the tracker and adds 9 history lines, taking history to 10,889.**
+**At `a20473fd` (rule 42): tracker 1,591, history 10,889.** [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309) takes them to **1,585** / **11,019** (`--numstat` 74 / 79): three closed security bodies and the eleventh-run log entry moved out, two new rows (S-35, S-36), three ledger lines, two working rules and the cross-repo note in.
 Chain since the tenth close-out: `8f635d35` **1,873** / **9,774**; #303 (`efed4c63`) **1,864** / **9,854**;
 #304 and #305 (`bd0e15ef`) **1,864** / **9,891**; #301 (`afa39d6f`) **1,873** / **9,915**; this review
 **-282** / **+965**; #307 (`50d633e2`) **1,591** / **10,880**. **#301 grew the tracker by 9 lines
@@ -62,7 +62,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **21** (5 high) -- **21 shipped, 1 open (Bug #32, filed 2026-09-05 from Appendix C).** Gate: `grep -c '^- \[ \] \*\*Bug #'` = **1**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. Items **#22 through #34, with #30 closed**, are filed in the same number series but are feature dependencies, doc bugs and coverage items; they open with `**#NN` and have their own gate: `grep -c '^- \[ \] \*\*#[0-9]'` = **4** (#22, #31, #33, #34), measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. **Use this wide form, never `'^- \[ \] \*\*#2'`**; the day the narrow gate went blind is rule 53's lesson and lives in history. Prior state: [history](2026-08-22-backend-cleanup-history.md#bugs-category-row-prior-state-moved-2026-09-01). | -- |
-| Security findings | **6 open: S-29 (HIGH), S-32 (HIGH), S-33 (MED), S-34 (MED), S-30 (LOW), S-31 (LOW).** Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **6**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge; edit this cell and the section-table row together (rule 36). **27 closed** (S-1..S-24, S-26..S-28; S-25 was never assigned). Numbered findings only; the unsettled questions have their own gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#security-findings-category-row-prior-state-moved-2026-09-01). | -- |
+| Security findings | **5 open: S-33 (MED), S-35 (MED), S-30 (LOW), S-31 (LOW), S-36 (LOW).** Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309); edit this cell, the section-table row **and the gate line under the section head** together -- rule 36 names two, but there are three. **30 closed** (S-1..S-24, S-26..S-29, S-32, S-34; S-25 was never assigned). Numbered findings only; the unsettled questions have their own gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#security-findings-category-row-prior-state-moved-2026-09-01). | -- |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments | **RE-RUN 2026-09-04 on `main` at `afa39d6f` (unchanged on this branch; `src/` untouched). Leading form: **1,386** (203 main / 1,183 test). Trailing form: **67** with the corrected scheme filter; the old command read 68 by counting a `jdbc:postgresql://` string literal.** **Both deltas reconcile line-for-line (rule 42):** main `203 -> 203`, unmoved across six merges; test `1,169 -> 1,183` is +14 = 9 written new by [#300](https://github.com/themancalledzac/edens.zac.backend/pull/300) (`MessagesControllerAdminTest` +5, `MessageRepositoryTest` +4) + 5 written new by [#301](https://github.com/themancalledzac/edens.zac.backend/pull/301) (`CollectionServiceTest` +5). **Both are rule-37 violations in merged code, not sweep misses; #299 and #302 are docs-only and moved nothing.** Use the `git grep` form below (rule 50). Measurement history, including the `3a53c0cb` reconciliation: [history](2026-08-22-backend-cleanup-history.md#inline-comment-count-measurement-history). | ~300 net (also low) |
 
@@ -257,7 +257,17 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
 
 ## Cross-repo findings owed to the frontend
 
-**3 open as of 2026-09-05: FE-2, FE-3, FE-4.** Gate: `grep -c '^- \[ \] \*\*FE-'` = **3**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge.
+**3 open as of 2026-09-05: FE-2, FE-3, FE-4.** Gate: `grep -c '^- \[ \] \*\*FE-'` = **3** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309).
+
+**Owed to the frontend the moment [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309) deploys (not an FE- row, because it is a purge and a warning, not a defect):**
+**(1)** D15 unblocks -- purge `revalidateTag('search-images')` plus the location and tag tags. Every
+cached body from before the deploy may contain private-gallery images, so the purge is the fix, not
+a tidy-up. **(2)** Three public surfaces return strictly fewer items now: `/search`,
+`/location/[slug]` and `/tag/[slug]`. **(3)** The location page loses more than the leak: content
+belonging to no collection at all is now excluded too, so an uploaded-but-unplaced image that used
+to appear there will not. If the frontend was relying on that as an "everything at this location"
+view, it was relying on a disclosure. **(4)** `ImageSearchFilter` gained no query parameter --
+`publicOnly` is set from the route and is deliberately not bindable, so sending it does nothing.
 FE-5 closed 2026-09-05 (edens.zac#351); FE-1 closed as won't-do 2026-09-01; the #294 page-size
 debt closed as accepted 2026-09-02. The count lives here rather than in the heading, so correcting it
 cannot break the Progress row's link.
@@ -387,53 +397,10 @@ the eleventh-run review, which proved S-29 and each sibling with an anonymous GE
 Testcontainers boot (slice A; write-up in [history](2026-08-22-backend-cleanup-history.md#full-board-review----run-2026-09-05-eleventh-run)). Every one of the twenty-seven
 closed findings lives in auth, session, role-membership, share or actuator code;
 `/api/read/content/**` and `/api/read/collections/**` were never attacked as an authorization
-surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **6**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge.
+surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309). **This is the third cell rule 36 does not name; move it with the other two.**
 
-- [ ] **S-29** (**HIGH**, re-graded 2026-09-02 by the user) **anonymous `GET /api/read/content/images/search`
-  returns every image, private client galleries included.** `SecurityConfig:79-80` lets
-  `/api/read/content/**` fall to `permitAll`; `ContentControllerProd.searchImages` (`:44`) ->
-  `ContentService.searchImages` (`:393`) -> `ContentRepository.searchImages` (`:767`);
-  `SELECT_CONTENT_IMAGE` (`:158`) joins no `collection`, and `appendSearchConditions` (`:812-861`) has
-  no visibility or `gallery_password` predicate. The response carries `imageUrl` and `imageUrlRaw`,
-  unsigned CloudFront URLs. Walks around `enforceVisibility` (`CollectionService:1514`), the stripping
-  at `CollectionControllerProd:99-103` and `isDownloadAuthorized` (`ContentDownloadControllerProd:196-204`).
-  **Proven 2026-09-04** by an anonymous GET against a Testcontainers boot seeded with `is_client = true`,
-  `visibility = 'UNLISTED'` and a `gallery_password`: 200 with the image id and URL. **Live in
-  production on three anonymous frontend routes** (`/search` sends `size=200` with no criteria,
-  `/location/[slug]` sends `locationId`, `/tag/[slug]` sends `tagIds`; all via `fetchPublicRead`, Next
-  data cache 3600s under tag `search-images`); the frontend cannot filter because the search path never
-  populates `collections`. On deploy the frontend owes `revalidateTag('search-images')` plus the
-  location and tag tags (frontend board D15, blocked on this row).
-
-  **Fix, counted 2026-09-04:** one `EXISTS (... cc.visible = true AND col.visibility = 'LISTED' AND
-  col.gallery_password IS NULL)` in `appendSearchConditions`, switched by a `publicOnly` flag on
-  `ImageSearchRequest` (`ContentControllerProd:44` true, `AdminController:259` false). About 15 main
-  lines across 4 files, 1 test line, plus one new `AbstractPostgresIntegrationTest` class of 70-90 lines.
-  **Key it on the route, never on `CurrentUser`**: the route is in `CacheControlInterceptor.PUBLIC_ROUTES`
-  (`:70`) and the CDN cache key excludes cookies (`terraform/cloudfront.tf:113-119`), so a
-  viewer-dependent body poisons the shared cache. `isImageVisibleToUser` cannot be reused (per-image,
-  password-blind, takes a `userId`). The same `EXISTS` closes S-32; `AND col.gallery_password IS NULL`
-  closes S-34. **Mutation:** seed UNLISTED+password and LISTED+password, assert the anonymous search
-  omits both and `GET /api/admin/content/images` still returns them, delete the predicate, watch it
-  redden. Every existing search test mocks the repository (`grep -rn searchImages src/test/java`), so a
-  Mockito test cannot count.
-- [ ] **S-32** (HIGH) **the location page's orphan strip returns private-gallery images, and the
-  route is CDN-cacheable.** *(Filed 2026-09-05.)* `GET /api/read/collections/location/{slug}`
-  (`CollectionControllerProd:124-140`, anonymous) -> `getLocationPageBySlug` (`CollectionService:240-260`),
-  whose exclusion list is the location's LISTED collection ids only, so an image whose only home is a
-  private gallery is by definition an orphan of the location. `findOrphanContentByLocationName`
-  (`ContentRepository:414`) and `countOrphanContentByLocationName` (`:461`) predicate on
-  `location_name`, `content_type` and `NOT EXISTS (... :excludeCollectionIds)`; no visibility or
-  password term. Images get location rows automatically from EXIF at upload
-  (`ImageProcessingService:405-408`, `:432-435`). The route is in `CacheControlInterceptor.PUBLIC_ROUTES`
-  (`:63`) and the CloudFront key for `/api/read/*` excludes cookies, so one visit caches the private
-  URL for `s-maxage`. **Proven 2026-09-04**: seeded the S-29 collection plus a location and a
-  `content_image_locations` row; anonymous GET returned 200 with the image id and URL in `images`.
-  **Rider:** `LocationRepository.findLocationsWithVisibleContent` (`:300-348`) counts the same orphans
-  into `orphan_image_count` and admits a location on it alone, so a location whose only content is a
-  private gallery is listed as public by `GET /api/read/content/locations`. **Fix:** the S-29
-  `EXISTS` appended to both orphan queries; price with S-29. The MR 19 orphan-`images` row deletes
-  the same query; whichever lands first, the other must not reopen this.
+- [x] **S-29** (**HIGH**) anonymous `GET /api/read/content/images/search` returned every image, private client galleries included -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05, with S-32 and S-34. A `publicOnly` flag on `ImageSearchRequest`, set from the route and never bindable, switches one `EXISTS` on a LISTED password-free membership. **Frontend owes `revalidateTag('search-images')` plus the location and tag tags** (D15). [Write-up](2026-08-22-backend-cleanup-history.md#s-29-s-32-and-s-34-outcome-2026-09-05).
+- [x] **S-32** (HIGH) the location page's orphan strip returned private-gallery images on a CDN-cacheable route -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05. **The same predicate also drops content held by no collection at all, which the row did not price** -- the public location page will shrink. **Rider still open as S-35.**
 - [ ] **S-33** (MED) **every image on a public collection read lists every collection it belongs to,
   unlisted and password-protected ones included.** *(Filed 2026-09-05; found by slices A and B
   independently.)* `CollectionService.getCollectionWithPagination` runs `populateCollectionsOnContent`
@@ -446,18 +413,32 @@ surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **6**, measured on the review branc
   exists to prevent this disclosure one level up. **Fix:** filter to `visibility = LISTED AND
   gallery_password IS NULL AND cc.visible = true` on the public path only; the other caller,
   `reorderContent` (`CollectionService:1498`, admin), keeps every membership.
-- [ ] **S-34** (MED) **the tag view returns images from a LISTED password-protected gallery.**
-  *(Filed 2026-09-05.)* `TagRepository.findImageContentByTagId` (`:289-311`) predicates on
-  `cc.visible = true` and `col.visibility IN (:visibilities)` with no `gallery_password` term;
-  `TagViewResolver:69-77` scopes prod to LISTED and returns the images with URLs under
-  `GET /api/read/collections/{tagSlug}`. LISTED-plus-password is a supported state:
-  `CollectionControllerProd:99-103` strips content on `isPasswordProtected` regardless of visibility.
-  **Proven 2026-09-04**: seeded `visibility = 'LISTED'`, `is_client = true`, a password, one tagged
-  image with membership only there; anonymous GET returned 200 with the id and URL. **Fix:**
-  `AND col.gallery_password IS NULL` at `TagRepository:303`. **Rider (LOW, same row):**
-  `isImageVisibleToUser` (`ContentRepository:262-281`) and `findSavedImagesByUserId` (`:303-320`) treat
-  LISTED as visible with no password term, so any signed-in USER can save and re-read an image from a
-  LISTED password gallery. This is also why `isImageVisibleToUser` cannot be reused for S-29.
+- [x] **S-34** (MED) the tag view returned images from a LISTED password-protected gallery -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05. One unconditional `AND col.gallery_password IS NULL`; both callers serve the anonymous view. **Rider still open as S-36.**
+- [ ] **S-35** (MED) **`GET /api/read/content/locations` lists a location whose only content is a
+  private gallery.** *(Filed 2026-09-05, split from the S-32 rider when #309 closed the two orphan
+  queries but not this third copy.)* `LocationRepository.findLocationsWithVisibleContent`
+  (`:300-348`) carries its own inlined orphan test, twice -- once in the `orphan_image_count`
+  projection and once repeated verbatim in the `HAVING` -- and its `NOT EXISTS` predicates on
+  `c2.visibility = 'LISTED' AND cc2.visible = true` with no `gallery_password` term and no
+  requirement that the image hold *any* public membership. So an image whose only home is a
+  password gallery counts as an orphan of the location, and the `HAVING` admits the location on
+  that count alone. Verified 2026-09-05 by reading; the two `NOT EXISTS` blocks are byte-identical.
+  **Fix:** the same `PUBLIC_COLLECTION_MEMBERSHIP` shape #309 added to `ContentRepository:193`,
+  applied to the `CASE` (the `HAVING` then follows, or better, lift the expression once). The route
+  is anonymous and shared-cacheable like the other three. **Command:**
+  `sed -n '300,348p' src/main/java/edens/zac/portfolio/backend/dao/LocationRepository.java`.
+  **Trap:** #309's test seeds no `collection_locations` row, so it does not reach this query --
+  a new case must seed one.
+- [ ] **S-36** (LOW) **a signed-in USER can save and re-read an image from a LISTED
+  password-protected gallery.** *(Filed 2026-09-05, split from the S-34 rider; #309 fixed the tag
+  view only.)* `isImageVisibleToUser` (`ContentRepository:271-296`) admits on
+  `col.visibility = 'LISTED'` with no `gallery_password` term, and `findSavedImagesByUserId`
+  (`:318-335`) applies the same gate, so the read side does not close it either. LISTED-plus-password
+  is a supported state, which is the whole reason `isImageVisibleToUser` could not be reused for
+  S-29. Scope is narrower than S-29's: it needs an authenticated account, not an anonymous GET,
+  which is why this is LOW. **Fix:** `AND col.gallery_password IS NULL` on the LISTED arm of both,
+  leaving the role-grant arm alone -- someone with an explicit grant should still see it.
+  **Command:** `sed -n '262,335p' src/main/java/edens/zac/portfolio/backend/dao/ContentRepository.java`.
 - [ ] **S-30** (LOW) **`GET /api/read/content/people` lists every row in `users`, not every tagged
   person.** `MetadataService.getAllPeople` (`:112`) calls
   `PersonRepository.findAllByOrderByPersonNameAsc` (`:49-52`), which is literally
@@ -716,7 +697,7 @@ mechanically (rule 55).
 | 33 | A test deriving cases from the thing under test cannot see it widen | #230 |
 | 34 | An allowlist is not defence in depth if the attacker overwrites it | S-18 |
 | 35 | A green unit run is not evidence a wiring change works | #233 |
-| 36 | The two security-count cells drift; run the escaped gate, edit both cells in one edit | #231; five repeats since |
+| 36 | The security-count cells drift; run the escaped gate, edit them in one edit. **There are three, not two** | #231; five repeats since; miscount found #309 |
 | 37 | Never write inline comments; supersedes 6 and 12 | user, 2026-08-28 |
 | 38 | A close-out is two files | #229/#231/#234 |
 | 39 | A push after merge goes nowhere; check the PR is OPEN | #232 (R-1); again 2026-08-31 |
@@ -736,6 +717,8 @@ mechanically (rule 55).
 | 53 | The tracker must not grow in an MR; `wc -l` delta <= 0 | #299; broken by #301 |
 | 54 | A trap, blocker or do-not-sweep guardrail needs a command beside it, the way a count does | 2026-09-04/05, four of six handoff traps wrong |
 | 55 | Run `scripts/board-gates.sh` before opening a close-out PR and paste its output into the PR body | 2026-09-05, slice E |
+| 56 | A visibility fix on a membership join also drops rows with no membership; that is a behaviour change, price it | S-32, #309 |
+| 57 | Never move board rows by line range; slice on the row markers or you sweep the neighbour | #309 nearly lost S-33 |
 
 
 ---
@@ -1513,9 +1496,9 @@ stops sliding silently.
 
 ### Classification of the open board (stamped 2026-09-05, eleventh-run review)
 
-**72 open** by `grep -c '^- \[ \] '`, re-run on `main` at `50d633e2` after #307 merged (rule 42) and unchanged from the review branch. From 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
+**71 open** by `grep -c '^- \[ \] '` at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309): from 72 at `a20473fd`, -3 ticked (S-29, S-32, S-34) and +2 filed (S-35, S-36, the two riders #309 did not close). Prior state, from 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
 
-- **HIGH, scheduled first:** S-29, S-32, S-33, S-34, Bug #32.
+- **HIGH, scheduled first:** S-33, Bug #32. S-29, S-32 and S-34 closed 2026-09-05 ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)).
 - **COLD:** S-30, S-31; MR 18 #10; MR 19 #17 (b), (c), (e); the orphan `images` array; `searchImages`
   GIFs; MR 25's `ContentModels.Image` pass, its four typeless-migration ITs and the verify ratio; U-2;
   U-7; MR 21; ten of MR 22's eleven rows; MR 23's three moves; five of MR 24's rows; MR 26's eleven
@@ -1574,18 +1557,30 @@ history file: the [pre-split log](2026-08-22-backend-cleanup-history.md#session-
 [newer archive](2026-08-22-backend-cleanup-history.md#session-log-archive--entries-moved-2026-08-31) (2026-08-30 onward) and the
 [2026-09-05 move](2026-08-22-backend-cleanup-history.md#session-log-archive-entries-moved-2026-09-05). **Link all three.**
 
+### 2026-09-05 -- S-29 + S-32 + S-34 closed. First code MR since #301
+
+[#308](https://github.com/themancalledzac/edens.zac.backend/pull/308) restamped the eleventh-run
+gates on `main` at `50d633e2` (rule 42): all seven identical to the review branch, the merge moved
+nothing. Then [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309) closed the three
+public-read leaks as one MR, since they shared one root cause -- content has no visibility of its
+own, so a membership test is the only gate. `publicOnly` on `ImageSearchRequest`, set from the route
+and deliberately not bindable; one `PUBLIC_COLLECTION_MEMBERSHIP` constant used in three places; one
+password term in `TagRepository`. Six main files, +98 / -10. New
+`AnonymousReadVisibilityIntegrationTest`, because every existing search test stubs the repository
+and would have stayed green with the fix deleted. Three mutations, disjoint red sets. Suite 1,526 ->
+1,532, 0 failures.
+
+**Two things the board had wrong, both found by doing the work rather than by reading.** The S-32
+fix drops content with no collection membership at all, not only private-gallery content -- the
+public location page shrinks, and the row had not priced that (rule 56). And rule 36 says two
+security-count cells; there are three. Both riders were left open as S-35 and S-36 rather than
+absorbed into the closures. **Own mistake, recorded because it nearly cost a row:** moving the
+closed bodies to history by line range swept S-33, an open row sitting between two closed ones. The
+gate caught it (`S-` read 4 where 5 was expected) and it was recovered from `main`. Rule 57.
+
+**Next:** S-33 -- the last of the four public-read siblings, and the only one this MR did not touch.
+
 ### 2026-09-05 -- eleventh run. Full critical review
 
-**Docs only, no code.** Reviewed `main` at `afa39d6f` from the 2026-09-04 handoff; eight slices, one
-apply pass, branch `docs/eleventh-run-review`. **Gates before, on `main` at `afa39d6f`:** boxes 65,
-`S-` 3, `U-` 5, `Bug #` 0, `#[0-9]` 3, `FE-` 4, tracker 1,873 / history 9,915. **After, on this
-branch:** boxes 72, `S-` 6, `U-` 3, `Bug #` 1, `#[0-9]` 4, `FE-` 3, tracker 1,591 / history
-10,880 (`git diff --numstat main -- <board>` = +559 / -841); **all seven re-confirmed on `main` at
-`50d633e2` after the merge.** Inline comments 203 / 1,183, unchanged
-(`src/` untouched); trailing form 67 with the widened scheme filter. Full suite on the clean worktree
-at `afa39d6f`: **1,526 tests, 0 failures, 0 errors, 0 skipped.** **Eight closures:** U-1, U-8, #30,
-FE-5, C1, C3, C5, C6. **Six new security and bug rows:** S-32, S-33, S-34 (the S-29 siblings), Bug
-#32, and #33, #34 from the frontend handoffs. Also filed: four MR 26 coverage rows, six rule-37
-per-file sweeps, one decision (disk import), one MR 22 LOW row. **Taught rules 54 and 55**; rules
-40-53 moved to history in full and the board keeps an index. `scripts/board-gates.sh` added.
-Write-up: [history](2026-08-22-backend-cleanup-history.md#full-board-review----run-2026-09-05-eleventh-run). **Next:** S-29 + S-32 + S-34 as one MR.
+Moved to [history](2026-08-22-backend-cleanup-history.md#session-log-entry-eleventh-run-moved-2026-09-05)
+by the #309 close-out under the retention rule. Docs only; its outcome is the board above.

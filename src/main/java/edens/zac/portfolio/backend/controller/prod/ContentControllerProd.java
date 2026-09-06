@@ -36,12 +36,18 @@ public class ContentControllerProd {
   /**
    * Search images with optional filters. GET /api/read/content/images/search
    *
+   * <p>Anonymous under {@code permitAll} and shared-cacheable, so it passes {@code publicOnly}
+   * true: results are limited to content with a visible membership in a LISTED collection with no
+   * gallery password. The flag comes from the route, not from the filter, so no query string can
+   * turn it off.
+   *
    * @return ResponseEntity with paginated search results
    */
   @GetMapping("/images/search")
   public ResponseEntity<PagedResponse<ContentModels.Image>> searchImages(
       @Valid @ModelAttribute ImageSearchFilter filter) {
-    PagedResponse<ContentModels.Image> response = contentService.searchImages(filter.toRequest());
+    PagedResponse<ContentModels.Image> response =
+        contentService.searchImages(filter.toRequest(true));
     return ResponseEntity.ok(response);
   }
 
