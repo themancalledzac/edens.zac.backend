@@ -61,7 +61,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
-| Bugs (fix, not delete) | **21** (5 high) -- **21 shipped, 1 open (Bug #32, filed 2026-09-05 from Appendix C).** Gate: `grep -c '^- \[ \] \*\*Bug #'` = **1**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. Items **#22 through #34, with #30 closed**, are filed in the same number series but are feature dependencies, doc bugs and coverage items; they open with `**#NN` and have their own gate: `grep -c '^- \[ \] \*\*#[0-9]'` = **4** (#22, #31, #33, #34), measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. **Use this wide form, never `'^- \[ \] \*\*#2'`**; the day the narrow gate went blind is rule 53's lesson and lives in history. Prior state: [history](2026-08-22-backend-cleanup-history.md#bugs-category-row-prior-state-moved-2026-09-01). | -- |
+| Bugs (fix, not delete) | **22** (5 high) -- **22 shipped, 0 open.** Bug #32 was filed 2026-09-05 from Appendix C and closed 2026-09-06 ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)). Gate: `grep -c '^- \[ \] \*\*Bug #'` = **0** at [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314). Items **#22 through #34, with #30 closed**, are filed in the same number series but are feature dependencies, doc bugs and coverage items; they open with `**#NN` and have their own gate: `grep -c '^- \[ \] \*\*#[0-9]'` = **4** (#22, #31, #33, #34), measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. **Use this wide form, never `'^- \[ \] \*\*#2'`**; the day the narrow gate went blind is rule 53's lesson and lives in history. Prior state: [history](2026-08-22-backend-cleanup-history.md#bugs-category-row-prior-state-moved-2026-09-01). | -- |
 | Security findings | **2 open: S-30 (LOW), S-31 (LOW).** Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **2** at [#313](https://github.com/themancalledzac/edens.zac.backend/pull/313); edit this cell, the section-table row **and the gate line under the section head** together -- rule 36 names two, but there are three. **33 closed** (S-1..S-24, S-26..S-29, S-32..S-36; S-25 was never assigned). Numbered findings only; the unsettled questions have their own gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#security-findings-category-row-prior-state-moved-2026-09-01). | -- |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments | **RE-RUN 2026-09-04 on `main` at `afa39d6f` (unchanged on this branch; `src/` untouched). Leading form: **1,386** (203 main / 1,183 test). Trailing form: **67** with the corrected scheme filter; the old command read 68 by counting a `jdbc:postgresql://` string literal.** **Both deltas reconcile line-for-line (rule 42):** main `203 -> 203`, unmoved across six merges; test `1,169 -> 1,183` is +14 = 9 written new by [#300](https://github.com/themancalledzac/edens.zac.backend/pull/300) (`MessagesControllerAdminTest` +5, `MessageRepositoryTest` +4) + 5 written new by [#301](https://github.com/themancalledzac/edens.zac.backend/pull/301) (`CollectionServiceTest` +5). **Both are rule-37 violations in merged code, not sweep misses; #299 and #302 are docs-only and moved nothing.** Use the `git grep` form below (rule 50). Measurement history, including the `3a53c0cb` reconciliation: [history](2026-08-22-backend-cleanup-history.md#inline-comment-count-measurement-history). | ~300 net (also low) |
@@ -242,18 +242,7 @@ bugs filed 2026-08-29 (#18-#20, at the end of this section).
   server-side on the admin manage DTO (`CollectionRequests.UpdateResponse.hasChildren`, `:204`). Do
   not reuse `DisplayMode`. **COLD.**
 
-- [ ] **Bug #32** (MED) **`updateImages` can half-apply an item and report it failed, or report
-  earlier items succeeded when nothing committed.** *(Promoted 2026-09-05 from Appendix C lead C4.)*
-  `ContentService.updateImages` is `@Transactional` (`:119`); each item's `try` at `:169` issues up
-  to six writes through `ContentMutationUtil` (no `@Transactional` of its own) and `catch (Exception e)`
-  at `:226` records the message and continues. Two shapes: (a) a Java-side failure between writes (a
-  validator, an NPE, a `toEntity` mapping error) leaves that item's earlier writes committed while the
-  response reports it failed; (b) a Postgres SQL error aborts the whole transaction, so every later
-  statement fails with "current transaction is aborted" and nothing commits, while the response still
-  lists the earlier items as succeeded. Either way the response lies. **Test to write:** two items,
-  the second fails, assert the first item's tags are not persisted (or that the response reports the
-  whole batch failed), in an `AbstractPostgresIntegrationTest`. **Fix shape:** per-item savepoint
-  (`TransactionTemplate` with `PROPAGATION_NESTED`) or fail the batch.
+- [x] **Bug #32** (MED) `updateImages` half-applied an item and reported it failed, or reported earlier items succeeded when nothing committed -- [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314), 2026-09-06. Per-item savepoint (`TransactionTemplate` with `PROPAGATION_NESTED`), not fail-the-batch: the response already carries a per-item `errors` list, so the savepoint makes that contract true instead of deleting it. Each item's `saveImage` moved inside its own unit -- a savepoint only covers writes issued inside it, and the deferred second pass put every row update outside the one meant to protect it. Newly created tags, people and locations go into per-item sets merged only after the savepoint commits, so a rolled-back item cannot report metadata it no longer has. **Both shapes reproduced against the pre-fix code:** (a) failed with the failed item's tags still committed, (b) threw `DataIntegrityViolationException` out of the method entirely.
 
 ## Cross-repo findings owed to the frontend
 
@@ -658,8 +647,10 @@ mechanically (rule 55).
 | 53 | The tracker must not grow in an MR; `wc -l` delta <= 0 | #299; broken by #301 |
 | 54 | A trap, blocker or do-not-sweep guardrail needs a command beside it, the way a count does | 2026-09-04/05, four of six handoff traps wrong |
 | 55 | Run `scripts/board-gates.sh` before opening a close-out PR and paste its output into the PR body | 2026-09-05, slice E |
+| 55b | Rule 55's close-out PR is the rule-58 docs MR. A code MR has no counts to gate | twelfth run |
 | 56 | A visibility fix on a membership join also drops rows with no membership; that is a behaviour change, price it | S-32, #309 |
 | 57 | Never move board rows by line range; slice on the row markers or you sweep the neighbour | #309 nearly lost S-33 |
+| 58 | A code MR touches `src` only. Tick the rows and restamp every count in ONE docs MR at the end of the run | twelfth run: four MRs from one base, three rebases, all of them the tracker and none of them `src` |
 
 
 ---
@@ -1388,8 +1379,7 @@ close-out's list: [history](2026-08-22-backend-cleanup-history.md#next-run-list-
    Tell the frontend on merge; D15 owes the cache purge.
 2. **S-33.** Filter in `CollectionProcessingUtil.populateCollectionsOnContent` on the public path
    (`CollectionService:160`), one Testcontainers case. Gate: `**S-` 3 -> 2.
-3. **Bug #32.** The two-item `AbstractPostgresIntegrationTest` first, then the per-item savepoint or
-   fail-the-batch in `ContentService.updateImages`. Gate: `**Bug #` 1 -> 0.
+3. **Bug #32.** Closed 2026-09-06 ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)), savepoint not fail-the-batch. Gate: `**Bug #` 1 -> 0.
 4. **Coverage and the exclude list:** #31's `listedOnly` gate test (`CollectionRepository:369`,
    Testcontainers); U-7 (delete `application.properties:67` and the S-18 tests that enumerate it;
    `**U-` 3 -> 2); the MR 26 `readAt` and `count` rows (`MessagesControllerAdminTest`,
@@ -1404,15 +1394,21 @@ stops sliding silently.
 
 ### Classification of the open board (stamped 2026-09-06, #309 close-out)
 
-**69 open** by `grep -c '^- \[ \] '` at [#313](https://github.com/themancalledzac/edens.zac.backend/pull/313): from **70 measured on `main` at `7f0e4a89`**, -1 ticked (S-35). #310 stamped this cell as 71 while still on its own branch and the number never matched `main` -- that is rule 42's restamp, missed once. Before that, from 72 at `a20473fd`: -3 ticked (S-29, S-32, S-34) and +2 filed (S-35, S-36, the two riders #309 did not close). Prior state, from 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
+**68 open** by `grep -c '^- \[ \] '` at [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314): from **69 measured on `main` at `bb07e121`**, -1 ticked (Bug #32). This is the run's final number; no restamp is owed. #310 stamped this cell as 71 while still on its own branch and the number never matched `main` -- that is rule 42's restamp, missed once. Before that, from 72 at `a20473fd`: -3 ticked (S-29, S-32, S-34) and +2 filed (S-35, S-36, the two riders #309 did not close). Prior state, from 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
 
-**Next run: Bug #32, then item 4.** The public-read visibility family is out: S-36
-([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311)), S-33 ([#312](https://github.com/themancalledzac/edens.zac.backend/pull/312)) and S-35 ([#313](https://github.com/themancalledzac/edens.zac.backend/pull/313)), all three cut from the same
-base. They share no source file -- but every MR in the family edits this tracker, so each one
-conflicted here and only here as its predecessor merged, and each was rebased by re-applying its row
-from the new `main` rather than by merging hunks. Expect the same for Bug #32.
+**Next run: item 4 -- #31's `listedOnly` gate test, U-7, and the MR 26 coverage rows.** The
+twelfth run closed the whole public-read visibility family plus the last open bug: S-36
+([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311)), S-33 ([#312](https://github.com/themancalledzac/edens.zac.backend/pull/312)), S-35 ([#313](https://github.com/themancalledzac/edens.zac.backend/pull/313)) and Bug #32 ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)).
 
-- **HIGH, scheduled first:** Bug #32. S-29, S-32 and S-34 closed 2026-09-05 ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)); S-36, S-33 and S-35 closed 2026-09-06 ([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311), [#312](https://github.com/themancalledzac/edens.zac.backend/pull/312), [#313](https://github.com/themancalledzac/edens.zac.backend/pull/313)).
+**Run them under rule 58.** Those four shared no source file and `src` never conflicted once -- but
+all four ticked rows here, so each conflicted with its predecessor on merge: three rebases in a
+chain, each blocking the next. **A code MR touches `src` only.** The tracker is edited once, after
+every code MR has landed, by one docs MR that ticks all the rows and restamps every count against a
+`main` that already holds the code. The tracker sitting one run behind in between is intended, and
+rule 42's restamp becomes part of that MR instead of a separate chore. Cost and reasoning:
+[history](2026-08-22-backend-cleanup-history.md#rule-58-and-what-the-run-cost-without-it).
+
+- **HIGH: none open.** S-29, S-32 and S-34 closed 2026-09-05 ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)); S-36, S-33, S-35 and Bug #32 closed 2026-09-06 ([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311), [#312](https://github.com/themancalledzac/edens.zac.backend/pull/312), [#313](https://github.com/themancalledzac/edens.zac.backend/pull/313), [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)).
 - **COLD:** S-30, S-31; MR 18 #10; MR 19 #17 (b), (c), (e); the orphan `images` array; `searchImages`
   GIFs; MR 25's `ContentModels.Image` pass, its four typeless-migration ITs and the verify ratio; U-2;
   U-7; MR 21; ten of MR 22's eleven rows; MR 23's three moves; five of MR 24's rows; MR 26's eleven
@@ -1503,7 +1499,7 @@ open from MR 14" with nothing open in it. Three fully-closed sections moved (MR 
 MR 16). **About 95 closed rows remain and want their own MR**, not a fold-in -- rule 57 was learned
 one day ago.
 
-**Next:** Bug #32.
+**Next:** item 4 -- #31's `listedOnly` gate test, U-7, the MR 26 coverage rows.
 
 ### 2026-09-05 -- S-29 + S-32 + S-34 closed. First code MR since #301
 
