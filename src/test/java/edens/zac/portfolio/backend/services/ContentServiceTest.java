@@ -41,6 +41,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * Service-level tests for {@link ContentService#updateImages}. Verifies that editable metadata
@@ -61,6 +62,13 @@ class ContentServiceTest {
   @Mock private ContentValidator contentValidator;
   @Mock private MetadataService metadataService;
 
+  /**
+   * A mock is enough: {@code TransactionTemplate} tolerates the null {@code TransactionStatus} it
+   * returns, so the per-item savepoint reduces to a plain call here and these tests keep asserting
+   * on the entity handed to the repository rather than on transaction plumbing.
+   */
+  @Mock private PlatformTransactionManager transactionManager;
+
   private ContentService service;
 
   @BeforeEach
@@ -78,6 +86,7 @@ class ContentServiceTest {
             contentImageUpdateValidator,
             contentValidator,
             metadataService,
+            transactionManager,
             "cloudfront.example.com");
   }
 
