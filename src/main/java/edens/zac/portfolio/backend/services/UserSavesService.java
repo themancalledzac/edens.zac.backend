@@ -15,11 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Per-user saved images ("Your Space" bookmarks). A logged-in user may save an image only if they
- * may SEE it — i.e. it holds a visible membership in a LISTED collection or one the caller has an
- * explicit role grant for (see {@link ContentRepository#isImageVisibleToUser}). This prevents a
- * client-gallery user from POSTing an arbitrary image id to exfiltrate images from HIDDEN/UNLISTED
- * collections or another client's gated gallery via the saved-images read. Auth (identity) is
- * enforced at the controller (principal null-check); this service enforces per-image visibility.
+ * may SEE it -- i.e. it holds a visible membership in a LISTED collection with no gallery password,
+ * or in one the caller has an explicit role grant for (see {@link
+ * ContentRepository#isImageVisibleToUser}). This prevents a client-gallery user from POSTing an
+ * arbitrary image id to exfiltrate images from HIDDEN/UNLISTED collections or another client's
+ * gated gallery via the saved-images read. Auth (identity) is enforced at the controller (principal
+ * null-check); this service enforces per-image visibility.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,11 +39,11 @@ public class UserSavesService {
    * (including a nonexistent id) is treated as not found.
    *
    * <p>A global admin skips the visibility query entirely (working rule 20). The bypass sits here
-   * rather than in {@code isImageVisibleToUser}'s SQL on purpose: that query is {@code LISTED OR
-   * role grant} and has no {@code is_admin} term, and adding one would push an identity rule into a
-   * statement that several read paths share for filtering rather than for authorization. Non-admins
-   * take the identical query they always did, so the enumeration-oracle property above is
-   * untouched.
+   * rather than in {@code isImageVisibleToUser}'s SQL on purpose: that query is {@code (LISTED AND
+   * no password) OR role grant} and has no {@code is_admin} term, and adding one would push an
+   * identity rule into a statement that several read paths share for filtering rather than for
+   * authorization. Non-admins take the identical query they always did, so the enumeration-oracle
+   * property above is untouched.
    */
   @Transactional
   public void add(AuthPrincipal principal, Long imageId) {

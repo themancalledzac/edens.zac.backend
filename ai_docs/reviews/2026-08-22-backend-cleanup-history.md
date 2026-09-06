@@ -6584,6 +6584,36 @@ Moved off the tracker by the #309 close-out under the two-tier rule.
 
 Moved from the tracker by the #309 close-out.
 
+### 2026-09-06 -- S-36 closed, and a count that was never true on main
+
+[#311](https://github.com/themancalledzac/edens.zac.backend/pull/311) closed S-36: `AND
+col.gallery_password IS NULL` on the LISTED arm of `ContentRepository.isImageVisibleToUser` and
+`findSavedImagesByUserId`. Two main files (the second is `UserSavesService`, whose two docblocks
+both described the predicate as `LISTED OR role grant`), four new cases in
+`ContentRepositoryRoleVisibilityIntegrationTest`, 2 -> 6.
+
+**The row asked for the role-grant arm to be left alone and told us to report what filtering it
+would do. It would break the feature, not close a hole.** `role_collection` grants are written by
+`RoleGrantPropagationService.setGrant` and carry no visibility or password predicate anywhere in the
+grant path -- a grant on a password-protected gallery is the normal case, because that is how a
+named client reaches their own gated gallery once invited. Filtering the grant arm would leave such
+a client able to view the gallery through the collection route while unable to save an image from
+it, and would silently drop anything they had already saved out of their Saved list. The two
+`...StaysVisibleToAGrantHolder` / `...KeepAPasswordProtectedImage...` cases exist only to stop a
+later change from widening the term onto that arm.
+
+The four new cases are deliberately paired granted/ungranted on both queries, and the
+`savedImagesDrop...` case seeds an open LISTED image alongside the gated one so the assertion is
+`containsExactly(open)` rather than an empty list that would pass for the wrong reason. Reverting
+both SQL terms fails exactly the two ungranted cases and leaves both grant-arm cases green.
+
+**A count that was never true on `main`.** The tracker's open-box cell read "71 open at #309", but
+`grep -c '^- \[ \] '` on `main` at `9e95d3d4` returns **72**. #310 stamped 71 from its own branch and
+never re-measured after merge -- rule 42's restamp, missed once. Rule 42 exists because this keeps
+happening; what is new here is that the gate script would not have caught it, since
+`scripts/board-gates.sh` prints the branch counts and leaves the comparison to a reader. The cell now
+carries the measured `main` number and the commit it was measured at.
+
 ### 2026-09-05 -- S-29 + S-32 + S-34 closed. First code MR since #301
 
 [#308](https://github.com/themancalledzac/edens.zac.backend/pull/308) restamped the eleventh-run
