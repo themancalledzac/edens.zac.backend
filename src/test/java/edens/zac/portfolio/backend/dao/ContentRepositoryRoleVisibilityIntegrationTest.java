@@ -63,7 +63,7 @@ class ContentRepositoryRoleVisibilityIntegrationTest extends AbstractPostgresInt
         slug);
   }
 
-  /** A LISTED collection carrying a gallery password — discoverable as a tile, content gated. */
+  /** A LISTED collection carrying a gallery password -- discoverable as a tile, content gated. */
   private Long seedListedProtectedCollection() {
     String slug = "contentvis-" + UUID.randomUUID();
     return jdbcTemplate.queryForObject(
@@ -74,7 +74,7 @@ class ContentRepositoryRoleVisibilityIntegrationTest extends AbstractPostgresInt
         slug);
   }
 
-  /** A LISTED collection with no password — the ordinary public case, used as the control. */
+  /** A LISTED collection with no password -- the ordinary public case, used as the control. */
   private Long seedListedOpenCollection() {
     String slug = "contentvis-" + UUID.randomUUID();
     return jdbcTemplate.queryForObject(

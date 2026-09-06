@@ -35,7 +35,7 @@ is the same failure the paragraph above was written to fix:
 
 | Section | Status |
 |---|---|
-| [Open security findings](#open-security-findings) | **5 open: S-33 (MED), S-35 (MED), S-30 (LOW), S-31 (LOW), S-36 (LOW).** All five sit on the anonymous public read surface. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309). **Rule 36 says two cells; there are three** -- this one, the Security-findings category row, and the gate line under the section head. **All three must move together.** **30 closed** (S-1..S-24, S-26..S-29, S-32, S-34; S-25 was never assigned). Highest issued is S-36. Numbered findings only; the unsettled questions have their own row. Prior states: [history](2026-08-22-backend-cleanup-history.md#open-security-findings-row-prior-states-moved-2026-09-01). |
+| [Open security findings](#open-security-findings) | **4 open: S-33 (MED), S-35 (MED), S-30 (LOW), S-31 (LOW).** All five sit on the anonymous public read surface. Edit gate (rule 36): `grep -c '^- \[ \] \*\*S-'` = **4** at [#311](https://github.com/themancalledzac/edens.zac.backend/pull/311). **Rule 36 says two cells; there are three** -- this one, the Security-findings category row, and the gate line under the section head. **All three must move together.** **31 closed** (S-1..S-24, S-26..S-29, S-32, S-34, S-36; S-25 was never assigned). Highest issued is S-36. Numbered findings only; the unsettled questions have their own row. Prior states: [history](2026-08-22-backend-cleanup-history.md#open-security-findings-row-prior-states-moved-2026-09-01). |
 | [Cross-repo findings owed to the frontend](#cross-repo-findings-owed-to-the-frontend) | **3 open: FE-2, FE-3, FE-4.** FE-5 closed 2026-09-05 (edens.zac#351 shipped the dev-workflow note); FE-1 closed as won't-do 2026-09-01; the #294 page-size debt closed as accepted 2026-09-02. Gate: `grep -c '^- \[ \] \*\*FE-'` = **3**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. All three are filed on the frontend board and stay open here until the frontend acts. The count lives in the section, not the heading. Prior states: [history](2026-08-22-backend-cleanup-history.md#cross-repo-row-prior-states-moved-2026-09-01). |
 | [Decisions needed from the user](#decisions-needed-from-the-user) | **3 open as of 2026-09-05, and ONE is waiting on you**: how is disk import triggered (promoted from Appendix C; one sentence settles it). The other two sit under [Parked by decision](#parked-by-decision--waiting-on-nobody). Edit gate (rule 36): the count is over the section's own `- [ ] ` lines; re-run it and update this row together. Prior states: [history](2026-08-22-backend-cleanup-history.md#decisions-row-prior-states-moved-2026-09-01). |
 | [Tests that cannot fail](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker) | **0 open of 6 — CLOSED 2026-08-30.** The last three shipped in one session (#239, #240, #241), each mutation-proved against `main` first. Two of the three carried a wrong premise that was corrected while closing: the share-link credential is a `Set-Cookie`, not a response-body token; and the `AdminUserControllerTest` pointer the board suggested names a test that does not redden on that mutation. Write-ups in history. |
@@ -62,7 +62,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Category | Count | Deletable lines (est.) |
 |---|---|---|
 | Bugs (fix, not delete) | **21** (5 high) -- **21 shipped, 1 open (Bug #32, filed 2026-09-05 from Appendix C).** Gate: `grep -c '^- \[ \] \*\*Bug #'` = **1**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. Items **#22 through #34, with #30 closed**, are filed in the same number series but are feature dependencies, doc bugs and coverage items; they open with `**#NN` and have their own gate: `grep -c '^- \[ \] \*\*#[0-9]'` = **4** (#22, #31, #33, #34), measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. **Use this wide form, never `'^- \[ \] \*\*#2'`**; the day the narrow gate went blind is rule 53's lesson and lives in history. Prior state: [history](2026-08-22-backend-cleanup-history.md#bugs-category-row-prior-state-moved-2026-09-01). | -- |
-| Security findings | **5 open: S-33 (MED), S-35 (MED), S-30 (LOW), S-31 (LOW), S-36 (LOW).** Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309); edit this cell, the section-table row **and the gate line under the section head** together -- rule 36 names two, but there are three. **30 closed** (S-1..S-24, S-26..S-29, S-32, S-34; S-25 was never assigned). Numbered findings only; the unsettled questions have their own gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#security-findings-category-row-prior-state-moved-2026-09-01). | -- |
+| Security findings | **4 open: S-33 (MED), S-35 (MED), S-30 (LOW), S-31 (LOW).** Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **4** at [#311](https://github.com/themancalledzac/edens.zac.backend/pull/311); edit this cell, the section-table row **and the gate line under the section head** together -- rule 36 names two, but there are three. **31 closed** (S-1..S-24, S-26..S-29, S-32, S-34, S-36; S-25 was never assigned). Numbered findings only; the unsettled questions have their own gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#security-findings-category-row-prior-state-moved-2026-09-01). | -- |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
 | Inline comments | **RE-RUN 2026-09-04 on `main` at `afa39d6f` (unchanged on this branch; `src/` untouched). Leading form: **1,386** (203 main / 1,183 test). Trailing form: **67** with the corrected scheme filter; the old command read 68 by counting a `jdbc:postgresql://` string literal.** **Both deltas reconcile line-for-line (rule 42):** main `203 -> 203`, unmoved across six merges; test `1,169 -> 1,183` is +14 = 9 written new by [#300](https://github.com/themancalledzac/edens.zac.backend/pull/300) (`MessagesControllerAdminTest` +5, `MessageRepositoryTest` +4) + 5 written new by [#301](https://github.com/themancalledzac/edens.zac.backend/pull/301) (`CollectionServiceTest` +5). **Both are rule-37 violations in merged code, not sweep misses; #299 and #302 are docs-only and moved nothing.** Use the `git grep` form below (rule 50). Measurement history, including the `3a53c0cb` reconciliation: [history](2026-08-22-backend-cleanup-history.md#inline-comment-count-measurement-history). | ~300 net (also low) |
 
@@ -397,7 +397,7 @@ the eleventh-run review, which proved S-29 and each sibling with an anonymous GE
 Testcontainers boot (slice A; write-up in [history](2026-08-22-backend-cleanup-history.md#full-board-review----run-2026-09-05-eleventh-run)). Every one of the twenty-seven
 closed findings lives in auth, session, role-membership, share or actuator code;
 `/api/read/content/**` and `/api/read/collections/**` were never attacked as an authorization
-surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309). **This is the third cell rule 36 does not name; move it with the other two.**
+surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **4** at [#311](https://github.com/themancalledzac/edens.zac.backend/pull/311). **This is the third cell rule 36 does not name; move it with the other two.**
 
 - [x] **S-29** (**HIGH**) anonymous `GET /api/read/content/images/search` returned every image, private client galleries included -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05, with S-32 and S-34. A `publicOnly` flag on `ImageSearchRequest`, set from the route and never bindable, switches one `EXISTS` on a LISTED password-free membership. **Frontend owes `revalidateTag('search-images')` plus the location and tag tags** (D15). [Write-up](2026-08-22-backend-cleanup-history.md#s-29-s-32-and-s-34-outcome----2026-09-05).
 - [x] **S-32** (HIGH) the location page's orphan strip returned private-gallery images on a CDN-cacheable route -- [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309), 2026-09-05. **The same predicate also drops content held by no collection at all, which the row did not price** -- the public location page will shrink. **Rider still open as S-35.**
@@ -450,19 +450,9 @@ surface. Gate: `grep -c '^- \[ \] \*\*S-'` = **5** at [#309](https://github.com/
   is anonymous and shared-cacheable like the other three. **Command:**
   `sed -n '300,348p' src/main/java/edens/zac/portfolio/backend/dao/LocationRepository.java`.
   **Trap:** #309's test seeds no `collection_locations` row, so it does not reach this query --
-  a new case must seed one.
-- [ ] **S-36** (LOW) **a signed-in USER can save and re-read an image from a LISTED
-  password-protected gallery.** *(Filed 2026-09-05, split from the S-34 rider; #309 fixed the tag
-  view only.)* `isImageVisibleToUser` (`ContentRepository:280-301`, docblock from `:270`) admits on
-  `col.visibility = 'LISTED'` with no `gallery_password` term, and `findSavedImagesByUserId`
-  (`:321-340`, docblock from `:313`) applies the same gate, so the read side does not close it either. LISTED-plus-password
-  is a supported state, which is the whole reason `isImageVisibleToUser` could not be reused for
-  S-29. Scope is narrower than S-29's: it needs an authenticated account, not an anonymous GET,
-  which is why this is LOW. **Fix:** `AND col.gallery_password IS NULL` on the LISTED arm of both,
-  leaving the role-grant arm alone -- someone with an explicit grant should still see it.
-  **Command:** `sed -n '270,340p' src/main/java/edens/zac/portfolio/backend/dao/ContentRepository.java`.
-  **All four refs in S-35 and S-36 were restamped 2026-09-06**: both rows were written mid-#309
-  against the pre-merge file, and every ref in them drifted when the constant landed.
+  a new case must seed one. **Refs restamped 2026-09-06**: this row was written mid-#309 against
+  the pre-merge file, and every ref in it drifted when the constant landed.
+- [x] **S-36** (LOW) a signed-in USER could save and re-read an image from a LISTED password-protected gallery -- [#311](https://github.com/themancalledzac/edens.zac.backend/pull/311), 2026-09-06. `AND col.gallery_password IS NULL` on the LISTED arm of `isImageVisibleToUser` and `findSavedImagesByUserId`. **The role-grant arm was left open deliberately and two tests now pin it that way:** `role_collection` grants are visibility-agnostic (`RoleGrantPropagationService.setGrant`), so they are how a named client reaches their own gated gallery -- filtering that arm would revoke access from the people the grant was issued to.
 - [ ] **S-30** (LOW) **`GET /api/read/content/people` lists every row in `users`, not every tagged
   person.** `MetadataService.getAllPeople` (`:112`) calls
   `PersonRepository.findAllByOrderByPersonNameAsc` (`:49-52`), which is literally
@@ -1462,14 +1452,14 @@ stops sliding silently.
 
 ### Classification of the open board (stamped 2026-09-06, #309 close-out)
 
-**71 open** by `grep -c '^- \[ \] '` at [#309](https://github.com/themancalledzac/edens.zac.backend/pull/309): from 72 at `a20473fd`, -3 ticked (S-29, S-32, S-34) and +2 filed (S-35, S-36, the two riders #309 did not close). Prior state, from 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
+**71 open** by `grep -c '^- \[ \] '` at [#311](https://github.com/themancalledzac/edens.zac.backend/pull/311): from **72 measured on `main` at `9e95d3d4`**, -1 ticked (S-36). #310 stamped this cell as 71 while still on its own branch and the number never matched `main` -- that is rule 42's restamp, missed once. Before that, from 72 at `a20473fd`: -3 ticked (S-29, S-32, S-34) and +2 filed (S-35, S-36, the two riders #309 did not close). Prior state, from 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
 
-**Next run, in order: S-36, S-33, S-35, then Bug #32.** The first three are the rest of the
-public-read visibility family and their context is warm from #309; none of the three touches a file
-another touches, so they do not stack. S-36 goes first because it is the cheapest fully specified
-item on the board (one `AND` on two methods) and banks an MR early.
+**Next run, in order: S-33, S-35, then Bug #32.** S-36 closed 2026-09-06
+([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311)). S-33 and S-35 are the rest
+of the public-read visibility family and their context is warm from #309; neither touches a file the
+other touches, so they do not stack.
 
-- **HIGH, scheduled first:** S-33, Bug #32. S-29, S-32 and S-34 closed 2026-09-05 ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)).
+- **HIGH, scheduled first:** S-33, Bug #32. S-29, S-32 and S-34 closed 2026-09-05 ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)); S-36 closed 2026-09-06 ([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311)).
 - **COLD:** S-30, S-31; MR 18 #10; MR 19 #17 (b), (c), (e); the orphan `images` array; `searchImages`
   GIFs; MR 25's `ContentModels.Image` pass, its four typeless-migration ITs and the verify ratio; U-2;
   U-7; MR 21; ten of MR 22's eleven rows; MR 23's three moves; five of MR 24's rows; MR 26's eleven
@@ -1560,7 +1550,7 @@ open from MR 14" with nothing open in it. Three fully-closed sections moved (MR 
 MR 16). **About 95 closed rows remain and want their own MR**, not a fold-in -- rule 57 was learned
 one day ago.
 
-**Next:** S-36, then S-33, then S-35.
+**Next:** S-33, then S-35.
 
 ### 2026-09-05 -- S-29 + S-32 + S-34 closed. First code MR since #301
 

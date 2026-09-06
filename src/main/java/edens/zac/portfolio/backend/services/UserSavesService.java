@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Per-user saved images ("Your Space" bookmarks). A logged-in user may save an image only if they
- * may SEE it — i.e. it holds a visible membership in a LISTED collection with no gallery password,
+ * may SEE it -- i.e. it holds a visible membership in a LISTED collection with no gallery password,
  * or in one the caller has an explicit role grant for (see {@link
  * ContentRepository#isImageVisibleToUser}). This prevents a client-gallery user from POSTing an
  * arbitrary image id to exfiltrate images from HIDDEN/UNLISTED collections or another client's

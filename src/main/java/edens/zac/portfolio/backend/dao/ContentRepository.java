@@ -320,7 +320,7 @@ public class ContentRepository extends BaseDao {
    * A user's saved images as full entities, newest-saved first. Applies the same visibility gate as
    * {@link #isImageVisibleToUser}, password term included: an image is returned only while it still
    * holds a visible membership in a LISTED collection with no gallery password, or in one the user
-   * has explicit access to. Defense-in-depth — a save made while an image was visible drops out of
+   * has explicit access to. Defense-in-depth -- a save made while an image was visible drops out of
    * the list if the owner later hides it or sets a password, and it closes the read side even if a
    * row was ever inserted without the write-side check.
    */
