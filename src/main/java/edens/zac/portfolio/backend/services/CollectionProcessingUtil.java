@@ -355,7 +355,7 @@ public class CollectionProcessingUtil {
     }
 
     CollectionModel model = convertToModel(entity, joinEntries, 0, 0, joinEntries.size());
-    populateCollectionsOnContent(model);
+    populateCollectionsOnContent(model, false);
     populateSiblings(model, false);
     return model;
   }
@@ -369,9 +369,18 @@ public class CollectionProcessingUtil {
    * records are immutable, so the memberships are attached with {@code withCollections} rather than
    * a setter.
    *
+   * <p>{@code listedOnly=true} on the public read path, matching {@link #populateSiblings} and
+   * {@link #populateParents}: an image can belong to a public collection and a private one at the
+   * same time, and without this every public collection read published the slug of every unlisted
+   * and password-protected collection holding any of its images (S-33). {@code listedOnly=false} on
+   * the admin and collaborator paths, which need every membership. {@link
+   * #filterNonListedChildCollections} strips child collection BLOCKS and is a different mechanism
+   * -- it does not touch this array.
+   *
    * @param model The CollectionModel with content items to populate
+   * @param listedOnly Keep only memberships an anonymous viewer may see
    */
-  public void populateCollectionsOnContent(CollectionModel model) {
+  public void populateCollectionsOnContent(CollectionModel model, boolean listedOnly) {
     if (model == null || model.getContent() == null || model.getContent().isEmpty()) {
       return;
     }
@@ -387,14 +396,11 @@ public class CollectionProcessingUtil {
       return;
     }
 
-    List<CollectionContentEntity> allCollections =
+    List<CollectionContentEntity> loadedCollections =
         collectionRepository.findContentByContentIdsIn(contentIds);
-    Map<Long, List<CollectionContentEntity>> collectionsByContentId =
-        allCollections.stream()
-            .collect(Collectors.groupingBy(CollectionContentEntity::getContentId));
 
     List<Long> collectionIds =
-        allCollections.stream()
+        loadedCollections.stream()
             .map(CollectionContentEntity::getCollectionId)
             .filter(Objects::nonNull)
             .distinct()
@@ -406,8 +412,23 @@ public class CollectionProcessingUtil {
             : collectionRepository.findByIds(collectionIds).stream()
                 .collect(Collectors.toMap(CollectionEntity::getId, c -> c));
 
+    List<CollectionContentEntity> allCollections =
+        listedOnly
+            ? loadedCollections.stream()
+                .filter(joinEntry -> isPubliclyVisibleMembership(joinEntry, collectionsById))
+                .toList()
+            : loadedCollections;
+
+    Map<Long, List<CollectionContentEntity>> collectionsByContentId =
+        allCollections.stream()
+            .collect(Collectors.groupingBy(CollectionContentEntity::getContentId));
+
     List<Long> coverImageIds =
-        collectionsById.values().stream()
+        allCollections.stream()
+            .map(CollectionContentEntity::getCollectionId)
+            .distinct()
+            .map(collectionsById::get)
+            .filter(Objects::nonNull)
             .map(CollectionEntity::getCoverImageId)
             .filter(Objects::nonNull)
             .distinct()
@@ -538,6 +559,25 @@ public class CollectionProcessingUtil {
                         p.isClient(),
                         p.isBlog()))
             .toList());
+  }
+
+  /**
+   * True when a membership is one an anonymous viewer may be told about: the join row is visible
+   * and the collection holding it is LISTED with no gallery password. Same three terms as {@code
+   * ContentRepository.PUBLIC_COLLECTION_MEMBERSHIP}, applied in Java because the collections are
+   * already batch-loaded here. A membership whose collection is missing from the map is dropped --
+   * it cannot be shown to be public, and {@link #convertToChildCollection} would have discarded it
+   * anyway.
+   */
+  private static boolean isPubliclyVisibleMembership(
+      CollectionContentEntity joinEntry, Map<Long, CollectionEntity> collectionsById) {
+    if (joinEntry == null || !Boolean.TRUE.equals(joinEntry.getVisible())) {
+      return false;
+    }
+    CollectionEntity collection = collectionsById.get(joinEntry.getCollectionId());
+    return collection != null
+        && collection.getVisibility() == CollectionVisibility.LISTED
+        && collection.getGalleryPassword() == null;
   }
 
   /**

@@ -157,7 +157,7 @@ public class CollectionService {
         collectionProcessingUtil.convertToModel(
             collection, collectionContentList, normalizedPage, normalizedSize, totalElements);
 
-    collectionProcessingUtil.populateCollectionsOnContent(model);
+    collectionProcessingUtil.populateCollectionsOnContent(model, true);
 
     collectionProcessingUtil.populateSiblings(model, true);
 
@@ -1495,7 +1495,7 @@ public class CollectionService {
     CollectionModel model =
         collectionProcessingUtil.convertToModel(
             collection, updatedContent, 0, pageSize, totalElements);
-    collectionProcessingUtil.populateCollectionsOnContent(model);
+    collectionProcessingUtil.populateCollectionsOnContent(model, false);
     return model;
   }
 
