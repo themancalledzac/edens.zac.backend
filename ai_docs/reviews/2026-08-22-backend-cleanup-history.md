@@ -6584,6 +6584,46 @@ Moved off the tracker by the #309 close-out under the two-tier rule.
 
 Moved from the tracker by the #309 close-out.
 
+### 2026-09-06 -- S-35 closed. Half the prescribed fix would have made it worse
+
+[#313](https://github.com/themancalledzac/edens.zac.backend/pull/313) closed S-35 in
+`LocationRepository.findLocationsWithVisibleContent`. One main file, one new integration test class
+with five cases.
+
+**The row named two things and only one of them was the fix.** It said the `NOT EXISTS` predicates
+carried "no `gallery_password` term and no requirement that the image hold any public membership".
+The second is the defect. The first is a trap: the `NOT EXISTS` asks "is this image visibly held by
+a LISTED collection **at this location**", and a match means the image is NOT an orphan. Adding a
+password term there makes the match fail for an image held at the location by a LISTED protected
+gallery, which flips that image into the orphan count -- the opposite of the intended effect. The
+fix is the positive `EXISTS` alone: an image counts as an orphan of a location only if it holds a
+visible membership in some LISTED collection with no password anywhere. That is the same shape #309
+put on `ContentRepository:192`, and #309's own docblock had already written down the reason ("the
+list holds the location's LISTED collections, so an image whose only home is a private gallery is by
+definition an orphan and would always be returned").
+
+`anImageHeldAtThisLocationOnlyByAProtectedGalleryIsStillNotAnOrphan` exists to stop someone making
+the change the row proposed. Adding `AND c2.gallery_password IS NULL` to the `NOT EXISTS` fails it,
+and nothing else in the suite notices.
+
+**`collection_count` was checked and deliberately left alone.** Its `LEFT JOIN` has no password term
+either, so a location whose only collection is a LISTED protected gallery is still listed -- and that
+is correct, not a leak. S-34 settled that a LISTED-with-password gallery is meant to be discoverable
+as a tile while its content stays gated, and the location page shows exactly that tile through
+`findListedByLocationName`, which has the same shape.
+`aPasswordProtectedGalleryStillMakesItsOwnLocationDiscoverable` pins it so a later sweep does not
+"fix" it.
+
+The two byte-identical `NOT EXISTS` copies are now one `PUBLIC_ORPHAN_IMAGE_COUNT` constant used by
+both the projection and the `HAVING`. Not a CTE -- the two uses sit in different clauses of one
+statement and a Java constant makes them the same string by construction, which is what the
+duplication actually needed.
+
+**Rebased onto #312**, the second of three identical rebases. Code replayed clean every time; the
+conflict was always the two tracker files and never `src`. Resolving by re-applying the row from the
+new `main` rather than merging hunks is what keeps the counts measured: 70 open on `main` at
+`7f0e4a89`, 69 here.
+
 ### 2026-09-06 -- S-33 closed. The flag shape was the fix, not the filter
 
 [#312](https://github.com/themancalledzac/edens.zac.backend/pull/312) gave
