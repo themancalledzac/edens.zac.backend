@@ -44,7 +44,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 /** Service for managing content, tags, and people. */
@@ -65,6 +68,12 @@ public class ContentService {
   private final MetadataService metadataService;
   private final String cloudfrontDomain;
 
+  /**
+   * Runs one image's updates inside a savepoint so a failure rolls back that item alone. See {@link
+   * #updateImages} for why the batch cannot simply share the outer transaction.
+   */
+  private final TransactionTemplate perItemTransaction;
+
   private static final String FORMAT_WEB = "web";
   private static final String FORMAT_ORIGINAL = "original";
 
@@ -80,6 +89,7 @@ public class ContentService {
       ContentImageUpdateValidator contentImageUpdateValidator,
       ContentValidator contentValidator,
       MetadataService metadataService,
+      PlatformTransactionManager transactionManager,
       @Value("${cloudfront.domain}") String cloudfrontDomain) {
     this.tagRepository = tagRepository;
     this.contentRepository = contentRepository;
@@ -93,6 +103,8 @@ public class ContentService {
     this.contentValidator = contentValidator;
     this.metadataService = metadataService;
     this.cloudfrontDomain = cloudfrontDomain;
+    this.perItemTransaction = new TransactionTemplate(transactionManager);
+    this.perItemTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
   }
 
   /**
@@ -112,6 +124,14 @@ public class ContentService {
    * writes per image through {@code saveContentTags} and {@code saveContentPeople}, so batching
    * only the {@code saveImage} calls would leave the endpoint O(N) in statements while adding a
    * second persistence path for images.
+   *
+   * <p>Each item runs in its own savepoint ({@code PROPAGATION_NESTED}), which is what makes the
+   * per-item error list true (Bug #32). Sharing the outer transaction, a partial failure lied in
+   * both directions: a Java-side error between an item's writes left the earlier ones committed
+   * while the response reported that item failed, and a Postgres error poisoned the transaction so
+   * every later statement failed with "current transaction is aborted" and nothing committed at all
+   * -- while the response still listed the earlier items as succeeded. A savepoint per item means a
+   * reported failure wrote nothing and a reported success is durable.
    *
    * @param updates the image updates to apply; must be non-empty and each must carry an id
    * @return updated image models, per-item errors, and any metadata entities created along the way
@@ -163,62 +183,41 @@ public class ContentService {
         locationRepository.findLocationsByContentIds(imageIds);
     Set<LocationEntity> newlyCreatedLocations = new HashSet<>();
 
-    List<ContentImageEntity> imagesToSave = new ArrayList<>();
+    int saved = 0;
 
     for (ContentImageUpdateRequest update : updates) {
+      Set<TagEntity> itemTags = new HashSet<>();
+      Set<ContentPersonEntity> itemPeople = new HashSet<>();
+      Set<ContentCameraEntity> itemCameras = new HashSet<>();
+      Set<ContentLensEntity> itemLenses = new HashSet<>();
+      Set<ContentFilmTypeEntity> itemFilmTypes = new HashSet<>();
+      Set<LocationEntity> itemLocations = new HashSet<>();
+
       try {
-        Long imageId = update.getId();
-        ContentImageEntity image = imageMap.get(imageId);
-
-        applyImageUpdatesWithTracking(
-            image, update, newlyCreatedCameras, newlyCreatedLenses, newlyCreatedFilmTypes);
-
-        if (update.getTags() != null) {
-          List<TagEntity> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
-          contentMutationUtil.updateImageTagsOptimized(
-              image, update.getTags(), currentTags, newlyCreatedTags);
-        }
-
-        if (update.getPeople() != null) {
-          List<ContentPersonEntity> currentPeople =
-              currentPeopleByImage.getOrDefault(imageId, List.of());
-          contentMutationUtil.updateImagePeopleOptimized(
-              image, update.getPeople(), currentPeople, newlyCreatedPeople);
-        }
-
-        if (update.getLocations() != null) {
-          List<LocationEntity> currentLocations =
-              currentLocationsByImage.getOrDefault(imageId, List.of());
-          contentMutationUtil.updateImageLocationsOptimized(
-              image, update.getLocations(), currentLocations, newlyCreatedLocations);
-        }
-
-        if (update.getCollections() != null) {
-          CollectionRequests.CollectionUpdate collectionUpdate = update.getCollections();
-
-          if (collectionUpdate.remove() != null && !collectionUpdate.remove().isEmpty()) {
-            for (Long collectionIdToRemove : collectionUpdate.remove()) {
-              collectionRepository.removeContentFromCollection(
-                  collectionIdToRemove, List.of(image.getId()));
-              log.info("Removed image {} from collection {}", image.getId(), collectionIdToRemove);
-            }
-          }
-
-          if (collectionUpdate.prev() != null && !collectionUpdate.prev().isEmpty()) {
-            contentMutationUtil.handleContentChildCollectionUpdates(
-                image.getId(), collectionUpdate.prev());
-          }
-
-          if (collectionUpdate.newValue() != null && !collectionUpdate.newValue().isEmpty()) {
-            contentMutationUtil.handleAddToCollections(image.getId(), collectionUpdate.newValue());
-          }
-        }
-
-        imagesToSave.add(image);
-
         ContentModels.Image imageModel =
-            (ContentModels.Image) contentModelConverter.convertRegularContentEntityToModel(image);
+            perItemTransaction.execute(
+                status ->
+                    applyOneImageUpdate(
+                        update,
+                        imageMap,
+                        currentTagsByImage,
+                        currentPeopleByImage,
+                        currentLocationsByImage,
+                        itemTags,
+                        itemPeople,
+                        itemCameras,
+                        itemLenses,
+                        itemFilmTypes,
+                        itemLocations));
+
         updatedImages.add(imageModel);
+        newlyCreatedTags.addAll(itemTags);
+        newlyCreatedPeople.addAll(itemPeople);
+        newlyCreatedCameras.addAll(itemCameras);
+        newlyCreatedLenses.addAll(itemLenses);
+        newlyCreatedFilmTypes.addAll(itemFilmTypes);
+        newlyCreatedLocations.addAll(itemLocations);
+        saved++;
 
       } catch (IllegalArgumentException e) {
         errors.add(e.getMessage());
@@ -229,12 +228,7 @@ public class ContentService {
       }
     }
 
-    if (!imagesToSave.isEmpty()) {
-      for (ContentImageEntity image : imagesToSave) {
-        contentRepository.saveImage(image);
-      }
-      log.debug("Saved {} updated images", imagesToSave.size());
-    }
+    log.debug("Saved {} updated images", saved);
 
     return buildUpdateResponse(
         updatedImages,
@@ -244,6 +238,81 @@ public class ContentService {
         newlyCreatedCameras,
         newlyCreatedLenses,
         newlyCreatedFilmTypes);
+  }
+
+  /**
+   * Every write for one image, including its own {@code saveImage}. Runs inside the caller's
+   * savepoint, so throwing from anywhere in here discards this image's writes and leaves the items
+   * around it untouched.
+   *
+   * <p>Newly created entities go into per-item sets rather than the batch-level ones. A rolled-back
+   * item must not report a tag or location it no longer has, and the caller only merges these in
+   * once the savepoint has committed.
+   *
+   * <p>The save is here rather than in a second pass after the loop because a savepoint can only
+   * protect writes issued inside it. Deferring the saves put each image's row update outside the
+   * unit that was supposed to cover it.
+   */
+  private ContentModels.Image applyOneImageUpdate(
+      ContentImageUpdateRequest update,
+      Map<Long, ContentImageEntity> imageMap,
+      Map<Long, List<TagEntity>> currentTagsByImage,
+      Map<Long, List<ContentPersonEntity>> currentPeopleByImage,
+      Map<Long, List<LocationEntity>> currentLocationsByImage,
+      Set<TagEntity> newTags,
+      Set<ContentPersonEntity> newPeople,
+      Set<ContentCameraEntity> newCameras,
+      Set<ContentLensEntity> newLenses,
+      Set<ContentFilmTypeEntity> newFilmTypes,
+      Set<LocationEntity> newLocations) {
+    Long imageId = update.getId();
+    ContentImageEntity image = imageMap.get(imageId);
+
+    applyImageUpdatesWithTracking(image, update, newCameras, newLenses, newFilmTypes);
+
+    if (update.getTags() != null) {
+      List<TagEntity> currentTags = currentTagsByImage.getOrDefault(imageId, List.of());
+      contentMutationUtil.updateImageTagsOptimized(image, update.getTags(), currentTags, newTags);
+    }
+
+    if (update.getPeople() != null) {
+      List<ContentPersonEntity> currentPeople =
+          currentPeopleByImage.getOrDefault(imageId, List.of());
+      contentMutationUtil.updateImagePeopleOptimized(
+          image, update.getPeople(), currentPeople, newPeople);
+    }
+
+    if (update.getLocations() != null) {
+      List<LocationEntity> currentLocations =
+          currentLocationsByImage.getOrDefault(imageId, List.of());
+      contentMutationUtil.updateImageLocationsOptimized(
+          image, update.getLocations(), currentLocations, newLocations);
+    }
+
+    if (update.getCollections() != null) {
+      CollectionRequests.CollectionUpdate collectionUpdate = update.getCollections();
+
+      if (collectionUpdate.remove() != null && !collectionUpdate.remove().isEmpty()) {
+        for (Long collectionIdToRemove : collectionUpdate.remove()) {
+          collectionRepository.removeContentFromCollection(
+              collectionIdToRemove, List.of(image.getId()));
+          log.info("Removed image {} from collection {}", image.getId(), collectionIdToRemove);
+        }
+      }
+
+      if (collectionUpdate.prev() != null && !collectionUpdate.prev().isEmpty()) {
+        contentMutationUtil.handleContentChildCollectionUpdates(
+            image.getId(), collectionUpdate.prev());
+      }
+
+      if (collectionUpdate.newValue() != null && !collectionUpdate.newValue().isEmpty()) {
+        contentMutationUtil.handleAddToCollections(image.getId(), collectionUpdate.newValue());
+      }
+    }
+
+    contentRepository.saveImage(image);
+
+    return (ContentModels.Image) contentModelConverter.convertRegularContentEntityToModel(image);
   }
 
   /**

@@ -6584,6 +6584,63 @@ Moved off the tracker by the #309 close-out under the two-tier rule.
 
 Moved from the tracker by the #309 close-out.
 
+### 2026-09-06 -- Bug #32 closed, and rule 58: stop putting the tracker in code MRs
+
+[#314](https://github.com/themancalledzac/edens.zac.backend/pull/314) gave each item in
+`ContentService.updateImages` its own savepoint. Two main files, one new integration test class,
+one constructor argument. It closes the last open bug on the board.
+
+**Savepoint, not fail-the-batch.** The row offered both. The response already carries a per-item
+`errors` list and the admin UI renders it, so failing the batch would have deleted a contract rather
+than repaired one. The savepoint makes the existing contract true: a reported failure wrote nothing,
+a reported success is durable.
+
+**The non-obvious part was that wrapping the loop body is not enough.** The method collected
+`imagesToSave` and issued every `saveImage` in a second pass after the loop. A savepoint only covers
+writes issued inside it, so an item's own row update sat outside the unit meant to protect it -- the
+item's tags would roll back while its `content_image` row committed, which is the same bug in a new
+place. All of one item's writes, `saveImage` included, now live in `applyOneImageUpdate`.
+
+The second trap was the tracking sets. `newlyCreatedTags` and friends were mutated as the loop ran,
+so a rolled-back item still reported the tags it had created. Each item now fills per-item sets that
+are merged into the batch-level ones only after its savepoint commits.
+
+**Both shapes were reproduced against the pre-fix code, and they fail differently.** Shape (a), a
+Java-side error (a missing collection id in `handleAddToCollections`, thrown after that item's tags
+were written): the assertion fails with the failed item's tags still in `content_tags`. Shape (b), a
+Postgres error (an over-long title against `content_image.title VARCHAR(255)`, thrown at that item's
+`saveImage` after its tags): `DataIntegrityViolationException` propagates out of `updateImages`
+entirely, so the endpoint 500s and the item the response would have called a success commits nothing.
+
+`ContentServiceTest` needed the new constructor argument. A Mockito `PlatformTransactionManager` is
+enough there: `TransactionTemplate` tolerates the null `TransactionStatus` a mock returns, so the
+savepoint reduces to a plain call and those tests keep asserting on the entity handed to the
+repository.
+
+#### Rule 58, and what the run cost without it
+
+The four MRs of this run were cut from one base because they share no source file -- S-36 in
+`ContentRepository`, S-33 in `CollectionProcessingUtil`, S-35 in `LocationRepository`, Bug #32 in
+`ContentService`. That part worked: `src` never conflicted once, across all four.
+
+Every one of them also ticked its row and restamped the counts in this tracker. So each MR conflicted
+with its predecessor the moment that predecessor merged -- three rebases, in a chain, each one
+blocking the next. Every rebase was resolved the same way: discard the attempted merge, take `main`'s
+tracker, re-apply that one row from the new base. Merging hunks would have produced arithmetic
+instead of a measurement, and the counts have to be measured -- #310 carrying an open-box number that
+was never true on `main` is the same failure one step earlier.
+
+**Rule 58 is the fix: a code MR touches `src` only.** The tracker is edited once, after every code MR
+in the run has landed, by a single docs MR that ticks all the rows and restamps every count against a
+`main` that already holds all the code. One measurement instead of N, one PR instead of N rebases,
+and no code MR waiting on a docs conflict. The tracker sitting one run behind in between is the
+intended state, and rule 42's post-merge restamp stops being a separate chore because it is what the
+docs MR does.
+
+This run kept the old shape to the end rather than switching mid-flight -- #311 through #313 had
+already merged with their rows in them, so pulling Bug #32's row out would have left one run split
+across two conventions for no benefit. The next run starts on rule 58.
+
 ### 2026-09-06 -- S-35 closed. Half the prescribed fix would have made it worse
 
 [#313](https://github.com/themancalledzac/edens.zac.backend/pull/313) closed S-35 in
