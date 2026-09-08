@@ -23,10 +23,10 @@ Line numbers are from the `8c28cf3` baseline. Find symbols by name, not by line,
 | 2 — Bugs | MR 5-9 | **complete, and its residual is now closed too** — [history](2026-08-22-backend-cleanup-history.md#wave-2--bugs) (#165, #166, #168, #169, #170, #172, #173). Bug #17, carried forward since 2026-08-24, shipped 2026-08-31 ([#256](https://github.com/themancalledzac/edens.zac.backend/pull/256)). |
 | 3 — Security hardening | MR 10-11 | **complete** — [history](2026-08-22-backend-cleanup-history.md#wave-3--security-hardening) (#175, #176). Superseded by the 2026-08-24 review; see the security row. |
 | 4 — Comments and docs | MR 12-14 | **mostly complete** — [history](2026-08-22-backend-cleanup-history.md#wave-4--mr-12-and-mr-13-complete) (#177, #178, #180, #181, #183, #184) and MR 14 ([#187](https://github.com/themancalledzac/edens.zac.backend/pull/187)). **Wave 4 removed 500 comments for -1,026 words across seven MRs.** MR 14 taught working rule 12 (superseded by rule 37 **as a comment rule only -- its protected-file list is still live**; the three counts at the Inline-comments row were re-run at the ninth close-out, and one of the three had been stale since [#285](https://github.com/themancalledzac/edens.zac.backend/pull/285) -- see the row itself); **zero stale-docblock items still open** -- the last two closed 2026-09-02 ([#303](https://github.com/themancalledzac/edens.zac.backend/pull/303)) and **Wave 4 is now complete**; the `filterNonListedChildCollections` docblock had closed 2026-08-29 as already rewritten. |
-| 5 — Consolidations | MR 15-19 | **Open: MR 18 #10, MR 18 #13's sort split, MR 19 #17 members (b), (c), (e), and two MR 19 rows filed 2026-09-01 (drop the orphan `images` array; `searchImages` GIFs).** MR 15, MR 16 and MR 17 are complete; MR 16 #3 closed as decided 2026-09-01. **MR 18 #13 is unblocked and its direction was ANSWERED 2026-09-08: case-insensitive SQL (`ORDER BY lower(...)` at six sites, ~4 order tests). It is the fourteenth run's item 1.** Shipped-MR narrative: [history](2026-08-22-backend-cleanup-history.md#progress-row-narratives-wave-5-chain-moved-2026-09-01). |
+| 5 — Consolidations | MR 15-19 | **Open: MR 18 #10, MR 19 #17 members (b), (c), (e), and two MR 19 rows filed 2026-09-01 (drop the orphan `images` array; `searchImages` GIFs).** MR 15, MR 16 and MR 17 are complete; MR 16 #3 closed as decided 2026-09-01. **MR 18 #13 is CLOSED 2026-09-08 ([#321](https://github.com/themancalledzac/edens.zac.backend/pull/321))** -- the sort half shipped as `ORDER BY lower(...)` at six sites with six order tests, and the dedupe half stays closed on the merits. **MR 18 #10 has been COLD and unworked since the sixth close-out.** Shipped-MR narrative: [history](2026-08-22-backend-cleanup-history.md#progress-row-narratives-wave-5-chain-moved-2026-09-01). |
 | 6 — Conventions | MR 20-22 | **MR 20 closed 2026-08-30 by user decision** -- bare arrays are blessed and no endpoint changed ([history](2026-08-22-backend-cleanup-history.md#mr-20--the-bare-array-decision-closed-2026-08-30-moved-from-the-tracker)). MR 21 not started; MR 22 has one of eleven rows shipped (#29, #303). |
 | 7 — Structure | MR 23-24 | not started |
-| 8 — Tests | MR 25-26 | **MR 25 is half done; MR 26 is 4 of 13 -- the `readAt` and `count` rows closed 2026-09-08 ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)), leaving 9 open of 11 counted in the section.** #27 shipped 2026-09-01 ([#297](https://github.com/themancalledzac/edens.zac.backend/pull/297)) and the two guard tests closed 2026-08-24 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195), [#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)); the Progress row said "not started" through both. Two of MR 25's four positional/arity members shipped 2026-08-31: `FileEntry` ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267)) and `resolveCollectionDownloadEntries` ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271)). `DownloadResolution.extension` shipped 2026-09-02 ([#304](https://github.com/themancalledzac/edens.zac.backend/pull/304)) with all 13 refs exact, leaving **one** open member: `CollectionRequests.Update` (**22 sites as of 2026-09-01**, was 21; must ride with the `TestFixtures` pass). |
+| 8 — Tests | MR 25-26 | **MR 25 is half done; MR 26 is 5 of 13 -- the `PATCH /{id}/read` empty-body row and its `q.trim()` rider closed 2026-09-08 ([#322](https://github.com/themancalledzac/edens.zac.backend/pull/322)), leaving 8 open of 11 counted in the section; the `readAt` and `count` rows closed the same day ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)).** #27 shipped 2026-09-01 ([#297](https://github.com/themancalledzac/edens.zac.backend/pull/297)) and the two guard tests closed 2026-08-24 ([#195](https://github.com/themancalledzac/edens.zac.backend/pull/195), [#196](https://github.com/themancalledzac/edens.zac.backend/pull/196)); the Progress row said "not started" through both. Two of MR 25's four positional/arity members shipped 2026-08-31: `FileEntry` ([#267](https://github.com/themancalledzac/edens.zac.backend/pull/267)) and `resolveCollectionDownloadEntries` ([#271](https://github.com/themancalledzac/edens.zac.backend/pull/271)). `DownloadResolution.extension` shipped 2026-09-02 ([#304](https://github.com/themancalledzac/edens.zac.backend/pull/304)) with all 13 refs exact, leaving **one** open member: `CollectionRequests.Update` -- **25 construction sites across 8 test files**, re-run on `main` at `41ec264f` by `git grep -n 'new CollectionRequests.Update(' -- src/test`, of which **22** are the 17-arg compat-constructor subset that is the deletion target. **Say which figure you mean (rule 31); the [Positional constructors](#positional-constructors-that-block-the-testfixtures-pass) row is the maintained copy.** Must ride with the `TestFixtures` pass. |
 
 Four sections below are not waves and had no row here until 2026-08-24, which made them invisible
 to anyone navigating by this table. **"Decisions needed from the user" was the fourth and was still
@@ -41,7 +41,7 @@ is the same failure the paragraph above was written to fix:
 | [Tests that cannot fail](2026-08-22-backend-cleanup-history.md#tests-that-cannot-fail--closed-2026-08-30-moved-from-the-tracker) | **0 open of 6 — CLOSED 2026-08-30.** The last three shipped in one session (#239, #240, #241), each mutation-proved against `main` first. Two of the three carried a wrong premise that was corrected while closing: the share-link credential is a `Set-Cookie`, not a response-body token; and the `AdminUserControllerTest` pointer the board suggested names a test that does not redden on that mutation. Write-ups in history. |
 | [Rule 37 debt](2026-08-22-backend-cleanup-history.md#rule-37-debt--r-1-closed-2026-08-30-moved-from-the-tracker) | **0 open — R-1 closed 2026-08-30 ([#238](https://github.com/themancalledzac/edens.zac.backend/pull/238)).** Taught working rule 39. The wider per-package sweep is not tracked here; it is the Inline-comments row in the category table below. |
 | [Stale side branches](#stale-side-branches) | **Zero open PRs, re-run 2026-09-05** (`gh pr list --state open --json number` = `[]`). **Nine worktrees plus the main checkout, re-run 2026-09-05** (`git worktree list` = 10 rows): seven under `edens.zac.backend.worktrees/`, two under `.claude/worktrees/`; three are merged-work worktrees to remove. Four of the eight tracked branches have no `origin` ref; measure against local refs. Prior state: [history](2026-08-22-backend-cleanup-history.md#stale-side-branches-row-prior-state-moved-2026-09-01). |
-| [Unsettled security questions](#unsettled-security-questions) | **2 open: U-2, U-3.** U-1 answered and U-8 closed as moot 2026-09-05; U-7 closed 2026-09-08 ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)). Edit gate (rule 36): `grep -c '^- \[ \] \*\*U-'` = **2**, **re-run on `main` at `2bc62a20` 2026-09-08 after [#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)-[#319](https://github.com/themancalledzac/edens.zac.backend/pull/319) merged, and it holds** -- no restamp owed. Run it and update this row together. The section also holds one non-`U-` open box, the `RoleRepository.canView`/`isClient` deletion, which opens `**Delete` and cannot move this gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#unsettled-security-questions-row-prior-state-moved-2026-09-01). |
+| [Unsettled security questions](#unsettled-security-questions) | **1 open: U-3**, and it is BLOCKED on the user. U-2 answered 2026-09-08 ([#323](https://github.com/themancalledzac/edens.zac.backend/pull/323)); U-1 answered and U-8 closed as moot 2026-09-05; U-7 closed 2026-09-08 ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)). Edit gate (rule 36): `grep -c '^- \[ \] \*\*U-'` = **1**, re-run on `main` at `41ec264f`. **Nothing answerable in-tree is left in this section.** Run it and update this row together. The section also holds one non-`U-` open box, the `RoleRepository.canView`/`isClient` deletion, which opens `**Delete` and cannot move this gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#unsettled-security-questions-row-prior-state-moved-2026-09-01). |
 
 **Board file sizes, the rule-53 gate.** Measured with
 
@@ -49,11 +49,13 @@ is the same failure the paragraph above was written to fix:
 wc -l ai_docs/reviews/2026-08-22-backend-cleanup-spike.md ai_docs/reviews/2026-08-22-backend-cleanup-history.md
 ```
 
-**At `a20473fd` (rule 42): tracker 1,591, history 10,889.** #309 took them to **1,585** / **11,019**. [#310](https://github.com/themancalledzac/edens.zac.backend/pull/310) takes them to **1,571** / **11,143** (`--numstat` 85 / 99): five fully-closed sections (MR 14 docblocks, MR 15, MR 16, MR 17, the closed-findings ledger) and the #309 log entry moved out; seven restamped refs, two corrected C8 numbers, the S-33 re-specification and one new row in.
-Chain since the tenth close-out: `8f635d35` **1,873** / **9,774**; #303 (`efed4c63`) **1,864** / **9,854**;
-#304 and #305 (`bd0e15ef`) **1,864** / **9,891**; #301 (`afa39d6f`) **1,873** / **9,915**; this review
-**-282** / **+965**; #307 (`50d633e2`) **1,591** / **10,880**. **#301 grew the tracker by 9 lines
-(+11 / -1), which rule 53 forbids, and nothing recorded it.** The tracker's
+**At `41ec264f` (rule 42): tracker 1,550, history 11,590.** **The recorded chain had stopped at
+[#310](https://github.com/themancalledzac/edens.zac.backend/pull/310) while four close-outs landed
+after it, so the stamp was three runs stale** -- re-measured this close-out and the chain re-anchored
+here. Prior links: `a20473fd` **1,591** / **10,889**; #309 **1,585** / **11,019**; #310 **1,571** /
+**11,143**; `bad67029` and `2bc62a20` and `adb7d545` unmeasured at the time, **1,550** / **11,590** on
+arrival at `41ec264f`. Chain before that: [history](2026-08-22-backend-cleanup-history.md#rule-53-size-chain-pre-310-moved-2026-09-08).
+**#301 grew the tracker by 9 lines (+11 / -1), which rule 53 forbids, and nothing recorded it.** The tracker's
 delta must be <= 0 in every MR that touches it (**working rule 53**); `scripts/board-gates.sh` checks it.
 The #299 rebase arithmetic: [history](2026-08-22-backend-cleanup-history.md#rule-53-size-stamp-the-299-rebase-paragraph-moved-2026-09-05).
 
@@ -64,7 +66,7 @@ Original estimate: roughly 4,500-5,000 lines removed against a few hundred added
 | Bugs (fix, not delete) | **22** (5 high) -- **22 shipped, 0 open.** Bug #32 was filed 2026-09-05 from Appendix C and closed 2026-09-06 ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)). Gate: `grep -c '^- \[ \] \*\*Bug #'` = **0** at [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314). Items **#22 through #34, with #30 closed**, are filed in the same number series but are feature dependencies, doc bugs and coverage items; they open with `**#NN` and have their own gate: `grep -c '^- \[ \] \*\*#[0-9]'` = **4** (#22, #31, #33, #34), re-measured 2026-09-08 on `docs/close-out-thirteenth-run` and unchanged -- #31 stays open on its FE and `is_film` halves even though its coverage debt is paid. **Use this wide form, never `'^- \[ \] \*\*#2'`**; the day the narrow gate went blind is rule 53's lesson and lives in history. Prior state: [history](2026-08-22-backend-cleanup-history.md#bugs-category-row-prior-state-moved-2026-09-01). | -- |
 | Security findings | **2 open: S-30 (LOW), S-31 (LOW).** Checkbox check: `grep -c '^- \[ \] \*\*S-'` = **2** at [#313](https://github.com/themancalledzac/edens.zac.backend/pull/313); edit this cell, the section-table row **and the gate line under the section head** together -- rule 36 names two, but there are three. **33 closed** (S-1..S-24, S-26..S-29, S-32..S-36; S-25 was never assigned). Numbered findings only; the unsettled questions have their own gate. Prior state: [history](2026-08-22-backend-cleanup-history.md#security-findings-category-row-prior-state-moved-2026-09-01). | -- |
 | Dead code (main) | ~60 methods/fields/files | ~1,000 |
-| Inline comments | **RE-RUN 2026-09-04 on `main` at `afa39d6f` (unchanged on this branch; `src/` untouched). Leading form: **1,386** (203 main / 1,183 test). Trailing form: **67** with the corrected scheme filter; the old command read 68 by counting a `jdbc:postgresql://` string literal.** **Both deltas reconcile line-for-line (rule 42):** main `203 -> 203`, unmoved across six merges; test `1,169 -> 1,183` is +14 = 9 written new by [#300](https://github.com/themancalledzac/edens.zac.backend/pull/300) (`MessagesControllerAdminTest` +5, `MessageRepositoryTest` +4) + 5 written new by [#301](https://github.com/themancalledzac/edens.zac.backend/pull/301) (`CollectionServiceTest` +5). **Both are rule-37 violations in merged code, not sweep misses; #299 and #302 are docs-only and moved nothing.** Use the `git grep` form below (rule 50). Measurement history, including the `3a53c0cb` reconciliation: [history](2026-08-22-backend-cleanup-history.md#inline-comment-count-measurement-history). | ~300 net (also low) |
+| Inline comments | **RE-RUN 2026-09-08 on `main` at `41ec264f`. Leading form: **1,372** (203 main / **1,169** test). Trailing form: **67**.** **The stamp of 1,183 had been stale since the twelfth close-out and two close-outs restamped other gates while leaving this one.** Reconciled line-for-line (rule 42), each window attributed to one file: `1,183 -> 1,180` at `bad67029` is `ContentRepositoryRoleVisibilityIntegrationTest` 3 -> 0; `1,180 -> 1,173` at `2bc62a20` is `MessagesControllerAdminTest` 7 -> 0 ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)); `1,173 -> 1,169` at `f70c6c99` is `MessageRepositoryTest` 4 -> 0 ([#322](https://github.com/themancalledzac/edens.zac.backend/pull/322)). Main is `203 -> 203`, unmoved across every merge since `afa39d6f`. **All three are the delete-on-touch rule firing inside a code MR, not sweep MRs -- see working rule 59.** Use the `git grep` form below (rule 50). Measurement history: [history](2026-08-22-backend-cleanup-history.md#inline-comment-count-measurement-history). | ~300 net (also low) |
 
 **The two commands, exactly as run** (**rule 31**) -- they carry pipes and cannot live inside a
 table cell. Leading form, **`1,386`** (203 main / 1,183 test) at `afa39d6f`:
@@ -475,31 +477,17 @@ said "0 open -- the section is EMPTY". U-5 through U-8 are worse: they existed o
 closed `[x]` ledger lines, so no gate anywhere could see them and one of them (U-6) is a row the
 board explicitly wrote "needs its own item" about and then never filed.
 
-Edit gate (rule 36): `grep -c '^- \[ \] \*\*U-'` = **3**, measured on the review branch `docs/eleventh-run-review` (from `afa39d6f`, 2026-09-05); re-run on `main` after merge. Run it and update the
-section-table row together. Open: U-2 (COLD, answerable in-tree), U-3 (BLOCKED on the user), U-7
-(COLD). U-1 was answered and U-8 closed as moot on 2026-09-05. Stamp history, including the two runs
-it read 7: [history](2026-08-22-backend-cleanup-history.md#unsettled-security-questions-row-prior-state-moved-2026-09-01).
+Edit gate (rule 36): `grep -c '^- \[ \] \*\*U-'` = **1**, re-run on `main` at `41ec264f` (2026-09-08).
+Run it and update the section-table row together. Open: **U-3 only** (BLOCKED on the user). U-2 was
+answered 2026-09-08, U-7 closed the same day, U-1 was answered and U-8 closed as moot on 2026-09-05.
+**Nothing in this section is answerable in-tree any more.** Stamp history, including the two runs it
+read 7: [history](2026-08-22-backend-cleanup-history.md#unsettled-security-questions-row-prior-state-moved-2026-09-01).
 
 - [x] **U-1** -- does prod run the `prod` profile? **ANSWERED 2026-09-04: yes**, by one anonymous GET against the origin. [history](2026-08-22-backend-cleanup-history.md#u-1-outcome-moved-2026-09-08)
-- [ ] **U-2 -- whether Tomcat surfaces `Transfer-Encoding` to `getHeader()`.** S-5's entire fix depends on
-  it, and its only test uses `MockHttpServletRequest`, which returns whatever the test put in. If
-  Tomcat consumes the header while installing the chunked input filter, the branch never fires and
-  the bypass is still open. Settle with an integration test that POSTs a real chunked body to a
-  booted server and asserts 411. **Exemplar corrected 2026-09-08: use `AuthFlowEndToEndTest`**
-  (`src/test/java/edens/zac/portfolio/backend/auth/AuthFlowEndToEndTest.java`) --
-  `@SpringBootTest(webEnvironment = RANDOM_PORT)` over `AbstractPostgresIntegrationTest`, with
-  `@LocalServerPort` and a `TestRestTemplate`. **The row named `ActuatorExposureEndToEndTest`, which
-  U-7 deleted** ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)) -- a session
-  following the old text would have gone looking for a file that is not there. **Note while pricing:**
-  `AuthFlowEndToEndTest` is now the *only* booted-server test in the repo
-  (`git grep -ln "WebEnvironment.RANDOM_PORT\|LocalServerPort" -- src/test`), so U-2's test is the
-  second, not one of several, and carries the container-boot cost on its own.
-  **CLASSIFIED 2026-09-01 (tenth run): COLD, and it does NOT belong in the blocked pile
-  next to U-1.** `RateLimitFilter:112` is
-  `if (declaredBodyBytes < 0 && request.getHeader("Transfer-Encoding") != null)` and its only
-  coverage is `RateLimitFilterTest:91` and `:121`, both `MockHttpServletRequest`, both returning
-  whatever the test put in -- exactly as this item says. **It is answerable today, in-tree, with no
-  credentials and no host access.** It had no bucket in the classification section at all until now.
+- [x] **U-2 -- whether Tomcat surfaces `Transfer-Encoding` to `getHeader()`. ANSWERED 2026-09-08: yes**
+  ([#323](https://github.com/themancalledzac/edens.zac.backend/pull/323)). S-5's 411 branch at
+  `RateLimitFilter:112` fires against a booted server, so the chunked bypass of the 16KB public body
+  cap is genuinely closed. [Write-up](2026-08-22-backend-cleanup-history.md#u-2-answered-2026-09-08----tomcat-does-surface-transfer-encoding-323), [body](2026-08-22-backend-cleanup-history.md#u-2-tracker-body-moved-2026-09-08).
 - [ ] **U-3 -- `ACCESS_TOKEN_SECRET` has no rotation story.** It keys gallery HMAC tokens, gallery password
   fingerprints, and now share-token confidentiality. Rotating it makes every stored ciphertext
   unreadable, so the key now guarding at-rest confidentiality is one nobody can rotate -- a suspected
@@ -631,6 +619,9 @@ mechanically (rule 55).
 | 56 | A visibility fix on a membership join also drops rows with no membership; that is a behaviour change, price it | S-32, #309 |
 | 57 | Never move board rows by line range; slice on the row markers or you sweep the neighbour | #309 nearly lost S-33 |
 | 58 | A code MR touches `src` only. Tick the rows and restamp every count in ONE docs MR at the end of the run | twelfth run: four MRs from one base, three rebases, all of them the tracker and none of them `src` |
+| 59 | The comment count moves in code MRs too, via the delete-on-touch rule. Reconcile it per file before calling a delta a violation or a sweep | 1,183 stamp sat stale through three windows, each one file, none of them a sweep MR |
+| 60 | Re-run a recorded command **verbatim** before concluding its number is wrong; a wrong command fails open and returns a plausible number | `git grep -E` here ignores `\b`, returned 0, and nearly got a correct count deleted as fabricated |
+| 61 | To prove a container surfaces something, use a raw socket and assert **our** error string, not the status; a client may rewrite the request and the container may return the same code for its own reasons | U-2, #323 |
 
 
 ---
@@ -692,43 +683,7 @@ All rows closed; moved to [history](2026-08-22-backend-cleanup-history.md#mr-17-
   **DONE** ([#291](https://github.com/themancalledzac/edens.zac.backend/pull/291), 2026-09-01, eighth run), at a coverage price the item had wrong.
   [Write-up](2026-08-22-backend-cleanup-history.md#12b--the-last-two-nextorderindex-copies-and-a-coverage-price-that-was-wrong-291).
   Body: [history](2026-08-22-backend-cleanup-history.md#12b-tracker-body-moved-2026-09-01).
-- [ ] #13. **Re-scoped 2026-09-01 (tenth-run review). The dedupe half is confirmed dead; the sort half is not the finding the board recorded, and what is left is BLOCKED on a question about the production database.**
-
-  **Dedupe half -- DROP IT, both grounds verified at `43c6f2c6`.** Nine `Records` construction sites, 4 Tag and 5 Location; **the count holds exactly**. Tag at `ContentModelConverter:328`, `MetadataService:431`, `SyntheticCollectionResolver:152`, `ContentService:970`; Location at `ContentModelConverter:665`, `MetadataService:439`, `CollectionService:265` and `:267`, `CollectionProcessingUtil:160`. Declarations `convertTagsToModels:323`, `toTagModel:430`, `toLocationModel:438`, all exact. **Three refs drifted, and all three sit in the group the eighth close-out had flagged under rule 23 as not re-derived** -- `ContentModelConverter` Location 657 -> **665**, `SyntheticCollectionResolver` 150 -> **152**, `ContentService` 986 -> **970**. The board's own hedge was correct. Net ~0 lines, because every copy and every replacement is one line, and **the layering flip is verified rather than asserted**: `Records.java` imports only `JsonProperty`, `types.FilmFormat` and `LocalDate`, and no file anywhere under `model/` imports from `entity/`, so a static `from(entity)` factory would be the repo's first `model -> entity` import. Closed on the merits.
-
-  **Sort half -- the recorded finding is a category error, and two of its three members are wrong.** The old text said `MetadataService`, `SyntheticCollectionResolver` and `ContentService` "do not sort". `MetadataService.getAllTags` (`:49`) and `getAllLocations` (`:368`) are ordered **in SQL** by `TagRepository.findAllByOrderByTagNameAsc` and `LocationRepository.findAllByOrderByLocationNameAsc`, both `ORDER BY <name> ASC`. `SyntheticCollectionResolver.toTagRecords` (`:148`) gets its list from `TagRepository.findTagsByCollectionIds`, which ends `ORDER BY t.tag_name ASC` (`:231`). `LocationRepository.findLocationsByContentIds` (`:180`) and `findLocationsByCollectionIds` (`:262`) order by name too, so the Java sorts in `ContentModelConverter.resolveLocations` and `CollectionProcessingUtil` are re-sorting already-sorted rows. **`toTagModel` and `toLocationModel` are single-entity mappers -- they map one row and cannot sort. Naming them as the unsorted producers was the category error.** **No endpoint returns an unordered tag or location list.** The one genuinely unordered site is `ContentService.buildUpdateResponse` (`:970`), which maps five `Set`s through `mapOrNull` over `HashSet` iteration order -- and it is the "what did we just create" echo on a mutation response, not a listing.
-
-  **The collation question is ANSWERED and this item is UNBLOCKED.** Production sorts as **`C`**;
-  re-verified 2026-09-04 on the same image tag (`postgres:16-alpine`, booted with the
-  `scripts/ec2-postgres/docker-compose.yml` environment and no `POSTGRES_INITDB_ARGS`):
-  `datlocprovider = c`, and `('b'),('A'),('a'),('B') ORDER BY name` gives `A,B,a,b`. **Do not answer
-  this by reading `datcollate`**; it says `en_US.utf8` on both alpine and Debian. Two facts a fixer
-  needs: `COLLATE "en_US.utf8"` does not exist on the alpine image and errors at runtime on prod while
-  passing in CI's Debian `services.postgres` block (`ci-cd.yml:48-60`, which nothing uses); `und-x-icu`
-  does exist. Testcontainers already runs alpine (`AbstractPostgresIntegrationTest:29`), so an
-  ordering test is prod-faithful. Method: [history](2026-08-22-backend-cleanup-history.md#the-production-collation-answered-2026-09-02).
-
-  **Sites, re-derived 2026-09-08 on `main` at `2bc62a20`.** Six SQL `ORDER BY <name>` sites reach a
-  user without a Java re-sort: `TagRepository:58` and `:231`, `PersonRepository:50`,
-  `LocationRepository:95` and `:366`, `CollectionPeopleRepository:82`. **Two drifted since 2026-09-04
-  and are corrected here**: `LocationRepository:57 -> :95` (`findAllByOrderByLocationNameAsc`, decl
-  `:93`) and `:337 -> :366` (`findLocationsWithVisibleContent`, decl `:346`). The other four hold
-  exactly. **The count of six is correct and was re-checked, not assumed** -- `grep -n "ORDER BY"
-  LocationRepository.java` returns **five** sites in that file alone (`:95`, `:218`, `:282`, `:300`,
-  `:366`), and the three excluded are excluded for a reason: `:218` and `:300` are re-sorted in Java,
-  and `:282` (`findCollectionLocations`) has one caller, `CollectionProcessingUtil:712`, which drops
-  its result into a `HashSet` on an update path and never returns it as an ordered list. That is three public list endpoints (`/api/read/content/tags`,
-  `/people`, `/locations`) plus `CollectionModel.people`, all `C`-ordered. Four Java sites use
-  `compareToIgnoreCase`: `ContentModelConverter:329`, `:346`, `:666` and `CollectionProcessingUtil:161`
-  (image chips and `CollectionModel.locations`, interleaved). **DIRECTION ANSWERED 2026-09-08 by the user: case-insensitive SQL.**
-  `ORDER BY lower(...)` at the six sites -- 6 one-token edits plus ~4 Testcontainers order tests
-  (~35 lines; `MetadataServiceTest` mocks the repository and cannot see it). This makes SQL agree
-  with the four Java `compareToIgnoreCase` sites and with the frontend's `sortByName.ts:10` instead
-  of fighting them. **Rejected: matching Java to `C`** (4 comparator lines, but ships uppercase-first
-  lists nobody approved, and the frontend's admin pickers re-sort case-insensitively anyway, so the
-  backend order would be overridden there and inconsistent everywhere else). **Rejected: closing the
-  row.** No longer BLOCKED -- this is the fourteenth run's item 1. The dedupe half stays closed on
-  the grounds above.
+- [x] #13. **Sort half DONE 2026-09-08** ([#321](https://github.com/themancalledzac/edens.zac.backend/pull/321)) -- `ORDER BY lower(...)` at six SQL sites plus six Testcontainers order tests. **The dedupe half stays closed on the merits** and was re-verified at `41ec264f`; reopening costs ~12 edits and the repo's first `model -> entity` import for ~0 lines. [Write-up](2026-08-22-backend-cleanup-history.md#mr-18-13----case-insensitive-ordering-2026-09-08-321), [body](2026-08-22-backend-cleanup-history.md#mr-18-13-tracker-body-moved-2026-09-08).
 
 ## MR 19 — Query efficiency and data layer
 
@@ -1111,23 +1066,13 @@ coverage gap. The heading here says "Coverage gaps" and #29 was never one.)*
   `IllegalStateException`, both of which map to 4xx with the message on the wire (rule 3).
 - [x] **`AdminMessageView.readAt` is asserted by no test from the `SELECT` column to the JSON field.**
   **DONE 2026-09-08** ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)).
-  [Write-up](2026-08-22-backend-cleanup-history.md#mr-26-messages-coverage-2026-09-08----the-row-named-a-test-that-could-not-exist).
-  *(Filed 2026-09-05 from slice G.)* Mutations M3 (controller passes `null` for `m.getReadAt()`), M10
-  (row mapper stops setting `readAt`) and M10b (`read_at` dropped from `MessageRepository.SELECT_COLUMNS`)
-  all survive `MessageRepositoryTest`, `MessagesControllerAdminTest` and `MessageServiceTest`. The
-  frontend renders it on `/comments` since edens.zac#396, so a regression ships green. Owed: one
-  `MessagesControllerAdminTest` assertion that a seeded read message serialises a non-null `readAt`,
-  and one `MessageRepositoryTest` assertion that `findAll` maps the column.
+  [Write-up](2026-08-22-backend-cleanup-history.md#mr-26-messages-coverage-2026-09-08----the-row-named-a-test-that-could-not-exist),
+  [body](2026-08-22-backend-cleanup-history.md#mr-26-readat-and-count-tracker-bodies-moved-2026-09-08).
 - [x] **`MessageRepository.count` (`:98`) can ignore both filters and nothing notices.** **DONE
-  2026-09-08** ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)).
-  [Write-up](2026-08-22-backend-cleanup-history.md#mr-26-messages-coverage-2026-09-08----the-row-named-a-test-that-could-not-exist).
-  *(Filed 2026-09-05, slice G M8.)* `count` calling `appendFilters(null, null, params)` survives; the controller
-  test only checks that two mocks receive the same arguments. Owed: one `MessageRepositoryTest` case
-  with two rows, one read, asserting `count(true, null) == 1`.
-- [ ] **`PATCH /api/admin/messages/{id}/read` with an empty `{}` body has no test.** *(Filed
-  2026-09-05, slice G M4a.)* Dropping the `body.read() == null` guard at `MessagesControllerAdmin:73`,
-  so `{}` NPEs to 500, survives. Owed: one controller test sending `{}` and expecting 204. Rider (LOW,
-  G M6e): `q.trim()` at `MessageRepository:50` is untested; one case in `Filters`.
+  2026-09-08** ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)). Body: same anchor.
+- [x] **`PATCH /api/admin/messages/{id}/read` with an empty `{}` body has no test.** **DONE
+  2026-09-08** ([#322](https://github.com/themancalledzac/edens.zac.backend/pull/322)), with the
+  `q.trim()` rider. [Write-up](2026-08-22-backend-cleanup-history.md#mr-26----the-empty-body-path-and-the-trim-2026-09-08-322).
 - [ ] **No test observes the `PutObjectRequest` in `ImageProcessingService`** (LOW). *(Filed
   2026-09-05, slice C C-4.)* `grep -rn "putObject\|PutObjectRequest" src/test/java` is empty;
   `ImageProcessingServiceTest` mocks `S3Client` and captures `ContentImageEntity`, not the request. A
@@ -1327,94 +1272,146 @@ until someone starts it.)*
 
 ---
 
-## Next run (set 2026-09-08, thirteenth close-out)
+## Next run (set 2026-09-08, fourteenth close-out)
 
-Ordered. **Rule 58 applies: code MRs touch `src` only; one docs MR at the end ticks the rows and
-restamps every count once.** The twelfth-run list, whose items 1-3 are now shipped
-([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316),
-[#317](https://github.com/themancalledzac/edens.zac.backend/pull/317),
-[#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)):
-[history](2026-08-22-backend-cleanup-history.md#next-run-list-twelfth-close-out-version-moved-2026-09-08).
+**The fifteenth run is the full-board review. It is not a list of MRs.**
 
-**Nothing to ask first.** MR 18 #13's direction was answered 2026-09-08 and is recorded on its row.
-If a new question appears mid-run, batch it into the opening message -- an answer arriving at the
-end of a session is an answer wasted.
+The recommendation the thirteenth close-out filed has reached its own leak detector: it said "if
+this recommendation is restated in the fourteenth close-out without having been run, run it then or
+delete it from the board." This close-out is that point. It is scheduled as the run rather than
+restated as advice, which is the only form that stops it leaking -- a run has a session, a
+recommendation beside a run list does not.
 
-1. **MR 18 #13, case-insensitive ordering.** Direction answered: `ORDER BY lower(...)` at the six
-   SQL sites -- `TagRepository:58` and `:231`, `PersonRepository:50`, `LocationRepository:57` and
-   `:337`, `CollectionPeopleRepository:82` -- plus ~4 Testcontainers order tests (~35 lines).
-   **The six refs were re-derived 2026-09-08 on `main` at `2bc62a20` and two were corrected**
-   (`LocationRepository:57 -> :95`, `:337 -> :366`); the row carries the current numbers and the
-   reasoning for why six is the right count. Spot-check them rather than re-deriving from scratch. **Guardrail: `MetadataServiceTest` mocks the
-   repository and cannot see ordering** -- the tests must be Testcontainers, and must redden when
-   `lower(` is removed from a site. The dedupe half stays closed; do not reopen it.
-2. **MR 26's `PATCH /{id}/read` empty-body row.** `MessagesControllerAdmin:73`; dropping the
-   `body.read() == null` guard so `{}` NPEs to 500 currently survives. One controller test sending
-   `{}` and expecting 204. Rider (LOW, G M6e): `q.trim()` at `MessageRepository:50`, one case in
-   `Filters`. MR 26 9 -> 8. Cheap, and it sits in a file this run already opened.
-3. **U-2**, the last COLD security question answerable in-tree.
-4. **#22, #33, #34** as the frontend needs them.
+**What changed the evidence.** During the fourteenth run the case was argued down: criterion 1
+counted three days of work against a review three days old, and criterion 2 looked discharged
+because MR 18 #13's two drifted refs had been found and corrected. Then this close-out's own sweep
+fired criterion 2 again, harder, on two findings that neighbourhood-scoping structurally could not
+reach:
 
-**Full-board review: RECOMMENDED, not run (first stated 2026-09-08, thirteenth close-out).**
-Three escalation criteria fired together, and the third is the one that matters:
+- **`ContentService:970` is drifted twice over**, and nothing has merged near `ContentService` in
+  weeks. `buildUpdateResponse` is now `:1027` and the `new Records.Tag(` site is `:1039`. The MR 18
+  #13 row used `:970` for **both** claims and both were wrong.
+- **The Progress row's bare "22 sites" for `CollectionRequests.Update` is ambiguous under rule 31,
+  and the ambiguity nearly produced a wrong correction in this very close-out.** The maintained
+  figure is the [Positional constructors](#positional-constructors-that-block-the-testfixtures-pass)
+  row's **25 sites across 8 files**, re-run and confirmed on `main` at `41ec264f` by the board's own
+  recorded command, `git grep -n 'new CollectionRequests.Update(' -- src/test`. The **22** is the
+  narrower 17-arg compat-constructor subset. Both numbers are real; the Progress row quotes one
+  without saying which, which is the exact failure rule 31 exists to stop. **Fixed in the row.**
 
-1. **Roughly a quarter of the board has shipped since the last full review** (eleventh run,
-   2026-09-05): eighteen items closed across #307-#319 against a board that has sat at 65-72.
-2. **The scoped drift sweep stopped being sufficient.** Two of MR 18 #13's six refs had drifted
-   with no merge anywhere near `LocationRepository` -- the thirteenth run's code MRs touched one
-   main file and five test files. Neighbourhood-scoping did not find them and could not have.
-3. **Seven security fixes have merged with nothing reviewing them as a set** -- S-29, S-32 and S-34
-   ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)), S-36, S-33 and S-35
+**And a trap for the review, learned by walking into it here.** A first pass at re-running that
+count used `git grep -nE 'new CollectionRequests\.Update\b'` and got **0**, then read the zero as
+proof the recorded number was fabricated. `git grep -E` in this repo's environment does not honour
+`\b`, so the pattern silently matches nothing -- a wrong command that fails **open**, returning a
+plausible number rather than an error. **Re-run the board's recorded command verbatim before
+concluding a recorded number is wrong**, and where a count disagrees, suspect the new command first.
+This is rule 31's other half: a recorded command is worth more than a re-derived one precisely
+because it cannot fail this way.
+
+Criterion 2 still holds on the `ContentService` finding above, which is a genuine drift outside any
+merge neighbourhood. It does not hold on this one.
+
+**Criteria standing at this close-out**, against the escalation list:
+
+1. **Quarter of the board shipped since the last full review** (eleventh run, 2026-09-05):
+   twenty-one items closed across [#307](https://github.com/themancalledzac/edens.zac.backend/pull/307)-[#323](https://github.com/themancalledzac/edens.zac.backend/pull/323) against a board that has sat at 62-72. **Holds.**
+2. **The scoped drift sweep has stopped being sufficient.** Fired twice running; see above. **Holds.**
+3. **Seven security fixes merged with nothing reviewing them as a set** -- S-29, S-32, S-34
+   ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)), S-36, S-33, S-35
    ([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311)-[#313](https://github.com/themancalledzac/edens.zac.backend/pull/313)),
-   and Bug #32 ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)). The eleventh
-   run *found* them; it did not review them merged. They all touch the same public-read visibility
-   surface, which is exactly the shape where attacking the group finds interaction defects that
-   seven single-item reviews miss by construction.
+   Bug #32 ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)). They all touch
+   the same public-read visibility surface. **Holds, and is the slice to run first.**
 
-**Leak detector, one level up:** if this recommendation is restated in the fourteenth close-out
-without having been run, run it then or delete it from the board. A recommendation carried across
-two close-outs reads as scheduled and is actually being deferred.
+Not tripped: no item is blocked on an unwritten question, and estimates have not blown out three
+runs running (the fourteenth's one miss is recorded at MR 18 #13 and is a shape correction, not a
+blowout).
 
-**Not in this run, and why.** MR 25's `CollectionRequests.Update` is BLOCKED (ordering) on the
-`Update` half of the `TestFixtures` pass. The `coverImage` row and `V54FoldMigrationIntegrationTest`
-wait on judgements. U-3 is BLOCKED on the user. MR 18 #10 has been COLD and unworked since the sixth
-close-out; it is named here so it stops sliding silently.
+### The slices
 
-### Classification of the open board (stamped 2026-09-08, thirteenth close-out)
+Eight read-only agents, each writing its report to a file as it lands, then **one apply agent
+working from the files** -- the parent cannot hold eight reports plus a 1,5xx-line tracker and still
+edit carefully (rule from the tenth and eleventh runs; both did it this way).
 
-**65 open** by `grep -c '^- \[ \] '` on `docs/close-out-thirteenth-run`: from **68 measured on `main` at `bad67029`**, -3 ticked (U-7, and MR 26's `readAt` and `count` rows). Nothing was filed this run. **Confirmed 2026-09-08 on `main` at `2bc62a20`**: all four merged in order (#316, #317, #318, then #319), and all five gates re-run there hold as stamped -- 65 open, `U-` 2, `#NN` 4, `Bug #` 0, MR 26 9. Rule 42's restamp is discharged; nothing is owed. #31 was not ticked: its coverage debt is paid but its FE and `is_film` halves are not. Prior stamp, 68 at [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314): from **69 measured on `main` at `bb07e121`**, -1 ticked (Bug #32). #310 stamped this cell as 71 while still on its own branch and the number never matched `main` -- that is rule 42's restamp, missed once. Before that, from 72 at `a20473fd`: -3 ticked (S-29, S-32, S-34) and +2 filed (S-35, S-36, the two riders #309 did not close). Prior state, from 65 on `main` at `afa39d6f`: -8 ticked (U-1, U-8, #30, FE-5, C1, C3, C5, C6), -3 moved out of Appendix C (C2, C4, C7), +3 `S-` (S-32, S-33, S-34), +2 `#NN` (#33, #34), +1 Bug #32, +1 decision (disk import), +1 MR 22 (C7), +4 MR 26 coverage rows, +6 rule-37 per-file sweeps.
+1. **The merged security set, attacked as a set.** S-29, S-32, S-33, S-34, S-35, S-36 and Bug #32
+   together, not one at a time. They share the public-read visibility surface, which is the shape
+   where the interaction defect survives seven correct single-item reviews.
+2. **Recorded numbers and gate shapes.** Re-run every count and every command on the board, not
+   re-read them. Start with the Inline-comments row, which this close-out found stale by three
+   windows, and re-run each command **verbatim as recorded** -- see the `\b` trap above.
+3. **Ref re-verification across all open checkboxes, by name (rule 5).** Assume drift; report the
+   count. Do not scope to the merge neighbourhood -- that scoping is what these two close-outs
+   proved insufficient.
+4. **Premise re-verification of the near set** -- MR 18 #10, MR 19 #17 (b)/(c)/(e), the orphan
+   `images` array, `searchImages` GIFs, MR 26's eight remaining rows.
+5. **The far set the classification block excludes** -- MR 21-24, Waves 6-7, the branch worklist,
+   Appendix C, the six rule-37 per-file rows.
+6. **Board self-consistency.** Row-to-section coverage, checkbox arithmetic against headings, link
+   and anchor integrity, and the rule-53 size chain -- which this close-out found recorded only as
+   far as [#310](https://github.com/themancalledzac/edens.zac.backend/pull/310) while four close-outs
+   have landed since.
+7. **Cross-repo**, one agent reading both boards, including FE-2/FE-3/FE-4 and #31's FE half.
+8. **Regression hunt on the merged behavioural changes**, attacking the inverse of what each fixed.
 
-**Next run: MR 18 #13, now that its direction is answered.** The thirteenth run closed the last
-actuator question and paid two coverage debts, one of them the `listedOnly` gate the eleventh-run
-review found executed by nothing: U-7 ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)),
-#31's gate test ([#317](https://github.com/themancalledzac/edens.zac.backend/pull/317)) and MR 26's
-`readAt`/`count` rows ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)).
-**The security board is now 2 open questions and zero open findings.**
+**Give every agent the do-not-re-investigate list** in "What held", below, or they will re-derive
+settled conclusions. U-1, U-2, the production collation and the MR 18 #13 dedupe grounds are all
+settled with evidence and are not open questions.
 
-**Rule 58 worked.** The thirteenth run ran three code MRs off one base with no rebase and no
-conflict, because none of them touched this file. The twelfth run's four MRs also shared no source
-file, but all four ticked rows here, so each conflicted with its predecessor on merge: three rebases
-in a chain, each blocking the next. **A code MR touches `src` only.** The tracker is edited once, after
-every code MR has landed, by one docs MR that ticks all the rows and restamps every count against a
-`main` that already holds the code. The tracker sitting one run behind in between is intended, and
-rule 42's restamp becomes part of that MR instead of a separate chore. Cost and reasoning:
-[history](2026-08-22-backend-cleanup-history.md#rule-58-and-what-the-run-cost-without-it).
+**Nothing to ask the user first.** The one question waiting on them -- how disk import is triggered
+-- is not on the review's path and can be answered any time.
 
-- **HIGH: none open**, and no `S-` finding of any severity is open. S-29, S-32 and S-34 closed 2026-09-05 ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)); S-36, S-33, S-35 and Bug #32 closed 2026-09-06 ([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311), [#312](https://github.com/themancalledzac/edens.zac.backend/pull/312), [#313](https://github.com/themancalledzac/edens.zac.backend/pull/313), [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)).
+### What held (do not re-investigate)
+
+Checked this run and found sound. This list exists so the review can skip slices rather than
+re-derive them.
+
+- **The six MR 18 #13 ORDER BY refs.** `TagRepository:58`/`:231`, `PersonRepository:50`,
+  `LocationRepository:95`/`:366`, `CollectionPeopleRepository:82` -- all six spot-checked exact on
+  `main` at `2bc62a20` and shipped at `41ec264f`.
+- **`LocationRepository`'s five `ORDER BY` sites** (`:95`, `:218`, `:282`, `:300`, `:366`) and the
+  reason three are excluded from the fix: `:218`/`:300` are re-sorted in Java, `:282`'s one caller
+  drops the result into a `HashSet`.
+- **The MR 18 #13 dedupe grounds, re-verified at `41ec264f`.** Nine construction sites (4 Tag, 5
+  Location); declarations `convertTagsToModels:323`, `toTagModel:430`, `toLocationModel:438` exact;
+  nothing under `model/` imports `entity/`; `Records.java` imports only `JsonProperty`,
+  `types.FilmFormat` and `LocalDate`. Reopening costs ~12 edits and the repo's first `model ->
+  entity` import, and returns ~0 lines.
+- **U-2 is answered with evidence** -- Tomcat surfaces `Transfer-Encoding` to `getHeader()`.
+- **`RateLimitFilter:112`, `RateLimitFilterTest:91`/`:121`** all exact.
+- **The FQN item's named sites.** `ContactMessageLimiter:68`, `BaseDao:87`, `TagViewResolver:115`
+  spot-checked exact; the list is a named list and is not the unreproducible kind.
+- **The five rule-42 checkbox gates** re-run on `main` at `41ec264f` and all hold as stamped.
+
+**Not in the review, and why.** MR 25's `CollectionRequests.Update` is BLOCKED (ordering) on the
+`Update` half of the `TestFixtures` pass; its count is verified, 25 sites in 8 files. The `coverImage`
+row and `V54FoldMigrationIntegrationTest` wait on judgements. U-3 is BLOCKED on the user. MR 18 #10
+has been COLD and unworked since the sixth close-out; it is named here so it stops sliding silently,
+and slice 4 should say plainly whether it is still real.
+
+### Classification of the open board (stamped 2026-09-08, fourteenth close-out)
+
+**62 open** by `grep -c '^- \[ \] '` on `main` at `41ec264f`: from **65 measured on `main` at
+`2bc62a20`**, -3 ticked (MR 18 #13's sort half, MR 26's `PATCH /{id}/read` row, U-2). Nothing was
+filed this run. All five gates re-run on `main` at `41ec264f` and all hold: `S-` 2, `U-` **1**
+(was 2, U-2 closed), `#NN` 4, `Bug #` 0, MR 26 **8** (was 9). Prior stamp and its arithmetic:
+[history](2026-08-22-backend-cleanup-history.md#classification-thirteenth-close-out-stamp-moved-2026-09-08).
+
+- **HIGH: none open**, and no `S-` finding of any severity is open.
 - **COLD:** S-30, S-31; MR 18 #10; MR 19 #17 (b), (c), (e); the orphan `images` array; `searchImages`
-  GIFs; MR 25's `ContentModels.Image` pass, its four typeless-migration ITs and the verify ratio; U-2;
-  MR 21; ten of MR 22's eleven rows; MR 23's three moves; five of MR 24's rows; MR 26's eleven
-  nine remaining coverage gaps; the six rule-37 per-file sweeps; #22, #33, #34; the `RoleRepository` deletion;
-  Appendix C's C8; the three Stale-side-branches rows (they wait on the user's standing worktree rule,
-  not on a question).
-- **BLOCKED (ordering):** MR 25's `CollectionRequests.Update`, on the `Update` half of the `TestFixtures` pass.
+  GIFs; MR 25's `ContentModels.Image` pass, its four typeless-migration ITs and the verify ratio;
+  MR 21; ten of MR 22's eleven rows; MR 23's three moves; five of MR 24's rows; MR 26's eight
+  remaining coverage gaps; the six rule-37 per-file sweeps; #22, #33, #34; the `RoleRepository`
+  deletion; Appendix C's C8; the three Stale-side-branches rows.
+- **BLOCKED (ordering):** MR 25's `CollectionRequests.Update`, on the `Update` half of the
+  `TestFixtures` pass. Its count is verified: 25 sites, 8 files.
 - **BLOCKED (user):** U-3; the `coverImage` stripping row; `V54FoldMigrationIntegrationTest`; MR 22's
-  try-catch row; the disk-import question. **MR 18 #13's direction was answered 2026-09-08 and is no longer blocked.**
+  try-catch row; the disk-import question.
 - **BLOCKED (other repo):** FE-2, FE-3, FE-4; #31's FE half (RC1).
 - **PARKED by decision:** gallery passwords and C7's partial indexes.
 
-The tenth close-out's classification and its arithmetic: [history](2026-08-22-backend-cleanup-history.md#classification-of-the-open-board-tenth-close-out-stamp-moved-2026-09-05).
-
+**Rule 58 held again, and cleanly.** The fourteenth run's three code MRs branched off one `main`,
+touched `src` only, and shared no source file -- they merged in the order opened with no rebase and
+no conflict. Cost of the alternative is recorded at
+[history](2026-08-22-backend-cleanup-history.md#rule-58-and-what-the-run-cost-without-it).
 ## Full-board review -- RUN 2026-09-05 (eleventh run)
 
 Eight read-only slices, three in isolated worktrees with throwaway tests and mutations; one apply
@@ -1478,57 +1475,58 @@ history file: the [pre-split log](2026-08-22-backend-cleanup-history.md#session-
 [newer archive](2026-08-22-backend-cleanup-history.md#session-log-archive--entries-moved-2026-08-31) (2026-08-30 onward) and the
 [2026-09-05 move](2026-08-22-backend-cleanup-history.md#session-log-archive-entries-moved-2026-09-05). **Link all three.**
 
+### 2026-09-08 -- fourteenth run. MR 18 #13, MR 26's empty body, and U-2
+
+Three code MRs plus this close-out, all merged: **MR 18 #13's sort half**
+([#321](https://github.com/themancalledzac/edens.zac.backend/pull/321)), **MR 26's `PATCH /{id}/read`
+empty-body row and its `q.trim()` rider** ([#322](https://github.com/themancalledzac/edens.zac.backend/pull/322)),
+and **U-2** ([#323](https://github.com/themancalledzac/edens.zac.backend/pull/323)). `main` is
+`41ec264f`. Gates on `main` after merge: **62 open / `S-` 2 / `U-` 1 / `#NN` 4 / `Bug #` 0 / MR 26 8**.
+**The security board is now one open question, U-3, blocked on the user, and zero open findings.**
+
+**U-2 is answered: Tomcat does surface `Transfer-Encoding` to `getHeader()`**, so S-5's 411 branch
+fires and the chunked bypass is genuinely closed. Two things made the test able to answer it, and
+both are the generalisable part: it goes over a **raw socket**, because every HTTP client is free to
+convert a chunked body to a declared `Content-Length` and would have tested nothing; and it asserts
+**the filter's own error string**, not the bare status, because a container-generated 411 would pass
+a status-only assertion in exactly the case where the branch is dead. Taught rule 61.
+
+**Rule 58 held again, cleanly.** Three code MRs off one `main`, `src` only, no shared source file --
+merged in the order opened with no rebase and no conflict. Second consecutive clean run.
+
+**The estimate miss, and it is a shape correction rather than a blowout.** MR 18 #13 was priced at
+"~4 order tests, ~35 lines" and shipped **6 tests / ~187 lines**. The gap is not bloat: six SQL sites
+need six tests if each site is to redden on its own, and the seed helpers -- five tables plus two
+link tables -- cost more than the assertions. **Price per-site guard tests at one test per site plus
+one seed helper per table touched**, and apply that to the remaining MR 26 rows.
+
+**Two recorded numbers were wrong, in opposite directions, and one of the two corrections was mine.**
+The Inline-comments row's test-side count had been stale since the twelfth close-out: 1,183 -> 1,169,
+reconciled per file across three windows, every one of them the delete-on-touch rule firing inside a
+code MR rather than a sweep (rule 59). Against that, a first attempt to re-run
+`CollectionRequests.Update`'s count used `git grep -nE` with `\b`, which this environment ignores,
+got **0**, and read the zero as proof the recorded 22 was fabricated. It was not: the board's own
+recorded command reproduces **25 sites in 8 files**, of which 22 are the compat-constructor subset.
+**A wrong command fails open** -- it returns a plausible number instead of an error. Taught rule 60.
+
+**The rule-53 size chain was three runs stale**, recorded only as far as #310 while four close-outs
+landed after it. Re-anchored at `41ec264f`: tracker **1,550**, history **11,590**.
+
+**The full-board review is now the fifteenth run, not a recommendation.** Its own leak detector fired
+at this close-out -- run it or delete it -- and it is scheduled as the run. The case was argued down
+during the run and then re-made by this close-out's sweep: `ContentService:970` is drifted twice over
+with nothing merged near that file in weeks, which is criterion 2's exact condition. **MR 18 #10 is
+the standing leak** -- COLD and unworked since the sixth close-out, named in every "not in this run"
+list since; slice 4 is told to say plainly whether it is still real.
+
+Next: the full-board review.
+
 ### 2026-09-08 -- thirteenth run. Three coverage/deletion MRs, and rule 58's first clean run
 
-Three code MRs plus a close-out, all merged: **U-7** ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)),
-**#31's `listedOnly` gate test** ([#317](https://github.com/themancalledzac/edens.zac.backend/pull/317)),
-**MR 26's `readAt`/`count` rows** ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)),
-close-out [#319](https://github.com/themancalledzac/edens.zac.backend/pull/319). `main` is `2bc62a20`.
-All five gates re-run on `main` after merge and all five hold as stamped: **65 open / `U-` 2 /
-`#NN` 4 / `Bug #` 0 / MR 26 9**. **The security board is now 2 open questions and zero open
-findings of any severity.**
-
-**Rule 58's first run, and it worked.** Three code MRs off one base, no rebase, no conflict, because
-none of them touched this file. Compare the twelfth run's three chained rebases. The rule is
-confirmed, not just adopted.
-
-**Rule 58 also overrode a row instruction for the first time.** U-7's row said to amend working rule
-34 in the same MR. Rule 34's index line lives here, in the file the close-out edits to tick three
-rows and restamp five counts, so amending it from the code branch reproduces exactly the conflict
-rule 58 prevents. The amendment went in [#319](https://github.com/themancalledzac/edens.zac.backend/pull/319).
-**Rows written before 2026-09-06 may carry more instructions that predate rule 58; expect to
-re-target them rather than follow them.**
-
-**Two rows specified a test that could not do the job, from opposite directions.** MR 26's row asked
-for a `MessageRepositoryTest` assertion that `findAll` maps `read_at` -- that class mocks
-`NamedParameterJdbcTemplate`, so the row mapper never meets a `ResultSet` and `SELECT_COLUMNS` never
-executes, which is *why* M10 and M10b survived it. Satisfying the row's letter would have been rule
-15's own complaint. U-7's row said "delete the two S-18 test files" when the deletion touched two and
-a half: `MUST_BE_EXCLUDED` was a shared constant left orphaned. Generalised on both items: **a row
-naming both a mutation and a host test class has assumed that class can run the mutation.**
-
-**One coverage loss taken deliberately and named.** `ActuatorExposureEndToEndTest.health_isStillReachable`
-was the only test that booted the app and proved `/actuator/health` serves 200;
-`InternalSecretFilterTest:52` only proves the filter passes the URI through. The deployment probe is
-now uncovered. Recorded on U-7's write-up rather than discovered later.
-
-**Reconciliation after the merge.** The close-out omitted its own session-log entry -- this one --
-and therefore skipped the retention move as well; both repaired in
-[#320](https://github.com/themancalledzac/edens.zac.backend/pull/320). Two of MR 18 #13's six
-`ORDER BY` refs had drifted and are fixed: `LocationRepository:57 -> :95` and `:337 -> :366`.
-**That drift sits outside the merge neighbourhood** -- the three code MRs touched one main file and
-five test files -- so the scoped sweep would not have found it, and did not; re-deriving the next
-run's item 1 refs on purpose did. The item's count of six is correct as written and was re-verified.
-
-**And the scoped sweep did earn its keep, on U-2.** U-7 deleted `ActuatorExposureEndToEndTest`,
-which U-2's row named as the shape to copy for its chunked-body test -- a run item pointing at a
-file this run removed. Repointed at `AuthFlowEndToEndTest`, now the **only** booted-server test in
-the repo, which also re-prices U-2: its test is the second such test, not one of several.
-**Deleting a test file means re-grepping the board for prose that names it**, not just for code that
-imports it -- the compiler cannot see a docs reference.
-
-Next: MR 18 #13.
-
+Moved to [history](2026-08-22-backend-cleanup-history.md#2026-09-08----thirteenth-run-three-coveragedeletion-mrs-and-rule-58s-first-clean-run)
+2026-09-08 under the retention rule. Three code MRs plus a close-out
+([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)-[#319](https://github.com/themancalledzac/edens.zac.backend/pull/319)),
+reconciled by [#320](https://github.com/themancalledzac/edens.zac.backend/pull/320); it proved rule 58 and taught rule 54's test-host corollary.
 ### 2026-09-08 -- twelfth run. The public-read visibility family and the last open bug
 
 Moved to [history](2026-08-22-backend-cleanup-history.md#2026-09-08----twelfth-run-the-public-read-visibility-family-and-the-last-open-bug)

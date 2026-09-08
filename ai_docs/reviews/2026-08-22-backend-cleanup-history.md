@@ -11588,3 +11588,225 @@ unchanged.
    MR 26 11 -> 9. **Guardrail: `readAt` is consumed by edens.zac#396** -- additive only.
 4. **MR 18 #13** once the direction is answered.
 5. **#22, #33, #34** as the frontend needs them.
+
+## MR 18 #13 -- case-insensitive ordering (2026-09-08, #321)
+
+Shipped the sort half. Six one-token SQL edits plus `NameOrderCollationIntegrationTest`, six tests,
+one per site. Suite 1,555 green. **Estimate was "~4 order tests, ~35 lines"; actual was 6 tests and
+~187 lines** -- see the fourteenth-run log entry for the correction that travels forward.
+
+**All six refs held exactly** as re-derived by the thirteenth close-out: `TagRepository:58` and
+`:231`, `PersonRepository:50`, `LocationRepository:95` and `:366`, `CollectionPeopleRepository:82`.
+The method at `CollectionPeopleRepository:82` is **`findPeopleForCollections`** -- the row named it
+by site only, and the sibling `findPeopleForCollection` (singular, `:59`) is the one deliberately
+excluded.
+
+**Test design, and the two constraints that drove it.** The shared Testcontainers Postgres does
+**not** truncate `tag`, `location` or `collection` between test classes, so each test seeds behind a
+per-test random prefix and filters the result to that prefix rather than asserting over the whole
+list. And each test seeds in `C` order (`Alpha`, `Charlie`, `bravo`) while asserting case-insensitive
+order (`Alpha`, `bravo`, `Charlie`), so a query that loses its `ORDER BY` **outright** also fails,
+not only one that loses `lower(`.
+
+**Mutation proof:** reverting all six edits reddens all six tests; restored, all six pass. The
+mapping is 1:1 because each test calls exactly one repository method and each method holds exactly
+one changed `ORDER BY`.
+
+**Nothing depended on `C` ordering.** The full suite was run against the change specifically to
+catch a test asserting uppercase-first order; none exists.
+
+## MR 18 #13 tracker body (moved 2026-09-08)
+
+**Dedupe half -- DROPPED, both grounds re-verified at `41ec264f`.** Nine `Records` construction
+sites, 4 Tag and 5 Location; the count holds. Tag at `ContentModelConverter:328`,
+`MetadataService:431`, `SyntheticCollectionResolver:152`, **`ContentService:1039`**; Location at
+`ContentModelConverter:665`, `MetadataService:439`, `CollectionService:265` and `:267`,
+`CollectionProcessingUtil:160`. Declarations `convertTagsToModels:323`, `toTagModel:430`,
+`toLocationModel:438`, all exact.
+
+**Two refs in this half were drifted and are corrected here, and both were the same number.** The
+row carried `ContentService:970` for **two different claims** -- the Tag construction site and the
+`buildUpdateResponse` unordered site. On `main` at `41ec264f` the Tag construction is **`:1039`** and
+`buildUpdateResponse` is declared at **`:1027`**; `:970` is now a `/**` line and means neither.
+**Nothing has merged near `ContentService` in weeks**, so this is drift the merge-neighbourhood sweep
+structurally could not find -- it is the evidence that put the full-board review on the fifteenth run.
+
+Net ~0 lines, because every copy and every replacement is one line. **The layering flip is verified
+rather than asserted**: `Records.java` imports only `JsonProperty`, `types.FilmFormat` and
+`LocalDate`, and no file anywhere under `model/` imports from `entity/`, so a static `from(entity)`
+factory would be the repo's first `model -> entity` import. **Reopening costs about 12 edits plus
+that precedent and returns roughly zero lines.** Closed on the merits.
+
+**Sort half -- the recorded finding was a category error, and two of its three members were wrong.**
+The old text said `MetadataService`, `SyntheticCollectionResolver` and `ContentService` "do not
+sort". `MetadataService.getAllTags` and `getAllLocations` are ordered **in SQL**;
+`SyntheticCollectionResolver.toTagRecords` gets an ordered list from
+`TagRepository.findTagsByCollectionIds`. **`toTagModel` and `toLocationModel` are single-entity
+mappers -- they map one row and cannot sort.** No endpoint returned an unordered tag or location
+list. The one genuinely unordered site is `ContentService.buildUpdateResponse` (**`:1027`**), which
+maps five `Set`s through `mapOrNull` over `HashSet` iteration order -- the "what did we just create"
+echo on a mutation response, not a listing, and deliberately left alone.
+
+**The collation question, answered 2026-09-04 and unchanged.** Production sorts as **`C`**
+(`datlocprovider = c`). **Do not answer this by reading `datcollate`** -- it says `en_US.utf8` on
+both alpine and Debian. `COLLATE "en_US.utf8"` does not exist on the alpine image and errors at
+runtime on prod while passing in CI's unused Debian `services.postgres` block; `und-x-icu` does
+exist. Testcontainers runs alpine, so an ordering test is prod-faithful.
+
+**Excluded sites and why.** `LocationRepository` holds five `ORDER BY` sites (`:95`, `:218`, `:282`,
+`:300`, `:366`); `:218` and `:300` are re-sorted in Java, and `:282` (`findCollectionLocations`) has
+one caller, `CollectionProcessingUtil:712`, which drops the result into a `HashSet` on an update path.
+The same reasoning excludes `TagRepository:204`/`:384`/`:415`, `PersonRepository:115`/`:227` and
+`CollectionPeopleRepository:59`. Four Java sites use `compareToIgnoreCase` -- `ContentModelConverter:329`,
+`:346`, `:666` and `CollectionProcessingUtil:161` -- and the fix makes SQL agree with them and with
+the frontend's `sortByName.ts:10` instead of fighting them.
+
+## MR 26 -- the empty-body path and the trim (2026-09-08, #322)
+
+Two tests. `MessagesControllerAdmin:73` reads
+`body == null || body.read() == null || body.read()`; an empty `{}` is a **distinct path** from an
+omitted body, because `body` is non-null and `body.read()` is null. Dropping the null term NPEs it
+to a 500, and `noBodyMeansMarkRead` short-circuits on the first term and cannot see it. The rider is
+`q.trim()` at `MessageRepository:50` -- without it the surrounding spaces land inside the bound LIKE
+pattern and it matches nothing; the existing `"Wedding"` case carries no whitespace and is blind to it.
+
+**Mutation proof:** dropping `body.read() == null` fails `emptyBodyMeansMarkRead` with
+`expected:<204> but was:<500>`; dropping `.trim()` fails `queryIsTrimmedBeforeMatching`. Under both
+together, exactly those two of the 30 tests in the two classes fail.
+
+**Both refs were re-derived on `main` after #321 was cut and both held.** #321 touches only the four
+`dao` repositories and its own new test, so it could not shift either.
+
+**Incidental, and it moves a board number.** `MessageRepositoryTest` held four leading inline
+comments and this MR edits it, so they became method docblocks -- the content was worth keeping (the
+LIKE-escape rationale, the COALESCE-vs-NOW rationale), the placement was not. Test-side leading
+count 1,173 -> 1,169. **This is the delete-on-touch rule firing inside a code MR, not a sweep MR**;
+see working rule 59.
+
+## MR 26 readAt and count tracker bodies (moved 2026-09-08)
+
+**`readAt`.** Mutations M3 (controller passes `null` for `m.getReadAt()`), M10 (row mapper stops
+setting `readAt`) and M10b (`read_at` dropped from `MessageRepository.SELECT_COLUMNS`) all survived
+`MessageRepositoryTest`, `MessagesControllerAdminTest` and `MessageServiceTest`. The frontend renders
+it on `/comments` since edens.zac#396, so a regression shipped green.
+
+**`count`.** `count` calling `appendFilters(null, null, params)` survived; the controller test only
+checked that two mocks received the same arguments.
+
+## U-2 answered 2026-09-08 -- Tomcat does surface Transfer-Encoding (#323)
+
+**Answer: yes.** `RateLimitFilter:112`'s 411 branch fires against a real booted server, so S-5's fix
+is real and `Transfer-Encoding: chunked` is no longer a one-header bypass of the 16KB public body cap.
+
+`RateLimitFilterChunkedBodyEndToEndTest`, `@SpringBootTest(webEnvironment = RANDOM_PORT)` over
+`AbstractPostgresIntegrationTest`, following the `AuthFlowEndToEndTest` exemplar.
+
+**Two design points, and they are the generalisable part (working rule 61).**
+
+1. **Raw `java.net.Socket`, not a client library.** Every HTTP client is free to convert a chunked
+   body to a declared `Content-Length`, which would have tested nothing while passing. The test
+   writes the request bytes itself and sends `Connection: close` so `readAllBytes` terminates.
+2. **Assert the filter's own error string, not the bare status.** A `411` assertion alone would also
+   pass if **Tomcat** rejected the request -- which is precisely the scenario where the branch is
+   dead. `"Chunked encoding is not accepted here."` is unique to the filter and separates them.
+
+The second test is the control: a declared length over the cap gets 413 with the filter's oversize
+message, proving the filter is engaged on this path in a booted server and that the 411 is the
+chunked branch specifically rather than a blanket refusal.
+
+**Mutation proof used the failure mode itself** -- pointing the branch at a header name Tomcat would
+never surface reddens the 411 test while the 413 control stays green.
+
+**Two facts for future work.** `RateLimitFilter` is a plain `@Component @Order(2)` servlet `Filter`
+with no `@Profile` gate, so it is live in the `test` profile and needs no special wiring. And
+`AuthFlowEndToEndTest` is **no longer the only booted-server test** -- there are two, so the
+container-boot cost is no longer carried alone and any future booted-server item re-prices down.
+
+## U-2 tracker body (moved 2026-09-08)
+
+The question was whether Tomcat surfaces `Transfer-Encoding` to `getHeader()`. S-5's entire fix
+depended on it, and its only coverage was `RateLimitFilterTest:91` and `:121`, both
+`MockHttpServletRequest`, both returning whatever the test put in. If Tomcat consumed the header
+while installing the chunked input filter, the branch would never fire and the bypass would still be
+open with the mock tests green throughout.
+
+The row originally named `ActuatorExposureEndToEndTest` as the exemplar; U-7 deleted that file in
+[#316](https://github.com/themancalledzac/edens.zac.backend/pull/316) and the thirteenth close-out
+repointed it at `AuthFlowEndToEndTest`. Classified COLD (tenth run) and correctly kept out of the
+blocked pile: answerable in-tree, no credentials and no host access.
+
+## Rule 53 size chain, pre-#310 (moved 2026-09-08)
+
+Chain since the tenth close-out: `8f635d35` **1,873** / **9,774**; #303 (`efed4c63`) **1,864** /
+**9,854**; #304 and #305 (`bd0e15ef`) **1,864** / **9,891**; #301 (`afa39d6f`) **1,873** / **9,915**;
+the eleventh-run review **-282** / **+965**; #307 (`50d633e2`) **1,591** / **10,880**;
+`a20473fd` **1,591** / **10,889**; #309 **1,585** / **11,019**; #310 **1,571** / **11,143**
+(`--numstat` 85 / 99). The #299 rebase arithmetic:
+[above](#rule-53-size-stamp-the-299-rebase-paragraph-moved-2026-09-05).
+
+**The chain then stopped for four close-outs** (#315, #319, #320 and the twelfth/thirteenth runs'
+code MRs) and was re-anchored at `41ec264f` by the fourteenth close-out: tracker **1,550**, history
+**11,590**. Nobody restamped it in between, which is the same failure the Inline-comments row had.
+
+## Classification, thirteenth close-out stamp (moved 2026-09-08)
+
+**65 open** by `grep -c '^- \[ \] '` on `docs/close-out-thirteenth-run`: from **68 measured on `main`
+at `bad67029`**, -3 ticked (U-7, and MR 26's `readAt` and `count` rows). Nothing filed that run.
+Confirmed on `main` at `2bc62a20`: all four merged in order (#316, #317, #318, #319) and all five
+gates held as stamped -- 65 open, `U-` 2, `#NN` 4, `Bug #` 0, MR 26 9. #31 was not ticked: its
+coverage debt is paid but its FE and `is_film` halves are not. Prior stamp, 68 at #314: from **69 at
+`bb07e121`**, -1 ticked (Bug #32). #310 stamped that cell as 71 while still on its own branch and the
+number never matched `main`. Before that, from 72 at `a20473fd`: -3 ticked (S-29, S-32, S-34) and +2
+filed (S-35, S-36).
+
+### 2026-09-08 -- thirteenth run. Three coverage/deletion MRs, and rule 58's first clean run
+
+Three code MRs plus a close-out, all merged: **U-7** ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)),
+**#31's `listedOnly` gate test** ([#317](https://github.com/themancalledzac/edens.zac.backend/pull/317)),
+**MR 26's `readAt`/`count` rows** ([#318](https://github.com/themancalledzac/edens.zac.backend/pull/318)),
+close-out [#319](https://github.com/themancalledzac/edens.zac.backend/pull/319). `main` is `2bc62a20`.
+All five gates re-run on `main` after merge and all five hold as stamped: **65 open / `U-` 2 /
+`#NN` 4 / `Bug #` 0 / MR 26 9**. **The security board is now 2 open questions and zero open
+findings of any severity.**
+
+**Rule 58's first run, and it worked.** Three code MRs off one base, no rebase, no conflict, because
+none of them touched this file. Compare the twelfth run's three chained rebases. The rule is
+confirmed, not just adopted.
+
+**Rule 58 also overrode a row instruction for the first time.** U-7's row said to amend working rule
+34 in the same MR. Rule 34's index line lives here, in the file the close-out edits to tick three
+rows and restamp five counts, so amending it from the code branch reproduces exactly the conflict
+rule 58 prevents. The amendment went in [#319](https://github.com/themancalledzac/edens.zac.backend/pull/319).
+**Rows written before 2026-09-06 may carry more instructions that predate rule 58; expect to
+re-target them rather than follow them.**
+
+**Two rows specified a test that could not do the job, from opposite directions.** MR 26's row asked
+for a `MessageRepositoryTest` assertion that `findAll` maps `read_at` -- that class mocks
+`NamedParameterJdbcTemplate`, so the row mapper never meets a `ResultSet` and `SELECT_COLUMNS` never
+executes, which is *why* M10 and M10b survived it. Satisfying the row's letter would have been rule
+15's own complaint. U-7's row said "delete the two S-18 test files" when the deletion touched two and
+a half: `MUST_BE_EXCLUDED` was a shared constant left orphaned. Generalised on both items: **a row
+naming both a mutation and a host test class has assumed that class can run the mutation.**
+
+**One coverage loss taken deliberately and named.** `ActuatorExposureEndToEndTest.health_isStillReachable`
+was the only test that booted the app and proved `/actuator/health` serves 200;
+`InternalSecretFilterTest:52` only proves the filter passes the URI through. The deployment probe is
+now uncovered. Recorded on U-7's write-up rather than discovered later.
+
+**Reconciliation after the merge.** The close-out omitted its own session-log entry -- this one --
+and therefore skipped the retention move as well; both repaired in
+[#320](https://github.com/themancalledzac/edens.zac.backend/pull/320). Two of MR 18 #13's six
+`ORDER BY` refs had drifted and are fixed: `LocationRepository:57 -> :95` and `:337 -> :366`.
+**That drift sits outside the merge neighbourhood** -- the three code MRs touched one main file and
+five test files -- so the scoped sweep would not have found it, and did not; re-deriving the next
+run's item 1 refs on purpose did. The item's count of six is correct as written and was re-verified.
+
+**And the scoped sweep did earn its keep, on U-2.** U-7 deleted `ActuatorExposureEndToEndTest`,
+which U-2's row named as the shape to copy for its chunked-body test -- a run item pointing at a
+file this run removed. Repointed at `AuthFlowEndToEndTest`, now the **only** booted-server test in
+the repo, which also re-prices U-2: its test is the second such test, not one of several.
+**Deleting a test file means re-grepping the board for prose that names it**, not just for code that
+imports it -- the compiler cannot see a docs reference.
+
+Next: MR 18 #13.
+
