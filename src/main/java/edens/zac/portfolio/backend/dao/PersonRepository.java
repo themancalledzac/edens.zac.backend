@@ -47,7 +47,7 @@ public class PersonRepository extends BaseDao {
 
   @Transactional(readOnly = true)
   public List<ContentPersonEntity> findAllByOrderByPersonNameAsc() {
-    String sql = "SELECT id, name, created_at FROM users ORDER BY name ASC";
+    String sql = "SELECT id, name, created_at FROM users ORDER BY lower(name) ASC";
     return query(sql, PERSON_ROW_MAPPER);
   }
 

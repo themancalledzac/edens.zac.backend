@@ -92,7 +92,7 @@ public class LocationRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<LocationEntity> findAllByOrderByLocationNameAsc() {
     String sql =
-        "SELECT id, location_name, slug, created_at FROM location ORDER BY location_name ASC";
+        "SELECT id, location_name, slug, created_at FROM location ORDER BY lower(location_name) ASC";
     return query(sql, LOCATION_ROW_MAPPER);
   }
 
@@ -363,7 +363,7 @@ public class LocationRepository extends BaseDao {
             + PUBLIC_ORPHAN_IMAGE_COUNT
             + """
              > 0
-            ORDER BY l.location_name ASC
+            ORDER BY lower(l.location_name) ASC
             """;
     return query(
         sql,

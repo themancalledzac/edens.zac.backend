@@ -79,7 +79,7 @@ public class CollectionPeopleRepository extends BaseDao {
         FROM collection_people cp
         JOIN users p ON p.id = cp.person_id
         WHERE cp.collection_id IN (:collectionIds)
-        ORDER BY cp.collection_id, p.name
+        ORDER BY cp.collection_id, lower(p.name)
         """;
     Map<Long, List<Records.Person>> result = new HashMap<>();
     namedParameterJdbcTemplate.query(

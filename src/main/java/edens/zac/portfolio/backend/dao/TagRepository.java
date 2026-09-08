@@ -55,7 +55,7 @@ public class TagRepository extends BaseDao {
   @Transactional(readOnly = true)
   public List<TagEntity> findAllByOrderByTagNameAsc() {
     String sql =
-        "SELECT id, tag_name, slug, converted_collection_id, created_at FROM tag ORDER BY tag_name ASC";
+        "SELECT id, tag_name, slug, converted_collection_id, created_at FROM tag ORDER BY lower(tag_name) ASC";
     return query(sql, TAG_ROW_MAPPER);
   }
 
@@ -228,7 +228,7 @@ public class TagRepository extends BaseDao {
         FROM collection_tags ct
         JOIN tag t ON ct.tag_id = t.id
         WHERE ct.collection_id IN (:collectionIds)
-        ORDER BY t.tag_name ASC
+        ORDER BY lower(t.tag_name) ASC
         """;
     MapSqlParameterSource params = createParameterSource().addValue("collectionIds", collectionIds);
 
