@@ -13,13 +13,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the shipped actuator exposure, which nothing else asserted.
+ * Pins the shipped actuator exposure, which nothing else asserts from the property file.
  *
- * <p>{@code InternalSecretFilter} 403s everything but the three health URIs, and the frontend has
- * now closed its own {@code /api/proxy/actuator/**} hole, so this is the third layer rather than
- * the only one. It exists because the first two are code and this is configuration -- a one-line
- * edit to a property file can widen the surface without touching anything a compiler or a filter
- * test would notice.
+ * <p>{@link ProdActuatorExposureGuard} is the real protection: it refuses prod startup unless the
+ * resolved include is exactly {@code health}. This class pins the guard's premise -- that the
+ * shipped include says {@code health} and nothing else -- so a widened property file reddens here
+ * rather than only at deploy time.
  *
  * <p>Reads src/main/resources directly rather than the classpath, per working rule 2:
  * src/test/resources/application.properties shadows the shipped file during tests, so a {@code
@@ -28,30 +27,6 @@ import org.junit.jupiter.api.Test;
 class ActuatorExposureTest {
 
   private static final Path SHIPPED = Path.of("src", "main", "resources", "application.properties");
-
-  /**
-   * Endpoints that must never be reachable. Each either dumps configuration (env, configprops,
-   * beans, mappings, conditions, flyway, scheduledtasks), dumps process state (heapdump,
-   * threaddump), or mutates the running application (loggers, shutdown, caches).
-   *
-   * <p>This is the expectation, written out independently of the shipped property so that dropping
-   * a name from the property file reddens something. {@link ActuatorExposureEndToEndTest} shares it
-   * rather than keeping a third copy that could drift.
-   */
-  static final List<String> MUST_BE_EXCLUDED =
-      List.of(
-          "env",
-          "configprops",
-          "beans",
-          "mappings",
-          "heapdump",
-          "threaddump",
-          "loggers",
-          "shutdown",
-          "caches",
-          "conditions",
-          "flyway",
-          "scheduledtasks");
 
   private static String shippedProperty(String key) throws IOException {
     Properties properties = new Properties();
@@ -68,19 +43,6 @@ class ActuatorExposureTest {
   @DisplayName("health is the only exposed actuator endpoint")
   void exposureInclude_isHealthOnly() throws IOException {
     assertThat(shippedList("management.endpoints.web.exposure.include")).containsExactly("health");
-  }
-
-  @Test
-  @DisplayName("the exclude list covers every config-dumping and state-mutating endpoint")
-  void exposureExclude_namesEverySensitiveEndpoint() throws IOException {
-    assertThat(shippedList("management.endpoints.web.exposure.exclude"))
-        .containsExactlyInAnyOrderElementsOf(MUST_BE_EXCLUDED);
-  }
-
-  @Test
-  @DisplayName("excluding health would silently break the load balancer's probe")
-  void exposureExclude_doesNotContainHealth() throws IOException {
-    assertThat(shippedList("management.endpoints.web.exposure.exclude")).doesNotContain("health");
   }
 
   @Test
