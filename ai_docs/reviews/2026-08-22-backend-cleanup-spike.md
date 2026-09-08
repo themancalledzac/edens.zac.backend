@@ -485,9 +485,16 @@ it read 7: [history](2026-08-22-backend-cleanup-history.md#unsettled-security-qu
   it, and its only test uses `MockHttpServletRequest`, which returns whatever the test put in. If
   Tomcat consumes the header while installing the chunked input filter, the branch never fires and
   the bypass is still open. Settle with an integration test that POSTs a real chunked body to a
-  booted server and asserts 411 -- `ActuatorExposureEndToEndTest`
-  (`src/test/java/edens/zac/portfolio/backend/config/ActuatorExposureEndToEndTest.java`) already has
-  the shape. **CLASSIFIED 2026-09-01 (tenth run): COLD, and it does NOT belong in the blocked pile
+  booted server and asserts 411. **Exemplar corrected 2026-09-08: use `AuthFlowEndToEndTest`**
+  (`src/test/java/edens/zac/portfolio/backend/auth/AuthFlowEndToEndTest.java`) --
+  `@SpringBootTest(webEnvironment = RANDOM_PORT)` over `AbstractPostgresIntegrationTest`, with
+  `@LocalServerPort` and a `TestRestTemplate`. **The row named `ActuatorExposureEndToEndTest`, which
+  U-7 deleted** ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)) -- a session
+  following the old text would have gone looking for a file that is not there. **Note while pricing:**
+  `AuthFlowEndToEndTest` is now the *only* booted-server test in the repo
+  (`git grep -ln "WebEnvironment.RANDOM_PORT\|LocalServerPort" -- src/test`), so U-2's test is the
+  second, not one of several, and carries the container-boot cost on its own.
+  **CLASSIFIED 2026-09-01 (tenth run): COLD, and it does NOT belong in the blocked pile
   next to U-1.** `RateLimitFilter:112` is
   `if (declaredBodyBytes < 0 && request.getHeader("Transfer-Encoding") != null)` and its only
   coverage is `RateLimitFilterTest:91` and `:121`, both `MockHttpServletRequest`, both returning
@@ -1492,6 +1499,13 @@ and therefore skipped the retention move as well; both repaired in
 **That drift sits outside the merge neighbourhood** -- the three code MRs touched one main file and
 five test files -- so the scoped sweep would not have found it, and did not; re-deriving the next
 run's item 1 refs on purpose did. The item's count of six is correct as written and was re-verified.
+
+**And the scoped sweep did earn its keep, on U-2.** U-7 deleted `ActuatorExposureEndToEndTest`,
+which U-2's row named as the shape to copy for its chunked-body test -- a run item pointing at a
+file this run removed. Repointed at `AuthFlowEndToEndTest`, now the **only** booted-server test in
+the repo, which also re-prices U-2: its test is the second such test, not one of several.
+**Deleting a test file means re-grepping the board for prose that names it**, not just for code that
+imports it -- the compiler cannot see a docs reference.
 
 Next: MR 18 #13.
 
