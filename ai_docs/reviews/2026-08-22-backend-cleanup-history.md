@@ -11307,3 +11307,116 @@ Eight read-only slices, one apply agent, zero code changes. Three gate commands 
 three security findings filed on the anonymous read surface, 38 numbers and 39 refs corrected, BE-2
 answered "drop the array". **Taught rule 53.**
 [Full entry](2026-08-22-backend-cleanup-history.md#session-log-tenth-run-entry-full-text-moved-2026-09-01).
+
+# Closed item bodies moved from the tracker, 2026-09-08
+
+## #24 outcome, moved 2026-09-08
+
+- [x] **#24 (feature dependency, not a bug) — `COLLECTION` content blocks carried no `locations`,
+  so the frontend's shipped `/collections` location filter matched nothing.** — **DONE**
+  ([#277](https://github.com/themancalledzac/edens.zac.backend/pull/277), 2026-08-31). **The frontend board's spec was wrong about the size, and in the
+  cheap direction**: the locations batch query already ran and `SyntheticCollectionResolver` simply
+  never read it, so the fix was one record component on `ContentModels.Collection` plus a copy in
+  `fromCollectionModel` -- no new repository method, no new query, no migration, no added N+1.
+  Additive public API change: the synthetic list views, the tag view and the `/user` page all gain a
+  `locations` array on each `COLLECTION` block. [Write-up](2026-08-22-backend-cleanup-history.md#24--the-locations-component-the-resolver-never-read-277).
+
+## FE-1 outcome, moved 2026-09-08
+
+- [x] **FE-1: the location page's `images` array can now carry GIFs, and the component types it
+  `ContentImageModel[]`.** **CLOSED as won't-do 2026-09-01 (tenth run), by the BE-2 answer.** The
+  array is being dropped, so the location page stays on `searchImages({ locationId })` and no GIF
+  ever arrives through `LocationPageResponse.images`. The "never reads the field" premise was
+  re-verified live against `edens.zac` `origin/main` at `f4e8e25`. The GIF goal has a cheaper home:
+  teach `searchImages` to return GIFs, filed as a backend item under MR 19. Premise chain and the
+  fix shape that is no longer needed:
+  [history](2026-08-22-backend-cleanup-history.md#fe-1-the-location-page-gif-chain-moved-2026-09-01).
+
+## U-1 outcome, moved 2026-09-08
+
+- [x] **U-1 -- whether prod actually runs the `prod` profile.** **ANSWERED 2026-09-04: it does.** One
+  anonymous read-only GET against the origin (EC2 public IP from the local, gitignored
+  `terraform/terraform.tfstate`; port 8080 is open to `0.0.0.0/0` per `terraform/security.tf:43-45`),
+  `curl -sS -m 10 -o /dev/null -D -`:
+
+  ```
+  GET /actuator/health           -> 200, X-Content-Type-Options, X-Frame-Options, Cache-Control: no-store
+  GET /api/read/content/tags     -> 403, Content-Length: 0, Date only
+  GET /api/admin/collections     -> 403, Content-Length: 0, Date only
+  GET /actuator/info             -> 403, Content-Length: 0, Date only
+  GET /api/read/content/tags  +  X-Internal-Secret: not-the-secret -> 403, Content-Length: 0
+  ```
+
+  A bare 403 with no body and no Spring Security headers is produced only by `InternalSecretFilter`
+  (`@Order(-200) @Profile("prod")`; `:56-63` sets the status and returns before `FilterChainProxy`).
+  Under `dev` or `default` that route is `permitAll` (`SecurityConfig:79-80`) and returns 200 JSON, and
+  `/actuator/health` shows what a response that did traverse the chain looks like. So `ProdSecretGuard`
+  and `ProdActuatorExposureGuard` are live. The tfstate is not committed (`git ls-files '*.tfstate'`
+  and `git log --all -- '*.tfstate'` are both empty). Sat BLOCKED on host access for three runs when
+  this GET answered it (rule 54). Chain: [history](2026-08-22-backend-cleanup-history.md#u-1-outcome-2026-09-05----production-runs-the-prod-profile).
+
+## #29 outcome, moved 2026-09-08
+
+- [x] **#29 (dead annotation) — `ContentControllerProd`'s `@Validated`.** **DONE 2026-09-02**
+  ([#303](https://github.com/themancalledzac/edens.zac.backend/pull/303)). Three lines as scoped. **The `ConstraintViolationException` handler at
+  `GlobalExceptionHandler:147` was kept, and it has no live source in `src/main`** (re-read 2026-09-04):
+  Hibernate ORM is not a dependency (`mvn dependency:tree` shows only `jakarta.validation-api` and
+  `hibernate-validator`), persistence is JDBC, and the 13 constraint-annotated `entity/` classes are
+  validated by nothing. The only thrower is `GlobalExceptionHandlerTest:74`. Keep or delete it as a
+  one-test decision; do not cite flush validation as a reason to keep it. #303's rewritten docblock at
+  `GlobalExceptionHandler:142-146` asserts the flush mechanism and is wrong; fix it when next in the
+  file. Record: [history](2026-08-22-backend-cleanup-history.md#29-and-the-constraintviolation-handler-2026-09-02).
+
+## DownloadResolution extension outcome, moved 2026-09-08
+
+- [x] `model/DownloadResolution.java` -- the `extension` component. **DONE 2026-09-02**
+  ([#304](https://github.com/themancalledzac/edens.zac.backend/pull/304)). All 13 refs exact, record 4 components to 3, and the ZIP-fallback coverage was
+  kept and mutation-proved rather than assumed:
+  [history](2026-08-22-backend-cleanup-history.md#mr-25s-downloadresolutionextension-2026-09-02).
+  and 6 assertions in test. **"Written, never read" is misleading and the phrasing invites a
+  mistake.** The record *component* is never read in main, true -- but the local `extension`
+  variable in `ContentService` is load-bearing: it feeds `sanitizeFilename` and decides the download
+  filename's extension. Removing the component is a 2-line change and does **not** let you delete
+  the extension logic. Worse on the test side: **UNPARKED 2026-09-01 (tenth-run review): the guardrail was stale.** The row claimed the four ZIP
+  `.extension()` assertions are the only coverage of the original-to-web format fallback and must be
+  rewritten before the component can go. **They are not.** Each of the four sits beside a
+  `.contentType()` assertion proving the same branch -- `ContentServiceDownloadTest` 201/202, 217/218,
+  237/238, 239/240 -- and in `ContentService` `extension` and `contentType` are assigned on
+  consecutive lines inside the same branch in both `resolveImageDownload` (`767-768`, `771-772`) and
+  the `resolveCollectionDownloadEntries` loop (`814-815`, `820-821`), with `filename` derived from
+  `extension` via `sanitizeFilename`. The fallback is covered twice over after the component goes.
+  **Delete the six accessor assertions; nothing needs writing back.** Adding one `.filename()`
+  assertion per ZIP test is a reasonable belt-and-braces, not a prerequisite.
+
+  **All 13 refs re-verified exact 2026-09-01 on `main` at `43c6f2c6` -- the only near-term item on
+  this board with zero ref drift.** Accessors `ContentServiceDownloadTest` 88, 102, 201, 217, 237,
+  239; constructions `ContentService` 781, 835, `ContentDownloadAuthTest:94`,
+  `ContentDownloadControllerProdTest` 71, 75, `DownloadUrlServiceTest` 100, 101. Also holding: zero
+  `.extension()` anywhere in `src/main`, and `DownloadUrlService` consumes
+  `List<DownloadResolution>` at 83, 105, 108 without reading it. **Do not re-derive this list again
+  until something edits `ContentService` or `ContentServiceDownloadTest`. This is now the most ready
+  item in MR 25** and it takes the section from two open members to one. The stale docblock claim holds -- downloads are presigned
+  302 redirects, they do not "stream the response".
+
+## Session log entry, #309 close-out (moved 2026-09-08)
+
+### 2026-09-06 -- #309 close-out. Reconciled the board against what merged
+
+Docs only ([#310](https://github.com/themancalledzac/edens.zac.backend/pull/310)). #308 and #309
+merged; `main` is `b2ec6968` and every gate on it matches its stamp.
+
+**Seven refs restamped, six inside #309's own neighbourhood** -- the third principle held exactly.
+S-35 and S-36 were worst hit: both were written mid-#309 against the pre-merge file, so every ref in
+them moved. **Two C8 numbers were wrong when written, not drifted** -- the `ids` grep is 28, not 27,
+and was 28 at `afa39d6f`; `findByIds` is `:805`, not `:809`, in a file #309 never touched.
+Re-running beat re-reading, and C8's seven caller refs are now marked unverified rather than reading
+as measured. **S-33's premise was incomplete** -- three call sites, not two, one of them a
+COLLABORATOR surface; the fix is re-specified on its row to take the `listedOnly` flag its two
+neighbours already carry. Security conclusion unchanged.
+
+**The two-tier split had lapsed:** 102 closed rows on the tracker, including a section titled "Still
+open from MR 14" with nothing open in it. Three fully-closed sections moved (MR 14 docblocks, MR 15,
+MR 16). **About 95 closed rows remain and want their own MR**, not a fold-in -- rule 57 was learned
+one day ago.
+
+**Next:** item 4 -- #31's `listedOnly` gate test, U-7, the MR 26 coverage rows.
