@@ -5321,6 +5321,23 @@ but rule 12's corollary on writing NEW comments in hardened files still applies 
     injected-env case without enumerating a single endpoint name, and it is the only thing that
     would make both the exclude list and `MUST_BE_EXCLUDED` deletable.
 
+    **Amended 2026-09-08 ([#316](https://github.com/themancalledzac/edens.zac.backend/pull/316)).**
+    The follow-up above was built, as `ProdActuatorExposureGuard` (S-23), and the condition this
+    rule set for its own reversal was therefore met: both the exclude list and `MUST_BE_EXCLUDED`
+    became deletable, and U-7 deleted them. The guard is strictly stronger than the denylist against
+    the scenario the rule was written about -- an injected `INCLUDE=*` no longer exposes anything,
+    because the application refuses to start.
+
+    **What survives.** The general claim is unchanged and still worth citing: an allowlist an
+    attacker can overwrite is not a layer. What is superseded is the specific conclusion that the
+    actuator exclude list must be kept. Do not cite rule 34 as an argument against deleting a
+    denylist that a fail-closed boot check has made unreachable -- that is the case it now covers.
+
+    **The residual, priced not overlooked.** `ProdActuatorExposureGuard` is `@Profile("prod")`, so a
+    dev or test boot with `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*` really would expose `env`
+    and `heapdump` after U-7. Accepted: the guard's docblock says a wider include is a reasonable
+    thing to want locally, and U-1 settled that the deployed profile is `prod`.
+
     Generally: before replacing a denylist with an allowlist, ask what overrides the allowlist.
 
 35. **A green unit-test run is not evidence the change works. Mutate the test you just wrote, and
@@ -11420,3 +11437,112 @@ MR 16). **About 95 closed rows remain and want their own MR**, not a fold-in -- 
 one day ago.
 
 **Next:** item 4 -- #31's `listedOnly` gate test, U-7, the MR 26 coverage rows.
+
+
+## U-7 outcome 2026-09-08 -- the row said two files, the code said two and a half
+
+**Shipped:** [#316](https://github.com/themancalledzac/edens.zac.backend/pull/316).
+
+The row as originally written said "delete the S-18 tests that enumerate it", which would have taken
+`ProdActuatorExposureGuardTest` with it. The twelfth-run close-out had already narrowed that by
+reading the code. Executing it turned up one more thing neither version had: `MUST_BE_EXCLUDED` was
+`static final` in `ActuatorExposureTest` and *shared* with `ActuatorExposureEndToEndTest`, which
+iterated it rather than the exclude value it was testing. With the end-to-end test deleted and one of
+the two remaining enumerating cases gone, the constant had no consumer. It is not extra scope; it is
+the deletion finishing.
+
+**The guardrail held, and it was the load-bearing fact.**
+`git grep -ln 'exposure.exclude\|configprops\|heapdump' -- src/test` returned exactly the two files
+the PR edits. That is what made the deletion safe rather than merely defensible: the real protection
+keeps every one of its ten cases.
+
+**What deleting `ProdActuatorExposureGuardTest` would cost, since the row asked.** All of it, and
+more after this PR than before. Its four case groups each cover something nothing else does: five
+wider includes refused at startup; the shipped `health` still starting (the control, without which an
+unrelated startup failure reads as a working guard); three equivalent spellings normalising; and the
+bean not registering outside `prod`. Every case boots a real context scanned from `Application`'s
+package, so it also notices the bean failing to register at all. With the exclude list gone it is the
+only thing between a widened include and a silent prod exposure.
+
+**One real coverage loss, named rather than found by a reviewer.**
+`ActuatorExposureEndToEndTest.health_isStillReachable` was the only test that booted the app and
+proved `/actuator/health` serves 200. `InternalSecretFilterTest:52` proves the filter passes the URI
+through, not that the endpoint exists. Nothing else asserts it. The deployment probe is now uncovered.
+
+**Rule 58 was applied against the row's own instruction.** The row said to amend working rule 34 in
+the same MR. Rule 34's index line lives in the tracker, which this run's docs MR edits to tick three
+rows and restamp the counts -- editing it from the code branch reproduces exactly the conflict rule
+58 exists to prevent. The later, more specific rule won, and the amendment is in the close-out.
+That is the first time rule 58 has overridden an instruction written on a row before it existed;
+**rows written before 2026-09-06 may carry more of these.**
+
+## #31's listedOnly gate test 2026-09-08 -- paid, and the row still open
+
+**Shipped:** [#317](https://github.com/themancalledzac/edens.zac.backend/pull/317).
+
+Slice G's M11 (blank the ternary string at `CollectionRepository:369`) passed the whole suite because
+every repository-level caller in `src/main` passes `listedOnly = false`, and the only `true` call
+sites are mocked in `CollectionProcessingUtilTest`. A mock cannot execute appended SQL.
+
+`CollectionParentListedGateIntegrationTest` gives each conjunct its own parent. One parent covering
+both cannot distinguish a dropped half from a dropped whole, and the LISTED-and-visible control means
+a gate returning nothing at all does not pass. Three mutations redden it: M11, and each conjunct
+dropped alone.
+
+**Beyond the specified case, on purpose.** The row asked for a HIDDEN parent and a `visible = false`
+membership. UNLISTED was added because the method's own javadoc claims a HIDDEN *or UNLISTED* parent
+is a dead link, and a HIDDEN-only test stays green if someone rewrites the gate as
+`c.visibility != 'HIDDEN'`. That is rule 33's shape: a test that cannot see the thing widen.
+
+**The row stays open.** The FE half is RC1 on the frontend board and the `is_film` half needs a
+deploy and possibly a V63. Paying a coverage debt is not closing the item that owed it, and the
+`#NN` gate is unchanged at 4.
+
+## MR 26 messages coverage 2026-09-08 -- the row named a test that could not exist
+
+**Shipped:** [#318](https://github.com/themancalledzac/edens.zac.backend/pull/318).
+
+The row asked for "one `MessageRepositoryTest` assertion that `findAll` maps the column". That test
+cannot exist in that class. `MessageRepositoryTest` mocks `NamedParameterJdbcTemplate`, so the row
+mapper never meets a `ResultSet` and `SELECT_COLUMNS` is never executed -- which is precisely why
+M10 and M10b survived it. Asserting the captured SQL string contains `read_at` would have satisfied
+the row's letter and been rule 15's own complaint: a fixture supplying the result.
+
+So the repository half became `MessageRepositoryIntegrationTest` on the shared Testcontainers
+Postgres, and only the controller half stayed where the row put it. **Generalises:** a row that names
+both a mutation and a host test class has assumed the class can run the mutation. Check that before
+pricing -- it is the same shape as U-7's row naming two files when the deletion touched two and a
+half.
+
+**Isolation detail worth reusing.** `AbstractPostgresIntegrationTest` truncates auth tables only, so
+`messages` rows outlive the test that wrote them and a bare `count(true, null)` is polluted by every
+other test in the JVM run. Scoping every case with a unique `q` token fixes that *and* makes the
+count assertions exercise both filters at once, which is what M8 is about. The isolation problem and
+the coverage goal had the same solution.
+
+**Four mutations, all reddened:** M10 (mapper stops setting `readAt`) 2 of 4 fail; M10b (`read_at`
+dropped from `SELECT_COLUMNS`) 4 of 4 error; M8 (`count` calls `appendFilters(null, null, params)`)
+2 of 4 fail; M3 (controller passes `null`) fails the new controller case. The pre-existing
+`readAtIsNullOnAnUnreadMessage` covered only the null side, which is why M3 had passed.
+
+**Guardrail honoured.** `AdminMessageView.readAt` is consumed by `edens.zac#396`. The diff is test
+files only -- nothing pushed toward changing the shape.
+
+## Next-run list, twelfth close-out version (moved 2026-09-08)
+
+Superseded by the thirteenth close-out's list. Items 1-3 shipped as
+[#316](https://github.com/themancalledzac/edens.zac.backend/pull/316),
+[#317](https://github.com/themancalledzac/edens.zac.backend/pull/317) and
+[#318](https://github.com/themancalledzac/edens.zac.backend/pull/318); item 4 (MR 18 #13) had its
+direction answered and became the thirteenth list's item 1; item 5 (#22, #33, #34) carried forward
+unchanged.
+
+1. **U-7, the actuator exclude list.** Specified on its row 2026-09-08 by reading the code; amend
+   working rule 34 in the same MR. Gate: `**U-` 3 -> 2. Cheapest fully-specified item, so it banks
+   an MR early. **Guardrail: leave `ProdActuatorExposureGuardTest` alone.**
+2. **#31's `listedOnly` gate test.** `CollectionRepository:369`, Testcontainers, both arms. Pays the
+   rule-15 coverage debt on #301. **Guardrail: this does not close #31.**
+3. **The MR 26 `readAt` and count rows.** `MessagesControllerAdminTest`, `MessageRepositoryTest`;
+   MR 26 11 -> 9. **Guardrail: `readAt` is consumed by edens.zac#396** -- additive only.
+4. **MR 18 #13** once the direction is answered.
+5. **#22, #33, #34** as the frontend needs them.
