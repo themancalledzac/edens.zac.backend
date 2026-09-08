@@ -150,10 +150,12 @@ class MessagesControllerAdminTest {
       verify(messageService).delete(7L);
     }
 
+    /**
+     * Zero rows affected means there was nothing to delete. A 204 here told the caller the delete
+     * succeeded on an id that never existed.
+     */
     @Test
     void delete_missingId_returns404() throws Exception {
-      // Zero rows affected means there was nothing to delete. A 204 here told the caller the
-      // delete succeeded on an id that never existed.
       when(messageService.delete(404L)).thenReturn(0);
 
       mockMvc.perform(delete("/api/admin/messages/404")).andExpect(status().isNotFound());
@@ -177,11 +179,13 @@ class MessagesControllerAdminTest {
       verify(messageRepository).findAll(50, 0, true, "wedding");
     }
 
+    /**
+     * The admin list prints "N of M". Counting unfiltered while paging filtered would make M a
+     * number about a different row set, which reads as a bug in the filter rather than in the
+     * count.
+     */
     @Test
     void countsTheSameFilteredSetAsThePage() throws Exception {
-      // The admin list prints "N of M". Counting unfiltered while paging filtered would make M a
-      // number about a different row set, which reads as a bug in the filter rather than in the
-      // count.
       when(messageRepository.findAll(50, 0, true, null))
           .thenReturn(List.of(sampleMessage(1L, "one@example.com", "one")));
       when(messageRepository.count(true, null)).thenReturn(1L);
@@ -204,6 +208,20 @@ class MessagesControllerAdminTest {
           .perform(get("/api/admin/messages"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.messages[0].readAt").doesNotExist());
+    }
+
+    @Test
+    void readAtSerialisesOnAReadMessage() throws Exception {
+      MessageEntity read = sampleMessage(1L, "one@example.com", "one");
+      read.setReadAt(LocalDateTime.of(2026, 4, 28, 9, 30));
+      when(messageRepository.findAll(50, 0, false, null)).thenReturn(List.of(read));
+      when(messageRepository.count(false, null)).thenReturn(1L);
+
+      mockMvc
+          .perform(get("/api/admin/messages").param("unread", "false"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.messages[0].readAt").exists())
+          .andExpect(jsonPath("$.messages[0].readAt").isNotEmpty());
     }
   }
 
@@ -233,10 +251,12 @@ class MessagesControllerAdminTest {
       verify(messageService).markRead(7L, false);
     }
 
+    /**
+     * Same rule as delete: zero rows affected means the id never existed, and a 204 would tell the
+     * caller a message it cannot see was just marked read.
+     */
     @Test
     void missingIdReturns404() throws Exception {
-      // Same rule as delete: zero rows affected means the id never existed, and a 204 would tell
-      // the caller a message it cannot see was just marked read.
       when(messageService.markRead(404L, true)).thenReturn(0);
 
       mockMvc.perform(patch("/api/admin/messages/404/read")).andExpect(status().isNotFound());
