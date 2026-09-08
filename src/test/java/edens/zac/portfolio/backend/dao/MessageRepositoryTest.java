@@ -168,6 +168,17 @@ class MessageRepositoryTest {
       assertThat(paramsCaptor.getValue().getValue("q")).isEqualTo("%wedding%");
     }
 
+    /**
+     * Operator input arrives with whitespace from copy-paste. Without the trim the surrounding
+     * spaces land inside the bound LIKE pattern, which then matches nothing.
+     */
+    @Test
+    void queryIsTrimmedBeforeMatching() {
+      captureFindAllSql(null, "  Wedding  ");
+
+      assertThat(paramsCaptor.getValue().getValue("q")).isEqualTo("%wedding%");
+    }
+
     @Test
     void bothFiltersAndTogether() {
       String sql = captureFindAllSql(true, "wedding");
@@ -175,10 +186,12 @@ class MessageRepositoryTest {
       assertThat(sql).contains("WHERE read_at IS NULL AND (");
     }
 
+    /**
+     * "50%" is a literal an operator would plausibly type. Bound unescaped it becomes a LIKE
+     * wildcard and the filter silently returns every row.
+     */
     @Test
     void wildcardsInTheQueryAreEscapedRatherThanMatchingEverything() {
-      // "50%" is a literal an operator would plausibly type. Bound unescaped it becomes a LIKE
-      // wildcard and the filter silently returns every row.
       captureFindAllSql(null, "50%_x");
 
       assertThat(paramsCaptor.getValue().getValue("q")).isEqualTo("%50\\%\\_x%");
@@ -188,10 +201,12 @@ class MessageRepositoryTest {
   @Nested
   class MarkRead {
 
+    /**
+     * COALESCE, not NOW(): {@code read_at} answers "when was it first read", so re-marking must not
+     * move it.
+     */
     @Test
     void markingReadPreservesAnAlreadySetTime() {
-      // COALESCE, not NOW(): read_at answers "when was it first read", so re-marking must not
-      // move it.
       when(namedParameterJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class)))
           .thenReturn(1);
 

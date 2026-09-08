@@ -237,6 +237,25 @@ class MessagesControllerAdminTest {
       verify(messageService).markRead(7L, true);
     }
 
+    /**
+     * An empty object is a different path from an omitted body: {@code body} is non-null and {@code
+     * body.read()} is null. Without the null check the unboxing NPEs to a 500, which the
+     * omitted-body test above cannot see.
+     */
+    @Test
+    void emptyBodyMeansMarkRead() throws Exception {
+      when(messageService.markRead(7L, true)).thenReturn(1);
+
+      mockMvc
+          .perform(
+              patch("/api/admin/messages/7/read")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{}"))
+          .andExpect(status().isNoContent());
+
+      verify(messageService).markRead(7L, true);
+    }
+
     @Test
     void readFalseMarksUnread() throws Exception {
       when(messageService.markRead(7L, false)).thenReturn(1);
