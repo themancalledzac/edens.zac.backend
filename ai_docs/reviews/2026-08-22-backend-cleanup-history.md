@@ -6601,6 +6601,48 @@ Moved off the tracker by the #309 close-out under the two-tier rule.
 
 Moved from the tracker by the #309 close-out.
 
+### 2026-09-08 -- twelfth run. The public-read visibility family and the last open bug
+
+Four code MRs plus this close-out. **S-36** ([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311)), **S-33** ([#312](https://github.com/themancalledzac/edens.zac.backend/pull/312)),
+**S-35** ([#313](https://github.com/themancalledzac/edens.zac.backend/pull/313)) and **Bug #32** ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)) all merged; `main` is
+`75e6bec8`, the board measures **68 open / `S-` 2 / `Bug #` 0** on it, and no restamp is owed.
+Security findings left: S-30 and S-31, both LOW. Suite 1,532 -> 1,547.
+
+**Three of the four rows had a premise that was wrong or incomplete, always in the direction nobody
+had checked.** S-33 named two call sites of three -- the third, `CollectionProcessingUtil:358`,
+reaches a COLLABORATOR surface. S-35 prescribed two changes and one was backwards: a
+`gallery_password` term on its `NOT EXISTS` would have made protected-gallery images *start*
+counting as location orphans, so only the positive `EXISTS` is the fix and a test now guards the
+other reading. Bug #32's fix could not just wrap the loop body, because every `saveImage` was issued
+in a second pass outside the savepoint. Each correction is on its item and in the history.
+
+**Rule 58, and what it cost to learn.** The four shared no source file and `src` never conflicted
+once -- but all four ticked rows here, so each conflicted with its predecessor on merge: three
+rebases in a chain, each blocking the next, each resolved by discarding the merge and re-applying
+the row from the new `main` so the counts stayed measured. A code MR now touches `src` only and one
+docs MR closes the run. Rule 55b follows.
+
+**Reconciliation this close-out.** Five of thirteen C8 caller refs had drifted inside the merge
+neighbourhood and are fixed; the seven carried as *unverified* since 2026-09-04 are now verified.
+The broken-anchor row read 17 and measures **14** -- and the row's own documented trap fired during
+the re-run: a collapsing slugifier reported 40 and named three sound links as broken. The recorded
+slugifier is the only one that answers this, as the row says. Five oversized closed write-ups moved
+to the archive (73 lines; tracker 1,545 -> 1,477).
+
+**U-7 went from a one-line instruction to a specified change** by reading the code (step 3). It is
+two of four tests in `ActuatorExposureTest`, not the file; `ActuatorExposureEndToEndTest` whole; and
+**not** `ProdActuatorExposureGuardTest`, which names none of the twelve and is what keeps the real
+protection covered. The guard is `@Profile("prod")`, so the dev-side backstop really does go -- that
+is accepted, and now priced on the row.
+
+**What held, so the next review can skip it:** all six rule-37 inline-comment counts (26/25/21/18/18
+main, 78 test) and the "108 of 203" claim; the C8 `ids` grep at 28; `findByIds:805`;
+`TagViewResolver:78`; `CollectionRepository:369`. All re-run on `75e6bec8`. Also
+`GlobalExceptionHandler:147`'s `ConstraintViolationException` handler still has no live source (no
+Hibernate ORM on the classpath) -- hoisted out of #29's body before it was archived.
+
+**Next:** item 4 -- #31's `listedOnly` gate test, U-7, the MR 26 coverage rows.
+
 ### 2026-09-06 -- Bug #32 closed, and rule 58: stop putting the tracker in code MRs
 
 [#314](https://github.com/themancalledzac/edens.zac.backend/pull/314) gave each item in
