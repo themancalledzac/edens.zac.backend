@@ -1355,6 +1355,26 @@ end of a session is an answer wasted.
 3. **U-2**, the last COLD security question answerable in-tree.
 4. **#22, #33, #34** as the frontend needs them.
 
+**Full-board review: RECOMMENDED, not run (first stated 2026-09-08, thirteenth close-out).**
+Three escalation criteria fired together, and the third is the one that matters:
+
+1. **Roughly a quarter of the board has shipped since the last full review** (eleventh run,
+   2026-09-05): eighteen items closed across #307-#319 against a board that has sat at 65-72.
+2. **The scoped drift sweep stopped being sufficient.** Two of MR 18 #13's six refs had drifted
+   with no merge anywhere near `LocationRepository` -- the thirteenth run's code MRs touched one
+   main file and five test files. Neighbourhood-scoping did not find them and could not have.
+3. **Seven security fixes have merged with nothing reviewing them as a set** -- S-29, S-32 and S-34
+   ([#309](https://github.com/themancalledzac/edens.zac.backend/pull/309)), S-36, S-33 and S-35
+   ([#311](https://github.com/themancalledzac/edens.zac.backend/pull/311)-[#313](https://github.com/themancalledzac/edens.zac.backend/pull/313)),
+   and Bug #32 ([#314](https://github.com/themancalledzac/edens.zac.backend/pull/314)). The eleventh
+   run *found* them; it did not review them merged. They all touch the same public-read visibility
+   surface, which is exactly the shape where attacking the group finds interaction defects that
+   seven single-item reviews miss by construction.
+
+**Leak detector, one level up:** if this recommendation is restated in the fourteenth close-out
+without having been run, run it then or delete it from the board. A recommendation carried across
+two close-outs reads as scheduled and is actually being deferred.
+
 **Not in this run, and why.** MR 25's `CollectionRequests.Update` is BLOCKED (ordering) on the
 `Update` half of the `TestFixtures` pass. The `coverImage` row and `V54FoldMigrationIntegrationTest`
 wait on judgements. U-3 is BLOCKED on the user. MR 18 #10 has been COLD and unworked since the sixth
