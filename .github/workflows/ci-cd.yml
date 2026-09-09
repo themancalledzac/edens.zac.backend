@@ -176,11 +176,21 @@ jobs:
       # check, so a CVSS 9.8 finding passed CI silently. If a finding here has no fix
       # available yet, add a dated entry to dependency-check-suppressions.xml rather than
       # making the step non-blocking again.
+      #
+      # Since Dependency Check 9, refreshing from the NVD API needs a key. Without one the
+      # update fails outright ("Invalid API Key"), and a blocking step that cannot run
+      # blocks every merge for a reason that has nothing to do with security. So the data
+      # comes from the vulnz datafeed mirror, which needs no key. Set an NVD_API_KEY secret
+      # to use the API directly instead; the mirror stays as the fallback either way.
       - name: Run OWASP Dependency Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           mvn org.owasp:dependency-check-maven:check \
             -DdataDirectory=$HOME/.owasp/dependency-check-data \
             -DautoUpdate=true \
+            -DnvdDatafeedUrl=https://jeremylong.github.io/vulnz/nvd/nvdcve-{0}.json.gz \
+            ${NVD_API_KEY:+-DnvdApiKey=$NVD_API_KEY} \
             -DcveValidForHours=720 \
             -DfailBuildOnCVSS=7 \
             -DsuppressionFile=dependency-check-suppressions.xml \
