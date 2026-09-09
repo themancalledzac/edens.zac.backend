@@ -10,7 +10,6 @@ RUN mvn dependency:go-offline
 
 # Copy configuration files needed for the build
 COPY checkstyle-suppressions.xml ./
-COPY dependency-check-suppressions.xml ./
 
 # Bust cache when git commit changes (dependencies above stay cached)
 ARG CACHE_BUST=unknown

@@ -59,11 +59,9 @@ Push to any branch
     │
     ├── lint (Checkstyle) ──────────────────────────┐
     │       │                                       │
-    │       ├── test (PostgreSQL 16 service)         │
-    │       │       │                               │
-    │       │       └── build (Maven + Docker)       │
-    │       │                                       │
-    │       └── security-scan (OWASP, non-blocking) │
+    │       └── test (PostgreSQL 16 service)         │
+    │               │                               │
+    │               └── build (Maven + Docker)       │
     │                                               │
     └───────────────────────────────────────────────┘
                         │
