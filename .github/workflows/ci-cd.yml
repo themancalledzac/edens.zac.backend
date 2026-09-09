@@ -172,6 +172,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-owasp-data-
 
+      # No continue-on-error. With it, -DfailBuildOnCVSS=7 produced a report and a green
+      # check, so a CVSS 9.8 finding passed CI silently. If a finding here has no fix
+      # available yet, add a dated entry to dependency-check-suppressions.xml rather than
+      # making the step non-blocking again.
       - name: Run OWASP Dependency Check
         run: |
           mvn org.owasp:dependency-check-maven:check \
@@ -181,7 +185,6 @@ jobs:
             -DfailBuildOnCVSS=7 \
             -DsuppressionFile=dependency-check-suppressions.xml \
             -Dformats=HTML,JSON
-        continue-on-error: true
 
       - name: Upload security report
         if: always()
