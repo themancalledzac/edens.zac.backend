@@ -102,14 +102,17 @@ public class AuthController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * The {@link AuthPrincipal#isRealUser} check is stated explicitly rather than inferred from
+   * routing: a share-link (flyby) principal cannot reach this route in practice (it requires {@code
+   * ROLE_USER} and a flyby carries no authorities), but {@code effectiveGrants} must still never
+   * run against one.
+   */
   @GetMapping("/me")
   public ResponseEntity<MeResponse> me() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null
         || !(authentication.getPrincipal() instanceof AuthPrincipal principal)
-        // A share-link holder is unreachable here anyway -- /api/auth/me requires ROLE_USER and a
-        // flyby carries no authorities -- but effectiveGrants(null) below has no business being
-        // called at all, so the identity requirement is stated rather than inferred from routing.
         || !AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
