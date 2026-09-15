@@ -325,7 +325,8 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.email", org.hamcrest.Matchers.is("admin@example.com")))
         .andExpect(jsonPath("$.isAdmin", org.hamcrest.Matchers.is(true)))
         .andExpect(jsonPath("$.mfaSatisfied", org.hamcrest.Matchers.is(false)))
-        .andExpect(jsonPath("$.galleries", org.hamcrest.Matchers.hasSize(0)));
+        .andExpect(jsonPath("$.galleries", org.hamcrest.Matchers.hasSize(0)))
+        .andExpect(jsonPath("$.passkeyCount").value(0));
   }
 
   @Test
