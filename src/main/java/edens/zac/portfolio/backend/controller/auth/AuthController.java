@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.auth;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.config.ClientIp;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
+import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.GalleryMembership;
@@ -54,6 +55,7 @@ public class AuthController {
   private final AppUserRepository appUserRepository;
   private final CollectionAccessService collectionAccessService;
   private final PasswordEncoder passwordEncoder;
+  private final WebAuthnCredentialRepository webAuthnCredentialRepository;
 
   /**
    * Password login. The submitted email is lowercased with {@link Locale#ROOT} so it matches both
@@ -115,9 +117,14 @@ public class AuthController {
         collectionAccessService.effectiveGrants(principal.userId()).stream()
             .map(g -> new GalleryMembership(g.collectionId(), g.level()))
             .toList();
+    int passkeyCount = webAuthnCredentialRepository.findByUserId(principal.userId()).size();
     return ResponseEntity.ok(
         new MeResponse(
-            principal.email(), principal.isAdmin(), principal.mfaSatisfied(), galleries));
+            principal.email(),
+            principal.isAdmin(),
+            principal.mfaSatisfied(),
+            galleries,
+            passkeyCount));
   }
 
   private static String readCookie(HttpServletRequest request) {
