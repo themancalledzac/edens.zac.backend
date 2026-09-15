@@ -33,6 +33,7 @@ import org.springframework.security.web.webauthn.api.PublicKeyCredentialRequestO
 import org.springframework.security.web.webauthn.api.PublicKeyCredentialRpEntity;
 import org.springframework.security.web.webauthn.jackson.WebauthnJackson2Module;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -102,7 +103,7 @@ class WebAuthnControllerTest {
 
   @Test
   void loginStartReturns200WithOptionsAndSetsAttemptCookie() throws Exception {
-    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(loginLimiter.isBlocked(anyString(), eq("webauthn:admin@example.com"))).thenReturn(false);
     when(webAuthnService.startLogin(eq("admin@example.com")))
         .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
 
@@ -117,14 +118,16 @@ class WebAuthnControllerTest {
         .andExpect(cookie().httpOnly("ezac_webauthn_attempt", true))
         .andExpect(cookie().path("ezac_webauthn_attempt", "/"));
 
-    verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+    verify(loginLimiter).recordFailure(anyString(), eq("webauthn:admin@example.com"));
   }
 
+  /**
+   * Email is stored lowercased at creation time; a mixed-case login/start must resolve it
+   * lowercased.
+   */
   @Test
   void loginStartLowercasesEmailBeforeResolving() throws Exception {
-    // Email stored lowercased at creation time; a mixed-case login/start must resolve it
-    // lowercased.
-    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+    when(loginLimiter.isBlocked(anyString(), eq("webauthn:admin@example.com"))).thenReturn(false);
     when(webAuthnService.startLogin(eq("admin@example.com")))
         .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
 
@@ -137,21 +140,24 @@ class WebAuthnControllerTest {
         .andExpect(cookie().value("ezac_webauthn_attempt", "attempt-1"));
 
     verify(webAuthnService).startLogin(eq("admin@example.com"));
-    verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+    verify(loginLimiter).recordFailure(anyString(), eq("webauthn:admin@example.com"));
   }
 
+  /**
+   * Under tr-TR, a locale-sensitive {@code toLowerCase()} maps {@code I} to a dotless lowercase i,
+   * so an uppercase email would no longer match the stored lowercase address or the {@link
+   * AuthLoginLimiter} key. {@link Locale#ROOT} in the login path keeps the dotted i so both stay in
+   * sync.
+   */
   @Test
   void loginStart_underTurkishDefaultLocale_stillResolvesLowercasedEmail() throws Exception {
-    // Arrange - in tr-TR, a locale-sensitive toLowerCase() maps 'I' to a dotless lowercase i, so
-    // "ADMIN@..." would no longer match the stored "admin@..." nor the AuthLoginLimiter key.
     Locale previous = Locale.getDefault();
     Locale.setDefault(Locale.forLanguageTag("tr-TR"));
     try {
-      when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
+      when(loginLimiter.isBlocked(anyString(), eq("webauthn:admin@example.com"))).thenReturn(false);
       when(webAuthnService.startLogin(eq("admin@example.com")))
           .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
 
-      // Act
       mockMvc
           .perform(
               post("/api/auth/webauthn/login/start")
@@ -159,9 +165,8 @@ class WebAuthnControllerTest {
                   .content("{\"email\":\"ADMIN@EXAMPLE.COM\"}"))
           .andExpect(status().isOk());
 
-      // Assert - Locale.ROOT lowercasing keeps the dotted i, so both lookups use the same key.
       verify(webAuthnService).startLogin(eq("admin@example.com"));
-      verify(loginLimiter).recordFailure(anyString(), eq("admin@example.com"));
+      verify(loginLimiter).recordFailure(anyString(), eq("webauthn:admin@example.com"));
     } finally {
       Locale.setDefault(previous);
     }
@@ -169,7 +174,7 @@ class WebAuthnControllerTest {
 
   @Test
   void loginStartReturns429WhenRateLimited() throws Exception {
-    when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(true);
+    when(loginLimiter.isBlocked(anyString(), eq("webauthn:admin@example.com"))).thenReturn(true);
 
     mockMvc
         .perform(
@@ -197,17 +202,19 @@ class WebAuthnControllerTest {
         .andExpect(cookie().path("ezac_webauthn_attempt", "/"));
 
     verify(webAuthnService).finishLogin(eq("attempt-1"), eq("{\"id\":\"abc\"}"), any(), any());
-    verify(loginLimiter).reset(anyString(), eq("admin@example.com"));
+    verify(loginLimiter).reset(anyString(), eq("webauthn:admin@example.com"));
   }
 
+  /**
+   * MockMvc standalone rethrows unhandled controller exceptions, so a catch-all exception resolver
+   * is wired here to populate the response (and keep the finally block's Set-Cookie readable)
+   * without the exception aborting {@code perform()}.
+   */
   @Test
   void loginFinishClearsCookieEvenOnServiceException() throws Exception {
     when(webAuthnService.finishLogin(eq("attempt-1"), any(), any(), any()))
         .thenThrow(new IllegalStateException("bad assertion"));
 
-    // MockMvc standalone rethrows unhandled controller exceptions. Add a catch-all exception
-    // resolver so the response object is populated (and the Set-Cookie from the finally block is
-    // readable) without the exception blowing up the perform() call.
     WebAuthnController controller =
         new WebAuthnController(webAuthnService, new ObjectMapper(), loginLimiter, false);
     MockMvc exceptionHandlingMvc =
@@ -251,6 +258,42 @@ class WebAuthnControllerTest {
         .andExpect(status().isUnauthorized());
 
     verify(webAuthnService, never()).finishLogin(any(), any(), any(), any());
+  }
+
+  @Test
+  void loginStartCountsAgainstThePasskeyBucketNotThePasswordOne() throws Exception {
+    performLoginStart("ada@example.com");
+
+    verify(loginLimiter).isBlocked(anyString(), eq("webauthn:ada@example.com"));
+    verify(loginLimiter).recordFailure(anyString(), eq("webauthn:ada@example.com"));
+    verify(loginLimiter, never()).recordFailure(anyString(), eq("ada@example.com"));
+  }
+
+  @Test
+  void loginFinishResetsThePasskeyBucket() throws Exception {
+    when(webAuthnService.finishLogin(anyString(), anyString(), any(), any()))
+        .thenReturn("ada@example.com");
+
+    performLoginFinishWithAttemptCookie();
+
+    verify(loginLimiter).reset(anyString(), eq("webauthn:ada@example.com"));
+  }
+
+  private ResultActions performLoginStart(String email) throws Exception {
+    when(webAuthnService.startLogin(eq(email)))
+        .thenReturn(new WebAuthnService.LoginStart("attempt-1", requestOptions()));
+    return mockMvc.perform(
+        post("/api/auth/webauthn/login/start")
+            .contentType("application/json")
+            .content("{\"email\":\"" + email + "\"}"));
+  }
+
+  private ResultActions performLoginFinishWithAttemptCookie() throws Exception {
+    return mockMvc.perform(
+        post("/api/auth/webauthn/login/finish")
+            .cookie(new jakarta.servlet.http.Cookie("ezac_webauthn_attempt", "attempt-1"))
+            .contentType("application/json")
+            .content("{\"id\":\"abc\"}"));
   }
 
   /** A real (minimal) creation-options document the WebAuthn Jackson module can serialize. */
