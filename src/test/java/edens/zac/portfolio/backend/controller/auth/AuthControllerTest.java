@@ -15,7 +15,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
+import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
+import edens.zac.portfolio.backend.entity.WebAuthnCredentialEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.LoginRequest;
 import edens.zac.portfolio.backend.services.CollectionAccessService;
@@ -55,6 +57,7 @@ class AuthControllerTest {
   @Mock private AppUserRepository appUserRepository;
   @Mock private CollectionAccessService collectionAccessService;
   @Mock private PasswordEncoder passwordEncoder;
+  @Mock private WebAuthnCredentialRepository webAuthnCredentialRepository;
 
   @InjectMocks private AuthController authController;
 
@@ -97,10 +100,14 @@ class AuthControllerTest {
     verify(sessionService).create(any(AppUserEntity.class), eq(false), any(), any());
   }
 
+  /**
+   * Under tr-TR, a locale-sensitive {@code toLowerCase()} maps {@code I} to a dotless lowercase i,
+   * so an uppercase email would no longer match the stored lowercase address or the {@link
+   * AuthLoginLimiter} key. {@link Locale#ROOT} in the login path keeps the dotted i so both stay in
+   * sync.
+   */
   @Test
   void login_underTurkishDefaultLocale_stillResolvesLowercasedUser() throws Exception {
-    // Arrange - in tr-TR, a locale-sensitive toLowerCase() maps 'I' to a dotless lowercase i, so
-    // "ADMIN@..." would no longer match the stored "admin@..." nor the AuthLoginLimiter key.
     Locale previous = Locale.getDefault();
     Locale.setDefault(Locale.forLanguageTag("tr-TR"));
     try {
@@ -108,7 +115,6 @@ class AuthControllerTest {
       when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));
       when(passwordEncoder.matches("correct", "{bcrypt}$2a$10$hash")).thenReturn(true);
 
-      // Act
       mockMvc
           .perform(
               post("/api/auth/login")
@@ -118,7 +124,6 @@ class AuthControllerTest {
                           new LoginRequest("ADMIN@EXAMPLE.COM", "correct"))))
           .andExpect(status().isNoContent());
 
-      // Assert - Locale.ROOT lowercasing keeps the dotted i, so both lookups use the same key.
       verify(appUserRepository).findByEmail("admin@example.com");
       verify(loginLimiter).reset(anyString(), eq("admin@example.com"));
     } finally {
@@ -126,9 +131,9 @@ class AuthControllerTest {
     }
   }
 
+  /** Email is stored lowercased at creation time; a mixed-case login must still resolve it. */
   @Test
   void loginWithMixedCaseEmailResolvesLowercasedUser() throws Exception {
-    // Email stored lowercased at creation time; a mixed-case login must still resolve it.
     when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
     when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));
     when(passwordEncoder.matches("correct", "{bcrypt}$2a$10$hash")).thenReturn(true);
@@ -165,7 +170,9 @@ class AuthControllerTest {
     verify(sessionService, never()).create(any(), anyBooleanWrapper(), any(), any());
   }
 
-  // Helper to keep the never()-verify readable; Mockito's eq for boolean is fine inline too.
+  /**
+   * Keeps the {@code never()} verify readable; Mockito's {@code eq} for boolean works inline too.
+   */
   private static boolean anyBooleanWrapper() {
     return org.mockito.ArgumentMatchers.anyBoolean();
   }
@@ -222,6 +229,7 @@ class AuthControllerTest {
     verify(sessionService, never()).create(any(), anyBooleanWrapper(), any(), any());
   }
 
+  /** The dummy BCrypt check must run to equalize timing with the wrong-password branch. */
   @Test
   void loginForUnknownEmailReturns401Generic() throws Exception {
     when(loginLimiter.isBlocked(anyString(), eq("ghost@example.com"))).thenReturn(false);
@@ -236,13 +244,11 @@ class AuthControllerTest {
         .andExpect(status().isUnauthorized());
 
     verify(loginLimiter).recordFailure(anyString(), eq("ghost@example.com"));
-    // Dummy BCrypt check must be performed to equalize timing with the wrong-password branch.
     verify(passwordEncoder).matches(eq("x"), anyString());
   }
 
   @Test
   void unknownEmailAndWrongPasswordBothReturn401WithNoBody() throws Exception {
-    // Unknown email branch
     when(loginLimiter.isBlocked(anyString(), eq("ghost@example.com"))).thenReturn(false);
     when(appUserRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
 
@@ -259,7 +265,6 @@ class AuthControllerTest {
                     result.getResponse().getContentAsString().isEmpty(),
                     "401 body must be empty for unknown email"));
 
-    // Wrong password branch
     when(loginLimiter.isBlocked(anyString(), eq("admin@example.com"))).thenReturn(false);
     when(appUserRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin()));
     when(passwordEncoder.matches("wrong", "{bcrypt}$2a$10$hash")).thenReturn(false);
@@ -312,6 +317,7 @@ class AuthControllerTest {
             new UsernamePasswordAuthenticationToken(
                 principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     when(collectionAccessService.effectiveGrants(1L)).thenReturn(List.of());
+    when(webAuthnCredentialRepository.findByUserId(1L)).thenReturn(List.of());
 
     mockMvc
         .perform(get("/api/auth/me"))
@@ -319,12 +325,30 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.email", org.hamcrest.Matchers.is("admin@example.com")))
         .andExpect(jsonPath("$.isAdmin", org.hamcrest.Matchers.is(true)))
         .andExpect(jsonPath("$.mfaSatisfied", org.hamcrest.Matchers.is(false)))
-        .andExpect(jsonPath("$.galleries", org.hamcrest.Matchers.hasSize(0)));
+        .andExpect(jsonPath("$.galleries", org.hamcrest.Matchers.hasSize(0)))
+        .andExpect(jsonPath("$.passkeyCount").value(0));
   }
 
   @Test
+  void meReportsHowManyPasskeysTheAccountHolds() throws Exception {
+    AuthPrincipal principal = new AuthPrincipal(1L, "admin@example.com", true, false);
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+    when(collectionAccessService.effectiveGrants(1L)).thenReturn(List.of());
+    when(webAuthnCredentialRepository.findByUserId(1L))
+        .thenReturn(List.of(new WebAuthnCredentialEntity(), new WebAuthnCredentialEntity()));
+
+    mockMvc
+        .perform(get("/api/auth/me"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.passkeyCount").value(2));
+  }
+
+  /** No authentication in the security context. */
+  @Test
   void meReturns401WhenAnonymous() throws Exception {
-    // No authentication in the context.
     mockMvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
   }
 }

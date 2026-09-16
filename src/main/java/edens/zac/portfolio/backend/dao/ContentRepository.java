@@ -39,10 +39,6 @@ public class ContentRepository extends BaseDao {
     super(jdbcTemplate);
   }
 
-  // ============================================================
-  // RowMappers
-  // ============================================================
-
   private static final RowMapper<ContentImageEntity> CONTENT_IMAGE_ROW_MAPPER =
       (rs, rowNum) -> {
         ContentImageEntity entity =
@@ -151,10 +147,6 @@ public class ContentRepository extends BaseDao {
             .build();
       };
 
-  // ============================================================
-  // SELECT Fragments
-  // ============================================================
-
   private static final String SELECT_CONTENT_IMAGE =
       """
       SELECT c.id, c.content_type, c.created_at, c.updated_at,
@@ -237,17 +229,9 @@ public class ContentRepository extends BaseDao {
       LIMIT 1
       """;
 
-  // ============================================================
-  // Image Operations
-  // ============================================================
-
   @Transactional(readOnly = true)
   public Optional<ContentImageEntity> findByOriginalFilenameAndCaptureDate(
       String originalFilename, LocalDateTime captureDate) {
-    // Match on base filename without extension — V4 migration stored webp filenames in
-    // original_filename, but disk re-uploads send the source jpeg filename. Strip extension
-    // from both sides so "DSC_6247.jpg" matches "DSC_6247.webp".
-    // Use DATE() truncation for capture_date — old records have midnight from the V4→V7 migration.
     String sql =
         SELECT_CONTENT_IMAGE
             + " WHERE REGEXP_REPLACE(ci.original_filename, '\\.[^.]+$', '')"
@@ -347,12 +331,12 @@ public class ContentRepository extends BaseDao {
   }
 
   /**
-   * A random image content id the person is tagged on via {@code content_image_people}. Backs the
-   * {@code /user} synthetic-collection cover (random variant, replaces Decision D2's
-   * most-recent-first ordering). Empty when the person tags no image content.
+   * The cover image for a person's page: one of the images they are tagged on, chosen by hashing
+   * the image id with {@code seed}. The same seed returns the same image, so a page re-render does
+   * not swap the cover; callers pass the UTC day so it still varies day to day.
    */
   @Transactional(readOnly = true)
-  public Optional<Long> findRandomImageIdByPersonId(Long personId) {
+  public Optional<Long> findCoverImageIdByPersonId(Long personId, String seed) {
     if (personId == null) {
       return Optional.empty();
     }
@@ -363,10 +347,11 @@ public class ContentRepository extends BaseDao {
         JOIN content c ON c.id = ci.id
         JOIN content_image_people cip ON cip.content_id = ci.id
         WHERE cip.person_id = :personId
-        ORDER BY RANDOM()
+        ORDER BY md5(CAST(ci.id AS text) || :seed)
         LIMIT 1
         """;
-    MapSqlParameterSource params = createParameterSource().addValue("personId", personId);
+    MapSqlParameterSource params =
+        createParameterSource().addValue("personId", personId).addValue("seed", seed);
     return query(sql, (rs, n) -> rs.getLong("id"), params).stream().findFirst();
   }
 
@@ -790,10 +775,6 @@ public class ContentRepository extends BaseDao {
     update(deleteContentSql, params);
   }
 
-  // ============================================================
-  // Image Search Operations
-  // ============================================================
-
   /**
    * Oldest-first by capture date. The order matches the FE's CHRONOLOGICAL displayMode (createdAt
    * ASC); aligning it here avoids cross-page layout shifts when the FE re-sorts a growing paginated
@@ -923,10 +904,6 @@ public class ContentRepository extends BaseDao {
     }
   }
 
-  // ============================================================
-  // Text Operations
-  // ============================================================
-
   @Transactional(readOnly = true)
   public Optional<ContentTextEntity> findTextById(Long id) {
     String sql = SELECT_CONTENT_TEXT + " WHERE c.id = :id";
@@ -1006,10 +983,6 @@ public class ContentRepository extends BaseDao {
       return entity;
     }
   }
-
-  // ============================================================
-  // GIF Operations
-  // ============================================================
 
   @Transactional(readOnly = true)
   public Optional<ContentGifEntity> findGifById(Long id) {
@@ -1128,10 +1101,6 @@ public class ContentRepository extends BaseDao {
     String contentSql = "DELETE FROM content WHERE id = :id";
     update(contentSql, params);
   }
-
-  // ============================================================
-  // Collection Content Operations
-  // ============================================================
 
   @Transactional(readOnly = true)
   public Optional<ContentCollectionEntity> findCollectionContentById(Long id) {

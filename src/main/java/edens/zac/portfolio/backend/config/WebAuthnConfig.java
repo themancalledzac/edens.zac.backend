@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.Module;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -23,6 +24,7 @@ import org.springframework.security.web.webauthn.management.Webauthn4JRelyingPar
  * com.fasterxml.jackson.databind.ObjectMapper} via a {@link Module} bean (Spring Boot auto-applies
  * all {@link Module} beans to its primary mapper, so no qualifier is needed at injection sites).
  */
+@Slf4j
 @Configuration
 public class WebAuthnConfig {
 
@@ -37,6 +39,7 @@ public class WebAuthnConfig {
   public PublicKeyCredentialRpEntity webAuthnRpEntity(
       @Value("${app.auth.webauthn.rp-id}") String rpId,
       @Value("${app.auth.webauthn.rp-name}") String rpName) {
+    log.info("WebAuthn rpId={} rpName={}", rpId, rpName);
     return PublicKeyCredentialRpEntity.builder().id(rpId).name(rpName).build();
   }
 
@@ -54,6 +57,7 @@ public class WebAuthnConfig {
         .map(String::trim)
         .filter(s -> !s.isEmpty())
         .forEach(origins::add);
+    log.info("WebAuthn allowedOrigins={}", origins);
     return origins;
   }
 

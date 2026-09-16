@@ -3,6 +3,7 @@ package edens.zac.portfolio.backend.controller.auth;
 import edens.zac.portfolio.backend.config.AuthLoginLimiter;
 import edens.zac.portfolio.backend.config.ClientIp;
 import edens.zac.portfolio.backend.dao.AppUserRepository;
+import edens.zac.portfolio.backend.dao.WebAuthnCredentialRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.model.AuthPrincipal;
 import edens.zac.portfolio.backend.model.GalleryMembership;
@@ -54,6 +55,7 @@ public class AuthController {
   private final AppUserRepository appUserRepository;
   private final CollectionAccessService collectionAccessService;
   private final PasswordEncoder passwordEncoder;
+  private final WebAuthnCredentialRepository webAuthnCredentialRepository;
 
   /**
    * Password login. The submitted email is lowercased with {@link Locale#ROOT} so it matches both
@@ -100,14 +102,17 @@ public class AuthController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * The {@link AuthPrincipal#isRealUser} check is stated explicitly rather than inferred from
+   * routing: a share-link (flyby) principal cannot reach this route in practice (it requires {@code
+   * ROLE_USER} and a flyby carries no authorities), but {@code effectiveGrants} must still never
+   * run against one.
+   */
   @GetMapping("/me")
   public ResponseEntity<MeResponse> me() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null
         || !(authentication.getPrincipal() instanceof AuthPrincipal principal)
-        // A share-link holder is unreachable here anyway -- /api/auth/me requires ROLE_USER and a
-        // flyby carries no authorities -- but effectiveGrants(null) below has no business being
-        // called at all, so the identity requirement is stated rather than inferred from routing.
         || !AuthPrincipal.isRealUser(principal)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
@@ -115,9 +120,14 @@ public class AuthController {
         collectionAccessService.effectiveGrants(principal.userId()).stream()
             .map(g -> new GalleryMembership(g.collectionId(), g.level()))
             .toList();
+    int passkeyCount = webAuthnCredentialRepository.findByUserId(principal.userId()).size();
     return ResponseEntity.ok(
         new MeResponse(
-            principal.email(), principal.isAdmin(), principal.mfaSatisfied(), galleries));
+            principal.email(),
+            principal.isAdmin(),
+            principal.mfaSatisfied(),
+            galleries,
+            passkeyCount));
   }
 
   private static String readCookie(HttpServletRequest request) {

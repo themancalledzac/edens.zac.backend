@@ -126,11 +126,12 @@ public class WebAuthnController {
    * <p>The email is lowercased with {@link Locale#ROOT} so it matches both the lowercased email
    * stored at creation time and the key {@link AuthLoginLimiter} builds for the same address.
    *
-   * <p>Rate-limiting mirrors {@code AuthController.login}: if the IP+email pair is blocked, 429 is
-   * returned immediately before minting any options or setting a cookie. A failure counter is
-   * recorded on every non-blocked call so that repeated start attempts (without a matching
-   * successful finish) eventually trip the limiter. The limiter is reset on a successful {@link
-   * #loginFinish}.
+   * <p>Rate-limiting shares {@link AuthLoginLimiter} with {@code AuthController.login} but keys
+   * into its own passkey bucket ({@link #limiterKey}), not the bare email: if the IP+bucket pair is
+   * blocked, 429 is returned immediately before minting any options or setting a cookie. A failure
+   * counter is recorded on every non-blocked call so that repeated start attempts (without a
+   * matching successful finish) eventually trip the limiter. The limiter is reset on a successful
+   * {@link #loginFinish}.
    *
    * @param body the JSON body {@code {"email": "..."}}
    * @param request the servlet request (IP resolution)
@@ -147,11 +148,11 @@ public class WebAuthnController {
     String email = rawEmail == null ? null : rawEmail.toLowerCase(Locale.ROOT);
     String ip = ClientIp.resolve(request);
 
-    if (loginLimiter.isBlocked(ip, email)) {
+    if (loginLimiter.isBlocked(ip, limiterKey(email))) {
       log.warn("WebAuthn login/start rate-limited for email={} ip={}", email, ip);
       return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
     }
-    loginLimiter.recordFailure(ip, email);
+    loginLimiter.recordFailure(ip, limiterKey(email));
 
     WebAuthnService.LoginStart start = webAuthnService.startLogin(email);
     String optionsJson = webAuthnObjectMapper.writeValueAsString(start.options());
@@ -195,10 +196,9 @@ public class WebAuthnController {
     try {
       String authenticatedEmail =
           webAuthnService.finishLogin(attemptId, credentialJson, request, response);
-      loginLimiter.reset(ip, authenticatedEmail);
+      loginLimiter.reset(ip, limiterKey(authenticatedEmail));
       return ResponseEntity.noContent().build();
     } finally {
-      // Always clear the single-use attempt cookie — on success and on assertion failure.
       ResponseCookie cleared =
           ResponseCookie.from(ATTEMPT_COOKIE, "")
               .httpOnly(true)
@@ -209,5 +209,14 @@ public class WebAuthnController {
               .build();
       response.addHeader(HttpHeaders.SET_COOKIE, cleared.toString());
     }
+  }
+
+  /**
+   * Passkey ceremonies share {@link AuthLoginLimiter} with password login but not its bucket. A
+   * ceremony that starts and is abandoned is not a failed password, and five of them must not lock
+   * the password form for fifteen minutes, which is what one shared key did.
+   */
+  private static String limiterKey(String email) {
+    return "webauthn:" + email;
   }
 }

@@ -11,6 +11,8 @@ import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -204,14 +206,15 @@ public class UserPageAssembler {
       case ContentModels.Collection c -> c.withOrderIndex(orderIndex);
       case ContentModels.Image img -> img.withOrderIndex(orderIndex);
       case ContentModels.Gif gif -> gif.withOrderIndex(orderIndex);
-      case ContentModels.Text t -> t; // never emitted by this assembler
+      case ContentModels.Text t -> t;
     };
   }
 
-  /** A random associated content image as a cover model. */
+  /** The person's cover for today: stable across requests within a UTC day, different tomorrow. */
   private Optional<ContentModels.Image> resolveCover(Long personId) {
+    String seed = String.valueOf(LocalDate.now(ZoneOffset.UTC).toEpochDay());
     return contentRepository
-        .findRandomImageIdByPersonId(personId)
+        .findCoverImageIdByPersonId(personId, seed)
         .flatMap(contentRepository::findImageById)
         .map(contentModelConverter::convertImageEntityToModel);
   }
@@ -225,7 +228,7 @@ public class UserPageAssembler {
    * cover through {@link CollectionProcessingUtil#batchConvertToBasicModels}, which batch-loads
    * them to avoid an N+1. The body is already ordered collection-date desc, so "first" means
    * "newest", which keeps the choice deterministic across requests (unlike {@link #resolveCover},
-   * which is deliberately random over the viewer's tagged images).
+   * which is seeded by the UTC day over the viewer's tagged images).
    */
   private static ContentModels.Image firstCollectionCover(List<ContentModel> body) {
     return body.stream()
