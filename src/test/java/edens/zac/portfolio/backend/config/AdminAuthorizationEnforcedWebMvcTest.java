@@ -24,17 +24,20 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The exploit-chain regression for the anonymous /api/admin/** hole, with the authZ toggle ON (prod
- * behaviour, and the default everywhere). Exercises the REAL security filter chain (@WebMvcTest +
- * SecurityConfig + SessionAuthenticationFilter) — standalone MockMvc would not run the chain and
- * could not assert authZ. A stub controller stands in for the admin surface so the test is
- * decoupled from any specific AdminController route.
+ * The exploit-chain regression for the anonymous /api/admin/** hole. Exercises the REAL security
+ * filter chain (@WebMvcTest + SecurityConfig + SessionAuthenticationFilter) — standalone MockMvc
+ * would not run the chain and could not assert authZ. A stub controller stands in for the admin
+ * surface so the test is decoupled from any specific AdminController route.
+ *
+ * <p>{@link DevLocalAdminFilter} is imported but no profile is active, so its {@code
+ * \@Profile("dev")} keeps it out of the chain; the anonymous 401s below are what pin that.
  */
 @WebMvcTest
 @Import({
   SecurityConfig.class,
   SessionAuthenticationFilter.class,
   FlybySessionFilter.class,
+  DevLocalAdminFilter.class,
   AdminAuthorizationEnforcedWebMvcTest.StubAdminControllers.class
 })
 class AdminAuthorizationEnforcedWebMvcTest {

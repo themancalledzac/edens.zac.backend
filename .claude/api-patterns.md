@@ -123,5 +123,9 @@ Key points:
   gated by SecurityConfig's `hasRole("ADMIN")` (+ InternalSecretFilter in prod), not `@Profile`
 - `*ControllerProd` (`/api/read/...`): Read-only public endpoints, `@Profile("prod")`
 - Admin/write endpoints must stay behind the SecurityConfig admin gate; never permitAll them
+- Under `dev` only, `DevLocalAdminFilter` authenticates an anonymous `/api/admin/**` call as the
+  bootstrap admin (`ADMIN_BOOTSTRAP_EMAIL`), so the Lightroom plugin and local admin UI need no
+  session. The gate itself is unchanged; a real session still wins. Blank email or no admin row
+  means 401 as in every other profile.
 
 <!-- Phase 3a DONE: Interface/Impl split removed -- controllers inject concrete service classes directly -->

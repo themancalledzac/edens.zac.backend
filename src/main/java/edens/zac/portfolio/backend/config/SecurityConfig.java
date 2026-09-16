@@ -1,8 +1,10 @@
 package edens.zac.portfolio.backend.config;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -41,16 +43,29 @@ public class SecurityConfig {
    * <p>Both write tiers sat behind {@code app.admin.enforce-authz} until 2026-08-30, which let
    * local dev fall through to {@code permitAll}. That toggle is gone and the gate is unconditional
    * in every profile, which is what closes the null {@code CurrentUser.userId()} contract behind an
-   * admin route.
+   * admin route. Local dev instead gets {@link DevLocalAdminFilter}, present only under the {@code
+   * dev} profile, which authenticates an anonymous {@code /api/admin/**} call as the bootstrap
+   * admin so the gate is satisfied by a real principal rather than bypassed.
+   *
+   * <p>CSRF is disabled because the API is stateless and has no server-side token to validate; the
+   * defense is SameSite=Strict cookies plus the BFF's write-method Origin allowlist.
+   *
+   * <p>Filter order: {@link SessionAuthenticationFilter}, then {@link DevLocalAdminFilter} when
+   * present, then {@link FlybySessionFilter}. Each is a no-op when an earlier one already resolved
+   * a principal, so a real session outranks everything. The dev stand-in sits ahead of the share
+   * link on purpose: it only touches {@code /api/admin/**}, where a flyby (no authorities) would be
+   * refused anyway, so a share cookie in a local browser cannot lock the admin UI. It is registered
+   * before {@code AuthorizationFilter} rather than after flyby because flyby already shares the
+   * authorization slot; one past it would run after the gate has answered.
    */
   @Bean
   public SecurityFilterChain filterChain(
-      HttpSecurity http, SessionAuthenticationFilter saf, FlybySessionFilter flyby)
+      HttpSecurity http,
+      SessionAuthenticationFilter saf,
+      FlybySessionFilter flyby,
+      ObjectProvider<DevLocalAdminFilter> devLocalAdmin)
       throws Exception {
-    http
-        // CSRF defense for the API is provided by SameSite=Strict cookies + the BFF write-method
-        // Origin allowlist; the stateless API has no server-side CSRF token to validate.
-        .csrf(csrf -> csrf.disable())
+    http.csrf(csrf -> csrf.disable())
         .formLogin(form -> form.disable())
         .httpBasic(basic -> basic.disable())
         .logout(logout -> logout.disable())
@@ -80,13 +95,12 @@ public class SecurityConfig {
                   .permitAll();
             })
         .addFilterBefore(saf, AuthorizationFilter.class)
-        // After the session filter, and a no-op whenever it already resolved a principal: a real
-        // session outranks a share link, so signing in never lands you in someone else's view.
         .addFilterAfter(flyby, SessionAuthenticationFilter.class)
         .exceptionHandling(
             ex ->
                 ex.authenticationEntryPoint(
                     (request, response, authException) -> response.sendError(401)));
+    devLocalAdmin.ifAvailable(filter -> http.addFilterBefore(filter, AuthorizationFilter.class));
     return http.build();
   }
 
@@ -121,6 +135,19 @@ public class SecurityConfig {
   public FilterRegistrationBean<FlybySessionFilter> flybySessionFilterRegistration(
       FlybySessionFilter filter) {
     FilterRegistrationBean<FlybySessionFilter> registration = new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+  }
+
+  /**
+   * Same suppression again for {@link DevLocalAdminFilter}. Profile-gated to match the filter bean,
+   * since the registration cannot be built without it.
+   */
+  @Bean
+  @Profile("dev")
+  public FilterRegistrationBean<DevLocalAdminFilter> devLocalAdminFilterRegistration(
+      DevLocalAdminFilter filter) {
+    FilterRegistrationBean<DevLocalAdminFilter> registration = new FilterRegistrationBean<>(filter);
     registration.setEnabled(false);
     return registration;
   }
