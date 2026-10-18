@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -28,6 +29,8 @@ import org.springframework.stereotype.Component;
 @Profile("prod")
 @Slf4j
 public class InternalSecretFilter implements Filter {
+
+  private static final Pattern TOKEN_SEGMENT = Pattern.compile("(/(?:share|invite)/)[^/]+");
 
   private final String expectedSecret;
   private final String nextSecret;
@@ -57,12 +60,20 @@ public class InternalSecretFilter implements Filter {
     if (secret == null
         || (!constantTimeEquals(expectedSecret, secret)
             && (nextSecret.isBlank() || !constantTimeEquals(nextSecret, secret)))) {
-      log.warn("Rejected request missing or invalid X-Internal-Secret: {}", uri);
+      log.warn("Rejected request missing or invalid X-Internal-Secret: {}", loggablePath(uri));
       response.setStatus(HttpServletResponse.SC_FORBIDDEN);
       return;
     }
 
     chain.doFilter(req, res);
+  }
+
+  /**
+   * Masks the path segment directly after {@code /share/} or {@code /invite/} so bearer tokens
+   * never reach the log. Other URIs are returned unchanged.
+   */
+  static String loggablePath(String uri) {
+    return uri == null ? null : TOKEN_SEGMENT.matcher(uri).replaceAll("$1***");
   }
 
   private boolean constantTimeEquals(String expected, String provided) {
