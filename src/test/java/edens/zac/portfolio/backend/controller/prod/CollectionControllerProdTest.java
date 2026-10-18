@@ -288,6 +288,42 @@ class CollectionControllerProdTest {
   }
 
   @Test
+  @DisplayName("A1: GET /{slug} serializes parents[].coverImageUrl, null for a coverless parent")
+  void getCollectionBySlug_returnsParentCoverImageUrl() throws Exception {
+    CollectionModel model =
+        CollectionModel.builder()
+            .id(1L)
+            .title("Dolomites Film")
+            .slug("dolomites-film")
+            .visibility(CollectionVisibility.LISTED)
+            .parents(
+                List.of(
+                    new Records.CollectionList(
+                        2L,
+                        "Dolomites",
+                        "dolomites",
+                        null,
+                        "https://cdn.example.com/dolomites-cover.jpg",
+                        false,
+                        false),
+                    new Records.CollectionList(3L, "Alps", "alps", null, null, false, false)))
+            .build();
+    when(collectionService.getCollectionWithPagination(eq("dolomites-film"), anyInt(), anyInt()))
+        .thenReturn(model);
+
+    mockMvc
+        .perform(get("/api/read/collections/dolomites-film"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.parents", hasSize(2)))
+        .andExpect(jsonPath("$.parents[0].slug", is("dolomites")))
+        .andExpect(
+            jsonPath(
+                "$.parents[0].coverImageUrl", is("https://cdn.example.com/dolomites-cover.jpg")))
+        .andExpect(jsonPath("$.parents[1].slug", is("alps")))
+        .andExpect(jsonPath("$.parents[1].coverImageUrl").value(nullValue()));
+  }
+
+  @Test
   @DisplayName("GET /collections/{slug} with non-existent slug should return not found")
   void getCollectionBySlug_withNonExistentSlug_shouldReturnNotFound() throws Exception {
     // Arrange

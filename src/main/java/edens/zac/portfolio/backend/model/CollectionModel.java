@@ -103,8 +103,8 @@ public class CollectionModel {
 
   /**
    * Parent collections. Admin sees every relationship, including HIDDEN ones; public reads get
-   * LISTED parents only. Null/empty when none. Cover image is always null -- parents render as text
-   * links.
+   * LISTED parents only. Null/empty when none. Each parent's cover image URL is null when it has no
+   * cover image assigned.
    */
   private List<Records.CollectionList> parents;
 

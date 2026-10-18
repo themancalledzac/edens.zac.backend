@@ -624,29 +624,156 @@ class CollectionProcessingUtilTest {
         null);
   }
 
+  private static CollectionEntity parentWith(Long id, String slug, Long coverImageId) {
+    return CollectionEntity.builder()
+        .id(id)
+        .title("Parent " + id)
+        .slug(slug)
+        .collectionDate(LocalDate.of(2026, 1, 1))
+        .coverImageId(coverImageId)
+        .build();
+  }
+
+  private static ContentImageEntity coverImage(Long id, String url) {
+    return ContentImageEntity.builder().id(id).imageUrlWeb(url).build();
+  }
+
   @Test
-  @DisplayName("populateParents maps the inverse join onto CollectionList, cover image left null")
-  void populateParentsMapsRows() {
+  @DisplayName("A1: populateParents resolves each parent's cover URL in one batched lookup")
+  void populateParentsResolvesCoverUrlsInOneBatch() {
     CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
-    CollectionEntity parent =
-        CollectionEntity.builder()
-            .id(42L)
-            .title("Parent")
-            .slug("parent")
-            .collectionDate(LocalDate.of(2026, 1, 1))
-            .build();
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, true))
+        .thenReturn(List.of(parentWith(42L, "parent-a", 100L), parentWith(43L, "parent-b", 101L)));
+    when(contentRepository.findImagesByIds(List.of(100L, 101L)))
+        .thenReturn(
+            List.of(
+                coverImage(100L, "https://cdn.example.com/a.jpg"),
+                coverImage(101L, "https://cdn.example.com/b.jpg")));
+
+    util.populateParents(model, true);
+
+    assertThat(model.getParents()).extracting(Records.CollectionList::id).containsExactly(42L, 43L);
+    assertThat(model.getParents())
+        .extracting(Records.CollectionList::coverImageUrl)
+        .containsExactly("https://cdn.example.com/a.jpg", "https://cdn.example.com/b.jpg");
+    assertThat(model.getParents())
+        .extracting(Records.CollectionList::collectionDate)
+        .containsOnly(LocalDate.of(2026, 1, 1));
+    verify(contentRepository, times(1)).findImagesByIds(anyList());
+  }
+
+  @Test
+  @DisplayName("A2: parents sharing a cover image still cost exactly one lookup")
+  void populateParentsSharedCoverIsOneLookup() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
     when(collectionRepository.findAllParentCollectionsByChildId(7L, false))
-        .thenReturn(List.of(parent));
+        .thenReturn(List.of(parentWith(42L, "parent-a", 100L), parentWith(43L, "parent-b", 100L)));
+    when(contentRepository.findImagesByIds(List.of(100L)))
+        .thenReturn(List.of(coverImage(100L, "https://cdn.example.com/shared.jpg")));
 
     util.populateParents(model, false);
 
-    assertThat(model.getParents()).extracting(Records.CollectionList::id).containsExactly(42L);
-    assertThat(model.getParents())
-        .extracting(Records.CollectionList::collectionDate)
-        .containsExactly(LocalDate.of(2026, 1, 1));
     assertThat(model.getParents())
         .extracting(Records.CollectionList::coverImageUrl)
-        .containsOnlyNulls();
+        .containsExactly(
+            "https://cdn.example.com/shared.jpg", "https://cdn.example.com/shared.jpg");
+    verify(contentRepository, times(1)).findImagesByIds(anyList());
+  }
+
+  @Test
+  @DisplayName("A2: no parent has a cover image, so no image query is made")
+  void populateParentsWithoutCoversMakesNoImageQuery() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, false))
+        .thenReturn(List.of(parentWith(42L, "parent-a", null)));
+
+    util.populateParents(model, false);
+
+    assertThat(model.getParents()).hasSize(1);
+    assertThat(model.getParents().get(0).coverImageUrl()).isNull();
+    verify(contentRepository, never()).findImagesByIds(anyList());
+  }
+
+  @Test
+  @DisplayName("A2: no parents at all makes no image query")
+  void populateParentsWithNoParentsMakesNoImageQuery() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, true)).thenReturn(List.of());
+
+    util.populateParents(model, true);
+
+    assertThat(model.getParents()).isEmpty();
+    verify(contentRepository, never()).findImagesByIds(anyList());
+  }
+
+  @Test
+  @DisplayName("A2: a parent without a cover stays null while its sibling parent gets a URL")
+  void populateParentsMixedCoversLeavesCoverlessNull() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, true))
+        .thenReturn(List.of(parentWith(42L, "parent-a", 100L), parentWith(43L, "parent-b", null)));
+    when(contentRepository.findImagesByIds(List.of(100L)))
+        .thenReturn(List.of(coverImage(100L, "https://cdn.example.com/a.jpg")));
+
+    util.populateParents(model, true);
+
+    assertThat(model.getParents().get(0).coverImageUrl())
+        .isEqualTo("https://cdn.example.com/a.jpg");
+    assertThat(model.getParents().get(1).coverImageUrl()).isNull();
+    verify(contentRepository, times(1)).findImagesByIds(List.of(100L));
+  }
+
+  @Test
+  @DisplayName("A2 twin: with a cover id present the lookup is made, so the no-cover skip is real")
+  void twinPopulateParentsWithCoverMakesTheImageQuery() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, false))
+        .thenReturn(List.of(parentWith(42L, "parent-a", 100L)));
+    when(contentRepository.findImagesByIds(List.of(100L))).thenReturn(List.of());
+
+    util.populateParents(model, false);
+
+    verify(contentRepository).findImagesByIds(List.of(100L));
+    assertThat(model.getParents().get(0).coverImageUrl()).isNull();
+  }
+
+  @Test
+  @DisplayName("A4: the public path passes listedOnly=true and a hidden parent never appears")
+  void populateParentsPublicPathExcludesHiddenParent() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    CollectionEntity listed = parentWith(42L, "listed", 100L);
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, true))
+        .thenReturn(List.of(listed));
+    when(contentRepository.findImagesByIds(anyList()))
+        .thenReturn(List.of(coverImage(100L, "https://cdn.example.com/listed.jpg")));
+
+    util.populateParents(model, true);
+
+    verify(collectionRepository).findAllParentCollectionsByChildId(7L, true);
+    verify(collectionRepository, never()).findAllParentCollectionsByChildId(7L, false);
+    assertThat(model.getParents()).extracting(Records.CollectionList::id).containsExactly(42L);
+    verify(contentRepository).findImagesByIds(List.of(100L));
+  }
+
+  @Test
+  @DisplayName("A4 twin: with listedOnly=false the hidden parent and its cover do get through")
+  void twinPopulateParentsUnrestrictedPathIncludesHiddenParent() {
+    CollectionModel model = CollectionModel.builder().id(7L).slug("child").build();
+    CollectionEntity listed = parentWith(42L, "listed", 100L);
+    CollectionEntity hidden = parentWith(43L, "hidden", 101L);
+    when(collectionRepository.findAllParentCollectionsByChildId(7L, false))
+        .thenReturn(List.of(listed, hidden));
+    when(contentRepository.findImagesByIds(anyList()))
+        .thenReturn(
+            List.of(
+                coverImage(100L, "https://cdn.example.com/listed.jpg"),
+                coverImage(101L, "https://cdn.example.com/hidden.jpg")));
+
+    util.populateParents(model, false);
+
+    verify(collectionRepository).findAllParentCollectionsByChildId(7L, false);
+    verify(collectionRepository, never()).findAllParentCollectionsByChildId(7L, true);
+    assertThat(model.getParents()).extracting(Records.CollectionList::id).containsExactly(42L, 43L);
   }
 
   @Test

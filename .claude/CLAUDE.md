@@ -100,6 +100,14 @@ mvn checkstyle:check       # Verify style compliance
 - Rebuilding existing working code
 - Emojis or Unicode symbols
 
+## Watch-outs Near the Person/User Merge
+- **Do not widen `Records.Person(id, name)`.** Legacy Person API consumers expect exactly the
+  `Records.Person(id, name)` shape. Treat it as a hard constraint in merge-adjacent code: add no
+  fields, and return a separate DTO when more data is needed.
+- **Never `SELECT *` on `users` for tag queries.** The merged table carries password and session
+  material. Select only the columns the response needs so auth-sensitive columns never leak into
+  tag or people-list responses.
+
 ## Deep Dive Documentation
 Read these only when working in that specific area:
 

@@ -8,8 +8,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -33,7 +36,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *
  * <p>Runs after {@link SessionAuthenticationFilter}, so a real session always wins, and before
  * {@link FlybySessionFilter}, so a share-link cookie in a local browser cannot lock the admin UI.
- * Fails closed: a blank bootstrap email, a missing row, or a row without {@code is_admin} leaves
+ * Only a local caller is answered as the admin: the request's remote address must be 127.0.0.1,
+ * ::1, or one of the comma-separated {@code app.auth.dev-local-admin.extra-addresses} (empty by
+ * default). A Docker user lists the gateway address through the {@code
+ * DEV_LOCAL_ADMIN_EXTRA_ADDRESSES} environment variable, which {@code application-dev.properties}
+ * maps to that property and {@code docker-compose.yml} passes through. No header such as
+ * X-Forwarded-For is consulted.
+ *
+ * <p>Fails closed: a blank bootstrap email, a missing row, or a row without {@code is_admin} leaves
  * the request anonymous and the gate answers 401 exactly as it does in every other profile.
  */
 @Component
@@ -45,11 +55,14 @@ public class DevLocalAdminFilter extends OncePerRequestFilter {
 
   private final AppUserRepository appUserRepository;
   private final String bootstrapEmail;
+  private final Set<String> extraAddresses;
   private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
   public DevLocalAdminFilter(
       AppUserRepository appUserRepository,
-      @Value("${app.auth.admin.bootstrap-email:}") String bootstrapEmail) {
+      @Value("${app.auth.admin.bootstrap-email:}") String bootstrapEmail,
+      @Value("${app.auth.dev-local-admin.extra-addresses:}") String extraAddresses) {
+    this.extraAddresses = parseAddresses(extraAddresses);
     this.appUserRepository = appUserRepository;
     this.bootstrapEmail = bootstrapEmail == null ? "" : bootstrapEmail.trim();
     if (this.bootstrapEmail.isEmpty()) {
@@ -57,6 +70,30 @@ public class DevLocalAdminFilter extends OncePerRequestFilter {
           "DevLocalAdminFilter is active but app.auth.admin.bootstrap-email is blank;"
               + " /api/admin/** stays closed to anonymous callers");
     }
+  }
+
+  private static Set<String> parseAddresses(String raw) {
+    if (raw == null) {
+      return Set.of();
+    }
+    return Arrays.stream(raw.split(","))
+        .map(String::trim)
+        .filter(a -> !a.isEmpty())
+        .collect(Collectors.toUnmodifiableSet());
+  }
+
+  /**
+   * True only for the loopback addresses or an exact match in {@code extraAddresses}; false for a
+   * null or blank address.
+   */
+  static boolean isLocalCaller(String remoteAddr, Set<String> extraAddresses) {
+    if (remoteAddr == null || remoteAddr.isBlank()) {
+      return false;
+    }
+    return "127.0.0.1".equals(remoteAddr)
+        || "::1".equals(remoteAddr)
+        || "0:0:0:0:0:0:0:1".equals(remoteAddr)
+        || extraAddresses.contains(remoteAddr);
   }
 
   @Override
@@ -69,7 +106,12 @@ public class DevLocalAdminFilter extends OncePerRequestFilter {
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
     Authentication existing = SecurityContextHolder.getContext().getAuthentication();
-    if (existing == null || trustResolver.isAnonymous(existing)) {
+    boolean local = isLocalCaller(request.getRemoteAddr(), extraAddresses);
+    if (!local) {
+      log.debug(
+          "DevLocalAdminFilter: non-local caller {} stays anonymous", request.getRemoteAddr());
+    }
+    if (local && (existing == null || trustResolver.isAnonymous(existing))) {
       resolveBootstrapAdmin()
           .ifPresent(
               principal -> {
