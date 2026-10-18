@@ -19,6 +19,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       # Spring profile: must be explicitly set to dev, prod, or default (no silent fallback).
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:?must be set: dev, prod, or default}"
+      DEV_LOCAL_ADMIN_EXTRA_ADDRESSES: ${DEV_LOCAL_ADMIN_EXTRA_ADDRESSES:-}
 
       # AWS Config
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
