@@ -535,8 +535,8 @@ public class CollectionProcessingUtil {
   /**
    * Populate {@code parents} from the inverse of the parent/child join.
    *
-   * <p>Cover images are deliberately not loaded: parents render as text links, and fetching covers
-   * would add a query per read for something nothing displays yet.
+   * <p>Cover image URLs are batch-loaded in a single query, and none when no parent has a cover
+   * image, so {@code coverImageUrl} is null only for a parent without one.
    *
    * @param listedOnly LISTED parents only. The public read path must pass {@code true} -- a HIDDEN
    *     or UNLISTED parent there is a dead link and a disclosure at once.
@@ -546,8 +546,26 @@ public class CollectionProcessingUtil {
       return;
     }
 
+    List<CollectionEntity> parents =
+        collectionRepository.findAllParentCollectionsByChildId(model.getId(), listedOnly);
+
+    List<Long> coverImageIds =
+        parents.stream()
+            .map(CollectionEntity::getCoverImageId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+
+    Map<Long, String> coverImageUrlsById =
+        coverImageIds.isEmpty()
+            ? Collections.emptyMap()
+            : contentRepository.findImagesByIds(coverImageIds).stream()
+                .collect(
+                    Collectors.toMap(
+                        ContentImageEntity::getId, ContentImageEntity::getImageUrlWeb));
+
     model.setParents(
-        collectionRepository.findAllParentCollectionsByChildId(model.getId(), listedOnly).stream()
+        parents.stream()
             .map(
                 p ->
                     new Records.CollectionList(
@@ -555,7 +573,9 @@ public class CollectionProcessingUtil {
                         p.getTitle(),
                         p.getSlug(),
                         p.getCollectionDate(),
-                        null,
+                        p.getCoverImageId() != null
+                            ? coverImageUrlsById.get(p.getCoverImageId())
+                            : null,
                         p.isClient(),
                         p.isBlog()))
             .toList());
