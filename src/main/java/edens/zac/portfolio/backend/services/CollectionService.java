@@ -157,6 +157,13 @@ public class CollectionService {
         collectionProcessingUtil.convertToModel(
             collection, collectionContentList, normalizedPage, normalizedSize, totalElements);
 
+    List<TagEntity> collectionTags = tagRepository.findCollectionTags(collection.getId());
+    model.setTags(collectionTags.stream().map(TagEntity::getTagName).toList());
+    model.setTagRefs(
+        collectionTags.stream()
+            .map(t -> new Records.Tag(t.getId(), t.getTagName(), t.getSlug()))
+            .toList());
+
     collectionProcessingUtil.populateCollectionsOnContent(model, true);
 
     collectionProcessingUtil.populateSiblings(model, true);
@@ -983,10 +990,7 @@ public class CollectionService {
     Set<TagEntity> currentTags =
         new HashSet<>(tagRepository.findCollectionTags(collection.getId()));
 
-    Set<TagEntity> updatedTags =
-        contentMutationUtil.updateTags(
-            currentTags, tagUpdate, null // No tracking needed for collection updates
-            );
+    Set<TagEntity> updatedTags = contentMutationUtil.updateTags(currentTags, tagUpdate, null);
 
     List<Long> updatedTagIds =
         updatedTags.stream()
@@ -1024,9 +1028,7 @@ public class CollectionService {
         new HashSet<>(collectionPeopleRepository.findPeopleForCollection(collection.getId()));
 
     Set<ContentPersonEntity> updatedPeople =
-        contentMutationUtil.updatePeople(
-            currentPeople, personUpdate, null // No tracking needed for collection updates
-            );
+        contentMutationUtil.updatePeople(currentPeople, personUpdate, null);
 
     List<Long> updatedPersonIds =
         updatedPeople.stream()

@@ -26,8 +26,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CollectionModel {
 
-  // === Identity ===
-
   private Long id;
 
   /** Client gallery. JsonProperty pins the wire name against the Lombok is-getter rename. */
@@ -68,8 +66,6 @@ public class CollectionModel {
 
   @Min(1) private Integer rowsWide;
 
-  // === Pagination ===
-
   @Min(
       value = DefaultValues.default_content_per_page,
       message = "Content per page must be 30 or greater")
@@ -81,11 +77,13 @@ public class CollectionModel {
 
   @Min(value = 0, message = "Total pages must be 0 or greater") private Integer totalPages;
 
-  // === Content ===
-
   @Valid private ContentModels.Image coverImage;
 
-  private List<String> tags;
+  /** Tag names on this collection. Empty when the collection has no tags. */
+  @Builder.Default private List<String> tags = new ArrayList<>();
+
+  /** Tag id, name and slug on this collection, in the same order as {@link #tags}. */
+  @Builder.Default private List<Records.Tag> tagRefs = new ArrayList<>();
 
   /**
    * Sibling collections (directional association via collection_sibling; a link may be mutual or
@@ -110,8 +108,6 @@ public class CollectionModel {
 
   @Valid private List<ContentModel> content;
 
-  // === Access Control ===
-
   private Boolean isPasswordProtected;
 
   /** Admin-only: plaintext gallery password. Populated only in admin/manage responses. */
@@ -119,8 +115,6 @@ public class CollectionModel {
 
   /** Admin-only: recipient email addresses. Populated only in admin/manage responses. */
   private List<String> recipientEmails;
-
-  // === Timestamps ===
 
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
