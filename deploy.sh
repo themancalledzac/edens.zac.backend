@@ -1,16 +1,32 @@
 #!/bin/bash
+#
+# Deploys the backend on the EC2 instance. Run it there: bash ~/portfolio-backend/repo/deploy.sh
+#
+# Order: pull main, copy ~/portfolio-backend/.env, check that .env satisfies the prod startup
+# guards (config/Prod*Guard.java), check postgres, free disk, build, swap the container, wait for
+# /actuator/health. If the new container never gets healthy, the previous image is put back and
+# started again, so a bad deploy does not take the site down.
+#
+# When a new Prod*Guard requires an env var, add that check to check_prod_env below and the var to
+# .env.example. Keys in .env.example that are missing from the server .env print as a warning.
+#
+# Disk: the 8GB root volume tops out near 2.3GB free after a full prune, and the build peaks near
+# 1.8GB, so REQUIRED_FREE_MB defaults to 2000 and can be overridden (REQUIRED_FREE_MB=1500).
+# The escalated prune only runs when headroom is short, because re-pulling the base image costs
+# minutes. Never pass --remove-orphans: portfolio-postgres shows up as an orphan of this project.
 set -e
 
 echo "======================================"
 echo "Portfolio Backend Deployment"
 echo "======================================"
 
-# Configuration
 REPO_URL="https://github.com/themancalledzac/edens.zac.backend.git"
 BRANCH="main"
 APP_DIR="$HOME/portfolio-backend"
+IMAGE="edens.zac.backend"
+REQUIRED_FREE_MB="${REQUIRED_FREE_MB:-2000}"
+HEALTH_RETRIES=30
 
-# Pull latest code
 echo "Pulling latest code from $BRANCH..."
 if [ -d "$APP_DIR/repo" ]; then
   cd "$APP_DIR/repo"
@@ -23,7 +39,6 @@ else
   cd "$APP_DIR/repo"
 fi
 
-# Copy environment variables
 echo "Setting up environment variables..."
 if [ -f "$APP_DIR/.env" ]; then
   cp "$APP_DIR/.env" "$APP_DIR/repo/.env"
@@ -33,7 +48,64 @@ else
   exit 1
 fi
 
-# Verify database is running (managed separately in ~/portfolio-db/)
+env_value() {
+  grep -E "^[[:space:]]*(export[[:space:]]+)?$1=" "$APP_DIR/repo/.env" | tail -n1 \
+    | cut -d= -f2- | sed -E 's/^[[:space:]]+|[[:space:]]+$//g; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
+}
+
+check_prod_env() {
+  local problems=()
+  local profile rp_id origins
+  profile="$(env_value SPRING_PROFILES_ACTIVE)"
+  if [ -z "$profile" ]; then
+    problems+=("SPRING_PROFILES_ACTIVE is not set")
+  fi
+  if [[ ",$profile," == *",prod,"* ]]; then
+    case "$(env_value INTERNAL_API_SECRET)" in
+      "" | dev-internal-secret) problems+=("INTERNAL_API_SECRET is unset or the dev default") ;;
+    esac
+    case "$(env_value ACCESS_TOKEN_SECRET)" in
+      "" | dev-access-token-secret) problems+=("ACCESS_TOKEN_SECRET is unset or the dev default") ;;
+    esac
+    rp_id="$(env_value WEBAUTHN_RP_ID)"
+    if [ -z "$rp_id" ] || [ "$rp_id" = "localhost" ]; then
+      problems+=("WEBAUTHN_RP_ID must be the production domain (e.g. zacedens.com)")
+    fi
+    origins="$(env_value WEBAUTHN_ALLOWED_ORIGINS)"
+    if ! awk -F, '{for (i = 1; i <= NF; i++) {gsub(/[[:space:]]/, "", $i); if ($i != "" && $i !~ /localhost/) ok = 1}} END {exit !ok}' <<< "$origins"; then
+      problems+=("WEBAUTHN_ALLOWED_ORIGINS must include the production origin (e.g. https://zacedens.com)")
+    fi
+  fi
+
+  if [ -f "$APP_DIR/repo/.env.example" ]; then
+    local missing
+    missing="$(grep -oE '^[A-Z][A-Z0-9_]*=' "$APP_DIR/repo/.env.example" | tr -d '=' | sort -u \
+      | while read -r key; do
+          grep -qE "^[[:space:]]*(export[[:space:]]+)?$key=" "$APP_DIR/repo/.env" || echo "$key"
+        done)"
+    if [ -n "$missing" ]; then
+      echo "WARNING: keys in .env.example that $APP_DIR/.env does not set (compose defaults apply):"
+      sed 's/^/  /' <<< "$missing"
+    fi
+  fi
+
+  if [ ${#problems[@]} -gt 0 ]; then
+    echo ""
+    echo "======================================"
+    echo "DEPLOYMENT ABORTED -- $APP_DIR/.env fails the prod startup checks"
+    echo "======================================"
+    printf '  - %s\n' "${problems[@]}"
+    echo ""
+    echo "The backend would refuse to start with this .env. Fix $APP_DIR/.env and re-run."
+    echo "Nothing was built or stopped; the running backend is untouched."
+    exit 1
+  fi
+  echo "Environment passes the prod startup checks"
+}
+
+echo "Checking environment..."
+check_prod_env
+
 echo "Checking database health..."
 if ! docker exec portfolio-postgres pg_isready -U ${POSTGRES_USER:-zedens} -q 2>/dev/null; then
   echo "ERROR: PostgreSQL container 'portfolio-postgres' is not running or not healthy."
@@ -41,29 +113,6 @@ if ! docker exec portfolio-postgres pg_isready -U ${POSTGRES_USER:-zedens} -q 2>
   exit 1
 fi
 echo "Database is healthy"
-
-# Free disk space before building (old images, build cache).
-#
-# The build needs several GB of headroom: the maven builder stage carries a full ~/.m2 plus the
-# target/ output, and the root volume also holds the postgres data dir and the nightly backups.
-# A deploy that runs out of space fails inside `mvn package` with "No space left on device", which
-# reads like a build error and is not one -- so check for the headroom first and say so plainly.
-#
-# The routine prune is deliberately gentle: keeping recent build cache and the maven base image is
-# what makes a same-day redeploy fast. Only when headroom is actually short does it escalate to
-# dropping all of it, because on a small instance re-pulling the base image and re-resolving every
-# dependency costs minutes.
-# Measured on the real box, not guessed: the 8GB root volume holds ~5.7GB that never comes back
-# (~2.3GB of OS under /usr, the in-use backend and postgres images, the postgres data volume, and
-# the journal floor). A full reclaim tops out at ~2.3GB free -- repeat prunes return 0B -- so a
-# threshold above that aborts every deploy on this instance. Peak build demand is roughly 1.8GB.
-#
-# Overridable so this constant can never be the thing standing between you and a deploy:
-#   REQUIRED_FREE_MB=1500 ./deploy.sh
-#
-# The margin here is ~500MB and it is thin because the volume is 8GB where ai_docs/ai_ec2.md:410
-# asks for 20GB+. Raise this when the volume grows, or move the maven build off the box.
-REQUIRED_FREE_MB="${REQUIRED_FREE_MB:-2000}"
 
 free_mb() {
   df -Pm "$APP_DIR" | awk 'NR==2 {print $4}'
@@ -77,7 +126,6 @@ if [ "$(free_mb)" -lt "$REQUIRED_FREE_MB" ]; then
   echo "Only $(free_mb)MB free, below the ${REQUIRED_FREE_MB}MB the build needs -- escalating cleanup..."
   docker builder prune -af
   docker image prune -af
-  # Journal logs routinely reclaim 500MB+ and are the largest non-Docker consumer on this box.
   if command -v journalctl > /dev/null 2>&1 && sudo -n true 2>/dev/null; then
     sudo journalctl --vacuum-size=100M || true
   fi
@@ -106,83 +154,107 @@ if [ "$(free_mb)" -lt "$REQUIRED_FREE_MB" ]; then
   exit 1
 fi
 
-# Build new image (bust source cache on new commits, keep dependency cache)
-echo "Building images..."
 cd "$APP_DIR/repo"
+
+HAS_PREVIOUS=false
+RUNNING_ID="$(docker compose ps -q backend 2>/dev/null || true)"
+if [ -n "$RUNNING_ID" ]; then
+  docker tag "$(docker inspect --format '{{.Image}}' "$RUNNING_ID")" "$IMAGE:previous"
+  HAS_PREVIOUS=true
+  echo "Kept the running image as $IMAGE:previous for rollback"
+else
+  docker rmi "$IMAGE:previous" > /dev/null 2>&1 || true
+  echo "No running backend container; there is nothing to roll back to"
+fi
+
+echo "Building images..."
 docker compose build --build-arg CACHE_BUST="$(git rev-parse HEAD)"
 
-# Stop old containers and start new ones
+wait_for_health() {
+  local id restarts
+  for i in $(seq 1 $HEALTH_RETRIES); do
+    if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
+      echo "Backend is healthy (took ~$((i * 2))s)"
+      return 0
+    fi
+    id="$(docker compose ps -q backend 2>/dev/null || true)"
+    restarts="$(docker inspect --format '{{.RestartCount}}' "$id" 2>/dev/null || echo 0)"
+    if [ "${restarts:-0}" -gt 0 ]; then
+      echo "Backend container crashed during startup (restart count $restarts)"
+      return 1
+    fi
+    sleep 2
+  done
+  echo "Backend did not become healthy within $((HEALTH_RETRIES * 2))s"
+  return 1
+}
+
 echo "Restarting backend..."
-docker compose down || true
-docker compose up -d
+docker compose up -d --no-build --force-recreate backend
 
-# Wait for backend to be healthy (up to 60 seconds)
 echo "Waiting for backend to be healthy..."
-RETRIES=30
-HEALTHY=false
-for i in $(seq 1 $RETRIES); do
-  if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
-    HEALTHY=true
-    echo "Backend is healthy (took ~$((i * 2))s)"
-    break
-  fi
-  sleep 2
-done
+HEALTHY=true
+wait_for_health || HEALTHY=false
 
-if [ "$HEALTHY" = false ]; then
-  echo "ERROR: Backend did not become healthy within 60s"
-  echo "Recent logs:"
-  docker compose logs --tail=30 backend
+if [ "$HEALTHY" = true ]; then
+  docker rmi "$IMAGE:previous" > /dev/null 2>&1 || true
+  echo ""
+  echo "Container Status:"
+  docker compose ps
+  echo ""
+  echo "Startup logs:"
+  docker compose logs --tail=20 backend
+  echo ""
+  echo "Cleaning up dangling Docker images..."
+  docker image prune -f
+  echo ""
+  echo "======================================"
+  echo "Deployment completed successfully!"
+  echo "======================================"
+  echo ""
+  echo "To view logs:     docker compose logs -f"
+  echo "To check health:  curl http://localhost:8080/actuator/health"
+  echo ""
+  exit 0
 fi
-# NOTE: the non-zero exit for this case is deferred to the end of the script, so the container
-# status and startup logs below still print. Those are what actually identify the cause (a failed
-# Flyway migration, for instance), and they are worth more than exiting a few lines earlier.
 
-# Check container status
 echo ""
-echo "Container Status:"
-docker compose ps
+echo "Startup logs from the failed version:"
+docker compose logs --tail=60 backend
+FAILED_LOGS_HINT="the failed version's logs are printed above"
 
-# Show startup logs (Flyway migrations, errors, etc.)
-echo ""
-echo "Startup logs:"
-docker compose logs --tail=20 backend
-
-# Final cleanup
-echo ""
-echo "Cleaning up dangling Docker images..."
-docker image prune -f
-
-# Report the truth. Previously this script printed "Deployment completed successfully!" and exited
-# 0 even when the health check never passed -- so a backend that was crash-looping on a failed
-# Flyway migration looked like a clean deploy, and the outage was only discovered from the browser.
-if [ "$HEALTHY" = false ]; then
+if [ "$HAS_PREVIOUS" = false ]; then
   echo ""
   echo "======================================"
-  echo "DEPLOYMENT FAILED -- backend never became healthy"
+  echo "DEPLOYMENT FAILED -- backend never became healthy, and there was no previous image"
   echo "======================================"
-  echo ""
-  echo "The container started but never passed /actuator/health."
-  echo "The startup logs above usually name the cause. For more:"
-  echo "  docker compose logs --tail=100 backend"
-  echo ""
-  echo "The previous image is gone (docker compose down ran), so the site stays down"
-  echo "until this is resolved."
-  echo ""
+  echo "The site is down until this is fixed; $FAILED_LOGS_HINT."
   exit 1
 fi
 
 echo ""
+echo "Rolling back to the previous image..."
+docker tag "$IMAGE:latest" "$IMAGE:failed"
+docker tag "$IMAGE:previous" "$IMAGE:latest"
+docker compose up -d --no-build --force-recreate backend
+
+if wait_for_health; then
+  echo ""
+  echo "======================================"
+  echo "DEPLOYMENT FAILED -- rolled back, the previous version is serving"
+  echo "======================================"
+  echo "The new build is kept as $IMAGE:failed; $FAILED_LOGS_HINT."
+  echo "If the new version ran a Flyway migration, confirm the previous version still works with it."
+  echo "Remove the failed image once done: docker rmi $IMAGE:failed"
+  exit 1
+fi
+
+echo ""
+docker compose logs --tail=40 backend
+echo ""
 echo "======================================"
-echo "Deployment completed successfully!"
+echo "DEPLOYMENT FAILED -- rollback did not become healthy either, the site is down"
 echo "======================================"
-echo ""
-echo "To view logs:"
-echo "  docker compose logs -f"
-echo ""
-echo "To check health:"
-echo "  curl http://localhost:8080/actuator/health"
-echo ""
-echo "If something went wrong, check logs with:"
-echo "  docker compose logs --tail=100"
-echo ""
+echo "Both versions fail to start, which points at the environment or the database"
+echo "(a .env change, postgres, or a migration the previous version cannot run against)."
+exit 1
