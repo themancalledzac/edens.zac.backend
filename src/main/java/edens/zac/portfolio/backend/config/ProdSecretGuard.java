@@ -20,6 +20,9 @@ import org.springframework.stereotype.Component;
  * and the HMAC key {@link edens.zac.portfolio.backend.services.ClientGalleryAuthService} signs
  * gallery access tokens and password fingerprints with. Both claim confidentiality properties that
  * a known key voids, so the compose default must never reach prod.
+ *
+ * <p>{@code check_prod_env} in {@code deploy.sh} repeats these checks before the build, so a bad
+ * {@code .env} stops the deploy instead of the running backend. Change both together.
  */
 @Component
 @Profile("prod")
