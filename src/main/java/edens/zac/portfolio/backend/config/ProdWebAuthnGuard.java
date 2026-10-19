@@ -11,6 +11,9 @@ import org.springframework.stereotype.Component;
  * application.properties} and {@code docker-compose.yml} default the relying-party id to {@code
  * localhost}; a prod container that boots on that default enrolls passkeys no browser on the live
  * site can ever verify, and nothing else reports it.
+ *
+ * <p>{@code check_prod_env} in {@code deploy.sh} repeats these checks before the build, so a bad
+ * {@code .env} stops the deploy instead of the running backend. Change both together.
  */
 @Component
 @Profile("prod")
