@@ -510,9 +510,54 @@ class CollectionServiceTest {
       assertThat(result).isNotNull();
       assertThat(result.getTitle()).isEqualTo("Test Collection");
       verify(collectionProcessingUtil).populateSiblings(model, true);
-      // listedOnly must be true here. A HIDDEN or UNLISTED parent on a public read is a dead link
-      // and a disclosure of a collection the visitor was not meant to know exists.
       verify(collectionProcessingUtil).populateParents(model, true);
+    }
+
+    @Test
+    void getCollectionWithPagination_taggedCollection_carriesTagNamesAndSlugRefs() {
+      String slug = "test-collection";
+      CollectionModel model = CollectionModel.builder().id(1L).slug(slug).build();
+      TagEntity landscape =
+          TagEntity.builder().id(7L).tagName("Landscape").slug("landscape").build();
+      TagEntity alpine = TagEntity.builder().id(8L).tagName("Alpine").slug("alpine").build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
+      when(collectionRepository.countContentByCollectionId(1L)).thenReturn(0L);
+      when(collectionRepository.findContentByCollectionId(eq(1L), anyInt(), anyInt()))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToModel(
+              eq(testCollection), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(tagRepository.findCollectionTags(1L)).thenReturn(List.of(landscape, alpine));
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getTags()).containsExactly("Landscape", "Alpine");
+      assertThat(result.getTagRefs())
+          .containsExactly(
+              new Records.Tag(7L, "Landscape", "landscape"),
+              new Records.Tag(8L, "Alpine", "alpine"));
+      verify(tagRepository, times(1)).findCollectionTags(1L);
+    }
+
+    @Test
+    void getCollectionWithPagination_untaggedCollection_carriesEmptyTagLists() {
+      String slug = "test-collection";
+      CollectionModel model = CollectionModel.builder().id(1L).slug(slug).build();
+
+      when(collectionRepository.findBySlug(slug)).thenReturn(Optional.of(testCollection));
+      when(collectionRepository.countContentByCollectionId(1L)).thenReturn(0L);
+      when(collectionRepository.findContentByCollectionId(eq(1L), anyInt(), anyInt()))
+          .thenReturn(Collections.emptyList());
+      when(collectionProcessingUtil.convertToModel(
+              eq(testCollection), any(), anyInt(), anyInt(), anyLong()))
+          .thenReturn(model);
+      when(tagRepository.findCollectionTags(1L)).thenReturn(List.of());
+
+      CollectionModel result = service.getCollectionWithPagination(slug, 0, 10);
+
+      assertThat(result.getTags()).isEmpty();
+      assertThat(result.getTagRefs()).isEmpty();
     }
 
     @Test
@@ -1199,9 +1244,6 @@ class CollectionServiceTest {
 
     @Test
     void getUpdateCollectionData_populatesParentsUnfiltered() {
-      // The mapping itself lives in CollectionProcessingUtil.populateParents and is covered by
-      // CollectionProcessingUtilTest. What this path decides is the gate: admin passes false, so
-      // a HIDDEN parent still shows.
       String slug = "child";
       CollectionEntity child =
           CollectionEntity.builder()
@@ -2837,6 +2879,49 @@ class CollectionServiceTest {
 
       assertThat(annotation).isNotNull();
       assertThat(annotation.readOnly()).isFalse();
+    }
+  }
+
+  @Nested
+  class TagViewTileTags {
+
+    @Test
+    void resolveTagView_memberTilesCarryTagsWithSlugs_fromOneBatchQuery() {
+      TagViewResolver resolver =
+          new TagViewResolver(
+              tagRepository, contentRepository, collectionProcessingUtil, contentModelConverter);
+      TagEntity travel = TagEntity.builder().id(7L).tagName("Travel").slug("travel").build();
+      TagEntity europe = TagEntity.builder().id(8L).tagName("Europe").slug("europe").build();
+      CollectionEntity first = CollectionEntity.builder().id(11L).slug("trip-a").build();
+      CollectionEntity second = CollectionEntity.builder().id(12L).slug("trip-b").build();
+      List<CollectionVisibility> allowed = CollectionVisibility.visibleScope(false);
+
+      when(tagRepository.findBySlug("travel")).thenReturn(Optional.of(travel));
+      when(tagRepository.findCollectionsByTagId(7L, allowed)).thenReturn(List.of(first, second));
+      when(collectionProcessingUtil.batchConvertToBasicModels(List.of(first, second)))
+          .thenReturn(
+              List.of(
+                  CollectionModel.builder().id(11L).slug("trip-a").title("Trip A").build(),
+                  CollectionModel.builder().id(12L).slug("trip-b").title("Trip B").build()));
+      when(tagRepository.findTagsByCollectionIds(List.of(11L, 12L)))
+          .thenReturn(Map.of(11L, List.of(travel, europe)));
+      when(tagRepository.findImageContentByTagId(7L, allowed)).thenReturn(List.of());
+      when(contentRepository.findImagesByIds(List.of())).thenReturn(List.of());
+      when(contentModelConverter.batchConvertImageEntitiesToModels(List.of()))
+          .thenReturn(List.of());
+
+      CollectionModel view = resolver.resolveTagView("travel", false).orElseThrow();
+
+      ContentModels.Collection tileA = (ContentModels.Collection) view.getContent().get(0);
+      ContentModels.Collection tileB = (ContentModels.Collection) view.getContent().get(1);
+      assertThat(tileA.tags())
+          .containsExactly(
+              new Records.Tag(7L, "Travel", "travel"), new Records.Tag(8L, "Europe", "europe"));
+      assertThat(tileB.tags()).isEmpty();
+      assertThat(view.getTags()).isEmpty();
+      assertThat(view.getTagRefs()).isEmpty();
+      verify(tagRepository, times(1)).findTagsByCollectionIds(any());
+      verify(tagRepository, never()).findCollectionTags(any());
     }
   }
 }

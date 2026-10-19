@@ -9,6 +9,7 @@ import edens.zac.portfolio.backend.dao.TagRepository;
 import edens.zac.portfolio.backend.entity.CollectionEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -32,8 +33,6 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
   @Autowired private TagRepository tagRepository;
   @Autowired private CollectionService collectionService;
   @Autowired private JdbcTemplate jdbc;
-
-  // ---- seed helpers -------------------------------------------------------
 
   private long seedTag(String name, String slug) {
     jdbc.update("INSERT INTO tag (tag_name, slug) VALUES (?, ?)", name, slug);
@@ -79,12 +78,9 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
         visible);
   }
 
-  // ---- findCollectionsByTagId --------------------------------------------
-
   @Test
   void findCollectionsByTagId_filtersByVisibilityAndOrders() {
     long tag = seedTag("Landscape", "landscape-collections");
-    // rating asc on purpose so we can assert the rating-desc ordering reorders them.
     long listedLow = seedCollection("listed-low", CollectionVisibility.LISTED, 2);
     long listedHigh = seedCollection("listed-high", CollectionVisibility.LISTED, 4);
     long unlisted = seedCollection("unlisted-c", CollectionVisibility.UNLISTED, 5);
@@ -94,11 +90,9 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
     tagCollection(unlisted, tag);
     tagCollection(hidden, tag);
 
-    // Prod scope: only LISTED, ordered rating DESC.
     List<CollectionEntity> prod = tagRepository.findCollectionsByTagId(tag, PROD_ALLOWED);
     assertThat(prod).extracting(CollectionEntity::getId).containsExactly(listedHigh, listedLow);
 
-    // Local scope: all three visibilities surface; high-rated first.
     List<CollectionEntity> local = tagRepository.findCollectionsByTagId(tag, LOCAL_ALLOWED);
     assertThat(local)
         .extracting(CollectionEntity::getVisibility)
@@ -106,7 +100,6 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(local)
         .extracting(CollectionEntity::getId)
         .containsExactlyInAnyOrder(listedLow, listedHigh, unlisted, hidden);
-    // rating DESC NULLS LAST, collection_date DESC NULLS LAST — top two are the rating-5 rows.
     assertThat(local.subList(0, 2))
         .extracting(CollectionEntity::getId)
         .containsExactlyInAnyOrder(unlisted, hidden);
@@ -119,25 +112,20 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(tagRepository.findCollectionsByTagId(tag, LOCAL_ALLOWED)).isEmpty();
   }
 
-  // ---- findImageContentByTagId -------------------------------------------
-
   @Test
   void findImageContentByTagId_gatesOnVisibleMembershipAndCollectionVisibility() {
     long tag = seedTag("Mountains", "mountains-images");
     long listed = seedCollection("img-listed", CollectionVisibility.LISTED, 1);
     long hidden = seedCollection("img-hidden", CollectionVisibility.HIDDEN, 1);
 
-    // Image A: visible membership in a LISTED collection -> surfaces in prod.
     long imageA = seedImage("https://cdn/a.jpg");
     tagContent(imageA, tag);
     addMembership(listed, imageA, true);
 
-    // Image B: tagged, but only a HIDDEN-collection membership -> hidden in prod, visible local.
     long imageB = seedImage("https://cdn/b.jpg");
     tagContent(imageB, tag);
     addMembership(hidden, imageB, true);
 
-    // Image C: tagged, but its only membership is soft-removed (visible=false) -> never surfaces.
     long imageC = seedImage("https://cdn/c.jpg");
     tagContent(imageC, tag);
     addMembership(listed, imageC, false);
@@ -178,7 +166,6 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
 
     long older = seedImage("https://cdn/older.jpg");
     long newer = seedImage("https://cdn/newer.jpg");
-    // Force created_at ordering deterministically.
     jdbc.update("UPDATE content SET created_at = '2020-01-01 00:00:00' WHERE id = ?", older);
     jdbc.update("UPDATE content SET created_at = '2024-01-01 00:00:00' WHERE id = ?", newer);
     tagContent(older, tag);
@@ -189,8 +176,6 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
     assertThat(tagRepository.findImageContentByTagId(tag, PROD_ALLOWED))
         .containsExactly(newer, older);
   }
-
-  // ---- resolution path through CollectionService -------------------------
 
   @Test
   void getCollectionWithPagination_tagSlug_returnsParentCollectionsFirstThenImages() {
@@ -207,9 +192,41 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
 
     assertThat(model.getSlug()).isEqualTo("travel");
     assertThat(model.getContent()).hasSize(2);
-    // Collections render before images.
     assertThat(model.getContent().get(0)).isInstanceOf(ContentModels.Collection.class);
     assertThat(model.getContent().get(1)).isInstanceOf(ContentModels.Image.class);
+  }
+
+  @Test
+  void getCollectionWithPagination_tagSlug_memberTilesCarryTagsWithSlugs() {
+    long tag = seedTag("Travel Tiles", "travel-tiles");
+    long other = seedTag("Europe", "europe-tiles");
+    long member = seedCollection("travel-tiles-trip", CollectionVisibility.LISTED, 5);
+    tagCollection(member, tag);
+    tagCollection(member, other);
+
+    CollectionModel model = collectionService.getCollectionWithPagination("travel-tiles", 0, 30);
+
+    assertThat(model.getTags()).isEmpty();
+    assertThat(model.getTagRefs()).isEmpty();
+    ContentModels.Collection tile = (ContentModels.Collection) model.getContent().get(0);
+    assertThat(tile.tags())
+        .extracting(Records.Tag::slug)
+        .containsExactlyInAnyOrder("travel-tiles", "europe-tiles");
+    assertThat(tile.tags())
+        .extracting(Records.Tag::name)
+        .containsExactlyInAnyOrder("Travel Tiles", "Europe");
+  }
+
+  @Test
+  void getCollectionWithPagination_regularCollection_carriesTagRefsWithSlugs() {
+    long tag = seedTag("Coastal", "coastal-refs");
+    long collection = seedCollection("coastal-trip", CollectionVisibility.LISTED, 3);
+    tagCollection(collection, tag);
+
+    CollectionModel model = collectionService.getCollectionWithPagination("coastal-trip", 0, 30);
+
+    assertThat(model.getTags()).containsExactly("Coastal");
+    assertThat(model.getTagRefs()).containsExactly(new Records.Tag(tag, "Coastal", "coastal-refs"));
   }
 
   @Test
@@ -222,7 +239,6 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void getCollectionWithPagination_tagWithNoVisibleMembers_throwsNotFound() {
     long tag = seedTag("EmptyTag", "empty-tag");
-    // Member exists but only as a HIDDEN collection -> not visible in prod -> 404.
     long hidden = seedCollection("empty-hidden", CollectionVisibility.HIDDEN, 1);
     tagCollection(hidden, tag);
 
@@ -233,15 +249,12 @@ class TagViewIntegrationTest extends AbstractPostgresIntegrationTest {
   @Test
   void getCollectionWithPagination_slugIsBothCollectionAndTag_realCollectionWins() {
     String slug = "collision-slug";
-    // A real LISTED collection with this slug.
     seedCollection(slug, CollectionVisibility.LISTED, 1);
-    // A tag that also slugs to the same value, with its own visible member.
     long tag = seedTag("Collision", slug);
     long member = seedCollection("collision-member", CollectionVisibility.LISTED, 5);
     tagCollection(member, tag);
 
     CollectionModel model = collectionService.getCollectionWithPagination(slug, 0, 30);
-    // Real collection wins: it is a stored row, not the synthetic tag-view.
     assertThat(model.isDerived()).isFalse();
     assertThat(model.getSlug()).isEqualTo(slug);
   }

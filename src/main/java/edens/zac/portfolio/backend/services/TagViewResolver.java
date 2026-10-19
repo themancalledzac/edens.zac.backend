@@ -8,6 +8,7 @@ import edens.zac.portfolio.backend.entity.TagEntity;
 import edens.zac.portfolio.backend.model.CollectionModel;
 import edens.zac.portfolio.backend.model.ContentModel;
 import edens.zac.portfolio.backend.model.ContentModels;
+import edens.zac.portfolio.backend.model.Records;
 import edens.zac.portfolio.backend.types.CollectionVisibility;
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +73,9 @@ public class TagViewResolver {
         tagRepository.findCollectionsByTagId(tag.getId(), allowed);
     List<CollectionModel> memberCollections =
         collectionProcessingUtil.batchConvertToBasicModels(collectionRows);
+    List<Long> memberIds = memberCollections.stream().map(CollectionModel::getId).toList();
+    Map<Long, List<TagEntity>> tagsByCollectionId =
+        memberIds.isEmpty() ? Map.of() : tagRepository.findTagsByCollectionIds(memberIds);
 
     List<Long> imageContentIds = tagRepository.findImageContentByTagId(tag.getId(), allowed);
     Map<Long, ContentImageEntity> imagesById =
@@ -88,7 +92,10 @@ public class TagViewResolver {
 
     List<ContentModel> content = new ArrayList<>();
     memberCollections.stream()
-        .map(ContentModels.Collection::fromCollectionModel)
+        .map(
+            member ->
+                ContentModels.Collection.fromCollectionModel(member)
+                    .withTags(toTagRecords(tagsByCollectionId.get(member.getId()))))
         .forEach(content::add);
     content.addAll(memberImages);
 
@@ -107,12 +114,19 @@ public class TagViewResolver {
             .build());
   }
 
+  private static List<Records.Tag> toTagRecords(List<TagEntity> tags) {
+    if (tags == null || tags.isEmpty()) {
+      return List.of();
+    }
+    return tags.stream().map(t -> new Records.Tag(t.getId(), t.getTagName(), t.getSlug())).toList();
+  }
+
   /** Cover: first member collection with a cover image, else first tagged image, else none. */
   private ContentModels.Image representativeCover(
       List<CollectionModel> memberCollections, List<ContentModels.Image> memberImages) {
     return memberCollections.stream()
         .map(CollectionModel::getCoverImage)
-        .filter(java.util.Objects::nonNull)
+        .filter(Objects::nonNull)
         .findFirst()
         .orElseGet(() -> memberImages.isEmpty() ? null : memberImages.get(0));
   }
