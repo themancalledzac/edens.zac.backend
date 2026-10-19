@@ -40,7 +40,7 @@ Two separate Docker Compose stacks on the same EC2 instance:
 | `Dockerfile` | Multi-stage build: Maven → JRE-alpine runtime | Changing Java version, build args, JVM flags |
 | `docker-compose.yml` | All services: database, backend, caddy | Adding services, changing ports, memory limits |
 | `Caddyfile` | HTTPS reverse proxy config | Changing domain, adding routes |
-| `deploy.sh` | Deploy script (DB pre-check, build, restart, health check) | Changing deploy workflow |
+| `deploy.sh` | Deploy script (env check, DB check, build, restart, health check, rollback) | Changing deploy workflow |
 | `scripts/setup-ec2.sh` | One-time EC2 instance setup | Adding setup steps |
 | `scripts/backup-postgres.sh` | Automated PostgreSQL backup + S3 sync | Changing retention, backup format |
 | `scripts/restore-postgres.sh` | Restore from backup with confirmation | Changing restore process |
@@ -92,17 +92,21 @@ Push to any branch
 **What deploy.sh does (in order):**
 1. `git fetch` + `git reset --hard origin/main` (pull latest code)
 2. Copy `.env` from `~/portfolio-backend/.env` to repo
-3. `docker compose build` (builds new image while old containers still serve traffic)
-4. `docker compose down` (stop old containers -- DB is separate, unaffected)
-5. `docker compose up -d` (start new containers)
-6. Wait 10s for health checks
-7. `docker image prune -f` (clean dangling images)
+3. Check `.env` against the prod startup guards (`config/Prod*Guard.java`). A missing or dev-default value aborts before anything is built or stopped. Keys in `.env.example` that the server `.env` does not set print as a warning.
+4. Check that `portfolio-postgres` is healthy, then free disk space (escalating only when below `REQUIRED_FREE_MB`)
+5. Tag the running image as `edens.zac.backend:previous`
+6. `docker compose build` (old container still serves traffic)
+7. `docker compose up -d --no-build --force-recreate backend` (container swap; DB is separate, unaffected)
+8. Wait up to 60s for `/actuator/health`, stopping early if the container crashes
+9. Healthy: drop `:previous` and prune dangling images. Unhealthy: tag the new build `:failed`, put `:previous` back as `:latest`, restart it, and exit 1
 
 **Key design decisions:**
-- Build happens BEFORE down, minimizing downtime to ~10-30 seconds (container swap only)
+- Build happens before the swap, so downtime is the container restart only
+- A failed deploy rolls back to the previous image instead of leaving the site down. If the new version ran a Flyway migration, check the previous version still works against it
+- A new required prod env var needs a line in `check_prod_env` in `deploy.sh` and in `.env.example`
+- Never pass `--remove-orphans`: `portfolio-postgres` shows up as an orphan of the backend compose project
 - No `--no-cache` — Docker layer caching speeds up builds dramatically
 - No `docker system prune -a` — avoids nuking base images and forcing full re-downloads
-- Only dangling images pruned after deploy
 
 ## Docker Configuration
 
@@ -517,7 +521,7 @@ Currently logs are in Docker json-file driver (10MB max, 3 files). For searchabl
 
 ## Notes for AI Agents
 
-- **Deploy script**: `deploy.sh` at repo root (DB pre-check, build, restart, health check)
+- **Deploy script**: `deploy.sh` at repo root (env check, DB check, build, restart, health check, rollback)
 - **Database runs separately**: PostgreSQL runs from `~/portfolio-db/` as its own Docker Compose stack
 - **Profile `production`**: Adds Caddy reverse proxy for HTTPS
 - **Memory limits are enforced**: 512M for DB (in portfolio-db stack), 768M for backend, via Docker deploy.resources

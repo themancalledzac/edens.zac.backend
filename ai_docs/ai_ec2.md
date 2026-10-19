@@ -136,10 +136,13 @@ reads, and it is the only place the variable list and its defaults are maintaine
 **What it does**:
 1. Pulls latest code from `main` branch (`git fetch` + `git reset --hard`)
 2. Copies `.env` from `~/portfolio-backend/.env` to repo
-3. Builds new Docker image (with layer caching, while old containers still serve)
-4. Stops old containers and starts new ones
-5. Waits for health checks
-6. Cleans up dangling images
+3. Aborts if `.env` would fail the prod startup guards (nothing is built or stopped)
+4. Tags the running image as `edens.zac.backend:previous`
+5. Builds new Docker image (with layer caching, while the old container still serves)
+6. Recreates the backend container and waits for health checks
+7. On success, cleans up dangling images. On failure, restarts the previous image and exits 1
+
+See `ai_docs/ai_deployment_strategy.md` for the full sequence.
 
 **Manual deployment**:
 ```bash
