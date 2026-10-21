@@ -1,13 +1,11 @@
 # edens.zac.backend
 
-[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4.1-6DB33F?logo=spring-boot)](https://spring.io/projects/spring-boot)
-[![Java](https://img.shields.io/badge/Java-23-ED8B00?logo=openjdk)](https://openjdk.java.net/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![AWS](https://img.shields.io/badge/AWS-S3_+_CloudFront-FF9900?logo=amazon-aws)](https://aws.amazon.com/)
-[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI Pipeline](https://github.com/themancalledzac/edens.zac.backend/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/themancalledzac/edens.zac.backend/actions/workflows/ci-cd.yml)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Backend REST API for a photography portfolio and content management platform. Handles image upload and processing, collection management, multi-dimensional search, client gallery access control, and media delivery through AWS S3 + CloudFront.
+REST API behind a photography portfolio. It stores images and collections in PostgreSQL, serves the media from S3 through CloudFront, and handles sign-in, client galleries, share links and per-user saves.
+
+The frontend is a separate Next.js app, [edens.zac](https://github.com/themancalledzac/edens.zac). Every browser request goes through its server-side proxy, never straight to this API.
 
 ---
 
@@ -15,64 +13,53 @@ Backend REST API for a photography portfolio and content management platform. Ha
 
 | Layer | Technology |
 |---|---|
-| **Runtime** | Java 23, Spring Boot 3.4.1 |
-| **Database** | PostgreSQL 16, Flyway migrations |
-| **Data Access** | JDBC via `NamedParameterJdbcTemplate` (not JPA/Hibernate) |
-| **Storage** | AWS S3 (images, GIFs, backups) |
-| **CDN** | AWS CloudFront with Origin Access Control |
-| **Hosting** | AWS EC2 |
-| **Image Processing** | Thumbnailator, Apache Commons Imaging, Metadata Extractor |
-| **Build** | Maven, Docker multi-stage builds |
-| **CI** | GitHub Actions (lint, test, build, security scan) |
-| **Code Style** | Google Java Format (Spotless) + Checkstyle |
-| **Testing** | JUnit 5, Mockito, AssertJ, MockMvc |
+| Runtime | Java 23, Spring Boot 3.5 |
+| Database | PostgreSQL 16, Flyway migrations |
+| Data access | JDBC via `NamedParameterJdbcTemplate` and hand-written SQL (no JPA) |
+| Auth | Spring Security, DB-backed sessions, passwords (bcrypt) and passkeys (webauthn4j) |
+| Media | AWS S3, CloudFront with Origin Access Control |
+| Image processing | Thumbnailator, metadata-extractor (EXIF), webp-imageio, ffmpeg for video |
+| Email | AWS SES v2 |
+| Hosting | Docker Compose on AWS EC2, infrastructure in Terraform |
+| CI | GitHub Actions: Checkstyle, tests, Maven and Docker build |
+| Code style | google-java-format via Spotless, Checkstyle |
+| Testing | JUnit 5, Mockito, AssertJ, MockMvc, Testcontainers |
+
+Exact versions live in [pom.xml](pom.xml).
 
 ---
 
-## Features
+## What It Does
 
-- **Image Upload & Processing** -- Multi-resolution thumbnail generation (web, thumbnail, small), EXIF metadata extraction (camera, lens, GPS, exposure), WebP conversion
-- **Collection Management** -- A collection is a named, slugged, ordered grouping of any mix of content (images, text, GIFs, other collections), with pagination and ordering. Two stored flags specialize it: `isClient` (password-gated client gallery) and `isBlog` (appears in blog listings); parent-ness and the home page are derived from the content graph and the `home` slug
-- **Multi-Dimensional Image Search** -- Filter by tags, people, camera, lens, location, rating, film/digital, date range with dynamic SQL query building
-- **Location Pages** -- Collections and orphan images grouped by location with count hints for frontend clickability
-- **Client Gallery Protection** -- SHA-256 password hashing, access token flow, rate-limited authentication
-- **GIF & Video Support** -- GIF upload with first-frame WebP thumbnail extraction, MP4 processing
-- **Metadata Management** -- Tags, people, cameras, lenses, locations, film types with batch operations
-- **Content Reordering** -- Bulk CASE-based SQL reorder for drag-and-drop collection management
+- **Collections.** A collection is a named, slugged, ordered list of any mix of images, text, GIFs, videos and other collections. Two stored flags change how it behaves: `isClient` (password-gated client gallery) and `isBlog` (shown in blog listings). Parent collections and the home page are worked out from the content graph and the `home` slug.
+- **Image upload.** Uploads run through a parallel pipeline that writes several WebP sizes to S3 and reads EXIF data (camera, lens, exposure, GPS). Large imports from local disk run as background jobs with a status endpoint.
+- **GIF and video.** MP4, MOV and GIF uploads get a first-frame thumbnail from ffmpeg.
+- **Search and metadata.** Images can be filtered by tag, person, camera, lens, location, rating, film or digital, and date range. Tags, people, cameras, lenses, locations and film stocks are managed as metadata, with batch edits.
+- **Users and access.** Users sign in with a password or a passkey. Admins invite users, assign roles, and grant roles access to collections. Collaborators can reorder and edit collections they can reach.
+- **Sharing.** Client galleries unlock with a password and a short-lived HMAC token. Users can create share links to collections, and share links can be emailed.
+- **Per-user data.** Signed-in users can save images, follow collections, mark selects, and override ratings.
+- **Downloads.** Single images and whole collections can be downloaded.
+- **Contact messages.** A public, rate-limited contact form. Admins read and delete messages, and old ones are purged on a schedule.
 
 ---
 
 ## Architecture
 
-```
-+------------------+
-|   Next.js 15     |
-|   (Amplify)      |
-+--------+---------+
-         |
-         | REST API
-         |
-+--------v---------+
-|   Spring Boot    |
-|   REST API       |
-|   (EC2)          |
-+--------+---------+
-         |
-  +------+------+
-  |             |
-+-v------+  +--v-----------+
-| Postgres|  | AWS S3       |
-| (EC2)  |  | + CloudFront |
-+--------+  +--------------+
+```mermaid
+flowchart TD
+    Browser --> BFF["Next.js app and proxy (AWS Amplify)"]
+    BFF -- "REST + X-Internal-Secret" --> API["Spring Boot API (Docker on EC2)"]
+    API --> DB[("PostgreSQL 16 (Docker on EC2)")]
+    API --> S3["S3 bucket"]
+    API --> SES["SES email"]
+    S3 --> CF["CloudFront"]
+    CF --> Browser
 ```
 
-**API Layer** -- Dual-profile controllers: `prod` for public read endpoints, `dev` for admin/write operations. Global exception handling via `@ControllerAdvice`.
-
-**Service Layer** -- Concrete service classes (no interface/impl split). Processing utilities handle entity-to-model conversion, metadata population, and batch operations.
-
-**Data Access** -- Raw JDBC with `NamedParameterJdbcTemplate` and hand-written SQL. Row mappers, parameter sources, and a `BaseDao` utility class. No ORM magic.
-
-**Storage** -- Images uploaded to S3 in multiple resolutions. CloudFront serves them globally. Flyway manages database schema evolution.
+- **Controllers** are grouped by who may call them (see [API Routes](#api-routes)). They return DTOs, never entities. `GlobalExceptionHandler` turns exceptions into error responses, so controllers have no try-catch.
+- **Services** are concrete `*Service` classes with no interface/impl split.
+- **DAOs** run hand-written SQL through `NamedParameterJdbcTemplate`.
+- **Security.** In the `prod` profile, `InternalSecretFilter` rejects any request without the proxy's shared secret, except the actuator health checks. `SecurityConfig` then checks the caller's role per route group. Startup guards (`config/Prod*Guard.java`) stop a prod boot that is missing required secrets.
 
 ---
 
@@ -81,57 +68,41 @@ Backend REST API for a photography portfolio and content management platform. Ha
 ```
 src/main/java/edens/zac/portfolio/backend/
   controller/
-    admin/            Admin endpoints, all profiles (SecurityConfig hasRole("ADMIN") gate)
-    prod/             Public read endpoints (@Profile("prod"))
-  services/           Business logic (concrete *Service classes)
-  dao/                Data access (JDBC, NamedParameterJdbcTemplate)
-  entity/             Database entities (*Entity suffix)
-  model/              DTOs, requests, responses (*Model, *Request, Records)
-  types/              Enums (ContentType, DisplayMode, CollectionVisibility)
-  config/             Spring configuration, exception handling
+    prod/       Public reads (/api/read/**), plus signed-in user routes (/api/read/user/**)
+    user/       Signed-in user rating overrides
+    pub/        Anonymous writes (/api/public/**), currently the contact form
+    auth/       Login, logout, passkeys, invites (/api/auth/**)
+    edit/       Collaborator writes (/api/edit/**)
+    admin/      Admin routes (/api/admin/**)
+  services/     Business logic
+  dao/          JDBC data access
+  entity/       Plain data classes (*Entity)
+  model/        DTOs, requests, responses
+  types/        Enums
+  config/       Security, filters, interceptors, startup guards
 src/main/resources/
-  db/migration/       Flyway SQL migrations (V2-V52)
-terraform/            AWS infrastructure as code
-docker/               Docker configurations
-scripts/              Deployment and utility scripts
+  db/migration/ Flyway SQL migrations
+terraform/      AWS infrastructure (EC2, S3, CloudFront, IAM, security groups)
+scripts/        Database tunnel, backup and restore, EC2 setup
+deploy.sh       Deploy script, run on the EC2 host
 ```
 
 ---
 
-## API Endpoints
+## API Routes
 
-### Public Read Endpoints (`/api/read/`)
+Routes are grouped by URL prefix. Each prefix maps to one access level.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/collections` | Paginated list of all collections |
-| `GET` | `/collections/{slug}` | Collection with paginated content (supports `?accessToken=`) |
-| `GET` | `/collections/{slug}/meta` | Lightweight collection metadata (SEO) |
-| `GET` | `/collections/location/{slug}` | Collections + orphan images at a location |
-| `POST` | `/collections/{slug}/access` | Validate client gallery password, returns access token |
-| `GET` | `/content/images/search` | Multi-filter image search with pagination |
-| `GET` | `/content/tags` | All tags |
-| `GET` | `/content/people` | All people |
-| `GET` | `/content/cameras` | All cameras |
-| `GET` | `/content/lenses` | All lenses |
-| `GET` | `/content/locations` | Locations with collection/image counts |
-| `GET` | `/content/film-metadata` | Film types and formats |
+| Prefix | Who can call it | Covers |
+|---|---|---|
+| `/api/read/**` | Anyone | Collections, collection metadata, location pages, image search, metadata lists, downloads, share-link views, gallery password check |
+| `/api/read/user/**` | Signed-in users | Saves, follows, selects, rating overrides, share links, the user's own page |
+| `/api/public/**` | Anyone, rate-limited | Contact form |
+| `/api/auth/**` | Anyone for login and invites, signed-in users for the rest | Password and passkey login, invite accept, logout, current user, passkey registration |
+| `/api/edit/**` | Collaborators and admins | Reorder, rate, and edit collections and their images |
+| `/api/admin/**` | Admins | Uploads and import jobs, collections, metadata, users, roles, gallery access, messages, request metrics, cache |
 
-### Admin Endpoints (`/api/admin/`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/collections` | All collections (admin view) |
-| `POST` | `/collections` | Create collection |
-| `PUT` | `/collections/{id}` | Update collection metadata, tags, people |
-| `DELETE` | `/collections/{id}` | Delete collection |
-| `POST` | `/collections/{id}/children` | Create child collection |
-| `PUT` | `/collections/{id}/reorder` | Reorder collection content |
-| `POST` | `/content/upload/images` | Batch image upload with EXIF extraction |
-| `POST` | `/content/upload/gif` | GIF upload with thumbnail generation |
-| `PATCH` | `/content/images/batch` | Batch update image metadata |
-| `POST` | `/content/{collectionId}/add` | Add content to collection |
-| `DELETE` | `/content/{collectionId}/remove` | Remove content from collection |
+The controllers in `controller/` are the full list of endpoints.
 
 ---
 
@@ -139,12 +110,14 @@ scripts/              Deployment and utility scripts
 
 ### Prerequisites
 
-- Java 23+
-- Maven 3.8+ (or use the included `./mvnw` wrapper)
-- PostgreSQL 16 (local or EC2 via SSH tunnel)
-- AWS credentials for S3
+- Java 23
+- Docker (the tests start PostgreSQL with Testcontainers)
+- Access to a PostgreSQL 16 database: the EC2 instance through an SSH tunnel, or a local one
+- AWS credentials with access to the S3 bucket
 
-### Local Development
+Maven is not required. Use the included `./mvnw` wrapper.
+
+### Run locally
 
 1. Clone and build:
    ```bash
@@ -153,95 +126,82 @@ scripts/              Deployment and utility scripts
    ./mvnw clean install
    ```
 
-2. Set up environment:
+2. Create `.env` from the example and fill it in. Each variable is described in [.env.example](.env.example).
    ```bash
    cp .env.example .env
-   # Edit .env with your database and AWS credentials
    ```
 
-3. Connect to the EC2 database via SSH tunnel:
+3. Open a tunnel to the EC2 database (skip this when using a local PostgreSQL):
    ```bash
-   ssh -L 5432:localhost:5432 -i ~/key.pem ec2-user@<ec2-ip>
+   ./scripts/db-tunnel.sh up
    ```
 
-4. Run:
+4. Start the API with the `dev` profile:
    ```bash
    ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
    ```
 
-The API runs at `http://localhost:8080`.
+The API listens on `http://localhost:8080`.
 
-### Docker
+In the `dev` profile, `DevLocalAdminFilter` treats local callers as the bootstrap admin, so the admin UI works without signing in. Keep the port bound to localhost.
+
+### Run with Docker
 
 ```bash
 docker compose up --build
 ```
 
-The backend connects to an external PostgreSQL instance. The database runs separately on EC2.
+Set `BACKEND_BIND_ADDR=127.0.0.1` in `.env` so the port is not reachable from your network. The compose file runs only the backend. It connects to a PostgreSQL instance that runs separately.
 
 ---
 
-## Build & Test
+## Build and Test
 
 ```bash
-./mvnw clean install          # Build with tests
+./mvnw clean install          # Build and run tests
 ./mvnw test                   # Run tests only
-./mvnw spotless:apply         # Format code (Google Java Format)
-./mvnw checkstyle:check       # Verify style compliance
+./mvnw spotless:apply         # Format code
+./mvnw checkstyle:check       # Check style
 ```
 
-### Code Formatting
+CI runs Checkstyle, the test suite and a Docker build on every push.
 
-The build uses [Spotless](https://github.com/diffplug/spotless) with [google-java-format](https://github.com/google/google-java-format).
-
-- **VS Code / Cursor**: Install [Run On Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave). The repo's `.vscode/settings.json` runs `mvn spotless:apply` on save.
-- **Command line**: `./mvnw spotless:apply`
+The repo's `.vscode/settings.json` runs `spotless:apply` on save if the [Run On Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave) extension is installed.
 
 ---
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `POSTGRES_HOST` | Database host |
-| `POSTGRES_PORT` | Database port (default: 5432) |
-| `POSTGRES_DB` | Database name |
-| `POSTGRES_USERNAME` | Database user |
-| `POSTGRES_PASSWORD` | Database password |
-| `AWS_ACCESS_KEY_ID` | AWS access key |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
-| `AWS_REGION` | AWS region (default: us-west-2) |
-| `S3_BUCKET_NAME` | S3 bucket for image storage |
-| `CLOUDFRONT_DOMAIN` | CloudFront distribution domain |
-| `INTERNAL_SECRET` | Secret for prod endpoint authentication |
+[.env.example](.env.example) lists every variable with a description. The ones the app cannot start without in prod:
+
+| Variable | Purpose |
+|---|---|
+| `SPRING_PROFILES_ACTIVE` | `dev` locally, `prod` on EC2 |
+| `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Database connection |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | AWS credentials |
+| `AWS_PORTFOLIO_S3_BUCKET` | S3 bucket for media |
+| `AWS_CLOUDFRONT_DOMAIN`, `AWS_CLOUDFRONT_DISTRIBUTION_ID` | CloudFront domain for media URLs, and the distribution to invalidate on delete |
+| `INTERNAL_API_SECRET` | Shared secret the Next.js proxy sends on every request |
+| `ACCESS_TOKEN_SECRET` | Encrypts share-link tokens and signs gallery access tokens |
+| `WEBAUTHN_RP_ID`, `WEBAUTHN_RP_NAME`, `WEBAUTHN_ALLOWED_ORIGINS` | Passkey settings for the real domain |
+| `EMAIL_ENABLED`, `EMAIL_FROM_ADDRESS`, `EMAIL_FRONTEND_BASE_URL` | SES email and the site URL used in email links |
 
 ---
 
 ## Deployment
 
-Manual deploy via SSH to EC2:
+Deploys are manual. SSH to the EC2 host and run:
 
 ```bash
-ssh -i ~/key.pem ec2-user@<ec2-ip>
 bash ~/portfolio-backend/repo/deploy.sh
 ```
 
-See [ai_docs/ai_deployment_strategy.md](ai_docs/ai_deployment_strategy.md) for the full deployment guide.
+The script pulls `main`, checks the server `.env` against the prod startup guards, builds the image, swaps the container and waits for `/actuator/health`. If the new container never becomes healthy, it restarts the previous image.
 
----
-
-## Infrastructure
-
-AWS infrastructure is managed with Terraform in the `terraform/` directory:
-
-- **EC2** -- Application host (Spring Boot + PostgreSQL)
-- **S3** -- Image storage and database backups
-- **CloudFront** -- CDN with Origin Access Control
-- **Security Groups** -- Network access rules
-- **IAM** -- Users and policies for S3 access
+See [ai_docs/ai_deployment_strategy.md](ai_docs/ai_deployment_strategy.md) for the full guide, including backups and HTTPS.
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE)
