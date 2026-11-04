@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -64,7 +65,8 @@ public class DevLocalAdminFilter extends OncePerRequestFilter {
       @Value("${app.auth.dev-local-admin.extra-addresses:}") String extraAddresses) {
     this.extraAddresses = parseAddresses(extraAddresses);
     this.appUserRepository = appUserRepository;
-    this.bootstrapEmail = bootstrapEmail == null ? "" : bootstrapEmail.trim();
+    this.bootstrapEmail =
+        bootstrapEmail == null ? "" : bootstrapEmail.trim().toLowerCase(Locale.ROOT);
     if (this.bootstrapEmail.isEmpty()) {
       log.warn(
           "DevLocalAdminFilter is active but app.auth.admin.bootstrap-email is blank;"

@@ -50,6 +50,14 @@ public class GlobalExceptionHandler {
         .body(ErrorResponse.of(HttpStatus.NOT_FOUND, e.getMessage()));
   }
 
+  /** Handle ConflictException - always returns 409 with the thrower's message. */
+  @ExceptionHandler(ConflictException.class)
+  public ResponseEntity<ErrorResponse> handleConflict(ConflictException e) {
+    log.warn("Conflict: {}", e.getMessage());
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(ErrorResponse.of(HttpStatus.CONFLICT, e.getMessage()));
+  }
+
   /**
    * Handle requests to a path with no matching route (e.g. a typo'd or retired endpoint). Without
    * this handler it is matched by the catch-all {@link #handleGeneric} and mis-reported as 500; an

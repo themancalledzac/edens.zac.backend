@@ -1,5 +1,6 @@
 package edens.zac.portfolio.backend.controller.admin;
 
+import edens.zac.portfolio.backend.config.ConflictException;
 import edens.zac.portfolio.backend.config.CurrentUser;
 import edens.zac.portfolio.backend.config.ResourceNotFoundException;
 import edens.zac.portfolio.backend.controller.admin.RoleRequests.UserRoleRow;
@@ -29,6 +30,7 @@ import edens.zac.portfolio.backend.services.UserSavesService;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
@@ -112,9 +114,11 @@ public class AdminUserController {
    * Create a new user account in {@code INVITED} status and return a single-use invite URL for the
    * invitee to complete registration.
    *
-   * <p>Returns {@code 409 Conflict} if the email already exists (checked before insert; a {@code
+   * <p>Returns {@code 409 Conflict} if the email already exists, or if the display name matches an
+   * existing row case-insensitively. A name clash with a tag-only {@code PERSON} row names that row
+   * and points at {@link #upgradeUser}. Both are checked before insert; a {@code
    * DataIntegrityViolationException} is handled by {@link
-   * edens.zac.portfolio.backend.config.GlobalExceptionHandler} as belt-and-suspenders for races).
+   * edens.zac.portfolio.backend.config.GlobalExceptionHandler} as belt-and-suspenders for races.
    *
    * @param request the new-user parameters; email is normalized to lowercase
    * @return {@code 201 Created} with {@link CreateUserResponse}
@@ -129,6 +133,7 @@ public class AdminUserController {
       log.warn("Admin create-user rejected: email already exists (email={})", email);
       return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
+    rejectTakenName(request.displayName());
 
     AppUserEntity newUser =
         AppUserEntity.builder()
@@ -150,19 +155,15 @@ public class AdminUserController {
   }
 
   /**
-   * List user accounts (newest first) for the admin user-management view. Returns identity and
-   * lifecycle state only — never password hashes or WebAuthn handles. By default tag-only {@code
-   * PERSON} rows are excluded (accounts only); pass {@code includePeople=true} to surface them for
-   * the identity-merge UI.
+   * List every row in {@code users} (newest first) for the admin user-management view, tag-only
+   * {@code PERSON} rows included. Returns identity and lifecycle state only, never password hashes
+   * or WebAuthn handles.
    *
-   * @param includePeople when {@code true}, include {@code status='PERSON'} rows in the result
    * @return the user summaries
    */
   @GetMapping
-  public List<AdminUserSummary> listUsers(
-      @RequestParam(name = "includePeople", defaultValue = "false") boolean includePeople) {
+  public List<AdminUserSummary> listUsers() {
     return appUserRepository.findAllOrderedByCreatedAt().stream()
-        .filter(u -> includePeople || u.getStatus() != UserStatus.PERSON)
         .map(
             u ->
                 new AdminUserSummary(
@@ -576,6 +577,33 @@ public class AdminUserController {
   /** Build the public invite URL, tolerating a {@code frontendBaseUrl} that ends in a slash. */
   private String buildInviteUrl(String rawToken) {
     return frontendBaseUrl.replaceAll("/+$", "") + "/invite/" + rawToken;
+  }
+
+  /**
+   * Refuse a display name that another row already holds, compared case-insensitively like the
+   * {@code idx_users_name_lower} index. A clash with a tag-only {@code PERSON} row points at {@link
+   * #upgradeUser}, because the default user list hides those rows.
+   */
+  private void rejectTakenName(String displayName) {
+    if (displayName == null || displayName.isBlank()) {
+      return;
+    }
+    appUserRepository
+        .findByLowerName(displayName.toLowerCase(Locale.ROOT))
+        .ifPresent(
+            existing -> {
+              if (existing.getStatus() == UserStatus.PERSON) {
+                throw new ConflictException(
+                    String.format(
+                        "A tagged person named '%s' already exists (id %d). Upgrade them with POST"
+                            + " /api/admin/users/%d/upgrade instead of creating a new user.",
+                        existing.getName(), existing.getId(), existing.getId()));
+              }
+              throw new ConflictException(
+                  String.format(
+                      "A user named '%s' already exists (id %d).",
+                      existing.getName(), existing.getId()));
+            });
   }
 
   /**
