@@ -175,6 +175,62 @@ class AdminUserControllerTest {
       verify(userInviteService, never()).createInvite(anyLong(), anyString());
     }
 
+    /**
+     * A tag-only PERSON row is hidden from the default user list, so the 409 must name it and point
+     * at the upgrade route rather than surface the unique-index violation on {@code LOWER(name)}.
+     */
+    @Test
+    void nameOfExistingPersonReturns409PointingAtUpgrade() throws Exception {
+      when(appUserRepository.findByEmail("jane@example.com")).thenReturn(Optional.empty());
+      when(appUserRepository.findByLowerName("jane doe"))
+          .thenReturn(
+              Optional.of(
+                  AppUserEntity.builder()
+                      .id(12L)
+                      .name("Jane Doe")
+                      .status(UserStatus.PERSON)
+                      .build()));
+
+      mockMvc
+          .perform(
+              post("/api/admin/users")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"jane@example.com\",\"displayName\":\"jane doe\"}"))
+          .andExpect(status().isConflict())
+          .andExpect(
+              jsonPath("$.message")
+                  .value(
+                      "A tagged person named 'Jane Doe' already exists (id 12). Upgrade them with"
+                          + " POST /api/admin/users/12/upgrade instead of creating a new user."));
+
+      verify(appUserRepository, never()).insert(any());
+      verify(emailService, never()).sendInviteEmail(anyString(), any(), anyString());
+    }
+
+    @Test
+    void nameOfExistingAccountReturns409() throws Exception {
+      when(appUserRepository.findByEmail("jane@example.com")).thenReturn(Optional.empty());
+      when(appUserRepository.findByLowerName("jane doe"))
+          .thenReturn(
+              Optional.of(
+                  AppUserEntity.builder()
+                      .id(12L)
+                      .name("Jane Doe")
+                      .status(UserStatus.ACTIVE)
+                      .build()));
+
+      mockMvc
+          .perform(
+              post("/api/admin/users")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"email\":\"jane@example.com\",\"displayName\":\"Jane Doe\"}"))
+          .andExpect(status().isConflict())
+          .andExpect(
+              jsonPath("$.message").value("A user named 'Jane Doe' already exists (id 12)."));
+
+      verify(appUserRepository, never()).insert(any());
+    }
+
     @Test
     void missingEmailReturns400() throws Exception {
       mockMvc
@@ -234,12 +290,11 @@ class AdminUserControllerTest {
     }
 
     /**
-     * V35 merged {@code content_people} into {@code users} as {@code status=PERSON} rows: tag-only
-     * identities with no account. The admin account list must skip them, and must not 400 on the
-     * new enum value.
+     * Tag-only {@code PERSON} rows have no account, but the admin must still see them: a hidden row
+     * is what made a name clash on create look like a phantom 409.
      */
     @Test
-    void listUsersExcludesPersonTagRows() throws Exception {
+    void listUsersIncludesPersonTagRows() throws Exception {
       AppUserEntity account =
           AppUserEntity.builder()
               .id(1L)
@@ -254,9 +309,11 @@ class AdminUserControllerTest {
       mockMvc
           .perform(get("/api/admin/users"))
           .andExpect(status().isOk())
-          .andExpect(jsonPath("$.length()").value(1))
-          .andExpect(jsonPath("$[0].id").value(1))
-          .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+          .andExpect(jsonPath("$.length()").value(2))
+          .andExpect(jsonPath("$[0].status").value("ACTIVE"))
+          .andExpect(jsonPath("$[1].id").value(2))
+          .andExpect(jsonPath("$[1].displayName").value("Abby Bennett"))
+          .andExpect(jsonPath("$[1].status").value("PERSON"));
     }
   }
 

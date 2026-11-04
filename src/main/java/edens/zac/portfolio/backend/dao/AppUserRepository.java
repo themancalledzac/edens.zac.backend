@@ -58,6 +58,17 @@ public class AppUserRepository extends BaseDao {
     return queryForObject(sql, APP_USER_ROW_MAPPER, params);
   }
 
+  /**
+   * Match on {@code LOWER(name)}, the expression the {@code idx_users_name_lower} index is built
+   * on. The caller passes the name already lowercased.
+   */
+  @Transactional(readOnly = true)
+  public Optional<AppUserEntity> findByLowerName(String lowerName) {
+    String sql = SELECT_APP_USER + " WHERE LOWER(name) = :lowerName";
+    MapSqlParameterSource params = createParameterSource().addValue("lowerName", lowerName);
+    return queryForObject(sql, APP_USER_ROW_MAPPER, params);
+  }
+
   @Transactional(readOnly = true)
   public Optional<AppUserEntity> findByWebauthnUserHandle(UUID handle) {
     String sql = SELECT_APP_USER + " WHERE webauthn_user_handle = :handle";

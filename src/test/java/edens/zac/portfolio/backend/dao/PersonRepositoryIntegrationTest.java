@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import edens.zac.portfolio.backend.AbstractPostgresIntegrationTest;
 import edens.zac.portfolio.backend.types.UserStatus;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -40,7 +41,7 @@ class PersonRepositoryIntegrationTest extends AbstractPostgresIntegrationTest {
             + "VALUES (?, ?, gen_random_uuid(), ?) RETURNING id",
         Long.class,
         name,
-        name + "@x.com",
+        name.toLowerCase(Locale.ROOT) + "@x.com",
         status.name());
   }
 

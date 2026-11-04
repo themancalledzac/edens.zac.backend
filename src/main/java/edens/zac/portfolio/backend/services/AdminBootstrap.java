@@ -4,6 +4,7 @@ import edens.zac.portfolio.backend.dao.AppUserRepository;
 import edens.zac.portfolio.backend.entity.AppUserEntity;
 import edens.zac.portfolio.backend.types.UserStatus;
 import jakarta.annotation.PostConstruct;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +37,7 @@ public class AdminBootstrap {
       @Value("${app.auth.admin.bootstrap-password:}") String bootstrapPassword) {
     this.appUserRepository = appUserRepository;
     this.passwordEncoder = passwordEncoder;
-    this.bootstrapEmail = bootstrapEmail;
+    this.bootstrapEmail = bootstrapEmail == null ? null : bootstrapEmail.toLowerCase(Locale.ROOT);
     this.bootstrapPassword = bootstrapPassword;
   }
 
