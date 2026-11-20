@@ -4,7 +4,7 @@
 
 ## Context
 
-Spring Boot 3.4.1 / Java 23 backend for a photography portfolio. Lightroom plugin exports images to the backend, which stores them in S3, extracts EXIF/XMP metadata (camera, lens, ISO, fStop, shutterSpeed, focalLength, location, blackAndWhite, isFilm, filmType, rating, etc.), and saves everything to PostgreSQL. Tags and people are currently assigned manually via admin endpoints.
+Spring Boot 3.5 / Java 25 backend for a photography portfolio. Lightroom plugin exports images to the backend, which stores them in S3, extracts EXIF/XMP metadata (camera, lens, ISO, fStop, shutterSpeed, focalLength, location, blackAndWhite, isFilm, filmType, rating, etc.), and saves everything to PostgreSQL. Tags and people are currently assigned manually via admin endpoints.
 
 - **Existing entities**: ContentImageEntity (25+ fields), TagEntity (many-to-many), ContentPersonEntity (many-to-many), LocationEntity
 - **Upload flow**: ContentControllerDev `POST /api/admin/content/images/{collectionId}` -> ContentService.createImagesParallel() -> S3 upload + EXIF extraction -> DB save

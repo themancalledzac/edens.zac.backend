@@ -2,7 +2,7 @@
 
 ## Overview
 
-Single EC2 instance running Docker Compose with PostgreSQL 16 + Spring Boot 3.4.1 (Java 23) + optional Caddy reverse proxy for HTTPS. CI runs on GitHub Actions. Deployment is manual via SSH.
+Single EC2 instance running Docker Compose with PostgreSQL 16 + Spring Boot 3.5 (Java 25) + optional Caddy reverse proxy for HTTPS. CI runs on GitHub Actions. Deployment is manual via SSH.
 
 **Design goals**: Cheap (single EC2), simple (a friend could clone and deploy), reliable (health checks, memory limits, backups).
 
@@ -112,14 +112,14 @@ Push to any branch
 
 ### Dockerfile (Multi-stage)
 
-**Build stage:** `maven:3.9.9-eclipse-temurin-23`
+**Build stage:** `maven:3.9.11-eclipse-temurin-25`
 - Copies `pom.xml` first for dependency caching
 - `mvn dependency:go-offline` caches deps in a layer
 - `mvn clean package -DskipTests` builds the JAR
 
-**Runtime stage:** `eclipse-temurin:23-jre-alpine` (not JDK — smaller, more secure)
+**Runtime stage:** `eclipse-temurin:25-jre-alpine` (not JDK — smaller, more secure)
 - Copies only the JAR
-- JVM flags: `-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0`
+- JVM flags: `-Xmx512m -Xms256m -XX:-UseBASE64Intrinsics -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0`
 - These flags prevent OOM on small instances shared with PostgreSQL
 
 ### docker-compose.yml

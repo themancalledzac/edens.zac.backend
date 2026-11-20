@@ -13,7 +13,7 @@ The frontend is a separate Next.js app, [edens.zac](https://github.com/themancal
 
 | Layer | Technology |
 |---|---|
-| Runtime | Java 23, Spring Boot 3.5 |
+| Runtime | Java 25, Spring Boot 3.5 |
 | Database | PostgreSQL 16, Flyway migrations |
 | Data access | JDBC via `NamedParameterJdbcTemplate` and hand-written SQL (no JPA) |
 | Auth | Spring Security, DB-backed sessions, passwords (bcrypt) and passkeys (webauthn4j) |
@@ -110,7 +110,7 @@ The controllers in `controller/` are the full list of endpoints.
 
 ### Prerequisites
 
-- Java 23
+- Java 25
 - Docker (the tests start PostgreSQL with Testcontainers)
 - Access to a PostgreSQL 16 database: the EC2 instance through an SSH tunnel, or a local one
 - AWS credentials with access to the S3 bucket

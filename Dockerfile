@@ -1,5 +1,5 @@
 # Use an official Maven image to build the application
-FROM --platform=linux/amd64 maven:3.9.9-eclipse-temurin-23 AS build
+FROM --platform=linux/amd64 maven:3.9.11-eclipse-temurin-25 AS build
 
 # Set the working directory in the container
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Use an official Java runtime as a parent image
-FROM --platform=linux/amd64 eclipse-temurin:23-jre-alpine
+FROM --platform=linux/amd64 eclipse-temurin:25-jre-alpine
 
 # ffmpeg is required at runtime by ImageProcessingService.processGifContent
 # for first-frame thumbnail extraction on MP4/MOV uploads.
@@ -38,4 +38,4 @@ EXPOSE 8080
 # JVM heap is configured via JAVA_OPTS env var (see docker-compose.yml)
 # MaxRAMPercentage is a safety fallback if JAVA_OPTS is misconfigured
 # exec ensures java is PID 1 and receives Docker stop signals correctly
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -XX:-UseBASE64Intrinsics -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -jar app.jar"]
