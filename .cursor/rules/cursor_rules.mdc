@@ -2,7 +2,7 @@
 
 ## Project Context
 
-- Java 23 / Spring Boot 3.4.1
+- Java 25 / Spring Boot 3.5
 - Package: `edens.zac.portfolio.backend`
 - Current system: Collection/Content architecture (refactor complete)
 - MySQL (prod) / H2 (dev)

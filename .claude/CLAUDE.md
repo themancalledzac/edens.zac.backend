@@ -1,7 +1,7 @@
 # Portfolio Backend - Claude Context
 
 ## What This Is
-Spring Boot 3.4.1 / Java 23 backend for a photography and coding portfolio. Manages images, collections, and metadata with PostgreSQL storage and AWS S3 for media.
+Spring Boot 3.5 / Java 25 backend for a photography and coding portfolio. Manages images, collections, and metadata with PostgreSQL storage and AWS S3 for media.
 
 Package: `edens.zac.portfolio.backend`
 
